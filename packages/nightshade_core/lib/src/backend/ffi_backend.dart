@@ -849,6 +849,12 @@ class FfiBackend implements NightshadeBackend {
     await bridge.NativeBridge.setCameraOffset(deviceId, offset);
   }
 
+  @override
+  Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
+      String deviceId) async {
+    return const CameraRecommendedSettings(notes: '');
+  }
+
   // =========================================================================
   // Mount Control
   // =========================================================================
@@ -993,6 +999,14 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<String>> filterWheelGetNames(String deviceId) async {
     return await bridge.NativeBridge.apiFilterwheelGetNames(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
+    await bridge_api.apiFilterwheelSetFilterNames(
+      deviceId: deviceId,
+      names: names,
+    );
   }
 
   @override

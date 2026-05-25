@@ -85,14 +85,11 @@ class PushNotificationConfig {
       enabled: enabled ?? this.enabled,
       notifySequenceCompleted:
           notifySequenceCompleted ?? this.notifySequenceCompleted,
-      notifySequenceFailed:
-          notifySequenceFailed ?? this.notifySequenceFailed,
+      notifySequenceFailed: notifySequenceFailed ?? this.notifySequenceFailed,
       notifyMeridianFlip: notifyMeridianFlip ?? this.notifyMeridianFlip,
-      notifyWeatherUnsafe:
-          notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
+      notifyWeatherUnsafe: notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
       notifyGuidingLost: notifyGuidingLost ?? this.notifyGuidingLost,
-      notifyExposureFailed:
-          notifyExposureFailed ?? this.notifyExposureFailed,
+      notifyExposureFailed: notifyExposureFailed ?? this.notifyExposureFailed,
       notifyAutofocusFailed:
           notifyAutofocusFailed ?? this.notifyAutofocusFailed,
       notifyEquipmentDisconnected:
@@ -143,11 +140,8 @@ class PushNotificationService {
     _subscription = _eventStream.listen(
       _handleEvent,
       onError: (error) {
-        developer.log(
-            '[PushNotificationService] Event stream error: $error',
-            name: 'PushNotificationService',
-            level: 1000,
-            error: error);
+        developer.log('[PushNotificationService] Event stream error: $error',
+            name: 'PushNotificationService', level: 1000, error: error);
       },
     );
     developer.log('[PushNotificationService] Started listening for events',
@@ -166,8 +160,7 @@ class PushNotificationService {
   void sendTestNotification() {
     _notificationController.add(PushNotification(
       title: 'Test Notification',
-      body:
-          'Push notifications are working! This is a test from Nightshade.',
+      body: 'Push notifications are working! This is a test from Nightshade.',
       priority: PushNotificationPriority.normal,
       eventType: 'Test',
       category: EventCategory.system,
@@ -204,6 +197,9 @@ class PushNotificationService {
         return _handleEquipmentEvent(event);
       case EventCategory.system:
       case EventCategory.polarAlignment:
+      case EventCategory.job:
+      case EventCategory.session:
+      case EventCategory.catalog:
         return null;
     }
   }
@@ -223,8 +219,7 @@ class PushNotificationService {
 
       case 'Error':
         if (!_config.notifySequenceFailed) return null;
-        final message =
-            event.data['message'] as String? ?? 'Unknown error';
+        final message = event.data['message'] as String? ?? 'Unknown error';
         return PushNotification(
           title: 'Sequence Error',
           body: 'Sequence encountered an error: $message',
@@ -281,7 +276,8 @@ class PushNotificationService {
         final instruction = event.data['instruction'] as String? ?? '';
         if (instruction.toLowerCase().contains('meridian') &&
             _config.notifyMeridianFlip) {
-          final detail = event.data['detail'] as String? ?? 'Performing meridian flip';
+          final detail =
+              event.data['detail'] as String? ?? 'Performing meridian flip';
           return PushNotification(
             title: 'Meridian Flip',
             body: detail,
@@ -325,8 +321,7 @@ class PushNotificationService {
         if (!_config.notifyGuidingLost) return null;
         return PushNotification(
           title: 'Guiding Lost',
-          body:
-              'Guide star has been lost. Guiding has stopped.',
+          body: 'Guide star has been lost. Guiding has stopped.',
           priority: PushNotificationPriority.critical,
           eventType: event.eventType,
           category: event.category,
@@ -337,8 +332,7 @@ class PushNotificationService {
         if (!_config.notifyGuidingLost) return null;
         return PushNotification(
           title: 'Guider Disconnected',
-          body:
-              'PHD2 guiding has disconnected.',
+          body: 'PHD2 guiding has disconnected.',
           priority: PushNotificationPriority.high,
           eventType: event.eventType,
           category: event.category,
@@ -370,10 +364,8 @@ class PushNotificationService {
     switch (event.eventType) {
       case 'Disconnected':
         if (!_config.notifyEquipmentDisconnected) return null;
-        final deviceType =
-            event.data['device_type'] as String? ?? 'Unknown';
-        final deviceId =
-            event.data['device_id'] as String? ?? 'Unknown';
+        final deviceType = event.data['device_type'] as String? ?? 'Unknown';
+        final deviceId = event.data['device_id'] as String? ?? 'Unknown';
         return PushNotification(
           title: 'Device Disconnected',
           body: '$deviceType device disconnected: $deviceId',
@@ -385,10 +377,8 @@ class PushNotificationService {
 
       case 'Error':
         if (!_config.notifyEquipmentDisconnected) return null;
-        final message =
-            event.data['message'] as String? ?? 'Unknown error';
-        final deviceType =
-            event.data['device_type'] as String? ?? 'Unknown';
+        final message = event.data['message'] as String? ?? 'Unknown error';
+        final deviceType = event.data['device_type'] as String? ?? 'Unknown';
         return PushNotification(
           title: 'Equipment Error',
           body: '$deviceType error: $message',

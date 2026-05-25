@@ -1,0 +1,501 @@
+// DEV-P2-1: DeviceService switch-device tests.
+//
+// Mirrors the safety-monitor test coverage shape:
+//   * connectSwitch happy path → backend called, state Connected
+//   * connectSwitch rejects malformed device IDs up-front (P1-7 format guard)
+//   * connectSwitch error path resets state to Disconnected and rethrows
+//   * disconnectSwitch on a connected device → backend called, state cleared
+//   * SwitchStateNotifier basic CRUD (setConnecting / setConnected /
+//     setDisconnected / setError / setAutoReconnect / setChannels)
+//
+// DEV-P2-1 follow-up adds per-channel UI coverage:
+//   * refreshSwitchChannels polls get_max + per-channel name/state and
+//     populates the snapshot
+//   * setSwitchChannel writes via the bridge then mutates the cached
+//     state; the bridge is called exactly once per toggle
+//   * connectSwitch triggers an initial refresh (channel count + labels
+//     land in the snapshot)
+//
+// The FFI branch in connectSwitch / refreshSwitchChannels /
+// setSwitchChannel is normally guarded by `_backend is FfiBackend`,
+// which MockBackend can't satisfy. We use
+// `DeviceService.switchBridgeBypassBackendCheck = true` to let the
+// bridge function-pointer hooks (also overridden) stand in.
+
+import 'dart:async';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:mocktail/mocktail.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart'
+    hide CameraState;
+import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
+import 'package:nightshade_core/src/providers/equipment_provider.dart';
+import 'package:nightshade_core/src/services/device_exceptions.dart';
+import 'package:nightshade_core/src/services/device_service.dart';
+
+import '../mocks/mock_backend.dart';
+
+class _TestBackendNotifier extends BackendNotifier {
+  _TestBackendNotifier(Ref ref, NightshadeBackend backend) : super(ref) {
+    state = backend;
+  }
+}
+
+/// Fakes wired into [DeviceService.switchBridge*] for tests. Each list
+/// is captured so individual cases can assert "called exactly once".
+class _BridgeRecorder {
+  final List<String> getMaxCalls = [];
+  final List<(String, int)> getNameCalls = [];
+  final List<(String, int)> getStateCalls = [];
+  final List<(String, int, bool)> setStateCalls = [];
+
+  /// Number of channels the fake driver reports.
+  int channelCount = 4;
+
+  /// Per-channel labels returned by the fake `apiSwitchGetName`.
+  List<String> labels = const ['12V Rail', 'Dew Strip', 'Camera', 'Mount'];
+
+  /// Per-channel state returned by the fake `apiSwitchGetState`. Also
+  /// the in-memory store for `apiSwitchSetState` writes.
+  List<bool> states = [false, false, false, false];
+
+  /// When non-null, `apiSwitchSetState` throws this exception. Used to
+  /// exercise the "bridge error surfaces and state is NOT updated" path.
+  Object? setStateError;
+
+  void install() {
+    DeviceService.switchBridgeBypassBackendCheck = true;
+    DeviceService.switchBridgeGetMax = (deviceId) async {
+      getMaxCalls.add(deviceId);
+      return channelCount;
+    };
+    DeviceService.switchBridgeGetName = (deviceId, switchId) async {
+      getNameCalls.add((deviceId, switchId));
+      return switchId < labels.length ? labels[switchId] : '';
+    };
+    DeviceService.switchBridgeGetState = (deviceId, switchId) async {
+      getStateCalls.add((deviceId, switchId));
+      return switchId < states.length ? states[switchId] : false;
+    };
+    DeviceService.switchBridgeSetState = (deviceId, switchId, state) async {
+      setStateCalls.add((deviceId, switchId, state));
+      if (setStateError != null) {
+        throw setStateError!;
+      }
+      if (switchId < states.length) {
+        states[switchId] = state;
+      }
+    };
+  }
+}
+
+void main() {
+  late ProviderContainer container;
+  late MockBackend mockBackend;
+  late StreamController<NightshadeEvent> eventStreamController;
+  late _BridgeRecorder bridge;
+
+  setUpAll(() {
+    registerMocktailFallbackValues();
+  });
+
+  setUp(() {
+    mockBackend = MockBackend();
+    eventStreamController = StreamController<NightshadeEvent>.broadcast();
+    bridge = _BridgeRecorder()..install();
+
+    when(() => mockBackend.eventStream)
+        .thenAnswer((_) => eventStreamController.stream);
+    when(() => mockBackend.polarAlignmentEvents)
+        .thenAnswer((_) => const Stream.empty());
+
+    container = ProviderContainer(
+      overrides: [
+        backendProvider
+            .overrideWith((ref) => _TestBackendNotifier(ref, mockBackend)),
+      ],
+    );
+
+    // Initialize DeviceService so event listeners are active.
+    container.read(deviceServiceProvider);
+  });
+
+  tearDown(() {
+    eventStreamController.close();
+    container.dispose();
+    DeviceService.resetSwitchBridgeHooks();
+  });
+
+  group('connectSwitch / disconnectSwitch', () {
+    test('connectSwitch sets state to connected on backend success', () async {
+      const deviceId = TestFixtures.switchId;
+
+      when(() => mockBackend.connectDevice(DeviceType.switch_, deviceId))
+          .thenAnswer((_) async {});
+
+      final service = container.read(deviceServiceProvider);
+      await service.connectSwitch(deviceId);
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.deviceId, deviceId);
+
+      verify(() => mockBackend.connectDevice(DeviceType.switch_, deviceId))
+          .called(1);
+    });
+
+    test('connectSwitch triggers an initial channel refresh', () async {
+      const deviceId = TestFixtures.switchId;
+
+      when(() => mockBackend.connectDevice(DeviceType.switch_, deviceId))
+          .thenAnswer((_) async {});
+      bridge.channelCount = 3;
+      bridge.labels = ['Dew Heater 1', 'Mount Power', 'Camera Power'];
+      bridge.states = [true, false, true];
+
+      final service = container.read(deviceServiceProvider);
+      await service.connectSwitch(deviceId);
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.connected);
+      expect(state.channelCount, 3);
+      expect(state.channelNames,
+          equals(['Dew Heater 1', 'Mount Power', 'Camera Power']));
+      expect(state.channelStates, equals([true, false, true]));
+      expect(state.lastChannelRefresh, isNotNull,
+          reason: 'Initial refresh must stamp the refresh timestamp.');
+      expect(bridge.getMaxCalls.single, deviceId);
+      expect(bridge.getNameCalls, hasLength(3));
+      expect(bridge.getStateCalls, hasLength(3));
+    });
+
+    test('connectSwitch throws InvalidDeviceIdException for malformed id',
+        () async {
+      // DEV-P1-7: format check rejects ids without a recognized driver
+      // prefix. Backend must NOT be contacted.
+      const deviceId = 'no-prefix-bare-id';
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.connectSwitch(deviceId),
+        throwsA(isA<InvalidDeviceIdException>()
+            .having((e) => e.deviceType, 'deviceType', 'switch')
+            .having((e) => e.deviceId, 'deviceId', deviceId)),
+      );
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.disconnected);
+      verifyNever(() => mockBackend.connectDevice(DeviceType.switch_, any()));
+    });
+
+    test('connectSwitch resets state to disconnected and rethrows on backend '
+        'failure', () async {
+      const deviceId = TestFixtures.switchId;
+
+      when(() => mockBackend.connectDevice(DeviceType.switch_, deviceId))
+          .thenThrow(Exception('Driver rejected connect'));
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.connectSwitch(deviceId),
+        throwsA(isA<Exception>()),
+      );
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.disconnected);
+    });
+
+    test('disconnectSwitch clears state when device was connected', () async {
+      const deviceId = TestFixtures.switchId;
+
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test Switch');
+      notifier.setConnected();
+
+      when(() => mockBackend.disconnectDevice(DeviceType.switch_, deviceId))
+          .thenAnswer((_) async {});
+
+      final service = container.read(deviceServiceProvider);
+      await service.disconnectSwitch();
+
+      expect(
+        container.read(switchStateProvider).connectionState,
+        DeviceConnectionState.disconnected,
+      );
+      verify(() => mockBackend.disconnectDevice(DeviceType.switch_, deviceId))
+          .called(1);
+    });
+
+    test('disconnectSwitch throws DeviceNotConnectedException when no device '
+        'was connected', () async {
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.disconnectSwitch(),
+        throwsA(isA<DeviceNotConnectedException>()
+            .having((e) => e.deviceType, 'deviceType', 'switch')),
+      );
+      verifyNever(
+          () => mockBackend.disconnectDevice(DeviceType.switch_, any()));
+    });
+  });
+
+  group('SwitchStateNotifier CRUD', () {
+    test('setConnecting + setConnected transitions through expected states',
+        () {
+      final notifier = container.read(switchStateProvider.notifier);
+
+      expect(container.read(switchStateProvider).connectionState,
+          DeviceConnectionState.disconnected);
+
+      notifier.setConnecting('native:switch:0', 'Test Switch');
+      expect(container.read(switchStateProvider).connectionState,
+          DeviceConnectionState.connecting);
+      expect(container.read(switchStateProvider).deviceId,
+          'native:switch:0');
+
+      notifier.setConnected();
+      expect(container.read(switchStateProvider).connectionState,
+          DeviceConnectionState.connected);
+    });
+
+    test('setDisconnected preserves autoReconnectEnabled', () {
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('native:switch:0', 'Test');
+      notifier.setConnected();
+      notifier.setAutoReconnect(false);
+
+      notifier.setDisconnected();
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.disconnected);
+      expect(state.deviceId, isNull);
+      expect(state.autoReconnectEnabled, isFalse,
+          reason: 'Auto-reconnect preference must persist across disconnects '
+              '(DEV-P1-1 contract).');
+    });
+
+    test('setError moves state to error and stores DeviceError', () {
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('native:switch:0', 'Test');
+      notifier.setConnected();
+
+      notifier.setError(Exception('Bus timeout'));
+
+      final state = container.read(switchStateProvider);
+      expect(state.connectionState, DeviceConnectionState.error);
+      expect(state.lastError, isNotNull);
+      expect(state.lastError!.message, contains('Bus timeout'));
+    });
+
+    test('setChannels stores the channel snapshot', () {
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('native:switch:0', 'Test');
+      notifier.setConnected();
+
+      notifier.setChannels(
+        count: 4,
+        names: ['12V Rail', 'Dew Strip', 'Camera', 'Mount'],
+        states: [true, false, true, true],
+      );
+
+      final state = container.read(switchStateProvider);
+      expect(state.channelCount, 4);
+      expect(state.channelNames, hasLength(4));
+      expect(state.channelStates, hasLength(4));
+      expect(state.channelNames[0], '12V Rail');
+      expect(state.channelStates[1], isFalse);
+      expect(state.channelStates[2], isTrue);
+    });
+
+    test('setChannelState mutates only the indexed channel', () {
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('native:switch:0', 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 3,
+        names: ['A', 'B', 'C'],
+        states: [false, false, false],
+      );
+
+      notifier.setChannelState(1, true);
+
+      final state = container.read(switchStateProvider);
+      expect(state.channelStates, equals([false, true, false]));
+    });
+
+    test('setChannelState silently ignores out-of-range indices', () {
+      // The UI must not be able to corrupt the cached snapshot by
+      // requesting a channel that does not exist in `channelStates`.
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting('native:switch:0', 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 2,
+        names: ['A', 'B'],
+        states: [false, false],
+      );
+
+      notifier.setChannelState(5, true);
+      notifier.setChannelState(-1, true);
+
+      final state = container.read(switchStateProvider);
+      expect(state.channelStates, equals([false, false]));
+    });
+  });
+
+  group('refreshSwitchChannels', () {
+    test('populates channel labels + states from the bridge', () async {
+      const deviceId = TestFixtures.switchId;
+
+      // Hand-build the connected state instead of routing through
+      // connectSwitch so we exercise refreshSwitchChannels in
+      // isolation.
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+
+      bridge.channelCount = 2;
+      bridge.labels = ['Rail A', 'Rail B'];
+      bridge.states = [true, false];
+
+      final service = container.read(deviceServiceProvider);
+      await service.refreshSwitchChannels();
+
+      final state = container.read(switchStateProvider);
+      expect(state.channelCount, 2);
+      expect(state.channelNames, equals(['Rail A', 'Rail B']));
+      expect(state.channelStates, equals([true, false]));
+      expect(state.lastChannelRefresh, isNotNull);
+    });
+
+    test('falls back to "" label when a per-channel name fetch fails',
+        () async {
+      // The provider+UI fall-back to "Channel N" labels for empty
+      // strings, so we just need to verify the empty string is what
+      // lands in the snapshot when the bridge throws on `get_name`.
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+
+      bridge.channelCount = 2;
+      DeviceService.switchBridgeGetName = (deviceId, switchId) async {
+        if (switchId == 0) throw StateError('driver lied');
+        return 'Real Name';
+      };
+
+      final service = container.read(deviceServiceProvider);
+      await service.refreshSwitchChannels();
+
+      final state = container.read(switchStateProvider);
+      expect(state.channelNames, equals(['', 'Real Name']));
+    });
+
+    test('is a no-op when no switch is connected', () async {
+      final service = container.read(deviceServiceProvider);
+      await service.refreshSwitchChannels();
+      expect(bridge.getMaxCalls, isEmpty);
+    });
+  });
+
+  group('setSwitchChannel', () {
+    test('writes through to the bridge exactly once and updates state',
+        () async {
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 2,
+        names: ['Rail A', 'Rail B'],
+        states: [false, false],
+      );
+
+      final service = container.read(deviceServiceProvider);
+      await service.setSwitchChannel(0, true);
+
+      expect(bridge.setStateCalls, equals([(deviceId, 0, true)]));
+      expect(
+        container.read(switchStateProvider).channelStates,
+        equals([true, false]),
+      );
+    });
+
+    test('toggling off→on fires the bridge call exactly once', () async {
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 1,
+        names: ['Rail'],
+        states: [false],
+      );
+
+      final service = container.read(deviceServiceProvider);
+      await service.setSwitchChannel(0, true);
+
+      expect(bridge.setStateCalls, hasLength(1),
+          reason: 'A single user toggle must produce exactly one bridge '
+              'write — no retries, no double-fires.');
+      expect(bridge.setStateCalls.single, (deviceId, 0, true));
+      expect(container.read(switchStateProvider).channelStates.single, isTrue);
+    });
+
+    test('throws and does NOT mutate state when the bridge fails', () async {
+      // CLAUDE.md "errors are a feature" — silent fallbacks would lie
+      // about hardware state.
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 1,
+        names: ['Rail'],
+        states: [false],
+      );
+      bridge.setStateError = StateError('relay stuck');
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.setSwitchChannel(0, true),
+        throwsA(isA<StateError>()),
+      );
+
+      expect(container.read(switchStateProvider).channelStates.single, isFalse,
+          reason: 'A failed bridge write MUST NOT optimistically flip the '
+              'cached state.');
+    });
+
+    test('throws DeviceNotConnectedException when no switch is connected',
+        () async {
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.setSwitchChannel(0, true),
+        throwsA(isA<DeviceNotConnectedException>()),
+      );
+      expect(bridge.setStateCalls, isEmpty);
+    });
+
+    test('throws ArgumentError for out-of-range channelIndex', () async {
+      const deviceId = TestFixtures.switchId;
+      final notifier = container.read(switchStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test');
+      notifier.setConnected();
+      notifier.setChannels(
+        count: 2,
+        names: ['A', 'B'],
+        states: [false, false],
+      );
+
+      final service = container.read(deviceServiceProvider);
+      await expectLater(
+        service.setSwitchChannel(5, true),
+        throwsA(isA<ArgumentError>()),
+      );
+      expect(bridge.setStateCalls, isEmpty);
+    });
+  });
+}

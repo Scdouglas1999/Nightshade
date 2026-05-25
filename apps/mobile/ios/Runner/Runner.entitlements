@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!--
+	  Critical Alerts entitlement.
+
+	  Required so notifications with InterruptionLevel.critical (see
+	  apps/mobile/lib/services/notification_service.dart — notifySafety,
+	  notifyMountParked, notifyGuidingLost, notifyEquipmentDisconnected) can
+	  bypass Do Not Disturb, Focus modes and the ringer/silent switch and
+	  wake an operator who is asleep while a sequence runs unattended.
+
+	  This key alone is NOT enough — Apple must explicitly grant the
+	  entitlement on the developer account (see
+	  apps/mobile/ios/CRITICAL_ALERTS_SETUP.md). Until then, the build will
+	  still succeed but iOS silently downgrades the alerts to default
+	  interruption level.
+	-->
+	<key>com.apple.developer.usernotifications.critical-alerts</key>
+	<true/>
+</dict>
+</plist>

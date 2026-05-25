@@ -1,0 +1,240 @@
+import '../../../models/sequence/sequence_models.dart';
+import '../../profiles_provider.dart';
+import '../sequence_validation.dart';
+
+/// Wave 3 Agent 2: SmartExposure validation rules.
+///
+/// These rules cover the three failure modes the brief calls out:
+///   * empty plans (executable but pointless — error)
+///   * any plan with count == 0 (silently never runs — warning)
+///   * missing filter wheel on the active equipment profile (the node
+///     cannot execute without one — error)
+///
+/// All three are pure structural rules apart from
+/// [SmartExposureFilterWheelMissingRule] which needs `Ref` to read the
+/// active profile.
+
+/// Empty plans = nothing to do. Sequence will still run, but the
+/// SmartExposure node returns Success immediately without capturing any
+/// frames. Treat as an error so the user fixes it before pressing Start.
+class SmartExposureEmptyPlansRule implements SequenceValidator {
+  @override
+  String get name => 'SmartExposureEmptyPlans';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (node is! SmartExposureNode) continue;
+      if (!node.isEnabled) continue;
+      if (node.plans.isEmpty) {
+        issues.add(ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.exposures,
+          title: 'SmartExposure has no filter plans',
+          description:
+              'Smart Exposure "${node.name}" has no filter plans. It will run but capture no images.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Add at least one filter plan (filter + count + duration).',
+        ));
+      }
+    }
+    return issues;
+  }
+}
+
+/// Any plan with count <= 0 will never execute a single exposure. Treat
+/// as a warning — the rest of the SmartExposure run still works — but
+/// surface it so the user notices the dead row.
+class SmartExposureNegativeCountRule implements SequenceValidator {
+  @override
+  String get name => 'SmartExposureNegativeCount';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (node is! SmartExposureNode) continue;
+      if (!node.isEnabled) continue;
+      for (var i = 0; i < node.plans.length; i++) {
+        final p = node.plans[i];
+        if (p.count <= 0) {
+          issues.add(ValidationIssue(
+            severity: ValidationSeverity.warning,
+            category: ValidationCategory.exposures,
+            title: 'SmartExposure plan never runs',
+            description:
+                'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has count ${p.count} — no frames will be taken for this filter.',
+            affectedNodeId: node.id,
+            resolutionHint:
+                'Set count to a positive number, or remove the row entirely.',
+          ));
+        }
+        if (p.durationSecs <= 0) {
+          issues.add(ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'SmartExposure plan has invalid duration',
+            description:
+                'Smart Exposure "${node.name}": plan ${i + 1} ("${p.filterName}") has duration ${p.durationSecs}s.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Set a positive sub-exposure duration.',
+          ));
+        }
+        if (p.filterName.trim().isEmpty) {
+          issues.add(ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.exposures,
+            title: 'SmartExposure plan has no filter',
+            description:
+                'Smart Exposure "${node.name}": plan ${i + 1} has an empty filter name. The runtime cannot route the filter change.',
+            affectedNodeId: node.id,
+            resolutionHint: 'Pick a filter from the active equipment profile.',
+          ));
+        }
+      }
+
+      // Duplicate filter names: legal but usually a UX mistake.
+      if (node.hasDuplicateFilter && node.plans.length > 1) {
+        issues.add(ValidationIssue(
+          severity: ValidationSeverity.warning,
+          category: ValidationCategory.exposures,
+          title: 'SmartExposure has duplicate filter rows',
+          description:
+              'Smart Exposure "${node.name}" has two or more rows for the same filter — usually a mistake. SmartExposure tracks per-filter completed counts by name, so duplicate rows compete for the same counter.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Merge duplicate filter rows, or rename one to a different filter.',
+        ));
+      }
+    }
+    return issues;
+  }
+}
+
+/// SmartExposure needs a filter wheel to execute. When the active
+/// equipment profile has no filter wheel device, the node cannot run.
+class SmartExposureFilterWheelMissingRule implements RefAwareSequenceValidator {
+  @override
+  String get name => 'SmartExposureFilterWheelMissing';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence, ValidationContext ctx) {
+    // Bail early when no SmartExposure node uses a filter — the rule has
+    // nothing to check.
+    final hasSmartExposureNode = sequence.nodes.values
+        .whereType<SmartExposureNode>()
+        .any((n) => n.isEnabled);
+    if (!hasSmartExposureNode) return const [];
+
+    // Read the active profile via the same provider the editor uses. If
+    // it's null we can't decide; emit an `info` issue rather than silently
+    // passing — matches the validator contract ("must not silently swallow
+    // missing context").
+    final profile = ctx.ref.read(activeEquipmentProfileProvider);
+    if (profile == null) {
+      return [
+        const ValidationIssue(
+          severity: ValidationSeverity.info,
+          category: ValidationCategory.equipment,
+          title: 'Cannot check SmartExposure filter wheel',
+          description:
+              'No active equipment profile is selected, so the SmartExposure filter-wheel requirement could not be verified.',
+        ),
+      ];
+    }
+
+    // The profile carries a `filterNames` list — empty means no filter
+    // wheel is configured.
+    if (profile.filterNames.isNotEmpty) return const [];
+
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (node is! SmartExposureNode) continue;
+      if (!node.isEnabled) continue;
+      issues.add(ValidationIssue(
+        severity: ValidationSeverity.error,
+        category: ValidationCategory.equipment,
+        title: 'No filter wheel for SmartExposure',
+        description:
+            'Smart Exposure "${node.name}" requires a filter wheel, but the active equipment profile has no filters configured.',
+        affectedNodeId: node.id,
+        resolutionHint:
+            'Edit the active profile and add at least one filter, or remove the SmartExposure node.',
+      ));
+    }
+    return issues;
+  }
+}
+
+/// Per-row check: every SmartExposure plan whose `filterName` is non-empty
+/// must reference a filter that the active equipment profile actually has.
+///
+/// Without this check, a user can save (and start) a sequence that calls
+/// for filter "OIII" while the profile only carries `L, R, G, B` — the
+/// runtime then either silently routes to the wrong slot or fails partway
+/// through. Audit item C6 ("SmartExposure validation doesn't verify per-row
+/// filter names against the active profile") is exactly this gap.
+///
+/// Pairs with [SmartExposureFilterWheelMissingRule] (no filters at all) and
+/// the per-row empty-name check inside [SmartExposureNegativeCountRule]
+/// (empty `filterName`). This rule is the case in between: the row has a
+/// name, the profile has names, they just don't agree. Comparison is
+/// case-insensitive, matching the convention used by [FilterInWheelRule]
+/// for ExposureNode/FilterChangeNode against the live wheel.
+class SmartExposureFilterUnknownRule implements RefAwareSequenceValidator {
+  @override
+  String get name => 'SmartExposureFilterUnknown';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence, ValidationContext ctx) {
+    // Bail early when no enabled SmartExposure node is in the sequence.
+    final smartExposureNodes = sequence.nodes.values
+        .whereType<SmartExposureNode>()
+        .where((n) => n.isEnabled)
+        .toList();
+    if (smartExposureNodes.isEmpty) return const [];
+
+    final profile = ctx.ref.read(activeEquipmentProfileProvider);
+    if (profile == null) {
+      // No profile → SmartExposureFilterWheelMissingRule already emits an
+      // info issue explaining the check was skipped. Don't double-report;
+      // returning empty here keeps the validator output clean.
+      return const [];
+    }
+
+    // Empty profile filter list is already flagged as an error by
+    // SmartExposureFilterWheelMissingRule. Nothing useful to add here.
+    if (profile.filterNames.isEmpty) return const [];
+
+    // Case-insensitive lookup set, matching FilterInWheelRule's convention.
+    final availableLower =
+        profile.filterNames.map((f) => f.toLowerCase()).toSet();
+    final availableLabel = profile.filterNames.join(', ');
+
+    final issues = <ValidationIssue>[];
+    for (final node in smartExposureNodes) {
+      for (var i = 0; i < node.plans.length; i++) {
+        final plan = node.plans[i];
+        final raw = plan.filterName;
+        // Empty filter names are handled by SmartExposureNegativeCountRule's
+        // per-row empty-filter check — skip to avoid double-counting.
+        if (raw.trim().isEmpty) continue;
+        if (availableLower.contains(raw.toLowerCase())) continue;
+        issues.add(ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.equipment,
+          title: 'SmartExposure plan filter not in profile',
+          description:
+              'Smart Exposure "${node.name}": plan ${i + 1} uses filter "$raw" '
+              'which is not in the active equipment profile. Available: $availableLabel.',
+          affectedNodeId: node.id,
+          resolutionHint:
+              'Pick a filter from the active profile, or add "$raw" to the profile\'s filter list.',
+        ));
+      }
+    }
+    return issues;
+  }
+}

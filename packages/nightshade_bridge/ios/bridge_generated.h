@@ -238,6 +238,11 @@ typedef struct wire_cst_render_config_dto {
   bool twinkle;
 } wire_cst_render_config_dto;
 
+typedef struct wire_cst_mount_position_dto {
+  double ra_rad;
+  double dec_rad;
+} wire_cst_mount_position_dto;
+
 typedef struct wire_cst_observer_dto {
   double latitude_rad;
   double longitude_rad;
@@ -254,6 +259,24 @@ typedef struct wire_cst_view_pose_dto {
   int32_t projection;
 } wire_cst_view_pose_dto;
 
+typedef struct wire_cst_PoseLockDto_LockedToTarget {
+  uint64_t object_id;
+} wire_cst_PoseLockDto_LockedToTarget;
+
+typedef struct wire_cst_PoseLockDto_LockedToBody {
+  int32_t body;
+} wire_cst_PoseLockDto_LockedToBody;
+
+typedef union PoseLockDtoKind {
+  struct wire_cst_PoseLockDto_LockedToTarget LockedToTarget;
+  struct wire_cst_PoseLockDto_LockedToBody LockedToBody;
+} PoseLockDtoKind;
+
+typedef struct wire_cst_pose_lock_dto {
+  int32_t tag;
+  union PoseLockDtoKind kind;
+} wire_cst_pose_lock_dto;
+
 typedef struct wire_cst_selected_object_dto {
   uint64_t object_id;
   float screen_x;
@@ -269,6 +292,12 @@ typedef struct wire_cst_astro_time_dto {
   double jd_ut1;
   double jd_tt;
 } wire_cst_astro_time_dto;
+
+typedef struct wire_cst_tracking_target_dto {
+  uint64_t object_id;
+  double ra_rad;
+  double dec_rad;
+} wire_cst_tracking_target_dto;
 
 typedef struct wire_cst_api_defect_map_status {
   struct wire_cst_list_prim_u_8_strict *camera_id;
@@ -880,6 +909,19 @@ typedef struct wire_cst_weather_capabilities {
   bool has_wind_speed;
   double *average_period;
 } wire_cst_weather_capabilities;
+
+typedef struct wire_cst_constellation_art_placement_dto {
+  struct wire_cst_list_prim_u_8_strict *abbreviation;
+  float screen_x;
+  float screen_y;
+  float scale;
+  float opacity;
+} wire_cst_constellation_art_placement_dto;
+
+typedef struct wire_cst_list_constellation_art_placement_dto {
+  struct wire_cst_constellation_art_placement_dto *ptr;
+  int32_t len;
+} wire_cst_list_constellation_art_placement_dto;
 
 typedef struct wire_cst_detected_star_info {
   double x;
@@ -1715,6 +1757,7 @@ typedef struct wire_cst_scene_snapshot_dto {
   uint64_t frame_id;
   struct wire_cst_view_pose_dto view_pose;
   struct wire_cst_list_label_hint_dto *labels;
+  struct wire_cst_list_constellation_art_placement_dto *constellation_art;
   struct wire_cst_selected_object_dto *selected;
 } wire_cst_scene_snapshot_dto;
 
@@ -2949,11 +2992,17 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_config(int64_t handle,
                                                                                                     struct wire_cst_render_config_dto *config);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_mount_position(int64_t handle,
+                                                                                                            struct wire_cst_mount_position_dto *mount);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_observer(int64_t handle,
                                                                                                       struct wire_cst_observer_dto *observer);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose(int64_t handle,
                                                                                                   struct wire_cst_view_pose_dto *pose);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose_lock(int64_t handle,
+                                                                                                       struct wire_cst_pose_lock_dto *lock);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_selection(int64_t handle,
                                                                                                        struct wire_cst_selected_object_dto *selected);
@@ -2961,7 +3010,16 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time(int64_t handle,
                                                                                                   struct wire_cst_astro_time_dto *time);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_tracking_target(int64_t handle,
+                                                                                                             struct wire_cst_tracking_target_dto *target);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot(int64_t handle);
+
+void frbgen_nightshade_bridge_wire__crate__api__discovery__scan_ascom_for_type_public(int64_t port_,
+                                                                                      int32_t device_type);
+
+void frbgen_nightshade_bridge_wire__crate__api__discovery__scan_native_for_type_public(int64_t port_,
+                                                                                       int32_t device_type);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__set_camera_cooler(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
@@ -3063,6 +3121,8 @@ struct wire_cst_indi_autofocus_config_api *frbgen_nightshade_bridge_cst_new_box_
 
 struct wire_cst_mount_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_mount_capabilities(void);
 
+struct wire_cst_mount_position_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_mount_position_dto(void);
+
 struct wire_cst_observer_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_observer_dto(void);
 
 struct wire_cst_observer_location *frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location(void);
@@ -3076,6 +3136,8 @@ struct wire_cst_polar_alignment_event *frbgen_nightshade_bridge_cst_new_box_auto
 struct wire_cst_polar_alignment_image_event *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event(void);
 
 struct wire_cst_polar_alignment_status *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_status(void);
+
+struct wire_cst_pose_lock_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_pose_lock_dto(void);
 
 struct wire_cst_render_config_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_render_config_dto(void);
 
@@ -3103,6 +3165,8 @@ struct wire_cst_system_event *frbgen_nightshade_bridge_cst_new_box_autoadd_syste
 
 int32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_rate(int32_t value);
 
+struct wire_cst_tracking_target_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_target_dto(void);
+
 uint16_t *frbgen_nightshade_bridge_cst_new_box_autoadd_u_16(uint16_t value);
 
 uint32_t *frbgen_nightshade_bridge_cst_new_box_autoadd_u_32(uint32_t value);
@@ -3114,6 +3178,8 @@ struct wire_cst_view_pose_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_view
 struct wire_cst_weather_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_weather_capabilities(void);
 
 struct wire_cst_list_String *frbgen_nightshade_bridge_cst_new_list_String(int32_t len);
+
+struct wire_cst_list_constellation_art_placement_dto *frbgen_nightshade_bridge_cst_new_list_constellation_art_placement_dto(int32_t len);
 
 struct wire_cst_list_detected_star_info *frbgen_nightshade_bridge_cst_new_list_detected_star_info(int32_t len);
 
@@ -3191,6 +3257,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_imaging_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_indi_autofocus_config_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_mount_capabilities);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_mount_position_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_observer_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side);
@@ -3198,6 +3265,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_pose_lock_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_render_config_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_rotator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_safety_event);
@@ -3211,12 +3279,14 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_switch_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_system_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_rate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_target_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_u_16);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_u_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_u_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_view_pose_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_weather_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_String);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_constellation_art_placement_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_detected_star_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_device_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_equipment_profile);
@@ -3381,6 +3451,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_indi_common_hosts);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_indi_localhost);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_indi_network);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__scan_ascom_for_type_public);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__discovery__scan_native_for_type_public);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__event_stream__api_event_stream);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__event_stream__api_get_dropped_event_count);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_get_device_health);
@@ -3494,10 +3566,13 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_register_star_pack);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_resize);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_config);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_mount_position);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_observer);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose_lock);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_selection);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_tracking_target);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_get_plate_solver_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_is_plate_solver_available);

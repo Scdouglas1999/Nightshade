@@ -190,8 +190,8 @@ class MountStatus {
       canPulseGuide: json['can_pulse_guide'] ?? json['canPulseGuide'] ?? false,
       canSetTrackingRate:
           json['can_set_tracking_rate'] ?? json['canSetTrackingRate'] ?? false,
-      availability: (json['availability'] as Map?)
-              ?.map((key, value) => MapEntry(key.toString(), value.toString())) ??
+      availability: (json['availability'] as Map?)?.map(
+              (key, value) => MapEntry(key.toString(), value.toString())) ??
           const {},
     );
   }
@@ -367,14 +367,15 @@ class RotatorStatus {
 
   /// Create from JSON (for network transport)
   factory RotatorStatus.fromJson(Map<String, dynamic> json) {
+    final position = json['position']?.toDouble() ?? 0.0;
     return RotatorStatus(
       connected: json['connected'] as bool? ?? false,
-      position: json['position']?.toDouble() ?? 0.0,
+      position: position,
       moving: json['moving'] as bool? ?? false,
       mechanicalPosition:
           (json['mechanical_position'] ?? json['mechanicalPosition'])
                   ?.toDouble() ??
-              0.0,
+              position,
       isMoving: json['is_moving'] ?? json['isMoving'] ?? false,
       canReverse: json['can_reverse'] ?? json['canReverse'] ?? false,
     );

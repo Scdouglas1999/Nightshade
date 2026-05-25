@@ -6,6 +6,7 @@
 /// without needing additional software like ASCOM Remote.
 ///
 /// Reference: https://ascom-standards.org/
+library;
 
 import 'dart:developer' as developer;
 import 'dart:io';

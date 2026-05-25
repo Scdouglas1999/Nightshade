@@ -24,9 +24,39 @@ impl DeviceManager {
             .strip_prefix("ascom:")
             .ok_or_else(|| "Invalid ASCOM device ID".to_string())?;
 
+        macro_rules! disconnect_existing_ascom {
+            ($map:expr, $label:literal) => {{
+                let old_wrapper = {
+                    let mut map = $map.write().await;
+                    map.remove(&info.id)
+                };
+                if let Some(old_wrapper) = old_wrapper {
+                    let mut old = old_wrapper.write().await;
+                    match old.disconnect().await {
+                        Ok(()) => {
+                            tracing::info!(
+                                "Disconnected old ASCOM {} wrapper for {} before reconnect",
+                                $label,
+                                info.id
+                            );
+                        }
+                        Err(error) => {
+                            tracing::warn!(
+                                "Failed to disconnect old ASCOM {} wrapper for {} before reconnect: {}",
+                                $label,
+                                info.id,
+                                error
+                            );
+                        }
+                    }
+                }
+            }};
+        }
+
         match info.device_type {
             DeviceType::Camera => {
                 use crate::ascom_wrapper::AscomCameraWrapper;
+                disconnect_existing_ascom!(self.ascom_cameras, "camera");
                 let mut camera = AscomCameraWrapper::new(prog_id.to_string())?;
                 // Let user select the specific camera/config via ASCOM SetupDialog before connecting
                 camera.setup_dialog().await.map_err(|e| e.to_string())?;
@@ -38,6 +68,7 @@ impl DeviceManager {
             }
             DeviceType::Mount => {
                 use crate::ascom_wrapper_mount::AscomMountWrapper;
+                disconnect_existing_ascom!(self.ascom_mounts, "mount");
                 let mut mount = AscomMountWrapper::new(prog_id.to_string())?;
                 mount.connect().await.map_err(|e| e.to_string())?;
 
@@ -46,6 +77,7 @@ impl DeviceManager {
             }
             DeviceType::Focuser => {
                 use crate::ascom_wrapper_focuser::AscomFocuserWrapper;
+                disconnect_existing_ascom!(self.ascom_focusers, "focuser");
                 let mut focuser = AscomFocuserWrapper::new(prog_id.to_string())?;
                 focuser.connect().await.map_err(|e| e.to_string())?;
 
@@ -55,22 +87,7 @@ impl DeviceManager {
             DeviceType::FilterWheel => {
                 use crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper;
 
-                // Disconnect and remove old wrapper BEFORE creating new one.
-                // If we don't, the old wrapper's Drop will disconnect the COM device
-                // after the new wrapper has already connected to it, killing the connection.
-                {
-                    let mut ascom_filter_wheels = self.ascom_filter_wheels.write().await;
-                    if let Some(old_fw) = ascom_filter_wheels.remove(&info.id) {
-                        let mut old = old_fw.write().await;
-                        let _ = old.disconnect().await;
-                        drop(old);
-                        drop(old_fw);
-                        tracing::info!(
-                            "Disconnected old ASCOM filter wheel wrapper for {}",
-                            info.id
-                        );
-                    }
-                }
+                disconnect_existing_ascom!(self.ascom_filter_wheels, "filter wheel");
 
                 let mut fw = AscomFilterWheelWrapper::new(prog_id.to_string())?;
                 fw.connect().await.map_err(|e| e.to_string())?;
@@ -81,13 +98,7 @@ impl DeviceManager {
             DeviceType::Rotator => {
                 use crate::ascom_wrapper_rotator::AscomRotatorWrapper;
 
-                {
-                    let mut ascom_rotators = self.ascom_rotators.write().await;
-                    if let Some(old_rotator) = ascom_rotators.remove(&info.id) {
-                        let mut old = old_rotator.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
+                disconnect_existing_ascom!(self.ascom_rotators, "rotator");
 
                 let mut rotator = AscomRotatorWrapper::new(prog_id.to_string())?;
                 rotator.connect().await?;
@@ -97,6 +108,7 @@ impl DeviceManager {
             }
             DeviceType::Dome => {
                 use crate::ascom_wrapper_dome::AscomDomeWrapper;
+                disconnect_existing_ascom!(self.ascom_domes, "dome");
                 let mut dome = AscomDomeWrapper::new(prog_id.to_string())?;
                 dome.connect().await?;
 
@@ -105,6 +117,7 @@ impl DeviceManager {
             }
             DeviceType::Switch => {
                 use crate::ascom_wrapper_switch::AscomSwitchWrapper;
+                disconnect_existing_ascom!(self.ascom_switches, "switch");
                 let mut sw = AscomSwitchWrapper::new(prog_id.to_string())?;
                 sw.connect().await.map_err(|e| e.to_string())?;
 
@@ -114,13 +127,7 @@ impl DeviceManager {
             DeviceType::Weather => {
                 use crate::ascom_wrapper_weather::AscomObservingConditionsWrapper;
 
-                {
-                    let mut ascom_weather = self.ascom_weather.write().await;
-                    if let Some(old_weather) = ascom_weather.remove(&info.id) {
-                        let mut old = old_weather.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
+                disconnect_existing_ascom!(self.ascom_weather, "weather");
 
                 let mut weather = AscomObservingConditionsWrapper::new(prog_id.to_string())?;
                 weather.connect().await?;
@@ -131,13 +138,7 @@ impl DeviceManager {
             DeviceType::SafetyMonitor => {
                 use crate::ascom_wrapper_safetymonitor::AscomSafetyMonitorWrapper;
 
-                {
-                    let mut ascom_safety_monitors = self.ascom_safety_monitors.write().await;
-                    if let Some(old_monitor) = ascom_safety_monitors.remove(&info.id) {
-                        let mut old = old_monitor.write().await;
-                        let _ = old.disconnect().await;
-                    }
-                }
+                disconnect_existing_ascom!(self.ascom_safety_monitors, "safety monitor");
 
                 let mut safety = AscomSafetyMonitorWrapper::new(prog_id.to_string())?;
                 safety.connect().await?;
@@ -147,6 +148,7 @@ impl DeviceManager {
             }
             DeviceType::CoverCalibrator => {
                 use crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper;
+                disconnect_existing_ascom!(self.ascom_cover_calibrators, "cover calibrator");
                 let mut cover_cal = AscomCoverCalibratorWrapper::new(prog_id.to_string())?;
                 cover_cal.connect().await?;
 

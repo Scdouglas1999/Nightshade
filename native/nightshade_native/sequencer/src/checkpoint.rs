@@ -16,7 +16,18 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 /// Current checkpoint schema version.
-pub const CHECKPOINT_VERSION: u32 = 2;
+pub const CHECKPOINT_VERSION: u32 = 3;
+
+/// Per-wizard resume state stored inside [`SessionCheckpoint::wizard_states`].
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct WizardCheckpoint {
+    /// Stable key identifying the wizard (e.g. `"mosaic"`, `"flat_wizard"`).
+    pub checkpoint_key: String,
+    /// Number of plan steps completed before the interruption.
+    pub completed_steps: u32,
+    /// When this wizard checkpoint was last written.
+    pub timestamp: DateTime<Utc>,
+}
 
 /// Serializable copy of trigger state needed to resume without repeating actions.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -207,6 +218,9 @@ pub struct SessionCheckpoint {
     /// Trigger state and runtime trigger settings for crash-safe resume.
     #[serde(default)]
     pub trigger_state: Option<TriggerStateSnapshot>,
+    /// Wizard-internal step checkpoints keyed by wizard name.
+    #[serde(default)]
+    pub wizard_states: HashMap<String, WizardCheckpoint>,
 }
 
 impl SessionCheckpoint {
@@ -232,7 +246,21 @@ impl SessionCheckpoint {
             completed_integration_secs: 0.0,
             is_active: false,
             trigger_state: None,
+            wizard_states: HashMap::new(),
         }
+    }
+
+    /// Store or replace a wizard checkpoint slot.
+    pub fn set_wizard_state(&mut self, checkpoint: WizardCheckpoint) {
+        self.wizard_states
+            .insert(checkpoint.checkpoint_key.clone(), checkpoint);
+        self.timestamp = Utc::now();
+    }
+
+    /// Load a wizard checkpoint by key.
+    #[must_use]
+    pub fn wizard_state(&self, key: &str) -> Option<&WizardCheckpoint> {
+        self.wizard_states.get(key)
     }
 
     /// Update the checkpoint with current progress
@@ -319,6 +347,58 @@ impl SessionCheckpoint {
         Utc::now()
             .signed_duration_since(self.timestamp)
             .num_seconds()
+    }
+}
+
+/// Bridges [`crate::wizard::WizardCheckpointSink`] to on-disk [`SessionCheckpoint`] state.
+pub struct SessionWizardCheckpointSink<'a> {
+    manager: &'a CheckpointManager,
+}
+
+impl<'a> SessionWizardCheckpointSink<'a> {
+    /// Wrap a checkpoint manager for wizard resume persistence.
+    pub fn new(manager: &'a CheckpointManager) -> Self {
+        Self { manager }
+    }
+
+    fn mutate<F>(&self, f: F)
+    where
+        F: FnOnce(&mut SessionCheckpoint),
+    {
+        let mut cp = match self.manager.load() {
+            Ok(Some(existing)) => existing,
+            Ok(None) => SessionCheckpoint::new(SequenceDefinition::new(String::new())),
+            Err(err) => {
+                tracing::warn!("wizard checkpoint load failed: {err}");
+                return;
+            }
+        };
+        f(&mut cp);
+        if let Err(err) = self.manager.save(&cp) {
+            tracing::warn!("wizard checkpoint save failed: {err}");
+        }
+    }
+}
+
+impl crate::wizard::WizardCheckpointSink for SessionWizardCheckpointSink<'_> {
+    fn save(&self, checkpoint: &WizardCheckpoint) {
+        self.mutate(|cp| {
+            cp.set_wizard_state(checkpoint.clone());
+        });
+    }
+
+    fn load(&self, checkpoint_key: &str) -> Option<WizardCheckpoint> {
+        self.manager
+            .load()
+            .ok()
+            .flatten()
+            .and_then(|cp| cp.wizard_state(checkpoint_key).cloned())
+    }
+
+    fn clear(&self, checkpoint_key: &str) {
+        self.mutate(|cp| {
+            cp.wizard_states.remove(checkpoint_key);
+        });
     }
 }
 

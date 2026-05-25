@@ -57,6 +57,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.2.9"
+  basic_utils:
+    dependency: "direct main"
+    description:
+      name: basic_utils
+      sha256: "2064b21d3c41ed7654bc82cc476fd65542e04d60059b74d5eed490a4da08fc6c"
+      url: "https://pub.dev"
+    source: hosted
+    version: "5.7.0"
   bidi:
     dependency: transitive
     description:
@@ -218,7 +226,7 @@ packages:
     source: hosted
     version: "0.3.5+1"
   crypto:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: crypto
       sha256: c8ea0233063ba03258fbcf2ca4d6dadfefe14f02fab57702265467a19f27fadf
@@ -306,7 +314,7 @@ packages:
     source: hosted
     version: "1.3.3"
   ffi:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: ffi
       sha256: "289279317b4b16eb2bb7e271abccd4bf84ec9bdcbe999e278a94b804f5630418"
@@ -693,6 +701,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
+  irondash_engine_context:
+    dependency: "direct main"
+    description:
+      name: irondash_engine_context
+      sha256: "8b8c58f2b6414b0db739b329ca08baf3b66d4fcfc3c315525ddac61639addb90"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.5.0"
   js:
     dependency: transitive
     description:
@@ -873,6 +889,13 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
+  nightshade_planetarium_v2:
+    dependency: "direct main"
+    description:
+      path: "../../packages/nightshade_planetarium_v2"
+      relative: true
+    source: path
+    version: "1.0.0"
   nightshade_plugins:
     dependency: "direct main"
     description:
@@ -958,7 +981,7 @@ packages:
     source: hosted
     version: "2.2.0"
   package_info_plus:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: package_info_plus
       sha256: "16eee997588c60225bda0488b6dcfac69280a6b7a3cf02c741895dd370a02968"
@@ -1070,7 +1093,7 @@ packages:
     source: hosted
     version: "2.1.8"
   pointycastle:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: pointycastle
       sha256: "4be0097fcf3fd3e8449e53730c631200ebc7b88016acecab2b0da2f0149222fe"

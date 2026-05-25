@@ -116,6 +116,12 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
+      String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> mountSlewToCoordinates(
       String deviceId, double ra, double dec) async {
     _throwNotConnected();
@@ -631,6 +637,11 @@ class DisconnectedBackend implements NightshadeBackend {
 
   @override
   Future<List<String>> filterWheelGetNames(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
     _throwNotConnected();
   }
 

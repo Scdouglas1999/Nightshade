@@ -1,0 +1,198 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+
+void main() {
+  group('isLocalNetworkHost — RFC1918 / loopback / link-local', () {
+    test('accepts 10.0.0.0/8', () {
+      expect(isLocalNetworkHost('10.0.0.1'), isTrue);
+      expect(isLocalNetworkHost('10.255.255.254'), isTrue);
+    });
+
+    test('accepts 172.16.0.0/12 boundaries', () {
+      expect(isLocalNetworkHost('172.16.0.1'), isTrue);
+      expect(isLocalNetworkHost('172.31.255.254'), isTrue);
+      expect(isLocalNetworkHost('172.15.0.1'), isFalse);
+      expect(isLocalNetworkHost('172.32.0.1'), isFalse);
+    });
+
+    test('accepts 192.168.0.0/16', () {
+      expect(isLocalNetworkHost('192.168.0.1'), isTrue);
+      expect(isLocalNetworkHost('192.168.1.42'), isTrue);
+    });
+
+    test('accepts 127.0.0.0/8 loopback', () {
+      expect(isLocalNetworkHost('127.0.0.1'), isTrue);
+      expect(isLocalNetworkHost('localhost'), isTrue);
+    });
+
+    test('accepts 169.254.0.0/16 link-local', () {
+      expect(isLocalNetworkHost('169.254.10.20'), isTrue);
+    });
+
+    test('accepts .local mDNS names', () {
+      expect(isLocalNetworkHost('nightshade.local'), isTrue);
+      expect(isLocalNetworkHost('PI4.LOCAL'), isTrue);
+    });
+
+    test('rejects public IPv4 addresses', () {
+      expect(isLocalNetworkHost('8.8.8.8'), isFalse);
+      expect(isLocalNetworkHost('1.1.1.1'), isFalse);
+      expect(isLocalNetworkHost('52.85.132.10'), isFalse);
+    });
+  });
+
+  group('isLocalNetworkHost — P1-7 Tailscale CGNAT (100.64.0.0/10)', () {
+    // Why these specific bounds: the /10 boundary is precisely 100.64.0.0
+    // through 100.127.255.255. The previous implementation accepted neither
+    // and made QR pairing unusable on Tailscale tailnets where every node
+    // address lives inside this block.
+    test('accepts lower boundary 100.64.0.0', () {
+      expect(isLocalNetworkHost('100.64.0.0'), isTrue);
+      expect(isLocalNetworkHost('100.64.0.1'), isTrue);
+    });
+
+    test('accepts upper boundary 100.127.255.255', () {
+      expect(isLocalNetworkHost('100.127.255.255'), isTrue);
+      expect(isLocalNetworkHost('100.127.0.1'), isTrue);
+    });
+
+    test('accepts addresses in the middle of the range', () {
+      expect(isLocalNetworkHost('100.100.0.1'), isTrue);
+      expect(isLocalNetworkHost('100.80.42.7'), isTrue);
+    });
+
+    test('rejects just outside lower boundary 100.63.255.255', () {
+      expect(isLocalNetworkHost('100.63.255.255'), isFalse);
+      expect(isLocalNetworkHost('100.63.0.0'), isFalse);
+    });
+
+    test('rejects just outside upper boundary 100.128.0.0', () {
+      expect(isLocalNetworkHost('100.128.0.0'), isFalse);
+      expect(isLocalNetworkHost('100.128.255.255'), isFalse);
+    });
+
+    test('rejects 100.0.0.0/8 outside the CGNAT range', () {
+      // Critical guard: accepting 100.0.0.0/8 wholesale would leak ~16M
+      // public-Internet IPs into the trust boundary.
+      expect(isLocalNetworkHost('100.0.0.1'), isFalse);
+      expect(isLocalNetworkHost('100.5.0.1'), isFalse);
+      expect(isLocalNetworkHost('100.50.0.1'), isFalse);
+    });
+
+    test('rejects neighbouring /8 (99.x and 101.x)', () {
+      // Why: typo-resilience. Make sure a transposed first octet does not
+      // accidentally fall into the accepted range.
+      expect(isLocalNetworkHost('99.84.0.1'), isFalse);
+      expect(isLocalNetworkHost('101.64.0.1'), isFalse);
+    });
+  });
+
+  group('isLocalNetworkHost — IPv6', () {
+    test('accepts IPv6 loopback', () {
+      expect(isLocalNetworkHost('::1'), isTrue);
+      expect(isLocalNetworkHost('[::1]'), isTrue);
+    });
+
+    test('accepts fe80::/10 link-local', () {
+      expect(isLocalNetworkHost('fe80::1'), isTrue);
+      expect(isLocalNetworkHost('FE80::1'), isTrue);
+    });
+
+    test('strips zone-id suffix for IPv6 link-local', () {
+      expect(isLocalNetworkHost('fe80::1%eth0'), isTrue);
+    });
+
+    test('accepts fc00::/7 unique-local (P1-7 Tailscale ULA)', () {
+      // Tailscale tailnets get a /48 inside fd7a:115c::/32, which lives in
+      // the fc00::/7 ULA range. The previous implementation did not accept
+      // these and silently rejected Tailscale-over-IPv6 QR payloads.
+      expect(isLocalNetworkHost('fd7a:115c:a1e0::1'), isTrue);
+      expect(isLocalNetworkHost('fd00::1'), isTrue);
+      expect(isLocalNetworkHost('fc00::1'), isTrue);
+      expect(isLocalNetworkHost('fcff:ffff:ffff:ffff::1'), isTrue);
+    });
+
+    test('rejects globally-routable IPv6', () {
+      expect(isLocalNetworkHost('2606:4700:4700::1111'), isFalse);
+      expect(isLocalNetworkHost('2001:db8::1'), isFalse);
+    });
+  });
+
+  group('isLocalNetworkHost — defensive edges', () {
+    test('rejects empty host', () {
+      expect(isLocalNetworkHost(''), isFalse);
+    });
+
+    test('rejects malformed IPv4', () {
+      expect(isLocalNetworkHost('192.168.0'), isFalse);
+      expect(isLocalNetworkHost('192.168.0.999'), isFalse);
+      expect(isLocalNetworkHost('not.an.ip'), isFalse);
+    });
+  });
+
+  group('MdnsServiceRegistration', () {
+    test('constructs with the expected TXT contract', () {
+      // Why this test: contract pinning. The TXT-record key set is shared
+      // between the server (this class) and the client mDNS browse code in
+      // enhanced_discovery.dart. A maintainer dropping or renaming one of
+      // these keys would silently break the cross-process integration; this
+      // test makes the contract violation a build-time failure.
+      final registration = MdnsServiceRegistration(
+        name: 'Nightshade Test',
+        port: 8080,
+        txt: const {
+          'version': '2.5.0',
+          'scheme': 'http',
+          'fingerprint': 'abc123def456',
+          'pairingSupported': 'true',
+          'name': 'Nightshade Test',
+        },
+      );
+      expect(registration.name, 'Nightshade Test');
+      expect(registration.port, 8080);
+      expect(registration.txt.keys, containsAll(<String>[
+        'version',
+        'scheme',
+        'fingerprint',
+        'pairingSupported',
+        'name',
+      ]));
+      expect(registration.isRegistered, isFalse);
+    });
+  });
+
+  group('DiscoveredServer scheme', () {
+    test('webUrl honours scheme=http (default)', () {
+      final server = DiscoveredServer(
+        host: '192.168.1.10',
+        webPort: 8080,
+        signalingPort: 8080,
+        name: 'Nightshade',
+        version: '2.5.0',
+      );
+      expect(server.scheme, 'http');
+      expect(server.isTls, isFalse);
+      expect(server.webUrl, 'http://192.168.1.10:8080');
+    });
+
+    test('webUrl honours scheme=https', () {
+      // Why: the mDNS browse path sets scheme=https when the server published
+      // `scheme=https` in its TXT records. If `webUrl` ignored that, the
+      // first `GET /api/info` would hit plain HTTP on an HTTPS socket and
+      // the enrichment would silently fail.
+      final server = DiscoveredServer(
+        host: '100.64.0.5',
+        webPort: 8443,
+        signalingPort: 8443,
+        name: 'Nightshade Headless',
+        version: '2.5.0',
+        scheme: 'https',
+      );
+      expect(server.scheme, 'https');
+      expect(server.isTls, isTrue);
+      expect(server.webUrl, 'https://100.64.0.5:8443');
+      expect(server.copyWith(scheme: 'http').webUrl,
+          'http://100.64.0.5:8443');
+    });
+  });
+}

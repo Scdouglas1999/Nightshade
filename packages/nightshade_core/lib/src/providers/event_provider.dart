@@ -2,7 +2,8 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' show apiEventStream;
-import 'package:nightshade_bridge/src/event.dart' show NightshadeEvent, EventCategory, EventSeverity;
+import 'package:nightshade_bridge/src/event.dart'
+    show NightshadeEvent, EventCategory, EventSeverity;
 import '../models/backend/event_types.dart' as core;
 import 'backend_provider.dart';
 import 'ui_notification_provider.dart';
@@ -46,7 +47,8 @@ final nightshadeEventsProvider = StreamProvider<NightshadeEvent>((ref) {
 ///
 /// Useful for displaying the most recent event in the UI
 /// or for debugging purposes.
-final lastEventProvider = StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
+final lastEventProvider =
+    StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
   final notifier = LastEventNotifier();
 
   ref.listen(nightshadeEventsProvider, (previous, next) {
@@ -74,7 +76,8 @@ class LastEventNotifier extends StateNotifier<NightshadeEvent?> {
 ///
 /// Keeps a rolling buffer of the most recent events for
 /// displaying in an event log or notification center.
-final eventHistoryProvider = StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
+final eventHistoryProvider =
+    StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
   final notifier = EventHistoryNotifier();
 
   ref.listen(nightshadeEventsProvider, (previous, next) {
@@ -153,11 +156,8 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
         break;
     }
   }, onError: (error) {
-    developer.log(
-        '[ErrorNotificationBridge] Event stream error: $error',
-        name: 'ErrorNotificationBridge',
-        level: 1000,
-        error: error);
+    developer.log('[ErrorNotificationBridge] Event stream error: $error',
+        name: 'ErrorNotificationBridge', level: 1000, error: error);
   });
 
   ref.onDispose(() {
@@ -170,13 +170,19 @@ String _extractEventMessage(core.NightshadeEvent event) {
   final data = event.data;
 
   // Try common message keys in order of specificity
-  if (data.containsKey('message') && data['message'] is String && (data['message'] as String).isNotEmpty) {
+  if (data.containsKey('message') &&
+      data['message'] is String &&
+      (data['message'] as String).isNotEmpty) {
     return data['message'] as String;
   }
-  if (data.containsKey('error') && data['error'] is String && (data['error'] as String).isNotEmpty) {
+  if (data.containsKey('error') &&
+      data['error'] is String &&
+      (data['error'] as String).isNotEmpty) {
     return data['error'] as String;
   }
-  if (data.containsKey('reason') && data['reason'] is String && (data['reason'] as String).isNotEmpty) {
+  if (data.containsKey('reason') &&
+      data['reason'] is String &&
+      (data['reason'] as String).isNotEmpty) {
     return data['reason'] as String;
   }
 
@@ -195,6 +201,9 @@ String _eventTitle(core.NightshadeEvent event) {
     core.EventCategory.safety => 'Safety',
     core.EventCategory.system => 'System',
     core.EventCategory.polarAlignment => 'Polar Alignment',
+    core.EventCategory.job => 'Job',
+    core.EventCategory.session => 'Session',
+    core.EventCategory.catalog => 'Catalog',
   };
 
   if (deviceType != null && deviceType.isNotEmpty) {

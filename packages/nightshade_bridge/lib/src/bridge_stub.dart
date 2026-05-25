@@ -13,6 +13,7 @@
 /// to simulator implementations. Instead, it will return empty device lists
 /// and throw errors for hardware operations. Use INDI/ASCOM/Alpaca external
 /// simulators for testing instead of built-in fallback adapters.
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -449,7 +450,7 @@ class NativeBridge {
       canSync: true,
       canPulseGuide: true,
       canSetTrackingRate: true,
-      availability: const {},
+      availability: {},
     );
 
     _focuserStatus = const FocuserStatus(
@@ -698,7 +699,7 @@ class NativeBridge {
 
       try {
         // Send getProperties command to request device list
-        final command = '<getProperties version="1.7"/>\n';
+        const command = '<getProperties version="1.7"/>\n';
         socket.add(utf8.encode(command));
         await socket.flush();
 
@@ -1220,7 +1221,7 @@ class NativeBridge {
       // Successfully connected - verify it's actually PHD2 by sending a simple request
       try {
         // Send a get_app_state request
-        final request = '{"method":"get_app_state","id":1}\r\n';
+        const request = '{"method":"get_app_state","id":1}\r\n';
         socket.write(request);
         await socket.flush();
 
@@ -1628,8 +1629,7 @@ class NativeBridge {
 
         return; // Success - native bridge handled it
       } catch (e, stackTrace) {
-        developer.log(
-            '[Bridge] ✗ Native connection failed for $deviceId',
+        developer.log('[Bridge] ✗ Native connection failed for $deviceId',
             name: 'NativeBridge',
             level: 1000,
             error: e,
@@ -3012,8 +3012,7 @@ class NativeBridge {
     // name (audit-rust §1.4) instead of a bare TypeError.
     const ctx = 'phd2GetStarImage.result';
     final frame = safelyCastIntOpt(result, 'frame', contextPrefix: ctx) ?? 0;
-    final width =
-        safelyCastIntOpt(result, 'width', contextPrefix: ctx) ?? size;
+    final width = safelyCastIntOpt(result, 'width', contextPrefix: ctx) ?? size;
     final height =
         safelyCastIntOpt(result, 'height', contextPrefix: ctx) ?? size;
 
@@ -3023,12 +3022,10 @@ class NativeBridge {
       context: '$ctx["star_pos"]',
     );
     final starX = (starPos != null && starPos.isNotEmpty)
-        ? safelyCast<num>(starPos[0], context: '$ctx["star_pos"][0]')
-            .toDouble()
+        ? safelyCast<num>(starPos[0], context: '$ctx["star_pos"][0]').toDouble()
         : width / 2.0;
     final starY = (starPos != null && starPos.length >= 2)
-        ? safelyCast<num>(starPos[1], context: '$ctx["star_pos"][1]')
-            .toDouble()
+        ? safelyCast<num>(starPos[1], context: '$ctx["star_pos"][1]').toDouble()
         : height / 2.0;
 
     // Decode base64 pixel data

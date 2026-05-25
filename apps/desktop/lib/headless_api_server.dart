@@ -302,6 +302,8 @@ class HeadlessApiServer {
         '/api/camera/readoutMode', _deviceHandlers.handleCameraSetReadoutMode);
     router.post('/api/camera/gain', _deviceHandlers.handleCameraSetGain);
     router.post('/api/camera/offset', _deviceHandlers.handleCameraSetOffset);
+    router.get('/api/camera/recommended-settings',
+        _deviceHandlers.handleCameraGetRecommendedSettings);
 
     // Mount Control
     router.post('/api/mount/slew', _deviceHandlers.handleMountSlew);
@@ -334,6 +336,8 @@ class HeadlessApiServer {
         _deviceHandlers.handleFilterWheelSetPosition);
     router.get(
         '/api/filter-wheel/names', _deviceHandlers.handleFilterWheelGetNames);
+    router.post(
+        '/api/filter-wheel/names', _deviceHandlers.handleFilterWheelSetNames);
     router.post('/api/filter-wheel/set-by-name',
         _deviceHandlers.handleFilterWheelSetByName);
 
@@ -1134,6 +1138,7 @@ class HeadlessApiServer {
       'POST /api/camera/readoutMode',
       'POST /api/camera/gain',
       'POST /api/camera/offset',
+      'GET /api/camera/recommended-settings',
       // Mount
       'POST /api/mount/slew',
       'POST /api/mount/sync',
@@ -1156,6 +1161,7 @@ class HeadlessApiServer {
       // Filter Wheel
       'POST /api/filter-wheel/position',
       'GET /api/filter-wheel/names',
+      'POST /api/filter-wheel/names',
       'POST /api/filter-wheel/set-by-name',
       // Rotator
       'POST /api/rotator/move-to',

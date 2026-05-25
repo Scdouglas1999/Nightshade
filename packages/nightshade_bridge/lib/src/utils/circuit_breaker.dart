@@ -8,6 +8,7 @@
 /// - Closed: Normal operation, requests pass through
 /// - Open: Service is failing, requests are rejected immediately
 /// - Half-Open: Testing if service has recovered, limited requests allowed
+library;
 
 import 'dart:async';
 

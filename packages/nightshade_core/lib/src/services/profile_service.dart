@@ -127,7 +127,8 @@ class ProfileService {
   }
 
   /// Set or clear the default startup profile.
-  Future<void> setDefaultProfile(int? profileId, {bool makeActive = true}) async {
+  Future<void> setDefaultProfile(int? profileId,
+      {bool makeActive = true}) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
     if (profileId == null) {
       await dao.clearDefaultProfile();
@@ -140,22 +141,32 @@ class ProfileService {
   Future<void> _connectProfileDevices(EquipmentProfile profile) async {
     final deviceService = _ref.read(deviceServiceProvider);
     final connections = <Future<void> Function()>[
-      if (profile.cameraId != null) () => deviceService.connectCamera(profile.cameraId!),
-      if (profile.mountId != null) () => deviceService.connectMount(profile.mountId!),
-      if (profile.focuserId != null) () => deviceService.connectFocuser(profile.focuserId!),
+      if (profile.cameraId != null)
+        () => deviceService.connectCamera(profile.cameraId!),
+      if (profile.mountId != null)
+        () => deviceService.connectMount(profile.mountId!),
+      if (profile.focuserId != null)
+        () => deviceService.connectFocuser(profile.focuserId!),
       if (profile.filterWheelId != null)
         () => deviceService.connectFilterWheel(profile.filterWheelId!),
-      if (profile.guiderId != null) () => deviceService.connectGuider(profile.guiderId!),
-      if (profile.rotatorId != null) () => deviceService.connectRotator(profile.rotatorId!),
-      if (profile.domeId != null) () => deviceService.connectDome(profile.domeId!),
-      if (profile.weatherId != null) () => deviceService.connectWeather(profile.weatherId!),
+      if (profile.guiderId != null)
+        () => deviceService.connectGuider(profile.guiderId!),
+      if (profile.rotatorId != null)
+        () => deviceService.connectRotator(profile.rotatorId!),
+      if (profile.domeId != null)
+        () => deviceService.connectDome(profile.domeId!),
+      if (profile.weatherId != null)
+        () => deviceService.connectWeather(profile.weatherId!),
+      if (profile.safetyMonitorId != null)
+        () => deviceService.connectSafetyMonitor(profile.safetyMonitorId!),
       if (profile.coverCalibratorId != null)
         () => deviceService.connectCoverCalibrator(profile.coverCalibratorId!),
     ];
 
-    for (final connect in connections) {
-      await connect();
-    }
+    await Future.wait(
+      connections.map((connect) => connect()),
+      eagerError: false,
+    );
   }
 
   /// Auto-connect to active profile's devices on startup
@@ -295,6 +306,7 @@ class ProfileService {
         rotatorId: Value(data.rotatorId),
         domeId: Value(data.domeId),
         weatherId: Value(data.weatherId),
+        safetyMonitorId: Value(data.safetyMonitorId),
         coverCalibratorId: Value(data.coverCalibratorId),
         focalLength: Value(data.focalLength),
         aperture: Value(data.aperture),
@@ -304,11 +316,27 @@ class ProfileService {
         defaultBinX: Value(data.defaultBinX),
         defaultBinY: Value(data.defaultBinY),
         defaultCoolingTemp: Value(data.defaultCoolingTemp),
+        coolOnConnect: Value(data.coolOnConnect),
+        defaultCenteringExposure: Value(data.defaultCenteringExposure),
         filterNames: Value(
             data.filterNames != null ? jsonEncode(data.filterNames) : null),
         filterFocusOffsets: Value(data.filterFocusOffsets != null
             ? jsonEncode(data.filterFocusOffsets)
             : null),
+        meridianFlipOverrides: Value(data.meridianFlipOverrides),
+        cameraName: Value(data.cameraName),
+        mountName: Value(data.mountName),
+        focuserName: Value(data.focuserName),
+        filterWheelName: Value(data.filterWheelName),
+        guiderName: Value(data.guiderName),
+        rotatorName: Value(data.rotatorName),
+        telescopeName: Value(data.telescopeName),
+        telescopeFocalLength: Value(data.telescopeFocalLength),
+        telescopeAperture: Value(data.telescopeAperture),
+        profileIcon: Value(data.profileIcon),
+        profileColor: Value(data.profileColor),
+        sortOrder: Value(data.sortOrder),
+        isDefault: Value(data.isDefault),
       ),
     );
   }
@@ -381,6 +409,9 @@ class ProfileService {
       weatherId: deviceTypes.contains('Weather')
           ? const Value(null)
           : Value(profile.weatherId),
+      safetyMonitorId: deviceTypes.contains('Safety Monitor')
+          ? const Value(null)
+          : Value(profile.safetyMonitorId),
       coverCalibratorId: deviceTypes.contains('Cover Calibrator')
           ? const Value(null)
           : Value(profile.coverCalibratorId),
@@ -399,6 +430,7 @@ class ProfileService {
     String? rotatorId,
     String? domeId,
     String? weatherId,
+    String? safetyMonitorId,
     String? coverCalibratorId,
   }) async {
     final dao = _ref.read(equipmentProfilesDaoProvider);
@@ -417,8 +449,8 @@ class ProfileService {
       rotatorId: Value(rotatorId ?? profile.rotatorId),
       domeId: Value(domeId ?? profile.domeId),
       weatherId: Value(weatherId ?? profile.weatherId),
-      coverCalibratorId:
-          Value(coverCalibratorId ?? profile.coverCalibratorId),
+      safetyMonitorId: Value(safetyMonitorId ?? profile.safetyMonitorId),
+      coverCalibratorId: Value(coverCalibratorId ?? profile.coverCalibratorId),
       updatedAt: DateTime.now(),
     ));
   }
@@ -495,6 +527,7 @@ class ProfileService {
     final rotatorState = _ref.read(rotatorStateProvider);
     final domeState = _ref.read(domeStateProvider);
     final weatherState = _ref.read(weatherStateProvider);
+    final safetyMonitorState = _ref.read(safetyMonitorStateProvider);
     final coverCalibratorState = _ref.read(coverCalibratorStateProvider);
 
     // Collect connected device IDs
@@ -506,6 +539,7 @@ class ProfileService {
     String? rotatorId;
     String? domeId;
     String? weatherId;
+    String? safetyMonitorId;
     String? coverCalibratorId;
 
     if (cameraState.connectionState == DeviceConnectionState.connected) {
@@ -532,6 +566,9 @@ class ProfileService {
     if (weatherState.connectionState == DeviceConnectionState.connected) {
       weatherId = weatherState.deviceId;
     }
+    if (safetyMonitorState.connectionState == DeviceConnectionState.connected) {
+      safetyMonitorId = safetyMonitorState.deviceId;
+    }
     if (coverCalibratorState.connectionState ==
         DeviceConnectionState.connected) {
       coverCalibratorId = coverCalibratorState.deviceId;
@@ -546,6 +583,7 @@ class ProfileService {
         rotatorId != null ||
         domeId != null ||
         weatherId != null ||
+        safetyMonitorId != null ||
         coverCalibratorId != null;
 
     if (!hasConnectedDevices) {
@@ -564,6 +602,7 @@ class ProfileService {
       rotatorId: Value(rotatorId ?? activeProfile.rotatorId),
       domeId: Value(domeId ?? activeProfile.domeId),
       weatherId: Value(weatherId ?? activeProfile.weatherId),
+      safetyMonitorId: Value(safetyMonitorId ?? activeProfile.safetyMonitorId),
       coverCalibratorId:
           Value(coverCalibratorId ?? activeProfile.coverCalibratorId),
       updatedAt: DateTime.now(),
@@ -726,8 +765,11 @@ class ProfileService {
   }
 }
 
+const int _profileExportSchemaVersion = 1;
+
 /// Data class for profile import/export
 class ProfileExportData {
+  final int schemaVersion;
   final String name;
   final String? description;
   final String? cameraId;
@@ -738,6 +780,7 @@ class ProfileExportData {
   final String? rotatorId;
   final String? domeId;
   final String? weatherId;
+  final String? safetyMonitorId;
   final String? coverCalibratorId;
   final double focalLength;
   final double aperture;
@@ -747,10 +790,27 @@ class ProfileExportData {
   final int defaultBinX;
   final int defaultBinY;
   final double? defaultCoolingTemp;
+  final bool coolOnConnect;
+  final double? defaultCenteringExposure;
   final List<String>? filterNames;
   final Map<String, int>? filterFocusOffsets;
+  final String? meridianFlipOverrides;
+  final String? cameraName;
+  final String? mountName;
+  final String? focuserName;
+  final String? filterWheelName;
+  final String? guiderName;
+  final String? rotatorName;
+  final String? telescopeName;
+  final double? telescopeFocalLength;
+  final double? telescopeAperture;
+  final String? profileIcon;
+  final int? profileColor;
+  final int sortOrder;
+  final bool isDefault;
 
   ProfileExportData({
+    this.schemaVersion = _profileExportSchemaVersion,
     required this.name,
     this.description,
     this.cameraId,
@@ -761,6 +821,7 @@ class ProfileExportData {
     this.rotatorId,
     this.domeId,
     this.weatherId,
+    this.safetyMonitorId,
     this.coverCalibratorId,
     required this.focalLength,
     required this.aperture,
@@ -770,8 +831,24 @@ class ProfileExportData {
     required this.defaultBinX,
     required this.defaultBinY,
     this.defaultCoolingTemp,
+    this.coolOnConnect = false,
+    this.defaultCenteringExposure,
     this.filterNames,
     this.filterFocusOffsets,
+    this.meridianFlipOverrides,
+    this.cameraName,
+    this.mountName,
+    this.focuserName,
+    this.filterWheelName,
+    this.guiderName,
+    this.rotatorName,
+    this.telescopeName,
+    this.telescopeFocalLength,
+    this.telescopeAperture,
+    this.profileIcon,
+    this.profileColor,
+    this.sortOrder = 0,
+    this.isDefault = false,
   });
 
   factory ProfileExportData.fromDatabase(EquipmentProfile profile) {
@@ -779,36 +856,22 @@ class ProfileExportData {
     Map<String, int>? filterOffsets;
 
     if (profile.filterNames != null) {
-      try {
-        filterNames = decodeStringListJson(
-          profile.filterNames,
-          context: 'equipment_profiles.filter_names for "${profile.name}"',
-        );
-      } catch (e) {
-        // Malformed filter names JSON - skip
-        developer.log('ProfileService: Failed to parse filterNames: $e',
-            name: 'ProfileService', level: 1000, error: e);
-      }
+      filterNames = decodeStringListJson(
+        profile.filterNames,
+        context: 'equipment_profiles.filter_names for "${profile.name}"',
+      );
     }
 
     if (profile.filterFocusOffsets != null) {
-      try {
-        filterOffsets = decodeStringIntMapJson(
-          profile.filterFocusOffsets,
-          context:
-              'equipment_profiles.filter_focus_offsets for "${profile.name}"',
-        );
-      } catch (e) {
-        // Malformed filter offsets JSON - skip
-        developer.log(
-            'ProfileService: Failed to parse filterFocusOffsets: $e',
-            name: 'ProfileService',
-            level: 1000,
-            error: e);
-      }
+      filterOffsets = decodeStringIntMapJson(
+        profile.filterFocusOffsets,
+        context:
+            'equipment_profiles.filter_focus_offsets for "${profile.name}"',
+      );
     }
 
     return ProfileExportData(
+      schemaVersion: _profileExportSchemaVersion,
       name: profile.name,
       description: profile.description,
       cameraId: profile.cameraId,
@@ -819,6 +882,7 @@ class ProfileExportData {
       rotatorId: profile.rotatorId,
       domeId: profile.domeId,
       weatherId: profile.weatherId,
+      safetyMonitorId: profile.safetyMonitorId,
       coverCalibratorId: profile.coverCalibratorId,
       focalLength: profile.focalLength,
       aperture: profile.aperture,
@@ -828,32 +892,83 @@ class ProfileExportData {
       defaultBinX: profile.defaultBinX,
       defaultBinY: profile.defaultBinY,
       defaultCoolingTemp: profile.defaultCoolingTemp,
+      coolOnConnect: profile.coolOnConnect,
+      defaultCenteringExposure: profile.defaultCenteringExposure,
       filterNames: filterNames,
       filterFocusOffsets: filterOffsets,
+      meridianFlipOverrides: profile.meridianFlipOverrides,
+      cameraName: profile.cameraName,
+      mountName: profile.mountName,
+      focuserName: profile.focuserName,
+      filterWheelName: profile.filterWheelName,
+      guiderName: profile.guiderName,
+      rotatorName: profile.rotatorName,
+      telescopeName: profile.telescopeName,
+      telescopeFocalLength: profile.telescopeFocalLength,
+      telescopeAperture: profile.telescopeAperture,
+      profileIcon: profile.profileIcon,
+      profileColor: profile.profileColor,
+      sortOrder: profile.sortOrder,
+      isDefault: profile.isDefault,
     );
   }
 
   factory ProfileExportData.fromJson(Map<String, dynamic> json) {
+    final schemaVersion = jsonInt(
+          json['schemaVersion'] ?? json['version'],
+          context: 'profile.schemaVersion',
+        ) ??
+        _profileExportSchemaVersion;
+    if (schemaVersion > _profileExportSchemaVersion) {
+      throw FormatException(
+        'Unsupported profile schemaVersion $schemaVersion '
+        '(max $_profileExportSchemaVersion)',
+      );
+    }
+
     return ProfileExportData(
-      name: json['name'] as String,
-      description: json['description'] as String?,
-      cameraId: json['cameraId'] as String?,
-      mountId: json['mountId'] as String?,
-      focuserId: json['focuserId'] as String?,
-      filterWheelId: json['filterWheelId'] as String?,
-      guiderId: json['guiderId'] as String?,
-      rotatorId: json['rotatorId'] as String?,
-      domeId: json['domeId'] as String?,
-      weatherId: json['weatherId'] as String?,
-      coverCalibratorId: json['coverCalibratorId'] as String?,
-      focalLength: (json['focalLength'] as num?)?.toDouble() ?? 0.0,
-      aperture: (json['aperture'] as num?)?.toDouble() ?? 0.0,
-      focalRatio: (json['focalRatio'] as num?)?.toDouble(),
-      defaultGain: (json['defaultGain'] as num?)?.toInt(),
-      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
-      defaultBinX: (json['defaultBinX'] as num?)?.toInt() ?? 1,
-      defaultBinY: (json['defaultBinY'] as num?)?.toInt() ?? 1,
-      defaultCoolingTemp: (json['defaultCoolingTemp'] as num?)?.toDouble(),
+      schemaVersion: schemaVersion,
+      name:
+          jsonString(json['name'], context: 'profile.name', allowEmpty: false)!,
+      description:
+          jsonString(json['description'], context: 'profile.description'),
+      cameraId: jsonString(json['cameraId'], context: 'profile.cameraId'),
+      mountId: jsonString(json['mountId'], context: 'profile.mountId'),
+      focuserId: jsonString(json['focuserId'], context: 'profile.focuserId'),
+      filterWheelId:
+          jsonString(json['filterWheelId'], context: 'profile.filterWheelId'),
+      guiderId: jsonString(json['guiderId'], context: 'profile.guiderId'),
+      rotatorId: jsonString(json['rotatorId'], context: 'profile.rotatorId'),
+      domeId: jsonString(json['domeId'], context: 'profile.domeId'),
+      weatherId: jsonString(json['weatherId'], context: 'profile.weatherId'),
+      safetyMonitorId: jsonString(
+        json['safetyMonitorId'],
+        context: 'profile.safetyMonitorId',
+      ),
+      coverCalibratorId: jsonString(
+        json['coverCalibratorId'],
+        context: 'profile.coverCalibratorId',
+      ),
+      focalLength:
+          jsonDouble(json['focalLength'], context: 'profile.focalLength') ??
+              0.0,
+      aperture:
+          jsonDouble(json['aperture'], context: 'profile.aperture') ?? 0.0,
+      focalRatio: jsonDouble(json['focalRatio'], context: 'profile.focalRatio'),
+      defaultGain: jsonInt(json['defaultGain'], context: 'profile.defaultGain'),
+      defaultOffset:
+          jsonInt(json['defaultOffset'], context: 'profile.defaultOffset'),
+      defaultBinX:
+          jsonInt(json['defaultBinX'], context: 'profile.defaultBinX') ?? 1,
+      defaultBinY:
+          jsonInt(json['defaultBinY'], context: 'profile.defaultBinY') ?? 1,
+      defaultCoolingTemp: jsonDouble(
+        json['defaultCoolingTemp'],
+        context: 'profile.defaultCoolingTemp',
+      ),
+      coolOnConnect: json['coolOnConnect'] as bool? ?? false,
+      defaultCenteringExposure: jsonDouble(json['defaultCenteringExposure'],
+          context: 'profile.defaultCenteringExposure'),
       filterNames: (json['filterNames'] as List?)?.cast<String>(),
       filterFocusOffsets: (json['filterFocusOffsets'] as Map?)?.map(
         (key, value) => MapEntry(
@@ -861,11 +976,43 @@ class ProfileExportData {
           (value as num).toInt(),
         ),
       ),
+      meridianFlipOverrides: jsonString(
+        json['meridianFlipOverrides'],
+        context: 'profile.meridianFlipOverrides',
+      ),
+      cameraName: jsonString(json['cameraName'], context: 'profile.cameraName'),
+      mountName: jsonString(json['mountName'], context: 'profile.mountName'),
+      focuserName:
+          jsonString(json['focuserName'], context: 'profile.focuserName'),
+      filterWheelName: jsonString(
+        json['filterWheelName'],
+        context: 'profile.filterWheelName',
+      ),
+      guiderName: jsonString(json['guiderName'], context: 'profile.guiderName'),
+      rotatorName:
+          jsonString(json['rotatorName'], context: 'profile.rotatorName'),
+      telescopeName:
+          jsonString(json['telescopeName'], context: 'profile.telescopeName'),
+      telescopeFocalLength: jsonDouble(
+        json['telescopeFocalLength'],
+        context: 'profile.telescopeFocalLength',
+      ),
+      telescopeAperture: jsonDouble(
+        json['telescopeAperture'],
+        context: 'profile.telescopeAperture',
+      ),
+      profileIcon:
+          jsonString(json['profileIcon'], context: 'profile.profileIcon'),
+      profileColor:
+          jsonInt(json['profileColor'], context: 'profile.profileColor'),
+      sortOrder: jsonInt(json['sortOrder'], context: 'profile.sortOrder') ?? 0,
+      isDefault: json['isDefault'] as bool? ?? false,
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'schemaVersion': schemaVersion,
       'name': name,
       'description': description,
       'cameraId': cameraId,
@@ -876,6 +1023,7 @@ class ProfileExportData {
       'rotatorId': rotatorId,
       'domeId': domeId,
       'weatherId': weatherId,
+      'safetyMonitorId': safetyMonitorId,
       'coverCalibratorId': coverCalibratorId,
       'focalLength': focalLength,
       'aperture': aperture,
@@ -885,8 +1033,24 @@ class ProfileExportData {
       'defaultBinX': defaultBinX,
       'defaultBinY': defaultBinY,
       'defaultCoolingTemp': defaultCoolingTemp,
+      'coolOnConnect': coolOnConnect,
+      'defaultCenteringExposure': defaultCenteringExposure,
       'filterNames': filterNames,
       'filterFocusOffsets': filterFocusOffsets,
+      'meridianFlipOverrides': meridianFlipOverrides,
+      'cameraName': cameraName,
+      'mountName': mountName,
+      'focuserName': focuserName,
+      'filterWheelName': filterWheelName,
+      'guiderName': guiderName,
+      'rotatorName': rotatorName,
+      'telescopeName': telescopeName,
+      'telescopeFocalLength': telescopeFocalLength,
+      'telescopeAperture': telescopeAperture,
+      'profileIcon': profileIcon,
+      'profileColor': profileColor,
+      'sortOrder': sortOrder,
+      'isDefault': isDefault,
     };
   }
 }

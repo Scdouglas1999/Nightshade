@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
 import '../backend_provider.dart';
@@ -20,6 +21,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
   int _retryAttempts = 0;
   Timer? _positionPollTimer;
   bool _isPolling = false;
+  NightshadeBackend? _pollBackend;
 
   /// Normal polling interval (tracking/idle)
   static const _normalPollInterval = Duration(seconds: 2);
@@ -111,11 +113,13 @@ class MountStateNotifier extends StateNotifier<MountState> {
       connectionState: DeviceConnectionState.connected,
       clearError: true,
     );
+    _pollBackend = _ref.read(backendProvider);
     _startPositionPolling();
   }
 
   void setDisconnected() {
     _stopPositionPolling();
+    _pollBackend = null;
     state = const MountState();
   }
 
@@ -147,6 +151,10 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
   void setCanSetTrackingRate(bool canSet) {
     state = state.copyWith(canSetTrackingRate: canSet);
+  }
+
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void setError(Object error) {
@@ -192,12 +200,18 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
     final deviceId = state.deviceId;
     if (deviceId == null) return;
+    final backend = _pollBackend;
+    if (backend == null) return;
 
     _isPolling = true;
     try {
-      final backend = _ref.read(backendProvider);
       final status = await backend.getMountStatus(deviceId);
       if (!mounted) return;
+      if (!identical(_pollBackend, backend)) return;
+      if (state.deviceId != deviceId ||
+          state.connectionState != DeviceConnectionState.connected) {
+        return;
+      }
 
       updatePosition(
         status.rightAscension,

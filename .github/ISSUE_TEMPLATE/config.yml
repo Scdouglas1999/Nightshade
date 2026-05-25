@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Documentation
+    url: https://github.com/Scdouglas1999/Nightshade/blob/main/docs/index.md
+    about: Installation, troubleshooting, and feature guides
+  - name: Changelog
+    url: https://github.com/Scdouglas1999/Nightshade/blob/main/CHANGELOG.md
+    about: Version history and release notes

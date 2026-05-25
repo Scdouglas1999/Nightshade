@@ -3,6 +3,7 @@
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
+use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
@@ -34,34 +35,22 @@ use super::*;
 /// This avoids opening/closing hardware (e.g. ZWO EFW) which can interfere with
 /// subsequent position reads.
 pub(crate) fn device_info_from_id(device_id: &str, device_type: DeviceType) -> Option<DeviceInfo> {
-    if device_id.starts_with("native:") {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() >= 3 {
-            let vendor = parts[1];
-            let name = match vendor {
-                "builtin_guider" => "Built-in Multi-Star Guider".to_string(),
-                "zwo" => format!("ZWO Camera {}", parts[2]),
-                "zwo_eaf" => format!("ZWO EAF {}", parts[2]),
-                "zwo_efw" => format!("ZWO EFW {}", parts[2]),
-                "qhy" => format!("QHY {}", parts[2]),
-                "qhy_cfw" => format!("QHY CFW ({})", parts[2]),
-                "fli" | "fli_fw" | "fli_focuser" => format!("FLI {}", parts[2]),
-                "player_one" | "playerone" => format!("Player One {}", parts[2]),
-                "svbony" => format!("SVBony {}", parts[2]),
-                "atik" => format!("Atik {}", parts[2]),
-                "moravian" => format!("Moravian {}", parts[2]),
-                // Why (audit-rust §4.3): Touptek IDs have variable parts
-                // ("native:touptek:brand:idx" — 4 parts) versus the
-                // single-vendor format ("native:zwo:idx" — 3 parts) used
-                // by the `parts[2]` arms above. Empty model is the
-                // documented fallback when only the brand prefix is
-                // present in a legacy device ID; the UI renders
-                // "Touptek " with a trailing space, which is acceptable
-                // for a never-actually-seen path.
-                "touptek" => format!("Touptek {}", parts.get(2).unwrap_or(&"")),
-                _ => format!("{} {}", vendor, parts[2]),
-            };
-            return Some(DeviceInfo {
+    let parsed = parse_device_id_cached(device_id).ok()?;
+    match parsed.connection_info {
+        ConnectionInfo::Native {
+            vendor,
+            device_id: native_device_id,
+            vendor_brand,
+            device_subtype,
+            ..
+        } => {
+            let name = native_display_name(
+                &vendor,
+                vendor_brand.as_deref(),
+                device_subtype.as_deref(),
+                &native_device_id,
+            );
+            Some(DeviceInfo {
                 id: device_id.to_string(),
                 name: name.clone(),
                 device_type,
@@ -71,59 +60,129 @@ pub(crate) fn device_info_from_id(device_id: &str, device_type: DeviceType) -> O
                 serial_number: None,
                 unique_id: None,
                 display_name: name,
-            });
+            })
         }
-    } else if device_id.starts_with("ascom:") {
-        let prog_id = &device_id[6..]; // strip "ascom:"
-        let name = prog_id.split('.').skip(1).collect::<Vec<_>>().join(" ");
-        let name = if name.is_empty() {
-            prog_id.to_string()
-        } else {
-            name
-        };
-        return Some(DeviceInfo {
+        ConnectionInfo::Ascom { prog_id } => {
+            let name = prog_id.split('.').skip(1).collect::<Vec<_>>().join(" ");
+            let name = if name.is_empty() {
+                prog_id.clone()
+            } else {
+                name
+            };
+            Some(DeviceInfo {
+                id: device_id.to_string(),
+                name: name.clone(),
+                device_type,
+                driver_type: DriverType::Ascom,
+                description: format!("ASCOM driver: {}", prog_id),
+                driver_version: "ASCOM".to_string(),
+                serial_number: None,
+                unique_id: None,
+                display_name: name,
+            })
+        }
+        ConnectionInfo::Alpaca {
+            host,
+            port,
+            device_type: alpaca_type,
+            device_num,
+            ..
+        } => {
+            let name = format!("Alpaca {} {}", alpaca_type, device_num);
+            Some(DeviceInfo {
+                id: device_id.to_string(),
+                name: name.clone(),
+                device_type,
+                driver_type: DriverType::Alpaca,
+                description: format!("Alpaca device on {}:{}", host, port),
+                driver_version: "Alpaca".to_string(),
+                serial_number: None,
+                unique_id: None,
+                display_name: name,
+            })
+        }
+        ConnectionInfo::Indi { device_name, .. } => Some(DeviceInfo {
             id: device_id.to_string(),
-            name: name.clone(),
-            device_type,
-            driver_type: DriverType::Ascom,
-            description: format!("ASCOM driver: {}", prog_id),
-            driver_version: "ASCOM".to_string(),
-            serial_number: None,
-            unique_id: None,
-            display_name: name,
-        });
-    } else if device_id.starts_with("alpaca:") {
-        return Some(DeviceInfo {
-            id: device_id.to_string(),
-            name: "Alpaca Device".to_string(),
-            device_type,
-            driver_type: DriverType::Alpaca,
-            description: "Alpaca device".to_string(),
-            driver_version: "Alpaca".to_string(),
-            serial_number: None,
-            unique_id: None,
-            display_name: "Alpaca Device".to_string(),
-        });
-    } else if device_id.starts_with("indi:") {
-        let parts: Vec<&str> = device_id.split(':').collect();
-        let name = if parts.len() >= 4 {
-            parts[3..].join(":")
-        } else {
-            device_id.to_string()
-        };
-        return Some(DeviceInfo {
-            id: device_id.to_string(),
-            name: name.clone(),
+            name: device_name.clone(),
             device_type,
             driver_type: DriverType::Indi,
             description: "INDI device".to_string(),
             driver_version: "INDI".to_string(),
             serial_number: None,
             unique_id: None,
-            display_name: name,
-        });
+            display_name: device_name,
+        }),
+        ConnectionInfo::Simulator {
+            device_type: simulator_type,
+            instance,
+        } => {
+            let name = format!("Simulator {} {}", simulator_type, instance);
+            Some(DeviceInfo {
+                id: device_id.to_string(),
+                name: name.clone(),
+                device_type,
+                driver_type: DriverType::Simulator,
+                description: "Simulator device".to_string(),
+                driver_version: "Simulator".to_string(),
+                serial_number: None,
+                unique_id: None,
+                display_name: name,
+            })
+        }
     }
-    None
+}
+
+fn native_display_name(
+    vendor: &str,
+    vendor_brand: Option<&str>,
+    device_subtype: Option<&str>,
+    native_device_id: &str,
+) -> String {
+    if vendor == "builtin_guider" {
+        return "Built-in Multi-Star Guider".to_string();
+    }
+
+    let vendor_label = match vendor {
+        "zwo" | "zwo_eaf" | "zwo_efw" => "ZWO",
+        "qhy" | "qhy_cfw" => "QHY",
+        "fli" | "fli_fw" | "fli_focuser" => "FLI",
+        "player_one" | "playerone" => "Player One",
+        "svbony" => "SVBony",
+        "atik" => "Atik",
+        "moravian" => "Moravian",
+        "touptek" => "Touptek",
+        "starlightxpress" => "Starlight Xpress",
+        "fujifilm" => "Fujifilm",
+        "gphoto2" => "gPhoto2",
+        "skywatcher" => "Sky-Watcher",
+        "ioptron" => "iOptron",
+        "lx200" => "LX200",
+        "10micron" => "10Micron",
+        "ascom" => "Native ASCOM",
+        other => other,
+    };
+
+    let subtype_label = match (vendor, device_subtype) {
+        ("zwo", Some("eaf")) | ("zwo_eaf", _) => Some("EAF"),
+        ("zwo", Some("efw")) | ("zwo_efw", _) => Some("EFW"),
+        ("qhy", Some("cfw")) | ("qhy_cfw", _) => Some("CFW"),
+        ("fli", Some("focuser")) | ("fli_focuser", _) => Some("Focuser"),
+        ("fli", Some("fw")) | ("fli_fw", _) => Some("Filter Wheel"),
+        _ => None,
+    };
+
+    let brand = vendor_brand.filter(|brand| !brand.is_empty());
+    match (brand, subtype_label) {
+        (Some(brand), Some(subtype)) => {
+            format!(
+                "{} {} {} {}",
+                vendor_label, brand, subtype, native_device_id
+            )
+        }
+        (Some(brand), None) => format!("{} {} {}", vendor_label, brand, native_device_id),
+        (None, Some(subtype)) => format!("{} {} {}", vendor_label, subtype, native_device_id),
+        (None, None) => format!("{} {}", vendor_label, native_device_id),
+    }
 }
 
 /// Connect to a device

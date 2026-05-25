@@ -357,6 +357,7 @@ class MountState extends Equatable {
   final TrackingRate trackingRate;
   final bool canSetTrackingRate;
   final DeviceError? lastError;
+  final bool autoReconnectEnabled;
 
   const MountState({
     this.connectionState = DeviceConnectionState.disconnected,
@@ -373,6 +374,7 @@ class MountState extends Equatable {
     this.trackingRate = TrackingRate.sidereal,
     this.canSetTrackingRate = false,
     this.lastError,
+    this.autoReconnectEnabled = true,
   });
 
   bool get hasError => lastError != null;
@@ -393,6 +395,7 @@ class MountState extends Equatable {
     TrackingRate? trackingRate,
     bool? canSetTrackingRate,
     DeviceError? lastError,
+    bool? autoReconnectEnabled,
     bool clearError = false,
   }) {
     return MountState(
@@ -410,6 +413,7 @@ class MountState extends Equatable {
       trackingRate: trackingRate ?? this.trackingRate,
       canSetTrackingRate: canSetTrackingRate ?? this.canSetTrackingRate,
       lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
     );
   }
 
@@ -429,6 +433,73 @@ class MountState extends Equatable {
         trackingRate,
         canSetTrackingRate,
         lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Switch device state
+class SwitchState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final int channelCount;
+  final List<String> channelNames;
+  final List<bool> channelStates;
+  final DateTime? lastChannelRefresh;
+  final DeviceError? lastError;
+  final bool autoReconnectEnabled;
+
+  const SwitchState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.channelCount = 0,
+    this.channelNames = const <String>[],
+    this.channelStates = const <bool>[],
+    this.lastChannelRefresh,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  SwitchState clearError() => copyWith(clearError: true);
+
+  SwitchState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    int? channelCount,
+    List<String>? channelNames,
+    List<bool>? channelStates,
+    DateTime? lastChannelRefresh,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return SwitchState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      channelCount: channelCount ?? this.channelCount,
+      channelNames: channelNames ?? this.channelNames,
+      channelStates: channelStates ?? this.channelStates,
+      lastChannelRefresh: lastChannelRefresh ?? this.lastChannelRefresh,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        channelCount,
+        channelNames,
+        channelStates,
+        lastChannelRefresh,
+        lastError,
+        autoReconnectEnabled,
       ];
 }
 

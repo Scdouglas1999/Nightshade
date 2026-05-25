@@ -8,6 +8,7 @@
 /// - Automatic retry with exponential backoff on network failures
 /// - Circuit breaker pattern to prevent request floods
 /// - Connection health tracking per device
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -100,10 +101,8 @@ Future<List<AlpacaServer>> discoverAlpacaServers({
               // Avoid duplicates
               if (!servers.any((s) => s.host == host && s.port == alpacaPort)) {
                 servers.add(AlpacaServer(host: host, port: alpacaPort));
-                developer.log(
-                    '[Alpaca] Discovered server at $host:$alpacaPort',
-                    name: 'AlpacaClient',
-                    level: 800);
+                developer.log('[Alpaca] Discovered server at $host:$alpacaPort',
+                    name: 'AlpacaClient', level: 800);
               }
             }
           } catch (e) {
@@ -190,11 +189,8 @@ Future<List<AlpacaDevice>> getAlpacaDevices(AlpacaServer server) async {
 
     client.close();
   } catch (e) {
-    developer.log(
-        '[Alpaca] Error getting devices from ${server.baseUrl}: $e',
-        name: 'AlpacaClient',
-        level: 900,
-        error: e);
+    developer.log('[Alpaca] Error getting devices from ${server.baseUrl}: $e',
+        name: 'AlpacaClient', level: 900, error: e);
   }
 
   return devices;
@@ -224,7 +220,7 @@ class AlpacaClient {
   final AlpacaDevice device;
   final http.Client _httpClient;
 
-  int _clientId = 1;
+  final int _clientId = 1;
   int _transactionId = 0;
 
   // Connection resilience

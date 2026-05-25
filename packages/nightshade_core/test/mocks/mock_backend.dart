@@ -11,25 +11,25 @@ class MockBackend extends Mock implements NightshadeBackend {}
 /// Test fixtures and helper data for common test scenarios
 class TestFixtures {
   /// Default camera device ID
-  static const String cameraId = 'test-camera-1';
+  static const String cameraId = 'simulator:test-camera-1';
 
   /// Default mount device ID
-  static const String mountId = 'test-mount-1';
+  static const String mountId = 'simulator:test-mount-1';
 
   /// Default focuser device ID
-  static const String focuserId = 'test-focuser-1';
+  static const String focuserId = 'simulator:test-focuser-1';
 
   /// Default filter wheel device ID
-  static const String filterWheelId = 'test-filterwheel-1';
+  static const String filterWheelId = 'simulator:test-filterwheel-1';
 
   /// Default dome device ID
-  static const String domeId = 'test-dome-1';
+  static const String domeId = 'simulator:test-dome-1';
 
   /// Default weather device ID
-  static const String weatherId = 'test-weather-1';
+  static const String weatherId = 'simulator:test-weather-1';
 
   /// Default safety monitor device ID
-  static const String safetyMonitorId = 'test-safety-1';
+  static const String safetyMonitorId = 'simulator:test-safety-1';
 
   /// Sample image statistics
   static const ImageStats sampleImageStats = ImageStats(
@@ -108,7 +108,8 @@ class TestFixtures {
 
     // Setup default event stream (empty stream)
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents)
+        .thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -122,7 +123,8 @@ class TestFixtures {
         .thenThrow(Exception('Failed to connect to device'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents)
+        .thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -136,7 +138,8 @@ class TestFixtures {
         .thenThrow(Exception('Connection timeout'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents)
+        .thenAnswer((_) => const Stream.empty());
 
     return backend;
   }

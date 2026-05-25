@@ -55,11 +55,7 @@ pub async fn api_event_stream(
     if let Err(err) = sink.add(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::System,
-        EventPayload::System(SystemEvent::Notification {
-            title: "EventStreamReady".to_string(),
-            message: "Event stream subscription is active".to_string(),
-            level: "debug".to_string(),
-        }),
+        EventPayload::System(SystemEvent::Initialized),
     )) {
         tracing::warn!("[API_EVENT_STREAM] Failed to send ready signal: {}", err);
         return Ok(());

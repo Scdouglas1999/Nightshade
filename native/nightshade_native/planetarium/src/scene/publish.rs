@@ -1,13 +1,17 @@
 //! Per-frame snapshot assembly and ArcSwap publish hook.
 
+use crate::astrometry::time::AstroTime;
+use crate::catalog::constellation_lines::{icrs_dir_from_j2000, CONSTELLATIONS};
+use crate::catalog::variable_stars::{brighter_than, icrs_dir, VariableStar};
 use crate::catalog::CatalogSet;
-use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
-
-use super::dev_catalog::DEV_STARS;
-use super::projection::project_icrs;
-use super::{
+use crate::scene::dev_catalog::DEV_STARS;
+use crate::scene::pose::{body_equatorial_rad, BodyId};
+use crate::scene::projection::project_icrs;
+use crate::scene::{
     publish, LabelCategory, LabelHint, SceneSnapshot, SelectedObject, SmallString, SnapshotSlot,
 };
+use crate::scene::snapshot::ConstellationArtPlacement;
+use crate::types::{RenderConfig, ViewPose};
 
 /// Inputs required to build and publish one frame snapshot.
 #[derive(Debug, Clone)]
@@ -19,16 +23,17 @@ pub struct SnapshotInputs {
     /// Astronomical time for this frame.
     pub astro_time: AstroTime,
     /// Observer site for this frame.
-    pub observer: Observer,
+    pub observer: crate::types::Observer,
     /// Layer visibility and magnitude limit.
     pub render_config: RenderConfig,
     /// Active selection, if any (screen position is refreshed each frame).
     pub selected: Option<SelectedObject>,
 }
 
-/// Builds a [`SceneSnapshot`] with projected label hints from catalog or dev stars.
+/// Builds a [`SceneSnapshot`] with projected labels and constellation art from catalogs and astrometry.
 pub fn build_snapshot(catalog: &CatalogSet, inputs: SnapshotInputs) -> SceneSnapshot {
-    let labels = collect_label_hints(catalog, &inputs.view_pose, &inputs.render_config);
+    let labels = collect_all_labels(catalog, &inputs);
+    let constellation_art = collect_constellation_art(&inputs.view_pose, &inputs.render_config);
     let selected = inputs
         .selected
         .map(|sel| project_selected(sel, inputs.view_pose));
@@ -39,6 +44,7 @@ pub fn build_snapshot(catalog: &CatalogSet, inputs: SnapshotInputs) -> SceneSnap
         astro_time: inputs.astro_time,
         observer: inputs.observer,
         labels,
+        constellation_art,
         selected,
     }
 }
@@ -48,7 +54,26 @@ pub fn publish_snapshot(slot: &SnapshotSlot, catalog: &CatalogSet, inputs: Snaps
     publish(slot, build_snapshot(catalog, inputs));
 }
 
-fn collect_label_hints(
+fn collect_all_labels(catalog: &CatalogSet, inputs: &SnapshotInputs) -> Vec<LabelHint> {
+    let mut labels = Vec::new();
+    labels.extend(collect_star_labels(catalog, &inputs.view_pose, &inputs.render_config));
+    labels.extend(collect_constellation_name_labels(
+        &inputs.view_pose,
+        &inputs.render_config,
+    ));
+    labels.extend(collect_body_labels(
+        inputs.astro_time,
+        &inputs.view_pose,
+        &inputs.render_config,
+    ));
+    labels.extend(collect_variable_star_labels(
+        &inputs.view_pose,
+        &inputs.render_config,
+    ));
+    labels
+}
+
+fn collect_star_labels(
     catalog: &CatalogSet,
     view_pose: &ViewPose,
     config: &RenderConfig,
@@ -58,7 +83,7 @@ fn collect_label_hints(
     }
 
     if catalog.is_empty() {
-        return collect_dev_label_hints(view_pose, config);
+        return collect_dev_star_labels(view_pose, config);
     }
 
     let mut labels = Vec::new();
@@ -83,7 +108,7 @@ fn collect_label_hints(
     labels
 }
 
-fn collect_dev_label_hints(view_pose: &ViewPose, config: &RenderConfig) -> Vec<LabelHint> {
+fn collect_dev_star_labels(view_pose: &ViewPose, config: &RenderConfig) -> Vec<LabelHint> {
     let mut labels = Vec::with_capacity(DEV_STARS.len());
     for star in DEV_STARS {
         if star.mag > config.magnitude_limit {
@@ -106,6 +131,146 @@ fn collect_dev_label_hints(view_pose: &ViewPose, config: &RenderConfig) -> Vec<L
     labels
 }
 
+fn collect_constellation_name_labels(
+    view_pose: &ViewPose,
+    config: &RenderConfig,
+) -> Vec<LabelHint> {
+    if !config.show_constellations {
+        return Vec::new();
+    }
+
+    let mut labels = Vec::new();
+    for (index, c) in CONSTELLATIONS.iter().enumerate() {
+        let ra_rad = f64::from(c.center_ra_hours) * (std::f64::consts::PI / 12.0);
+        let dec_rad = f64::from(c.center_dec_deg).to_radians();
+        let Some((screen_x, screen_y)) = project_icrs(ra_rad, dec_rad, *view_pose) else {
+            continue;
+        };
+        labels.push(LabelHint {
+            object_id: constellation_object_id(index),
+            screen_x,
+            screen_y,
+            apparent_mag: 4.0,
+            priority: 40,
+            text: SmallString::new(c.name),
+            category: LabelCategory::Constellation,
+        });
+    }
+    labels
+}
+
+fn collect_body_labels(
+    time: AstroTime,
+    view_pose: &ViewPose,
+    config: &RenderConfig,
+) -> Vec<LabelHint> {
+    if !config.show_solar_system {
+        return Vec::new();
+    }
+
+    let bodies: &[(BodyId, &str, f32)] = &[
+        (BodyId::Sun, "Sun", -26.7),
+        (BodyId::Moon, "Moon", -12.0),
+        (BodyId::Mercury, "Mercury", 0.0),
+        (BodyId::Venus, "Venus", -4.0),
+        (BodyId::Mars, "Mars", 0.0),
+        (BodyId::Jupiter, "Jupiter", -2.0),
+        (BodyId::Saturn, "Saturn", 0.5),
+    ];
+
+    let mut labels = Vec::with_capacity(bodies.len());
+    for &(body, name, mag) in bodies {
+        let (ra_rad, dec_rad) = match body_equatorial_rad(body, time) {
+            Ok(v) => v,
+            Err(err) => {
+                tracing::error!("body label {name}: {err}");
+                continue;
+            }
+        };
+        let Some((screen_x, screen_y)) = project_icrs(ra_rad, dec_rad, *view_pose) else {
+            continue;
+        };
+        labels.push(LabelHint {
+            object_id: body_object_id(body),
+            screen_x,
+            screen_y,
+            apparent_mag: mag,
+            priority: label_priority(mag),
+            text: SmallString::new(name),
+            category: LabelCategory::Body,
+        });
+    }
+    labels
+}
+
+fn collect_variable_star_labels(view_pose: &ViewPose, config: &RenderConfig) -> Vec<LabelHint> {
+    if !config.show_variable_stars {
+        return Vec::new();
+    }
+
+    let mut labels = Vec::new();
+    for star in brighter_than(config.magnitude_limit) {
+        let Some(label) = variable_star_label(star, view_pose) else {
+            continue;
+        };
+        labels.push(label);
+    }
+    labels
+}
+
+fn variable_star_label(star: &VariableStar, view_pose: &ViewPose) -> Option<LabelHint> {
+    let dir = icrs_dir(star);
+    let (ra_rad, dec_rad) = radec_from_icrs_dir(dir);
+    let (screen_x, screen_y) = project_icrs(ra_rad, dec_rad, *view_pose)?;
+    Some(LabelHint {
+        object_id: variable_star_object_id(star.name),
+        screen_x,
+        screen_y,
+        apparent_mag: star.mag_max,
+        priority: label_priority(star.mag_max),
+        text: SmallString::new(star.name),
+        category: LabelCategory::Star,
+    })
+}
+
+fn collect_constellation_art(
+    view_pose: &ViewPose,
+    config: &RenderConfig,
+) -> Vec<ConstellationArtPlacement> {
+    if !config.show_constellation_art {
+        return Vec::new();
+    }
+
+    let scale = art_scale_for_fov(view_pose.fov_rad);
+    let mut placements = Vec::new();
+    for c in CONSTELLATIONS {
+        let ra_rad = f64::from(c.center_ra_hours) * (std::f64::consts::PI / 12.0);
+        let dec_rad = f64::from(c.center_dec_deg).to_radians();
+        let Some((screen_x, screen_y)) = project_icrs(ra_rad, dec_rad, *view_pose) else {
+            continue;
+        };
+        let segment_visible = c.segments.iter().any(|seg| {
+            let start = icrs_dir_from_j2000(seg.start_ra_hours, seg.start_dec_deg);
+            let end = icrs_dir_from_j2000(seg.end_ra_hours, seg.end_dec_deg);
+            let (ra_s, dec_s) = radec_from_icrs_dir(start);
+            let (ra_e, dec_e) = radec_from_icrs_dir(end);
+            project_icrs(ra_s, dec_s, *view_pose).is_some()
+                || project_icrs(ra_e, dec_e, *view_pose).is_some()
+        });
+        if !segment_visible {
+            continue;
+        }
+        placements.push(ConstellationArtPlacement {
+            abbrev: SmallString::new(c.abbrev),
+            screen_x,
+            screen_y,
+            scale,
+            opacity: 0.2,
+        });
+    }
+    placements
+}
+
 fn star_display_name(hip_id: u32) -> SmallString {
     DEV_STARS
         .iter()
@@ -124,6 +289,26 @@ fn project_selected(mut sel: SelectedObject, view_pose: ViewPose) -> SelectedObj
 
 fn label_priority(apparent_mag: f32) -> u8 {
     (10.0 - apparent_mag).clamp(0.0, 255.0) as u8
+}
+
+fn art_scale_for_fov(fov_rad: f32) -> f32 {
+    (fov_rad / std::f32::consts::FRAC_PI_2).clamp(0.35, 2.5)
+}
+
+const fn constellation_object_id(index: usize) -> u64 {
+    0xC0_00_0000 | (index as u64)
+}
+
+const fn body_object_id(body: BodyId) -> u64 {
+    0xB0_00_0000 | (body as u64)
+}
+
+fn variable_star_object_id(name: &str) -> u64 {
+    let mut hash = 0xD0_00_0000_u64;
+    for b in name.bytes() {
+        hash = hash.wrapping_mul(31).wrapping_add(u64::from(b));
+    }
+    hash
 }
 
 #[inline]

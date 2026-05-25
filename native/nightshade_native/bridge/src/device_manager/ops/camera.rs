@@ -160,23 +160,32 @@ impl DeviceManager {
                 Err(format!("INDI camera {} not found", device_id))
             }
             Some(DriverType::Native) => {
-                let mut native_cameras = self.native_cameras.write().await;
-                if let Some(camera) = native_cameras.get_mut(device_id) {
-                    tracing::info!("DeviceManager: Starting Native SDK exposure");
-                    let params = ExposureParams {
-                        duration_secs: duration,
-                        bin_x,
-                        bin_y,
-                        gain: Some(gain),
-                        offset: Some(offset),
-                        subframe: None,
-                        readout_mode: None,
-                    };
-                    return camera.start_exposure(params).await.map_err(|e| {
-                        format!("Failed to start native SDK camera exposure on {}: {}", device_id, e)
-                    });
+                let mut camera = {
+                    let mut native_cameras = self.native_cameras.write().await;
+                    native_cameras.remove(device_id)
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                .ok_or_else(|| format!("Native SDK camera {} not found", device_id))?;
+
+                tracing::info!("DeviceManager: Starting Native SDK exposure");
+                let params = ExposureParams {
+                    duration_secs: duration,
+                    bin_x,
+                    bin_y,
+                    gain: Some(gain),
+                    offset: Some(offset),
+                    subframe: None,
+                    readout_mode: None,
+                };
+                let result = camera.start_exposure(params).await.map_err(|e| {
+                    format!("Failed to start native SDK camera exposure on {}: {}", device_id, e)
+                });
+
+                {
+                    let mut native_cameras = self.native_cameras.write().await;
+                    native_cameras.insert(device_id.to_string(), camera);
+                }
+
+                result
             }
             Some(DriverType::Simulator) => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
@@ -1350,5 +1359,306 @@ impl DeviceManager {
             }
             None => Err("Driver type not found".to_string()),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::api::get_device_manager;
+    use nightshade_native::{
+        CameraCapabilities, CameraState, CameraStatus, ImageData, ImageMetadata, NativeDevice,
+        NativeError, NativeVendor, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    };
+    use std::sync::{
+        atomic::{AtomicUsize, Ordering},
+        Arc,
+    };
+    use tokio::sync::oneshot;
+
+    struct BlockingNativeCamera {
+        id: String,
+        entered_start: Option<oneshot::Sender<()>>,
+        release_start: Option<oneshot::Receiver<()>>,
+        exposure_checks: Arc<AtomicUsize>,
+    }
+
+    impl std::fmt::Debug for BlockingNativeCamera {
+        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            f.debug_struct("BlockingNativeCamera")
+                .field("id", &self.id)
+                .finish_non_exhaustive()
+        }
+    }
+
+    impl BlockingNativeCamera {
+        fn new(
+            id: String,
+            entered_start: Option<oneshot::Sender<()>>,
+            release_start: Option<oneshot::Receiver<()>>,
+            exposure_checks: Arc<AtomicUsize>,
+        ) -> Self {
+            Self {
+                id,
+                entered_start,
+                release_start,
+                exposure_checks,
+            }
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl NativeDevice for BlockingNativeCamera {
+        fn id(&self) -> &str {
+            &self.id
+        }
+
+        fn name(&self) -> &str {
+            "Blocking Native Camera"
+        }
+
+        fn vendor(&self) -> NativeVendor {
+            NativeVendor::Other("Test".to_string())
+        }
+
+        fn is_connected(&self) -> bool {
+            true
+        }
+
+        async fn connect(&mut self) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<(), NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl NativeCamera for BlockingNativeCamera {
+        fn capabilities(&self) -> CameraCapabilities {
+            CameraCapabilities::default()
+        }
+
+        async fn get_status(&self) -> Result<CameraStatus, NativeError> {
+            Ok(CameraStatus {
+                state: CameraState::Idle,
+                sensor_temp: None,
+                cooler_power: None,
+                target_temp: None,
+                cooler_on: false,
+                gain: 0,
+                offset: 0,
+                bin_x: 1,
+                bin_y: 1,
+                exposure_remaining: None,
+            })
+        }
+
+        async fn start_exposure(&mut self, _params: ExposureParams) -> Result<(), NativeError> {
+            if let Some(entered_start) = self.entered_start.take() {
+                let _ = entered_start.send(());
+            }
+            if let Some(release_start) = self.release_start.take() {
+                let _ = release_start.await;
+            }
+            Ok(())
+        }
+
+        async fn abort_exposure(&mut self) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn is_exposure_complete(&self) -> Result<bool, NativeError> {
+            self.exposure_checks.fetch_add(1, Ordering::SeqCst);
+            Ok(true)
+        }
+
+        async fn download_image(&mut self) -> Result<ImageData, NativeError> {
+            Ok(ImageData {
+                width: 1,
+                height: 1,
+                data: vec![0],
+                bits_per_pixel: 16,
+                bayer_pattern: None,
+                metadata: ImageMetadata {
+                    exposure_time: 0.0,
+                    gain: 0,
+                    offset: 0,
+                    bin_x: 1,
+                    bin_y: 1,
+                    temperature: None,
+                    timestamp: chrono::Utc::now(),
+                    subframe: None,
+                    readout_mode: None,
+                    vendor_data: VendorFeatures::default(),
+                },
+            })
+        }
+
+        async fn set_cooler(
+            &mut self,
+            _enabled: bool,
+            _target_temp: f64,
+        ) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_temperature(&self) -> Result<f64, NativeError> {
+            Ok(0.0)
+        }
+
+        async fn get_cooler_power(&self) -> Result<f64, NativeError> {
+            Ok(0.0)
+        }
+
+        async fn set_gain(&mut self, _gain: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_gain(&self) -> Result<i32, NativeError> {
+            Ok(0)
+        }
+
+        async fn set_offset(&mut self, _offset: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_offset(&self) -> Result<i32, NativeError> {
+            Ok(0)
+        }
+
+        async fn set_binning(&mut self, _bin_x: i32, _bin_y: i32) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
+            Ok((1, 1))
+        }
+
+        async fn set_subframe(&mut self, _subframe: Option<SubFrame>) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        fn get_sensor_info(&self) -> SensorInfo {
+            SensorInfo {
+                width: 1,
+                height: 1,
+                pixel_size_x: 1.0,
+                pixel_size_y: 1.0,
+                max_adu: 65535,
+                bit_depth: 16,
+                color: false,
+                bayer_pattern: None,
+            }
+        }
+
+        async fn get_readout_modes(&self) -> Result<Vec<ReadoutMode>, NativeError> {
+            Ok(Vec::new())
+        }
+
+        async fn set_readout_mode(&mut self, _mode: &ReadoutMode) -> Result<(), NativeError> {
+            Ok(())
+        }
+
+        async fn get_vendor_features(&self) -> Result<VendorFeatures, NativeError> {
+            Ok(VendorFeatures::default())
+        }
+
+        async fn get_gain_range(&self) -> Result<(i32, i32), NativeError> {
+            Err(NativeError::NotSupported)
+        }
+
+        async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
+            Err(NativeError::NotSupported)
+        }
+    }
+
+    async fn register_native_test_camera(id: &str, camera: BlockingNativeCamera) {
+        let manager = get_device_manager();
+        manager
+            .register_device(
+                DeviceInfo {
+                    id: id.to_string(),
+                    name: id.to_string(),
+                    device_type: DeviceType::Camera,
+                    driver_type: DriverType::Native,
+                    description: "test camera".to_string(),
+                    driver_version: "test".to_string(),
+                    serial_number: None,
+                    unique_id: None,
+                    display_name: id.to_string(),
+                },
+                false,
+            )
+            .await;
+        manager
+            .native_cameras
+            .write()
+            .await
+            .insert(id.to_string(), Box::new(camera));
+    }
+
+    async fn unregister_native_test_camera(id: &str) {
+        let manager = get_device_manager();
+        manager.unregister_device(id).await;
+        manager.native_cameras.write().await.remove(id);
+    }
+
+    #[tokio::test]
+    async fn native_start_exposure_does_not_hold_camera_map_lock_across_driver_await() {
+        let blocking_id = "native:test_blocking_start_exposure_lock";
+        let probe_id = "native:test_probe_start_exposure_lock";
+        let (entered_tx, entered_rx) = oneshot::channel();
+        let (release_tx, release_rx) = oneshot::channel();
+        let probe_checks = Arc::new(AtomicUsize::new(0));
+
+        register_native_test_camera(
+            blocking_id,
+            BlockingNativeCamera::new(
+                blocking_id.to_string(),
+                Some(entered_tx),
+                Some(release_rx),
+                Arc::new(AtomicUsize::new(0)),
+            ),
+        )
+        .await;
+        register_native_test_camera(
+            probe_id,
+            BlockingNativeCamera::new(probe_id.to_string(), None, None, Arc::clone(&probe_checks)),
+        )
+        .await;
+
+        let manager = Arc::clone(get_device_manager());
+        let blocking_id_for_task = blocking_id.to_string();
+        let start_task = tokio::spawn(async move {
+            manager
+                .camera_start_exposure(&blocking_id_for_task, 1.0, 0, 0, 1, 1)
+                .await
+        });
+
+        entered_rx
+            .await
+            .expect("blocking camera should enter start_exposure");
+        let probe_result = tokio::time::timeout(
+            std::time::Duration::from_millis(100),
+            get_device_manager().camera_is_exposure_complete(probe_id),
+        )
+        .await;
+
+        let _ = release_tx.send(());
+        let start_result = start_task
+            .await
+            .expect("start_exposure task should join cleanly");
+        unregister_native_test_camera(blocking_id).await;
+        unregister_native_test_camera(probe_id).await;
+
+        assert!(
+            probe_result.is_ok(),
+            "another native camera should remain reachable while one driver's start_exposure awaits"
+        );
+        assert_eq!(probe_result.unwrap(), Ok(true));
+        assert_eq!(start_result, Ok(()));
+        assert_eq!(probe_checks.load(Ordering::SeqCst), 1);
     }
 }

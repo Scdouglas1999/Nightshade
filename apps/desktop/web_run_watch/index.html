@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+  <meta name="theme-color" content="#0A0C0F" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Nightshade" />
+  <meta name="mobile-web-app-capable" content="yes" />
+
+  <!-- CSP intentionally aligned with the desktop dashboard's policy plus
+       SSE (text/event-stream over same-origin GET). connect-src 'self'
+       covers the EventSource subscription + REST calls. img-src adds
+       blob: so we can hold a Blob URL for the JPEG frame thumbnail
+       without re-fetching when only the headers change. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self'; object-src 'none'; base-uri 'none'; frame-ancestors 'none'; manifest-src 'self'; worker-src 'self'" />
+
+  <title>Nightshade Run-Watch</title>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap">
+
+  <link rel="manifest" href="/run-watch/manifest.json" />
+  <link rel="icon" type="image/svg+xml" href="/run-watch/icons/icon.svg" />
+  <link rel="apple-touch-icon" href="/run-watch/icons/icon-192.svg" />
+  <link rel="stylesheet" href="/run-watch/css/style.css" />
+</head>
+<body>
+  <!-- =====================================================================
+       Pairing screen. Shown until a session token is in localStorage. The
+       desktop app prints a 6-digit code on its console (see
+       PairingService.startPairing); the operator types it here to mint a
+       long-lived bearer token. Once paired we stash the token and reload
+       into the main view.
+       ===================================================================== -->
+  <div id="pair-screen" class="screen pair-screen">
+    <div class="pair-card">
+      <div class="brand">
+        <div class="brand-dot" aria-hidden="true"></div>
+        <h1 class="brand-name">NIGHTSHADE</h1>
+        <p class="brand-tag">Run-Watch</p>
+      </div>
+      <p class="pair-help">
+        Open the Nightshade desktop app's Remote Access screen and read the
+        6-digit pairing code. It expires after about 5 minutes; just request
+        a fresh one if it does.
+      </p>
+      <label class="pair-label" for="pair-code">Pairing code</label>
+      <input
+        id="pair-code"
+        class="pair-input"
+        type="text"
+        inputmode="numeric"
+        autocomplete="one-time-code"
+        maxlength="6"
+        pattern="[0-9]{6}"
+        placeholder="------"
+        aria-describedby="pair-status"
+      />
+      <button id="btn-pair" class="btn btn-primary btn-block">Pair this device</button>
+      <p id="pair-status" class="pair-status" aria-live="polite"></p>
+      <details class="pair-advanced">
+        <summary>Manual token</summary>
+        <p class="muted">If your desktop's Remote Access screen shows a bearer token directly, paste it here:</p>
+        <input id="manual-token" class="pair-input" type="password" placeholder="Bearer token" autocomplete="off" spellcheck="false" />
+        <button id="btn-manual-token" class="btn btn-block">Use token</button>
+      </details>
+    </div>
+  </div>
+
+  <!-- =====================================================================
+       Main run-watch view. Mobile-first, scrolling single-column. The
+       frame thumbnail dominates the top; everything else is a stack of
+       status cards followed by playback controls and the event feed.
+       ===================================================================== -->
+  <div id="main-screen" class="screen main-screen hidden">
+    <header class="topbar" role="banner">
+      <div class="topbar-left">
+        <div class="brand-dot" aria-hidden="true"></div>
+        <span class="topbar-title">Nightshade</span>
+      </div>
+      <div class="topbar-center">
+        <span id="seq-name" class="seq-name">Idle</span>
+      </div>
+      <div class="topbar-right">
+        <span id="state-badge" class="badge badge-idle" role="status">idle</span>
+        <span id="connection-dot" class="conn-dot conn-disconnected" title="Disconnected" aria-label="Connection status"></span>
+      </div>
+    </header>
+
+    <!-- Recovery / critical banner — populated when /api/run-watch/snapshot
+         returns a non-null recovery context. Hidden by default. -->
+    <div id="recovery-banner" class="recovery-banner hidden" role="alert"></div>
+
+    <main class="content" role="main">
+      <!-- Live frame thumbnail. Built from /api/run-watch/frame-thumbnail.
+           Refreshed via SSE FrameAccepted events; polls every 10s as a
+           fallback so the panel is never stale. -->
+      <section class="card card-frame" aria-labelledby="frame-h">
+        <div class="card-header">
+          <h2 id="frame-h" class="card-title">Last frame</h2>
+          <span id="frame-meta" class="card-meta">--</span>
+        </div>
+        <div class="frame-wrap" id="frame-wrap">
+          <img id="frame-img" class="frame-img hidden" alt="Most recent captured frame" />
+          <div id="frame-placeholder" class="frame-placeholder">No frame captured yet</div>
+          <span id="frame-loading-badge" class="frame-loading-badge" role="status" aria-live="polite" hidden>
+            <span class="spinner" aria-hidden="true"></span>
+            Updating…
+          </span>
+        </div>
+      </section>
+
+      <!-- Active target header — name + RA/Dec + alt/az + time-to-set. -->
+      <section class="card" aria-labelledby="target-h">
+        <div class="card-header">
+          <h2 id="target-h" class="card-title">Active target</h2>
+          <span id="target-state" class="card-meta">--</span>
+        </div>
+        <div class="kv-grid">
+          <div class="kv">
+            <span class="kv-label">Name</span>
+            <span class="kv-value" id="target-name">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">RA / Dec</span>
+            <span class="kv-value mono" id="target-coords">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Altitude</span>
+            <span class="kv-value mono" id="target-alt">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Azimuth</span>
+            <span class="kv-value mono" id="target-az">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Time to set</span>
+            <span class="kv-value mono" id="target-time-set">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Time to meridian</span>
+            <span class="kv-value mono" id="target-time-transit">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Sequence progress. Progress bar + per-frame counts. -->
+      <section class="card" aria-labelledby="progress-h">
+        <div class="card-header">
+          <h2 id="progress-h" class="card-title">Progress</h2>
+          <span id="progress-pct" class="card-meta">0%</span>
+        </div>
+        <div class="bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="progress-bar-aria">
+          <div id="progress-bar" class="bar-fill"></div>
+        </div>
+        <div class="kv-grid kv-grid-compact">
+          <div class="kv">
+            <span class="kv-label">Frames</span>
+            <span class="kv-value mono" id="progress-frames">0 / 0</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Integration</span>
+            <span class="kv-value mono" id="progress-integration">0s / 0s</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Current node</span>
+            <span class="kv-value" id="progress-node">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Filter</span>
+            <span class="kv-value" id="progress-filter">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Equipment telemetry. Concise — just enough to know everything's
+           alive. Drill-down to /api/equipment/* is desktop-only. -->
+      <section class="card" aria-labelledby="equip-h">
+        <div class="card-header">
+          <h2 id="equip-h" class="card-title">Equipment</h2>
+        </div>
+        <div id="equipment-list" class="equipment-list">
+          <div class="empty">No connected devices</div>
+        </div>
+      </section>
+
+      <!-- Guiding — RMS + status badge. -->
+      <section class="card" aria-labelledby="guide-h">
+        <div class="card-header">
+          <h2 id="guide-h" class="card-title">Guiding</h2>
+          <span id="guide-state" class="card-meta">--</span>
+        </div>
+        <div class="guide-actions">
+          <button id="btn-guide-dither" class="btn btn-sm" type="button">Dither</button>
+        </div>
+        <div class="kv-grid kv-grid-compact">
+          <div class="kv">
+            <span class="kv-label">RA RMS</span>
+            <span class="kv-value mono" id="guide-ra">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Dec RMS</span>
+            <span class="kv-value mono" id="guide-dec">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">Total</span>
+            <span class="kv-value mono" id="guide-total">--</span>
+          </div>
+          <div class="kv">
+            <span class="kv-label">SNR</span>
+            <span class="kv-value mono" id="guide-snr">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Weather + safety. Driven by /api/weather/safe-imaging. -->
+      <section class="card" aria-labelledby="weather-h">
+        <div class="card-header">
+          <h2 id="weather-h" class="card-title">Weather</h2>
+          <span id="weather-badge" class="badge badge-idle">--</span>
+        </div>
+        <p id="weather-message" class="weather-message">--</p>
+      </section>
+
+      <!-- Event feed. Last 5, color-coded by severity. -->
+      <section class="card" aria-labelledby="events-h">
+        <div class="card-header">
+          <h2 id="events-h" class="card-title">Recent events</h2>
+        </div>
+        <ul id="event-feed" class="event-feed">
+          <li class="empty">Waiting for events…</li>
+        </ul>
+      </section>
+    </main>
+
+    <!-- Playback footer — sticky to bottom so it's always reachable
+         one-handed. Big tappable buttons. -->
+    <footer class="playback" role="region" aria-label="Sequencer playback controls">
+      <button id="btn-pause" class="pb-btn" aria-label="Pause">Pause</button>
+      <button id="btn-resume" class="pb-btn pb-primary" aria-label="Resume">Resume</button>
+      <button id="btn-skip" class="pb-btn" aria-label="Skip current">Skip</button>
+      <button id="btn-reset" class="pb-btn" aria-label="Reset sequencer">Reset</button>
+      <button id="btn-stop" class="pb-btn pb-danger" aria-label="Stop">Stop</button>
+    </footer>
+
+    <!-- Toast — bottom-center, transient feedback. -->
+    <div id="toast-region" class="toast-region" role="region" aria-live="polite"></div>
+
+    <!-- Settings sheet (cog button hidden in topbar overflow) -->
+    <div id="settings-fab-wrap" class="settings-fab-wrap">
+      <button id="btn-settings" class="fab" aria-label="Settings">⚙</button>
+    </div>
+  </div>
+
+  <!-- Settings modal — wake-lock toggle, push notification opt-in, logout -->
+  <div id="settings-modal" class="modal-backdrop hidden" role="dialog" aria-modal="true" aria-labelledby="settings-h">
+    <div class="modal">
+      <h2 id="settings-h" class="modal-title">Settings</h2>
+      <label class="toggle">
+        <input type="checkbox" id="opt-wake-lock" />
+        <span>Keep screen awake</span>
+      </label>
+      <label class="toggle">
+        <input type="checkbox" id="opt-push" />
+        <span>Push notifications (critical events)</span>
+      </label>
+      <div class="settings-actions">
+        <button id="btn-checkpoint-resume" class="btn btn-block" type="button">Resume checkpoint</button>
+        <button id="btn-checkpoint-discard" class="btn btn-block" type="button">Discard checkpoint</button>
+        <a id="link-full-dashboard" class="btn btn-block" href="/dashboard/">Full dashboard</a>
+      </div>
+      <button id="btn-logout" class="btn btn-block">Forget this device (log out)</button>
+      <button id="btn-settings-close" class="btn btn-block btn-primary">Close</button>
+    </div>
+  </div>
+
+  <script src="/run-watch/js/run-watch.js"></script>
+</body>
+</html>

@@ -1,0 +1,768 @@
+/*
+ * Nightshade Run-Watch — phone/tablet web client.
+ *
+ * Vanilla JS so the bundle stays tiny. Three concerns:
+ *
+ *  1. Pairing — first run prompts for the 6-digit code printed by the
+ *     desktop console, calls /api/pairing/verify, persists the resulting
+ *     session token in localStorage.
+ *
+ *  2. Live data — once authenticated:
+ *       - fetch /api/run-watch/snapshot every 15s as a baseline + on
+ *         reconnect,
+ *       - subscribe to /api/run-watch/events (SSE) for the firehose,
+ *       - poll /api/run-watch/frame-thumbnail when a FrameAccepted /
+ *         ExposureFinished event arrives, plus every 10s as a fallback
+ *         so the panel never goes stale.
+ *
+ *  3. Controls — POST to existing /api/sequencer/{pause,resume,skip,stop}
+ *     so we don't duplicate any backend logic.
+ */
+'use strict';
+
+// ---------------------------------------------------------------------------
+// Auth + storage
+// ---------------------------------------------------------------------------
+const STORAGE_TOKEN_KEY = 'nightshade.runwatch.token';
+const STORAGE_DEVICE_ID_KEY = 'nightshade.runwatch.deviceId';
+const STORAGE_OPTS_KEY = 'nightshade.runwatch.opts';
+
+function getToken() {
+  try { return localStorage.getItem(STORAGE_TOKEN_KEY); } catch { return null; }
+}
+function setToken(t) {
+  try {
+    if (t) localStorage.setItem(STORAGE_TOKEN_KEY, t);
+    else localStorage.removeItem(STORAGE_TOKEN_KEY);
+  } catch { /* private mode — fall back to in-memory */ inMemoryToken = t || null; }
+}
+let inMemoryToken = null;
+function effectiveToken() { return getToken() || inMemoryToken; }
+
+function getOrCreateDeviceId() {
+  let id;
+  try { id = localStorage.getItem(STORAGE_DEVICE_ID_KEY); } catch { id = null; }
+  if (id) return id;
+  // crypto.randomUUID is widely supported on modern mobile browsers;
+  // fall back to a Math.random-based id otherwise (good enough for a
+  // device handle that's only used to label the paired-devices table).
+  const fresh = (window.crypto && crypto.randomUUID)
+    ? crypto.randomUUID()
+    : 'web-' + Math.random().toString(36).slice(2, 10);
+  try { localStorage.setItem(STORAGE_DEVICE_ID_KEY, fresh); } catch { /* ignore */ }
+  return fresh;
+}
+
+function loadOpts() {
+  try {
+    const raw = localStorage.getItem(STORAGE_OPTS_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+function saveOpts(opts) {
+  try { localStorage.setItem(STORAGE_OPTS_KEY, JSON.stringify(opts)); } catch { /* ignore */ }
+}
+
+// ---------------------------------------------------------------------------
+// Fetch helpers — all requests carry the bearer token automatically.
+// ---------------------------------------------------------------------------
+async function apiFetch(path, opts) {
+  opts = opts || {};
+  const headers = new Headers(opts.headers || {});
+  const token = effectiveToken();
+  if (token) headers.set('Authorization', 'Bearer ' + token);
+  if (opts.body && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  const res = await fetch(path, Object.assign({}, opts, { headers }));
+  if (res.status === 401 || res.status === 403) {
+    // Tokens can be revoked desktop-side; force re-pair.
+    setToken(null);
+    showPairScreen();
+    throw new Error('auth_required');
+  }
+  return res;
+}
+
+async function apiJson(path, opts) {
+  const res = await apiFetch(path, opts);
+  if (!res.ok) {
+    let body;
+    try { body = await res.json(); } catch { body = await res.text(); }
+    throw new Error(typeof body === 'string'
+      ? `${path} ${res.status}: ${body}`
+      : `${path} ${res.status}: ${body.error || JSON.stringify(body)}`);
+  }
+  return res.json();
+}
+
+// ---------------------------------------------------------------------------
+// UI helpers
+// ---------------------------------------------------------------------------
+function $(id) { return document.getElementById(id); }
+
+function toast(message, kind) {
+  kind = kind || 'info';
+  const region = $('toast-region');
+  if (!region) return;
+  const el = document.createElement('div');
+  el.className = 'toast toast-' + kind;
+  el.textContent = message;
+  region.appendChild(el);
+  setTimeout(() => {
+    el.style.opacity = '0';
+    el.style.transition = 'opacity 0.2s';
+    setTimeout(() => { try { region.removeChild(el); } catch {} }, 250);
+  }, 3000);
+}
+
+function setConnectionState(state) {
+  const dot = $('connection-dot');
+  if (!dot) return;
+  dot.classList.remove('conn-connected', 'conn-disconnected', 'conn-reconnecting');
+  if (state === 'connected') {
+    dot.classList.add('conn-connected');
+    dot.title = 'Connected';
+  } else if (state === 'reconnecting') {
+    dot.classList.add('conn-reconnecting');
+    dot.title = 'Reconnecting…';
+  } else {
+    dot.classList.add('conn-disconnected');
+    dot.title = 'Disconnected';
+  }
+}
+
+function showPairScreen() {
+  $('pair-screen').classList.remove('hidden');
+  $('main-screen').classList.add('hidden');
+  closeSSE();
+  stopPolling();
+}
+
+function showMainScreen() {
+  $('pair-screen').classList.add('hidden');
+  $('main-screen').classList.remove('hidden');
+  bootSession();
+}
+
+// ---------------------------------------------------------------------------
+// Pairing flow
+// ---------------------------------------------------------------------------
+async function startPairing(code) {
+  const trimmed = (code || '').trim();
+  const statusEl = $('pair-status');
+  statusEl.className = 'pair-status';
+  if (!/^\d{6}$/.test(trimmed)) {
+    statusEl.textContent = 'Enter the 6-digit code from the desktop.';
+    statusEl.classList.add('error');
+    return;
+  }
+
+  statusEl.textContent = 'Pairing…';
+
+  try {
+    const body = JSON.stringify({
+      code: trimmed,
+      deviceId: getOrCreateDeviceId(),
+      deviceName: deviceLabel(),
+      deviceType: 'browser',
+    });
+    const res = await fetch('/api/pairing/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body,
+    });
+    const data = await res.json();
+    if (!res.ok || !data.sessionToken) {
+      statusEl.textContent = data.error || data.message || 'Pairing failed.';
+      statusEl.classList.add('error');
+      return;
+    }
+    setToken(data.sessionToken);
+    statusEl.textContent = 'Paired successfully.';
+    statusEl.classList.add('success');
+    showMainScreen();
+  } catch (e) {
+    statusEl.textContent = 'Network error: ' + e.message;
+    statusEl.classList.add('error');
+  }
+}
+
+function deviceLabel() {
+  // The desktop's paired-device row should show something the operator
+  // recognises — phone/tablet/browser model is good enough.
+  const ua = navigator.userAgent || 'web';
+  // Try to extract a brand+OS hint without dragging in a full parser.
+  let label = 'Web';
+  if (/iphone/i.test(ua)) label = 'iPhone';
+  else if (/ipad/i.test(ua)) label = 'iPad';
+  else if (/android/i.test(ua)) label = 'Android phone';
+  else if (/macintosh/i.test(ua)) label = 'Mac browser';
+  else if (/windows/i.test(ua)) label = 'Windows browser';
+  return label + ' · Run-Watch';
+}
+
+// ---------------------------------------------------------------------------
+// Main session: snapshot polling + SSE + frame refresh
+// ---------------------------------------------------------------------------
+const SNAPSHOT_INTERVAL_MS = 15000;
+const FRAME_FALLBACK_MS = 10000;
+
+let snapshotTimer = null;
+let frameTimer = null;
+let sse = null;
+let lastFrameBlobUrl = null;
+let frameBusy = false;
+
+function bootSession() {
+  setConnectionState('reconnecting');
+  fetchSnapshot();
+  openSSE();
+  startPolling();
+  refreshFrame();
+}
+
+function startPolling() {
+  stopPolling();
+  snapshotTimer = setInterval(fetchSnapshot, SNAPSHOT_INTERVAL_MS);
+  frameTimer = setInterval(refreshFrame, FRAME_FALLBACK_MS);
+}
+
+function stopPolling() {
+  if (snapshotTimer) { clearInterval(snapshotTimer); snapshotTimer = null; }
+  if (frameTimer) { clearInterval(frameTimer); frameTimer = null; }
+}
+
+async function fetchSnapshot() {
+  try {
+    const data = await apiJson('/api/run-watch/snapshot');
+    setConnectionState('connected');
+    applySnapshot(data);
+  } catch (e) {
+    if (e.message === 'auth_required') return;
+    setConnectionState('reconnecting');
+  }
+}
+
+function applySnapshot(data) {
+  if (!data) return;
+
+  // Sequencer state badge
+  const sequencer = data.sequencer || {};
+  const progress = sequencer.progress || {};
+  const state = (progress.state || sequencer.state || 'idle').toLowerCase();
+  const badge = $('state-badge');
+  badge.textContent = state;
+  badge.className = 'badge';
+  if (state === 'running') badge.classList.add('badge-running');
+  else if (state === 'paused') badge.classList.add('badge-paused');
+  else if (state === 'recovering') badge.classList.add('badge-recovering');
+  else if (state === 'error' || state === 'failed') badge.classList.add('badge-error');
+  else badge.classList.add('badge-idle');
+
+  $('seq-name').textContent = progress.currentTarget || sequencer.currentNodeName || 'Idle';
+
+  // Active target
+  const target = data.activeTarget;
+  if (target) {
+    $('target-state').textContent = progress.currentFilter
+      ? ('filter: ' + progress.currentFilter)
+      : '';
+    $('target-name').textContent = target.name || '--';
+    $('target-coords').textContent = formatRaDec(target.raHours, target.decDegrees);
+    $('target-alt').textContent = formatDeg(target.altitudeDeg);
+    $('target-az').textContent = formatDeg(target.azimuthDeg);
+    $('target-time-set').textContent = formatDuration(target.timeToSetSecs);
+    $('target-time-transit').textContent = formatDuration(target.timeToTransitSecs);
+  } else {
+    $('target-name').textContent = '--';
+    $('target-coords').textContent = '--';
+    $('target-alt').textContent = '--';
+    $('target-az').textContent = '--';
+    $('target-time-set').textContent = '--';
+    $('target-time-transit').textContent = '--';
+    $('target-state').textContent = '';
+  }
+
+  // Progress
+  const pct = (progress.progressPercent != null ? Math.round(progress.progressPercent * 100) : 0);
+  $('progress-pct').textContent = pct + '%';
+  $('progress-bar').style.width = pct + '%';
+  const ariaBar = $('progress-bar-aria');
+  if (ariaBar) ariaBar.setAttribute('aria-valuenow', String(pct));
+  $('progress-frames').textContent =
+    (progress.completedExposures || 0) + ' / ' + (progress.totalExposures || 0);
+  $('progress-integration').textContent =
+    formatDurationSecs(progress.completedIntegrationSecs) + ' / ' +
+    formatDurationSecs(progress.totalIntegrationSecs);
+  $('progress-node').textContent = progress.currentNodeName || sequencer.currentNodeName || '--';
+  $('progress-filter').textContent = progress.currentFilter || '--';
+
+  // Equipment
+  const list = $('equipment-list');
+  list.innerHTML = '';
+  const devices = data.devices || [];
+  if (devices.length === 0) {
+    const empty = document.createElement('div');
+    empty.className = 'empty';
+    empty.textContent = 'No connected devices';
+    list.appendChild(empty);
+  } else {
+    devices.forEach(d => {
+      const row = document.createElement('div');
+      row.className = 'equipment-row';
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = d.name;
+      const type = document.createElement('span');
+      type.className = 'type';
+      type.textContent = d.type;
+      row.appendChild(name);
+      row.appendChild(type);
+      list.appendChild(row);
+    });
+  }
+
+  // Guiding
+  const guiding = data.guiding || {};
+  $('guide-state').textContent = guiding.connected
+    ? (guiding.state || 'connected')
+    : 'disconnected';
+  $('guide-ra').textContent = formatRms(guiding.rmsRa);
+  $('guide-dec').textContent = formatRms(guiding.rmsDec);
+  $('guide-total').textContent = formatRms(guiding.rmsTotal);
+  $('guide-snr').textContent = guiding.snr != null
+    ? guiding.snr.toFixed(1)
+    : '--';
+
+  // Weather
+  const weather = data.weather || {};
+  const wbadge = $('weather-badge');
+  wbadge.textContent = weather.alertLevel || 'unknown';
+  wbadge.className = 'badge';
+  if (weather.safeToImage) wbadge.classList.add('badge-running');
+  else if (weather.alertLevel === 'warning') wbadge.classList.add('badge-paused');
+  else if (weather.alertLevel === 'unsafe' || weather.alertLevel === 'critical') wbadge.classList.add('badge-error');
+  else wbadge.classList.add('badge-idle');
+  $('weather-message').textContent = weather.message || '--';
+
+  // Recovery banner
+  const banner = $('recovery-banner');
+  if (data.recovery && typeof data.recovery === 'object') {
+    banner.classList.remove('hidden');
+    const reason = data.recovery.reason || data.recovery.trigger || 'Sequence recovery in progress';
+    banner.textContent = 'Recovery: ' + reason;
+  } else {
+    banner.classList.add('hidden');
+    banner.textContent = '';
+  }
+
+  // Recent events
+  if (data.recentEvents && data.recentEvents.length) {
+    const feed = $('event-feed');
+    feed.innerHTML = '';
+    data.recentEvents.forEach(e => feed.appendChild(renderEventLi(e)));
+  }
+}
+
+function renderEventLi(evt) {
+  const li = document.createElement('li');
+  const severity = (evt.severity || 'info').toLowerCase();
+  li.className = 'sev-' + severity;
+  const time = document.createElement('span');
+  time.className = 'event-time';
+  time.textContent = formatTimeMs(evt.timestamp);
+  const body = document.createElement('div');
+  body.className = 'event-body';
+  const title = document.createElement('div');
+  title.className = 'event-title';
+  title.textContent = (evt.eventType || evt.eventName || 'event').replace(/_/g, ' ');
+  const detail = document.createElement('div');
+  detail.className = 'event-detail';
+  detail.textContent = formatEventDetail(evt);
+  body.appendChild(title);
+  if (detail.textContent) body.appendChild(detail);
+  li.appendChild(time);
+  li.appendChild(body);
+  return li;
+}
+
+function formatEventDetail(evt) {
+  if (!evt.data || typeof evt.data !== 'object') return '';
+  // Surface the first 2 non-empty string-ish fields so the row stays
+  // compact on a phone. Numeric fields render as `key: value`.
+  const parts = [];
+  for (const k of Object.keys(evt.data)) {
+    if (parts.length >= 2) break;
+    const v = evt.data[k];
+    if (v == null) continue;
+    if (typeof v === 'string') parts.push(v);
+    else if (typeof v === 'number') parts.push(k + ': ' + formatShortNum(v));
+  }
+  return parts.join(' · ');
+}
+
+function formatShortNum(n) {
+  if (n === Math.floor(n) && Math.abs(n) < 1000) return String(n);
+  return n.toFixed(2);
+}
+
+function formatTimeMs(ms) {
+  if (!ms) return '--';
+  const d = new Date(ms);
+  const hh = String(d.getHours()).padStart(2, '0');
+  const mm = String(d.getMinutes()).padStart(2, '0');
+  const ss = String(d.getSeconds()).padStart(2, '0');
+  return hh + ':' + mm + ':' + ss;
+}
+
+function formatRaDec(raHours, decDeg) {
+  if (raHours == null || decDeg == null) return '--';
+  const raH = Math.floor(raHours);
+  const raMfull = (raHours - raH) * 60;
+  const raM = Math.floor(raMfull);
+  const raS = ((raMfull - raM) * 60).toFixed(1);
+  const sign = decDeg >= 0 ? '+' : '-';
+  const decAbs = Math.abs(decDeg);
+  const decD = Math.floor(decAbs);
+  const decMfull = (decAbs - decD) * 60;
+  const decM = Math.floor(decMfull);
+  const decS = ((decMfull - decM) * 60).toFixed(0);
+  return `${raH}h ${raM}m ${raS}s · ${sign}${decD}° ${decM}′ ${decS}″`;
+}
+
+function formatDeg(deg) {
+  if (deg == null) return '--';
+  return deg.toFixed(1) + '°';
+}
+
+function formatRms(v) {
+  if (v == null) return '--';
+  return v.toFixed(2) + '″';
+}
+
+function formatDuration(secs) {
+  if (secs == null) return '--';
+  if (secs <= 0) return 'now';
+  const h = Math.floor(secs / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  const s = Math.floor(secs % 60);
+  if (h > 0) return h + 'h ' + m + 'm';
+  if (m > 0) return m + 'm ' + s + 's';
+  return s + 's';
+}
+
+function formatDurationSecs(secs) {
+  if (secs == null) return '0s';
+  return formatDuration(secs) === 'now' ? '0s' : formatDuration(secs);
+}
+
+// ---------------------------------------------------------------------------
+// SSE — live event stream
+// ---------------------------------------------------------------------------
+function openSSE() {
+  closeSSE();
+  // EventSource doesn't accept custom headers natively. We pass the
+  // bearer token via the access_token query param; the server's
+  // pairing flow already issued it to localStorage.
+  const token = effectiveToken();
+  if (!token) return;
+  const url = '/api/run-watch/events?access_token=' + encodeURIComponent(token);
+  try {
+    sse = new EventSource(url, { withCredentials: false });
+  } catch (e) {
+    console.warn('SSE init failed', e);
+    return;
+  }
+
+  sse.onopen = () => setConnectionState('connected');
+  sse.onerror = () => setConnectionState('reconnecting');
+  sse.onmessage = (evt) => handleSseMessage(evt);
+
+  // Frame-triggering events — when one arrives, refresh the thumbnail
+  // immediately rather than waiting for the 10s fallback.
+  ['FrameAccepted', 'FrameRejected', 'ExposureFinished',
+    'ExposureCompleted', 'ImageSaved'].forEach(name => {
+    sse.addEventListener(name, () => refreshFrame());
+  });
+
+  // Sequencer state transitions — fetch a fresh snapshot so the
+  // progress bar / current-target panel updates without waiting for
+  // the 15s baseline poll.
+  ['SequencePaused', 'SequenceResumed', 'SequenceStarted',
+    'SequenceFinished', 'SequenceStopped', 'NodeStarted',
+    'NodeCompleted', 'SchedulerDecision'].forEach(name => {
+    sse.addEventListener(name, () => fetchSnapshot());
+  });
+}
+
+function closeSSE() {
+  if (sse) {
+    try { sse.close(); } catch { /* ignore */ }
+    sse = null;
+  }
+}
+
+function handleSseMessage(evt) {
+  let payload;
+  try { payload = JSON.parse(evt.data); }
+  catch { return; }
+  // Append to event feed. Cap the visible list at 5 rows.
+  const feed = $('event-feed');
+  if (!feed) return;
+  // Remove placeholder if present.
+  const placeholder = feed.querySelector('.empty');
+  if (placeholder) placeholder.remove();
+  feed.insertBefore(renderEventLi(payload), feed.firstChild);
+  while (feed.children.length > 5) feed.removeChild(feed.lastChild);
+
+  // Critical events — surface as a toast (web Push API is opt-in via
+  // settings sheet and lives in registerPushIfEnabled() below).
+  if ((payload.severity || '').toLowerCase() === 'critical') {
+    const title = (payload.eventType || payload.eventName || 'Critical event').replace(/_/g, ' ');
+    toast(title, 'error');
+    // Also browser-level notification if permission granted.
+    maybeShowNotification(title, formatEventDetail(payload));
+  }
+}
+
+function maybeShowNotification(title, body) {
+  if (!('Notification' in window)) return;
+  if (Notification.permission !== 'granted') return;
+  try {
+    if (navigator.serviceWorker && navigator.serviceWorker.controller) {
+      // Prefer the service-worker route so notifications survive when
+      // the tab is backgrounded — `Notification` constructor is
+      // deprecated on mobile Safari for that reason.
+      navigator.serviceWorker.getRegistration().then(reg => {
+        if (reg) reg.showNotification(title, { body, icon: '/run-watch/icons/icon-192.svg' });
+      });
+    } else {
+      new Notification(title, { body, icon: '/run-watch/icons/icon-192.svg' });
+    }
+  } catch (e) { console.warn('Notification failed', e); }
+}
+
+// ---------------------------------------------------------------------------
+// Frame thumbnail
+// ---------------------------------------------------------------------------
+function setFrameLoading(loading) {
+  const wrap = $('frame-wrap');
+  const badge = $('frame-loading-badge');
+  if (wrap) wrap.classList.toggle('is-loading', !!loading);
+  if (badge) badge.hidden = !loading;
+}
+
+async function refreshFrame() {
+  if (frameBusy) return;
+  frameBusy = true;
+  setFrameLoading(true);
+  try {
+    const res = await apiFetch('/api/run-watch/frame-thumbnail?maxWidth=1024&quality=75');
+    if (!res.ok) {
+      // 404 = no image yet; just leave the placeholder. Anything else
+      // (5xx, etc.) is a transient — silent retry on next tick.
+      return;
+    }
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const img = $('frame-img');
+    const placeholder = $('frame-placeholder');
+    img.src = url;
+    img.classList.remove('hidden');
+    placeholder.classList.add('hidden');
+    if (lastFrameBlobUrl) URL.revokeObjectURL(lastFrameBlobUrl);
+    lastFrameBlobUrl = url;
+
+    // Meta (timestamp + HFR) from custom response headers.
+    const ts = res.headers.get('x-frame-timestamp');
+    const hfr = res.headers.get('x-frame-hfr');
+    const meta = [];
+    if (ts) meta.push(formatTimeMs(Date.parse(ts) || Date.now()));
+    if (hfr) meta.push('HFR ' + Number(hfr).toFixed(2));
+    $('frame-meta').textContent = meta.join(' · ');
+  } catch (e) {
+    if (e.message === 'auth_required') return;
+    // fall through — placeholder remains.
+  } finally {
+    setFrameLoading(false);
+    frameBusy = false;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Playback controls
+// ---------------------------------------------------------------------------
+async function sequencerAction(path, label, body) {
+  try {
+    const opts = { method: 'POST' };
+    if (body != null) {
+      opts.headers = { 'Content-Type': 'application/json' };
+      opts.body = JSON.stringify(body);
+    }
+    const res = await apiFetch(path, opts);
+    if (!res.ok) {
+      let msg;
+      try { msg = (await res.json()).error || res.statusText; }
+      catch { msg = res.statusText; }
+      toast(`${label} failed: ${msg}`, 'error');
+    } else {
+      toast(label + ' sent', 'success');
+      fetchSnapshot();
+    }
+  } catch (e) {
+    if (e.message !== 'auth_required') {
+      toast(`${label} failed: ${e.message}`, 'error');
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Settings sheet (wake lock, push, logout)
+// ---------------------------------------------------------------------------
+let wakeLock = null;
+async function applyWakeLockOption() {
+  const opts = loadOpts();
+  if (opts.wakeLock && 'wakeLock' in navigator) {
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) {
+      // User may have denied; silently disable.
+      opts.wakeLock = false;
+      saveOpts(opts);
+      $('opt-wake-lock').checked = false;
+    }
+  } else {
+    if (wakeLock) {
+      try { await wakeLock.release(); } catch { /* ignore */ }
+      wakeLock = null;
+    }
+  }
+}
+
+async function applyPushOption() {
+  const opts = loadOpts();
+  if (!opts.push) return;
+  if (!('Notification' in window)) {
+    opts.push = false;
+    saveOpts(opts);
+    $('opt-push').checked = false;
+    toast('Browser does not support notifications', 'warning');
+    return;
+  }
+  if (Notification.permission === 'default') {
+    const perm = await Notification.requestPermission();
+    if (perm !== 'granted') {
+      opts.push = false;
+      saveOpts(opts);
+      $('opt-push').checked = false;
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Boot
+// ---------------------------------------------------------------------------
+window.addEventListener('DOMContentLoaded', () => {
+  // Pairing screen wiring
+  $('btn-pair').addEventListener('click', () => startPairing($('pair-code').value));
+  $('pair-code').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') startPairing($('pair-code').value);
+  });
+  $('btn-manual-token').addEventListener('click', () => {
+    const t = $('manual-token').value.trim();
+    if (!t) return;
+    setToken(t);
+    showMainScreen();
+  });
+
+  // Playback wiring
+  $('btn-pause').addEventListener('click', () =>
+    sequencerAction('/api/sequencer/pause', 'Pause'));
+  $('btn-resume').addEventListener('click', () =>
+    sequencerAction('/api/sequencer/resume', 'Resume'));
+  $('btn-skip').addEventListener('click', () =>
+    sequencerAction('/api/sequencer/skip', 'Skip'));
+  $('btn-stop').addEventListener('click', () => {
+    if (confirm('Stop the running sequence?')) {
+      sequencerAction('/api/sequencer/stop', 'Stop');
+    }
+  });
+  const btnReset = $('btn-reset');
+  if (btnReset) {
+    btnReset.addEventListener('click', () => {
+      if (confirm('Reset the sequencer state?')) {
+        sequencerAction('/api/sequencer/reset', 'Reset');
+      }
+    });
+  }
+  const btnDither = $('btn-guide-dither');
+  if (btnDither) {
+    btnDither.addEventListener('click', () =>
+      sequencerAction('/api/phd2/dither', 'Dither', { amount: 5.0 }));
+  }
+  const btnCpResume = $('btn-checkpoint-resume');
+  if (btnCpResume) {
+    btnCpResume.addEventListener('click', () =>
+      sequencerAction('/api/sequencer/checkpoint/resume', 'Resume checkpoint'));
+  }
+  const btnCpDiscard = $('btn-checkpoint-discard');
+  if (btnCpDiscard) {
+    btnCpDiscard.addEventListener('click', () => {
+      if (confirm('Discard the saved checkpoint?')) {
+        sequencerAction('/api/sequencer/checkpoint/discard', 'Discard checkpoint');
+      }
+    });
+  }
+
+  // Settings sheet
+  $('btn-settings').addEventListener('click', () => {
+    const opts = loadOpts();
+    $('opt-wake-lock').checked = !!opts.wakeLock;
+    $('opt-push').checked = !!opts.push;
+    $('settings-modal').classList.remove('hidden');
+  });
+  $('btn-settings-close').addEventListener('click', () => {
+    $('settings-modal').classList.add('hidden');
+  });
+  $('opt-wake-lock').addEventListener('change', (e) => {
+    const opts = loadOpts();
+    opts.wakeLock = e.target.checked;
+    saveOpts(opts);
+    applyWakeLockOption();
+  });
+  $('opt-push').addEventListener('change', (e) => {
+    const opts = loadOpts();
+    opts.push = e.target.checked;
+    saveOpts(opts);
+    applyPushOption();
+  });
+  $('btn-logout').addEventListener('click', () => {
+    setToken(null);
+    showPairScreen();
+  });
+
+  // Service-worker registration. Failures are non-fatal — the app
+  // still works without the offline shell.
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('/run-watch/sw.js', { scope: '/run-watch/' })
+      .catch(e => console.warn('SW register failed', e));
+  }
+
+  // Decide which screen to show.
+  if (effectiveToken()) {
+    showMainScreen();
+    applyWakeLockOption();
+  } else {
+    showPairScreen();
+  }
+
+  // Re-apply wake-lock when the tab comes back to the foreground —
+  // browsers drop the lock when the page is hidden.
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && loadOpts().wakeLock) {
+      applyWakeLockOption();
+    }
+  });
+});

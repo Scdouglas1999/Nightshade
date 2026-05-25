@@ -1,9 +1,9 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
+import '../backend_provider.dart';
 import '../profiles_provider.dart';
 import 'equipment_retry_defaults.dart';
 
@@ -127,10 +127,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
               : profileFilterNames;
         }
 
-        await bridge_api.apiFilterwheelSetFilterNames(
-          deviceId: deviceId,
-          names: syncedNames,
-        );
+        await _ref.read(backendProvider).filterWheelSetNames(
+              deviceId,
+              syncedNames,
+            );
 
         state = state.copyWith(filterNames: syncedNames);
         developer.log(
@@ -162,10 +162,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
               : sessionFilterNames;
         }
 
-        await bridge_api.apiFilterwheelSetFilterNames(
-          deviceId: deviceId,
-          names: syncedNames,
-        );
+        await _ref.read(backendProvider).filterWheelSetNames(
+              deviceId,
+              syncedNames,
+            );
 
         state = state.copyWith(filterNames: syncedNames);
         developer.log(
@@ -182,11 +182,8 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
           level: 800);
     } catch (e) {
       // Don't fail connection if filter name sync fails - log and continue
-      developer.log(
-          'FilterWheelStateNotifier: Failed to sync filter names: $e',
-          name: 'FilterWheelStateNotifier',
-          level: 1000,
-          error: e);
+      developer.log('FilterWheelStateNotifier: Failed to sync filter names: $e',
+          name: 'FilterWheelStateNotifier', level: 1000, error: e);
     }
   }
 
@@ -282,10 +279,10 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
             'FilterWheelStateNotifier: Syncing session filter names to driver: $names',
             name: 'FilterWheelStateNotifier',
             level: 800);
-        await bridge_api.apiFilterwheelSetFilterNames(
-          deviceId: state.deviceId!,
-          names: names,
-        );
+        await _ref.read(backendProvider).filterWheelSetNames(
+              state.deviceId!,
+              names,
+            );
         developer.log(
             'FilterWheelStateNotifier: Session filter names synced to driver',
             name: 'FilterWheelStateNotifier',

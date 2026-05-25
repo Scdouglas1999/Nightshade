@@ -40,6 +40,7 @@ fn snapshot_for_frame(frame_id: u64) -> SceneSnapshot {
             category: LabelCategory::Star,
             display_name: SmallString::from("Vega"),
         }),
+        constellation_art: Vec::new(),
     }
 }
 

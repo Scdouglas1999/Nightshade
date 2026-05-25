@@ -18,6 +18,7 @@ mod node;
 mod polar_align;
 pub mod temperature_compensation;
 mod triggers;
+pub mod wizard;
 
 pub use all_sky_polar::*;
 pub use checkpoint::*;

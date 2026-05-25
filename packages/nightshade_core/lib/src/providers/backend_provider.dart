@@ -4,6 +4,19 @@ import '../backend/ffi_backend.dart';
 import '../backend/disconnected_backend.dart';
 import '../backend/network_backend.dart';
 import 'database_provider.dart';
+import 'equipment/equipment_state_reset.dart';
+
+Future<void> Function()? _activeBackendSwapQuiescer;
+
+void registerBackendSwapQuiescer(Future<void> Function() quiescer) {
+  _activeBackendSwapQuiescer = quiescer;
+}
+
+void unregisterBackendSwapQuiescer(Future<void> Function() quiescer) {
+  if (identical(_activeBackendSwapQuiescer, quiescer)) {
+    _activeBackendSwapQuiescer = null;
+  }
+}
 
 /// Notifier for the backend implementation
 class BackendNotifier extends StateNotifier<NightshadeBackend> {
@@ -12,34 +25,42 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
   BackendNotifier(this._ref) : super(DisconnectedBackend());
 
   /// Connect to a remote server
-  void connect(
+  Future<void> connect(
     String host,
     int port, {
     String? authToken,
-  }) {
-    // Dispose old backend before switching
-    state.dispose();
-    state = NetworkBackend(
-      serverHost: host,
-      serverPort: port,
-      authToken: authToken,
+  }) async {
+    await _swapBackend(
+      NetworkBackend(
+        serverHost: host,
+        serverPort: port,
+        authToken: authToken,
+      ),
     );
   }
 
   /// Disconnect from server
-  void disconnect() {
-    // Dispose old backend before switching
-    state.dispose();
-    state = DisconnectedBackend();
+  Future<void> disconnect() async {
+    await _swapBackend(DisconnectedBackend());
   }
 
   /// Use local FFI backend (for Desktop/Headless)
-  void useLocalBackend() {
-    // Dispose old backend before switching
-    state.dispose();
+  Future<void> useLocalBackend() async {
     // Get database instance from provider
     final database = _ref.read(databaseProvider);
-    state = FfiBackend(database: database);
+    await _swapBackend(FfiBackend(database: database));
+  }
+
+  Future<void> _swapBackend(NightshadeBackend nextBackend) async {
+    final quiesce = _activeBackendSwapQuiescer;
+    if (quiesce != null) {
+      await quiesce();
+    }
+
+    final previous = state;
+    previous.dispose();
+    state = nextBackend;
+    resetAllEquipmentStateNotifiers(_ref);
   }
 
   @override
@@ -56,7 +77,8 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
 /// - DisconnectedBackend (default for mobile)
 /// - NetworkBackend (when mobile connects to server)
 /// - FfiBackend (default for desktop/headless)
-final backendProvider = StateNotifierProvider<BackendNotifier, NightshadeBackend>((ref) {
+final backendProvider =
+    StateNotifierProvider<BackendNotifier, NightshadeBackend>((ref) {
   return BackendNotifier(ref);
 });
 

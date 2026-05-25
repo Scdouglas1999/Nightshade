@@ -79,19 +79,20 @@ pub(crate) fn infer_indi_device_type_from_name_driver(
     let name_upper = name.to_uppercase();
     let driver_upper = driver.to_uppercase();
 
-    if name_upper.contains("CCD")
-        || name_upper.contains("CAMERA")
-        || driver_upper.contains("CCD")
-        || driver_upper.contains("CAMERA")
-    {
-        return Some(DeviceType::Camera);
-    }
-    if name_upper.contains("TELESCOPE")
+    let has_mount = name_upper.contains("TELESCOPE")
         || name_upper.contains("MOUNT")
         || driver_upper.contains("TELESCOPE")
-        || driver_upper.contains("MOUNT")
-    {
+        || driver_upper.contains("MOUNT");
+    let has_camera = name_upper.contains("CCD")
+        || name_upper.contains("CAMERA")
+        || driver_upper.contains("CCD")
+        || driver_upper.contains("CAMERA");
+
+    if has_mount {
         return Some(DeviceType::Mount);
+    }
+    if has_camera {
+        return Some(DeviceType::Camera);
     }
     if name_upper.contains("FOCUSER") || driver_upper.contains("FOCUSER") {
         return Some(DeviceType::Focuser);
@@ -113,6 +114,26 @@ pub(crate) fn infer_indi_device_type_from_name_driver(
     }
 
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn infer_indi_name_driver_prefers_mount_over_embedded_camera_word() {
+        let inferred =
+            infer_indi_device_type_from_name_driver("Avalon Mount Camera Mount", "Avalon");
+
+        assert_eq!(inferred, Some(DeviceType::Mount));
+    }
+
+    #[test]
+    fn infer_indi_name_driver_still_detects_camera_without_mount_terms() {
+        let inferred = infer_indi_device_type_from_name_driver("ASI294MM Camera", "ZWO CCD");
+
+        assert_eq!(inferred, Some(DeviceType::Camera));
+    }
 }
 
 impl DeviceManager {

@@ -20,6 +20,41 @@ export '../models/backend/backend_types.dart';
 export 'package:nightshade_bridge/src/api/plate_solve.dart'
     show PlateSolveResult;
 
+/// Optional camera gain/offset defaults reported by a driver.
+///
+/// Every field is independently nullable because camera SDKs expose different
+/// notions of "recommended": some provide unity gain, some provide an offset,
+/// and many provide neither.
+class CameraRecommendedSettings {
+  final int? unityGain;
+  final int? hcgGain;
+  final int? defaultOffset;
+  final String notes;
+
+  const CameraRecommendedSettings({
+    this.unityGain,
+    this.hcgGain,
+    this.defaultOffset,
+    required this.notes,
+  });
+
+  factory CameraRecommendedSettings.fromJson(Map<String, dynamic> json) {
+    return CameraRecommendedSettings(
+      unityGain: (json['unityGain'] as num?)?.toInt(),
+      hcgGain: (json['hcgGain'] as num?)?.toInt(),
+      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
+      notes: json['notes'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'unityGain': unityGain,
+        'hcgGain': hcgGain,
+        'defaultOffset': defaultOffset,
+        'notes': notes,
+      };
+}
+
 /// Abstract backend interface for device control
 ///
 /// This interface defines all device control methods that can be implemented
@@ -134,6 +169,10 @@ abstract class NightshadeBackend {
   /// Set camera offset
   Future<void> cameraSetOffset(String deviceId, int offset);
 
+  /// Query driver-reported gain/offset defaults for a camera.
+  Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
+      String deviceId);
+
   // =========================================================================
   // Mount Control
   // =========================================================================
@@ -228,6 +267,9 @@ abstract class NightshadeBackend {
 
   /// Get filter names
   Future<List<String>> filterWheelGetNames(String deviceId);
+
+  /// Set the driver-visible filter names for a wheel.
+  Future<void> filterWheelSetNames(String deviceId, List<String> names);
 
   /// Set filter by name
   Future<void> filterWheelSetByName(String deviceId, String name);

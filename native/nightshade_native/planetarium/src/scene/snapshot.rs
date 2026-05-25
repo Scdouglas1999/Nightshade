@@ -115,8 +115,25 @@ pub struct SceneSnapshot {
     pub observer: Observer,
     /// Visible object labels for the Dart overlay layer.
     pub labels: Vec<LabelHint>,
+    /// Projected constellation art overlay placements (Flutter layer).
+    pub constellation_art: Vec<ConstellationArtPlacement>,
     /// Active selection, if any.
     pub selected: Option<SelectedObject>,
+}
+
+/// Screen-space placement for a constellation art overlay figure.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstellationArtPlacement {
+    /// IAU three-letter abbreviation (e.g. `"Ori"`).
+    pub abbrev: SmallString,
+    /// Normalized screen X in widget coordinates (0 = left).
+    pub screen_x: f32,
+    /// Normalized screen Y in widget coordinates (0 = top).
+    pub screen_y: f32,
+    /// Size multiplier relative to the catalog figure.
+    pub scale: f32,
+    /// Fill/stroke alpha multiplier (0–1).
+    pub opacity: f32,
 }
 
 impl SceneSnapshot {
@@ -128,6 +145,7 @@ impl SceneSnapshot {
             astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
             observer: Observer::default(),
             labels: Vec::new(),
+            constellation_art: Vec::new(),
             selected: None,
         }
     }

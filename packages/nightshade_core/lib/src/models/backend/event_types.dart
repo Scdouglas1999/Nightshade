@@ -20,7 +20,17 @@ enum EventCategory {
   safety,
   system,
   polarAlignment,
+  job,
+  session,
+  catalog,
 }
+
+/// Equipment `PropertyChanged` property name emitted for coarse USB/device tree changes.
+const deviceChangeProperty = 'device_change';
+
+/// Equipment `PropertyChanged` property names emitted for discovered/lost devices.
+const deviceDiscoveredProperty = 'device_discovered';
+const deviceLostProperty = 'device_lost';
 
 /// Nightshade event for backend-to-frontend communication
 class NightshadeEvent {

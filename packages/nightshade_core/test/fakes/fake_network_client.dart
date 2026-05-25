@@ -59,6 +59,20 @@ class _CannedResponse {
   final Map<String, String> headers;
 }
 
+class _CannedResponseSequence {
+  _CannedResponseSequence(this.responses);
+
+  final List<_CannedResponse> responses;
+  int _index = 0;
+
+  _CannedResponse next() {
+    if (_index >= responses.length) {
+      return responses.last;
+    }
+    return responses[_index++];
+  }
+}
+
 /// Match key for canned responses. Uses (method, path) so query strings
 /// don't have to be reproduced exactly by callers.
 class _RouteKey {
@@ -100,6 +114,7 @@ class FakeNetworkClient implements http.Client {
 
   late final MockClient _inner;
   final Map<_RouteKey, _CannedResponse> _routes = {};
+  final Map<_RouteKey, _CannedResponseSequence> _routeSequences = {};
 
   /// Optional default response used when no route matches. If `null`, an
   /// unmatched request throws `StateError` to surface the bug loudly rather
@@ -127,6 +142,36 @@ class FakeNetworkClient implements http.Client {
     );
   }
 
+  /// Register ordered responses for a given endpoint+method.
+  ///
+  /// Once the sequence is exhausted, the final response is reused. This is
+  /// useful for retry/auth-refresh tests where the same request is expected to
+  /// observe different server states across attempts.
+  void setResponseSequence(
+    String endpoint, {
+    String method = 'GET',
+    required List<({int status, String body, Map<String, String>? headers})>
+        responses,
+  }) {
+    if (responses.isEmpty) {
+      throw ArgumentError.value(responses, 'responses', 'Must not be empty');
+    }
+
+    _routeSequences[_RouteKey(method.toUpperCase(), endpoint)] =
+        _CannedResponseSequence(
+      responses
+          .map(
+            (response) => _CannedResponse(
+              status: response.status,
+              body: response.body,
+              headers: response.headers ??
+                  const {'content-type': 'application/json'},
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
   /// Set a default response returned when no specific route is registered.
   /// Useful for blanket-stubbing health/info endpoints.
   void setDefaultResponse({
@@ -145,6 +190,7 @@ class FakeNetworkClient implements http.Client {
   void reset() {
     requests.clear();
     _routes.clear();
+    _routeSequences.clear();
     _defaultResponse = null;
   }
 
@@ -169,7 +215,8 @@ class FakeNetworkClient implements http.Client {
     ));
 
     final key = _RouteKey(request.method.toUpperCase(), request.url.path);
-    final canned = _routes[key] ?? _defaultResponse;
+    final canned =
+        _routeSequences[key]?.next() ?? _routes[key] ?? _defaultResponse;
     if (canned == null) {
       throw StateError(
         'FakeNetworkClient: no canned response for '

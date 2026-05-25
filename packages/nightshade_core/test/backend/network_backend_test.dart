@@ -23,12 +23,14 @@ import '../fakes/fakes.dart';
 NetworkBackend _buildBackend(
   FakeNetworkClient fake, {
   String? authToken,
+  Future<String?> Function()? refreshAuthToken,
 }) {
   return NetworkBackend(
     serverHost: '127.0.0.1',
     serverPort: 9999,
     webSocketPort: 9999,
     authToken: authToken,
+    refreshAuthToken: refreshAuthToken,
     httpClient: fake,
     autoConnectWebSocket: false,
   );
@@ -69,7 +71,8 @@ void main() {
       expect(issued.single.method, 'GET');
     });
 
-    test('a 401 response is surfaced as a structured NightshadeError, '
+    test(
+        'a 401 response is surfaced as a structured NightshadeError, '
         'not silently swallowed', () async {
       // 401 is non-transient, so we expect exactly one request and an
       // immediate failure.
@@ -85,14 +88,55 @@ void main() {
       // as an empty device list.
       await expectLater(
         backend.discoverDevices(DeviceType.camera),
-        throwsA(isA<NightshadeError>()
-            .having((e) => e.message, 'message',
-                contains('missing pairing token'))),
+        throwsA(isA<NightshadeError>().having(
+            (e) => e.message, 'message', contains('missing pairing token'))),
       );
       expect(fake.requestsFor('/api/devices'), hasLength(1));
     });
 
-    test('a 500 response is retried as a transient failure and surfaces '
+    test('refreshes auth token once after 401 and retries discovery', () async {
+      fake.setResponseSequence(
+        '/api/devices',
+        method: 'GET',
+        responses: [
+          (
+            status: 401,
+            body: '{"error":"unauthorized","message":"expired token"}',
+            headers: null,
+          ),
+          (
+            status: 200,
+            body: '{"devices":[{"id":"sim:cam:1","name":"Sim Camera",'
+                '"deviceType":"camera","driverType":"simulator",'
+                '"description":"","driverVersion":"1.0"}]}',
+            headers: null,
+          ),
+        ],
+      );
+      var refreshCount = 0;
+      backend = _buildBackend(
+        fake,
+        authToken: 'expired-token',
+        refreshAuthToken: () async {
+          refreshCount++;
+          return 'fresh-token';
+        },
+      );
+
+      final devices = await backend.discoverDevices(DeviceType.camera);
+
+      expect(devices, hasLength(1));
+      expect(refreshCount, 1);
+      final requests = fake.requestsFor('/api/devices');
+      expect(requests, hasLength(2));
+      expect(_headerValue(requests.first.headers, 'Authorization'),
+          'Bearer expired-token');
+      expect(_headerValue(requests.last.headers, 'Authorization'),
+          'Bearer fresh-token');
+    });
+
+    test(
+        'a 500 response is retried as a transient failure and surfaces '
         'as a recoverable NightshadeError', () async {
       // Use a plain (non-JSON) body so `_parseErrorResponse` exercises the
       // HTTP-status-based fallback path; that path marks 5xx as recoverable
@@ -120,7 +164,8 @@ void main() {
       expect(fake.requestsFor('/api/devices'), hasLength(3));
     });
 
-    test('malformed JSON in a 200 response is surfaced, not returned as '
+    test(
+        'malformed JSON in a 200 response is surfaced, not returned as '
         'empty', () async {
       fake.setResponse(
         '/api/devices',
@@ -154,13 +199,11 @@ void main() {
       // load-bearing — it carries the pairing token.
       final auth = _headerValue(captured.headers, 'Authorization');
       expect(auth, 'Bearer secret-token-abc',
-          reason:
-              'Authorization header must carry the bearer token when set');
+          reason: 'Authorization header must carry the bearer token when set');
       // The compat-version and trace-id headers are always added by
       // `_addAuthHeaders`; lock that in so future refactors don't drop
       // them silently.
-      final keys =
-          captured.headers.keys.map((k) => k.toLowerCase()).toList();
+      final keys = captured.headers.keys.map((k) => k.toLowerCase()).toList();
       expect(keys, contains('x-nightshade-api-version'));
       expect(keys, contains('x-request-id'));
     });

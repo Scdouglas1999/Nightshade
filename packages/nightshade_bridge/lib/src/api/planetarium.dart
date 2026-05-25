@@ -5,9 +5,11 @@
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
+import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+part 'planetarium.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `lookup`, `next_id`, `registry`, `wait_texture_id`, `with_planetarium`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Create a planetarium instance bound to the Flutter engine handle.
 PlatformInt64 planetariumCreate({required PlatformInt64 engineHandle}) =>
@@ -79,6 +81,42 @@ void planetariumSetSelection(
     RustLib.instance.api.crateApiPlanetariumPlanetariumSetSelection(
         handle: handle, selected: selected);
 
+/// Update the catalog tracking target used by [`PoseLockDto::LockedToTarget`].
+///
+/// Sent from Dart whenever the user picks a star/DSO to follow. Passing
+/// `None` clears the target, which causes the renderer to raise a
+/// `MissingTarget` pose error if the lock is still
+/// [`PoseLockDto::LockedToTarget`] — silent fall-back to a stale target is
+/// explicitly avoided per `CLAUDE.md` "errors are a feature".
+void planetariumSetTrackingTarget(
+        {required PlatformInt64 handle, TrackingTargetDto? target}) =>
+    RustLib.instance.api.crateApiPlanetariumPlanetariumSetTrackingTarget(
+        handle: handle, target: target);
+
+/// Update the pose-lock mode (free / target / mount / body).
+///
+/// Sent from Dart when the user toggles tracking. The lock mode and its
+/// reference data (mount position, tracking target) are decoupled so the
+/// Dart side can refresh either without rewriting the other; the renderer
+/// fails loud when the required reference is missing for the requested
+/// mode.
+void planetariumSetPoseLock(
+        {required PlatformInt64 handle, required PoseLockDto lock}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumSetPoseLock(handle: handle, lock: lock);
+
+/// Update the mount's last-reported equatorial position used by
+/// [`PoseLockDto::LockedToMount`].
+///
+/// Pushed from the equipment layer whenever a telescope driver reports a new
+/// RA/Dec. Passing `None` clears the cached position; combined with the lock
+/// being [`PoseLockDto::LockedToMount`] this surfaces a `MissingMount` pose
+/// error rather than silently freezing the view at a stale position.
+void planetariumSetMountPosition(
+        {required PlatformInt64 handle, MountPositionDto? mount}) =>
+    RustLib.instance.api.crateApiPlanetariumPlanetariumSetMountPosition(
+        handle: handle, mount: mount);
+
 /// Read the latest published scene snapshot for overlay layers.
 SceneSnapshotDto planetariumSnapshot({required PlatformInt64 handle}) =>
     RustLib.instance.api.crateApiPlanetariumPlanetariumSnapshot(handle: handle);
@@ -113,6 +151,75 @@ class AstroTimeDto {
           jdUtc == other.jdUtc &&
           jdUt1 == other.jdUt1 &&
           jdTt == other.jdTt;
+}
+
+/// Solar-system body identifier carried across the FFI for pose-lock control.
+///
+/// Mirrors [`nightshade_planetarium::scene::BodyId`]. Used by Dart when the user
+/// chooses to track a planet (e.g. "follow Jupiter" in the planetarium UI):
+/// the host wraps the selection in [`PoseLockDto::LockedToBody`] and sends it
+/// down via [`planetarium_set_pose_lock`].
+enum BodyIdDto {
+  mercury,
+  venus,
+  mars,
+  jupiter,
+  saturn,
+  uranus,
+  neptune,
+  moon,
+  sun,
+  ;
+}
+
+/// Screen-space placement for a single constellation art overlay figure,
+/// carried across the FFI per published snapshot.
+///
+/// Mirrors [`nightshade_planetarium::scene::ConstellationArtPlacement`]; the
+/// renderer reprojects every visible figure each frame and the Flutter side
+/// draws them as a `CustomPainter` overlay on top of the GPU texture.
+class ConstellationArtPlacementDto {
+  /// IAU three-letter abbreviation (e.g. `"Ori"`, `"UMa"`).
+  final String abbreviation;
+
+  /// Normalized screen X in widget coordinates (0 = left).
+  final double screenX;
+
+  /// Normalized screen Y in widget coordinates (0 = top).
+  final double screenY;
+
+  /// Size multiplier relative to the catalog figure.
+  final double scale;
+
+  /// Fill/stroke alpha multiplier in [0, 1].
+  final double opacity;
+
+  const ConstellationArtPlacementDto({
+    required this.abbreviation,
+    required this.screenX,
+    required this.screenY,
+    required this.scale,
+    required this.opacity,
+  });
+
+  @override
+  int get hashCode =>
+      abbreviation.hashCode ^
+      screenX.hashCode ^
+      screenY.hashCode ^
+      scale.hashCode ^
+      opacity.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConstellationArtPlacementDto &&
+          runtimeType == other.runtimeType &&
+          abbreviation == other.abbreviation &&
+          screenX == other.screenX &&
+          screenY == other.screenY &&
+          scale == other.scale &&
+          opacity == other.opacity;
 }
 
 /// Normalized gesture event (FFI).
@@ -239,6 +346,37 @@ class LabelHintDto {
           category == other.category;
 }
 
+/// Mount-reported equatorial position carried across the FFI. Mirrors
+/// [`nightshade_planetarium::scene::MountPosition`].
+///
+/// Pushed by [`planetarium_set_mount_position`] from mount state updates
+/// (ASCOM/INDI/Alpaca telescope drivers). When `None` is sent and the lock
+/// mode is [`PoseLockDto::LockedToMount`], the renderer raises a
+/// `MissingMount` pose error instead of silently freezing on a stale value.
+class MountPositionDto {
+  /// Mount right ascension (radians, J2000).
+  final double raRad;
+
+  /// Mount declination (radians, J2000).
+  final double decRad;
+
+  const MountPositionDto({
+    required this.raRad,
+    required this.decRad,
+  });
+
+  @override
+  int get hashCode => raRad.hashCode ^ decRad.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is MountPositionDto &&
+          runtimeType == other.runtimeType &&
+          raRad == other.raRad &&
+          decRad == other.decRad;
+}
+
 /// Observer site (FFI).
 class ObserverDto {
   final double latitudeRad;
@@ -273,6 +411,27 @@ class ObserverDto {
           elevationM == other.elevationM &&
           pressureHpa == other.pressureHpa &&
           temperatureC == other.temperatureC;
+}
+
+@freezed
+sealed class PoseLockDto with _$PoseLockDto {
+  const PoseLockDto._();
+
+  /// User-controlled pose; gestures write the free pose directly.
+  const factory PoseLockDto.free() = PoseLockDto_Free;
+
+  /// Center on the catalog object identified by `object_id`.
+  const factory PoseLockDto.lockedToTarget({
+    required BigInt objectId,
+  }) = PoseLockDto_LockedToTarget;
+
+  /// Center on the mount's most-recently reported RA/Dec.
+  const factory PoseLockDto.lockedToMount() = PoseLockDto_LockedToMount;
+
+  /// Center on the named solar-system body at the current time.
+  const factory PoseLockDto.lockedToBody({
+    required BodyIdDto body,
+  }) = PoseLockDto_LockedToBody;
 }
 
 /// Per-layer render configuration (FFI).
@@ -380,12 +539,14 @@ class SceneSnapshotDto {
   final BigInt frameId;
   final ViewPoseDto viewPose;
   final List<LabelHintDto> labels;
+  final List<ConstellationArtPlacementDto> constellationArt;
   final SelectedObjectDto? selected;
 
   const SceneSnapshotDto({
     required this.frameId,
     required this.viewPose,
     required this.labels,
+    required this.constellationArt,
     this.selected,
   });
 
@@ -394,6 +555,7 @@ class SceneSnapshotDto {
       frameId.hashCode ^
       viewPose.hashCode ^
       labels.hashCode ^
+      constellationArt.hashCode ^
       selected.hashCode;
 
   @override
@@ -404,6 +566,7 @@ class SceneSnapshotDto {
           frameId == other.frameId &&
           viewPose == other.viewPose &&
           labels == other.labels &&
+          constellationArt == other.constellationArt &&
           selected == other.selected;
 }
 
@@ -457,6 +620,44 @@ enum SkyProjectionDto {
   orthographic,
   azimuthalEquidistant,
   ;
+}
+
+/// Catalog tracking target carried across the FFI. Mirrors
+/// [`nightshade_planetarium::scene::TrackingTarget`].
+///
+/// Pushed by [`planetarium_set_tracking_target`] whenever the Dart side
+/// selects a star/DSO to follow; the renderer holds the most-recent value and
+/// uses it when [`PoseLockDto::LockedToTarget`] is active. The `object_id`
+/// MUST match the id in the lock — the renderer fails loud (no silent reuse)
+/// when the ids do not agree, mirroring the `MismatchedTarget` error in
+/// `PoseError`.
+class TrackingTargetDto {
+  /// Catalog object id (must match the id in `PoseLockDto::LockedToTarget`).
+  final BigInt objectId;
+
+  /// Target right ascension (radians, J2000).
+  final double raRad;
+
+  /// Target declination (radians, J2000).
+  final double decRad;
+
+  const TrackingTargetDto({
+    required this.objectId,
+    required this.raRad,
+    required this.decRad,
+  });
+
+  @override
+  int get hashCode => objectId.hashCode ^ raRad.hashCode ^ decRad.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TrackingTargetDto &&
+          runtimeType == other.runtimeType &&
+          objectId == other.objectId &&
+          raRad == other.raRad &&
+          decRad == other.decRad;
 }
 
 /// View pose crossing the FFI boundary.

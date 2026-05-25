@@ -2,7 +2,6 @@ import 'package:drift/drift.dart';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:logging/logging.dart';
 import '../database/database.dart';
 import '../models/backend/device_capabilities.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
@@ -12,8 +11,6 @@ import 'capability_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import '../services/profile_service.dart';
-
-final _log = Logger('ProfilesProvider');
 
 // ============================================================================
 // Equipment Profile Model (UI-friendly)
@@ -168,27 +165,17 @@ class EquipmentProfileModel {
         db.aperture > 0 ? db.aperture : (telescopeAperture ?? 0.0);
 
     if (db.filterNames != null) {
-      try {
-        filters = decodeStringListJson(
-          db.filterNames,
-          context: 'equipment_profiles.filter_names for "${db.name}"',
-        );
-      } catch (e) {
-        _log.warning(
-            'Failed to parse filterNames JSON for profile "${db.name}": $e');
-      }
+      filters = decodeStringListJson(
+        db.filterNames,
+        context: 'equipment_profiles.filter_names for "${db.name}"',
+      );
     }
 
     if (db.filterFocusOffsets != null) {
-      try {
-        offsets = decodeStringIntMapJson(
-          db.filterFocusOffsets,
-          context: 'equipment_profiles.filter_focus_offsets for "${db.name}"',
-        );
-      } catch (e) {
-        _log.warning(
-            'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e');
-      }
+      offsets = decodeStringIntMapJson(
+        db.filterFocusOffsets,
+        context: 'equipment_profiles.filter_focus_offsets for "${db.name}"',
+      );
     }
 
     return EquipmentProfileModel(

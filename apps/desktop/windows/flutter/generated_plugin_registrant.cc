@@ -9,6 +9,7 @@
 #include <file_selector_windows/file_selector_windows.h>
 #include <flutter_secure_storage_windows/flutter_secure_storage_windows_plugin.h>
 #include <geolocator_windows/geolocator_windows.h>
+#include <irondash_engine_context/irondash_engine_context_plugin_c_api.h>
 #include <nsd_windows/nsd_windows_plugin_c_api.h>
 #include <screen_retriever/screen_retriever_plugin.h>
 #include <share_plus/share_plus_windows_plugin_c_api.h>
@@ -23,6 +24,8 @@ void RegisterPlugins(flutter::PluginRegistry* registry) {
       registry->GetRegistrarForPlugin("FlutterSecureStorageWindowsPlugin"));
   GeolocatorWindowsRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("GeolocatorWindows"));
+  IrondashEngineContextPluginCApiRegisterWithRegistrar(
+      registry->GetRegistrarForPlugin("IrondashEngineContextPluginCApi"));
   NsdWindowsPluginCApiRegisterWithRegistrar(
       registry->GetRegistrarForPlugin("NsdWindowsPluginCApi"));
   ScreenRetrieverPluginRegisterWithRegistrar(

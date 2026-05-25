@@ -12,8 +12,8 @@ final deviceMatchingServiceProvider = Provider<DeviceMatchingService>((ref) {
 });
 
 /// Provider for unified device discovery state
-final unifiedDiscoveryProvider =
-    StateNotifierProvider<UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((ref) {
+final unifiedDiscoveryProvider = StateNotifierProvider.autoDispose<
+    UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((ref) {
   return UnifiedDiscoveryNotifier(ref);
 });
 
@@ -103,7 +103,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     _cancelled = false;
 
     // Update state to show this backend is discovering
-    final currentStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
+    final currentStates =
+        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     currentStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: DiscoveryStatus.discovering,
@@ -116,7 +117,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Update state with results
-    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
+    final updatedStates =
+        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     updatedStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: result.error != null
@@ -287,15 +289,34 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
             try {
               final typeDevices = await deviceService.discoverDevices(type);
               // Filter to only include devices from this backend
-              return typeDevices.where((d) => d.driverType == backend).toList();
+              return _TypeDiscoveryResult(
+                type: type,
+                devices:
+                    typeDevices.where((d) => d.driverType == backend).toList(),
+              );
             } catch (e) {
-              // Log but continue with other types
-              return <DeviceInfo>[];
+              return _TypeDiscoveryResult(
+                type: type,
+                devices: const [],
+                error: e.toString(),
+              );
             }
           });
           final results = await Future.wait(typeFutures);
-          for (final typeDevices in results) {
-            devices.addAll(typeDevices);
+          final errors = <String>[];
+          for (final result in results) {
+            devices.addAll(result.devices);
+            if (result.error != null) {
+              errors.add('${result.type.name}: ${result.error}');
+            }
+          }
+          if (errors.isNotEmpty) {
+            return _BackendResult(
+              backend: backend,
+              devices: devices,
+              error: '${backend.name} discovery had per-type failures: '
+                  '${errors.join('; ')}',
+            );
           }
           break;
 
@@ -304,7 +325,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final indiPort = port ?? settings.indiServerPort;
           if (indiHost.isNotEmpty) {
             try {
-              devices = await deviceService.discoverIndiAtAddress(indiHost, indiPort);
+              devices =
+                  await deviceService.discoverIndiAtAddress(indiHost, indiPort);
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -320,7 +342,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final alpacaPort = port ?? settings.alpacaServerPort;
           if (alpacaHost.isNotEmpty) {
             try {
-              devices = await deviceService.discoverAlpacaAtAddress(alpacaHost, alpacaPort);
+              devices = await deviceService.discoverAlpacaAtAddress(
+                  alpacaHost, alpacaPort);
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -351,6 +374,18 @@ class _BackendResult {
 
   const _BackendResult({
     required this.backend,
+    required this.devices,
+    this.error,
+  });
+}
+
+class _TypeDiscoveryResult {
+  final DeviceType type;
+  final List<DeviceInfo> devices;
+  final String? error;
+
+  const _TypeDiscoveryResult({
+    required this.type,
     required this.devices,
     this.error,
   });

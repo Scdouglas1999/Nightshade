@@ -8,7 +8,7 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `query_indi_device_serial_from_client`, `query_indi_serials_for_server`
+// These functions are ignored because they are not marked as `pub`: `ascom_type_for`, `builtin_devices_for_type`, `collect_fresh_cache`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_scan`, `scan_alpaca_for_type`, `scan_indi_for_type`
 
 /// Discover available Alpaca devices on the network
 Future<List<DeviceInfo>> apiDiscoverAlpacaDevices() =>
@@ -38,12 +38,44 @@ Future<List<DeviceInfo>> apiDiscoverIndiCommonHosts() =>
 Future<List<DeviceInfo>> apiDiscoverIndiNetwork() =>
     RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiNetwork();
 
+/// Scan the native vendor SDKs for devices of `device_type`.
+///
+/// Exposed for the hot-plug poll watcher (which runs every few seconds
+/// against local SDKs and diffs the result against its own cache) and for
+/// the unified `api_discover_devices` entry point.
+Future<List<DeviceInfo>> scanNativeForTypePublic(
+        {required DeviceType deviceType}) =>
+    RustLib.instance.api
+        .crateApiDiscoveryScanNativeForTypePublic(deviceType: deviceType);
+
+/// Scan ASCOM Profile (Windows only) for devices of `device_type`.
+///
+/// Filters out simulators and ASCOM diagnostic helpers (hub/pipe/POTH) the
+/// same way the legacy unified scan did, so neither user-facing UI nor the
+/// hot-plug poll surfaces them as real devices.
+///
+/// Exposed for the hot-plug poll watcher and `api_discover_devices`.
+Future<List<DeviceInfo>> scanAscomForTypePublic(
+        {required DeviceType deviceType}) =>
+    RustLib.instance.api
+        .crateApiDiscoveryScanAscomForTypePublic(deviceType: deviceType);
+
 /// Discover available devices of a specific type.
-/// Queries Windows-only ASCOM COM drivers, Alpaca network devices or bridges,
-/// Native SDK paths bundled for the current release, simulator paths where
-/// enabled, and reachable INDI servers. All results are cached for 60 seconds -- the FIRST call to this
-/// function runs full discovery for every source and every device type, and subsequent
-/// calls within the TTL simply filter the cached results by the requested `device_type`.
+///
+/// Queries every supported backend (Windows ASCOM Profile, Alpaca network
+/// discovery, native vendor SDKs, INDI servers known to the device
+/// manager) and merges the results with the always-on built-in helpers
+/// (multi-star guider, PHD2 if installed, internal simulator).
+///
+/// Results are cached per (`DeviceType`, `DriverType`) for
+/// [`DISCOVERY_CACHE_TTL`] so:
+///
+///   * Asking for cameras does not force a mount-driver scan.
+///   * A failure in one backend (e.g. Alpaca UDP timeout) is cached and
+///     reported back to the caller without preventing the other backends
+///     from succeeding — silent fall-back is forbidden per `CLAUDE.md`.
+///   * Hot-plug events (see [`crate::hotplug`]) invalidate the cache by
+///     clearing every entry so the next call re-runs every backend.
 Future<List<DeviceInfo>> apiDiscoverDevices({required DeviceType deviceType}) =>
     RustLib.instance.api
         .crateApiDiscoveryApiDiscoverDevices(deviceType: deviceType);

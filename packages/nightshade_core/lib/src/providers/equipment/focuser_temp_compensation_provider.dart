@@ -161,6 +161,13 @@ class FocuserTempCompensator {
     final logger = _ref.read(loggingServiceProvider);
     try {
       final deviceService = _ref.read(deviceServiceProvider);
+      if (deviceService.isAutofocusRunning) {
+        logger.info(
+          'Temp compensation skipped while autofocus is running.',
+          source: 'FocuserTempCompensator',
+        );
+        return;
+      }
       await deviceService.moveFocuserTo(targetPosition);
       logger.info(
         'Temp compensation moved focuser to $targetPosition '

@@ -41,8 +41,9 @@
 
 use flutter_rust_bridge::frb;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use tokio::sync::broadcast;
 
 /// Default event buffer size.
@@ -70,7 +71,7 @@ pub enum EventSeverity {
 
 /// Categories of events
 #[frb]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum EventCategory {
     Equipment,
     Imaging,
@@ -524,7 +525,7 @@ pub struct EventBusStats {
     /// Current number of subscribers
     pub subscriber_count: usize,
     /// Events by category (for the last N events)
-    pub events_by_category: std::collections::HashMap<EventCategory, u64>,
+    pub events_by_category: HashMap<EventCategory, u64>,
 }
 
 /// Global event bus for publishing and subscribing to events
@@ -537,6 +538,8 @@ pub struct EventBus {
     events_published: AtomicU64,
     /// Events dropped counter
     events_dropped: AtomicU64,
+    /// Total events published by category
+    events_by_category: Mutex<HashMap<EventCategory, u64>>,
     /// Channel capacity
     capacity: usize,
 }
@@ -550,6 +553,7 @@ impl EventBus {
             sequence: AtomicU64::new(1),
             events_published: AtomicU64::new(0),
             events_dropped: AtomicU64::new(0),
+            events_by_category: Mutex::new(HashMap::new()),
             capacity,
         }
     }
@@ -563,10 +567,25 @@ impl EventBus {
     /// Returns the event ID assigned to the published event
     pub fn publish(&self, event: NightshadeEvent) -> u64 {
         let event_id = event.event_id;
+        let category = event.category;
         self.events_published.fetch_add(1, Ordering::Relaxed);
+        {
+            let mut counts = self
+                .events_by_category
+                .lock()
+                .unwrap_or_else(|poisoned| poisoned.into_inner());
+            *counts.entry(category).or_insert(0) += 1;
+        }
+
+        let would_evict_for_lagging_receiver =
+            self.sender.receiver_count() > 0 && self.sender.len() >= self.capacity;
 
         match self.sender.send(event) {
-            Ok(_) => {}
+            Ok(_) => {
+                if would_evict_for_lagging_receiver {
+                    self.events_dropped.fetch_add(1, Ordering::Relaxed);
+                }
+            }
             Err(_) => {
                 // No receivers - this is fine
             }
@@ -672,11 +691,16 @@ impl EventBus {
 
     /// Get statistics about the event bus
     pub fn stats(&self) -> EventBusStats {
+        let events_by_category = self
+            .events_by_category
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner())
+            .clone();
         EventBusStats {
             events_published: self.events_published.load(Ordering::Relaxed),
             events_dropped: self.events_dropped.load(Ordering::Relaxed),
             subscriber_count: self.sender.receiver_count(),
-            events_by_category: std::collections::HashMap::new(), // Would need ring buffer to track
+            events_by_category,
         }
     }
 
@@ -696,6 +720,55 @@ impl EventBus {
 impl Default for EventBus {
     fn default() -> Self {
         Self::new(DEFAULT_EVENT_BUFFER_SIZE)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stats_track_events_by_category() {
+        let bus = EventBus::new(8);
+
+        bus.publish_with_tracking(
+            EventSeverity::Info,
+            EventCategory::Equipment,
+            EventPayload::System(SystemEvent::Initialized),
+            None,
+        );
+        bus.publish_with_tracking(
+            EventSeverity::Info,
+            EventCategory::Imaging,
+            EventPayload::System(SystemEvent::Initialized),
+            None,
+        );
+
+        let stats = bus.stats();
+        assert_eq!(stats.events_published, 2);
+        assert_eq!(stats.events_by_category[&EventCategory::Equipment], 1);
+        assert_eq!(stats.events_by_category[&EventCategory::Imaging], 1);
+    }
+
+    #[test]
+    fn stats_count_broadcast_evictions_for_lagging_receivers() {
+        let bus = EventBus::new(1);
+        let _receiver = bus.subscribe();
+
+        for index in 0..2 {
+            bus.publish_with_tracking(
+                EventSeverity::Info,
+                EventCategory::System,
+                EventPayload::System(SystemEvent::Notification {
+                    title: "test".to_string(),
+                    message: format!("event {}", index),
+                    level: "info".to_string(),
+                }),
+                None,
+            );
+        }
+
+        assert_eq!(bus.stats().events_dropped, 1);
     }
 }
 

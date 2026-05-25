@@ -79,6 +79,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
   late final GeneratedColumn<String> weatherId = GeneratedColumn<String>(
       'weather_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _safetyMonitorIdMeta =
+      const VerificationMeta('safetyMonitorId');
+  @override
+  late final GeneratedColumn<String> safetyMonitorId = GeneratedColumn<String>(
+      'safety_monitor_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _coverCalibratorIdMeta =
       const VerificationMeta('coverCalibratorId');
   @override
@@ -298,6 +304,7 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         rotatorId,
         domeId,
         weatherId,
+        safetyMonitorId,
         coverCalibratorId,
         focalLength,
         aperture,
@@ -387,6 +394,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
     if (data.containsKey('weather_id')) {
       context.handle(_weatherIdMeta,
           weatherId.isAcceptableOrUnknown(data['weather_id']!, _weatherIdMeta));
+    }
+    if (data.containsKey('safety_monitor_id')) {
+      context.handle(
+          _safetyMonitorIdMeta,
+          safetyMonitorId.isAcceptableOrUnknown(
+              data['safety_monitor_id']!, _safetyMonitorIdMeta));
     }
     if (data.containsKey('cover_calibrator_id')) {
       context.handle(
@@ -586,6 +599,8 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           .read(DriftSqlType.string, data['${effectivePrefix}dome_id']),
       weatherId: attachedDatabase.typeMapping
           .read(DriftSqlType.string, data['${effectivePrefix}weather_id']),
+      safetyMonitorId: attachedDatabase.typeMapping.read(
+          DriftSqlType.string, data['${effectivePrefix}safety_monitor_id']),
       coverCalibratorId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}cover_calibrator_id']),
       focalLength: attachedDatabase.typeMapping
@@ -671,6 +686,7 @@ class EquipmentProfile extends DataClass
   final String? rotatorId;
   final String? domeId;
   final String? weatherId;
+  final String? safetyMonitorId;
   final String? coverCalibratorId;
   final double focalLength;
   final double aperture;
@@ -713,6 +729,7 @@ class EquipmentProfile extends DataClass
       this.rotatorId,
       this.domeId,
       this.weatherId,
+      this.safetyMonitorId,
       this.coverCalibratorId,
       required this.focalLength,
       required this.aperture,
@@ -774,6 +791,9 @@ class EquipmentProfile extends DataClass
     }
     if (!nullToAbsent || weatherId != null) {
       map['weather_id'] = Variable<String>(weatherId);
+    }
+    if (!nullToAbsent || safetyMonitorId != null) {
+      map['safety_monitor_id'] = Variable<String>(safetyMonitorId);
     }
     if (!nullToAbsent || coverCalibratorId != null) {
       map['cover_calibrator_id'] = Variable<String>(coverCalibratorId);
@@ -879,6 +899,9 @@ class EquipmentProfile extends DataClass
       weatherId: weatherId == null && nullToAbsent
           ? const Value.absent()
           : Value(weatherId),
+      safetyMonitorId: safetyMonitorId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(safetyMonitorId),
       coverCalibratorId: coverCalibratorId == null && nullToAbsent
           ? const Value.absent()
           : Value(coverCalibratorId),
@@ -967,6 +990,7 @@ class EquipmentProfile extends DataClass
       rotatorId: serializer.fromJson<String?>(json['rotatorId']),
       domeId: serializer.fromJson<String?>(json['domeId']),
       weatherId: serializer.fromJson<String?>(json['weatherId']),
+      safetyMonitorId: serializer.fromJson<String?>(json['safetyMonitorId']),
       coverCalibratorId:
           serializer.fromJson<String?>(json['coverCalibratorId']),
       focalLength: serializer.fromJson<double>(json['focalLength']),
@@ -1021,6 +1045,7 @@ class EquipmentProfile extends DataClass
       'rotatorId': serializer.toJson<String?>(rotatorId),
       'domeId': serializer.toJson<String?>(domeId),
       'weatherId': serializer.toJson<String?>(weatherId),
+      'safetyMonitorId': serializer.toJson<String?>(safetyMonitorId),
       'coverCalibratorId': serializer.toJson<String?>(coverCalibratorId),
       'focalLength': serializer.toJson<double>(focalLength),
       'aperture': serializer.toJson<double>(aperture),
@@ -1068,6 +1093,7 @@ class EquipmentProfile extends DataClass
           Value<String?> rotatorId = const Value.absent(),
           Value<String?> domeId = const Value.absent(),
           Value<String?> weatherId = const Value.absent(),
+          Value<String?> safetyMonitorId = const Value.absent(),
           Value<String?> coverCalibratorId = const Value.absent(),
           double? focalLength,
           double? aperture,
@@ -1111,6 +1137,9 @@ class EquipmentProfile extends DataClass
         rotatorId: rotatorId.present ? rotatorId.value : this.rotatorId,
         domeId: domeId.present ? domeId.value : this.domeId,
         weatherId: weatherId.present ? weatherId.value : this.weatherId,
+        safetyMonitorId: safetyMonitorId.present
+            ? safetyMonitorId.value
+            : this.safetyMonitorId,
         coverCalibratorId: coverCalibratorId.present
             ? coverCalibratorId.value
             : this.coverCalibratorId,
@@ -1177,6 +1206,9 @@ class EquipmentProfile extends DataClass
       rotatorId: data.rotatorId.present ? data.rotatorId.value : this.rotatorId,
       domeId: data.domeId.present ? data.domeId.value : this.domeId,
       weatherId: data.weatherId.present ? data.weatherId.value : this.weatherId,
+      safetyMonitorId: data.safetyMonitorId.present
+          ? data.safetyMonitorId.value
+          : this.safetyMonitorId,
       coverCalibratorId: data.coverCalibratorId.present
           ? data.coverCalibratorId.value
           : this.coverCalibratorId,
@@ -1259,6 +1291,7 @@ class EquipmentProfile extends DataClass
           ..write('rotatorId: $rotatorId, ')
           ..write('domeId: $domeId, ')
           ..write('weatherId: $weatherId, ')
+          ..write('safetyMonitorId: $safetyMonitorId, ')
           ..write('coverCalibratorId: $coverCalibratorId, ')
           ..write('focalLength: $focalLength, ')
           ..write('aperture: $aperture, ')
@@ -1306,6 +1339,7 @@ class EquipmentProfile extends DataClass
         rotatorId,
         domeId,
         weatherId,
+        safetyMonitorId,
         coverCalibratorId,
         focalLength,
         aperture,
@@ -1352,6 +1386,7 @@ class EquipmentProfile extends DataClass
           other.rotatorId == this.rotatorId &&
           other.domeId == this.domeId &&
           other.weatherId == this.weatherId &&
+          other.safetyMonitorId == this.safetyMonitorId &&
           other.coverCalibratorId == this.coverCalibratorId &&
           other.focalLength == this.focalLength &&
           other.aperture == this.aperture &&
@@ -1396,6 +1431,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<String?> rotatorId;
   final Value<String?> domeId;
   final Value<String?> weatherId;
+  final Value<String?> safetyMonitorId;
   final Value<String?> coverCalibratorId;
   final Value<double> focalLength;
   final Value<double> aperture;
@@ -1438,6 +1474,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.rotatorId = const Value.absent(),
     this.domeId = const Value.absent(),
     this.weatherId = const Value.absent(),
+    this.safetyMonitorId = const Value.absent(),
     this.coverCalibratorId = const Value.absent(),
     this.focalLength = const Value.absent(),
     this.aperture = const Value.absent(),
@@ -1481,6 +1518,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.rotatorId = const Value.absent(),
     this.domeId = const Value.absent(),
     this.weatherId = const Value.absent(),
+    this.safetyMonitorId = const Value.absent(),
     this.coverCalibratorId = const Value.absent(),
     this.focalLength = const Value.absent(),
     this.aperture = const Value.absent(),
@@ -1524,6 +1562,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<String>? rotatorId,
     Expression<String>? domeId,
     Expression<String>? weatherId,
+    Expression<String>? safetyMonitorId,
     Expression<String>? coverCalibratorId,
     Expression<double>? focalLength,
     Expression<double>? aperture,
@@ -1567,6 +1606,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (rotatorId != null) 'rotator_id': rotatorId,
       if (domeId != null) 'dome_id': domeId,
       if (weatherId != null) 'weather_id': weatherId,
+      if (safetyMonitorId != null) 'safety_monitor_id': safetyMonitorId,
       if (coverCalibratorId != null) 'cover_calibrator_id': coverCalibratorId,
       if (focalLength != null) 'focal_length': focalLength,
       if (aperture != null) 'aperture': aperture,
@@ -1617,6 +1657,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       Value<String?>? rotatorId,
       Value<String?>? domeId,
       Value<String?>? weatherId,
+      Value<String?>? safetyMonitorId,
       Value<String?>? coverCalibratorId,
       Value<double>? focalLength,
       Value<double>? aperture,
@@ -1659,6 +1700,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       rotatorId: rotatorId ?? this.rotatorId,
       domeId: domeId ?? this.domeId,
       weatherId: weatherId ?? this.weatherId,
+      safetyMonitorId: safetyMonitorId ?? this.safetyMonitorId,
       coverCalibratorId: coverCalibratorId ?? this.coverCalibratorId,
       focalLength: focalLength ?? this.focalLength,
       aperture: aperture ?? this.aperture,
@@ -1729,6 +1771,9 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     }
     if (weatherId.present) {
       map['weather_id'] = Variable<String>(weatherId.value);
+    }
+    if (safetyMonitorId.present) {
+      map['safety_monitor_id'] = Variable<String>(safetyMonitorId.value);
     }
     if (coverCalibratorId.present) {
       map['cover_calibrator_id'] = Variable<String>(coverCalibratorId.value);
@@ -1840,6 +1885,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('rotatorId: $rotatorId, ')
           ..write('domeId: $domeId, ')
           ..write('weatherId: $weatherId, ')
+          ..write('safetyMonitorId: $safetyMonitorId, ')
           ..write('coverCalibratorId: $coverCalibratorId, ')
           ..write('focalLength: $focalLength, ')
           ..write('aperture: $aperture, ')
@@ -21146,6 +21192,7 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder
   Value<String?> rotatorId,
   Value<String?> domeId,
   Value<String?> weatherId,
+  Value<String?> safetyMonitorId,
   Value<String?> coverCalibratorId,
   Value<double> focalLength,
   Value<double> aperture,
@@ -21190,6 +21237,7 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder
   Value<String?> rotatorId,
   Value<String?> domeId,
   Value<String?> weatherId,
+  Value<String?> safetyMonitorId,
   Value<String?> coverCalibratorId,
   Value<double> focalLength,
   Value<double> aperture,
@@ -21356,6 +21404,10 @@ class $$EquipmentProfilesTableFilterComposer
 
   ColumnFilters<String> get weatherId => $composableBuilder(
       column: $table.weatherId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get safetyMonitorId => $composableBuilder(
+      column: $table.safetyMonitorId,
+      builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId,
@@ -21608,6 +21660,10 @@ class $$EquipmentProfilesTableOrderingComposer
   ColumnOrderings<String> get weatherId => $composableBuilder(
       column: $table.weatherId, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get safetyMonitorId => $composableBuilder(
+      column: $table.safetyMonitorId,
+      builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId,
       builder: (column) => ColumnOrderings(column));
@@ -21752,6 +21808,9 @@ class $$EquipmentProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get weatherId =>
       $composableBuilder(column: $table.weatherId, builder: (column) => column);
+
+  GeneratedColumn<String> get safetyMonitorId => $composableBuilder(
+      column: $table.safetyMonitorId, builder: (column) => column);
 
   GeneratedColumn<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId, builder: (column) => column);
@@ -21994,6 +22053,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> rotatorId = const Value.absent(),
             Value<String?> domeId = const Value.absent(),
             Value<String?> weatherId = const Value.absent(),
+            Value<String?> safetyMonitorId = const Value.absent(),
             Value<String?> coverCalibratorId = const Value.absent(),
             Value<double> focalLength = const Value.absent(),
             Value<double> aperture = const Value.absent(),
@@ -22037,6 +22097,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             rotatorId: rotatorId,
             domeId: domeId,
             weatherId: weatherId,
+            safetyMonitorId: safetyMonitorId,
             coverCalibratorId: coverCalibratorId,
             focalLength: focalLength,
             aperture: aperture,
@@ -22080,6 +22141,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> rotatorId = const Value.absent(),
             Value<String?> domeId = const Value.absent(),
             Value<String?> weatherId = const Value.absent(),
+            Value<String?> safetyMonitorId = const Value.absent(),
             Value<String?> coverCalibratorId = const Value.absent(),
             Value<double> focalLength = const Value.absent(),
             Value<double> aperture = const Value.absent(),
@@ -22123,6 +22185,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             rotatorId: rotatorId,
             domeId: domeId,
             weatherId: weatherId,
+            safetyMonitorId: safetyMonitorId,
             coverCalibratorId: coverCalibratorId,
             focalLength: focalLength,
             aperture: aperture,

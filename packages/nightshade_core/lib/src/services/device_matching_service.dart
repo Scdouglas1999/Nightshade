@@ -62,7 +62,8 @@ class DeviceMatchingService {
   ];
 
   /// Patterns for device instance numbers (e.g., "#1", "(1)", " 1")
-  static final RegExp _instancePattern = RegExp(r'[#\(\)]\s*\d+\s*[#\(\)]?$|\s+\d+$');
+  static final RegExp _instancePattern =
+      RegExp(r'[#\(\)]\s*\d+\s*[#\(\)]?$|\s+\d+$');
 
   /// Group raw devices by physical identity
   List<UnifiedDevice> groupDevices(List<DeviceInfo> allDevices) {
@@ -106,12 +107,14 @@ class DeviceMatchingService {
           if (primary.driverType == candidate.driverType) continue;
 
           // If names are identical but IDs differ, they're separate physical devices
-          if (primary.name == candidate.name && primary.id != candidate.id) continue;
+          if (primary.name == candidate.name && primary.id != candidate.id)
+            continue;
 
           final candidateNormalized = normalizeName(candidate.name);
 
           // Check similarity
-          final similarity = calculateSimilarity(primaryNormalized, candidateNormalized);
+          final similarity =
+              calculateSimilarity(primaryNormalized, candidateNormalized);
 
           if (similarity >= _similarityThreshold) {
             // Same physical device, different backend
@@ -152,16 +155,25 @@ class DeviceMatchingService {
     var normalized = name.trim();
 
     // Remove ASCOM. or INDI. prefix patterns
-    normalized = normalized.replaceAll(RegExp(r'^ASCOM\.\w+\.', caseSensitive: false), '');
-    normalized = normalized.replaceAll(RegExp(r'^INDI\.\w+\.', caseSensitive: false), '');
+    normalized = normalized.replaceAll(
+        RegExp(r'^ASCOM\.\w+\.', caseSensitive: false), '');
+    normalized = normalized.replaceAll(
+        RegExp(r'^INDI\.\w+\.', caseSensitive: false), '');
 
-    // Remove known manufacturer prefixes
-    for (final prefix in _manufacturerPrefixes) {
-      if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
-        normalized = normalized.substring(prefix.length).trim();
-        // Handle cases like "ZWO " or "ZWO-"
-        if (normalized.startsWith(' ') || normalized.startsWith('-') || normalized.startsWith('_')) {
-          normalized = normalized.substring(1).trim();
+    var strippedPrefix = true;
+    while (strippedPrefix) {
+      strippedPrefix = false;
+      for (final prefix in _manufacturerPrefixes) {
+        if (normalized.toLowerCase().startsWith(prefix.toLowerCase())) {
+          normalized = normalized.substring(prefix.length).trim();
+          // Handle cases like "ZWO " or "ZWO-"
+          while (normalized.startsWith(' ') ||
+              normalized.startsWith('-') ||
+              normalized.startsWith('_')) {
+            normalized = normalized.substring(1).trim();
+          }
+          strippedPrefix = true;
+          break;
         }
       }
     }
@@ -169,7 +181,8 @@ class DeviceMatchingService {
     // Remove common suffixes
     for (final suffix in _commonSuffixes) {
       if (normalized.toLowerCase().endsWith(suffix.toLowerCase())) {
-        normalized = normalized.substring(0, normalized.length - suffix.length).trim();
+        normalized =
+            normalized.substring(0, normalized.length - suffix.length).trim();
       }
     }
 
@@ -198,6 +211,9 @@ class DeviceMatchingService {
       // Give a high score if one is a substring of the other
       final shorter = a.length < b.length ? a : b;
       final longer = a.length >= b.length ? a : b;
+      if (shorter.length < 3) {
+        return shorter.length / longer.length;
+      }
       return shorter.length / longer.length * 0.95 + 0.05; // Min 0.05 bonus
     }
 
@@ -248,10 +264,10 @@ class DeviceMatchingService {
         final cost = s1[i] == s2[j] ? 0 : 1;
         currentRow[j + 1] = math.min(
           math.min(
-            currentRow[j] + 1,      // insertion
+            currentRow[j] + 1, // insertion
             previousRow[j + 1] + 1, // deletion
           ),
-          previousRow[j] + cost,    // substitution
+          previousRow[j] + cost, // substitution
         );
       }
 

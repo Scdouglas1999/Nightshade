@@ -1,4 +1,4 @@
-//! Bundled GPU assets (Bruneton LUTs, Milky Way intensity map, …).
+//! Bundled GPU assets (Milky Way intensity map, …).
 
 pub mod mw;
 

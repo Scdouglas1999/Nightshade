@@ -26,7 +26,7 @@
 //! }
 //! ```
 
-use crate::device_id::parse_device_id_cached;
+use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::error::NightshadeError;
 use serde::{Deserialize, Serialize};
 // Re-use enums from device module to avoid FRB conflicts
@@ -1696,10 +1696,16 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 
 /// Get capabilities for a simulator device
 fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
-    let device_id_lower = device_id.to_lowercase();
+    let simulator_type = parse_device_id_cached(device_id)
+        .ok()
+        .and_then(|parsed| match parsed.connection_info {
+            ConnectionInfo::Simulator { device_type, .. } => Some(device_type),
+            _ => None,
+        })
+        .unwrap_or_else(|| device_id.to_lowercase());
 
     // Simulator devices have full capabilities
-    if device_id_lower.contains("camera") {
+    if matches!(simulator_type.as_str(), "camera" | "ccd") {
         DeviceCapabilities::Camera(CameraCapabilities {
             max_width: 4096,
             max_height: 4096,
@@ -1728,7 +1734,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             exposure_max: Some(3600.0),
             ..Default::default()
         })
-    } else if device_id_lower.contains("mount") || device_id_lower.contains("telescope") {
+    } else if matches!(simulator_type.as_str(), "mount" | "telescope") {
         DeviceCapabilities::Mount(MountCapabilities {
             can_slew: true,
             can_slew_async: true,
@@ -1743,7 +1749,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             axis_count: 2,
             ..Default::default()
         })
-    } else if device_id_lower.contains("focuser") {
+    } else if matches!(simulator_type.as_str(), "focuser") {
         DeviceCapabilities::Focuser(FocuserCapabilities {
             max_position: 100000,
             max_increment: 50000,
@@ -1754,7 +1760,10 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_reverse: true,
             ..Default::default()
         })
-    } else if device_id_lower.contains("filter") {
+    } else if matches!(
+        simulator_type.as_str(),
+        "filterwheel" | "filter_wheel" | "filter-wheel"
+    ) {
         DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
             position_count: 7,
             filter_names: vec![
@@ -1771,7 +1780,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_set_focus_offsets: true,
             ..Default::default()
         })
-    } else if device_id_lower.contains("rotator") {
+    } else if matches!(simulator_type.as_str(), "rotator") {
         DeviceCapabilities::Rotator(RotatorCapabilities {
             can_reverse: true,
             reverse: false,
@@ -1783,7 +1792,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_halt: true,
             can_sync: true,
         })
-    } else if device_id_lower.contains("dome") {
+    } else if matches!(simulator_type.as_str(), "dome") {
         DeviceCapabilities::Dome(DomeCapabilities {
             can_set_azimuth: true,
             can_park: true,
@@ -1799,7 +1808,10 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             slaved: false,
             can_abort: true,
         })
-    } else if device_id_lower.contains("covercalibrator") || device_id_lower.contains("flatpanel") {
+    } else if matches!(
+        simulator_type.as_str(),
+        "covercalibrator" | "cover_calibrator" | "cover-calibrator" | "flatpanel" | "flat_panel"
+    ) {
         DeviceCapabilities::CoverCalibrator(CoverCalibratorCapabilities {
             max_brightness: 255,
             cover_present: true,
@@ -1808,8 +1820,10 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             calibrator_state: Some(CalibratorState::Off),
             brightness: Some(0),
         })
-    } else if device_id_lower.contains("weather") || device_id_lower.contains("observingconditions")
-    {
+    } else if matches!(
+        simulator_type.as_str(),
+        "weather" | "observingconditions" | "observing_conditions"
+    ) {
         DeviceCapabilities::Weather(WeatherCapabilities {
             has_cloud_cover: true,
             has_dew_point: true,
@@ -1826,12 +1840,15 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             has_wind_speed: true,
             average_period: Some(60.0),
         })
-    } else if device_id_lower.contains("safetymonitor") {
+    } else if matches!(
+        simulator_type.as_str(),
+        "safetymonitor" | "safety_monitor" | "safety-monitor"
+    ) {
         DeviceCapabilities::SafetyMonitor(SafetyMonitorCapabilities {
             is_safe: true,
             safety_description: Some("Simulator safety monitor - always safe".to_string()),
         })
-    } else if device_id_lower.contains("switch") {
+    } else if matches!(simulator_type.as_str(), "switch") {
         DeviceCapabilities::Switch(SwitchCapabilities {
             switch_count: 4,
             switches: vec![
@@ -1884,5 +1901,30 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
     } else {
         // Default to camera for unknown simulator devices
         DeviceCapabilities::Camera(CameraCapabilities::default())
+    }
+}
+
+#[cfg(test)]
+mod simulator_capability_tests {
+    use super::*;
+
+    #[test]
+    fn simulator_capabilities_use_parsed_device_type() {
+        assert!(matches!(
+            get_simulator_capabilities("simulator:mount:7"),
+            DeviceCapabilities::Mount(_)
+        ));
+        assert!(matches!(
+            get_simulator_capabilities("simulator:cover_calibrator:0"),
+            DeviceCapabilities::CoverCalibrator(_)
+        ));
+    }
+
+    #[test]
+    fn simulator_capabilities_do_not_classify_from_instance_suffix() {
+        assert!(matches!(
+            get_simulator_capabilities("simulator:switch:camera"),
+            DeviceCapabilities::Switch(_)
+        ));
     }
 }

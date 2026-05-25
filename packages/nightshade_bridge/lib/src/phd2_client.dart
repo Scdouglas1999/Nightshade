@@ -7,6 +7,7 @@
 /// - Automatic reconnection with exponential backoff
 /// - Heartbeat monitoring to detect stale connections
 /// - Connection state tracking and reporting
+library;
 
 import 'dart:async';
 import 'dart:convert';
@@ -636,7 +637,7 @@ class Phd2Client {
     final completer = Completer<dynamic>();
     _pendingRequests[id] = completer;
 
-    final json = jsonEncode(request) + '\r\n';
+    final json = '${jsonEncode(request)}\r\n';
     _socket!.write(json);
 
     return completer.future.timeout(

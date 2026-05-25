@@ -2,6 +2,7 @@
 ///
 /// Provides configurable retry logic with exponential backoff for network
 /// operations that may fail temporarily due to connectivity issues.
+library;
 
 import 'dart:async';
 import 'dart:io';

@@ -1,0 +1,122 @@
+// Template renderer for notification titles + bodies.
+//
+// Builds on Wave 4 Agent 3's interpolation engine (see
+// `models/sequence/interpolation_catalog.dart`). At runtime we have a
+// real event context — target name, time, sequence id, frame counters —
+// not just example values; this resolver consumes a context map and
+// substitutes the `${name[:spec]}` placeholders inside a template
+// string. Unknown variables fall back to the catalog `example` so the
+// rendered notification still reads naturally instead of dumping
+// `${target.name?}`.
+//
+// Why we don't call into Rust: the Rust evaluator (sequencer
+// `expressions::evaluate`) is the source of truth for sequence-time
+// interpolation. Notification rendering happens entirely in Dart, on a
+// snapshot context that arrives via the event bus, so we can keep
+// transport sends self-contained without round-tripping through FRB
+// every time.
+
+import '../../models/sequence/interpolation_catalog.dart';
+
+/// Build a per-event context map from a raw `NightshadeEvent.data` payload
+/// plus any extra values the router knows. Keys use the same dotted form
+/// as `interpolation_catalog.dart` (e.g. `target.name`, `time.now`).
+///
+/// Strings that look numeric stay strings; the format-spec branch parses
+/// them back to numbers per-call. This matches how the Rust catalog
+/// renders examples.
+class NotificationContext {
+  final Map<String, String> values;
+  const NotificationContext(this.values);
+
+  NotificationContext withDefaults() {
+    // Always populate clock fields. The router writes them too, but
+    // callers that build a context manually still get sensible values.
+    final m = Map<String, String>.from(values);
+    final now = DateTime.now();
+    m.putIfAbsent('time.now', () => now.toUtc().toIso8601String());
+    m.putIfAbsent('time.local', () => now.toIso8601String());
+    m.putIfAbsent('time.date',
+        () => '${now.year.toString().padLeft(4, '0')}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}');
+    return NotificationContext(m);
+  }
+}
+
+/// Render a template, substituting `${name[:spec]}` placeholders with
+/// values from [context]. Unknown variables fall back to the catalog
+/// `example` so the rendered string always reads cleanly.
+String renderNotificationTemplate(
+  String template,
+  NotificationContext context,
+) {
+  if (template.isEmpty) return '';
+  final byName = {for (final v in interpolationCatalog) v.name: v};
+  final ctx = context.withDefaults();
+
+  final buf = StringBuffer();
+  var i = 0;
+  while (i < template.length) {
+    // Doubled `$$` escapes `${`.
+    if (i + 2 < template.length &&
+        template[i] == r'$' &&
+        template[i + 1] == r'$' &&
+        template[i + 2] == '{') {
+      buf.write(r'${');
+      i += 3;
+      continue;
+    }
+    if (i + 1 < template.length &&
+        template[i] == r'$' &&
+        template[i + 1] == '{') {
+      final end = template.indexOf('}', i + 2);
+      if (end < 0) {
+        buf.write(template.substring(i));
+        return buf.toString();
+      }
+      final body = template.substring(i + 2, end).trim();
+      final colonIdx = body.indexOf(':');
+      final name = colonIdx < 0 ? body : body.substring(0, colonIdx).trim();
+      final spec = colonIdx < 0 ? null : body.substring(colonIdx + 1).trim();
+
+      String? resolved = ctx.values[name];
+      // Fall back to catalog example so the user sees *something* — the
+      // notification is still useful even if the live context did not
+      // populate that field.
+      resolved ??= byName[name]?.example;
+
+      if (resolved == null) {
+        buf.write('\${$name?}');
+      } else {
+        buf.write(_applyFormatSpec(resolved, spec));
+      }
+      i = end + 1;
+      continue;
+    }
+    buf.write(template[i]);
+    i += 1;
+  }
+  return buf.toString();
+}
+
+String _applyFormatSpec(String value, String? spec) {
+  if (spec == null || spec.isEmpty) return value;
+  // Integer zero-pad: `0N`.
+  final zeroPad = RegExp(r'^0(\d+)$').firstMatch(spec);
+  if (zeroPad != null) {
+    final width = int.parse(zeroPad.group(1)!);
+    final asInt = int.tryParse(value);
+    if (asInt != null) {
+      return asInt.toString().padLeft(width, '0');
+    }
+  }
+  // Fixed-point: `.Nf`.
+  final fixed = RegExp(r'^\.(\d+)f$').firstMatch(spec);
+  if (fixed != null) {
+    final precision = int.parse(fixed.group(1)!);
+    final asDouble = double.tryParse(value);
+    if (asDouble != null) {
+      return asDouble.toStringAsFixed(precision);
+    }
+  }
+  return value;
+}

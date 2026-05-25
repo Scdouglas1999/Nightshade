@@ -1,0 +1,203 @@
+//! Recovery logic node.
+//!
+//! Retries child nodes with exponential backoff (1s, 2s, 4s, 8s, ..., capped
+//! at 64 s) up to `max_retries` times. After exhausting retries, the
+//! configured recovery action determines the final outcome.
+
+use crate::executor::ExecutorEvent;
+use crate::instructions::execute_autofocus;
+use crate::node::context::ExecutionContext;
+use crate::node::logic::sequential::execute_children_sequential;
+use crate::node::runtime::{Node, RuntimeNode};
+use crate::{NodeStatus, NodeType, RecoveryAction, RecoveryConfig};
+use std::sync::atomic::Ordering;
+
+pub(crate) async fn execute_custom_branch_children(
+    node: &mut RuntimeNode,
+    context: &mut ExecutionContext,
+) -> NodeStatus {
+    if node.children.is_empty() {
+        let message = format!(
+            "CustomBranch recovery node '{}' has no child nodes to execute",
+            node.name()
+        );
+        tracing::error!("{}", message);
+        if let Some(tx) = &context.event_tx {
+            let _ = tx.send(ExecutorEvent::Error { message });
+        }
+        return NodeStatus::Failure;
+    }
+
+    for child in &mut node.children {
+        child.reset();
+    }
+
+    tracing::info!(
+        "Executing CustomBranch recovery subtree '{}' ({} child nodes)",
+        node.name(),
+        node.children.len()
+    );
+    execute_children_sequential(node, context).await
+}
+
+pub async fn execute_recovery(
+    node: &mut RuntimeNode,
+    config: RecoveryConfig,
+    context: &mut ExecutionContext,
+) -> NodeStatus {
+    let mut attempts = 0;
+    let max_attempts = config.max_retries.max(1);
+
+    loop {
+        attempts += 1;
+        tracing::info!("Execution attempt {}/{}", attempts, max_attempts);
+
+        // Each retry needs a fresh slate — stale Success/Failure on children
+        // would let a flaky middle child short-circuit on the second attempt
+        // before its real cause was actually retried.
+        for child in &mut node.children {
+            child.reset();
+        }
+
+        let result = execute_children_sequential(node, context).await;
+
+        if result == NodeStatus::Success || result == NodeStatus::Cancelled {
+            return result;
+        }
+
+        if attempts >= max_attempts {
+            tracing::warn!(
+                "Max recovery attempts ({}) reached, propagating failure",
+                max_attempts
+            );
+            return match config.recovery_action {
+                RecoveryAction::Continue => NodeStatus::Success,
+                RecoveryAction::NextTarget => NodeStatus::Skipped,
+                RecoveryAction::CustomBranch => execute_custom_branch_children(node, context).await,
+                RecoveryAction::ParkAndAbort => {
+                    // Trust-patch §8: both ParkAndAbort recovery paths
+                    // (here and in executor.rs) route through
+                    // `device_ops::try_park_with_retry` so park behaviour is
+                    // consistent.
+                    if let Some(mount_id) = &context.mount_id {
+                        tracing::warn!(
+                            "Recovery::ParkAndAbort: parking mount '{}' (max_retries=1, retry_delay=2s)",
+                            mount_id
+                        );
+                        let park_outcome = crate::device_ops::try_park_with_retry(
+                            &context.device_ops,
+                            mount_id,
+                            1,
+                            2.0,
+                        )
+                        .await;
+                        if !park_outcome.success {
+                            let park_error = format!(
+                                "Recovery::ParkAndAbort: mount park FAILED after {} attempt(s): {}. \
+                                 Mount may be in an unsafe position — manual intervention required.",
+                                park_outcome.attempts_made,
+                                park_outcome
+                                    .last_error
+                                    .clone()
+                                    .unwrap_or_else(|| "unknown error".to_string()),
+                            );
+                            tracing::error!("{}", park_error);
+                            if let Some(tx) = &context.event_tx {
+                                let _ = tx.send(ExecutorEvent::Error {
+                                    message: park_error,
+                                });
+                            }
+                        }
+                    } else {
+                        tracing::error!(
+                            "Recovery::ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically."
+                        );
+                        if let Some(tx) = &context.event_tx {
+                            let _ = tx.send(ExecutorEvent::Error {
+                                message: "Recovery::ParkAndAbort fired but no mount is configured; the rig cannot be parked automatically.".to_string(),
+                            });
+                        }
+                    }
+                    NodeStatus::Failure
+                }
+                _ => NodeStatus::Failure,
+            };
+        }
+
+        // Exponential backoff (1, 2, 4, 8, …, 64 s) gives transient device
+        // faults a chance to clear while capping the wait so the user is not
+        // staring at a frozen sequence. `attempts - 1` because attempts is
+        // 1-based and the first retry should wait the minimum 1 s.
+        let backoff_secs = 1u64 << (attempts - 1).min(6);
+        tracing::info!(
+            "Waiting {}s before retry attempt {}/{}",
+            backoff_secs,
+            attempts + 1,
+            max_attempts
+        );
+
+        // The backoff sleep must remain cancellable — a 64 s wait that
+        // ignores Stop would leave the user staring at a "stopping…" UI.
+        tokio::select! {
+            _ = tokio::time::sleep(std::time::Duration::from_secs(backoff_secs)) => {}
+            _ = async {
+                loop {
+                    if context.is_cancelled.load(Ordering::Relaxed) {
+                        return;
+                    }
+                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                }
+            } => {
+                tracing::info!("Recovery cancelled during backoff wait");
+                return NodeStatus::Cancelled;
+            }
+        }
+
+        match &config.recovery_action {
+            RecoveryAction::Retry { .. } => {
+                tracing::info!("Retrying...");
+            }
+            RecoveryAction::Autofocus => {
+                let autofocus_config = match configured_recovery_autofocus(node) {
+                    Some(config) => config,
+                    None => {
+                        tracing::error!(
+                            "Recovery action requested autofocus but no enabled autofocus child is configured"
+                        );
+                        return NodeStatus::Failure;
+                    }
+                };
+                tracing::info!("Running recovery autofocus...");
+                let ctx = context.to_instruction_context().await;
+                let autofocus_result = execute_autofocus(&autofocus_config, &ctx, None).await;
+                match autofocus_result.status {
+                    NodeStatus::Success => {}
+                    NodeStatus::Cancelled => return NodeStatus::Cancelled,
+                    _ => return autofocus_result.log_and_get_status("Recovery autofocus"),
+                }
+            }
+            RecoveryAction::Pause => {
+                tracing::info!("Pausing for manual intervention...");
+                if !context.pause_and_wait_for_resume().await {
+                    return NodeStatus::Cancelled;
+                }
+                tracing::info!("Resumed after pause, retrying...");
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Look for an enabled Autofocus child inside this recovery node so
+/// `RecoveryAction::Autofocus` knows what config to run.
+pub(crate) fn configured_recovery_autofocus(node: &RuntimeNode) -> Option<crate::AutofocusConfig> {
+    node.children.iter().find_map(|child| {
+        if !child.is_enabled() {
+            return None;
+        }
+        match child.node_type() {
+            NodeType::Autofocus(config) => Some(config.clone()),
+            _ => None,
+        }
+    })
+}

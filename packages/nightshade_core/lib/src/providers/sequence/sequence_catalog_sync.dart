@@ -1,0 +1,278 @@
+import 'dart:async';
+import 'dart:developer' as developer;
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../backend/network_backend.dart';
+import '../../backend/nightshade_backend.dart';
+import '../../models/backend/event_types.dart';
+import '../../models/sequence/sequence_models.dart';
+import '../../models/backend/host_mutation_event.dart';
+import '../../services/sequence_repository.dart';
+import '../backend_provider.dart';
+import '../host_mutation_event_provider.dart';
+import '../sequence_provider.dart';
+
+const sequenceUpdatedEventType = 'SequenceUpdated';
+const _logSource = 'SequenceCatalogSync';
+
+/// Describes a change to the persisted sequence catalog (library / templates).
+class SequenceCatalogUpdate {
+  final int sequenceId;
+  final String action;
+  final String? name;
+  final bool isTemplate;
+
+  const SequenceCatalogUpdate({
+    required this.sequenceId,
+    required this.action,
+    this.name,
+    this.isTemplate = false,
+  });
+
+  Map<String, dynamic> toEventData() => {
+        'sequenceId': sequenceId,
+        'action': action,
+        if (name != null) 'name': name,
+        'isTemplate': isTemplate,
+      };
+
+  NightshadeEvent toNightshadeEvent() => NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.info,
+        category: EventCategory.sequencer,
+        eventType: sequenceUpdatedEventType,
+        data: toEventData(),
+      );
+}
+
+/// In-process bus so headless API handlers and the desktop GUI share the same
+/// ProviderContainer can refresh the library without a WebSocket round-trip.
+class SequenceCatalogUpdateBus {
+  final _controller = StreamController<SequenceCatalogUpdate>.broadcast();
+
+  Stream<SequenceCatalogUpdate> get stream => _controller.stream;
+
+  void notify(SequenceCatalogUpdate update) {
+    if (!_controller.isClosed) {
+      _controller.add(update);
+    }
+  }
+
+  void dispose() {
+    _controller.close();
+  }
+}
+
+final sequenceCatalogUpdateBusProvider =
+    Provider<SequenceCatalogUpdateBus>((ref) {
+  final bus = SequenceCatalogUpdateBus();
+  ref.onDispose(bus.dispose);
+  return bus;
+});
+
+/// Provider for sequences list — loads from local DB or remote host catalog.
+final savedSequencesProvider =
+    FutureProvider.autoDispose<List<Sequence>>((ref) async {
+  final repository = ref.watch(sequenceRepositoryProvider);
+  return repository.loadAllSequences();
+});
+
+/// Keeps the sequencer library fresh when remote clients mutate sequences.
+///
+/// * Desktop GUI (local [FfiBackend]): listens to [SequenceCatalogUpdateBus]
+///   because the embedded headless API writes through the same container.
+/// * Remote companions ([NetworkBackend]): also listens for `SequenceUpdated`
+///   on the host WebSocket event stream.
+final sequenceLibrarySyncProvider = Provider<void>((ref) {
+  StreamSubscription<SequenceCatalogUpdate>? busSub;
+  StreamSubscription<NightshadeEvent>? eventSub;
+
+  void invalidateLibrary() {
+    ref.invalidate(savedSequencesProvider);
+  }
+
+  void onCatalogUpdate(SequenceCatalogUpdate update) {
+    invalidateLibrary();
+    unawaited(reloadOpenSequenceIfIdle(ref, update.sequenceId));
+  }
+
+  void attachBus() {
+    busSub?.cancel();
+    busSub = ref.read(sequenceCatalogUpdateBusProvider).stream.listen(
+      onCatalogUpdate,
+    );
+  }
+
+  void attachBackendEvents(NightshadeBackend backend) {
+    eventSub?.cancel();
+    eventSub = null;
+    if (backend is NetworkBackend) {
+      eventSub = backend.eventStream.listen((event) {
+        if (event.eventType == sequenceUpdatedEventType) {
+          final id = event.data['sequenceId'];
+          if (id is int) {
+            onCatalogUpdate(
+              SequenceCatalogUpdate(sequenceId: id, action: 'updated'),
+            );
+          } else {
+            invalidateLibrary();
+          }
+          return;
+        }
+        if (event.eventType == hostStateChangedEventType &&
+            event.data['entityType'] == HostMutationEntity.sequence) {
+          final entityId = event.data['entityId'] as String?;
+          final parsedId = entityId == null ? null : int.tryParse(entityId);
+          if (parsedId != null) {
+            onCatalogUpdate(
+              SequenceCatalogUpdate(sequenceId: parsedId, action: 'updated'),
+            );
+          } else {
+            invalidateLibrary();
+          }
+        }
+      });
+    }
+  }
+
+  void teardown() {
+    busSub?.cancel();
+    eventSub?.cancel();
+    busSub = null;
+    eventSub = null;
+  }
+
+  ref.onDispose(teardown);
+
+  ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+    teardown();
+    attachBus();
+    attachBackendEvents(next);
+  }, fireImmediately: true);
+});
+
+/// Notify listeners that the sequence catalog changed (desktop GUI mutations).
+void notifySequenceCatalogChanged(
+  WidgetRef ref, {
+  required int sequenceId,
+  required String action,
+  String? name,
+  bool isTemplate = false,
+}) {
+  _emitSequenceCatalogUpdate(
+    bus: ref.read(sequenceCatalogUpdateBusProvider),
+    sequenceId: sequenceId,
+    action: action,
+    name: name,
+    isTemplate: isTemplate,
+    publishHostMutation: (mutationAction, extra) {
+      publishHostMutationFromRef(
+        ref,
+        entityType: HostMutationEntity.sequence,
+        action: mutationAction,
+        entityId: sequenceId.toString(),
+        extra: extra,
+      );
+    },
+  );
+}
+
+/// Container variant for headless API handlers.
+void notifySequenceCatalogChangedFromContainer(
+  ProviderContainer container, {
+  required int sequenceId,
+  required String action,
+  String? name,
+  bool isTemplate = false,
+}) {
+  _emitSequenceCatalogUpdate(
+    bus: container.read(sequenceCatalogUpdateBusProvider),
+    sequenceId: sequenceId,
+    action: action,
+    name: name,
+    isTemplate: isTemplate,
+    publishHostMutation: (mutationAction, extra) {
+      publishHostMutationFromContainer(
+        container,
+        entityType: HostMutationEntity.sequence,
+        action: mutationAction,
+        entityId: sequenceId.toString(),
+        extra: extra,
+      );
+    },
+  );
+}
+
+void _emitSequenceCatalogUpdate({
+  required SequenceCatalogUpdateBus bus,
+  required int sequenceId,
+  required String action,
+  String? name,
+  bool isTemplate = false,
+  required void Function(String mutationAction, Map<String, dynamic> extra)
+      publishHostMutation,
+}) {
+  bus.notify(
+    SequenceCatalogUpdate(
+      sequenceId: sequenceId,
+      action: action,
+      name: name,
+      isTemplate: isTemplate,
+    ),
+  );
+
+  publishHostMutation(
+    _hostMutationActionForCatalogAction(action),
+    {
+      if (name != null) 'name': name,
+      'isTemplate': isTemplate,
+      'catalogAction': action,
+    },
+  );
+}
+
+/// Reload the in-editor sequence when a remote/tablet save touched the same row.
+Future<void> reloadOpenSequenceIfIdle(Ref ref, int sequenceId) async {
+  final current = ref.read(currentSequenceProvider);
+  if (current?.databaseId != sequenceId) {
+    return;
+  }
+
+  final editor = ref.read(currentSequenceProvider.notifier);
+  if (editor.isDirty) {
+    return;
+  }
+
+  try {
+    final loaded =
+        await ref.read(sequenceRepositoryProvider).loadSequence(sequenceId);
+    if (loaded != null) {
+      editor.loadSequence(loaded, discardUnsaved: true);
+    }
+  } catch (e, stackTrace) {
+    // Library invalidation still ran; editor reload is best-effort.
+    developer.log(
+      'reloadOpenSequenceIfIdle failed for sequenceId=$sequenceId: $e',
+      name: _logSource,
+      level: 900,
+      error: e,
+      stackTrace: stackTrace,
+    );
+  }
+}
+
+String _hostMutationActionForCatalogAction(String action) {
+  switch (action) {
+    case 'deleted':
+      return HostMutationAction.deleted;
+    case 'created':
+    case 'duplicated':
+      return HostMutationAction.created;
+    case 'saved':
+    case 'updated':
+    default:
+      return HostMutationAction.updated;
+  }
+}
+

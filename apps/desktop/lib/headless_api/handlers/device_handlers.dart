@@ -194,6 +194,23 @@ class DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
+  Future<Response> handleCameraGetRecommendedSettings(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'];
+    if (deviceId == null || deviceId.trim().isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'non-empty string query parameter',
+        message: 'Query parameter deviceId is required',
+      );
+    }
+
+    final backend = container.read(backendProvider);
+    final settings =
+        await backend.cameraGetRecommendedSettings(deviceId.trim());
+
+    return jsonOk(settings.toJson());
+  }
+
   // ===========================================================================
   // Mount Control
   // ===========================================================================
@@ -439,6 +456,18 @@ class DeviceHandlers {
     final names = await backend.filterWheelGetNames(deviceId);
 
     return jsonOk({'names': names});
+  }
+
+  Future<Response> handleFilterWheelSetNames(Request request) async {
+    _logInfo('[API] POST /api/filter-wheel/names');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final names = requireList<String>(payload, 'names');
+
+    final backend = container.read(backendProvider);
+    await backend.filterWheelSetNames(deviceId, names);
+
+    return jsonOk({'status': 'ok'});
   }
 
   Future<Response> handleFilterWheelSetByName(Request request) async {

@@ -122,6 +122,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   BayerPatternApi dco_decode_bayer_pattern_api(dynamic raw);
 
   @protected
+  BodyIdDto dco_decode_body_id_dto(dynamic raw);
+
+  @protected
   bool dco_decode_bool(dynamic raw);
 
   @protected
@@ -212,6 +215,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MountCapabilities dco_decode_box_autoadd_mount_capabilities(dynamic raw);
 
   @protected
+  MountPositionDto dco_decode_box_autoadd_mount_position_dto(dynamic raw);
+
+  @protected
   ObserverDto dco_decode_box_autoadd_observer_dto(dynamic raw);
 
   @protected
@@ -234,6 +240,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PolarAlignmentStatus dco_decode_box_autoadd_polar_alignment_status(
       dynamic raw);
+
+  @protected
+  PoseLockDto dco_decode_box_autoadd_pose_lock_dto(dynamic raw);
 
   @protected
   RenderConfigDto dco_decode_box_autoadd_render_config_dto(dynamic raw);
@@ -278,6 +287,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackingRate dco_decode_box_autoadd_tracking_rate(dynamic raw);
 
   @protected
+  TrackingTargetDto dco_decode_box_autoadd_tracking_target_dto(dynamic raw);
+
+  @protected
   int dco_decode_box_autoadd_u_16(dynamic raw);
 
   @protected
@@ -312,6 +324,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CheckpointInfoApi dco_decode_checkpoint_info_api(dynamic raw);
+
+  @protected
+  ConstellationArtPlacementDto dco_decode_constellation_art_placement_dto(
+      dynamic raw);
 
   @protected
   CoverCalibratorCapabilities dco_decode_cover_calibrator_capabilities(
@@ -453,6 +469,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<ConstellationArtPlacementDto>
+      dco_decode_list_constellation_art_placement_dto(dynamic raw);
+
+  @protected
   List<DetectedStarInfo> dco_decode_list_detected_star_info(dynamic raw);
 
   @protected
@@ -533,6 +553,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MountCapabilities dco_decode_mount_capabilities(dynamic raw);
 
   @protected
+  MountPositionDto dco_decode_mount_position_dto(dynamic raw);
+
+  @protected
   MountStatus dco_decode_mount_status(dynamic raw);
 
   @protected
@@ -594,6 +617,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
 
   @protected
+  MountPositionDto? dco_decode_opt_box_autoadd_mount_position_dto(dynamic raw);
+
+  @protected
   ObserverLocation? dco_decode_opt_box_autoadd_observer_location(dynamic raw);
 
   @protected
@@ -612,6 +638,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackingRate? dco_decode_opt_box_autoadd_tracking_rate(dynamic raw);
+
+  @protected
+  TrackingTargetDto? dco_decode_opt_box_autoadd_tracking_target_dto(
+      dynamic raw);
 
   @protected
   int? dco_decode_opt_box_autoadd_u_16(dynamic raw);
@@ -663,6 +693,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PolarAlignmentStatus dco_decode_polar_alignment_status(dynamic raw);
+
+  @protected
+  PoseLockDto dco_decode_pose_lock_dto(dynamic raw);
 
   @protected
   QhyDiscoveryStatus dco_decode_qhy_discovery_status(dynamic raw);
@@ -787,6 +820,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TrackingRate dco_decode_tracking_rate(dynamic raw);
 
   @protected
+  TrackingTargetDto dco_decode_tracking_target_dto(dynamic raw);
+
+  @protected
   int dco_decode_u_16(dynamic raw);
 
   @protected
@@ -883,6 +919,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BayerPatternApi sse_decode_bayer_pattern_api(SseDeserializer deserializer);
+
+  @protected
+  BodyIdDto sse_decode_body_id_dto(SseDeserializer deserializer);
 
   @protected
   bool sse_decode_bool(SseDeserializer deserializer);
@@ -991,6 +1030,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  MountPositionDto sse_decode_box_autoadd_mount_position_dto(
+      SseDeserializer deserializer);
+
+  @protected
   ObserverDto sse_decode_box_autoadd_observer_dto(SseDeserializer deserializer);
 
   @protected
@@ -1014,6 +1057,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PolarAlignmentStatus sse_decode_box_autoadd_polar_alignment_status(
+      SseDeserializer deserializer);
+
+  @protected
+  PoseLockDto sse_decode_box_autoadd_pose_lock_dto(
       SseDeserializer deserializer);
 
   @protected
@@ -1067,6 +1114,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  TrackingTargetDto sse_decode_box_autoadd_tracking_target_dto(
+      SseDeserializer deserializer);
+
+  @protected
   int sse_decode_box_autoadd_u_16(SseDeserializer deserializer);
 
   @protected
@@ -1106,6 +1157,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CheckpointInfoApi sse_decode_checkpoint_info_api(
+      SseDeserializer deserializer);
+
+  @protected
+  ConstellationArtPlacementDto sse_decode_constellation_art_placement_dto(
       SseDeserializer deserializer);
 
   @protected
@@ -1259,6 +1314,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<ConstellationArtPlacementDto>
+      sse_decode_list_constellation_art_placement_dto(
+          SseDeserializer deserializer);
+
+  @protected
   List<DetectedStarInfo> sse_decode_list_detected_star_info(
       SseDeserializer deserializer);
 
@@ -1352,6 +1412,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   MountCapabilities sse_decode_mount_capabilities(SseDeserializer deserializer);
 
   @protected
+  MountPositionDto sse_decode_mount_position_dto(SseDeserializer deserializer);
+
+  @protected
   MountStatus sse_decode_mount_status(SseDeserializer deserializer);
 
   @protected
@@ -1418,6 +1481,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
 
   @protected
+  MountPositionDto? sse_decode_opt_box_autoadd_mount_position_dto(
+      SseDeserializer deserializer);
+
+  @protected
   ObserverLocation? sse_decode_opt_box_autoadd_observer_location(
       SseDeserializer deserializer);
 
@@ -1438,6 +1505,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackingRate? sse_decode_opt_box_autoadd_tracking_rate(
+      SseDeserializer deserializer);
+
+  @protected
+  TrackingTargetDto? sse_decode_opt_box_autoadd_tracking_target_dto(
       SseDeserializer deserializer);
 
   @protected
@@ -1497,6 +1568,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   PolarAlignmentStatus sse_decode_polar_alignment_status(
       SseDeserializer deserializer);
+
+  @protected
+  PoseLockDto sse_decode_pose_lock_dto(SseDeserializer deserializer);
 
   @protected
   QhyDiscoveryStatus sse_decode_qhy_discovery_status(
@@ -1634,6 +1708,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TrackingRate sse_decode_tracking_rate(SseDeserializer deserializer);
+
+  @protected
+  TrackingTargetDto sse_decode_tracking_target_dto(
+      SseDeserializer deserializer);
 
   @protected
   int sse_decode_u_16(SseDeserializer deserializer);
@@ -1936,6 +2014,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_mount_position_dto>
+      cst_encode_box_autoadd_mount_position_dto(MountPositionDto raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_mount_position_dto();
+    cst_api_fill_to_wire_mount_position_dto(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_observer_dto> cst_encode_box_autoadd_observer_dto(
       ObserverDto raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -1994,6 +2081,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_polar_alignment_status();
     cst_api_fill_to_wire_polar_alignment_status(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_pose_lock_dto> cst_encode_box_autoadd_pose_lock_dto(
+      PoseLockDto raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_pose_lock_dto();
+    cst_api_fill_to_wire_pose_lock_dto(raw, ptr.ref);
     return ptr;
   }
 
@@ -2116,6 +2212,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_tracking_target_dto>
+      cst_encode_box_autoadd_tracking_target_dto(TrackingTargetDto raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_tracking_target_dto();
+    cst_api_fill_to_wire_tracking_target_dto(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<ffi.Uint16> cst_encode_box_autoadd_u_16(int raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return wire.cst_new_box_autoadd_u_16(cst_encode_u_16(raw));
@@ -2163,6 +2268,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     final ans = wire.cst_new_list_String(raw.length);
     for (var i = 0; i < raw.length; ++i) {
       ans.ref.ptr[i] = cst_encode_String(raw[i]);
+    }
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_constellation_art_placement_dto>
+      cst_encode_list_constellation_art_placement_dto(
+          List<ConstellationArtPlacementDto> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_constellation_art_placement_dto(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_constellation_art_placement_dto(
+          raw[i], ans.ref.ptr[i]);
     }
     return ans;
   }
@@ -2519,6 +2637,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_mount_position_dto>
+      cst_encode_opt_box_autoadd_mount_position_dto(MountPositionDto? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_mount_position_dto(raw);
+  }
+
+  @protected
   ffi.Pointer<wire_cst_observer_location>
       cst_encode_opt_box_autoadd_observer_location(ObserverLocation? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -2568,6 +2695,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return raw == null
         ? ffi.nullptr
         : cst_encode_box_autoadd_tracking_rate(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_tracking_target_dto>
+      cst_encode_opt_box_autoadd_tracking_target_dto(TrackingTargetDto? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_tracking_target_dto(raw);
   }
 
   @protected
@@ -2832,6 +2968,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_box_autoadd_mount_position_dto(
+      MountPositionDto apiObj,
+      ffi.Pointer<wire_cst_mount_position_dto> wireObj) {
+    cst_api_fill_to_wire_mount_position_dto(apiObj, wireObj.ref);
+  }
+
+  @protected
   void cst_api_fill_to_wire_box_autoadd_observer_dto(
       ObserverDto apiObj, ffi.Pointer<wire_cst_observer_dto> wireObj) {
     cst_api_fill_to_wire_observer_dto(apiObj, wireObj.ref);
@@ -2870,6 +3013,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       PolarAlignmentStatus apiObj,
       ffi.Pointer<wire_cst_polar_alignment_status> wireObj) {
     cst_api_fill_to_wire_polar_alignment_status(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_pose_lock_dto(
+      PoseLockDto apiObj, ffi.Pointer<wire_cst_pose_lock_dto> wireObj) {
+    cst_api_fill_to_wire_pose_lock_dto(apiObj, wireObj.ref);
   }
 
   @protected
@@ -2943,6 +3092,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void cst_api_fill_to_wire_box_autoadd_system_event(
       SystemEvent apiObj, ffi.Pointer<wire_cst_system_event> wireObj) {
     cst_api_fill_to_wire_system_event(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_tracking_target_dto(
+      TrackingTargetDto apiObj,
+      ffi.Pointer<wire_cst_tracking_target_dto> wireObj) {
+    cst_api_fill_to_wire_tracking_target_dto(apiObj, wireObj.ref);
   }
 
   @protected
@@ -3058,6 +3214,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         cst_encode_f_64(apiObj.completedIntegrationSecs);
     wireObj.can_resume = cst_encode_bool(apiObj.canResume);
     wireObj.age_seconds = cst_encode_i_64(apiObj.ageSeconds);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_constellation_art_placement_dto(
+      ConstellationArtPlacementDto apiObj,
+      wire_cst_constellation_art_placement_dto wireObj) {
+    wireObj.abbreviation = cst_encode_String(apiObj.abbreviation);
+    wireObj.screen_x = cst_encode_f_32(apiObj.screenX);
+    wireObj.screen_y = cst_encode_f_32(apiObj.screenY);
+    wireObj.scale = cst_encode_f_32(apiObj.scale);
+    wireObj.opacity = cst_encode_f_32(apiObj.opacity);
   }
 
   @protected
@@ -4031,6 +4198,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_mount_position_dto(
+      MountPositionDto apiObj, wire_cst_mount_position_dto wireObj) {
+    wireObj.ra_rad = cst_encode_f_64(apiObj.raRad);
+    wireObj.dec_rad = cst_encode_f_64(apiObj.decRad);
+  }
+
+  @protected
   void cst_api_fill_to_wire_mount_status(
       MountStatus apiObj, wire_cst_mount_status wireObj) {
     wireObj.connected = cst_encode_bool(apiObj.connected);
@@ -4488,6 +4662,31 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_pose_lock_dto(
+      PoseLockDto apiObj, wire_cst_pose_lock_dto wireObj) {
+    if (apiObj is PoseLockDto_Free) {
+      wireObj.tag = 0;
+      return;
+    }
+    if (apiObj is PoseLockDto_LockedToTarget) {
+      var pre_object_id = cst_encode_u_64(apiObj.objectId);
+      wireObj.tag = 1;
+      wireObj.kind.LockedToTarget.object_id = pre_object_id;
+      return;
+    }
+    if (apiObj is PoseLockDto_LockedToMount) {
+      wireObj.tag = 2;
+      return;
+    }
+    if (apiObj is PoseLockDto_LockedToBody) {
+      var pre_body = cst_encode_body_id_dto(apiObj.body);
+      wireObj.tag = 3;
+      wireObj.kind.LockedToBody.body = pre_body;
+      return;
+    }
+  }
+
+  @protected
   void cst_api_fill_to_wire_qhy_discovery_status(
       QhyDiscoveryStatus apiObj, wire_cst_qhy_discovery_status wireObj) {
     wireObj.sdk_available = cst_encode_bool(apiObj.sdkAvailable);
@@ -4704,6 +4903,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.frame_id = cst_encode_u_64(apiObj.frameId);
     cst_api_fill_to_wire_view_pose_dto(apiObj.viewPose, wireObj.view_pose);
     wireObj.labels = cst_encode_list_label_hint_dto(apiObj.labels);
+    wireObj.constellation_art = cst_encode_list_constellation_art_placement_dto(
+        apiObj.constellationArt);
     wireObj.selected =
         cst_encode_opt_box_autoadd_selected_object_dto(apiObj.selected);
   }
@@ -5025,6 +5226,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_tracking_target_dto(
+      TrackingTargetDto apiObj, wire_cst_tracking_target_dto wireObj) {
+    wireObj.object_id = cst_encode_u_64(apiObj.objectId);
+    wireObj.ra_rad = cst_encode_f_64(apiObj.raRad);
+    wireObj.dec_rad = cst_encode_f_64(apiObj.decRad);
+  }
+
+  @protected
   void cst_api_fill_to_wire_view_pose_dto(
       ViewPoseDto apiObj, wire_cst_view_pose_dto wireObj) {
     wireObj.ra_rad = cst_encode_f_64(apiObj.raRad);
@@ -5085,6 +5294,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   int cst_encode_bayer_pattern_api(BayerPatternApi raw);
+
+  @protected
+  int cst_encode_body_id_dto(BodyIdDto raw);
 
   @protected
   bool cst_encode_bool(bool raw);
@@ -5241,6 +5453,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       BayerPatternApi self, SseSerializer serializer);
 
   @protected
+  void sse_encode_body_id_dto(BodyIdDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer);
 
   @protected
@@ -5349,6 +5564,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       MountCapabilities self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_mount_position_dto(
+      MountPositionDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_observer_dto(
       ObserverDto self, SseSerializer serializer);
 
@@ -5375,6 +5594,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_polar_alignment_status(
       PolarAlignmentStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_pose_lock_dto(
+      PoseLockDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_render_config_dto(
@@ -5429,6 +5652,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       TrackingRate self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_tracking_target_dto(
+      TrackingTargetDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_u_16(int self, SseSerializer serializer);
 
   @protected
@@ -5470,6 +5697,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_checkpoint_info_api(
       CheckpointInfoApi self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_constellation_art_placement_dto(
+      ConstellationArtPlacementDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_cover_calibrator_capabilities(
@@ -5636,6 +5867,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_constellation_art_placement_dto(
+      List<ConstellationArtPlacementDto> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_detected_star_info(
       List<DetectedStarInfo> self, SseSerializer serializer);
 
@@ -5740,6 +5975,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       MountCapabilities self, SseSerializer serializer);
 
   @protected
+  void sse_encode_mount_position_dto(
+      MountPositionDto self, SseSerializer serializer);
+
+  @protected
   void sse_encode_mount_status(MountStatus self, SseSerializer serializer);
 
   @protected
@@ -5810,6 +6049,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       PlatformInt64? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_box_autoadd_mount_position_dto(
+      MountPositionDto? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_observer_location(
       ObserverLocation? self, SseSerializer serializer);
 
@@ -5832,6 +6075,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_tracking_rate(
       TrackingRate? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_tracking_target_dto(
+      TrackingTargetDto? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_u_16(int? self, SseSerializer serializer);
@@ -5894,6 +6141,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_polar_alignment_status(
       PolarAlignmentStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_pose_lock_dto(PoseLockDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_qhy_discovery_status(
@@ -6044,6 +6294,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_tracking_rate(TrackingRate self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_tracking_target_dto(
+      TrackingTargetDto self, SseSerializer serializer);
 
   @protected
   void sse_encode_u_16(int self, SseSerializer serializer);
@@ -13776,6 +14030,34 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_render_config_dto>,
           )>();
 
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium__planetarium_set_mount_position(
+    int handle,
+    ffi.Pointer<wire_cst_mount_position_dto> mount,
+  ) {
+    return _wire__crate__api__planetarium__planetarium_set_mount_position(
+      handle,
+      mount,
+    );
+  }
+
+  late final _wire__crate__api__planetarium__planetarium_set_mount_positionPtr =
+      _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_mount_position_dto>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_mount_position',
+  );
+  late final _wire__crate__api__planetarium__planetarium_set_mount_position =
+      _wire__crate__api__planetarium__planetarium_set_mount_positionPtr
+          .asFunction<
+              WireSyncRust2DartDco Function(
+                int,
+                ffi.Pointer<wire_cst_mount_position_dto>,
+              )>();
+
   WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_set_observer(
     int handle,
     ffi.Pointer<wire_cst_observer_dto> observer,
@@ -13822,6 +14104,32 @@ class RustLibWire implements BaseWire {
           WireSyncRust2DartDco Function(
             int,
             ffi.Pointer<wire_cst_view_pose_dto>,
+          )>();
+
+  WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_set_pose_lock(
+    int handle,
+    ffi.Pointer<wire_cst_pose_lock_dto> lock,
+  ) {
+    return _wire__crate__api__planetarium__planetarium_set_pose_lock(
+      handle,
+      lock,
+    );
+  }
+
+  late final _wire__crate__api__planetarium__planetarium_set_pose_lockPtr =
+      _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_pose_lock_dto>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose_lock',
+  );
+  late final _wire__crate__api__planetarium__planetarium_set_pose_lock =
+      _wire__crate__api__planetarium__planetarium_set_pose_lockPtr.asFunction<
+          WireSyncRust2DartDco Function(
+            int,
+            ffi.Pointer<wire_cst_pose_lock_dto>,
           )>();
 
   WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_set_selection(
@@ -13872,6 +14180,34 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_astro_time_dto>,
           )>();
 
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium__planetarium_set_tracking_target(
+    int handle,
+    ffi.Pointer<wire_cst_tracking_target_dto> target,
+  ) {
+    return _wire__crate__api__planetarium__planetarium_set_tracking_target(
+      handle,
+      target,
+    );
+  }
+
+  late final _wire__crate__api__planetarium__planetarium_set_tracking_targetPtr =
+      _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_tracking_target_dto>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_tracking_target',
+  );
+  late final _wire__crate__api__planetarium__planetarium_set_tracking_target =
+      _wire__crate__api__planetarium__planetarium_set_tracking_targetPtr
+          .asFunction<
+              WireSyncRust2DartDco Function(
+                int,
+                ffi.Pointer<wire_cst_tracking_target_dto>,
+              )>();
+
   WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_snapshot(
     int handle,
   ) {
@@ -13885,6 +14221,42 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__planetarium__planetarium_snapshot =
       _wire__crate__api__planetarium__planetarium_snapshotPtr
           .asFunction<WireSyncRust2DartDco Function(int)>();
+
+  void wire__crate__api__discovery__scan_ascom_for_type_public(
+    int port_,
+    int device_type,
+  ) {
+    return _wire__crate__api__discovery__scan_ascom_for_type_public(
+      port_,
+      device_type,
+    );
+  }
+
+  late final _wire__crate__api__discovery__scan_ascom_for_type_publicPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int32)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__discovery__scan_ascom_for_type_public',
+  );
+  late final _wire__crate__api__discovery__scan_ascom_for_type_public =
+      _wire__crate__api__discovery__scan_ascom_for_type_publicPtr
+          .asFunction<void Function(int, int)>();
+
+  void wire__crate__api__discovery__scan_native_for_type_public(
+    int port_,
+    int device_type,
+  ) {
+    return _wire__crate__api__discovery__scan_native_for_type_public(
+      port_,
+      device_type,
+    );
+  }
+
+  late final _wire__crate__api__discovery__scan_native_for_type_publicPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Int32)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__discovery__scan_native_for_type_public',
+  );
+  late final _wire__crate__api__discovery__scan_native_for_type_public =
+      _wire__crate__api__discovery__scan_native_for_type_publicPtr
+          .asFunction<void Function(int, int)>();
 
   void wire__crate__api__devices__camera__set_camera_cooler(
     int port_,
@@ -14551,6 +14923,19 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_mount_capabilitiesPtr
           .asFunction<ffi.Pointer<wire_cst_mount_capabilities> Function()>();
 
+  ffi.Pointer<wire_cst_mount_position_dto>
+      cst_new_box_autoadd_mount_position_dto() {
+    return _cst_new_box_autoadd_mount_position_dto();
+  }
+
+  late final _cst_new_box_autoadd_mount_position_dtoPtr = _lookup<
+          ffi
+          .NativeFunction<ffi.Pointer<wire_cst_mount_position_dto> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_mount_position_dto');
+  late final _cst_new_box_autoadd_mount_position_dto =
+      _cst_new_box_autoadd_mount_position_dtoPtr
+          .asFunction<ffi.Pointer<wire_cst_mount_position_dto> Function()>();
+
   ffi.Pointer<wire_cst_observer_dto> cst_new_box_autoadd_observer_dto() {
     return _cst_new_box_autoadd_observer_dto();
   }
@@ -14639,6 +15024,17 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_polar_alignment_status =
       _cst_new_box_autoadd_polar_alignment_statusPtr.asFunction<
           ffi.Pointer<wire_cst_polar_alignment_status> Function()>();
+
+  ffi.Pointer<wire_cst_pose_lock_dto> cst_new_box_autoadd_pose_lock_dto() {
+    return _cst_new_box_autoadd_pose_lock_dto();
+  }
+
+  late final _cst_new_box_autoadd_pose_lock_dtoPtr = _lookup<
+          ffi.NativeFunction<ffi.Pointer<wire_cst_pose_lock_dto> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_pose_lock_dto');
+  late final _cst_new_box_autoadd_pose_lock_dto =
+      _cst_new_box_autoadd_pose_lock_dtoPtr
+          .asFunction<ffi.Pointer<wire_cst_pose_lock_dto> Function()>();
 
   ffi.Pointer<wire_cst_render_config_dto>
       cst_new_box_autoadd_render_config_dto() {
@@ -14803,6 +15199,19 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_tracking_ratePtr
           .asFunction<ffi.Pointer<ffi.Int32> Function(int)>();
 
+  ffi.Pointer<wire_cst_tracking_target_dto>
+      cst_new_box_autoadd_tracking_target_dto() {
+    return _cst_new_box_autoadd_tracking_target_dto();
+  }
+
+  late final _cst_new_box_autoadd_tracking_target_dtoPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_tracking_target_dto> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_target_dto');
+  late final _cst_new_box_autoadd_tracking_target_dto =
+      _cst_new_box_autoadd_tracking_target_dtoPtr
+          .asFunction<ffi.Pointer<wire_cst_tracking_target_dto> Function()>();
+
   ffi.Pointer<ffi.Uint16> cst_new_box_autoadd_u_16(int value) {
     return _cst_new_box_autoadd_u_16(value);
   }
@@ -14870,6 +15279,24 @@ class RustLibWire implements BaseWire {
               ffi.Int32)>>('frbgen_nightshade_bridge_cst_new_list_String');
   late final _cst_new_list_String = _cst_new_list_StringPtr
       .asFunction<ffi.Pointer<wire_cst_list_String> Function(int)>();
+
+  ffi.Pointer<wire_cst_list_constellation_art_placement_dto>
+      cst_new_list_constellation_art_placement_dto(int len) {
+    return _cst_new_list_constellation_art_placement_dto(len);
+  }
+
+  late final _cst_new_list_constellation_art_placement_dtoPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_constellation_art_placement_dto> Function(
+            ffi.Int32,
+          )>>(
+    'frbgen_nightshade_bridge_cst_new_list_constellation_art_placement_dto',
+  );
+  late final _cst_new_list_constellation_art_placement_dto =
+      _cst_new_list_constellation_art_placement_dtoPtr.asFunction<
+          ffi.Pointer<wire_cst_list_constellation_art_placement_dto> Function(
+            int,
+          )>();
 
   ffi.Pointer<wire_cst_list_detected_star_info> cst_new_list_detected_star_info(
     int len,
@@ -15611,6 +16038,14 @@ final class wire_cst_render_config_dto extends ffi.Struct {
   external bool twinkle;
 }
 
+final class wire_cst_mount_position_dto extends ffi.Struct {
+  @ffi.Double()
+  external double ra_rad;
+
+  @ffi.Double()
+  external double dec_rad;
+}
+
 final class wire_cst_observer_dto extends ffi.Struct {
   @ffi.Double()
   external double latitude_rad;
@@ -15645,6 +16080,29 @@ final class wire_cst_view_pose_dto extends ffi.Struct {
   external int projection;
 }
 
+final class wire_cst_PoseLockDto_LockedToTarget extends ffi.Struct {
+  @ffi.Uint64()
+  external int object_id;
+}
+
+final class wire_cst_PoseLockDto_LockedToBody extends ffi.Struct {
+  @ffi.Int32()
+  external int body;
+}
+
+final class PoseLockDtoKind extends ffi.Union {
+  external wire_cst_PoseLockDto_LockedToTarget LockedToTarget;
+
+  external wire_cst_PoseLockDto_LockedToBody LockedToBody;
+}
+
+final class wire_cst_pose_lock_dto extends ffi.Struct {
+  @ffi.Int32()
+  external int tag;
+
+  external PoseLockDtoKind kind;
+}
+
 final class wire_cst_selected_object_dto extends ffi.Struct {
   @ffi.Uint64()
   external int object_id;
@@ -15676,6 +16134,17 @@ final class wire_cst_astro_time_dto extends ffi.Struct {
 
   @ffi.Double()
   external double jd_tt;
+}
+
+final class wire_cst_tracking_target_dto extends ffi.Struct {
+  @ffi.Uint64()
+  external int object_id;
+
+  @ffi.Double()
+  external double ra_rad;
+
+  @ffi.Double()
+  external double dec_rad;
 }
 
 final class wire_cst_api_defect_map_status extends ffi.Struct {
@@ -16736,6 +17205,29 @@ final class wire_cst_weather_capabilities extends ffi.Struct {
   external bool has_wind_speed;
 
   external ffi.Pointer<ffi.Double> average_period;
+}
+
+final class wire_cst_constellation_art_placement_dto extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> abbreviation;
+
+  @ffi.Float()
+  external double screen_x;
+
+  @ffi.Float()
+  external double screen_y;
+
+  @ffi.Float()
+  external double scale;
+
+  @ffi.Float()
+  external double opacity;
+}
+
+final class wire_cst_list_constellation_art_placement_dto extends ffi.Struct {
+  external ffi.Pointer<wire_cst_constellation_art_placement_dto> ptr;
+
+  @ffi.Int32()
+  external int len;
 }
 
 final class wire_cst_detected_star_info extends ffi.Struct {
@@ -18157,6 +18649,9 @@ final class wire_cst_scene_snapshot_dto extends ffi.Struct {
   external wire_cst_view_pose_dto view_pose;
 
   external ffi.Pointer<wire_cst_list_label_hint_dto> labels;
+
+  external ffi.Pointer<wire_cst_list_constellation_art_placement_dto>
+      constellation_art;
 
   external ffi.Pointer<wire_cst_selected_object_dto> selected;
 }

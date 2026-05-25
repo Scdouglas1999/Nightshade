@@ -31,9 +31,22 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use nightshade_indi::IndiCoverCalibrator;
 use tracing::warn;
 
 impl DeviceManager {
+    async fn indi_cover_calibrator(&self, device_id: &str) -> Result<IndiCoverCalibrator, String> {
+        let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+        let server_key = format!("{}:{}", host, port);
+        let client = {
+            let clients = self.indi_clients.read().await;
+            clients.get(&server_key).cloned()
+        };
+        client
+            .map(|client| IndiCoverCalibrator::new(client, &device_name))
+            .ok_or_else(|| "INDI cover calibrator not connected".to_string())
+    }
+
     // =========================================================================
     // Cover Calibrator Control
     // =========================================================================
@@ -63,27 +76,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let mut locked = client.write().await;
-                    return locked
-                        .set_switch(&device_name, "CAP_PARK", "UNPARK", true)
-                        .await
-                        .map_err(|e| {
-                            format!(
-                                "Failed to open INDI cover (unpark) on {}: {}",
-                                device_name, e
-                            )
-                        });
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .open_cover()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -114,27 +110,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let mut locked = client.write().await;
-                    return locked
-                        .set_switch(&device_name, "CAP_PARK", "PARK", true)
-                        .await
-                        .map_err(|e| {
-                            format!(
-                                "Failed to close INDI cover (park) on {}: {}",
-                                device_name, e
-                            )
-                        });
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .close_cover()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -165,8 +144,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                // INDI doesn't have a specific halt command for dust caps
-                Err("INDI cover calibrator halt not supported".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .halt_cover()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -201,32 +182,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let mut locked = client.write().await;
-                    // Set brightness first, then turn on
-                    locked
-                        .set_number(
-                            &device_name,
-                            "FLAT_LIGHT_INTENSITY",
-                            "FLAT_LIGHT_INTENSITY_VALUE",
-                            brightness as f64,
-                        )
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    return locked
-                        .set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON", true)
-                        .await
-                        .map_err(|e| e.to_string());
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .calibrator_on(brightness)
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -257,22 +216,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let mut locked = client.write().await;
-                    return locked
-                        .set_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_OFF", true)
-                        .await
-                        .map_err(|e| e.to_string());
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .calibrator_off()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -304,25 +251,12 @@ impl DeviceManager {
                 }
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
-            Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let locked = client.read().await;
-                    if let Some(state) = locked.get_switch(&device_name, "CAP_PARK", "PARK").await {
-                        // PARK=on means closed, UNPARK=on means open
-                        return Ok(if state { 1 } else { 3 }); // 1=Closed, 3=Open
-                    }
-                    return Ok(4); // Unknown
-                }
-                Err("INDI cover calibrator not connected".to_string())
-            }
+            Some(DriverType::Indi) => Ok(self
+                .indi_cover_calibrator(device_id)
+                .await?
+                .get_cover_state()
+                .await
+                .to_i32()),
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
     }
@@ -356,28 +290,12 @@ impl DeviceManager {
                 }
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
-            Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let locked = client.read().await;
-                    if let Some(state) = locked
-                        .get_switch(&device_name, "FLAT_LIGHT_CONTROL", "FLAT_LIGHT_ON")
-                        .await
-                    {
-                        // FLAT_LIGHT_ON=true means Ready (light is on), false means Off
-                        return Ok(if state { 3 } else { 1 }); // 3=Ready, 1=Off
-                    }
-                    return Ok(4); // Unknown
-                }
-                Err("INDI cover calibrator not connected".to_string())
-            }
+            Some(DriverType::Indi) => Ok(self
+                .indi_cover_calibrator(device_id)
+                .await?
+                .get_calibrator_state()
+                .await
+                .to_i32()),
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
     }
@@ -407,29 +325,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
-                }
-                let server_key = format!("{}:{}", parts[1], parts[2]);
-                let device_name = parts[3..].join(":");
-
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let locked = client.read().await;
-                    if let Some(brightness) = locked
-                        .get_number(
-                            &device_name,
-                            "FLAT_LIGHT_INTENSITY",
-                            "FLAT_LIGHT_INTENSITY_VALUE",
-                        )
-                        .await
-                    {
-                        return Ok(brightness as i32);
-                    }
-                    return Ok(0);
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .get_brightness()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }
@@ -463,15 +362,10 @@ impl DeviceManager {
                 Err(format!("ASCOM cover calibrator {} not found", device_id))
             }
             Some(DriverType::Indi) => {
-                let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
-                let server_key = format!("{}:{}", host, port);
-                let clients = self.indi_clients.read().await;
-                if let Some(client) = clients.get(&server_key) {
-                    let cover_cal =
-                        nightshade_indi::IndiCoverCalibrator::new(client.clone(), &device_name);
-                    return cover_cal.get_max_brightness().await;
-                }
-                Err("INDI cover calibrator not connected".to_string())
+                self.indi_cover_calibrator(device_id)
+                    .await?
+                    .get_max_brightness()
+                    .await
             }
             _ => Err("Cover calibrator not supported for this driver type".to_string()),
         }

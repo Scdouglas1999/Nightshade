@@ -17,10 +17,20 @@ fn main() {
     let functions = read(&shader_dir.join("functions.glsl"));
     let atmosphere = read(&shader_dir.join("atmosphere_header.glsl"));
     let uniforms = read(&shader_dir.join("precompute_uniforms.glsl"));
+    let wgpu_texture_defines = "\
+#undef AbstractScatteringTexture\n\
+#undef ReducedScatteringTexture\n\
+#undef ScatteringTexture\n\
+#undef ScatteringDensityTexture\n\
+#define AbstractScatteringTexture sampler2DArray\n\
+#define ReducedScatteringTexture sampler2DArray\n\
+#define ScatteringTexture sampler2DArray\n\
+#define ScatteringDensityTexture sampler2DArray\n";
     let header = format!(
-        "{common}\n{definitions}\n{atmosphere}\n{uniforms}\n",
+        "{common}\n{definitions}\n{wgpu_texture_defines}\n{atmosphere}\n{uniforms}\n",
         common = common,
         definitions = definitions,
+        wgpu_texture_defines = wgpu_texture_defines,
         atmosphere = atmosphere,
         uniforms = uniforms
     );

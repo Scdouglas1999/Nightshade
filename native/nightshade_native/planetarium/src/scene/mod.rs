@@ -15,13 +15,13 @@ pub use lod::{
     MagLimitConfig, QualityConfig, FOV_MAG_BOOST_CAP, REF_FOV_DEG, STAR_MAG_CEILING, STAR_MAG_FLOOR,
 };
 pub use pose::{
-    BodyId, MountPosition, PoseController, PoseError, PoseInputs, PoseLock, PoseOffset,
-    TrackingTarget,
+    body_equatorial_rad, BodyId, MountPosition, PoseController, PoseError, PoseInputs, PoseLock,
+    PoseOffset, TrackingTarget,
 };
 pub use projection::{project_icrs, unproject_icrs};
 pub use visibility::{frustum_cap_radius_rad, visible_tiles, HealpixTileId};
 pub use publish::{build_snapshot, publish_snapshot, SnapshotInputs};
 pub use snapshot::{
-    load, new_snapshot_slot, publish, LabelCategory, LabelHint, ObjectId, SceneSnapshot,
-    SelectedObject, SmallString, SnapshotSlot,
+    load, new_snapshot_slot, publish, ConstellationArtPlacement, LabelCategory, LabelHint,
+    ObjectId, SceneSnapshot, SelectedObject, SmallString, SnapshotSlot,
 };

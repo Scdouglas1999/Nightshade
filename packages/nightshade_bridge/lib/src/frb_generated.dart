@@ -99,7 +99,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 348587757;
+  int get rustContentHash => -614989304;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1200,11 +1200,17 @@ abstract class RustLibApi extends BaseApi {
   void crateApiPlanetariumPlanetariumSetConfig(
       {required PlatformInt64 handle, required RenderConfigDto config});
 
+  void crateApiPlanetariumPlanetariumSetMountPosition(
+      {required PlatformInt64 handle, MountPositionDto? mount});
+
   void crateApiPlanetariumPlanetariumSetObserver(
       {required PlatformInt64 handle, required ObserverDto observer});
 
   void crateApiPlanetariumPlanetariumSetPose(
       {required PlatformInt64 handle, required ViewPoseDto pose});
+
+  void crateApiPlanetariumPlanetariumSetPoseLock(
+      {required PlatformInt64 handle, required PoseLockDto lock});
 
   void crateApiPlanetariumPlanetariumSetSelection(
       {required PlatformInt64 handle, SelectedObjectDto? selected});
@@ -1212,8 +1218,17 @@ abstract class RustLibApi extends BaseApi {
   void crateApiPlanetariumPlanetariumSetTime(
       {required PlatformInt64 handle, required AstroTimeDto time});
 
+  void crateApiPlanetariumPlanetariumSetTrackingTarget(
+      {required PlatformInt64 handle, TrackingTargetDto? target});
+
   SceneSnapshotDto crateApiPlanetariumPlanetariumSnapshot(
       {required PlatformInt64 handle});
+
+  Future<List<DeviceInfo>> crateApiDiscoveryScanAscomForTypePublic(
+      {required DeviceType deviceType});
+
+  Future<List<DeviceInfo>> crateApiDiscoveryScanNativeForTypePublic(
+      {required DeviceType deviceType});
 
   Future<void> crateApiDevicesCameraSetCameraCooler(
       {required String deviceId, required int enabled, double? targetTemp});
@@ -9895,6 +9910,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  void crateApiPlanetariumPlanetariumSetMountPosition(
+      {required PlatformInt64 handle, MountPositionDto? mount}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_opt_box_autoadd_mount_position_dto(mount);
+        return wire
+            .wire__crate__api__planetarium__planetarium_set_mount_position(
+                arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetMountPositionConstMeta,
+      argValues: [handle, mount],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetMountPositionConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_mount_position",
+        argNames: ["handle", "mount"],
+      );
+
+  @override
   void crateApiPlanetariumPlanetariumSetObserver(
       {required PlatformInt64 handle, required ObserverDto observer}) {
     return handler.executeSync(SyncTask(
@@ -9944,6 +9986,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "planetarium_set_pose",
         argNames: ["handle", "pose"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumSetPoseLock(
+      {required PlatformInt64 handle, required PoseLockDto lock}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_box_autoadd_pose_lock_dto(lock);
+        return wire.wire__crate__api__planetarium__planetarium_set_pose_lock(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetPoseLockConstMeta,
+      argValues: [handle, lock],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetPoseLockConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_pose_lock",
+        argNames: ["handle", "lock"],
       );
 
   @override
@@ -9999,6 +10067,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  void crateApiPlanetariumPlanetariumSetTrackingTarget(
+      {required PlatformInt64 handle, TrackingTargetDto? target}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_opt_box_autoadd_tracking_target_dto(target);
+        return wire
+            .wire__crate__api__planetarium__planetarium_set_tracking_target(
+                arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetTrackingTargetConstMeta,
+      argValues: [handle, target],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetTrackingTargetConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_tracking_target",
+        argNames: ["handle", "target"],
+      );
+
+  @override
   SceneSnapshotDto crateApiPlanetariumPlanetariumSnapshot(
       {required PlatformInt64 handle}) {
     return handler.executeSync(SyncTask(
@@ -10020,6 +10115,56 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "planetarium_snapshot",
         argNames: ["handle"],
+      );
+
+  @override
+  Future<List<DeviceInfo>> crateApiDiscoveryScanAscomForTypePublic(
+      {required DeviceType deviceType}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_device_type(deviceType);
+        return wire.wire__crate__api__discovery__scan_ascom_for_type_public(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_list_device_info,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiDiscoveryScanAscomForTypePublicConstMeta,
+      argValues: [deviceType],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDiscoveryScanAscomForTypePublicConstMeta =>
+      const TaskConstMeta(
+        debugName: "scan_ascom_for_type_public",
+        argNames: ["deviceType"],
+      );
+
+  @override
+  Future<List<DeviceInfo>> crateApiDiscoveryScanNativeForTypePublic(
+      {required DeviceType deviceType}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_device_type(deviceType);
+        return wire.wire__crate__api__discovery__scan_native_for_type_public(
+            port_, arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_list_device_info,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiDiscoveryScanNativeForTypePublicConstMeta,
+      argValues: [deviceType],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiDiscoveryScanNativeForTypePublicConstMeta =>
+      const TaskConstMeta(
+        debugName: "scan_native_for_type_public",
+        argNames: ["deviceType"],
       );
 
   @override
@@ -10534,6 +10679,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BodyIdDto dco_decode_body_id_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return BodyIdDto.values[raw as int];
+  }
+
+  @protected
   bool dco_decode_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
@@ -10709,6 +10860,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountPositionDto dco_decode_box_autoadd_mount_position_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_mount_position_dto(raw);
+  }
+
+  @protected
   ObserverDto dco_decode_box_autoadd_observer_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_observer_dto(raw);
@@ -10752,6 +10909,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_polar_alignment_status(raw);
+  }
+
+  @protected
+  PoseLockDto dco_decode_box_autoadd_pose_lock_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_pose_lock_dto(raw);
   }
 
   @protected
@@ -10833,6 +10996,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TrackingRate dco_decode_box_autoadd_tracking_rate(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_tracking_rate(raw);
+  }
+
+  @protected
+  TrackingTargetDto dco_decode_box_autoadd_tracking_target_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_tracking_target_dto(raw);
   }
 
   @protected
@@ -10997,6 +11166,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       completedIntegrationSecs: dco_decode_f_64(arr[3]),
       canResume: dco_decode_bool(arr[4]),
       ageSeconds: dco_decode_i_64(arr[5]),
+    );
+  }
+
+  @protected
+  ConstellationArtPlacementDto dco_decode_constellation_art_placement_dto(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ConstellationArtPlacementDto(
+      abbreviation: dco_decode_String(arr[0]),
+      screenX: dco_decode_f_32(arr[1]),
+      screenY: dco_decode_f_32(arr[2]),
+      scale: dco_decode_f_32(arr[3]),
+      opacity: dco_decode_f_32(arr[4]),
     );
   }
 
@@ -11925,6 +12110,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ConstellationArtPlacementDto>
+      dco_decode_list_constellation_art_placement_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>)
+        .map(dco_decode_constellation_art_placement_dto)
+        .toList();
+  }
+
+  @protected
   List<DetectedStarInfo> dco_decode_list_detected_star_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_detected_star_info).toList();
@@ -12118,6 +12312,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       maxSlewRate: dco_decode_opt_box_autoadd_f_64(arr[19]),
       canMoveAxis: dco_decode_bool(arr[20]),
       axisCount: dco_decode_u_32(arr[21]),
+    );
+  }
+
+  @protected
+  MountPositionDto dco_decode_mount_position_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return MountPositionDto(
+      raRad: dco_decode_f_64(arr[0]),
+      decRad: dco_decode_f_64(arr[1]),
     );
   }
 
@@ -12474,6 +12680,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountPositionDto? dco_decode_opt_box_autoadd_mount_position_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_mount_position_dto(raw);
+  }
+
+  @protected
   ObserverLocation? dco_decode_opt_box_autoadd_observer_location(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_observer_location(raw);
@@ -12511,6 +12723,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TrackingRate? dco_decode_opt_box_autoadd_tracking_rate(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_tracking_rate(raw);
+  }
+
+  @protected
+  TrackingTargetDto? dco_decode_opt_box_autoadd_tracking_target_dto(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_tracking_target_dto(raw);
   }
 
   @protected
@@ -12716,6 +12935,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       phase: dco_decode_String(arr[1]),
       point: dco_decode_i_32(arr[2]),
     );
+  }
+
+  @protected
+  PoseLockDto dco_decode_pose_lock_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    switch (raw[0]) {
+      case 0:
+        return PoseLockDto_Free();
+      case 1:
+        return PoseLockDto_LockedToTarget(
+          objectId: dco_decode_u_64(raw[1]),
+        );
+      case 2:
+        return PoseLockDto_LockedToMount();
+      case 3:
+        return PoseLockDto_LockedToBody(
+          body: dco_decode_body_id_dto(raw[1]),
+        );
+      default:
+        throw Exception("unreachable");
+    }
   }
 
   @protected
@@ -13015,13 +13255,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   SceneSnapshotDto dco_decode_scene_snapshot_dto(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return SceneSnapshotDto(
       frameId: dco_decode_u_64(arr[0]),
       viewPose: dco_decode_view_pose_dto(arr[1]),
       labels: dco_decode_list_label_hint_dto(arr[2]),
-      selected: dco_decode_opt_box_autoadd_selected_object_dto(arr[3]),
+      constellationArt: dco_decode_list_constellation_art_placement_dto(arr[3]),
+      selected: dco_decode_opt_box_autoadd_selected_object_dto(arr[4]),
     );
   }
 
@@ -13383,6 +13624,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TrackingTargetDto dco_decode_tracking_target_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return TrackingTargetDto(
+      objectId: dco_decode_u_64(arr[0]),
+      raRad: dco_decode_f_64(arr[1]),
+      decRad: dco_decode_f_64(arr[2]),
+    );
+  }
+
+  @protected
   int dco_decode_u_16(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as int;
@@ -13692,6 +13946,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  BodyIdDto sse_decode_body_id_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return BodyIdDto.values[inner];
+  }
+
+  @protected
   bool sse_decode_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint8() != 0;
@@ -13884,6 +14145,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountPositionDto sse_decode_box_autoadd_mount_position_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_mount_position_dto(deserializer));
+  }
+
+  @protected
   ObserverDto sse_decode_box_autoadd_observer_dto(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -13929,6 +14197,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_polar_alignment_status(deserializer));
+  }
+
+  @protected
+  PoseLockDto sse_decode_box_autoadd_pose_lock_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_pose_lock_dto(deserializer));
   }
 
   @protected
@@ -14020,6 +14295,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_tracking_rate(deserializer));
+  }
+
+  @protected
+  TrackingTargetDto sse_decode_box_autoadd_tracking_target_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_tracking_target_dto(deserializer));
   }
 
   @protected
@@ -14246,6 +14528,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         completedIntegrationSecs: var_completedIntegrationSecs,
         canResume: var_canResume,
         ageSeconds: var_ageSeconds);
+  }
+
+  @protected
+  ConstellationArtPlacementDto sse_decode_constellation_art_placement_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_abbreviation = sse_decode_String(deserializer);
+    var var_screenX = sse_decode_f_32(deserializer);
+    var var_screenY = sse_decode_f_32(deserializer);
+    var var_scale = sse_decode_f_32(deserializer);
+    var var_opacity = sse_decode_f_32(deserializer);
+    return ConstellationArtPlacementDto(
+        abbreviation: var_abbreviation,
+        screenX: var_screenX,
+        screenY: var_screenY,
+        scale: var_scale,
+        opacity: var_opacity);
   }
 
   @protected
@@ -15342,6 +15641,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<ConstellationArtPlacementDto>
+      sse_decode_list_constellation_art_placement_dto(
+          SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <ConstellationArtPlacementDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_constellation_art_placement_dto(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<DetectedStarInfo> sse_decode_list_detected_star_info(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15677,6 +15990,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         maxSlewRate: var_maxSlewRate,
         canMoveAxis: var_canMoveAxis,
         axisCount: var_axisCount);
+  }
+
+  @protected
+  MountPositionDto sse_decode_mount_position_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_raRad = sse_decode_f_64(deserializer);
+    var var_decRad = sse_decode_f_64(deserializer);
+    return MountPositionDto(raRad: var_raRad, decRad: var_decRad);
   }
 
   @protected
@@ -16120,6 +16441,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  MountPositionDto? sse_decode_opt_box_autoadd_mount_position_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_mount_position_dto(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   ObserverLocation? sse_decode_opt_box_autoadd_observer_location(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -16185,6 +16518,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_tracking_rate(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  TrackingTargetDto? sse_decode_opt_box_autoadd_tracking_target_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_tracking_target_dto(deserializer));
     } else {
       return null;
     }
@@ -16436,6 +16781,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_point = sse_decode_i_32(deserializer);
     return PolarAlignmentStatus(
         status: var_status, phase: var_phase, point: var_point);
+  }
+
+  @protected
+  PoseLockDto sse_decode_pose_lock_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var tag_ = sse_decode_i_32(deserializer);
+    switch (tag_) {
+      case 0:
+        return PoseLockDto_Free();
+      case 1:
+        var var_objectId = sse_decode_u_64(deserializer);
+        return PoseLockDto_LockedToTarget(objectId: var_objectId);
+      case 2:
+        return PoseLockDto_LockedToMount();
+      case 3:
+        var var_body = sse_decode_body_id_dto(deserializer);
+        return PoseLockDto_LockedToBody(body: var_body);
+      default:
+        throw UnimplementedError('');
+    }
   }
 
   @protected
@@ -16732,12 +17098,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_frameId = sse_decode_u_64(deserializer);
     var var_viewPose = sse_decode_view_pose_dto(deserializer);
     var var_labels = sse_decode_list_label_hint_dto(deserializer);
+    var var_constellationArt =
+        sse_decode_list_constellation_art_placement_dto(deserializer);
     var var_selected =
         sse_decode_opt_box_autoadd_selected_object_dto(deserializer);
     return SceneSnapshotDto(
         frameId: var_frameId,
         viewPose: var_viewPose,
         labels: var_labels,
+        constellationArt: var_constellationArt,
         selected: var_selected);
   }
 
@@ -17125,6 +17494,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  TrackingTargetDto sse_decode_tracking_target_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_objectId = sse_decode_u_64(deserializer);
+    var var_raRad = sse_decode_f_64(deserializer);
+    var var_decRad = sse_decode_f_64(deserializer);
+    return TrackingTargetDto(
+        objectId: var_objectId, raRad: var_raRad, decRad: var_decRad);
+  }
+
+  @protected
   int sse_decode_u_16(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getUint16();
@@ -17264,6 +17644,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   int cst_encode_bayer_pattern_api(BayerPatternApi raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_i_32(raw.index);
+  }
+
+  @protected
+  int cst_encode_body_id_dto(BodyIdDto raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_i_32(raw.index);
   }
@@ -17608,6 +17994,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_body_id_dto(BodyIdDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putUint8(self ? 1 : 0);
@@ -17801,6 +18193,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_mount_position_dto(
+      MountPositionDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_mount_position_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_observer_dto(
       ObserverDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -17847,6 +18246,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       PolarAlignmentStatus self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_polar_alignment_status(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_pose_lock_dto(
+      PoseLockDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_pose_lock_dto(self, serializer);
   }
 
   @protected
@@ -17938,6 +18344,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       TrackingRate self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_tracking_rate(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_tracking_target_dto(
+      TrackingTargetDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_tracking_target_dto(self, serializer);
   }
 
   @protected
@@ -18085,6 +18498,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.completedIntegrationSecs, serializer);
     sse_encode_bool(self.canResume, serializer);
     sse_encode_i_64(self.ageSeconds, serializer);
+  }
+
+  @protected
+  void sse_encode_constellation_art_placement_dto(
+      ConstellationArtPlacementDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.abbreviation, serializer);
+    sse_encode_f_32(self.screenX, serializer);
+    sse_encode_f_32(self.screenY, serializer);
+    sse_encode_f_32(self.scale, serializer);
+    sse_encode_f_32(self.opacity, serializer);
   }
 
   @protected
@@ -18936,6 +19360,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_constellation_art_placement_dto(
+      List<ConstellationArtPlacementDto> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_constellation_art_placement_dto(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_detected_star_info(
       List<DetectedStarInfo> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -19199,6 +19633,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_f_64(self.maxSlewRate, serializer);
     sse_encode_bool(self.canMoveAxis, serializer);
     sse_encode_u_32(self.axisCount, serializer);
+  }
+
+  @protected
+  void sse_encode_mount_position_dto(
+      MountPositionDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.raRad, serializer);
+    sse_encode_f_64(self.decRad, serializer);
   }
 
   @protected
@@ -19616,6 +20058,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_mount_position_dto(
+      MountPositionDto? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_mount_position_dto(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_observer_location(
       ObserverLocation? self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -19678,6 +20131,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_tracking_rate(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_tracking_target_dto(
+      TrackingTargetDto? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_tracking_target_dto(self, serializer);
     }
   }
 
@@ -19861,6 +20325,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.status, serializer);
     sse_encode_String(self.phase, serializer);
     sse_encode_i_32(self.point, serializer);
+  }
+
+  @protected
+  void sse_encode_pose_lock_dto(PoseLockDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    switch (self) {
+      case PoseLockDto_Free():
+        sse_encode_i_32(0, serializer);
+      case PoseLockDto_LockedToTarget(objectId: final objectId):
+        sse_encode_i_32(1, serializer);
+        sse_encode_u_64(objectId, serializer);
+      case PoseLockDto_LockedToMount():
+        sse_encode_i_32(2, serializer);
+      case PoseLockDto_LockedToBody(body: final body):
+        sse_encode_i_32(3, serializer);
+        sse_encode_body_id_dto(body, serializer);
+    }
   }
 
   @protected
@@ -20077,6 +20558,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_u_64(self.frameId, serializer);
     sse_encode_view_pose_dto(self.viewPose, serializer);
     sse_encode_list_label_hint_dto(self.labels, serializer);
+    sse_encode_list_constellation_art_placement_dto(
+        self.constellationArt, serializer);
     sse_encode_opt_box_autoadd_selected_object_dto(self.selected, serializer);
   }
 
@@ -20390,6 +20873,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_tracking_rate(TrackingRate self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_tracking_target_dto(
+      TrackingTargetDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.objectId, serializer);
+    sse_encode_f_64(self.raRad, serializer);
+    sse_encode_f_64(self.decRad, serializer);
   }
 
   @protected

@@ -1,0 +1,491 @@
+//! Wave 3 Image Grading: per-frame Pass/Reject decision based on HFR,
+//! eccentricity, and star count.
+//!
+//! The pre-existing `frame_quality_assessment_service.dart` is advisory
+//! only — it tags frames as Good / Needs Review / Poor but never moves
+//! them off-disk. Bad frames stay mixed with good ones until the user
+//! opens PixInsight and culls them by hand.
+//!
+//! `ImageQualityCheck` adds a real-time gate. When enabled, captures
+//! exceeding the configured thresholds are routed to a `Reject/` subfolder,
+//! excluded from the integration-budget accounting (Wave 3 Agent 3's
+//! per-filter budget tracker), and surfaced in the run dashboard's
+//! quality panel.
+//!
+//! ## Design notes
+//!
+//! * **Per-node toggle**: `ExposureConfig.quality_check` overrides the
+//!   global settings, so an operator can disable grading on a specific
+//!   smartexposure burst while keeping it active globally.
+//! * **Baseline computation**: `hfr_baseline_percent` compares the current
+//!   frame's HFR against a rolling baseline of the first 5 accepted
+//!   frames. This catches sky-quality degradation that absolute thresholds
+//!   miss (a dry-air HFR of 2.4 px is great; the same field at 3.6 px the
+//!   next night is everyone-pack-up bad — `hfr_baseline_percent: 50` would
+//!   flag it).
+//! * **Consecutive-reject escalation**: 3 in a row triggers a critical
+//!   event banner via the Wave 1.5 Pack C path, because no amount of
+//!   averaging will fix a systematic failure (focus walked off, cloud bank
+//!   moved through, dome failed to slave).
+//! * **Honest absence**: when star detection fails entirely (no stars
+//!   found, calculate_image_hfr returns None) the frame is graded `Pass`,
+//!   not `Reject`. A failed detector is not the same as a known-bad
+//!   frame — the user might be imaging a dim nebula in narrowband where
+//!   our detector legitimately struggles. The audit's silent-fallback
+//!   rule applies in both directions: never reject without evidence.
+
+use serde::{Deserialize, Serialize};
+
+/// Default number of accepted frames blended into the baseline before the
+/// `hfr_baseline_percent` check becomes active.
+pub const DEFAULT_HFR_BASELINE_WINDOW: usize = 5;
+
+/// Per-burst image-grading thresholds.
+///
+/// All fields are `Option` so an operator can enable just the checks they
+/// want — absolute HFR alone, or only the baseline-relative check, or both.
+/// `max_consecutive_rejects` is required (`u32`) because the escalation
+/// path is the safety valve; setting it to `u32::MAX` effectively disables
+/// the escalation while keeping the per-frame check.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct ImageQualityCheck {
+    /// Reject if HFR exceeds this absolute pixel value.
+    pub hfr_threshold: Option<f64>,
+    /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. Baseline
+    /// is the median of the first `DEFAULT_HFR_BASELINE_WINDOW` accepted
+    /// frames of the current target.
+    pub hfr_baseline_percent: Option<f64>,
+    /// Reject if the eccentricity (axis-ratio derived measure of star
+    /// roundness) exceeds this value. Typical thresholds: 0.6 catches
+    /// trailed frames; 0.8 catches catastrophic tracking failure.
+    pub eccentricity_threshold: Option<f64>,
+    /// Reject if star count drops below this floor. Trips when clouds
+    /// roll in or the dome slit drifts off-target.
+    pub star_count_min: Option<u32>,
+    /// Pause the sequence (emitting a critical event) after this many
+    /// consecutive rejects. Counter resets to 0 on each accepted frame.
+    pub max_consecutive_rejects: u32,
+}
+
+impl Default for ImageQualityCheck {
+    fn default() -> Self {
+        Self {
+            hfr_threshold: None,
+            hfr_baseline_percent: None,
+            eccentricity_threshold: None,
+            star_count_min: None,
+            max_consecutive_rejects: 3,
+        }
+    }
+}
+
+impl ImageQualityCheck {
+    /// Returns true iff at least one quality threshold is configured.
+    /// An all-`None` check is functionally a no-op and `grade_frame`
+    /// returns `Pass` immediately without doing any work.
+    pub fn is_active(&self) -> bool {
+        self.hfr_threshold.is_some()
+            || self.hfr_baseline_percent.is_some()
+            || self.eccentricity_threshold.is_some()
+            || self.star_count_min.is_some()
+    }
+}
+
+/// Outcome of grading a single frame.
+#[derive(Debug, Clone, PartialEq)]
+pub enum FrameGrade {
+    /// Frame passes all configured checks.
+    Pass,
+    /// Frame fails at least one check; reason describes which.
+    /// The numeric fields are carried through so the dashboard panel can
+    /// show "rejected: HFR 5.21 px > 3.50 threshold" instead of just
+    /// "rejected".
+    Reject {
+        reason: String,
+        hfr: Option<f64>,
+        eccentricity: Option<f64>,
+        star_count: Option<u32>,
+    },
+}
+
+impl FrameGrade {
+    pub fn is_pass(&self) -> bool {
+        matches!(self, FrameGrade::Pass)
+    }
+
+    pub fn is_reject(&self) -> bool {
+        matches!(self, FrameGrade::Reject { .. })
+    }
+
+    pub fn reject_reason(&self) -> Option<&str> {
+        match self {
+            FrameGrade::Pass => None,
+            FrameGrade::Reject { reason, .. } => Some(reason.as_str()),
+        }
+    }
+}
+
+/// Measured frame quality metrics. Filled by the post-exposure
+/// star-detection pipeline before grading is invoked.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct FrameMetrics {
+    /// Median half-flux radius across detected stars, pixels. `None`
+    /// when star detection failed entirely (no stars to measure).
+    pub hfr: Option<f64>,
+    /// Median eccentricity (0.0 = perfectly round). `None` when not
+    /// computed.
+    pub eccentricity: Option<f64>,
+    /// Number of detected stars. `None` when detection didn't run.
+    pub star_count: Option<u32>,
+}
+
+/// Grade a frame against the configured thresholds.
+///
+/// Returns `Pass` when no check is active, when metrics are entirely
+/// absent (honest-ignorance rule), or when every active check passes.
+/// Returns `Reject` with a descriptive reason on the first failing check.
+///
+/// `hfr_baseline` is the rolling median of accepted-frame HFRs maintained
+/// by `ExecutionContext::hfr_baseline`. Pass `None` when the baseline
+/// hasn't been established yet (first 5 frames of a target) — the
+/// baseline check is then skipped.
+pub fn grade_frame(
+    check: &ImageQualityCheck,
+    metrics: &FrameMetrics,
+    hfr_baseline: Option<f64>,
+) -> FrameGrade {
+    if !check.is_active() {
+        return FrameGrade::Pass;
+    }
+
+    // Absolute HFR. Only fires when HFR is actually measured — a None
+    // hfr means star detection didn't return any stars, which is a
+    // legitimate "we don't know" rather than a known-bad signal.
+    if let (Some(threshold), Some(hfr)) = (check.hfr_threshold, metrics.hfr) {
+        if hfr > threshold {
+            return FrameGrade::Reject {
+                reason: format!(
+                    "HFR {:.2} px exceeds absolute threshold {:.2} px",
+                    hfr, threshold
+                ),
+                hfr: Some(hfr),
+                eccentricity: metrics.eccentricity,
+                star_count: metrics.star_count,
+            };
+        }
+    }
+
+    // Baseline-relative HFR. Only fires when both the current HFR and
+    // the baseline are known. baseline_percent is in % (50 = 1.5x).
+    if let (Some(pct), Some(hfr), Some(baseline)) =
+        (check.hfr_baseline_percent, metrics.hfr, hfr_baseline)
+    {
+        if baseline > 0.0 {
+            let limit = baseline * (1.0 + pct / 100.0);
+            if hfr > limit {
+                return FrameGrade::Reject {
+                    reason: format!(
+                        "HFR {:.2} px exceeds baseline {:.2} px + {:.0}% (limit {:.2} px)",
+                        hfr, baseline, pct, limit
+                    ),
+                    hfr: Some(hfr),
+                    eccentricity: metrics.eccentricity,
+                    star_count: metrics.star_count,
+                };
+            }
+        }
+    }
+
+    // Eccentricity.
+    if let (Some(threshold), Some(ecc)) = (check.eccentricity_threshold, metrics.eccentricity) {
+        if ecc > threshold {
+            return FrameGrade::Reject {
+                reason: format!("eccentricity {:.2} exceeds threshold {:.2}", ecc, threshold),
+                hfr: metrics.hfr,
+                eccentricity: Some(ecc),
+                star_count: metrics.star_count,
+            };
+        }
+    }
+
+    // Star count floor.
+    if let (Some(min), Some(count)) = (check.star_count_min, metrics.star_count) {
+        if count < min {
+            return FrameGrade::Reject {
+                reason: format!(
+                    "star count {} below minimum {} (likely cloud / off-target)",
+                    count, min
+                ),
+                hfr: metrics.hfr,
+                eccentricity: metrics.eccentricity,
+                star_count: Some(count),
+            };
+        }
+    }
+
+    FrameGrade::Pass
+}
+
+/// Update the rolling HFR baseline with a newly-accepted frame.
+///
+/// Until `DEFAULT_HFR_BASELINE_WINDOW` samples have been collected, the
+/// baseline remains `None` and incoming samples are pushed into `samples`.
+/// Once the window fills, the median is computed once and stored in
+/// `baseline`; further samples are ignored (the baseline is intentionally
+/// stable for the rest of the target — drifting it with every new frame
+/// would defeat the "is this frame degrading vs the start of the
+/// session?" semantics).
+///
+/// Returns the current baseline value after the update.
+pub fn update_hfr_baseline(
+    baseline: &mut Option<f64>,
+    samples: &mut Vec<f64>,
+    new_hfr: Option<f64>,
+) -> Option<f64> {
+    if baseline.is_some() {
+        // Baseline already fixed — don't drift it.
+        return *baseline;
+    }
+    let Some(hfr) = new_hfr else {
+        return *baseline;
+    };
+    if !hfr.is_finite() || hfr <= 0.0 {
+        return *baseline;
+    }
+    samples.push(hfr);
+    if samples.len() >= DEFAULT_HFR_BASELINE_WINDOW {
+        let mut sorted = samples.clone();
+        sorted.sort_by(|a, b| {
+            a.partial_cmp(b)
+                .expect("filtered for NaN/<=0 above; partial_cmp must succeed")
+        });
+        let mid = sorted.len() / 2;
+        let median = if sorted.len() % 2 == 1 {
+            sorted[mid]
+        } else {
+            (sorted[mid - 1] + sorted[mid]) / 2.0
+        };
+        *baseline = Some(median);
+    }
+    *baseline
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn inactive_check_always_passes() {
+        let check = ImageQualityCheck::default();
+        assert!(!check.is_active());
+        let metrics = FrameMetrics {
+            hfr: Some(5.0),
+            eccentricity: Some(0.9),
+            star_count: Some(2),
+        };
+        let grade = grade_frame(&check, &metrics, None);
+        assert_eq!(grade, FrameGrade::Pass);
+    }
+
+    #[test]
+    fn absolute_hfr_rejects_above_threshold() {
+        let check = ImageQualityCheck {
+            hfr_threshold: Some(4.0),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: Some(5.2),
+            ..Default::default()
+        };
+        match grade_frame(&check, &metrics, None) {
+            FrameGrade::Reject { reason, hfr, .. } => {
+                assert!(reason.contains("HFR 5.20"));
+                assert!(reason.contains("4.00"));
+                assert_eq!(hfr, Some(5.2));
+            }
+            other => panic!("expected Reject, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn absolute_hfr_passes_at_or_below_threshold() {
+        let check = ImageQualityCheck {
+            hfr_threshold: Some(4.0),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: Some(3.99),
+            ..Default::default()
+        };
+        assert_eq!(grade_frame(&check, &metrics, None), FrameGrade::Pass);
+        let metrics_exact = FrameMetrics {
+            hfr: Some(4.0),
+            ..Default::default()
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics_exact, None),
+            FrameGrade::Pass,
+            "exact threshold should pass (strict > comparison)"
+        );
+    }
+
+    #[test]
+    fn baseline_check_fires_with_percent_above_limit() {
+        let check = ImageQualityCheck {
+            hfr_baseline_percent: Some(50.0),
+            ..Default::default()
+        };
+        // Baseline 2.0 + 50% => limit 3.0
+        let metrics_pass = FrameMetrics {
+            hfr: Some(2.8),
+            ..Default::default()
+        };
+        let metrics_fail = FrameMetrics {
+            hfr: Some(3.1),
+            ..Default::default()
+        };
+        assert_eq!(
+            grade_frame(&check, &metrics_pass, Some(2.0)),
+            FrameGrade::Pass
+        );
+        assert!(grade_frame(&check, &metrics_fail, Some(2.0)).is_reject());
+    }
+
+    #[test]
+    fn baseline_check_skipped_when_baseline_not_yet_established() {
+        let check = ImageQualityCheck {
+            hfr_baseline_percent: Some(50.0),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: Some(99.0),
+            ..Default::default()
+        };
+        // No baseline => skip baseline-relative check.
+        assert_eq!(grade_frame(&check, &metrics, None), FrameGrade::Pass);
+    }
+
+    #[test]
+    fn eccentricity_check() {
+        let check = ImageQualityCheck {
+            eccentricity_threshold: Some(0.7),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            eccentricity: Some(0.85),
+            ..Default::default()
+        };
+        match grade_frame(&check, &metrics, None) {
+            FrameGrade::Reject { reason, .. } => {
+                assert!(reason.contains("eccentricity"));
+            }
+            other => panic!("expected Reject, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn star_count_minimum() {
+        let check = ImageQualityCheck {
+            star_count_min: Some(50),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            star_count: Some(20),
+            ..Default::default()
+        };
+        match grade_frame(&check, &metrics, None) {
+            FrameGrade::Reject { reason, .. } => {
+                assert!(reason.contains("star count 20"));
+            }
+            other => panic!("expected Reject, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn missing_metrics_are_treated_as_unknown_not_bad() {
+        // No HFR measured, but threshold configured: the check is skipped
+        // (we don't know, so we don't reject).
+        let check = ImageQualityCheck {
+            hfr_threshold: Some(2.0),
+            star_count_min: Some(100),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics::default();
+        assert_eq!(grade_frame(&check, &metrics, None), FrameGrade::Pass);
+    }
+
+    #[test]
+    fn first_check_failing_short_circuits() {
+        // HFR fails before star_count_min would; reason should be HFR.
+        let check = ImageQualityCheck {
+            hfr_threshold: Some(2.0),
+            star_count_min: Some(100),
+            ..Default::default()
+        };
+        let metrics = FrameMetrics {
+            hfr: Some(5.0),
+            star_count: Some(10),
+            ..Default::default()
+        };
+        let grade = grade_frame(&check, &metrics, None);
+        match grade {
+            FrameGrade::Reject { reason, .. } => {
+                assert!(reason.contains("HFR"));
+                assert!(!reason.contains("star count"));
+            }
+            other => panic!("expected Reject, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn baseline_finalizes_at_window_size() {
+        let mut baseline = None;
+        let mut samples = Vec::new();
+
+        update_hfr_baseline(&mut baseline, &mut samples, Some(2.0));
+        update_hfr_baseline(&mut baseline, &mut samples, Some(2.1));
+        update_hfr_baseline(&mut baseline, &mut samples, Some(1.9));
+        update_hfr_baseline(&mut baseline, &mut samples, Some(2.2));
+        // Still 4 < window (5); baseline remains None.
+        assert!(
+            baseline.is_none(),
+            "baseline shouldn't lock until {} samples",
+            DEFAULT_HFR_BASELINE_WINDOW
+        );
+
+        update_hfr_baseline(&mut baseline, &mut samples, Some(2.0));
+        // 5 samples — baseline computed.
+        let b = baseline.expect("baseline should be set after window fills");
+        assert!(
+            (b - 2.0).abs() < f64::EPSILON,
+            "median of [1.9,2.0,2.0,2.1,2.2] = 2.0; got {}",
+            b
+        );
+    }
+
+    #[test]
+    fn baseline_does_not_drift_after_locked() {
+        let mut baseline = Some(2.0);
+        let mut samples = Vec::new();
+        for _ in 0..10 {
+            update_hfr_baseline(&mut baseline, &mut samples, Some(5.0));
+        }
+        assert_eq!(baseline, Some(2.0), "baseline must stay fixed once locked");
+        assert!(
+            samples.is_empty(),
+            "post-lock samples should not be accumulated"
+        );
+    }
+
+    #[test]
+    fn baseline_filters_nan_and_non_positive() {
+        let mut baseline = None;
+        let mut samples = Vec::new();
+        update_hfr_baseline(&mut baseline, &mut samples, Some(f64::NAN));
+        update_hfr_baseline(&mut baseline, &mut samples, Some(-1.0));
+        update_hfr_baseline(&mut baseline, &mut samples, Some(0.0));
+        update_hfr_baseline(&mut baseline, &mut samples, None);
+        assert!(baseline.is_none());
+        assert!(samples.is_empty(), "bad samples should not be retained");
+    }
+}

@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 348587757;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -614989304;
 
 // Section: executor
 
@@ -8382,6 +8382,27 @@ fn wire__crate__api__planetarium__planetarium_set_config_impl(
         },
     )
 }
+fn wire__crate__api__planetarium__planetarium_set_mount_position_impl(
+    handle: impl CstDecode<i64>,
+    mount: impl CstDecode<Option<crate::api::planetarium::MountPositionDto>>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_mount_position",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_mount = mount.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_mount_position(api_handle, api_mount)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__planetarium__planetarium_set_observer_impl(
     handle: impl CstDecode<i64>,
     observer: impl CstDecode<crate::api::planetarium::ObserverDto>,
@@ -8419,6 +8440,27 @@ fn wire__crate__api__planetarium__planetarium_set_pose_impl(
             transform_result_dco::<_, _, String>((move || {
                 let output_ok =
                     crate::api::planetarium::planetarium_set_pose(api_handle, api_pose)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_set_pose_lock_impl(
+    handle: impl CstDecode<i64>,
+    lock: impl CstDecode<crate::api::planetarium::PoseLockDto>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_pose_lock",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_lock = lock.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_pose_lock(api_handle, api_lock)?;
                 Ok(output_ok)
             })())
         },
@@ -8466,6 +8508,28 @@ fn wire__crate__api__planetarium__planetarium_set_time_impl(
         },
     )
 }
+fn wire__crate__api__planetarium__planetarium_set_tracking_target_impl(
+    handle: impl CstDecode<i64>,
+    target: impl CstDecode<Option<crate::api::planetarium::TrackingTargetDto>>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_tracking_target",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_target = target.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok = crate::api::planetarium::planetarium_set_tracking_target(
+                    api_handle, api_target,
+                )?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__planetarium__planetarium_snapshot_impl(
     handle: impl CstDecode<i64>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
@@ -8481,6 +8545,58 @@ fn wire__crate__api__planetarium__planetarium_snapshot_impl(
                 let output_ok = crate::api::planetarium::planetarium_snapshot(api_handle)?;
                 Ok(output_ok)
             })())
+        },
+    )
+}
+fn wire__crate__api__discovery__scan_ascom_for_type_public_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_type: impl CstDecode<crate::device::DeviceType>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "scan_ascom_for_type_public",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_type = device_type.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, String>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::discovery::scan_ascom_for_type_public(api_device_type)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__discovery__scan_native_for_type_public_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    device_type: impl CstDecode<crate::device::DeviceType>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "scan_native_for_type_public",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_device_type = device_type.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, String>(
+                    (move || async move {
+                        let output_ok =
+                            crate::api::discovery::scan_native_for_type_public(api_device_type)
+                                .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
         },
     )
 }
@@ -8791,6 +8907,23 @@ impl CstDecode<crate::api::imaging::BayerPatternApi> for i32 {
             2 => crate::api::imaging::BayerPatternApi::GRBG,
             3 => crate::api::imaging::BayerPatternApi::GBRG,
             _ => unreachable!("Invalid variant for BayerPatternApi: {}", self),
+        }
+    }
+}
+impl CstDecode<crate::api::planetarium::BodyIdDto> for i32 {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    fn cst_decode(self) -> crate::api::planetarium::BodyIdDto {
+        match self {
+            0 => crate::api::planetarium::BodyIdDto::Mercury,
+            1 => crate::api::planetarium::BodyIdDto::Venus,
+            2 => crate::api::planetarium::BodyIdDto::Mars,
+            3 => crate::api::planetarium::BodyIdDto::Jupiter,
+            4 => crate::api::planetarium::BodyIdDto::Saturn,
+            5 => crate::api::planetarium::BodyIdDto::Uranus,
+            6 => crate::api::planetarium::BodyIdDto::Neptune,
+            7 => crate::api::planetarium::BodyIdDto::Moon,
+            8 => crate::api::planetarium::BodyIdDto::Sun,
+            _ => unreachable!("Invalid variant for BodyIdDto: {}", self),
         }
     }
 }
@@ -9357,6 +9490,25 @@ impl SseDecode for crate::api::imaging::BayerPatternApi {
     }
 }
 
+impl SseDecode for crate::api::planetarium::BodyIdDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::planetarium::BodyIdDto::Mercury,
+            1 => crate::api::planetarium::BodyIdDto::Venus,
+            2 => crate::api::planetarium::BodyIdDto::Mars,
+            3 => crate::api::planetarium::BodyIdDto::Jupiter,
+            4 => crate::api::planetarium::BodyIdDto::Saturn,
+            5 => crate::api::planetarium::BodyIdDto::Uranus,
+            6 => crate::api::planetarium::BodyIdDto::Neptune,
+            7 => crate::api::planetarium::BodyIdDto::Moon,
+            8 => crate::api::planetarium::BodyIdDto::Sun,
+            _ => unreachable!("Invalid variant for BodyIdDto: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -9578,6 +9730,24 @@ impl SseDecode for crate::api::sequencer::CheckpointInfoApi {
             completed_integration_secs: var_completedIntegrationSecs,
             can_resume: var_canResume,
             age_seconds: var_ageSeconds,
+        };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::ConstellationArtPlacementDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_abbreviation = <String>::sse_decode(deserializer);
+        let mut var_screenX = <f32>::sse_decode(deserializer);
+        let mut var_screenY = <f32>::sse_decode(deserializer);
+        let mut var_scale = <f32>::sse_decode(deserializer);
+        let mut var_opacity = <f32>::sse_decode(deserializer);
+        return crate::api::planetarium::ConstellationArtPlacementDto {
+            abbreviation: var_abbreviation,
+            screen_x: var_screenX,
+            screen_y: var_screenY,
+            scale: var_scale,
+            opacity: var_opacity,
         };
     }
 }
@@ -10963,6 +11133,20 @@ impl SseDecode for Vec<String> {
     }
 }
 
+impl SseDecode for Vec<crate::api::planetarium::ConstellationArtPlacementDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(
+                <crate::api::planetarium::ConstellationArtPlacementDto>::sse_decode(deserializer),
+            );
+        }
+        return ans_;
+    }
+}
+
 impl SseDecode for Vec<crate::api::imaging::DetectedStarInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11326,6 +11510,18 @@ impl SseDecode for crate::device_capabilities::MountCapabilities {
             max_slew_rate: var_maxSlewRate,
             can_move_axis: var_canMoveAxis,
             axis_count: var_axisCount,
+        };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::MountPositionDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_raRad = <f64>::sse_decode(deserializer);
+        let mut var_decRad = <f64>::sse_decode(deserializer);
+        return crate::api::planetarium::MountPositionDto {
+            ra_rad: var_raRad,
+            dec_rad: var_decRad,
         };
     }
 }
@@ -11847,6 +12043,19 @@ impl SseDecode for Option<i64> {
     }
 }
 
+impl SseDecode for Option<crate::api::planetarium::MountPositionDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::planetarium::MountPositionDto>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::storage::ObserverLocation> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11913,6 +12122,19 @@ impl SseDecode for Option<crate::device::TrackingRate> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::device::TrackingRate>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::planetarium::TrackingTargetDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::planetarium::TrackingTargetDto>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -12190,6 +12412,34 @@ impl SseDecode for crate::event::PolarAlignmentStatus {
             phase: var_phase,
             point: var_point,
         };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::PoseLockDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut tag_ = <i32>::sse_decode(deserializer);
+        match tag_ {
+            0 => {
+                return crate::api::planetarium::PoseLockDto::Free;
+            }
+            1 => {
+                let mut var_objectId = <u64>::sse_decode(deserializer);
+                return crate::api::planetarium::PoseLockDto::LockedToTarget {
+                    object_id: var_objectId,
+                };
+            }
+            2 => {
+                return crate::api::planetarium::PoseLockDto::LockedToMount;
+            }
+            3 => {
+                let mut var_body = <crate::api::planetarium::BodyIdDto>::sse_decode(deserializer);
+                return crate::api::planetarium::PoseLockDto::LockedToBody { body: var_body };
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -12514,12 +12764,15 @@ impl SseDecode for crate::api::planetarium::SceneSnapshotDto {
         let mut var_frameId = <u64>::sse_decode(deserializer);
         let mut var_viewPose = <crate::api::planetarium::ViewPoseDto>::sse_decode(deserializer);
         let mut var_labels = <Vec<crate::api::planetarium::LabelHintDto>>::sse_decode(deserializer);
+        let mut var_constellationArt =
+            <Vec<crate::api::planetarium::ConstellationArtPlacementDto>>::sse_decode(deserializer);
         let mut var_selected =
             <Option<crate::api::planetarium::SelectedObjectDto>>::sse_decode(deserializer);
         return crate::api::planetarium::SceneSnapshotDto {
             frame_id: var_frameId,
             view_pose: var_viewPose,
             labels: var_labels,
+            constellation_art: var_constellationArt,
             selected: var_selected,
         };
     }
@@ -13015,6 +13268,20 @@ impl SseDecode for crate::device::TrackingRate {
     }
 }
 
+impl SseDecode for crate::api::planetarium::TrackingTargetDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_objectId = <u64>::sse_decode(deserializer);
+        let mut var_raRad = <f64>::sse_decode(deserializer);
+        let mut var_decRad = <f64>::sse_decode(deserializer);
+        return crate::api::planetarium::TrackingTargetDto {
+            object_id: var_objectId,
+            ra_rad: var_raRad,
+            dec_rad: var_decRad,
+        };
+    }
+}
+
 impl SseDecode for u16 {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13412,6 +13679,34 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::BayerPatternApi>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::BodyIdDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Mercury => 0.into_dart(),
+            Self::Venus => 1.into_dart(),
+            Self::Mars => 2.into_dart(),
+            Self::Jupiter => 3.into_dart(),
+            Self::Saturn => 4.into_dart(),
+            Self::Uranus => 5.into_dart(),
+            Self::Neptune => 6.into_dart(),
+            Self::Moon => 7.into_dart(),
+            Self::Sun => 8.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::BodyIdDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::BodyIdDto>
+    for crate::api::planetarium::BodyIdDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::BodyIdDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::phd2::BuiltinGuiderConfig {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -13618,6 +13913,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::CheckpointInfoApi>
     for crate::api::sequencer::CheckpointInfoApi
 {
     fn into_into_dart(self) -> crate::api::sequencer::CheckpointInfoApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::ConstellationArtPlacementDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.abbreviation.into_into_dart().into_dart(),
+            self.screen_x.into_into_dart().into_dart(),
+            self.screen_y.into_into_dart().into_dart(),
+            self.scale.into_into_dart().into_dart(),
+            self.opacity.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::ConstellationArtPlacementDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::ConstellationArtPlacementDto>
+    for crate::api::planetarium::ConstellationArtPlacementDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::ConstellationArtPlacementDto {
         self
     }
 }
@@ -15047,6 +15366,27 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::MountCapabili
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::MountPositionDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ra_rad.into_into_dart().into_dart(),
+            self.dec_rad.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::MountPositionDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::MountPositionDto>
+    for crate::api::planetarium::MountPositionDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::MountPositionDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device::MountStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15680,6 +16020,35 @@ impl flutter_rust_bridge::IntoIntoDart<crate::event::PolarAlignmentStatus>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::PoseLockDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            crate::api::planetarium::PoseLockDto::Free => [0.into_dart()].into_dart(),
+            crate::api::planetarium::PoseLockDto::LockedToTarget { object_id } => {
+                [1.into_dart(), object_id.into_into_dart().into_dart()].into_dart()
+            }
+            crate::api::planetarium::PoseLockDto::LockedToMount => [2.into_dart()].into_dart(),
+            crate::api::planetarium::PoseLockDto::LockedToBody { body } => {
+                [3.into_dart(), body.into_into_dart().into_dart()].into_dart()
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::PoseLockDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::PoseLockDto>
+    for crate::api::planetarium::PoseLockDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::PoseLockDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::diagnostics::QhyDiscoveryStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -15952,6 +16321,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::planetarium::SceneSnapshotDto
             self.frame_id.into_into_dart().into_dart(),
             self.view_pose.into_into_dart().into_dart(),
             self.labels.into_into_dart().into_dart(),
+            self.constellation_art.into_into_dart().into_dart(),
             self.selected.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -16550,6 +16920,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::TrackingRate>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::TrackingTargetDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.object_id.into_into_dart().into_dart(),
+            self.ra_rad.into_into_dart().into_dart(),
+            self.dec_rad.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::TrackingTargetDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::TrackingTargetDto>
+    for crate::api::planetarium::TrackingTargetDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::TrackingTargetDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::planetarium::ViewPoseDto {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -16819,6 +17211,29 @@ impl SseEncode for crate::api::imaging::BayerPatternApi {
     }
 }
 
+impl SseEncode for crate::api::planetarium::BodyIdDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::planetarium::BodyIdDto::Mercury => 0,
+                crate::api::planetarium::BodyIdDto::Venus => 1,
+                crate::api::planetarium::BodyIdDto::Mars => 2,
+                crate::api::planetarium::BodyIdDto::Jupiter => 3,
+                crate::api::planetarium::BodyIdDto::Saturn => 4,
+                crate::api::planetarium::BodyIdDto::Uranus => 5,
+                crate::api::planetarium::BodyIdDto::Neptune => 6,
+                crate::api::planetarium::BodyIdDto::Moon => 7,
+                crate::api::planetarium::BodyIdDto::Sun => 8,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for bool {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16966,6 +17381,17 @@ impl SseEncode for crate::api::sequencer::CheckpointInfoApi {
         <f64>::sse_encode(self.completed_integration_secs, serializer);
         <bool>::sse_encode(self.can_resume, serializer);
         <i64>::sse_encode(self.age_seconds, serializer);
+    }
+}
+
+impl SseEncode for crate::api::planetarium::ConstellationArtPlacementDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.abbreviation, serializer);
+        <f32>::sse_encode(self.screen_x, serializer);
+        <f32>::sse_encode(self.screen_y, serializer);
+        <f32>::sse_encode(self.scale, serializer);
+        <f32>::sse_encode(self.opacity, serializer);
     }
 }
 
@@ -18087,6 +18513,16 @@ impl SseEncode for Vec<String> {
     }
 }
 
+impl SseEncode for Vec<crate::api::planetarium::ConstellationArtPlacementDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::planetarium::ConstellationArtPlacementDto>::sse_encode(item, serializer);
+        }
+    }
+}
+
 impl SseEncode for Vec<crate::api::imaging::DetectedStarInfo> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18353,6 +18789,14 @@ impl SseEncode for crate::device_capabilities::MountCapabilities {
         <Option<f64>>::sse_encode(self.max_slew_rate, serializer);
         <bool>::sse_encode(self.can_move_axis, serializer);
         <u32>::sse_encode(self.axis_count, serializer);
+    }
+}
+
+impl SseEncode for crate::api::planetarium::MountPositionDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.ra_rad, serializer);
+        <f64>::sse_encode(self.dec_rad, serializer);
     }
 }
 
@@ -18779,6 +19223,16 @@ impl SseEncode for Option<i64> {
     }
 }
 
+impl SseEncode for Option<crate::api::planetarium::MountPositionDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::planetarium::MountPositionDto>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::storage::ObserverLocation> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18835,6 +19289,16 @@ impl SseEncode for Option<crate::device::TrackingRate> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::device::TrackingRate>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::planetarium::TrackingTargetDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::planetarium::TrackingTargetDto>::sse_encode(value, serializer);
         }
     }
 }
@@ -19028,6 +19492,31 @@ impl SseEncode for crate::event::PolarAlignmentStatus {
         <String>::sse_encode(self.status, serializer);
         <String>::sse_encode(self.phase, serializer);
         <i32>::sse_encode(self.point, serializer);
+    }
+}
+
+impl SseEncode for crate::api::planetarium::PoseLockDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        match self {
+            crate::api::planetarium::PoseLockDto::Free => {
+                <i32>::sse_encode(0, serializer);
+            }
+            crate::api::planetarium::PoseLockDto::LockedToTarget { object_id } => {
+                <i32>::sse_encode(1, serializer);
+                <u64>::sse_encode(object_id, serializer);
+            }
+            crate::api::planetarium::PoseLockDto::LockedToMount => {
+                <i32>::sse_encode(2, serializer);
+            }
+            crate::api::planetarium::PoseLockDto::LockedToBody { body } => {
+                <i32>::sse_encode(3, serializer);
+                <crate::api::planetarium::BodyIdDto>::sse_encode(body, serializer);
+            }
+            _ => {
+                unimplemented!("");
+            }
+        }
     }
 }
 
@@ -19255,6 +19744,10 @@ impl SseEncode for crate::api::planetarium::SceneSnapshotDto {
         <u64>::sse_encode(self.frame_id, serializer);
         <crate::api::planetarium::ViewPoseDto>::sse_encode(self.view_pose, serializer);
         <Vec<crate::api::planetarium::LabelHintDto>>::sse_encode(self.labels, serializer);
+        <Vec<crate::api::planetarium::ConstellationArtPlacementDto>>::sse_encode(
+            self.constellation_art,
+            serializer,
+        );
         <Option<crate::api::planetarium::SelectedObjectDto>>::sse_encode(self.selected, serializer);
     }
 }
@@ -19643,6 +20136,15 @@ impl SseEncode for crate::device::TrackingRate {
             },
             serializer,
         );
+    }
+}
+
+impl SseEncode for crate::api::planetarium::TrackingTargetDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.object_id, serializer);
+        <f64>::sse_encode(self.ra_rad, serializer);
+        <f64>::sse_encode(self.dec_rad, serializer);
     }
 }
 
@@ -20152,6 +20654,13 @@ mod io {
             CstDecode::<crate::device_capabilities::MountCapabilities>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::api::planetarium::MountPositionDto> for *mut wire_cst_mount_position_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::MountPositionDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::MountPositionDto>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::api::planetarium::ObserverDto> for *mut wire_cst_observer_dto {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::planetarium::ObserverDto {
@@ -20203,6 +20712,13 @@ mod io {
         fn cst_decode(self) -> crate::event::PolarAlignmentStatus {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::event::PolarAlignmentStatus>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::planetarium::PoseLockDto> for *mut wire_cst_pose_lock_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::PoseLockDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::PoseLockDto>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::planetarium::RenderConfigDto> for *mut wire_cst_render_config_dto {
@@ -20305,6 +20821,13 @@ mod io {
         fn cst_decode(self) -> crate::device::TrackingRate {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::device::TrackingRate>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::planetarium::TrackingTargetDto> for *mut wire_cst_tracking_target_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::TrackingTargetDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::TrackingTargetDto>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<u16> for *mut u16 {
@@ -20446,6 +20969,20 @@ mod io {
                 completed_integration_secs: self.completed_integration_secs.cst_decode(),
                 can_resume: self.can_resume.cst_decode(),
                 age_seconds: self.age_seconds.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::planetarium::ConstellationArtPlacementDto>
+        for wire_cst_constellation_art_placement_dto
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::ConstellationArtPlacementDto {
+            crate::api::planetarium::ConstellationArtPlacementDto {
+                abbreviation: self.abbreviation.cst_decode(),
+                screen_x: self.screen_x.cst_decode(),
+                screen_y: self.screen_y.cst_decode(),
+                scale: self.scale.cst_decode(),
+                opacity: self.opacity.cst_decode(),
             }
         }
     }
@@ -21267,6 +21804,18 @@ mod io {
             vec.into_iter().map(CstDecode::cst_decode).collect()
         }
     }
+    impl CstDecode<Vec<crate::api::planetarium::ConstellationArtPlacementDto>>
+        for *mut wire_cst_list_constellation_art_placement_dto
+    {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::planetarium::ConstellationArtPlacementDto> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
     impl CstDecode<Vec<crate::api::imaging::DetectedStarInfo>>
         for *mut wire_cst_list_detected_star_info
     {
@@ -21550,6 +22099,15 @@ mod io {
                 max_slew_rate: self.max_slew_rate.cst_decode(),
                 can_move_axis: self.can_move_axis.cst_decode(),
                 axis_count: self.axis_count.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::planetarium::MountPositionDto> for wire_cst_mount_position_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::MountPositionDto {
+            crate::api::planetarium::MountPositionDto {
+                ra_rad: self.ra_rad.cst_decode(),
+                dec_rad: self.dec_rad.cst_decode(),
             }
         }
     }
@@ -21973,6 +22531,28 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::PoseLockDto> for wire_cst_pose_lock_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::PoseLockDto {
+            match self.tag {
+                0 => crate::api::planetarium::PoseLockDto::Free,
+                1 => {
+                    let ans = unsafe { self.kind.LockedToTarget };
+                    crate::api::planetarium::PoseLockDto::LockedToTarget {
+                        object_id: ans.object_id.cst_decode(),
+                    }
+                }
+                2 => crate::api::planetarium::PoseLockDto::LockedToMount,
+                3 => {
+                    let ans = unsafe { self.kind.LockedToBody };
+                    crate::api::planetarium::PoseLockDto::LockedToBody {
+                        body: ans.body.cst_decode(),
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+    }
     impl CstDecode<crate::api::diagnostics::QhyDiscoveryStatus> for wire_cst_qhy_discovery_status {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::diagnostics::QhyDiscoveryStatus {
@@ -22197,6 +22777,7 @@ mod io {
                 frame_id: self.frame_id.cst_decode(),
                 view_pose: self.view_pose.cst_decode(),
                 labels: self.labels.cst_decode(),
+                constellation_art: self.constellation_art.cst_decode(),
                 selected: self.selected.cst_decode(),
             }
         }
@@ -22513,6 +23094,16 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::TrackingTargetDto> for wire_cst_tracking_target_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::TrackingTargetDto {
+            crate::api::planetarium::TrackingTargetDto {
+                object_id: self.object_id.cst_decode(),
+                ra_rad: self.ra_rad.cst_decode(),
+                dec_rad: self.dec_rad.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::planetarium::ViewPoseDto> for wire_cst_view_pose_dto {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::planetarium::ViewPoseDto {
@@ -22816,6 +23407,22 @@ mod io {
         }
     }
     impl Default for wire_cst_checkpoint_info_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_constellation_art_placement_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                abbreviation: core::ptr::null_mut(),
+                screen_x: Default::default(),
+                screen_y: Default::default(),
+                scale: Default::default(),
+                opacity: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_constellation_art_placement_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -23415,6 +24022,19 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_mount_position_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                ra_rad: Default::default(),
+                dec_rad: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_mount_position_dto {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_mount_status {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -23699,6 +24319,19 @@ mod io {
         }
     }
     impl Default for wire_cst_polar_alignment_status {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_pose_lock_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                tag: -1,
+                kind: PoseLockDtoKind { nil__: () },
+            }
+        }
+    }
+    impl Default for wire_cst_pose_lock_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -23996,6 +24629,7 @@ mod io {
                 frame_id: Default::default(),
                 view_pose: Default::default(),
                 labels: core::ptr::null_mut(),
+                constellation_art: core::ptr::null_mut(),
                 selected: core::ptr::null_mut(),
             }
         }
@@ -24267,6 +24901,20 @@ mod io {
         }
     }
     impl Default for wire_cst_system_event {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_tracking_target_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                object_id: Default::default(),
+                ra_rad: Default::default(),
+                dec_rad: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_tracking_target_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -27427,6 +28075,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_mount_position(
+        handle: i64,
+        mount: *mut wire_cst_mount_position_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_mount_position_impl(handle, mount)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_observer(
         handle: i64,
         observer: *mut wire_cst_observer_dto,
@@ -27440,6 +28096,14 @@ mod io {
         pose: *mut wire_cst_view_pose_dto,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__planetarium__planetarium_set_pose_impl(handle, pose)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose_lock(
+        handle: i64,
+        lock: *mut wire_cst_pose_lock_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_pose_lock_impl(handle, lock)
     }
 
     #[unsafe(no_mangle)]
@@ -27459,10 +28123,34 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_tracking_target(
+        handle: i64,
+        target: *mut wire_cst_tracking_target_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_tracking_target_impl(handle, target)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot(
         handle: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__planetarium__planetarium_snapshot_impl(handle)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__discovery__scan_ascom_for_type_public(
+        port_: i64,
+        device_type: i32,
+    ) {
+        wire__crate__api__discovery__scan_ascom_for_type_public_impl(port_, device_type)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__discovery__scan_native_for_type_public(
+        port_: i64,
+        device_type: i32,
+    ) {
+        wire__crate__api__discovery__scan_native_for_type_public_impl(port_, device_type)
     }
 
     #[unsafe(no_mangle)]
@@ -27808,6 +28496,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_mount_position_dto(
+    ) -> *mut wire_cst_mount_position_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_mount_position_dto::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_observer_dto(
     ) -> *mut wire_cst_observer_dto {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -27859,6 +28555,14 @@ mod io {
     ) -> *mut wire_cst_polar_alignment_status {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_polar_alignment_status::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_pose_lock_dto(
+    ) -> *mut wire_cst_pose_lock_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_pose_lock_dto::new_with_null_ptr(),
         )
     }
 
@@ -27965,6 +28669,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_tracking_target_dto(
+    ) -> *mut wire_cst_tracking_target_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_tracking_target_dto::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_u_16(value: u16) -> *mut u16 {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
     }
@@ -28002,6 +28714,20 @@ mod io {
         let wrap = wire_cst_list_String {
             ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
                 <*mut wire_cst_list_prim_u_8_strict>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_constellation_art_placement_dto(
+        len: i32,
+    ) -> *mut wire_cst_list_constellation_art_placement_dto {
+        let wrap = wire_cst_list_constellation_art_placement_dto {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_constellation_art_placement_dto>::new_with_null_ptr(),
                 len,
             ),
             len,
@@ -28489,6 +29215,15 @@ mod io {
         completed_integration_secs: f64,
         can_resume: bool,
         age_seconds: i64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_constellation_art_placement_dto {
+        abbreviation: *mut wire_cst_list_prim_u_8_strict,
+        screen_x: f32,
+        screen_y: f32,
+        scale: f32,
+        opacity: f32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -29261,6 +29996,12 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_list_constellation_art_placement_dto {
+        ptr: *mut wire_cst_constellation_art_placement_dto,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_detected_star_info {
         ptr: *mut wire_cst_detected_star_info,
         len: i32,
@@ -29437,6 +30178,12 @@ mod io {
         max_slew_rate: *mut f64,
         can_move_axis: bool,
         axis_count: u32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_mount_position_dto {
+        ra_rad: f64,
+        dec_rad: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -29840,6 +30587,29 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_pose_lock_dto {
+        tag: i32,
+        kind: PoseLockDtoKind,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub union PoseLockDtoKind {
+        LockedToTarget: wire_cst_PoseLockDto_LockedToTarget,
+        LockedToBody: wire_cst_PoseLockDto_LockedToBody,
+        nil__: (),
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_PoseLockDto_LockedToTarget {
+        object_id: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_PoseLockDto_LockedToBody {
+        body: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_qhy_discovery_status {
         sdk_available: bool,
         discovery_enabled: bool,
@@ -30028,6 +30798,7 @@ mod io {
         frame_id: u64,
         view_pose: wire_cst_view_pose_dto,
         labels: *mut wire_cst_list_label_hint_dto,
+        constellation_art: *mut wire_cst_list_constellation_art_placement_dto,
         selected: *mut wire_cst_selected_object_dto,
     }
     #[repr(C)]
@@ -30294,6 +31065,13 @@ mod io {
     pub struct wire_cst_SystemEvent_EventsDropped {
         dropped_count: u64,
         total_dropped: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_tracking_target_dto {
+        object_id: u64,
+        ra_rad: f64,
+        dec_rad: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

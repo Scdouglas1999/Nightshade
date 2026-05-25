@@ -19,6 +19,7 @@ class EquipmentProfiles extends Table {
   TextColumn get rotatorId => text().nullable()();
   TextColumn get domeId => text().nullable()();
   TextColumn get weatherId => text().nullable()();
+  TextColumn get safetyMonitorId => text().nullable()();
   TextColumn get coverCalibratorId => text().nullable()();
   
   // Optical setup

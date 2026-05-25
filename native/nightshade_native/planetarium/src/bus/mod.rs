@@ -4,7 +4,7 @@ pub mod dirty;
 pub mod loop_thread;
 
 use crate::gesture::GestureEvent;
-use crate::scene::SelectedObject;
+use crate::scene::{MountPosition, PoseLock, SelectedObject, TrackingTarget};
 use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use dirty::DirtyFlags;
 
@@ -16,6 +16,12 @@ pub enum PlanetariumCommand {
     SetObserver(Observer),
     SetConfig(RenderConfig),
     SetSelection(Option<SelectedObject>),
+    /// Mount-reported equatorial position (degrees/radians from FFI).
+    SetMountPosition(Option<MountPosition>),
+    /// Catalog tracking target coordinates for [`PoseLock::LockedToTarget`].
+    SetTrackingTarget(Option<TrackingTarget>),
+    /// View lock mode (free navigation vs mount/target/body tracking).
+    SetPoseLock(PoseLock),
     PushGesture(GestureEvent),
     Resize {
         width: u32,
@@ -36,6 +42,9 @@ impl PlanetariumCommand {
             Self::SetObserver(_) => *d |= DirtyFlags::OBSERVER,
             Self::SetConfig(_) => *d |= DirtyFlags::CONFIG,
             Self::SetSelection(_) => *d |= DirtyFlags::SELECTION,
+            Self::SetMountPosition(_) => *d |= DirtyFlags::MOUNT | DirtyFlags::POSE,
+            Self::SetTrackingTarget(_) => *d |= DirtyFlags::POSE,
+            Self::SetPoseLock(_) => *d |= DirtyFlags::POSE,
             Self::PushGesture(_) => *d |= DirtyFlags::POSE,
             Self::Resize { .. } => *d |= DirtyFlags::RESIZE,
             Self::CatalogChanged => *d |= DirtyFlags::CATALOG,

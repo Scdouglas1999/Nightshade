@@ -185,8 +185,7 @@ String _equipmentDetail(EquipmentEvent v) {
     EquipmentEvent_MountParkStarted() => '',
     EquipmentEvent_MountParkCompleted() => '',
     EquipmentEvent_MountUnparked() => '',
-    EquipmentEvent_FocuserMoveStarted(targetPosition: final p) =>
-      'Target $p',
+    EquipmentEvent_FocuserMoveStarted(targetPosition: final p) => 'Target $p',
     EquipmentEvent_FocuserMoveCompleted(position: final p) => 'At $p',
     EquipmentEvent_FocuserTemperatureChanged(temperature: final t) =>
       '${t.toStringAsFixed(1)}°C',
@@ -195,9 +194,7 @@ String _equipmentDetail(EquipmentEvent v) {
       toPosition: final to,
       filterName: final name
     ) =>
-      name != null && name.isNotEmpty
-          ? '$from → $to ($name)'
-          : '$from → $to',
+      name != null && name.isNotEmpty ? '$from → $to ($name)' : '$from → $to',
     EquipmentEvent_FilterChanged(position: final p, filterName: final name) =>
       name != null && name.isNotEmpty ? '$name (pos $p)' : 'Position $p',
     EquipmentEvent_RotatorMoveStarted(targetAngle: final a) =>
@@ -258,10 +255,7 @@ String _imagingTitle(ImagingEvent v) {
 
 String _imagingDetail(ImagingEvent v) {
   return switch (v) {
-    ImagingEvent_ExposureStarted(
-      durationSecs: final d,
-      frameType: final t
-    ) =>
+    ImagingEvent_ExposureStarted(durationSecs: final d, frameType: final t) =>
       '${d.toStringAsFixed(1)}s ${t.name}',
     ImagingEvent_ExposureStartedWithFrame(
       durationSecs: final d,
@@ -272,15 +266,9 @@ String _imagingDetail(ImagingEvent v) {
       total != null
           ? '$n/$total · ${d.toStringAsFixed(1)}s ${t.name}'
           : '#$n · ${d.toStringAsFixed(1)}s ${t.name}',
-    ImagingEvent_ExposureProgress(
-      progress: final p,
-      remainingSecs: final r
-    ) =>
+    ImagingEvent_ExposureProgress(progress: final p, remainingSecs: final r) =>
       '${(p * 100).toStringAsFixed(0)}% · ${r.toStringAsFixed(0)}s remaining',
-    ImagingEvent_ExposureCompleted(
-      hfr: final h,
-      starsDetected: final stars
-    ) =>
+    ImagingEvent_ExposureCompleted(hfr: final h, starsDetected: final stars) =>
       'HFR ${h.toStringAsFixed(2)} · $stars stars',
     ImagingEvent_ExposureCompletedWithFrame(
       frameNumber: final n,
@@ -340,8 +328,7 @@ String _guidingDetail(GuidingEvent v) {
     GuidingEvent_Resumed() => '',
     GuidingEvent_Settled(rms: final rms) => 'RMS ${rms.toStringAsFixed(2)}"',
     GuidingEvent_LostStar() => '',
-    GuidingEvent_DitherStarted(pixels: final p) =>
-      '${p.toStringAsFixed(2)} px',
+    GuidingEvent_DitherStarted(pixels: final p) => '${p.toStringAsFixed(2)} px',
     GuidingEvent_DitherCompleted() => '',
     GuidingEvent_Correction(ra: final ra, dec: final dec) =>
       'RA ${ra.toStringAsFixed(2)}" Dec ${dec.toStringAsFixed(2)}"',

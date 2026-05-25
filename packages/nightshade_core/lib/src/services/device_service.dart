@@ -1,12 +1,12 @@
 import 'dart:async';
 import 'dart:io';
+import 'package:drift/drift.dart' show Value;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
 import '../providers/profiles_provider.dart'
-    show activeEquipmentProfileProvider;
+    show EquipmentProfileModel, activeEquipmentProfileProvider;
 import '../providers/database_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
@@ -20,6 +20,8 @@ import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../models/sequence/sequence_models.dart';
+import '../utils/device_id_utils.dart';
+import 'device_exceptions.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
 
@@ -89,6 +91,11 @@ class DeviceService {
   int _temperaturePollingGeneration = 0;
   Timer? _warmingTimer;
   bool _warmingCancelled = false;
+  bool _disposed = false;
+  bool _quiescingForBackendSwap = false;
+  final Set<Future<void>> _inFlightOperations = {};
+  final Map<DeviceType, Timer> _statusPollingTimers = {};
+  static const Duration _statusPollInterval = Duration(seconds: 2);
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -96,11 +103,14 @@ class DeviceService {
 
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
+  int _focuserVerifyGeneration = 0;
+  int _rotatorVerifyGeneration = 0;
+  int _filterWheelVerifyGeneration = 0;
 
   /// Tracks the last applied filter focus offset so that filter changes apply
   /// delta adjustments (remove old offset, apply new offset) rather than
   /// cumulative offsets.
-  int _lastAppliedFilterOffset = 0;
+  final Map<String, int> _lastAppliedFilterOffsetByWheel = {};
 
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
   /// since the focuser and camera are shared hardware resources.
@@ -110,13 +120,47 @@ class DeviceService {
     _initEventListening();
   }
 
+  bool get isAutofocusRunning => _isAutofocusRunning;
+
+  Future<T> _trackInFlight<T>(Future<T> Function() operation) {
+    late Future<void> tracked;
+    final future = Future<T>.sync(operation);
+    tracked = future.then<void>((_) {}, onError: (_, __) {}).whenComplete(() {
+      _inFlightOperations.remove(tracked);
+    });
+    _inFlightOperations.add(tracked);
+    return future;
+  }
+
+  Future<void> prepareForBackendSwap() async {
+    _quiescingForBackendSwap = true;
+    await _eventSubscription?.cancel();
+    _eventSubscription = null;
+    _stopTemperaturePolling();
+    _warmingTimer?.cancel();
+    _focuserVerifyGeneration++;
+    _rotatorVerifyGeneration++;
+    _filterWheelVerifyGeneration++;
+    _stopAllStatusPolling();
+    _cancelAllReconnections();
+
+    while (_inFlightOperations.isNotEmpty) {
+      await Future.wait<void>(
+        List<Future<void>>.from(_inFlightOperations),
+        eagerError: false,
+      );
+    }
+  }
+
   /// Start polling camera temperature every 5 seconds
   void _startTemperaturePolling(String deviceId) {
+    if (_disposed) return;
     _connectedCameraId = deviceId;
     final generation = ++_temperaturePollingGeneration;
     _temperaturePollingTimer?.cancel();
     _temperaturePollingTimer =
         Timer.periodic(const Duration(seconds: 5), (_) async {
+      if (_disposed) return;
       await _pollCameraTemperature(deviceId, generation);
     });
     // Poll immediately on start
@@ -133,6 +177,7 @@ class DeviceService {
 
   /// Poll camera temperature and update providers
   Future<void> _pollCameraTemperature(String deviceId, int generation) async {
+    if (_disposed) return;
     if (_connectedCameraId != deviceId ||
         _temperaturePollingGeneration != generation) {
       return;
@@ -140,6 +185,7 @@ class DeviceService {
 
     try {
       final status = await _backend.getCameraStatus(deviceId);
+      if (_disposed) return;
       if (_connectedCameraId != deviceId ||
           _temperaturePollingGeneration != generation) {
         return;
@@ -186,17 +232,151 @@ class DeviceService {
     }
   }
 
+  void _startStatusPolling(DeviceType type, String deviceId) {
+    _stopStatusPolling(type);
+    _statusPollingTimers[type] = Timer.periodic(
+      _statusPollInterval,
+      (_) => unawaited(_pollDeviceStatus(type, deviceId)),
+    );
+    unawaited(_pollDeviceStatus(type, deviceId));
+  }
+
+  void _stopStatusPolling(DeviceType type) {
+    _statusPollingTimers.remove(type)?.cancel();
+  }
+
+  void _stopAllStatusPolling() {
+    for (final timer in _statusPollingTimers.values) {
+      timer.cancel();
+    }
+    _statusPollingTimers.clear();
+  }
+
+  Future<void> _pollDeviceStatus(DeviceType type, String deviceId) async {
+    if (_disposed) return;
+
+    try {
+      switch (type) {
+        case DeviceType.focuser:
+          final state = _ref.read(focuserStateProvider);
+          if (state.deviceId != deviceId ||
+              state.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final status = await _backend.getFocuserStatus(deviceId);
+          if (_disposed) return;
+          final current = _ref.read(focuserStateProvider);
+          if (current.deviceId != deviceId ||
+              current.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final notifier = _ref.read(focuserStateProvider.notifier);
+          notifier.updatePosition(status.position);
+          notifier.setMoving(status.moving);
+          if (status.temperature != null) {
+            notifier.updateTemperature(status.temperature!);
+          }
+          break;
+        case DeviceType.filterWheel:
+          final state = _ref.read(filterWheelStateProvider);
+          if (state.deviceId != deviceId ||
+              state.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final status = await _backend.getFilterWheelStatus(deviceId);
+          if (_disposed) return;
+          final current = _ref.read(filterWheelStateProvider);
+          if (current.deviceId != deviceId ||
+              current.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final notifier = _ref.read(filterWheelStateProvider.notifier);
+          if (status.filterNames.isNotEmpty) {
+            notifier.setConnected(filterNames: status.filterNames);
+          }
+          notifier.updatePosition(status.position);
+          notifier.setMoving(status.moving);
+          break;
+        case DeviceType.rotator:
+          final state = _ref.read(rotatorStateProvider);
+          if (state.deviceId != deviceId ||
+              state.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final status = await _backend.getRotatorStatus(deviceId);
+          if (_disposed) return;
+          final current = _ref.read(rotatorStateProvider);
+          if (current.deviceId != deviceId ||
+              current.connectionState != DeviceConnectionState.connected) {
+            return;
+          }
+          final notifier = _ref.read(rotatorStateProvider.notifier);
+          notifier.updatePosition(status.position);
+          notifier.setMoving(status.moving);
+          break;
+        default:
+          break;
+      }
+    } catch (e) {
+      try {
+        _ref.read(loggingServiceProvider).warning(
+              'Status polling failed for ${type.displayName} ($deviceId): $e',
+              source: 'DeviceService',
+            );
+      } catch (_) {}
+    }
+  }
+
   void _initEventListening() {
+    if (_disposed) return;
+    _eventSubscription?.cancel();
     _eventSubscription = _backend.eventStream.listen((event) {
+      if (_disposed) return;
       if (event.category == EventCategory.equipment) {
         _handleEquipmentEvent(event);
       } else if (event.category == EventCategory.sequencer) {
         _handleSequencerEvent(event);
       }
-    });
+    }, onError: (Object error, StackTrace stackTrace) {
+      try {
+        _ref.read(loggingServiceProvider).error(
+              'Device event stream error: $error',
+              source: 'DeviceService',
+            );
+      } catch (_) {}
+    }, cancelOnError: false);
+  }
+
+  bool _eventTargetsCurrentDevice(
+    DeviceType type,
+    Map<String, dynamic> data,
+  ) {
+    final eventDeviceId =
+        data['device_id'] as String? ?? data['deviceId'] as String?;
+    if (eventDeviceId == null || eventDeviceId.isEmpty) {
+      return true;
+    }
+
+    final currentDeviceId = switch (type) {
+      DeviceType.camera => _ref.read(cameraStateProvider).deviceId,
+      DeviceType.mount => _ref.read(mountStateProvider).deviceId,
+      DeviceType.focuser => _ref.read(focuserStateProvider).deviceId,
+      DeviceType.filterWheel => _ref.read(filterWheelStateProvider).deviceId,
+      DeviceType.guider => _ref.read(guiderStateProvider).deviceId,
+      DeviceType.rotator => _ref.read(rotatorStateProvider).deviceId,
+      DeviceType.dome => _ref.read(domeStateProvider).deviceId,
+      DeviceType.weather => _ref.read(weatherStateProvider).deviceId,
+      DeviceType.safetyMonitor =>
+        _ref.read(safetyMonitorStateProvider).deviceId,
+      DeviceType.switch_ => _ref.read(switchStateProvider).deviceId,
+      DeviceType.coverCalibrator =>
+        _ref.read(coverCalibratorStateProvider).deviceId,
+    };
+    return currentDeviceId == eventDeviceId;
   }
 
   void _handleEquipmentEvent(NightshadeEvent event) {
+    if (_disposed) return;
     final data = event.data;
     switch (event.eventType) {
       // Connection events
@@ -208,6 +388,7 @@ class DeviceService {
 
       // Legacy camera temperature event (keep for backward compatibility)
       case 'CameraTemperatureChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final temp = (data['temperature'] as num).toDouble();
         final power = (data['coolerPower'] as num).toDouble();
         _ref.read(cameraStateProvider.notifier).updateTemperature(temp, power);
@@ -215,6 +396,7 @@ class DeviceService {
 
       // Legacy mount position event (keep for backward compatibility)
       case 'MountPositionChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num).toDouble();
         final dec = (data['dec'] as num).toDouble();
         final alt = (data['altitude'] as num?)?.toDouble() ?? 0.0;
@@ -240,6 +422,7 @@ class DeviceService {
 
       // Mount Slew Events
       case 'MountSlewStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num?)?.toDouble();
         final dec = (data['dec'] as num?)?.toDouble();
         _ref.read(mountStateProvider.notifier).setSlewing(true);
@@ -249,6 +432,7 @@ class DeviceService {
         break;
 
       case 'MountSlewCompleted':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num?)?.toDouble();
         final dec = (data['dec'] as num?)?.toDouble();
         _ref.read(mountStateProvider.notifier).setSlewing(false);
@@ -271,19 +455,23 @@ class DeviceService {
 
       // Mount Tracking Events
       case 'MountTrackingStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setTracking(true);
         break;
 
       case 'MountTrackingStopped':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setTracking(false);
         break;
 
       // Mount Park Events
       case 'MountParkStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setSlewing(true);
         break;
 
       case 'MountParkCompleted':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setSlewing(false);
         _ref.read(mountStateProvider.notifier).setParked(true);
         _ref.read(mountStateProvider.notifier).setTracking(false);
@@ -296,6 +484,7 @@ class DeviceService {
         break;
 
       case 'MountUnparked':
+        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setParked(false);
         // Smart notification
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
@@ -307,6 +496,7 @@ class DeviceService {
 
       // Legacy focuser position event (keep for backward compatibility)
       case 'FocuserPositionChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final pos = data['position'] as int;
         _ref.read(focuserStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
@@ -323,10 +513,12 @@ class DeviceService {
 
       // Focuser Events
       case 'FocuserMoveStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         _ref.read(focuserStateProvider.notifier).setMoving(true);
         break;
 
       case 'FocuserMoveCompleted':
+        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final position = data['position'] as int?;
         _ref.read(focuserStateProvider.notifier).setMoving(false);
         if (position != null) {
@@ -335,6 +527,7 @@ class DeviceService {
         break;
 
       case 'FocuserTemperatureChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final temperature = (data['temperature'] as num?)?.toDouble();
         if (temperature != null) {
           _ref
@@ -345,6 +538,7 @@ class DeviceService {
 
       // Legacy filter wheel position event (keep for backward compatibility)
       case 'FilterWheelPositionChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         final pos = data['position'] as int;
         _ref.read(filterWheelStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
@@ -356,10 +550,12 @@ class DeviceService {
 
       // Filter Wheel Events
       case 'FilterChanging':
+        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         _ref.read(filterWheelStateProvider.notifier).setMoving(true);
         break;
 
       case 'FilterChanged':
+        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         final position = data['position'] as int?;
         _ref.read(filterWheelStateProvider.notifier).setMoving(false);
         if (position != null) {
@@ -369,10 +565,12 @@ class DeviceService {
 
       // Rotator Events
       case 'RotatorMoveStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.rotator, data)) return;
         _ref.read(rotatorStateProvider.notifier).setMoving(true);
         break;
 
       case 'RotatorMoveCompleted':
+        if (!_eventTargetsCurrentDevice(DeviceType.rotator, data)) return;
         final angle = (data['angle'] as num?)?.toDouble();
         _ref.read(rotatorStateProvider.notifier).setMoving(false);
         if (angle != null) {
@@ -382,6 +580,7 @@ class DeviceService {
 
       // Camera Cooling Events
       case 'CameraCoolingStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final targetTemp = (data['target_temp'] as num?)?.toDouble();
         _ref.read(cameraStateProvider.notifier).setCooling(true);
         if (targetTemp != null) {
@@ -390,6 +589,7 @@ class DeviceService {
         break;
 
       case 'CameraCoolingReached':
+        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final temp = (data['temperature'] as num?)?.toDouble();
         if (temp != null) {
           _ref.read(cameraStateProvider.notifier).updateTemperature(temp, 0.0);
@@ -397,6 +597,7 @@ class DeviceService {
         break;
 
       case 'CameraWarmingStarted':
+        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         _ref.read(cameraStateProvider.notifier).setCooling(false);
         break;
 
@@ -408,6 +609,7 @@ class DeviceService {
 
   /// Handle device disconnection event
   void _handleDeviceDisconnected(String? deviceType, String? deviceId) {
+    if (_disposed || _quiescingForBackendSwap) return;
     if (deviceType == null || deviceId == null) return;
 
     // Log the disconnection event with timestamp
@@ -443,12 +645,16 @@ class DeviceService {
         break;
 
       case 'focuser':
+        _focuserVerifyGeneration++;
+        _stopStatusPolling(DeviceType.focuser);
         _ref.read(focuserStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.focuser, deviceId);
         break;
 
       case 'filterwheel':
       case 'filter wheel':
+        _filterWheelVerifyGeneration++;
+        _stopStatusPolling(DeviceType.filterWheel);
         _ref.read(filterWheelStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.filterWheel, deviceId);
         break;
@@ -459,6 +665,8 @@ class DeviceService {
         break;
 
       case 'rotator':
+        _rotatorVerifyGeneration++;
+        _stopStatusPolling(DeviceType.rotator);
         _ref.read(rotatorStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.rotator, deviceId);
         break;
@@ -478,6 +686,17 @@ class DeviceService {
         _ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.safetyMonitor, deviceId);
         break;
+
+      case 'switch':
+        _ref.read(switchStateProvider.notifier).setDisconnected();
+        _attemptReconnect(DeviceType.switch_, deviceId);
+        break;
+
+      case 'covercalibrator':
+      case 'cover calibrator':
+        _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
+        _attemptReconnect(DeviceType.coverCalibrator, deviceId);
+        break;
     }
   }
 
@@ -486,6 +705,9 @@ class DeviceService {
 
   /// Timers for reconnection delays
   final Map<String, Timer> _reconnectionTimers = {};
+
+  String _reconnectKey(DeviceType type, String deviceId) =>
+      '${type.name}:$deviceId';
 
   /// Maximum number of reconnection attempts
   static const int _maxReconnectAttempts = 3;
@@ -497,20 +719,30 @@ class DeviceService {
     Duration(seconds: 20),
   ];
 
-  /// Attempt to reconnect to a device with exponential backoff
-  Future<void> _attemptReconnect(DeviceType type, String deviceId) async {
-    // Check if auto-reconnect is enabled for this device
-    bool autoReconnectEnabled = true;
-
+  bool _getAutoReconnectFor(DeviceType type) {
     switch (type) {
       case DeviceType.camera:
-        final state = _ref.read(cameraStateProvider);
-        autoReconnectEnabled = state.autoReconnectEnabled;
-        break;
-      default:
-        // Other device types auto-reconnect by default
-        break;
+        return _ref.read(cameraStateProvider).autoReconnectEnabled;
+      case DeviceType.mount:
+        return _ref.read(mountStateProvider).autoReconnectEnabled;
+      case DeviceType.focuser:
+      case DeviceType.filterWheel:
+      case DeviceType.guider:
+      case DeviceType.rotator:
+      case DeviceType.dome:
+      case DeviceType.weather:
+      case DeviceType.safetyMonitor:
+      case DeviceType.switch_:
+      case DeviceType.coverCalibrator:
+        return true;
     }
+  }
+
+  /// Attempt to reconnect to a device with exponential backoff
+  Future<void> _attemptReconnect(DeviceType type, String deviceId) async {
+    if (_disposed || _quiescingForBackendSwap) return;
+    // Check if auto-reconnect is enabled for this device
+    final autoReconnectEnabled = _getAutoReconnectFor(type);
 
     if (!autoReconnectEnabled) {
       try {
@@ -526,7 +758,8 @@ class DeviceService {
     }
 
     // Get current attempt count
-    final attemptCount = _reconnectionAttempts[deviceId] ?? 0;
+    final reconnectKey = _reconnectKey(type, deviceId);
+    final attemptCount = _reconnectionAttempts[reconnectKey] ?? 0;
 
     if (attemptCount >= _maxReconnectAttempts) {
       // Max attempts reached - notify user
@@ -540,12 +773,12 @@ class DeviceService {
         // Logging service not available
       }
       _showReconnectionFailedNotification(type, deviceId);
-      _reconnectionAttempts.remove(deviceId);
+      _reconnectionAttempts.remove(reconnectKey);
       return;
     }
 
     // Increment attempt count
-    _reconnectionAttempts[deviceId] = attemptCount + 1;
+    _reconnectionAttempts[reconnectKey] = attemptCount + 1;
 
     // Get delay for this attempt
     final delay = attemptCount < _reconnectDelays.length
@@ -564,10 +797,11 @@ class DeviceService {
     }
 
     // Cancel any existing reconnection timer for this device
-    _reconnectionTimers[deviceId]?.cancel();
+    _reconnectionTimers[reconnectKey]?.cancel();
 
     // Schedule reconnection attempt
-    _reconnectionTimers[deviceId] = Timer(delay, () async {
+    _reconnectionTimers[reconnectKey] = Timer(delay, () async {
+      if (_disposed || _quiescingForBackendSwap) return;
       try {
         // Log the actual attempt
         try {
@@ -583,8 +817,8 @@ class DeviceService {
         await _performReconnection(type, deviceId);
 
         // Success - reset attempt count
-        _reconnectionAttempts.remove(deviceId);
-        _reconnectionTimers.remove(deviceId);
+        _reconnectionAttempts.remove(reconnectKey);
+        _reconnectionTimers.remove(reconnectKey);
 
         // Log success
         try {
@@ -615,7 +849,7 @@ class DeviceService {
         }
 
         // Reconnection failed - try again
-        await _attemptReconnect(type, deviceId);
+        unawaited(_attemptReconnect(type, deviceId));
       }
     });
   }
@@ -670,6 +904,7 @@ class DeviceService {
 
   /// Perform the actual reconnection based on device type
   Future<void> _performReconnection(DeviceType type, String deviceId) async {
+    if (_disposed || _quiescingForBackendSwap) return;
     switch (type) {
       case DeviceType.camera:
         final notifier = _ref.read(cameraStateProvider.notifier);
@@ -717,7 +952,8 @@ class DeviceService {
         break;
 
       case DeviceType.switch_:
-        // Switch devices not yet supported for reconnection
+        final notifier = _ref.read(switchStateProvider.notifier);
+        await notifier.connect(deviceId, maxRetries: 1);
         break;
 
       case DeviceType.coverCalibrator:
@@ -805,15 +1041,19 @@ class DeviceService {
   /// Handle disconnection of critical devices (camera, mount) during sequence execution
   Future<void> _handleCriticalDeviceDisconnect(
       String deviceType, String deviceId) async {
+    if (_disposed || _quiescingForBackendSwap) return;
     // Check if sequence is currently running
     final sequenceState = _ref.read(sequenceExecutionStateProvider);
-    if (sequenceState != SequenceExecutionState.running) {
-      return; // Not running, no action needed
+    if (sequenceState != SequenceExecutionState.running &&
+        sequenceState != SequenceExecutionState.paused) {
+      return; // Not running/paused, no action needed
     }
 
-    // Pause the sequence
     try {
-      await pauseSequence();
+      await _backend.saveCheckpoint();
+      if (sequenceState == SequenceExecutionState.running) {
+        await pauseSequence();
+      }
     } catch (e) {
       // Log error if available
     }
@@ -823,6 +1063,7 @@ class DeviceService {
   }
 
   void _handleSequencerEvent(NightshadeEvent event) {
+    if (_disposed) return;
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     final data = event.data;
 
@@ -930,9 +1171,11 @@ class DeviceService {
   }
 
   void dispose() {
+    _disposed = true;
     _eventSubscription?.cancel();
     _temperaturePollingTimer?.cancel();
     _warmingTimer?.cancel();
+    _stopAllStatusPolling();
     _cancelAllReconnections();
   }
 
@@ -958,86 +1201,166 @@ class DeviceService {
     return await _backend.discoverAlpacaAtAddress(host, port);
   }
 
-  /// Connect to a camera
-  Future<void> connectCamera(String deviceId) async {
-    final notifier = _ref.read(cameraStateProvider.notifier);
+  void _validateDeviceId(DeviceType type, String deviceId) {
+    if (!isValidDeviceIdFormat(deviceId)) {
+      throw InvalidDeviceIdException(_deviceTypeErrorName(type), deviceId);
+    }
+  }
 
-    // Find device info
-    final devices = await discoverDevices(DeviceType.camera);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Camera not found: $deviceId'),
-    );
+  String _deviceTypeErrorName(DeviceType type) {
+    switch (type) {
+      case DeviceType.filterWheel:
+        return 'filter wheel';
+      case DeviceType.safetyMonitor:
+        return 'safety monitor';
+      case DeviceType.weather:
+        return 'weather station';
+      case DeviceType.coverCalibrator:
+        return 'cover calibrator';
+      case DeviceType.switch_:
+        return 'switch';
+      default:
+        return type.name;
+    }
+  }
 
-    notifier.setConnecting(deviceId, device.name);
-
+  Future<String> _resolveDeviceDisplayName(
+      DeviceType type, String deviceId) async {
     try {
-      // Connect via native bridge
-      await _backend.connectDevice(DeviceType.camera, deviceId);
-
-      notifier.setConnected();
-
-      // Apply active profile's cooling target temperature if available
-      // and auto-start cooling if coolOnConnect is enabled
-      try {
-        final activeProfile = _ref.read(activeEquipmentProfileProvider);
-        if (activeProfile?.defaultCoolingTemp != null) {
-          notifier.setTargetTemp(activeProfile!.defaultCoolingTemp!);
-
-          if (activeProfile.coolOnConnect) {
-            await _backend.cameraSetCooling(
-              deviceId: deviceId,
-              enabled: true,
-              targetTemp: activeProfile.defaultCoolingTemp,
-            );
-            notifier.setCooling(true);
-          }
-        }
-      } catch (e) {
-        try {
-          _ref.read(loggingServiceProvider).warning(
-              'Cool-on-connect failed (profile lookup or cooling command): $e',
-              source: 'DeviceService');
-        } catch (_) {}
-      }
-
-      // Start temperature polling (this will immediately poll and update)
-      _startTemperaturePolling(deviceId);
-
-      // Start heartbeat monitoring (10 second interval)
-      try {
-        await _backend.startDeviceHeartbeat(
-          deviceType: DeviceType.camera,
-          deviceId: deviceId,
-          intervalMs: 10000,
-        );
-
-        // Log successful heartbeat start
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Started heartbeat monitoring for Camera ($deviceId) with 10s interval',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
-        }
-      } catch (e) {
-        // Heartbeat monitoring is optional - log but don't fail connection
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Failed to start heartbeat monitoring for Camera ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
+      final connected = await _backend.getConnectedDevices();
+      for (final device in connected) {
+        if (device.id == deviceId && device.deviceType == type) {
+          return device.name;
         }
       }
     } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
+      try {
+        _ref.read(loggingServiceProvider).debug(
+              'Connected-device lookup failed while resolving '
+              '${type.displayName} name for $deviceId: $e',
+              source: 'DeviceService',
+            );
+      } catch (_) {}
     }
+    _validateDeviceId(type, deviceId);
+    return _friendlyNameFromId(deviceId);
+  }
+
+  Future<CameraRecommendedSettings> queryRecommendedCameraSettings(
+      String deviceId) {
+    return _backend.cameraGetRecommendedSettings(deviceId);
+  }
+
+  Future<bool> applyRecommendedCameraSettings(
+      CameraRecommendedSettings settings) async {
+    final activeProfile = _ref.read(activeEquipmentProfileProvider);
+    if (activeProfile?.id == null) {
+      return false;
+    }
+
+    final nextGain = activeProfile!.defaultGain ?? settings.unityGain;
+    final nextOffset = activeProfile.defaultOffset ?? settings.defaultOffset;
+    final shouldUpdateGain =
+        activeProfile.defaultGain == null && settings.unityGain != null;
+    final shouldUpdateOffset =
+        activeProfile.defaultOffset == null && settings.defaultOffset != null;
+
+    if (!shouldUpdateGain && !shouldUpdateOffset) {
+      return false;
+    }
+
+    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
+    final dbProfile = await profilesDao.getProfileById(activeProfile.id!);
+    if (dbProfile == null) {
+      return false;
+    }
+
+    await profilesDao.updateProfile(dbProfile.copyWith(
+      defaultGain: Value(nextGain),
+      defaultOffset: Value(nextOffset),
+      updatedAt: DateTime.now(),
+    ));
+    return true;
+  }
+
+  /// Connect to a camera
+  Future<void> connectCamera(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(cameraStateProvider.notifier);
+
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.camera, deviceId);
+
+      notifier.setConnecting(deviceId, deviceName);
+
+      try {
+        // Connect via native bridge
+        await _backend.connectDevice(DeviceType.camera, deviceId);
+
+        notifier.setConnected();
+
+        // Apply active profile's cooling target temperature if available
+        // and auto-start cooling if coolOnConnect is enabled
+        try {
+          final activeProfile = _ref.read(activeEquipmentProfileProvider);
+          if (activeProfile?.defaultCoolingTemp != null) {
+            notifier.setTargetTemp(activeProfile!.defaultCoolingTemp!);
+
+            if (activeProfile.coolOnConnect) {
+              await _backend.cameraSetCooling(
+                deviceId: deviceId,
+                enabled: true,
+                targetTemp: activeProfile.defaultCoolingTemp,
+              );
+              notifier.setCooling(true);
+            }
+          }
+        } catch (e) {
+          try {
+            _ref.read(loggingServiceProvider).warning(
+                'Cool-on-connect failed (profile lookup or cooling command): $e',
+                source: 'DeviceService');
+          } catch (_) {}
+        }
+
+        // Start temperature polling (this will immediately poll and update)
+        _startTemperaturePolling(deviceId);
+
+        // Start heartbeat monitoring (10 second interval)
+        try {
+          await _backend.startDeviceHeartbeat(
+            deviceType: DeviceType.camera,
+            deviceId: deviceId,
+            intervalMs: 10000,
+          );
+
+          // Log successful heartbeat start
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.info(
+              'Started heartbeat monitoring for Camera ($deviceId) with 10s interval',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
+        } catch (e) {
+          // Heartbeat monitoring is optional - log but don't fail connection
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Failed to start heartbeat monitoring for Camera ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
+        }
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
   }
 
   /// Set camera cooling
@@ -1275,84 +1598,84 @@ class DeviceService {
         await _backend.disconnectDevice(DeviceType.camera, deviceId);
       }
     } finally {
+      _stopStatusPolling(DeviceType.filterWheel);
       notifier.setDisconnected();
     }
   }
 
   /// Connect to a mount
-  Future<void> connectMount(String deviceId) async {
-    final notifier = _ref.read(mountStateProvider.notifier);
+  Future<void> connectMount(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(mountStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.mount);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Mount not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.mount, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.mount, deviceId);
-
-      notifier.setConnected();
-
-      // Fetch actual mount status from hardware instead of hardcoding defaults
       try {
-        final status = await _backend.getMountStatus(deviceId);
-        notifier.updatePosition(
-          status.rightAscension,
-          status.declination,
-          status.altitude,
-          status.azimuth,
-        );
-        notifier.setParked(status.parked);
-        notifier.setTracking(status.tracking);
-        notifier.setSlewing(status.slewing);
-      } catch (e) {
-        // If status query fails, log but don't fail the connection
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Failed to get initial mount status for ($deviceId): $e',
-            source: 'DeviceService',
-          );
-        } catch (_) {}
-      }
+        await _backend.connectDevice(DeviceType.mount, deviceId);
 
-      // Start heartbeat monitoring (10 second interval) for critical device
-      try {
-        await _backend.startDeviceHeartbeat(
-          deviceType: DeviceType.mount,
-          deviceId: deviceId,
-          intervalMs: 10000,
-        );
+        notifier.setConnected();
 
-        // Log successful heartbeat start
+        // Fetch actual mount status from hardware instead of hardcoding defaults
         try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Started heartbeat monitoring for Mount ($deviceId) with 10s interval',
-            source: 'DeviceService',
+          final status = await _backend.getMountStatus(deviceId);
+          notifier.updatePosition(
+            status.rightAscension,
+            status.declination,
+            status.altitude,
+            status.azimuth,
           );
-        } catch (logError) {
-          // Logging service not available
+          notifier.setParked(status.parked);
+          notifier.setTracking(status.tracking);
+          notifier.setSlewing(status.slewing);
+        } catch (e) {
+          // If status query fails, log but don't fail the connection
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Failed to get initial mount status for ($deviceId): $e',
+              source: 'DeviceService',
+            );
+          } catch (_) {}
+        }
+
+        // Start heartbeat monitoring (10 second interval) for critical device
+        try {
+          await _backend.startDeviceHeartbeat(
+            deviceType: DeviceType.mount,
+            deviceId: deviceId,
+            intervalMs: 10000,
+          );
+
+          // Log successful heartbeat start
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.info(
+              'Started heartbeat monitoring for Mount ($deviceId) with 10s interval',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
+        } catch (e) {
+          // Heartbeat monitoring is optional - log but don't fail connection
+          try {
+            final logger = _ref.read(loggingServiceProvider);
+            logger.warning(
+              'Failed to start heartbeat monitoring for Mount ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
+              source: 'DeviceService',
+            );
+          } catch (logError) {
+            // Logging service not available
+          }
         }
       } catch (e) {
-        // Heartbeat monitoring is optional - log but don't fail connection
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Failed to start heartbeat monitoring for Mount ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
-        }
+        notifier.setDisconnected();
+        rethrow;
       }
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+    });
   }
 
   /// Disconnect mount
@@ -1402,38 +1725,39 @@ class DeviceService {
   }
 
   /// Connect to a focuser
-  Future<void> connectFocuser(String deviceId) async {
-    final notifier = _ref.read(focuserStateProvider.notifier);
+  Future<void> connectFocuser(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(focuserStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.focuser);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Focuser not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.focuser, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.focuser, deviceId);
+      try {
+        await _backend.connectDevice(DeviceType.focuser, deviceId);
 
-      // Get actual focuser status from the backend (now typed FocuserStatus)
-      final status = await _backend.getFocuserStatus(deviceId);
+        // Get actual focuser status from the backend (now typed FocuserStatus)
+        final status = await _backend.getFocuserStatus(deviceId);
 
-      notifier.setConnected(
-        maxPosition: status.maxPosition,
-        stepSize: status.stepSize,
-        isAbsolute: status.isAbsolute,
-        hasTemperature: status.hasTemperature,
-      );
-      notifier.updatePosition(status.position);
-      notifier.setMoving(status.moving);
-      if (status.temperature != null) {
-        notifier.updateTemperature(status.temperature!);
+        notifier.setConnected(
+          maxPosition: status.maxPosition,
+          stepSize: status.stepSize,
+          isAbsolute: status.isAbsolute,
+          hasTemperature: status.hasTemperature,
+        );
+        notifier.updatePosition(status.position);
+        notifier.setMoving(status.moving);
+        if (status.temperature != null) {
+          notifier.updateTemperature(status.temperature!);
+        }
+        _startStatusPolling(DeviceType.focuser, deviceId);
+      } catch (e) {
+        _stopStatusPolling(DeviceType.focuser);
+        notifier.setDisconnected();
+        rethrow;
       }
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+    });
   }
 
   /// Disconnect focuser
@@ -1451,76 +1775,78 @@ class DeviceService {
         );
       }
     } finally {
+      _stopStatusPolling(DeviceType.focuser);
       notifier.setDisconnected();
     }
   }
 
   /// Connect to a filter wheel
-  Future<void> connectFilterWheel(String deviceId) async {
-    final notifier = _ref.read(filterWheelStateProvider.notifier);
-    final logger = _ref.read(loggingServiceProvider);
+  Future<void> connectFilterWheel(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(filterWheelStateProvider.notifier);
+      final logger = _ref.read(loggingServiceProvider);
 
-    // Derive a friendly name from the device ID without running discovery.
-    // Discovery opens/closes hardware (e.g. ZWO EFW via native SDK) which
-    // can interfere with subsequent position reads.  The device manager will
-    // register the full DeviceInfo during api_connect_device anyway.
-    String deviceName = _friendlyNameFromId(deviceId);
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.filterWheel, deviceId);
 
-    notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.filterWheel, deviceId);
+      try {
+        await _backend.connectDevice(DeviceType.filterWheel, deviceId);
 
-      // Give the filter wheel firmware time to synchronise the actual
-      // encoder position after the USB/COM connection is established.
-      // Some SDKs (ZWO EFW, ASCOM wrappers) report position 0 or -1
-      // immediately after opening before the firmware has read the encoder.
-      // Poll up to 5 times over ~2.5 s to get a stable reading.
-      FilterWheelStatus status;
-      int pollAttempts = 0;
-      const maxPolls = 5;
-      const pollDelay = Duration(milliseconds: 500);
+        // Give the filter wheel firmware time to synchronise the actual
+        // encoder position after the USB/COM connection is established.
+        // Some SDKs (ZWO EFW, ASCOM wrappers) report position 0 or -1
+        // immediately after opening before the firmware has read the encoder.
+        // Poll up to 5 times over ~2.5 s to get a stable reading.
+        FilterWheelStatus status;
+        int pollAttempts = 0;
+        const maxPolls = 5;
+        const pollDelay = Duration(milliseconds: 500);
 
-      status = await _backend.getFilterWheelStatus(deviceId);
-      logger.debug(
-        'Filter wheel poll #0: position=${status.position}, '
-        'moving=${status.moving}',
-        source: 'DeviceService',
-      );
-
-      // Keep polling while position is -1 (moving/initializing)
-      while (status.position < 0 && pollAttempts < maxPolls) {
-        pollAttempts++;
-        await Future.delayed(pollDelay);
         status = await _backend.getFilterWheelStatus(deviceId);
         logger.debug(
-          'Filter wheel poll #$pollAttempts: position=${status.position}, '
+          'Filter wheel poll #0: position=${status.position}, '
           'moving=${status.moving}',
           source: 'DeviceService',
         );
+
+        // Keep polling while position is -1 (moving/initializing)
+        while (status.position < 0 && pollAttempts < maxPolls) {
+          pollAttempts++;
+          await Future.delayed(pollDelay);
+          status = await _backend.getFilterWheelStatus(deviceId);
+          logger.debug(
+            'Filter wheel poll #$pollAttempts: position=${status.position}, '
+            'moving=${status.moving}',
+            source: 'DeviceService',
+          );
+        }
+
+        logger.debug(
+          'Filter wheel final status: ${status.filterNames.length} filter '
+          'names=${status.filterNames}, position=${status.position}',
+          source: 'DeviceService',
+        );
+
+        notifier.setConnected(
+          filterNames: status.filterNames,
+        );
+        notifier.setDeviceName(deviceName);
+        notifier.updatePosition(status.position);
+        notifier.setMoving(status.moving);
+
+        // After connection, sync profile/session filter names to the native
+        // driver so user-defined names (Ha, OIII, SII, etc.) are used in
+        // sequences and UI instead of generic "Filter 1", "Filter 2".
+        await _syncFilterNamesToDriver(deviceId, status.filterNames);
+        _startStatusPolling(DeviceType.filterWheel, deviceId);
+      } catch (e) {
+        _stopStatusPolling(DeviceType.filterWheel);
+        notifier.setDisconnected();
+        rethrow;
       }
-
-      logger.debug(
-        'Filter wheel final status: ${status.filterNames.length} filter '
-        'names=${status.filterNames}, position=${status.position}',
-        source: 'DeviceService',
-      );
-
-      notifier.setConnected(
-        filterNames: status.filterNames,
-      );
-      notifier.setDeviceName(deviceName);
-      notifier.updatePosition(status.position);
-      notifier.setMoving(status.moving);
-
-      // After connection, sync profile/session filter names to the native
-      // driver so user-defined names (Ha, OIII, SII, etc.) are used in
-      // sequences and UI instead of generic "Filter 1", "Filter 2".
-      await _syncFilterNamesToDriver(deviceId, status.filterNames);
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+    });
   }
 
   /// Sync filter names from the active equipment profile or session to the
@@ -1565,10 +1891,7 @@ class DeviceService {
           syncedNames = profileFilterNames;
         }
 
-        await bridge_api.apiFilterwheelSetFilterNames(
-          deviceId: deviceId,
-          names: syncedNames,
-        );
+        await _backend.filterWheelSetNames(deviceId, syncedNames);
 
         notifier.setConnected(filterNames: syncedNames);
         logger.debug(
@@ -1601,10 +1924,7 @@ class DeviceService {
           syncedNames = sessionFilterNames;
         }
 
-        await bridge_api.apiFilterwheelSetFilterNames(
-          deviceId: deviceId,
-          names: syncedNames,
-        );
+        await _backend.filterWheelSetNames(deviceId, syncedNames);
 
         notifier.setConnected(filterNames: syncedNames);
         logger.debug(
@@ -1632,6 +1952,12 @@ class DeviceService {
   /// e.g. "native:zwo_efw:0" → "ZWO EFW 0"
   ///      "ascom:ASCOM.EFWmini.FilterWheel" → "EFWmini FilterWheel"
   String _friendlyNameFromId(String deviceId) {
+    if (deviceId == 'phd2' || deviceId == 'phd2_guider') {
+      return 'PHD2 Guiding';
+    }
+    if (deviceId == 'builtin_guider') {
+      return 'Built-in Guider';
+    }
     if (deviceId.startsWith('native:zwo_efw:')) {
       final hwId = deviceId.split(':').last;
       return 'ZWO EFW $hwId';
@@ -1653,7 +1979,29 @@ class DeviceService {
       return progId;
     }
     if (deviceId.startsWith('alpaca:')) {
-      return 'Alpaca Filter Wheel';
+      final parts = deviceId.split(':');
+      if (parts.length >= 3) {
+        return 'Alpaca ${parts.sublist(1).join(':')}';
+      }
+      return 'Alpaca Device';
+    }
+    if (deviceId.startsWith('indi:')) {
+      final parts = deviceId.split(':');
+      if (parts.length >= 4) {
+        return parts.sublist(3).join(':');
+      }
+      return 'INDI Device';
+    }
+    if (deviceId.startsWith('native:')) {
+      final parts = deviceId.split(':');
+      if (parts.length >= 3) {
+        return parts.sublist(1).join(' ').toUpperCase();
+      }
+      return 'Native Device';
+    }
+    if (deviceId.startsWith('simulator:')) {
+      final suffix = deviceId.substring('simulator:'.length);
+      return suffix.isEmpty ? 'Simulator Device' : 'Simulator $suffix';
     }
     return deviceId;
   }
@@ -1678,60 +2026,58 @@ class DeviceService {
   }
 
   /// Connect to a guider
-  Future<void> connectGuider(String deviceId) async {
-    final notifier = _ref.read(guiderStateProvider.notifier);
-    final isPhd2 = deviceId == 'phd2_guider' ||
-        deviceId == 'phd2' ||
-        deviceId.startsWith('phd2:') ||
-        deviceId.startsWith('phd2://');
+  Future<void> connectGuider(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(guiderStateProvider.notifier);
+      final isPhd2 = deviceId == 'phd2_guider' ||
+          deviceId == 'phd2' ||
+          deviceId.startsWith('phd2:') ||
+          deviceId.startsWith('phd2://');
 
-    // Special handling for PHD2 guider - uses different connection method
-    if (isPhd2) {
-      notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
-      try {
-        final settings = await _ref.read(appSettingsProvider.future);
-        // Auto-launch PHD2 when an executable path is configured and the
-        // host is local. Why: PHD2 is a separate process; if the user
-        // points Nightshade at a locally-installed binary, we should not
-        // require them to alt-tab to launch it before pressing Connect.
-        // For remote hosts (host != localhost/127.0.0.1) we never spawn —
-        // the user controls that machine's processes themselves.
-        if (settings.phd2Path.isNotEmpty &&
-            _isLocalHost(settings.phd2Host)) {
-          await _ensurePhd2Running(
-            executablePath: settings.phd2Path,
+      // Special handling for PHD2 guider - uses different connection method
+      if (isPhd2) {
+        notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
+        try {
+          final settings = await _ref.read(appSettingsProvider.future);
+          // Auto-launch PHD2 when an executable path is configured and the
+          // host is local. Why: PHD2 is a separate process; if the user
+          // points Nightshade at a locally-installed binary, we should not
+          // require them to alt-tab to launch it before pressing Connect.
+          // For remote hosts (host != localhost/127.0.0.1) we never spawn —
+          // the user controls that machine's processes themselves.
+          if (settings.phd2Path.isNotEmpty && _isLocalHost(settings.phd2Host)) {
+            await _ensurePhd2Running(
+              executablePath: settings.phd2Path,
+              host: settings.phd2Host,
+              port: settings.phd2Port,
+            );
+          }
+          await _backend.phd2Connect(
             host: settings.phd2Host,
             port: settings.phd2Port,
           );
+          notifier.setConnected();
+        } catch (e) {
+          notifier.setDisconnected();
+          rethrow;
         }
-        await _backend.phd2Connect(
-          host: settings.phd2Host,
-          port: settings.phd2Port,
-        );
+        return;
+      }
+
+      // Standard guider connection (ASCOM/Alpaca/INDI)
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.guider, deviceId);
+
+      notifier.setConnecting(deviceId, deviceName);
+
+      try {
+        await _backend.connectDevice(DeviceType.guider, deviceId);
         notifier.setConnected();
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
       }
-      return;
-    }
-
-    // Standard guider connection (ASCOM/Alpaca/INDI)
-    final devices = await discoverDevices(DeviceType.guider);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Guider not found: $deviceId'),
-    );
-
-    notifier.setConnecting(deviceId, device.name);
-
-    try {
-      await _backend.connectDevice(DeviceType.guider, deviceId);
-      notifier.setConnected();
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+    });
   }
 
   /// Disconnect guider
@@ -1762,24 +2108,23 @@ class DeviceService {
   }
 
   /// Connect to a dome
-  Future<void> connectDome(String deviceId) async {
-    final notifier = _ref.read(domeStateProvider.notifier);
+  Future<void> connectDome(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(domeStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.dome);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Dome not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.dome, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.dome, deviceId);
-      notifier.setConnected();
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+      try {
+        await _backend.connectDevice(DeviceType.dome, deviceId);
+        notifier.setConnected();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
   }
 
   /// Disconnect dome
@@ -1796,24 +2141,23 @@ class DeviceService {
   }
 
   /// Connect to a weather device
-  Future<void> connectWeather(String deviceId) async {
-    final notifier = _ref.read(weatherStateProvider.notifier);
+  Future<void> connectWeather(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(weatherStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.weather);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Weather device not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.weather, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.weather, deviceId);
-      notifier.setConnected();
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+      try {
+        await _backend.connectDevice(DeviceType.weather, deviceId);
+        notifier.setConnected();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
   }
 
   /// Disconnect weather device
@@ -1830,24 +2174,23 @@ class DeviceService {
   }
 
   /// Connect to a safety monitor
-  Future<void> connectSafetyMonitor(String deviceId) async {
-    final notifier = _ref.read(safetyMonitorStateProvider.notifier);
+  Future<void> connectSafetyMonitor(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(safetyMonitorStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.safetyMonitor);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Safety monitor not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.safetyMonitor, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.safetyMonitor, deviceId);
-      notifier.setConnected();
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+      try {
+        await _backend.connectDevice(DeviceType.safetyMonitor, deviceId);
+        notifier.setConnected();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
   }
 
   /// Disconnect safety monitor
@@ -1865,24 +2208,28 @@ class DeviceService {
   }
 
   /// Connect to a rotator
-  Future<void> connectRotator(String deviceId) async {
-    final notifier = _ref.read(rotatorStateProvider.notifier);
+  Future<void> connectRotator(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(rotatorStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.rotator);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Rotator not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.rotator, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
-    try {
-      await _backend.connectDevice(DeviceType.rotator, deviceId);
-      notifier.setConnected();
-    } catch (e) {
-      notifier.setDisconnected();
-      rethrow;
-    }
+      try {
+        await _backend.connectDevice(DeviceType.rotator, deviceId);
+        notifier.setConnected();
+        final status = await _backend.getRotatorStatus(deviceId);
+        notifier.updatePosition(status.position);
+        notifier.setMoving(status.moving);
+        _startStatusPolling(DeviceType.rotator, deviceId);
+      } catch (e) {
+        _stopStatusPolling(DeviceType.rotator);
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
   }
 
   /// Disconnect rotator
@@ -1894,28 +2241,59 @@ class DeviceService {
         await _backend.disconnectDevice(DeviceType.rotator, state.deviceId!);
       }
     } finally {
+      _stopStatusPolling(DeviceType.rotator);
       notifier.setDisconnected();
     }
   }
 
   /// Connect to a cover calibrator (flat panel)
-  Future<void> connectCoverCalibrator(String deviceId) async {
-    final notifier = _ref.read(coverCalibratorStateProvider.notifier);
+  Future<void> connectCoverCalibrator(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(coverCalibratorStateProvider.notifier);
 
-    final devices = await discoverDevices(DeviceType.coverCalibrator);
-    final device = devices.firstWhere(
-      (d) => d.id == deviceId,
-      orElse: () => throw Exception('Cover calibrator not found: $deviceId'),
-    );
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.coverCalibrator, deviceId);
 
-    notifier.setConnecting(deviceId, device.name);
+      notifier.setConnecting(deviceId, deviceName);
 
+      try {
+        await _backend.connectDevice(DeviceType.coverCalibrator, deviceId);
+        notifier.setConnected();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
+  }
+
+  /// Connect to a switch device
+  Future<void> connectSwitch(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(switchStateProvider.notifier);
+      final deviceName =
+          await _resolveDeviceDisplayName(DeviceType.switch_, deviceId);
+
+      notifier.setConnecting(deviceId, deviceName);
+      try {
+        await _backend.connectDevice(DeviceType.switch_, deviceId);
+        notifier.setConnected();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
+  }
+
+  /// Disconnect switch device
+  Future<void> disconnectSwitch() async {
+    final notifier = _ref.read(switchStateProvider.notifier);
+    final state = _ref.read(switchStateProvider);
     try {
-      await _backend.connectDevice(DeviceType.coverCalibrator, deviceId);
-      notifier.setConnected();
-    } catch (e) {
+      if (state.deviceId != null) {
+        await _backend.disconnectDevice(DeviceType.switch_, state.deviceId!);
+      }
+    } finally {
       notifier.setDisconnected();
-      rethrow;
     }
   }
 
@@ -1940,55 +2318,109 @@ class DeviceService {
     String? focuserId,
     String? filterWheelId,
     String? guiderId,
+    void Function(DeviceConnectProgress progress)? onProgress,
   }) async {
-    final futures = <Future>[];
-    final errors = <String>[];
+    final tasks = <_ProfileConnectTask>[
+      if (cameraId != null && cameraId.isNotEmpty)
+        _ProfileConnectTask('camera', cameraId, () => connectCamera(cameraId)),
+      if (mountId != null && mountId.isNotEmpty)
+        _ProfileConnectTask('mount', mountId, () => connectMount(mountId)),
+      if (focuserId != null && focuserId.isNotEmpty)
+        _ProfileConnectTask(
+            'focuser', focuserId, () => connectFocuser(focuserId)),
+      if (filterWheelId != null && filterWheelId.isNotEmpty)
+        _ProfileConnectTask('filterWheel', filterWheelId,
+            () => connectFilterWheel(filterWheelId)),
+      if (guiderId != null && guiderId.isNotEmpty)
+        _ProfileConnectTask('guider', guiderId, () => connectGuider(guiderId)),
+    ];
 
-    if (cameraId != null && cameraId.isNotEmpty) {
-      futures.add(
-        connectCamera(cameraId).catchError((e) {
-          errors.add('Camera: $e');
-        }),
-      );
+    for (final task in tasks) {
+      onProgress?.call(DeviceConnectProgress(
+        deviceType: task.deviceType,
+        deviceId: task.deviceId,
+        status: DeviceConnectProgressStatus.connecting,
+      ));
+      try {
+        await task.connect();
+        onProgress?.call(DeviceConnectProgress(
+          deviceType: task.deviceType,
+          deviceId: task.deviceId,
+          status: DeviceConnectProgressStatus.connected,
+        ));
+      } catch (e) {
+        onProgress?.call(DeviceConnectProgress(
+          deviceType: task.deviceType,
+          deviceId: task.deviceId,
+          status: DeviceConnectProgressStatus.failed,
+          error: e,
+          errorMessage: e.toString(),
+        ));
+        rethrow;
+      }
+    }
+  }
+
+  Stream<DeviceConnectProgress> connectAllFromProfile(
+      EquipmentProfileModel profile) async* {
+    final tasks = <_ProfileConnectTask>[
+      if (profile.cameraId != null && profile.cameraId!.isNotEmpty)
+        _ProfileConnectTask('camera', profile.cameraId!,
+            () => connectCamera(profile.cameraId!)),
+      if (profile.mountId != null && profile.mountId!.isNotEmpty)
+        _ProfileConnectTask(
+            'mount', profile.mountId!, () => connectMount(profile.mountId!)),
+      if (profile.focuserId != null && profile.focuserId!.isNotEmpty)
+        _ProfileConnectTask('focuser', profile.focuserId!,
+            () => connectFocuser(profile.focuserId!)),
+      if (profile.filterWheelId != null && profile.filterWheelId!.isNotEmpty)
+        _ProfileConnectTask('filterWheel', profile.filterWheelId!,
+            () => connectFilterWheel(profile.filterWheelId!)),
+      if (profile.guiderId != null && profile.guiderId!.isNotEmpty)
+        _ProfileConnectTask('guider', profile.guiderId!,
+            () => connectGuider(profile.guiderId!)),
+    ];
+
+    if (tasks.isEmpty) {
+      return;
     }
 
-    if (mountId != null && mountId.isNotEmpty) {
-      futures.add(
-        connectMount(mountId).catchError((e) {
-          errors.add('Mount: $e');
-        }),
-      );
+    final controller = StreamController<DeviceConnectProgress>();
+    var remaining = tasks.length;
+
+    for (final task in tasks) {
+      controller.add(DeviceConnectProgress(
+        deviceType: task.deviceType,
+        deviceId: task.deviceId,
+        status: DeviceConnectProgressStatus.connecting,
+      ));
+
+      unawaited(() async {
+        try {
+          await task.connect();
+          controller.add(DeviceConnectProgress(
+            deviceType: task.deviceType,
+            deviceId: task.deviceId,
+            status: DeviceConnectProgressStatus.connected,
+          ));
+        } catch (e) {
+          controller.add(DeviceConnectProgress(
+            deviceType: task.deviceType,
+            deviceId: task.deviceId,
+            status: DeviceConnectProgressStatus.failed,
+            error: e,
+            errorMessage: e.toString(),
+          ));
+        } finally {
+          remaining--;
+          if (remaining == 0) {
+            await controller.close();
+          }
+        }
+      }());
     }
 
-    if (focuserId != null && focuserId.isNotEmpty) {
-      futures.add(
-        connectFocuser(focuserId).catchError((e) {
-          errors.add('Focuser: $e');
-        }),
-      );
-    }
-
-    if (filterWheelId != null && filterWheelId.isNotEmpty) {
-      futures.add(
-        connectFilterWheel(filterWheelId).catchError((e) {
-          errors.add('Filter Wheel: $e');
-        }),
-      );
-    }
-
-    if (guiderId != null && guiderId.isNotEmpty) {
-      futures.add(
-        connectGuider(guiderId).catchError((e) {
-          errors.add('Guider: $e');
-        }),
-      );
-    }
-
-    await Future.wait(futures);
-
-    if (errors.isNotEmpty) {
-      throw Exception('Some devices failed to connect:\n${errors.join('\n')}');
-    }
+    yield* controller.stream;
   }
 
   /// Connect all devices from the active equipment profile
@@ -2011,13 +2443,30 @@ class DeviceService {
 
   /// Disconnect all devices
   Future<void> disconnectAll() async {
-    await Future.wait([
-      disconnectCamera(),
-      disconnectMount(),
-      disconnectFocuser(),
-      disconnectFilterWheel(),
-      disconnectGuider(),
-    ]);
+    final operations = <String, Future<void> Function()>{
+      'Camera': disconnectCamera,
+      'Mount': disconnectMount,
+      'Focuser': disconnectFocuser,
+      'Filter Wheel': disconnectFilterWheel,
+      'Guider': disconnectGuider,
+    };
+    final errors = <String>[];
+
+    await Future.wait(
+      operations.entries.map((entry) async {
+        try {
+          await entry.value();
+        } catch (e) {
+          errors.add('${entry.key}: $e');
+        }
+      }),
+      eagerError: false,
+    );
+
+    if (errors.isNotEmpty) {
+      throw Exception(
+          'Some devices failed to disconnect:\n${errors.join('\n')}');
+    }
   }
 
   // ===========================================================================
@@ -2059,10 +2508,28 @@ class DeviceService {
 
     try {
       await _backend.mountSlewToCoordinates(deviceId, ra, dec);
-      mountNotifier.updatePosition(ra, dec, 0.0, 0.0);
-      mountNotifier.setParked(false);
+      try {
+        final status = await _backend.getMountStatus(deviceId);
+        mountNotifier.updatePosition(
+          status.rightAscension,
+          status.declination,
+          status.altitude,
+          status.azimuth,
+        );
+        mountNotifier.setParked(status.parked);
+        mountNotifier.setTracking(status.tracking);
+        mountNotifier.setSlewing(status.slewing);
+      } catch (_) {
+        final current = _ref.read(mountStateProvider);
+        mountNotifier.updatePosition(
+          ra,
+          dec,
+          current.altitude ?? 0.0,
+          current.azimuth ?? 0.0,
+        );
+        mountNotifier.setParked(false);
+      }
     } finally {
-      mountNotifier.setSlewing(false);
       operationsNotifier.completeOperation(OperationType.slewToTarget);
     }
   }
@@ -2112,10 +2579,15 @@ class DeviceService {
 
     try {
       await _backend.mountPark(deviceId);
-      mountNotifier.setParked(true);
-      mountNotifier.setTracking(false);
+      try {
+        final status = await _backend.getMountStatus(deviceId);
+        mountNotifier.setParked(status.parked);
+        mountNotifier.setTracking(status.tracking);
+        mountNotifier.setSlewing(status.slewing);
+      } catch (_) {
+        mountNotifier.setSlewing(true);
+      }
     } finally {
-      mountNotifier.setSlewing(false);
       operationsNotifier.completeOperation(OperationType.parkMount);
     }
   }
@@ -2136,7 +2608,14 @@ class DeviceService {
     try {
       await _backend.mountUnpark(deviceId);
       final mountNotifier = _ref.read(mountStateProvider.notifier);
-      mountNotifier.setParked(false);
+      try {
+        final status = await _backend.getMountStatus(deviceId);
+        mountNotifier.setParked(status.parked);
+        mountNotifier.setTracking(status.tracking);
+        mountNotifier.setSlewing(status.slewing);
+      } catch (_) {
+        mountNotifier.setParked(false);
+      }
     } finally {
       operationsNotifier.completeOperation(OperationType.unparkMount);
     }
@@ -2361,6 +2840,7 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    _focuserVerifyGeneration++;
 
     try {
       await _backend.focuserHalt(deviceId);
@@ -2381,9 +2861,13 @@ class DeviceService {
     required int targetPosition,
   }) async {
     final deadline = DateTime.now().add(_focuserMoveTimeout);
+    final generation = ++_focuserVerifyGeneration;
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _focuserVerifyGeneration) {
+        throw Exception('Focuser position verification cancelled.');
+      }
       final status = await _backend.getFocuserStatus(deviceId);
       focuserNotifier.updatePosition(status.position);
       focuserNotifier.setMoving(status.moving);
@@ -2501,6 +2985,7 @@ class DeviceService {
     }
 
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+    _rotatorVerifyGeneration++;
 
     try {
       await _backend.rotatorHalt(deviceId);
@@ -2524,9 +3009,13 @@ class DeviceService {
     required double targetAngle,
   }) async {
     final deadline = DateTime.now().add(_rotatorMoveTimeout);
+    final generation = ++_rotatorVerifyGeneration;
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _rotatorVerifyGeneration) {
+        throw Exception('Rotator position verification cancelled.');
+      }
       final status = await _backend.getRotatorStatus(deviceId);
       rotatorNotifier.updatePosition(status.position,
           mechanicalPosition: status.mechanicalPosition);
@@ -2832,9 +3321,13 @@ class DeviceService {
     required List<String> filterNames,
   }) async {
     final deadline = DateTime.now().add(_filterWheelVerifyTimeout);
+    final generation = ++_filterWheelVerifyGeneration;
     final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _filterWheelVerifyGeneration) {
+        throw Exception('Filter wheel position verification cancelled.');
+      }
       final status = await _backend.getFilterWheelStatus(deviceId);
       final isMoving = status.moving || status.position < 0;
 
@@ -2902,6 +3395,11 @@ class DeviceService {
         return;
       }
 
+      final filterWheelDeviceId = await _getFilterWheelDeviceId();
+      if (filterWheelDeviceId == null || filterWheelDeviceId.isEmpty) {
+        return;
+      }
+
       // Check if focuser is connected
       final focuserDeviceId = await _getFocuserDeviceId();
       if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
@@ -2929,7 +3427,9 @@ class DeviceService {
       }
 
       // Calculate delta from last applied offset
-      final delta = newOffset - _lastAppliedFilterOffset;
+      final lastAppliedOffset =
+          _lastAppliedFilterOffsetByWheel[filterWheelDeviceId] ?? 0;
+      final delta = newOffset - lastAppliedOffset;
 
       if (delta == 0) {
         // No movement needed
@@ -2951,7 +3451,7 @@ class DeviceService {
       try {
         await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
         focuserNotifier.updatePosition(targetPosition);
-        _lastAppliedFilterOffset = newOffset;
+        _lastAppliedFilterOffsetByWheel[filterWheelDeviceId] = newOffset;
 
         final loggingService = _ref.read(loggingServiceProvider);
         loggingService.info(
@@ -3210,58 +3710,80 @@ class DeviceService {
   }
 }
 
+class _ProfileConnectTask {
+  final String deviceType;
+  final String deviceId;
+  final Future<void> Function() connect;
+
+  const _ProfileConnectTask(this.deviceType, this.deviceId, this.connect);
+}
+
 /// Provider for the device service
 final deviceServiceProvider = Provider<DeviceService>((ref) {
   final backend = ref.watch(backendProvider);
   final service = DeviceService(ref, backend);
-  ref.onDispose(() => service.dispose());
+  final quiescer = service.prepareForBackendSwap;
+  registerBackendSwapQuiescer(quiescer);
+  ref.onDispose(() {
+    unregisterBackendSwapQuiescer(quiescer);
+    service.dispose();
+  });
   return service;
 });
 
 /// Provider for available cameras
-final availableCamerasProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableCamerasProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.camera);
 });
 
 /// Provider for available mounts
-final availableMountsProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableMountsProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.mount);
 });
 
 /// Provider for available focusers
-final availableFocusersProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableFocusersProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.focuser);
 });
 
 /// Provider for available filter wheels
-final availableFilterWheelsProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableFilterWheelsProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref
       .watch(deviceServiceProvider)
       .discoverDevices(DeviceType.filterWheel);
 });
 
 /// Provider for available guiders
-final availableGuidersProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableGuidersProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.guider);
 });
 
 /// Provider for available rotators
-final availableRotatorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableRotatorsProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.rotator);
 });
 
 /// Provider for available domes
-final availableDomesProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableDomesProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.dome);
 });
 
 /// Provider for available weather devices
-final availableWeatherProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableWeatherProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.weather);
 });
 
 /// Provider for available safety monitors
-final availableSafetyMonitorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
+final availableSafetyMonitorsProvider =
+    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
   return ref
       .watch(deviceServiceProvider)
       .discoverDevices(DeviceType.safetyMonitor);

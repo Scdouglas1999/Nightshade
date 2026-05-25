@@ -169,6 +169,32 @@ impl PoseController {
         self.offset = offset;
     }
 
+    /// Apply a user-driven view pose from gestures or [`PlanetariumCommand::SetPose`].
+    ///
+    /// In [`PoseLock::Free`] this replaces [`Self::free_pose`]. When locked, pan/zoom/roll
+    /// update [`Self::offset`] relative to the lock center at `inputs`.
+    pub fn apply_user_pose(
+        &mut self,
+        inputs: &PoseInputs,
+        user_pose: ViewPose,
+    ) -> Result<(), PoseError> {
+        self.free_pose.projection = user_pose.projection;
+        match self.lock {
+            PoseLock::Free => {
+                self.free_pose = user_pose;
+                Ok(())
+            }
+            _ => {
+                let (center_ra, center_dec) = self.lock_center_radec(inputs)?;
+                self.offset.d_ra_rad = wrap_ra_rad(user_pose.ra_rad - center_ra);
+                self.offset.d_dec_rad = user_pose.dec_rad - center_dec;
+                self.offset.d_roll_rad = user_pose.roll_rad;
+                self.offset.fov_rad = user_pose.fov_rad;
+                Ok(())
+            }
+        }
+    }
+
     /// Derive the view pose for the current lock and inputs.
     pub fn derived_pose(&self, inputs: &PoseInputs) -> Result<ViewPose, PoseError> {
         match self.lock {
@@ -201,9 +227,28 @@ impl PoseController {
             projection: self.free_pose.projection,
         }
     }
+
+    fn lock_center_radec(&self, inputs: &PoseInputs) -> Result<(f64, f64), PoseError> {
+        match self.lock {
+            PoseLock::Free => Ok((self.free_pose.ra_rad, self.free_pose.dec_rad)),
+            PoseLock::LockedToMount => {
+                let mount = inputs.mount.ok_or(PoseError::MissingMount)?;
+                Ok((mount.ra_rad, mount.dec_rad))
+            }
+            PoseLock::LockedToTarget(id) => {
+                let target = inputs
+                    .target
+                    .filter(|t| t.id == id)
+                    .ok_or(PoseError::MissingTarget(id))?;
+                Ok((target.ra_rad, target.dec_rad))
+            }
+            PoseLock::LockedToBody(body) => body_equatorial_rad(body, inputs.time),
+        }
+    }
 }
 
-fn body_equatorial_rad(body: BodyId, time: AstroTime) -> Result<(f64, f64), PoseError> {
+/// Equatorial J2000 RA/Dec (radians) for a solar-system body at `time`.
+pub fn body_equatorial_rad(body: BodyId, time: AstroTime) -> Result<(f64, f64), PoseError> {
     match body {
         BodyId::Moon => {
             let moon = moon_equatorial_j2000_from_jd_tt(time.jd_tt);

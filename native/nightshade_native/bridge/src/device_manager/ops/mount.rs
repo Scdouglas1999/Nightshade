@@ -156,23 +156,22 @@ impl DeviceManager {
                 Err(format!("Alpaca mount {} not connected", device_id))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+                let server_key = format!("{}:{}", host, port);
+                let client = {
                     let clients = self.indi_clients.read().await;
-                    if let Some(client) = clients.get(&server_key) {
-                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                    clients.get(&server_key).cloned()
+                };
+                if let Some(client) = client {
+                    let mount = nightshade_indi::IndiMount::new(client, &device_name);
                         return mount.sync_to_coordinates(ra, dec).await.map_err(|e| {
                             format!(
                                 "Failed to sync INDI mount {} to RA={:.4} Dec={:.4}: {}",
                                 device_name, ra, dec, e
                             )
                         });
-                    }
-                    return Err(format!("INDI client not connected for {}", server_key));
                 }
-                Err(format!("Invalid INDI device ID format: {}", device_id))
+                Err(format!("INDI client not connected for {}", server_key))
             }
             DriverType::Native => {
                 let mut native_mounts = self.native_mounts.write().await;
@@ -723,13 +722,14 @@ impl DeviceManager {
                 Err(format!("Alpaca mount {} not connected", device_id))
             }
             DriverType::Indi => {
-                let parts: Vec<&str> = device_id.split(':').collect();
-                if parts.len() >= 4 {
-                    let server_key = format!("{}:{}", parts[1], parts[2]);
-                    let device_name = parts[3..].join(":");
+                let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+                let server_key = format!("{}:{}", host, port);
+                let client = {
                     let clients = self.indi_clients.read().await;
-                    if let Some(client) = clients.get(&server_key) {
-                        let mount = nightshade_indi::IndiMount::new(client.clone(), &device_name);
+                    clients.get(&server_key).cloned()
+                };
+                if let Some(client) = client {
+                    let mount = nightshade_indi::IndiMount::new(client, &device_name);
                         match dir {
                             nightshade_native::traits::GuideDirection::North => {
                                 mount.move_north(true).await.map_err(|e| e.to_string())?;
@@ -757,10 +757,8 @@ impl DeviceManager {
                             }
                         }
                         return Ok(());
-                    }
-                    return Err(format!("INDI client not connected for {}", server_key));
                 }
-                Err(format!("Invalid INDI device ID format: {}", device_id))
+                Err(format!("INDI client not connected for {}", server_key))
             }
             DriverType::Simulator => {
                 Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())

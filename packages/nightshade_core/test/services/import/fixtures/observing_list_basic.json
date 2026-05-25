@@ -1,0 +1,38 @@
+{
+  "_format": "observing_list_v1",
+  "name": "Spring DSO Tour",
+  "version": 1,
+  "description": "A short tour of bright spring galaxies",
+  "items": [
+    {
+      "target": {
+        "name": "M51",
+        "ra": 13.4979,
+        "dec": 47.1953
+      },
+      "priority": 1,
+      "notes": "Whirlpool — favorite",
+      "exposures": [
+        { "duration_secs": 300, "count": 30, "filter": "L" },
+        { "duration_secs": 600, "count": 20, "filter": "Ha", "gain": 100 }
+      ]
+    },
+    {
+      "target": {
+        "name": "M81",
+        "ra": 9.9258,
+        "dec": 69.0653
+      },
+      "priority": 2,
+      "notes": "Bode's"
+    },
+    {
+      "target": {
+        "name": "M101",
+        "ra": 14.0537,
+        "dec": 54.349
+      },
+      "priority": 3
+    }
+  ]
+}

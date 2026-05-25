@@ -167,6 +167,27 @@ fn locked_to_body_moon_produces_finite_pose() {
 }
 
 #[test]
+fn apply_user_pose_updates_offset_when_locked_to_mount() {
+    let mut ctrl = PoseController::new(test_pose());
+    ctrl.set_lock(PoseLock::LockedToMount);
+    let inputs = PoseInputs {
+        time: time_2000(),
+        mount: Some(MountPosition {
+            ra_rad: 1.0,
+            dec_rad: 0.2,
+        }),
+        target: None,
+    };
+    let mut user = test_pose();
+    user.ra_rad = 1.1;
+    user.dec_rad = 0.25;
+    ctrl.apply_user_pose(&inputs, user).expect("apply user");
+    let pose = ctrl.derived_pose(&inputs).expect("derived");
+    assert!((pose.ra_rad - 1.1).abs() < 1e-10);
+    assert!((pose.dec_rad - 0.25).abs() < 1e-10);
+}
+
+#[test]
 fn set_free_pose_updates_free_mode_output() {
     let mut ctrl = PoseController::new(test_pose());
     let mut next = test_pose();

@@ -8,11 +8,20 @@
 //! monolithic `devices.rs`.
 
 use crate::device::*;
-use crate::device_manager::{DeviceManager, ManagedDevice};
+use crate::device_manager::{DeviceManager, ManagedDevice, ReconnectConfig};
 use crate::event::*;
 use nightshade_native::traits::NativeDevice;
 use std::time::Duration;
 use tokio::time::interval;
+
+fn managed_device_needs_reconnect(device: &ManagedDevice, config: &ReconnectConfig) -> bool {
+    device.auto_reconnect
+        && matches!(
+            device.connection_state,
+            ConnectionState::Error | ConnectionState::Disconnected
+        )
+        && (config.max_attempts == 0 || device.reconnect_attempts < config.max_attempts)
+}
 
 impl DeviceManager {
     /// Background task for automatic reconnection
@@ -36,12 +45,7 @@ impl DeviceManager {
                 let devices = self.devices.read().await;
                 devices
                     .iter()
-                    .filter(|(_, dev)| {
-                        dev.auto_reconnect
-                            && dev.connection_state == ConnectionState::Error
-                            && (self.reconnect_config.max_attempts == 0
-                                || dev.reconnect_attempts < self.reconnect_config.max_attempts)
-                    })
+                    .filter(|(_, dev)| managed_device_needs_reconnect(dev, &self.reconnect_config))
                     .map(|(id, dev)| (id.clone(), dev.clone()))
                     .collect()
             };
@@ -271,9 +275,13 @@ impl DeviceManager {
             }
         }
 
+        let mut disconnect_errors = Vec::new();
+
         // Clean up device from driver-specific storage based on driver type and device type
         if device_info.id == crate::builtin_guider::device_id() {
-            let _ = crate::builtin_guider::disconnect().await;
+            if let Err(error) = crate::builtin_guider::disconnect().await {
+                disconnect_errors.push(format!("built-in guider disconnect failed: {}", error));
+            }
         }
         match device_info.driver_type {
             DriverType::Native => {
@@ -399,7 +407,12 @@ impl DeviceManager {
                             let _ = cover.disconnect().await;
                         }
                     }
-                    DeviceType::Guider => {} // Alpaca guider devices are not currently managed here
+                    DeviceType::Guider => {
+                        disconnect_errors.push(format!(
+                            "Alpaca guider {} has no managed disconnect wrapper",
+                            device_id
+                        ));
+                    }
                 }
             }
             #[cfg(windows)]
@@ -507,6 +520,14 @@ impl DeviceManager {
             .remove_device(device_info.device_type, device_id)
             .await;
 
+        if !disconnect_errors.is_empty() {
+            return Err(format!(
+                "Disconnected {} from Nightshade state, but driver cleanup reported: {}",
+                device_id,
+                disconnect_errors.join("; ")
+            ));
+        }
+
         Ok(())
     }
 
@@ -515,6 +536,10 @@ impl DeviceManager {
         let mut devices = self.devices.write().await;
         if let Some(dev) = devices.get_mut(device_id) {
             dev.auto_reconnect = enabled;
+            if enabled && dev.connection_state == ConnectionState::Disconnected {
+                dev.reconnect_attempts = 0;
+                dev.last_error = None;
+            }
         }
     }
 
@@ -539,11 +564,77 @@ impl DeviceManager {
     /// Stop the reconnection background task
     pub async fn shutdown(&self) {
         *self.stop_reconnect.write().await = true;
+        self.stop_all_heartbeats().await;
     }
 
     /// Unregister a device
     pub async fn unregister_device(&self, device_id: &str) {
+        let _ = self.stop_heartbeat(device_id).await;
         let mut devices = self.devices.write().await;
         devices.remove(device_id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn managed_device(
+        connection_state: ConnectionState,
+        auto_reconnect: bool,
+        reconnect_attempts: u32,
+    ) -> ManagedDevice {
+        ManagedDevice {
+            info: DeviceInfo {
+                id: "native:test_reconnect".to_string(),
+                name: "Reconnect Test".to_string(),
+                device_type: DeviceType::Mount,
+                driver_type: DriverType::Native,
+                description: "Reconnect test".to_string(),
+                driver_version: "test".to_string(),
+                serial_number: None,
+                unique_id: None,
+                display_name: "Reconnect Test".to_string(),
+            },
+            connection_state,
+            last_error: None,
+            reconnect_attempts,
+            auto_reconnect,
+            last_successful_comm: None,
+            heartbeat_active: false,
+            api_version: None,
+        }
+    }
+
+    #[test]
+    fn reconnect_candidates_include_disconnected_devices_with_auto_reconnect_enabled() {
+        let config = ReconnectConfig::default();
+        let disconnected = managed_device(ConnectionState::Disconnected, true, 0);
+        let errored = managed_device(ConnectionState::Error, true, 0);
+        let connected = managed_device(ConnectionState::Connected, true, 0);
+        let manual_disconnect = managed_device(ConnectionState::Disconnected, false, 0);
+
+        assert!(managed_device_needs_reconnect(&disconnected, &config));
+        assert!(managed_device_needs_reconnect(&errored, &config));
+        assert!(!managed_device_needs_reconnect(&connected, &config));
+        assert!(!managed_device_needs_reconnect(&manual_disconnect, &config));
+    }
+
+    #[test]
+    fn reconnect_candidates_respect_max_attempts_for_disconnected_devices() {
+        let config = ReconnectConfig {
+            max_attempts: 2,
+            ..ReconnectConfig::default()
+        };
+        let at_limit = managed_device(ConnectionState::Disconnected, true, 2);
+        let under_limit = managed_device(ConnectionState::Disconnected, true, 1);
+        let unlimited_config = ReconnectConfig {
+            max_attempts: 0,
+            ..ReconnectConfig::default()
+        };
+
+        assert!(!managed_device_needs_reconnect(&at_limit, &config));
+        assert!(managed_device_needs_reconnect(&under_limit, &config));
+        assert!(managed_device_needs_reconnect(&at_limit, &unlimited_config));
     }
 }

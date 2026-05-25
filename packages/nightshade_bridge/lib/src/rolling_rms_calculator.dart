@@ -5,6 +5,7 @@
 ///
 /// This is used for PHD2 guiding statistics to provide accurate
 /// error measurements over a recent time window.
+library;
 
 import 'dart:collection';
 import 'dart:math';

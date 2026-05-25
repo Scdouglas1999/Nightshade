@@ -102,7 +102,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 28;
+  int get schemaVersion => 29;
 
   @override
   MigrationStrategy get migration {
@@ -1460,6 +1460,19 @@ class NightshadeDatabase extends _$NightshadeDatabase {
             'CREATE UNIQUE INDEX IF NOT EXISTS idx_defect_maps_lookup '
             'ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)',
           );
+        }
+
+        // Version 29: Add safety monitor device id to equipment profiles.
+        if (from < 29) {
+          final hasSafetyMonitorId = await _columnExists(
+            'equipment_profiles',
+            'safety_monitor_id',
+          );
+          if (!hasSafetyMonitorId) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN safety_monitor_id TEXT',
+            );
+          }
         }
 
         await _ensureDefaultSettings();
