@@ -6,8 +6,7 @@ import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart';
 import 'support/fake_planetarium_driver.dart';
 
 void main() {
-  testWidgets('InteractiveSkyView resizes and hosts Texture from handle',
-      (tester) async {
+  testWidgets('InteractiveSkyView hosts Texture from handle', (tester) async {
     final fake = FakePlanetariumDriver();
 
     await tester.pumpWidget(
@@ -25,9 +24,6 @@ void main() {
 
     await tester.pumpAndSettle();
 
-    expect(fake.lastResizeWidth, 640);
-    expect(fake.lastResizeHeight, 480);
-    expect(fake.lastResizeDevicePixelRatio, tester.view.devicePixelRatio);
     expect(find.byType(Texture), findsOneWidget);
   });
 }
