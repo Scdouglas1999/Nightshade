@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/scene_snapshot.dart';
 import 'planetarium_handle_provider.dart';
+import 'planetarium_quiesced_provider.dart';
 
 /// Reads the native [`SceneSnapshotDto`] once per Flutter frame for overlays.
 ///
@@ -24,6 +25,14 @@ class SceneSnapshotNotifier extends Notifier<SceneSnapshotDto> {
       });
     });
 
+    ref.listen(planetariumQuiescedProvider, (_, quiesced) {
+      if (quiesced) {
+        _stopPolling();
+      } else {
+        _startPolling();
+      }
+    });
+
     final handle = ref.read(planetariumHandleProvider);
     if (handle.hasValue) {
       final snapshot = handle.requireValue.snapshot();
@@ -35,7 +44,9 @@ class SceneSnapshotNotifier extends Notifier<SceneSnapshotDto> {
   }
 
   void _startPolling() {
-    if (_polling || !ref.read(planetariumHandleProvider).hasValue) {
+    if (_polling ||
+        ref.read(planetariumQuiescedProvider) ||
+        !ref.read(planetariumHandleProvider).hasValue) {
       return;
     }
     _polling = true;

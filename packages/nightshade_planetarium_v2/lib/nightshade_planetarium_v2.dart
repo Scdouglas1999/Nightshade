@@ -13,6 +13,7 @@ export 'src/providers/core_observation_time_provider.dart';
 export 'src/providers/observer_provider.dart';
 export 'src/providers/observation_time_provider.dart';
 export 'src/providers/planetarium_handle_provider.dart';
+export 'src/providers/planetarium_quiesced_provider.dart';
 export 'src/providers/render_config_provider.dart';
 export 'src/providers/scene_snapshot_provider.dart';
 export 'src/providers/selection_provider.dart';
