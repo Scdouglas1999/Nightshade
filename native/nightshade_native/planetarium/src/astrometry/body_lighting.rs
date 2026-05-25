@@ -4,11 +4,12 @@
 //! Moon; phase angle is the Sun–target–observer angle at the body (JPL Horizons
 //! convention). Illuminated fraction follows Lambert: `(1 + cos i) / 2`.
 //!
+//! INTEGRATE: add `pub mod body_lighting;` to `astrometry/mod.rs`.
 
-use crate::astrometry::moon::{
+use super::moon::{
     angular_separation_rad, moon_ecliptic_j2000_from_jd_tt, moon_equatorial_j2000_from_jd_tt,
 };
-use crate::astrometry::vsop87::{
+use super::vsop87::{
     heliocentric_ecliptic, julian_millennia_tt, sun_equatorial_rad, VsopBody, VSOP87_J2000_JD,
     DAYS_PER_JULIAN_MILLENNIUM,
 };
