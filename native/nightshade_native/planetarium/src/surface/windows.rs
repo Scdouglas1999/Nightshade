@@ -4,6 +4,7 @@
 //! shared handle, which `irondash_texture` registers with the Flutter engine so the
 //! Dart-side `Texture(textureId: ...)` widget can display it.
 
+use crate::spike::Spike;
 use crate::surface::d3d11_shared::{allocate_shared, SharedTexture};
 use crate::{surface::PlatformSurface, PlanetariumError};
 
@@ -18,6 +19,7 @@ pub struct WindowsSurface {
     engine_handle: i64,
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
+    spike: Spike,
     current: Option<Allocated>,
 }
 
@@ -91,10 +93,19 @@ impl WindowsSurface {
         ))
         .map_err(|_| PlanetariumError::UnsupportedPlatform("wgpu DX12 device request failed"))?;
 
+        let device = Arc::new(device);
+        let queue = Arc::new(queue);
+        let spike = Spike::new(
+            device.clone(),
+            queue.clone(),
+            wgpu::TextureFormat::Bgra8Unorm,
+        );
+
         Ok(Self {
             engine_handle,
-            device: Arc::new(device),
-            queue: Arc::new(queue),
+            device,
+            queue,
+            spike,
             current: None,
         })
     }
@@ -148,6 +159,20 @@ impl PlatformSurface for WindowsSurface {
         }
         self.shutdown()?;
         self.allocate(width, height)
+    }
+
+    fn tick(&self) -> Result<(), PlanetariumError> {
+        let Some(a) = &self.current else {
+            return Err(PlanetariumError::UnsupportedPlatform(
+                "tick called before allocate/resize",
+            ));
+        };
+        let view = a
+            .shared
+            .wgpu
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.spike.tick(&view);
+        Ok(())
     }
 
     fn mark_frame_available(&self) -> Result<(), PlanetariumError> {

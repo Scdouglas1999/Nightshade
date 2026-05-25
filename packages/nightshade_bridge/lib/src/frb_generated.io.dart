@@ -15111,6 +15111,19 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__planetarium_spike__planetarium_spike_resizePtr
           .asFunction<WireSyncRust2DartDco Function(int, int, int)>();
 
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium_spike__planetarium_spike_tick(int handle) {
+    return _wire__crate__api__planetarium_spike__planetarium_spike_tick(handle);
+  }
+
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_tickPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_tick',
+  );
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_tick =
+      _wire__crate__api__planetarium_spike__planetarium_spike_tickPtr
+          .asFunction<WireSyncRust2DartDco Function(int)>();
+
   void wire__crate__api__imaging__save_fits_file_rich(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,

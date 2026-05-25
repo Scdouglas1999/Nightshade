@@ -19,6 +19,10 @@ PlatformInt64 planetariumSpikeResize(
     RustLib.instance.api.crateApiPlanetariumSpikePlanetariumSpikeResize(
         handle: handle, width: width, height: height);
 
+void planetariumSpikeTick({required PlatformInt64 handle}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumSpikePlanetariumSpikeTick(handle: handle);
+
 void planetariumSpikeDispose({required PlatformInt64 handle}) =>
     RustLib.instance.api
         .crateApiPlanetariumSpikePlanetariumSpikeDispose(handle: handle);
