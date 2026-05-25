@@ -9,11 +9,13 @@ use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
 pub use pipelines::stars::{
-    magnitude_to_tone, psf_radius_px, psf_zoom_factor_from_fov_rad, render_three_stars_rgba,
-    three_star_instances, three_stars_view_pose, StarInstance, StarsPipeline, THREE_STARS_SIZE,
+    magnitude_to_tone, psf_radius_px, psf_zoom_factor_from_fov_rad, render_scene_rgba,
+    render_three_stars_rgba, star_altitude_rad, three_star_instances, three_stars_scene,
+    three_stars_twinkle_scene, three_stars_view_pose, twinkle_altitude_gate,
+    twinkle_brightness_delta, twinkle_enabled, StarInstance, StarsPipeline, THREE_STARS_SIZE,
 };
 
-use crate::types::{RenderConfig, ViewPose};
+use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 
 /// Clear color for pass 0 (design §5.1 — black sky before atmosphere overwrites).
 pub const FRAME_CLEAR: wgpu::Color = wgpu::Color {
@@ -32,6 +34,12 @@ pub struct Scene {
     pub config: RenderConfig,
     /// GPU star instances for the current frame (may be empty).
     pub stars: Vec<StarInstance>,
+    /// Observer for horizontal altitude (twinkle / extinction).
+    pub observer: Observer,
+    /// Epoch for the frame chain.
+    pub astro_time: AstroTime,
+    /// Twinkle animation phase in radians (`AnimationState::twinkle_phase`).
+    pub twinkle_phase: f32,
 }
 
 impl Default for Scene {
@@ -40,6 +48,9 @@ impl Default for Scene {
             view_pose: ViewPose::default(),
             config: RenderConfig::default(),
             stars: Vec::new(),
+            observer: Observer::default(),
+            astro_time: AstroTime::from_jd_utc(crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC),
+            twinkle_phase: 0.0,
         }
     }
 }

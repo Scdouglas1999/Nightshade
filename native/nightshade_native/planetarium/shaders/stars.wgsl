@@ -1,13 +1,16 @@
 // Star instanced quads — design §5.2 (ICRS→view→projection, PSF, B−V color).
 // PSF size + tone mapping ported from v1 SkyRenderer (_magnitudeToRadius / _magnitudeToBrightness).
+// Twinkle: sin perturbation in the fragment shader (v1 sky_renderer), gated by config + altitude.
 
 struct StarUniforms {
     icrs_to_view: mat4x4<f32>,
     proj_scale: vec2<f32>,
     mag_limit: f32,
     psf_scale: f32,
-    twinkle_seed: f32,
+    twinkle_phase: f32,
+    twinkle_enabled: f32,
     viewport_pixels: vec2<f32>,
+    icrs_to_horizontal: mat3x3<f32>,
 }
 
 @group(0) @binding(0) var<uniform> uniforms: StarUniforms;
@@ -26,12 +29,17 @@ struct VsOut {
     @location(1) mag: f32,
     @location(2) bv: f32,
     @location(3) flags: u32,
+    @location(4) alt_rad: f32,
+    @location(5) star_phase: f32,
 }
 
 const MIN_COSC: f32 = 0.01;
 const OFF_CLIP: vec4<f32> = vec4<f32>(0.0, 0.0, -2.0, 1.0);
 const PSF_RADIUS_MIN: f32 = 0.5;
 const PSF_RADIUS_MAX: f32 = 25.0;
+const TWINKLE_MAG_CUTOFF: f32 = 4.0;
+const TWINKLE_ALT_DEG: f32 = 30.0;
+const TAU: f32 = 6.283185307;
 
 fn psf_base_radius_px(magnitude: f32) -> f32 {
     if (magnitude < 0.0) {
@@ -53,6 +61,21 @@ fn magnitude_to_tone(magnitude: f32) -> f32 {
     return clamp((7.0 - magnitude) / 6.0, 0.3, 1.0);
 }
 
+/// Scintillation increases toward the horizon (0 above 30° altitude).
+fn twinkle_altitude_gate(alt_rad: f32) -> f32 {
+    let alt_deg = alt_rad * 57.2957795;
+    if (alt_deg >= TWINKLE_ALT_DEG) {
+        return 0.0;
+    }
+    return 1.0 - clamp(alt_deg / TWINKLE_ALT_DEG, 0.0, 1.0);
+}
+
+/// v1 star-specific phase from equatorial coordinates.
+fn star_twinkle_phase(icrs_dir: vec3<f32>) -> f32 {
+    let dir = normalize(icrs_dir);
+    return fract(atan2(dir.y, dir.x) * 1000.0 + asin(clamp(dir.z, -1.0, 1.0)) * 100.0);
+}
+
 @vertex
 fn vs_main(in: VsIn) -> VsOut {
     var out: VsOut;
@@ -61,12 +84,16 @@ fn vs_main(in: VsIn) -> VsOut {
     out.flags = in.flags;
     out.uv = in.corner;
 
+    let dir = normalize(in.icrs_dir);
+    let enu = uniforms.icrs_to_horizontal * dir;
+    out.alt_rad = asin(clamp(enu.z, -1.0, 1.0));
+    out.star_phase = star_twinkle_phase(in.icrs_dir);
+
     if (in.mag > uniforms.mag_limit) {
         out.clip = OFF_CLIP;
         return out;
     }
 
-    let dir = normalize(in.icrs_dir);
     let view4 = uniforms.icrs_to_view * vec4<f32>(dir, 0.0);
     let v = view4.xyz;
     if (v.z < MIN_COSC) {
@@ -108,6 +135,26 @@ fn psf_alpha(r: f32, mag: f32) -> f32 {
     return clamp(a, 0.0, 1.0);
 }
 
+/// Brightness delta from twinkle (v1 magnitudes < 4, scaled by altitude gate).
+fn twinkle_brightness_delta(
+    phase_rad: f32,
+    star_phase: f32,
+    magnitude: f32,
+    alt_rad: f32,
+    enabled: f32,
+) -> f32 {
+    if (enabled < 0.5 || magnitude >= TWINKLE_MAG_CUTOFF) {
+        return 0.0;
+    }
+    let gate = twinkle_altitude_gate(alt_rad);
+    if (gate <= 0.0) {
+        return 0.0;
+    }
+    let t = fract(phase_rad / TAU + star_phase);
+    let factor = select(0.08, 0.15, magnitude < 2.0);
+    return sin(t * TAU) * factor * gate;
+}
+
 @fragment
 fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     let r = length(in.uv);
@@ -116,11 +163,16 @@ fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
     }
 
     var alpha = psf_alpha(r, in.mag);
-    let tw = 1.0 + 0.04 * sin(uniforms.twinkle_seed + in.mag * 3.7);
-    alpha = alpha * tw;
+    let tw = twinkle_brightness_delta(
+        uniforms.twinkle_phase,
+        in.star_phase,
+        in.mag,
+        in.alt_rad,
+        uniforms.twinkle_enabled,
+    );
+    let tone = clamp(magnitude_to_tone(in.mag) + tw, 0.0, 1.0);
 
     let rgb = bv_to_rgb(in.bv);
-    let tone = magnitude_to_tone(in.mag);
     let col = rgb * tone;
     return vec4<f32>(col * alpha, alpha);
 }
