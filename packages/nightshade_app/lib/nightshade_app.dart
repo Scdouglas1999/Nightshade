@@ -54,3 +54,5 @@ export 'screens/sequencer/widgets/sequence_enhancements.dart';
 
 // Services
 export 'services/location_sync_service.dart';
+export 'services/plugin_node_dispatcher_wiring.dart';
+export 'services/plugin_node_palette_wiring.dart';
