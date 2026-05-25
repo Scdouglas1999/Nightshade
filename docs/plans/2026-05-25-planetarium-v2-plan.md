@@ -2447,7 +2447,7 @@ Which approach?
 
 ## Implementation progress (coordinator log)
 
-> **Last updated:** 2026-05-25 (coordinator handoff, batch 2). **Branch:** `main` (36 commits ahead of `origin/main`). **Planetarium code HEAD:** `5d64513` (annual aberration). **Docs log commit:** `8dbbc7c` / `fcdb9bf` (prior). Verify: `git log --oneline --grep="planetarium-v2" -50`.
+> **Last updated:** 2026-05-25 (coordinator handoff, batch 3). **Branch:** `main` (57 commits ahead of `origin/main`). **Planetarium code HEAD:** `84a4561` (star pipeline). **Prior docs log:** `e4d202ce`. Verify: `git log --oneline --grep="planetarium-v2" -60`.
 
 ### Completed task numbers (committed)
 
@@ -2455,36 +2455,45 @@ Which approach?
 |-------|------------|
 | 1 | **1–8** |
 | 2 | **9–18** |
-| 3 | **19–25**, **27–30**, **22–23** (23: `aberration.rs` committed; **`pub mod aberration` missing at HEAD** — integrator WIP) |
-| 4 | **33**, **34** (HEALPix helpers bundled in `5cefaf3` Moon commit), **37** |
-| 7 | **75–77** |
+| 3 | **19–32** (integrator + frames/body_lighting in `a711e322`; benchmarks in `77d3affd`) |
+| 4 | **33–35**, **37–41** |
+| 5 | **47–48** |
+| 7 | **75–82**, **84** |
 
-**Not started / in flight (no planetarium-v2 commit yet):** 26, 31–32, 35–36, 38–46, 47+, 78–88, Phases 5–6, 8–11.
+**Not started (no planetarium-v2 commit yet):** 36, 42–46, 49+, 83, 85–88, Phases 6, 8–11.
 
-### Code review — P0 fixes (in flight)
+### Code review — P0 fixes: **landed**
 
-Rust + Dart readonly reviews flagged **P0** items; dedicated fix agent running (do not duplicate):
+| Item | Status | Commit |
+|------|--------|--------|
+| P0-1 `SetTime` / `SetObserver` applied in snapshots | **done** | `6cbf12aa` |
+| P0-2 Non-Windows `surface` stub (CI) | **done** | `447f71e5` |
+| P1 Resize polling + surface error propagation | **done** | `052fc273` |
 
-| P0 | Issue | Primary files |
-|----|--------|----------------|
-| 1 | `SetTime` / `SetObserver` accepted via FFI but never stored or applied in snapshots | `planetarium/src/handle.rs`, `bus/mod.rs`, `bridge/src/planetarium.rs` |
-| 2 | `surface/mod.rs` `compile_error!` breaks non-Windows workspace CI | `planetarium/src/surface/mod.rs` — need `cfg(windows)` surface + fail-loud stub |
+### Coordinator batch 3 — landed since `e4d202ce`
 
-**P1 (same agent if time):** release bridge mutex before `wait_texture_id` poll; propagate `planetarium_resize` surface errors.
+| Task / area | Commit | Subject |
+|-------------|--------|---------|
+| P0 + P1 | `6cbf12aa`, `447f71e5`, `052fc273` | Handle time/observer, cross-platform surface, resize errors |
+| Integrator 3 | `a711e322` | `aberration`, `frames`, `body_lighting` exports + tests |
+| 26 | `47eae877` | `FrameChain` ICRS→horizontal |
+| 31 | `181648d0` | Body phase angles |
+| 32 | `77d3affd` | Astrometry benchmarks + budget gating |
+| 35 | `dd6aa39b` | HYG → tile converter (`build_hyg_tiles`) |
+| 38 | `ac259282` | `CatalogSet` |
+| 39 | `abdfbce9` | Pack manifest + integrity |
+| 40 | `42a07a02` | Tile residency LRU |
+| 41 | `454c8b78` | Hit-test index |
+| 47 | `1ca67415` | Renderer entry + frame graph |
+| 48 | `84a4561a` | Star pipeline + WGSL golden |
+| 78 | `44bc2cf0` | `viewPoseProvider` |
+| 79 | `740fe853` | `observationTimeProvider` |
+| 80 | `d3835327` | `observerProvider` |
+| 81 | `13d3b597` | `renderConfigProvider` |
+| 82 | `d1a48add` | `sceneSnapshotProvider` |
+| 84 | `981a0b37` | `InteractiveSkyView` shell |
 
-### Parallel agents (coordinator batch 2)
-
-| Worker | Focus | Expected commit prefix |
-|--------|--------|-------------------------|
-| P0 fixes | Items above + handle lifecycle tests | `fix(planetarium-v2):` |
-| Integrator 3 | Wire `aberration`, `frames`, `body_lighting` in `astrometry/mod.rs`; land `frames.rs` / `body_lighting.rs` + tests | `fix(planetarium-v2): integrate …` |
-| Task 35 | HYG → tile converter tool | `feat(planetarium-v2):` |
-| Task 38 | `CatalogSet` | `feat(planetarium-v2): CatalogSet` |
-| Tasks 78–80 | `viewPose`, observation time, observer providers | `feat(planetarium-v2):` |
-| Task 47 | Renderer / frame graph skeleton | `feat(planetarium-v2): renderer entry` |
-| Second review | Re-run after P0 + integrator land | readonly report only |
-
-**WIP on disk (uncommitted, do not duplicate):** `astrometry/mod.rs` (+ `aberration` / `frames` / `body_lighting` exports), `frames.rs`, `body_lighting.rs`, matching tests; test harness cleanup in `astrometry_*` integration tests.
+**Next parallel batch (not started):** 36 (OpenNGC), 42–46 (catalog wrap-up), 49+ (render pipelines), 83 / 85–88 (selection + gestures + lifecycle + hit-test round-trip).
 
 ### Work completed (by phase/task)
 
@@ -2518,7 +2527,7 @@ Rust + Dart readonly reviews flagged **P0** items; dedicated fix agent running (
 | 17 Snapshot publishing pipeline | done | `f6560b5` |
 | 18 `push_gesture` Dart → POSE dirty round-trip | done | `d614483` |
 
-#### Phase 3 — Tasks 19–32 (astrometry): **mostly done** (26 / 31 / 32 remain)
+#### Phase 3 — Tasks 19–32 (astrometry): **done**
 
 | Task | Subject | Status | Commit / notes |
 |------|---------|--------|----------------|
@@ -2526,41 +2535,59 @@ Rust + Dart readonly reviews flagged **P0** items; dedicated fix agent running (
 | 20 | Earth Rotation Angle + sidereal | **done** | `ac847c8` |
 | 21 | IAU 2006 P03 precession | **done** | `29380a9` |
 | 22 | IAU 2000B nutation | **done** | `e5f9b18`; wired in `d15cd52` |
-| 23 | Annual aberration | **done** (integrator wire-up pending) | `5d64513` — **`pub mod aberration` not in committed `mod.rs` at HEAD**; WIP adds export |
+| 23 | Annual aberration | **done** | `5d64513`; `pub mod aberration` in `a711e322` |
 | 24 | Saemundsson refraction | **done** | `849ccb5`; exported in `d15cd52` |
 | 25 | Atmospheric extinction LUT | **done** | `6036c45`; exported in `d15cd52` |
-| 26 | `FrameChain` + `icrs_to_horizontal` | **in flight** | WIP: `frames.rs`, `tests/astrometry_frames.rs` (untracked); integrator agent |
+| 26 | `FrameChain` + `icrs_to_horizontal` | **done** | `47eae877` — `astrometry/frames.rs` |
 | 27 | VSOP87D Sun + planets | **done** | `vsop87.rs` in `d15cd52` integrator commit |
 | 28 | ELP2000-82B Moon | **done** | `5cefaf3` |
 | 29 | Kepler + minor bodies | **done** | `007d774`; wired in `d15cd52` |
 | 30 | SGP4 propagation | **done** | `23aabed`; `pub mod sgp4_prop` at HEAD |
-| 31 | Body lighting & phase | **in flight** | WIP: `body_lighting.rs`, `tests/astrometry_body_lighting.rs` (untracked) |
-| 32 | Astrometry benchmark suite | **not started** | — |
+| 31 | Body lighting & phase | **done** | `181648d0` + integrator `a711e322` |
+| 32 | Astrometry benchmark suite | **done** | `77d3affd` — `benches/astrometry_bench.rs` |
 
-**Integrator history:** `d15cd52` exported `nutation`, `vsop87`, `moon`, `kepler` (+ prior `extinction`, `refraction`, `sgp4_prop`). **Integrator 3 still needed:** `aberration` (committed module, missing `pub mod`), `frames`, `body_lighting`.
+**Integrator history:** `d15cd52` (nutation, vsop87, moon, kepler, …); **`a711e322`** (aberration export, frames, body_lighting tests).
 
-#### Phase 4 — Tasks 33–46 (catalog): **partial**
+#### Phase 4 — Tasks 33–46 (catalog): **partial** (36, 42–46 remain)
 
 | Task | Subject | Status | Commit / notes |
 |------|---------|--------|----------------|
 | 33 | HEALPix tile binary format | **done** | `b7023ba` — `catalog/tile.rs` |
-| 34 | HEALPix helpers (`cdshealpix`) | **done** | `5cefaf3` — `catalog/healpix.rs` (landed with Moon task) |
-| 35 | HYG → tile converter | **in flight** | parallel agent |
+| 34 | HEALPix helpers (`cdshealpix`) | **done** | `5cefaf3` — `catalog/healpix.rs` |
+| 35 | HYG → tile converter | **done** | `dd6aa39b` — `bin/build_hyg_tiles.rs`, `catalog/hyg_build.rs` |
 | 36 | OpenNGC port | **not started** | — |
 | 37 | Constellation lines + boundaries | **done** | `7d455af` — `catalog/constellation_lines.rs` |
-| 38 | `CatalogSet` | **in flight** | parallel agent |
-| 39–46 | manifest, residency, hit-test, wrap-up | **not started** | — |
+| 38 | `CatalogSet` | **done** | `ac259282` — `catalog/set.rs` |
+| 39 | Pack manifest + integrity | **done** | `abdfbce9` — `catalog/pack.rs` |
+| 40 | Tile residency LRU | **done** | `42a07a02` — `catalog/residency.rs` |
+| 41 | Hit-test index | **done** | `454c8b78` — `catalog/hit_index.rs` |
+| 42–46 | variable stars, minor bodies, TLE, Milky Way, bundle packs | **not started** | — |
 
-Phases 5–6 are **not started**. Phase 7 tasks **78+** in flight (see parallel agents).
+#### Phase 5 — Tasks 47–48 (render pipelines): **started**
 
-#### Phase 7 — Tasks 75–77 (Dart / providers): **partial**
+| Task | Subject | Status | Commit / notes |
+|------|---------|--------|----------------|
+| 47 | Renderer entry + frame graph | **done** | `1ca67415` — `renderer/graph.rs`, empty-scene golden |
+| 48 | Star pipeline + WGSL | **done** | `84a4561a` — `renderer/pipelines/stars.rs`, `shaders/stars.wgsl`, `tests/golden/stars_three.png` |
+| 49+ | PSF tone mapping, twinkle, Bruneton, atmosphere, … | **not started** | — |
+
+Phase 6 is **not started**.
+
+#### Phase 7 — Tasks 75–88 (Dart / providers): **partial** (83, 85–88 remain)
 
 | Task | Status | Commit |
 |------|--------|--------|
 | 75 New package skeleton | **done** | `41efa5e` |
 | 76 Bridge `Planetarium` Dart handle | **done** | `639de37` — `lib/src/bridge/planetarium_handle.dart` |
 | 77 `planetariumHandleProvider` | **done** | `df7bd31` |
-| 78–88 providers + `InteractiveSkyView` | **in flight** | Tasks **78–80** assigned; **81–88** not started |
+| 78 `viewPoseProvider` | **done** | `44bc2cf0` |
+| 79 `observationTimeProvider` | **done** | `740fe853` |
+| 80 `observerProvider` | **done** | `d3835327` |
+| 81 `renderConfigProvider` | **done** | `13d3b597` |
+| 82 `sceneSnapshotProvider` | **done** | `d1a48add` |
+| 83 `selectionProvider` | **not started** | — |
+| 84 `InteractiveSkyView` shell | **done** | `981a0b37` — `widgets/interactive_sky_view.dart` |
+| 85–88 Gestures, resize, lifecycle, tap→hit-test | **not started** | — |
 
 ---
 
@@ -2573,22 +2600,24 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 | Area | Files / modules |
 |------|-----------------|
 | Crate root | `Cargo.toml`, `src/lib.rs`, `shaders/spike.wgsl`, `src/spike.rs` (offscreen/golden tests) |
-| **surface/** | `mod.rs`, `windows.rs`, `d3d11_shared.rs` |
+| **surface/** | `mod.rs`, `windows.rs`, `d3d11_shared.rs`, `stub.rs` (non-Windows CI) |
 | **bus/** | `mod.rs`, `dirty.rs`, `loop_thread.rs` |
 | **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `projection.rs`, `dev_catalog.rs` |
 | **gesture/** | `mod.rs`, `hit_test.rs` |
 | **animation/** | `mod.rs` |
-| **astrometry/** | `mod.rs`, `time.rs`, `earth_rotation.rs`, `precession.rs`, `nutation.rs`, `aberration.rs`, `extinction.rs`, `refraction.rs`, `sgp4_prop.rs`, `vsop87.rs`, `moon.rs`, `kepler.rs`; WIP: `frames.rs`, `body_lighting.rs` |
-| **catalog/** | `mod.rs`, `tile.rs`, `healpix.rs`, `constellation_lines.rs` |
+| **astrometry/** | `mod.rs`, `time.rs`, `earth_rotation.rs`, `precession.rs`, `nutation.rs`, `aberration.rs`, `extinction.rs`, `refraction.rs`, `sgp4_prop.rs`, `vsop87.rs`, `moon.rs`, `kepler.rs`, `frames.rs`, `body_lighting.rs` |
+| **catalog/** | `mod.rs`, `tile.rs`, `healpix.rs`, `constellation_lines.rs`, `set.rs`, `pack.rs`, `residency.rs`, `hit_index.rs`, `hyg_build.rs`; `src/bin/build_hyg_tiles.rs` |
+| **renderer/** | `mod.rs`, `graph.rs`, `pipelines/mod.rs`, `pipelines/stars.rs`; `shaders/stars.wgsl` |
+| **benches/** | `astrometry_bench.rs` |
 | **handle** | `src/handle.rs`, `src/types.rs` |
 | **vendor/** | `vendor/irondash_texture/**` (vendored for Windows texture handoff) |
-| **tests/** | `smoke.rs`, `spike_render.rs`, `types.rs`, `bus_dirty.rs`, `loop_thread.rs`, `handle_lifecycle.rs`, `snapshot.rs`, `snapshot_publish.rs`, `animation.rs`, `astrometry_*.rs` (time, sidereal, precession, nutation, aberration, extinction, refraction, sgp4, vsop87, moon, kepler), `catalog_tile.rs`, `catalog_healpix.rs`, `catalog_constellation_lines.rs`; WIP: `astrometry_frames.rs`, `astrometry_body_lighting.rs` |
+| **tests/** | `smoke.rs`, `spike_render.rs`, `types.rs`, `bus_dirty.rs`, `loop_thread.rs`, `handle_lifecycle.rs`, `snapshot.rs`, `snapshot_publish.rs`, `animation.rs`, `astrometry_*.rs`, `catalog_*.rs` (tile, healpix, constellation_lines, set, pack, residency, hit_index, hyg_tiles), `renderer_empty_scene.rs`, `renderer_stars_golden.rs`; `tests/golden/stars_three.png`, `tests/fixtures/hyg_*.csv` |
 
 #### `native/nightshade_native/bridge/**`
 
 - **Added:** `bridge/src/planetarium.rs` (`587b3cb`)
 - **Removed:** `bridge/src/planetarium_spike.rs` (`587b3cb`)
-- **Modified:** `bridge/src/lib.rs`, `bridge/src/api/mod.rs`, `bridge/Cargo.toml`, `bridge/src/frb_generated.rs`
+- **Modified:** `bridge/src/lib.rs`, `bridge/src/api/mod.rs`, `bridge/Cargo.toml`, `bridge/src/frb_generated.rs`; resize/error path in `052fc273`
 - Workspace: `native/nightshade_native/Cargo.toml` (`planetarium` member)
 
 #### `packages/nightshade_bridge/**`
@@ -2612,9 +2641,12 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 #### `packages/nightshade_planetarium_v2/**`
 
 - Skeleton: `41efa5e`
-- `lib/src/bridge/planetarium_handle.dart`, `test/planetarium_handle_test.dart` — `639de37`
-- `lib/src/providers/planetarium_handle_provider.dart`, `test/planetarium_handle_provider_test.dart` — `df7bd31`
-- Tasks **78–88** widgets/providers: not started (in flight: 78–80)
+- Bridge: `planetarium_handle.dart`, `planetarium_driver.dart` — `639de37`, extended in 78–84 commits
+- Providers: `planetarium_handle_provider.dart`, `view_pose_provider.dart`, `observation_time_provider.dart`, `observer_provider.dart`, `render_config_provider.dart`, `scene_snapshot_provider.dart`, `planetarium_sync.dart`, `core_observation_time_provider.dart`
+- Models: `view_pose_state.dart`, `planetarium_astro_time.dart`, `render_config_state.dart`, `scene_snapshot.dart`
+- Widgets: `interactive_sky_view.dart` — `981a0b37`
+- Tests: matching `*_provider_test.dart`, `interactive_sky_view_test.dart`, `support/fake_planetarium_driver.dart`
+- **Not started:** `selection_provider.dart`, gesture/resize/lifecycle wiring (Tasks 85–88)
 
 #### `planetarium/vendor/**`
 
@@ -2638,8 +2670,8 @@ When multiple agents work Phase 3 astrometry in parallel:
 
 1. **Module agents** own exactly one pair: `src/astrometry/<name>.rs` + `tests/astrometry_<name>.rs`. Do **not** edit `astrometry/mod.rs` (see `refraction.rs` header: `INTEGRATE: add pub mod refraction;`).
 2. **Integrator agent** (single owner) merges `astrometry/mod.rs`: add `pub mod …;` lines, resolve order, run `cargo test -p nightshade_planetarium`, commit integrator-only or rebase module commits.
-3. **Integrator debt at `5d64513`:** `d15cd52` wired `nutation`, `vsop87`, `moon`, `kepler`, `extinction`, `refraction`, `sgp4_prop`. Still missing at HEAD: **`pub mod aberration`** (`5d64513` landed `aberration.rs` only). **Integrator 3** must also land `frames` + `body_lighting` (files exist uncommitted).
-4. **SGP4:** top-level `pub mod sgp4_prop` at HEAD; drop any stale `time.rs` `#[path]` child if still present in WIP.
+3. **Integrator 3 landed (`a711e322`):** `aberration`, `frames`, `body_lighting` exported; Phase 3 complete.
+4. **SGP4:** top-level `pub mod sgp4_prop` at HEAD.
 
 #### FRB regeneration — when?
 
@@ -2669,20 +2701,19 @@ melos run dev       # after any Rust bridge or DLL-affecting change
 
 #### Open blockers (from plan + observed)
 
-1. **P0 review fixes** — `SetTime`/`SetObserver` no-ops; non-Windows `compile_error!` in `surface/mod.rs` (fix agent in flight).
-2. **wgpu DX12 HAL shared-handle extraction** (plan Task 5) — Windows path works via `d3d11_shared.rs` + vendored irondash.
-3. **irondash_texture API variant** — pinned via vendor copy; confirm for macOS/iOS tasks (105, 107, 109).
-4. **Bundled Bruneton LUTs vs runtime precompute** — Task 52 (not started).
-5. **HEALPix nside tuning** — Tasks 35–36 (converter / OpenNGC not started).
-6. **Linux GL FBO** — Task 111 (not started).
-7. **Astrometry integrator 3** — `aberration` export + land `frames` / `body_lighting` WIP before Task **32** benchmarks.
+1. **wgpu DX12 HAL shared-handle extraction** (plan Task 5) — Windows path works via `d3d11_shared.rs` + vendored irondash.
+2. **irondash_texture API variant** — pinned via vendor copy; confirm for macOS/iOS tasks (105, 107, 109).
+3. **Bundled Bruneton LUTs vs runtime precompute** — Task 52 (not started).
+4. **OpenNGC port** — Task 36 (not started); HYG converter done (`dd6aa39b`).
+5. **Linux GL FBO** — Task 111 (not started).
+6. **Phase 7 gesture/selection gap** — Tasks **83**, **85–88** (selection, gestures, resize observer, lifecycle, tap→hit-test).
 
 #### Next recommended batches
 
-1. **Land P0 fix commit** (handle time/observer + cross-platform surface stub) — unblocks CI and honest FFI semantics.
-2. **Integrator 3** — `astrometry/mod.rs` + `frames` / `body_lighting` / `aberration` exports; `cargo test -p nightshade_planetarium`.
-3. **Parallel:** Task **35** (HYG tiles), **38** (`CatalogSet`), **47** (renderer skeleton), **78–80** (Dart providers).
-4. **Phase 3 wrap:** Task **32** benchmark suite after integrator 3 merges.
-5. **Second review pass** after P0 + integrator land.
+1. **Phase 7 finish:** Task **83** (`selectionProvider`), then **85–88** (gestures through tap→hit-test) — unblocks interactive sky.
+2. **Phase 4 wrap:** Task **36** (OpenNGC), **42–46** (catalog metadata + asset bundles).
+3. **Phase 5 continue:** Task **49** (star PSF tone mapping), then atmosphere pipeline (53+).
+4. **Catalog integration:** wire `CatalogSet` + residency + hit-index into renderer snapshot (may span Tasks 46 + 48 follow-ups).
+5. **Second review pass** on renderer + provider sync paths before macOS surface (105).
 
-To refresh this log: `git log --oneline --grep="planetarium-v2" -50` and `git status` under `native/nightshade_native/planetarium/`.
+To refresh this log: `git log --oneline --grep="planetarium-v2" -60` and `git status` under `native/nightshade_native/planetarium/`.
