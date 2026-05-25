@@ -43,8 +43,19 @@ fn physical_texture_dimensions(width: u32, height: u32, dpr: f32) -> (u32, u32) 
 /// Opaque handle combining platform surface, event-driven render loop, and snapshot publishing.
 pub struct Planetarium {
     inner: Arc<PlanetariumInner>,
-    /// Kept last in the struct so `Drop` shuts down the render thread after `inner` fields go away.
-    _render_loop: RenderLoop,
+    /// Never read — held solely so its `Drop` runs at end-of-handle-lifetime.
+    ///
+    /// MUST be declared AFTER `inner` so `Drop` runs `render_loop` first — joining
+    /// the render thread before the shared state in `inner` (snapshot slot, atomics,
+    /// catalog mutex, ArcSwap pose/config slots) goes away. Swapping the field
+    /// order would let `inner` drop first, leaving an in-flight render frame
+    /// with dangling `Arc`s — a use-after-free.
+    ///
+    /// (The previous underscore-prefix name suggested "unused" to readers; it is
+    /// load-bearing. Encoding the invariant in a wrapper type would be sturdier —
+    /// see the follow-up note in the cleanup punch list.)
+    #[allow(dead_code)]
+    render_loop: RenderLoop,
 }
 
 struct PlanetariumInner {
@@ -189,7 +200,7 @@ impl Planetarium {
                 texture_signal,
                 catalog,
             }),
-            _render_loop: render_loop,
+            render_loop,
         })
     }
 
