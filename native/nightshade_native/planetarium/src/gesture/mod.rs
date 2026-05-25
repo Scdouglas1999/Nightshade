@@ -4,8 +4,13 @@
 //! the render loop marks [`DirtyFlags::POSE`](crate::bus::dirty::DirtyFlags::POSE).
 
 pub mod hit_test;
+pub mod momentum;
 
 pub use hit_test::{hit_test_screen, pick_cone_rad, HitTestError};
+pub use momentum::{
+    decelerate, remaining_weight, PanMomentum, MIN_RELEASE_SPEED, MOMENTUM_DURATION_SECS,
+    STEP_FACTOR,
+};
 
 use crate::types::ViewPose;
 
@@ -95,6 +100,7 @@ pub(crate) enum ActiveGesture {
 pub struct GestureStateMachine {
     pose: ViewPose,
     active: Option<ActiveGesture>,
+    momentum: PanMomentum,
 }
 
 impl GestureStateMachine {
@@ -103,7 +109,22 @@ impl GestureStateMachine {
         Self {
             pose: initial,
             active: None,
+            momentum: PanMomentum::new(),
         }
+    }
+
+    /// Whether pan momentum is still coasting after release.
+    pub fn momentum_active(&self) -> bool {
+        self.momentum.is_active()
+    }
+
+    /// Advance inertial pan for one frame (`dt_secs` wall time). Returns `true` when pose moved.
+    pub fn tick_momentum(&mut self, dt_secs: f32) -> bool {
+        if let Some((dx, dy)) = self.momentum.tick(dt_secs) {
+            apply_pan_delta(&mut self.pose, dx, dy);
+            return true;
+        }
+        false
     }
 
     /// Current view pose after applied gestures.
@@ -120,6 +141,7 @@ impl GestureStateMachine {
     pub fn apply(&mut self, evt: GestureEvent) -> bool {
         match evt {
             GestureEvent::PanStart { .. } => {
+                self.momentum.cancel();
                 self.active = Some(ActiveGesture::Pan);
                 false
             }
@@ -130,14 +152,11 @@ impl GestureStateMachine {
             }
             GestureEvent::PanEnd { vx, vy } => {
                 self.active = None;
-                // Minimal momentum nudge (full integration in Task 71).
-                if vx.abs() > f32::EPSILON || vy.abs() > f32::EPSILON {
-                    apply_pan_delta(&mut self.pose, vx * 0.016, vy * 0.016);
-                    return true;
-                }
+                self.momentum.start(vx, vy);
                 false
             }
             GestureEvent::ZoomStart { .. } => {
+                self.momentum.cancel();
                 self.active = Some(ActiveGesture::Zoom);
                 false
             }
@@ -167,6 +186,7 @@ impl GestureStateMachine {
             }
             GestureEvent::Tap { .. } | GestureEvent::DoubleTap { .. } => false,
             GestureEvent::Cancel => {
+                self.momentum.cancel();
                 self.active = None;
                 false
             }
@@ -180,10 +200,7 @@ fn apply_pan_delta(pose: &mut ViewPose, dx: f32, dy: f32) {
     let d_dec_deg = f64::from(dy) * pan_scale;
     pose.ra_rad = wrap_ra_rad(pose.ra_rad + d_ra_hours * (std::f64::consts::PI / 12.0));
     let dec = pose.dec_rad + d_dec_deg.to_radians();
-    pose.dec_rad = dec.clamp(
-        -std::f64::consts::FRAC_PI_2,
-        std::f64::consts::FRAC_PI_2,
-    );
+    pose.dec_rad = dec.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 fn apply_zoom(pose: &mut ViewPose, factor: f32) -> bool {
@@ -268,5 +285,49 @@ mod tests {
         assert!(!sm.apply(GestureEvent::Cancel));
         assert_eq!(sm.pose(), pose);
         assert_eq!(sm.active_gesture(), None);
+    }
+
+    #[test]
+    fn pan_end_below_threshold_does_not_start_momentum() {
+        let mut sm = GestureStateMachine::new(test_pose());
+        let pose = sm.pose();
+        let _ = sm.apply(GestureEvent::PanEnd { vx: 0.01, vy: 0.01 });
+        assert!(!sm.momentum_active());
+        assert_eq!(sm.pose(), pose);
+    }
+
+    #[test]
+    fn pan_end_starts_momentum_coast() {
+        let mut sm = GestureStateMachine::new(test_pose());
+        let _ = sm.apply(GestureEvent::PanEnd { vx: 0.5, vy: 0.0 });
+        assert!(sm.momentum_active());
+    }
+
+    #[test]
+    fn tick_momentum_moves_pose_until_complete() {
+        let mut sm = GestureStateMachine::new(test_pose());
+        let ra0 = sm.pose().ra_rad;
+        let _ = sm.apply(GestureEvent::PanEnd { vx: 1.0, vy: 0.0 });
+        let mut moved = false;
+        for _ in 0..120 {
+            if sm.tick_momentum(1.0 / 60.0) {
+                moved = true;
+            }
+            if !sm.momentum_active() {
+                break;
+            }
+        }
+        assert!(moved);
+        assert!(!sm.momentum_active());
+        assert_ne!(sm.pose().ra_rad, ra0);
+    }
+
+    #[test]
+    fn pan_start_cancels_active_momentum() {
+        let mut sm = GestureStateMachine::new(test_pose());
+        let _ = sm.apply(GestureEvent::PanEnd { vx: 1.0, vy: 0.0 });
+        assert!(sm.momentum_active());
+        let _ = sm.apply(GestureEvent::PanStart { x: 0.5, y: 0.5 });
+        assert!(!sm.momentum_active());
     }
 }
