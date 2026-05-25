@@ -9,6 +9,11 @@ authors.workspace = true
 name = "build_hyg_tiles"
 path = "src/bin/build_hyg_tiles.rs"
 
+[[bench]]
+name = "astrometry_bench"
+path = "benches/astrometry_bench.rs"
+harness = false
+
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
