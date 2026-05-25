@@ -6,6 +6,16 @@
 //!
 //! Median sample time must stay under each budget (nanoseconds). Set
 //! `ASTROMETRY_BENCH_NO_GATE=1` to print results without failing the process.
+//!
+//! `Cargo.toml` carries `harness = false` for this bench so `fn main()`
+//! actually runs and `process::exit(1)` is the CI gate. Without the
+//! `harness = false` flag the libtest harness silently swallowed `main()`.
+//!
+//! Budgets are set to roughly 3× the measured median on a modest dev box
+//! (Win11 / i7) so a real regression that doubles a hot path will trip the
+//! gate, while a noisy CI run won't false-positive. If a budget tightens
+//! below 2× of measured, ratchet it down with explicit measurement in the
+//! commit body — never relax a budget without recording why.
 
 use std::hint::black_box;
 use std::time::Instant;
@@ -18,16 +28,16 @@ use nightshade_planetarium::astrometry::vsop87::{
 };
 use nightshade_planetarium::types::{AstroTime, Observer};
 
-/// FrameChain::build — plan budget <5 µs.
-const BUDGET_FRAME_CHAIN_BUILD_NS: u64 = 5_000;
-/// VSOP87 Sun (geocentric ecliptic) — plan budget <2 µs.
-const BUDGET_VSOP87_SUN_NS: u64 = 2_000;
-/// VSOP87 planet (Jupiter equatorial) — plan budget <5 µs.
-const BUDGET_VSOP87_PLANET_NS: u64 = 5_000;
-/// ELP2000-82B truncated Moon equatorial — plan budget <10 µs.
-const BUDGET_ELP_MOON_NS: u64 = 10_000;
-/// Kepler equation solve (one iteration path) — plan budget <1 µs.
-const BUDGET_KEPLER_ITER_NS: u64 = 1_000;
+/// FrameChain::build — measured ~1.3 µs, budget ~3× ≈ 4 µs.
+const BUDGET_FRAME_CHAIN_BUILD_NS: u64 = 4_000;
+/// VSOP87 Sun (geocentric ecliptic) — measured ~165 ns, budget ~3× ≈ 500 ns.
+const BUDGET_VSOP87_SUN_NS: u64 = 500;
+/// VSOP87 planet (Jupiter equatorial) — measured ~335 ns, budget ~3× ≈ 1 µs.
+const BUDGET_VSOP87_PLANET_NS: u64 = 1_000;
+/// ELP2000-82B truncated Moon equatorial — measured ~360 ns, budget ~3× ≈ 1.1 µs.
+const BUDGET_ELP_MOON_NS: u64 = 1_100;
+/// Kepler equation solve (one iteration path) — measured ~75 ns, budget ~3× ≈ 250 ns.
+const BUDGET_KEPLER_ITER_NS: u64 = 250;
 
 /// Representative epoch: 2024-06-15 00:00 UTC (typical night-sky session).
 const JD_UTC_BENCH: f64 = 2_460_466.5;
@@ -118,9 +128,7 @@ fn kepler_iter_ns() -> u64 {
 
 fn run_cases(cases: &[BenchCase], gate: bool) -> bool {
     let mut all_ok = true;
-    println!(
-        "astrometry benchmarks (median ns/op, budgets from planetarium-v2 plan Task 32)\n"
-    );
+    println!("astrometry benchmarks (median ns/op, budgets from planetarium-v2 plan Task 32)\n");
     println!(
         "{:<28} {:>10} {:>10} {:>8}",
         "case", "median_ns", "budget_ns", "status"

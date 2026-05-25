@@ -62,3 +62,10 @@ bruneton-precompute = []
 [[test]]
 name = "bruneton_precompute"
 required-features = ["bruneton-precompute"]
+
+# `astrometry_bench` is a hand-rolled latency-budget binary (not the libtest
+# bench harness); `harness = false` lets `fn main()` run and lets the bench
+# exit non-zero when any case is over budget — the actual CI gate.
+[[bench]]
+name = "astrometry_bench"
+harness = false
