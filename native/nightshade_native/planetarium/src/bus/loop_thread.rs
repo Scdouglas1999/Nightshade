@@ -6,8 +6,6 @@
 //! wake the loop via [`recv_timeout`](crossbeam_channel::Receiver::recv_timeout) even
 //! without new commands. [`PlanetariumCommand::Shutdown`] ends the thread cleanly.
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::sync::Arc;
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
@@ -30,43 +28,6 @@ pub trait FrameRenderer: Send {
 
     /// Draw (or simulate drawing) for the given dirty subsystem flags and animation sample.
     fn render_frame(&mut self, dirty: DirtyFlags, anim: &AnimationState);
-}
-
-/// Test double that increments a shared frame counter.
-#[derive(Debug)]
-pub struct CountingRenderer {
-    frames: Arc<AtomicU64>,
-}
-
-impl CountingRenderer {
-    /// Creates a renderer whose [`frame_count`](Self::frame_count) starts at zero.
-    pub fn new() -> Self {
-        Self {
-            frames: Arc::new(AtomicU64::new(0)),
-        }
-    }
-
-    /// Shared frame counter (readable after the renderer is moved into [`RenderLoop::spawn`]).
-    pub fn counter(&self) -> Arc<AtomicU64> {
-        Arc::clone(&self.frames)
-    }
-
-    /// Total frames rendered so far.
-    pub fn frame_count(&self) -> u64 {
-        self.frames.load(Ordering::Relaxed)
-    }
-}
-
-impl Default for CountingRenderer {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
-impl FrameRenderer for CountingRenderer {
-    fn render_frame(&mut self, _dirty: DirtyFlags, _anim: &AnimationState) {
-        self.frames.fetch_add(1, Ordering::Relaxed);
-    }
 }
 
 /// Handle to a running render-loop thread.
