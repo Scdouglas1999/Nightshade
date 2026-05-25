@@ -22,6 +22,7 @@ memmap2 = "0.9"
 cdshealpix = "0.7"
 sgp4 = "2"
 tokio = { workspace = true, features = ["rt-multi-thread", "sync", "fs", "macros"] }
+bitflags = "2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 windows = { version = "0.52", features = [
