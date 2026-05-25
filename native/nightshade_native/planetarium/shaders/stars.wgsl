@@ -132,10 +132,15 @@ fn bv_to_rgb(bv: f32) -> vec3<f32> {
 
 fn psf_alpha(r: f32, mag: f32) -> f32 {
     let core = exp(-r * r * 10.0);
-    let ring = 0.12 * exp(-pow((r - 0.4) * 6.0, 2.0));
+    // `pow(x, 2.0)` is `exp(2.0 * log(x))` and is NaN for negative `x` on some
+    // backends; for `r < 0.4` the inner expression goes negative, so multiply
+    // directly instead.
+    let ring_arg = (r - 0.4) * 6.0;
+    let ring = 0.12 * exp(-(ring_arg * ring_arg));
     var a = core + ring;
     if (mag < 1.0) {
-        let spike = 0.06 * exp(-pow(r * 18.0, 2.0));
+        let spike_arg = r * 18.0;
+        let spike = 0.06 * exp(-(spike_arg * spike_arg));
         a = a + spike * (1.0 - mag);
     }
     return clamp(a, 0.0, 1.0);
