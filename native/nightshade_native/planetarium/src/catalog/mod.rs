@@ -5,7 +5,9 @@
 
 pub mod constellation_lines;
 pub mod healpix;
+pub mod hit_index;
 pub mod hyg_build;
+mod pack;
 mod set;
 mod tile;
 
@@ -17,6 +19,10 @@ pub use constellation_lines::{
 pub use healpix::{
     bounding_pixels_for_fov, depth_for_nside, fov_cap_radius_rad, pixel_for_direction,
     pixels_in_cone, HealpixError,
+};
+pub use hit_index::{HitIndex, HitPick};
+pub use pack::{
+    load_and_verify_pack, sha256_hex, PackError, PackManifest, PACK_MANIFEST_NAME,
 };
 pub use set::{CatalogHit, CatalogSet, StarPack};
 pub use hyg_build::{
