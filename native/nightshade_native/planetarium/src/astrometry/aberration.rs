@@ -1,8 +1,14 @@
-//! Annual aberration (first-order v/c) from Earth's heliocentric velocity (VSOP87D Earth).
+//! Annual aberration via the SOFA `iauAb` special-relativistic formulation
+//! from Earth's heliocentric velocity (VSOP87D Earth).
 //!
 //! Earth's velocity is obtained by symmetric numerical differentiation of the truncated
-//! VSOP87D Earth heliocentric series (same coefficients as `vsop87`). Diurnal
-//! aberration is omitted (visual planetarium scope).
+//! VSOP87D Earth heliocentric series (same coefficients as `vsop87`). The
+//! Lorentz form ([`apply_annual_aberration_direction`]) is used instead of the
+//! classical v/c addition: the difference at Earth's orbital speed is O(|v/c|²)
+//! ≈ 2 µas, but the SOFA-matching form is the published reference and lets the
+//! aberration regression tests target sub-millarcsecond agreement with `iauAb`.
+//!
+//! Diurnal aberration is omitted (visual planetarium scope).
 //!
 
 use glam::DVec3;
@@ -56,7 +62,11 @@ fn ecliptic_rectangular(lon: f64, lat: f64, r: f64) -> DVec3 {
 #[inline]
 fn ecliptic_vector_to_equatorial(v: DVec3, obliquity_rad: f64) -> DVec3 {
     let (sin_eps, cos_eps) = obliquity_rad.sin_cos();
-    DVec3::new(v.x, v.y * cos_eps - v.z * sin_eps, v.y * sin_eps + v.z * cos_eps)
+    DVec3::new(
+        v.x,
+        v.y * cos_eps - v.z * sin_eps,
+        v.y * sin_eps + v.z * cos_eps,
+    )
 }
 
 /// Earth's heliocentric velocity in the J2000 ecliptic frame (AU/day).
@@ -85,14 +95,57 @@ pub fn earth_heliocentric_velocity_equatorial_au_per_day(jd_tt: f64) -> DVec3 {
     ecliptic_vector_to_equatorial(v_ecl, mean_obliquity_rad(jd_tt))
 }
 
-/// Apply first-order annual aberration to an ICRS direction (ERFA/SOFA `iauAb` style).
+/// Apply annual aberration to an ICRS direction using the special-relativistic
+/// (Lorentz) formulation matching SOFA `iauAb`.
 ///
-/// `direction` and returned vector are unit vectors in the ICRS equatorial frame.
+/// Inputs:
+/// * `direction` — natural (geometric) unit direction to the source in ICRS.
+/// * `velocity_au_per_day` — observer velocity relative to the SSB, in AU/day,
+///   ICRS equatorial frame.
+///
+/// Returned vector is the proper (apparent) ICRS direction after aberration,
+/// renormalised to unit length.
+///
+/// Algorithm — direct port of SOFA `iauAb`
+/// (Software for Fundamental Astronomy, Wallace & Capitaine 2006; see
+/// "SOFA Tools for Earth Attitude" §2.4.5 "Stellar aberration"):
+///
+/// ```text
+/// V    = v / c                          (units of c)
+/// bm1  = sqrt(1 − |V|²)                 (Lorentz reciprocal γ⁻¹)
+/// s1   = 1 + p · V                      (Doppler factor)
+/// w    = 1 + (p · V) / (1 + bm1)
+/// p′   = (bm1 · p + w · V) / s1
+/// p″   = p′ / |p′|
+/// ```
+///
+/// The previous implementation used `p + V − (p·V)·p` which is the
+/// **classical (Newtonian) v/c addition**. At Earth's orbital speed
+/// (|V| ≈ 10⁻⁴) the Lorentz correction is O(|V|²) ≈ 10⁻⁸ rad ≈ 2 µas, well
+/// below catalog noise — but the Lorentz form is the published reference
+/// implementation, costs only a few extra adds, and makes regression tests
+/// against SOFA `iauAb` reference vectors meaningful to 1 mas and tighter.
 pub fn apply_annual_aberration_direction(direction: DVec3, velocity_au_per_day: DVec3) -> DVec3 {
-    let s = direction.normalize();
-    let beta = velocity_au_per_day / SPEED_OF_LIGHT_AU_PER_DAY;
-    let dot = s.dot(beta);
-    (s + beta - dot * s).normalize()
+    let p = direction.normalize();
+    let v_over_c = velocity_au_per_day / SPEED_OF_LIGHT_AU_PER_DAY;
+
+    let v_dot_v = v_over_c.dot(v_over_c);
+    // bm1 = sqrt(1 − |V|²). Clamp the inside of the sqrt to ≥ 0 so a
+    // pathological |V| ≥ c (which would indicate an upstream ephemeris bug)
+    // does not yield NaN — debug builds trap, release builds degrade to the
+    // |V|=c limit (bm1 = 0).
+    debug_assert!(
+        v_dot_v < 1.0,
+        "observer speed ≥ c (|v/c|² = {v_dot_v}); ephemeris velocity is wrong"
+    );
+    let bm1 = (1.0 - v_dot_v).max(0.0).sqrt();
+
+    let p_dot_v = p.dot(v_over_c);
+    let s1 = 1.0 + p_dot_v;
+    let w = 1.0 + p_dot_v / (1.0 + bm1);
+
+    let p_prime = (bm1 * p + w * v_over_c) / s1;
+    p_prime.normalize()
 }
 
 /// Apparent ICRS direction after annual aberration at TT Julian date.
