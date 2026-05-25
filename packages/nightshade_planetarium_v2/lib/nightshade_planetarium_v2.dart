@@ -18,4 +18,6 @@ export 'src/providers/render_config_provider.dart';
 export 'src/providers/scene_snapshot_provider.dart';
 export 'src/providers/selection_provider.dart';
 export 'src/providers/view_pose_provider.dart';
+export 'src/rendering/label_layout_manager.dart';
 export 'src/widgets/interactive_sky_view.dart';
+export 'src/widgets/label_layer.dart';
