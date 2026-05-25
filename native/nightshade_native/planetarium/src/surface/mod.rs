@@ -33,8 +33,8 @@ pub mod d3d11_shared;
 #[cfg(target_os = "windows")]
 pub mod windows;
 
-#[cfg(not(any(target_os = "windows")))]
-compile_error!("Phase 1 only supports Windows. Phase 10 adds other platforms.");
+#[cfg(not(target_os = "windows"))]
+mod stub;
 
 /// Create the platform surface for the current OS.
 pub fn create_surface(
@@ -43,5 +43,9 @@ pub fn create_surface(
     #[cfg(target_os = "windows")]
     {
         Ok(Box::new(windows::WindowsSurface::new(engine_handle)?))
+    }
+    #[cfg(not(target_os = "windows"))]
+    {
+        Ok(Box::new(stub::StubSurface::new(engine_handle)))
     }
 }
