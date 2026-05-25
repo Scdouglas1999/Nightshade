@@ -4,6 +4,8 @@ repository: https://github.com/Scoduglas1999/Nightshade2
 packages:
   - apps/*
   - packages/*
+  # Planetarium v2 Dart shell (Phase 7); also matched by packages/* above.
+  - packages/nightshade_planetarium_v2
 
 command:
   version:
@@ -240,6 +242,10 @@ scripts:
     run: dart run tools/production/headless_windows_smoke.dart
     description: Launch the packaged Windows headless app and verify API, dashboard, auth, and WebSocket heartbeat
 
+  smoke:headless:linux:
+    run: dart run tools/production/headless_lan_linux_smoke.dart
+    description: Launch the packaged Linux headless app and verify API, dashboard, auth, and WebSocket heartbeat
+
   smoke:headless-lan:windows:
     run: dart run tools/production/headless_lan_windows_smoke.dart
     description: Launch the packaged Windows headless app and verify authenticated LAN-address API, dashboard, and WebSocket access
@@ -275,8 +281,13 @@ scripts:
   build:desktop:windows:
     run: |
       cargo build --release --manifest-path native/nightshade_native/bridge/Cargo.toml
-      dart run melos exec --scope="nightshade_desktop" -- flutter build windows
-    description: Build Windows desktop app
+      dart run melos exec --scope="nightshade_desktop" -- flutter build windows --release
+      powershell -ExecutionPolicy Bypass -File scripts/stage_windows_release.ps1 -Profile Release
+    description: Build Windows desktop app (Rust + Flutter + stage native DLLs)
+
+  stage:desktop:windows:
+    run: powershell -ExecutionPolicy Bypass -File scripts/stage_windows_release.ps1 -Profile Release
+    description: Copy nightshade_bridge.dll, libraw.dll, and MSVC runtime into Release output
 
   build:desktop:macos:
     run: |

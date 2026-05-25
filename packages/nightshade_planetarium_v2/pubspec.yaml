@@ -1,0 +1,28 @@
+name: nightshade_planetarium_v2
+description: Nightshade 2.0 Planetarium v2 - Rust+wgpu sky renderer (Flutter shell)
+version: 1.0.0
+publish_to: 'none'
+
+environment:
+  sdk: ">=3.0.0 <4.0.0"
+  flutter: ">=3.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_riverpod: ^2.5.1
+  nightshade_bridge:
+    path: ../nightshade_bridge
+  nightshade_core:
+    path: ../nightshade_core
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  # Pinned exact version across all workspace packages to prevent
+  # mixed-version drift. Upgraded from 3.0.2 to ^5.0.0 by CQ-W5-LINTS-UPGRADE
+  # (audit-dart §10 #3).
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

@@ -23,6 +23,8 @@ dependencies:
     path: ../../packages/nightshade_bridge
   nightshade_planetarium:
     path: ../../packages/nightshade_planetarium
+  nightshade_planetarium_v2:
+    path: ../../packages/nightshade_planetarium_v2
   nightshade_updater:
     path: ../../packages/nightshade_updater
 
@@ -61,6 +63,7 @@ dependencies:
 
   # QR code scanning
   mobile_scanner: ^5.2.3
+  permission_handler: ^11.3.1
 
   # Background operation support
   flutter_foreground_task: ^6.0.0
