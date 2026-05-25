@@ -2447,7 +2447,7 @@ Which approach?
 
 ## Implementation progress (coordinator log)
 
-> **Last updated:** 2026-05-25 · **HEAD:** `b3860c2d` · **122 tasks:** **76 done** · **5 partial** · **41 not started** · **Branch:** `main` (~85 commits ahead of `origin/main`). Verify: `git log --oneline --grep="planetarium-v2" -120`.
+> **Last updated:** 2026-05-25 · **HEAD:** `3f098bc5` · **122 tasks:** **76 done** · **5 partial** · **41 not started** · **Branch:** `main` (~87 commits ahead of `origin/main`). Verify: `git log --oneline --grep="planetarium-v2" -120`. (Full recount: batch-4 tasks **45**, **56**, **71**, **90**, **100**, etc. already marked **done**; P0 renderer live is a plan fix-tracker item, not a numbered task.)
 
 ### Summary by phase
 
@@ -2508,7 +2508,7 @@ Which approach?
 | 71 | **done** | `d4593bd6` | Pan momentum |
 | 72 | **done** | `643e18b7`, `2d197099` | Hit test + tap selection round-trip |
 | 73 | **partial** | `0593b908` | `PoseLock` / `TrackingTarget` types; mount/target FFI wire TBD |
-| 74 | **partial** | `f6560b5c` | Labels from catalog or `dev_catalog`; not full scene population |
+| 74 | **partial** | `f6560b5c`, `3f098bc5` | `publish.rs` + `build_render_scene`; catalog stars in live GPU path; Dart snapshot E2E TBD |
 | 75–88 | **done** | `41efa5e` … `2d197099` | Includes `83` `c9ab88e0`, resize/lifecycle/gestures |
 | 89 | **done** | `ab1c2978` | `LabelLayer` |
 | 90 | **done** | `2124fad1` | `ConstellationArtLayer` |
@@ -2546,9 +2546,9 @@ Which approach?
 | P1 Resize polling + surface errors | **done** | `052fc273`, `f7e56555` |
 | P1 DPR → physical texture size | **done** | `4221da09` |
 | FRB regen (pack-load + gestures) | **done** | `9ebd7fda` |
-| **P0 Renderer live integration** | **partial** | WIP uncommitted: `handle.rs` calls `build_render_scene` but `scene/build.rs` missing at HEAD — `cargo check -p nightshade_planetarium` fails on clean tree. No `a34807f3` commit. |
+| **P0 Renderer live integration** | **done** | `3f098bc5` — `scene/build.rs`, surface `render(Scene)`, `tests/live_render_stars.rs`; `cargo check -p nightshade_planetarium` OK at HEAD |
 
-### Coordinator batch 4 — landed since prior log (`73f69c7c`)
+### Coordinator batch 4 — landed since prior log (`73f69c7c`) through `3f098bc5`
 
 | Task / area | Commit | Subject |
 |-------------|--------|---------|
@@ -2566,8 +2566,10 @@ Which approach?
 | 100 | `b3860c2d` | Pack-load FFI |
 | 117 | `65802fc7` | Rendering platform toggle |
 | Fix | `4d97d933` | Restore planetarium test build |
+| P0 | `3f098bc5` | Renderer live loop (`build_render_scene` → Stars/Lines on texture) |
+| Docs | `3c475008` | Full task status refresh (batch 4 rollup) |
 
-**Next parallel batches:** **P0 commit** renderer live (`scene/build.rs` + surface `render(Scene)`), then **51–54** (Bruneton/atmosphere), **55** MW GPU pass, **57–62** + **63** pass wiring, **73–74** tracking + snapshot population, **91+** overlays, **105+** platforms, **118+** cutover.
+**Next parallel batches:** **51–54** (Bruneton LUTs + atmosphere), **55** MW GPU pass, **57–62** + **63** remaining render passes, **73–74** mount tracking + full `SceneSnapshot` Dart E2E, **91+** overlays, **105+** platform surfaces, **118+** v1 cutover.
 
 ### Work completed (by phase/task)
 
@@ -2669,7 +2671,7 @@ Which approach?
 | 71 | Pan momentum | **done** | `d4593bd6` — `gesture/momentum.rs` |
 | 72 | Hit testing wiring | **done** | `643e18b7`, `2d197099` |
 | 73 | Tracking (mount + target) | **partial** | Pose lock types; no end-to-end mount sync |
-| 74 | Scene snapshot population | **partial** | `publish.rs` labels; catalog-backed labels when pack loaded |
+| 74 | Scene snapshot population | **partial** | `publish.rs` + `build.rs` (`3f098bc5`); live catalog stars; Dart E2E smoke TBD |
 
 #### Phase 7 — Tasks 75–88 (Dart shell): **done**
 
@@ -2725,7 +2727,7 @@ Non-Windows CI stub only (`447f71e5`). Cross-cutting DPR/resize/lifecycle partia
 
 ### Files touched (grouped)
 
-All paths below are from `git log --grep="planetarium-v2" --name-only` on `main` at `b3860c2d`, plus **WIP (uncommitted)** under `planetarium/` where noted.
+All paths below are from `git log --grep="planetarium-v2" --name-only` on `main` at `3f098bc5`.
 
 #### `native/nightshade_native/planetarium/**`
 
@@ -2734,7 +2736,7 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 | Crate root | `Cargo.toml`, `src/lib.rs`, `shaders/spike.wgsl`, `src/spike.rs`, `src/handle.rs`, `src/types.rs` |
 | **surface/** | `mod.rs`, `windows.rs`, `d3d11_shared.rs`, `stub.rs` |
 | **bus/** | `mod.rs`, `dirty.rs`, `loop_thread.rs` |
-| **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `projection.rs`, `dev_catalog.rs`, `visibility.rs`, `lod.rs`, `pose.rs`; **WIP:** `build.rs` |
+| **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `build.rs`, `projection.rs`, `dev_catalog.rs`, `visibility.rs`, `lod.rs`, `pose.rs` |
 | **gesture/** | `mod.rs`, `hit_test.rs`, `momentum.rs` |
 | **animation/** | `mod.rs` |
 | **astrometry/** | Full module tree (`time`, `frames`, `vsop87`, `moon`, `kepler`, `sgp4_prop`, …) |
@@ -2742,7 +2744,7 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 | **renderer/** | `mod.rs`, `graph.rs`, `assets/mod.rs`, `assets/mw.rs`, `pipelines/stars.rs`, `pipelines/lines.rs`; `shaders/stars.wgsl`, `shaders/lines.wgsl` |
 | **benches/** | `astrometry_bench.rs` |
 | **vendor/** | `vendor/irondash_texture/**` |
-| **tests/** | All `astrometry_*`, `catalog_*` (incl. opengnc, milky_way, variable_stars, minor_body, satellite), `gesture_*`, `scene_*`, `renderer_*` (empty, stars golden/twinkle/perf, lines vertex count), `load_pack.rs`, `handle_lifecycle.rs`, …; **WIP:** `live_render_stars.rs` |
+| **tests/** | All `astrometry_*`, `catalog_*` (incl. opengnc, milky_way, variable_stars, minor_body, satellite), `gesture_*`, `scene_*`, `renderer_*` (empty, stars golden/twinkle/perf, lines vertex count), `load_pack.rs`, `handle_lifecycle.rs`, `live_render_stars.rs`, `snapshot_publish.rs`, … |
 
 #### `native/nightshade_native/bridge/**`
 
@@ -2841,19 +2843,18 @@ melos run dev       # after any Rust bridge or DLL-affecting change
 
 #### Open blockers (from plan + observed)
 
-1. **P0 Renderer live integration (committed)** — `handle.rs` references `build_render_scene` but `scene/build.rs` is missing at HEAD; **commit WIP** or revert handle until landed. Blocks real star catalog in live texture.
-2. **HEAD compile** — `cargo check -p nightshade_planetarium` fails on clean tree until (1) is resolved (`4d97d933` restored tests but integrator gap remains).
-3. **Pass graph** — Tasks **55**, **63**: MW/atmosphere/DSO/body passes are enum-only; only Stars + Lines draw.
-4. **irondash_texture on Apple/Android/Linux** — Tasks **105–111**; vendor copy pinned on Windows.
-5. **Bruneton LUTs** — Tasks **51–52** (not started).
-6. **v1 still default** — Task **117** toggle exists; **118–121** not wired; production remains `packages/nightshade_planetarium/`.
+1. **Pass graph** — Tasks **55**, **63**: MW/atmosphere/DSO/body passes are enum-only; only Stars + Lines draw (live path landed `3f098bc5`).
+2. **irondash_texture on Apple/Android/Linux** — Tasks **105–111**; vendor copy pinned on Windows.
+3. **Bruneton LUTs** — Tasks **51–52** (not started).
+4. **v1 still default** — Task **117** toggle exists; **118–121** not wired; production remains `packages/nightshade_planetarium/`.
 
 #### Next recommended batches
 
-1. **Land P0 renderer live:** commit `scene/build.rs`, fix `publish_snapshot` arity if needed, `tests/live_render_stars.rs`, verify `melos run dev` shows catalog stars.
-2. **Phase 5 atmosphere block:** Tasks **51–54**, then wire **55** MW pass + **63** remaining passes.
-3. **Phase 6 finish:** Tasks **73–74** (mount tracking + full snapshot labels from loaded packs).
-4. **Phase 8 overlays:** Tasks **91–98** (port v1 widgets to v2 snapshot/providers).
-5. **Phase 10 macOS spike:** Task **105** before broad platform matrix.
+1. **Phase 5 atmosphere block:** Tasks **51–54**, then wire **55** MW pass + **63** remaining passes.
+2. **Phase 5 bodies/DSO:** Tasks **57–62** after atmosphere baseline.
+3. **Phase 6 finish:** Tasks **73–74** (mount tracking + Dart `SceneSnapshot` E2E with loaded packs).
+4. **Visual gate:** `melos run dev` with v2 toggle — confirm catalog stars on live texture (`3f098bc5` + `load_pack` / bundled `stars-hyg`).
+5. **Phase 8 overlays:** Tasks **91–98** (port v1 widgets to v2 snapshot/providers).
+6. **Phase 10 macOS spike:** Task **105** before broad platform matrix.
 
 To refresh this log: `git log --oneline --grep="planetarium-v2" -120` and `git status native/nightshade_native/planetarium/`.
