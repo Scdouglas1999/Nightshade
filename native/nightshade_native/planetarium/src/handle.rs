@@ -26,6 +26,14 @@ use crate::PlanetariumError;
 /// Sentinel: no Flutter texture registered yet. Never returned from [`Planetarium::texture_id`].
 const NO_TEXTURE_ID: i64 = 0;
 
+/// Logical layout size → physical texture pixels (Flutter logical size × device pixel ratio).
+fn physical_texture_dimensions(width: u32, height: u32, dpr: f32) -> (u32, u32) {
+    let dpr = if dpr.is_finite() && dpr > 0.0 { dpr } else { 1.0 };
+    let w = (width as f32 * dpr).round().max(1.0) as u32;
+    let h = (height as f32 * dpr).round().max(1.0) as u32;
+    (w, h)
+}
+
 /// Opaque handle combining platform surface, event-driven render loop, and snapshot publishing.
 pub struct Planetarium {
     inner: Arc<PlanetariumInner>,
@@ -135,11 +143,12 @@ impl FrameRenderer for PlanetariumRenderer {
             PlanetariumCommand::Resize {
                 width,
                 height,
-                dpr: _,
+                dpr,
             } => {
                 *dirty |= DirtyFlags::RESIZE;
                 *self.surface_error.lock() = None;
-                match self.surface.resize(*width, *height) {
+                let (width, height) = physical_texture_dimensions(*width, *height, *dpr);
+                match self.surface.resize(width, height) {
                     Ok(id) => {
                         *self.surface_error.lock() = None;
                         self.texture_id.store(id, Ordering::Release);
@@ -205,5 +214,27 @@ impl FrameRenderer for PlanetariumRenderer {
                 selected: self.selected.clone(),
             },
         );
+    }
+}
+
+#[cfg(test)]
+mod resize_tests {
+    use super::physical_texture_dimensions;
+
+    #[test]
+    fn physical_texture_dimensions_scales_by_dpr() {
+        assert_eq!(physical_texture_dimensions(100, 200, 2.0), (200, 400));
+        assert_eq!(physical_texture_dimensions(100, 200, 1.0), (100, 200));
+    }
+
+    #[test]
+    fn physical_texture_dimensions_clamps_invalid_dpr_to_one() {
+        assert_eq!(physical_texture_dimensions(64, 48, 0.0), (64, 48));
+        assert_eq!(physical_texture_dimensions(64, 48, f32::NAN), (64, 48));
+    }
+
+    #[test]
+    fn physical_texture_dimensions_minimum_one_pixel() {
+        assert_eq!(physical_texture_dimensions(1, 1, 0.5), (1, 1));
     }
 }
