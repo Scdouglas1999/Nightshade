@@ -7,7 +7,6 @@
 pub mod constellation_lines;
 pub mod dso;
 pub mod minor_body;
-pub mod satellite;
 pub mod variable_stars;
 pub mod healpix;
 pub mod hit_index;
@@ -45,15 +44,6 @@ pub use minor_body::{
     MinorBodyParseError, MinorBodyRecord, MpcOrbitEntry, MpcParseError, ParsedMinorBodyCatalog,
     MINOR_BODY_CATALOG_MAGIC, MINOR_BODY_FLAG_HAS_NAME, MINOR_BODY_HEADER_LEN,
     MINOR_BODY_RECORD_LEN, MPC_CATALOG_ID, MPC_ORBIT_LINE_MIN_LEN, MPC_PACK_VERSION,
-};
-pub use satellite::{
-    catalog_byte_len as satellite_tle_catalog_byte_len,
-    encode_catalog as encode_satellite_tle_catalog,
-    encode_catalog_from_text, parse_catalog as parse_satellite_tle_catalog, parse_tle_text,
-    MappedSatelliteTleCatalog, SatelliteTleCatalog, SatelliteTleHeader, SatelliteTleParseError,
-    SatelliteTleRecord, TleEntry, TleTextParseError, ParsedSatelliteTleCatalog,
-    SATELLITE_TLE_CATALOG_ID, SATELLITE_TLE_CATALOG_MAGIC, SATELLITE_TLE_HEADER_LEN,
-    SATELLITE_TLE_PACK_VERSION, SATELLITE_TLE_RECORD_LEN, TLE_LINE_WIDTH,
 };
 pub use dso::{
     catalog_byte_len, encode_catalog, parse_catalog, type_id_from_opengnc, DsoCatalogHeader,

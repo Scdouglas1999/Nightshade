@@ -521,8 +521,10 @@ pub fn parse_mpc_orbit_line(line: &str) -> Result<MpcOrbitEntry, MpcParseError> 
 /// Parse MPCORB-style text (one orbit per line; `#` comments and blanks skipped).
 pub fn parse_mpcorb_dat(text: &str) -> Vec<Result<MpcOrbitEntry, MpcParseError>> {
     text.lines()
-        .map(str::trim_start)
-        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .filter(|line| {
+            let trimmed = line.trim_start();
+            !trimmed.is_empty() && !trimmed.starts_with('#')
+        })
         .map(parse_mpc_orbit_line)
         .collect()
 }
