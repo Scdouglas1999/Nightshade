@@ -264,10 +264,11 @@ impl FrameRenderer for PlanetariumRenderer {
                 self.refresh_view_pose();
             }
             PlanetariumCommand::SetTrackingTarget(target) => {
+                // Setting the tracking target only updates the stored coordinates;
+                // it does NOT change the pose lock. Locking is the explicit job of
+                // `SetPoseLock(LockedToTarget(id))`. Conflating the two silently
+                // hijacks the user's view when they're just preparing a target.
                 self.tracking_target = target.clone();
-                if let Some(t) = target {
-                    self.pose_ctrl.set_lock(PoseLock::LockedToTarget(t.id));
-                }
                 self.refresh_view_pose();
             }
             PlanetariumCommand::SetPoseLock(lock) => {
@@ -303,7 +304,7 @@ impl FrameRenderer for PlanetariumRenderer {
         };
 
         let catalog = self.catalog.lock();
-        let scene = match build_render_scene(&catalog, build_inputs, anim) {
+        let scene = match build_render_scene(&catalog, build_inputs, anim, None) {
             Ok(scene) => scene,
             Err(err) => {
                 tracing::error!("build_render_scene failed: {err}");
