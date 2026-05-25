@@ -55,7 +55,7 @@ impl SharedHandleProvider {
 }
 
 impl TextureDescriptorProvider<DxgiSharedHandle> for SharedHandleProvider {
-    fn get(&self) -> TextureDescriptor<DxgiSharedHandle> {
+    fn get(&self) -> TextureDescriptor<'_, DxgiSharedHandle> {
         TextureDescriptor {
             handle: &self.handle,
             width: self.shared.width as i32,
