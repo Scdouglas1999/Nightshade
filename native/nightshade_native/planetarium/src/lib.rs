@@ -15,3 +15,4 @@ pub enum PlanetariumError {
 
 pub mod surface;
 pub mod spike;
+pub mod types;
