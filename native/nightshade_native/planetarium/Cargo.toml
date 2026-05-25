@@ -9,6 +9,10 @@ authors.workspace = true
 name = "build_hyg_tiles"
 path = "src/bin/build_hyg_tiles.rs"
 
+[[bin]]
+name = "build_opengnc"
+path = "src/bin/build_opengnc.rs"
+
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true

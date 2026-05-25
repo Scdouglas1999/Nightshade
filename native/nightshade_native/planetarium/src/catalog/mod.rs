@@ -1,13 +1,16 @@
 //! HEALPix star-catalog tiles (mmap-friendly binary layout).
 //!
 //! On-disk layout: [`TileHeader`] + [`LodEntry`] index + [`StarRecord`] blob.
+//! OpenNGC DSOs use a single mmap catalog ([`dso::DsoCatalogHeader`] + [`dso::DsoRecord`]).
 //! See `docs/plans/2026-05-25-planetarium-v2-design.md` §6.2.
 
 pub mod constellation_lines;
+pub mod dso;
 pub mod variable_stars;
 pub mod healpix;
 pub mod hit_index;
 pub mod hyg_build;
+pub mod opengnc_build;
 mod pack;
 mod residency;
 mod set;
@@ -33,11 +36,23 @@ pub use pack::{
     load_and_verify_pack, sha256_hex, PackError, PackManifest, PACK_MANIFEST_NAME,
 };
 pub use set::{CatalogHit, CatalogSet, StarPack};
+pub use dso::{
+    catalog_byte_len, encode_catalog, parse_catalog, type_id_from_opengnc, DsoCatalogHeader,
+    DsoParseError, DsoRecord, MappedDsoCatalog, ParsedDsoCatalog, DSO_CATALOG_MAGIC,
+    DSO_FLAG_HAS_MAG, DSO_FLAG_MESSIER, DSO_HEADER_LEN, DSO_RECORD_LEN, OPENNGC_CATALOG_ID,
+    OPENNGC_PACK_VERSION, dso_type,
+};
 pub use hyg_build::{
     build_hyg_tiles, build_lod_entries, default_hyg_csv_path, default_output_dir, find_repo_root,
     hyg_row_to_star, HygBuildError, HygBuildResult, HygBuildStats, HYG_CATALOG_ID, HYG_CSV_REL_PATH,
     HYG_FLAG_VARIABLE, HYG_LOD_MAG_THRESHOLDS, HYG_MAG_LIMIT, HYG_NSIDE, HYG_OUTPUT_REL_DIR,
     HYG_PACK_VERSION, HYG_V42_EXPECTED_STARS, HYG_V42_EXPECTED_TILES,
+};
+pub use opengnc_build::{
+    build_opengnc_catalog, default_opengnc_csv_path, default_output_path,
+    find_repo_root as find_repo_root_opengnc, opengnc_row_to_record, OpenNgcBuildError,
+    OpenNgcBuildResult, OpenNgcBuildStats, OPENNGC_CSV_REL_PATH, OPENNGC_MAG_LIMIT,
+    OPENNGC_OUTPUT_REL_PATH, OPENNGC_V1_EXPECTED_RECORDS,
 };
 pub use tile::{
     encode_tile, parse_tile, tile_byte_len, LodEntry, ParsedTile, StarRecord, TileHeader,
