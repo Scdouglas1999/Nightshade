@@ -13,4 +13,5 @@ pub enum PlanetariumError {
     UnsupportedPlatform(&'static str),
 }
 
+pub mod surface;
 pub mod spike;
