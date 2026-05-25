@@ -55,6 +55,12 @@ typedef struct wire_cst_list_prim_u_16_strict {
   int32_t len;
 } wire_cst_list_prim_u_16_strict;
 
+typedef struct wire_cst_api_combine_method {
+  struct wire_cst_list_prim_u_8_strict *method;
+  double *sigma_kappa;
+  uint32_t *sigma_iterations;
+} wire_cst_api_combine_method;
+
 typedef struct wire_cst_star_detection_config_api {
   double detection_sigma;
   uint32_t min_area;
@@ -133,6 +139,7 @@ typedef struct wire_cst_equipment_profile {
   struct wire_cst_list_prim_u_8_strict *rotator_id;
   struct wire_cst_list_prim_u_8_strict *dome_id;
   struct wire_cst_list_prim_u_8_strict *weather_id;
+  struct wire_cst_list_prim_u_8_strict *safety_monitor_id;
   struct wire_cst_list_prim_u_8_strict *cover_calibrator_id;
   double telescope_focal_length;
   double telescope_aperture;
@@ -180,6 +187,44 @@ typedef struct wire_cst_list_record_string_i_32 {
   int32_t len;
 } wire_cst_list_record_string_i_32;
 
+typedef struct wire_cst_list_bool {
+  bool *ptr;
+  int32_t len;
+} wire_cst_list_bool;
+
+typedef struct wire_cst_list_prim_f_64_loose {
+  double *ptr;
+  int32_t len;
+} wire_cst_list_prim_f_64_loose;
+
+typedef struct wire_cst_record_string_f_64 {
+  struct wire_cst_list_prim_u_8_strict *field0;
+  double field1;
+} wire_cst_record_string_f_64;
+
+typedef struct wire_cst_list_record_string_f_64 {
+  struct wire_cst_record_string_f_64 *ptr;
+  int32_t len;
+} wire_cst_list_record_string_f_64;
+
+typedef struct wire_cst_record_string_map_string_f_64_none {
+  struct wire_cst_list_prim_u_8_strict *field0;
+  struct wire_cst_list_record_string_f_64 *field1;
+} wire_cst_record_string_map_string_f_64_none;
+
+typedef struct wire_cst_list_record_string_map_string_f_64_none {
+  struct wire_cst_record_string_map_string_f_64_none *ptr;
+  int32_t len;
+} wire_cst_list_record_string_map_string_f_64_none;
+
+typedef struct wire_cst_recovery_config_update {
+  double retry_interval_secs;
+  double max_duration_secs;
+  bool stop_tracking_during_recovery;
+  bool abort_on_meridian;
+  bool audible_alert_when_entered;
+} wire_cst_recovery_config_update;
+
 typedef struct wire_cst_observer_location {
   double latitude;
   double longitude;
@@ -195,12 +240,78 @@ typedef struct wire_cst_api_live_stacking_config {
   uint32_t min_matched_pairs;
 } wire_cst_api_live_stacking_config;
 
+typedef struct wire_cst_fits_keyword_update {
+  struct wire_cst_list_prim_u_8_strict *keyword;
+  struct wire_cst_list_prim_u_8_strict *comment;
+  struct wire_cst_list_prim_u_8_strict *string_value;
+  int64_t *int_value;
+  double *float_value;
+} wire_cst_fits_keyword_update;
+
+typedef struct wire_cst_list_fits_keyword_update {
+  struct wire_cst_fits_keyword_update *ptr;
+  int32_t len;
+} wire_cst_list_fits_keyword_update;
+
 typedef struct wire_cst_app_settings {
   struct wire_cst_observer_location *location;
   struct wire_cst_list_prim_u_8_strict *theme;
   struct wire_cst_list_prim_u_8_strict *language;
   bool auto_connect;
 } wire_cst_app_settings;
+
+typedef struct wire_cst_fits_write_header_rich {
+  struct wire_cst_list_prim_u_8_strict *object_name;
+  double exposure_time;
+  struct wire_cst_list_prim_u_8_strict *capture_timestamp;
+  struct wire_cst_list_prim_u_8_strict *frame_type;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  int32_t *filter_position;
+  int32_t *gain;
+  int32_t *offset;
+  double *ccd_temp;
+  double *set_temp;
+  double *ra;
+  double *dec;
+  double *altitude;
+  struct wire_cst_list_prim_u_8_strict *telescope;
+  struct wire_cst_list_prim_u_8_strict *instrument;
+  struct wire_cst_list_prim_u_8_strict *observer;
+  int32_t bin_x;
+  int32_t bin_y;
+  double *focal_length;
+  double *aperture;
+  double *pixel_size_x;
+  double *pixel_size_y;
+  double *site_latitude;
+  double *site_longitude;
+  double *site_elevation;
+  int32_t *focuser_position;
+  double *focuser_temperature;
+  double *rotator_angle;
+  double *guide_rms_arcsec;
+  double *solved_ra_hours;
+  double *solved_dec_degrees;
+  double *plate_solve_pixel_scale_arcsec;
+  double *plate_solve_rotation_deg;
+  struct wire_cst_list_prim_u_8_strict *bayer_pattern;
+  struct wire_cst_list_prim_u_8_strict *session_id;
+  uint32_t *frame_index;
+  uint32_t *total_planned_frames;
+  struct wire_cst_list_prim_u_8_strict *mosaic_name;
+  int32_t *mosaic_panel_index;
+  int32_t *mosaic_panel_row;
+  int32_t *mosaic_panel_column;
+  int32_t *mosaic_total_panels;
+  uintptr_t *defect_map_correction;
+  struct wire_cst_list_prim_u_8_strict *photometry_object_catalog;
+  struct wire_cst_list_prim_u_8_strict *photometry_reference_stars;
+  double *photometry_mjd_obs;
+  double *photometry_instrumental_mag;
+  double *photometry_differential_mag;
+  double *photometry_fwhm_arcsec;
+  double *photometry_snr;
+} wire_cst_fits_write_header_rich;
 
 typedef struct wire_cst_api_defect_map_status {
   struct wire_cst_list_prim_u_8_strict *camera_id;
@@ -569,6 +680,21 @@ typedef struct wire_cst_imaging_event {
   union ImagingEventKind kind;
 } wire_cst_imaging_event;
 
+typedef struct wire_cst_live_stacking_broadcast_snapshot {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *mode;
+  struct wire_cst_list_prim_u_8_strict *stack_method;
+  bool broadcast_enabled;
+  uint16_t broadcast_port;
+  struct wire_cst_list_prim_u_8_strict *broadcast_path;
+  struct wire_cst_list_prim_u_8_strict *auth_token;
+  struct wire_cst_list_prim_u_8_strict *watermark_template;
+  uint32_t thumbnail_width;
+  uint32_t thumbnail_height;
+  uint32_t max_frames_to_stack;
+  int64_t activated_at_unix_millis;
+} wire_cst_live_stacking_broadcast_snapshot;
+
 typedef struct wire_cst_list_tracking_rate {
   int32_t *ptr;
   int32_t len;
@@ -724,6 +850,165 @@ typedef struct wire_cst_SequencerEvent_InstructionProgress {
   struct wire_cst_list_prim_u_8_strict *detail;
 } wire_cst_SequencerEvent_InstructionProgress;
 
+typedef struct wire_cst_SequencerEvent_InstructionProgressStructured {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *instruction;
+  double progress_percent;
+  struct wire_cst_list_prim_u_8_strict *detail_kind;
+  struct wire_cst_list_prim_u_8_strict *detail_json;
+} wire_cst_SequencerEvent_InstructionProgressStructured;
+
+typedef struct wire_cst_SequencerEvent_FrameAccepted {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  uint32_t frame;
+  uint32_t total;
+  double *hfr;
+  double *eccentricity;
+  uint32_t *star_count;
+  uint32_t accepted_total;
+  uint32_t rejected_total;
+  struct wire_cst_list_prim_u_8_strict *save_path;
+} wire_cst_SequencerEvent_FrameAccepted;
+
+typedef struct wire_cst_SequencerEvent_FrameRejected {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  uint32_t frame;
+  uint32_t total;
+  struct wire_cst_list_prim_u_8_strict *reason;
+  double *hfr;
+  double *eccentricity;
+  uint32_t *star_count;
+  struct wire_cst_list_prim_u_8_strict *reject_path;
+  uint32_t consecutive_rejects;
+  uint32_t accepted_total;
+  uint32_t rejected_total;
+  struct wire_cst_list_prim_u_8_strict *likely_cause_label;
+  struct wire_cst_list_String *evidence;
+  double *sky_brightness_at_capture;
+  double *cloud_cover_at_capture;
+  double *wind_at_capture;
+  double *guide_rms_at_capture;
+  double *sensor_temp_at_capture;
+} wire_cst_SequencerEvent_FrameRejected;
+
+typedef struct wire_cst_scheduler_score_entry {
+  struct wire_cst_list_prim_u_8_strict *target_id;
+  struct wire_cst_list_prim_u_8_strict *target_name;
+  double total_score;
+  bool runnable;
+  struct wire_cst_list_prim_u_8_strict *reason;
+} wire_cst_scheduler_score_entry;
+
+typedef struct wire_cst_list_scheduler_score_entry {
+  struct wire_cst_scheduler_score_entry *ptr;
+  int32_t len;
+} wire_cst_list_scheduler_score_entry;
+
+typedef struct wire_cst_SequencerEvent_SchedulerDecision {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  uint32_t decision_counter;
+  struct wire_cst_list_prim_u_8_strict *picked_target_id;
+  struct wire_cst_list_prim_u_8_strict *picked_target_name;
+  double *picked_score;
+  struct wire_cst_list_scheduler_score_entry *scores;
+} wire_cst_SequencerEvent_SchedulerDecision;
+
+typedef struct wire_cst_SequencerEvent_IntegrationBudget {
+  struct wire_cst_list_prim_u_8_strict *target_id;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  double completed_secs;
+  double budget_secs;
+  double fraction;
+  bool budget_met;
+} wire_cst_SequencerEvent_IntegrationBudget;
+
+typedef struct wire_cst_SequencerEvent_ExposureAdjusted {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  double adapted_secs;
+  double nominal_secs;
+  double *sky_brightness_mag;
+  struct wire_cst_list_prim_u_8_strict *filter;
+  struct wire_cst_list_prim_u_8_strict *reason;
+} wire_cst_SequencerEvent_ExposureAdjusted;
+
+typedef struct wire_cst_SequencerEvent_RecoveryStarted {
+  struct wire_cst_list_prim_u_8_strict *started_at_iso;
+  struct wire_cst_list_prim_u_8_strict *cause_kind;
+  struct wire_cst_list_prim_u_8_strict *cause_custom_label;
+  struct wire_cst_list_prim_u_8_strict *last_attempt_at_iso;
+  uint32_t attempt_count;
+  uint32_t max_attempts;
+  double retry_interval_secs;
+  double max_duration_secs;
+  struct wire_cst_list_prim_u_8_strict *phase;
+  struct wire_cst_list_prim_u_8_strict *last_error;
+} wire_cst_SequencerEvent_RecoveryStarted;
+
+typedef struct wire_cst_SequencerEvent_RecoveryProgress {
+  struct wire_cst_list_prim_u_8_strict *started_at_iso;
+  struct wire_cst_list_prim_u_8_strict *cause_kind;
+  struct wire_cst_list_prim_u_8_strict *cause_custom_label;
+  struct wire_cst_list_prim_u_8_strict *last_attempt_at_iso;
+  uint32_t attempt_count;
+  uint32_t max_attempts;
+  double retry_interval_secs;
+  double max_duration_secs;
+  struct wire_cst_list_prim_u_8_strict *phase;
+  struct wire_cst_list_prim_u_8_strict *last_error;
+} wire_cst_SequencerEvent_RecoveryProgress;
+
+typedef struct wire_cst_SequencerEvent_RecoveryCompleted {
+  struct wire_cst_list_prim_u_8_strict *started_at_iso;
+  struct wire_cst_list_prim_u_8_strict *cause_kind;
+  struct wire_cst_list_prim_u_8_strict *cause_custom_label;
+  struct wire_cst_list_prim_u_8_strict *last_attempt_at_iso;
+  uint32_t attempt_count;
+  uint32_t max_attempts;
+  double retry_interval_secs;
+  double max_duration_secs;
+  struct wire_cst_list_prim_u_8_strict *phase;
+  struct wire_cst_list_prim_u_8_strict *last_error;
+} wire_cst_SequencerEvent_RecoveryCompleted;
+
+typedef struct wire_cst_SequencerEvent_RecoveryGaveUp {
+  struct wire_cst_list_prim_u_8_strict *started_at_iso;
+  struct wire_cst_list_prim_u_8_strict *cause_kind;
+  struct wire_cst_list_prim_u_8_strict *cause_custom_label;
+  struct wire_cst_list_prim_u_8_strict *last_attempt_at_iso;
+  uint32_t attempt_count;
+  uint32_t max_attempts;
+  double retry_interval_secs;
+  double max_duration_secs;
+  struct wire_cst_list_prim_u_8_strict *phase;
+  struct wire_cst_list_prim_u_8_strict *last_error;
+  bool aborted_by_user;
+} wire_cst_SequencerEvent_RecoveryGaveUp;
+
+typedef struct wire_cst_SequencerEvent_PluginNodeRequested {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *plugin_id;
+  struct wire_cst_list_prim_u_8_strict *node_type_id;
+  struct wire_cst_list_prim_u_8_strict *config_json;
+  struct wire_cst_list_prim_u_8_strict *display_name;
+  uint32_t timeout_secs;
+} wire_cst_SequencerEvent_PluginNodeRequested;
+
+typedef struct wire_cst_SequencerEvent_PluginNodeProgress {
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  struct wire_cst_list_prim_u_8_strict *plugin_id;
+  struct wire_cst_list_prim_u_8_strict *node_type_id;
+  struct wire_cst_list_prim_u_8_strict *detail_json;
+} wire_cst_SequencerEvent_PluginNodeProgress;
+
+typedef struct wire_cst_SequencerEvent_DecisionLogged {
+  struct wire_cst_list_prim_u_8_strict *timestamp_iso;
+  struct wire_cst_list_prim_u_8_strict *category;
+  struct wire_cst_list_prim_u_8_strict *summary;
+  struct wire_cst_list_prim_u_8_strict *details_json;
+  struct wire_cst_list_prim_u_8_strict *node_id;
+  int64_t *sequence_run_id;
+} wire_cst_SequencerEvent_DecisionLogged;
+
 typedef union SequencerEventKind {
   struct wire_cst_SequencerEvent_Started Started;
   struct wire_cst_SequencerEvent_NodeStarted NodeStarted;
@@ -736,6 +1021,19 @@ typedef union SequencerEventKind {
   struct wire_cst_SequencerEvent_Error Error;
   struct wire_cst_SequencerEvent_TriggerFired TriggerFired;
   struct wire_cst_SequencerEvent_InstructionProgress InstructionProgress;
+  struct wire_cst_SequencerEvent_InstructionProgressStructured InstructionProgressStructured;
+  struct wire_cst_SequencerEvent_FrameAccepted FrameAccepted;
+  struct wire_cst_SequencerEvent_FrameRejected FrameRejected;
+  struct wire_cst_SequencerEvent_SchedulerDecision SchedulerDecision;
+  struct wire_cst_SequencerEvent_IntegrationBudget IntegrationBudget;
+  struct wire_cst_SequencerEvent_ExposureAdjusted ExposureAdjusted;
+  struct wire_cst_SequencerEvent_RecoveryStarted RecoveryStarted;
+  struct wire_cst_SequencerEvent_RecoveryProgress RecoveryProgress;
+  struct wire_cst_SequencerEvent_RecoveryCompleted RecoveryCompleted;
+  struct wire_cst_SequencerEvent_RecoveryGaveUp RecoveryGaveUp;
+  struct wire_cst_SequencerEvent_PluginNodeRequested PluginNodeRequested;
+  struct wire_cst_SequencerEvent_PluginNodeProgress PluginNodeProgress;
+  struct wire_cst_SequencerEvent_DecisionLogged DecisionLogged;
 } SequencerEventKind;
 
 typedef struct wire_cst_sequencer_event {
@@ -777,6 +1075,7 @@ typedef struct wire_cst_SystemEvent_Notification {
   struct wire_cst_list_prim_u_8_strict *title;
   struct wire_cst_list_prim_u_8_strict *message;
   struct wire_cst_list_prim_u_8_strict *level;
+  struct wire_cst_list_String *explicit_transports;
 } wire_cst_SystemEvent_Notification;
 
 typedef struct wire_cst_SystemEvent_EventsDropped {
@@ -994,6 +1293,19 @@ typedef struct wire_cst_api_live_stacking_result {
   struct wire_cst_api_live_stacking_stats stats;
 } wire_cst_api_live_stacking_result;
 
+typedef struct wire_cst_api_master_frame_result {
+  struct wire_cst_list_prim_u_8_strict *output_path;
+  struct wire_cst_list_prim_u_8_strict *kind;
+  struct wire_cst_list_prim_u_8_strict *output_type;
+  uint32_t frame_count;
+  struct wire_cst_list_prim_u_8_strict *method;
+  uint32_t width;
+  uint32_t height;
+  uint32_t channels;
+  double input_mean;
+  double output_mean;
+} wire_cst_api_master_frame_result;
+
 typedef struct wire_cst_autofocus_result_api {
   int32_t best_position;
   double best_hfr;
@@ -1015,6 +1327,13 @@ typedef struct wire_cst_builtin_guider_config {
   double min_pulse_ms;
   double max_pulse_ms;
 } wire_cst_builtin_guider_config;
+
+typedef struct wire_cst_camera_recommended_settings {
+  int32_t *unity_gain;
+  int32_t *hcg_gain;
+  int32_t *default_offset;
+  struct wire_cst_list_prim_u_8_strict *notes;
+} wire_cst_camera_recommended_settings;
 
 typedef struct wire_cst_camera_status {
   bool connected;
@@ -1705,6 +2024,10 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__imaging__api_aut
                                                                                                 uint32_t height,
                                                                                                 struct wire_cst_list_prim_u_16_loose *data);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate(void);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active(void);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence(struct wire_cst_list_prim_u_8_strict *id,
                                                                                               struct wire_cst_list_prim_u_8_strict *name,
                                                                                               struct wire_cst_list_prim_u_8_strict *description,
@@ -1771,6 +2094,12 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_calibrate_image_fil
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_cancel_exposure(int64_t port_,
                                                                                     struct wire_cst_list_prim_u_8_strict *device_id);
 
+void frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_capture_preview(int64_t port_,
+                                                                                            struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_get_recommended_settings(int64_t port_,
+                                                                                                     struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_set_readout_mode(int64_t port_,
                                                                                              struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                              int32_t mode_index);
@@ -1787,6 +2116,13 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_autofocus(in
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_clear_device_image(int64_t port_,
                                                                                 struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_combine_master_frames(int64_t port_,
+                                                                                   struct wire_cst_list_String *input_paths,
+                                                                                   struct wire_cst_list_prim_u_8_strict *kind,
+                                                                                   struct wire_cst_api_combine_method *method,
+                                                                                   struct wire_cst_list_prim_u_8_strict *output_type,
+                                                                                   struct wire_cst_list_prim_u_8_strict *output_path);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_compute_fits_quality_maps(int64_t port_,
                                                                                        struct wire_cst_list_prim_u_8_strict *file_path,
@@ -1938,6 +2274,7 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_c
                                                                                                          int64_t *start_after,
                                                                                                          int64_t *end_before,
                                                                                                          struct wire_cst_list_prim_u_8_strict *mosaic_panel_json,
+                                                                                                         struct wire_cst_list_prim_u_8_strict *integration_budget_json,
                                                                                                          struct wire_cst_list_String *children);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_unpark_node(struct wire_cst_list_prim_u_8_strict *id,
@@ -2022,8 +2359,14 @@ void frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_indi_loc
 
 void frbgen_nightshade_bridge_wire__crate__api__discovery__api_discover_indi_network(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_abort_slew(int64_t port_,
+                                                                                   struct wire_cst_list_prim_u_8_strict *device_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_close_shutter(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_find_home(int64_t port_,
+                                                                                  struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_get_azimuth(int64_t port_,
                                                                                     struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2039,6 +2382,10 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_open_shu
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_park(int64_t port_,
                                                                              struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_set_slaved(int64_t port_,
+                                                                                   struct wire_cst_list_prim_u_8_strict *device_id,
+                                                                                   bool slaved);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_slew_to_azimuth(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
@@ -2229,6 +2576,9 @@ void frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_dither(int64_t 
 
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_find_star(int64_t port_,
                                                                            struct wire_cst_list_prim_u_8_strict *device_id);
+
+void frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_calibration(int64_t port_,
+                                                                                 struct wire_cst_list_prim_u_8_strict *device_id);
 
 void frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_lock_position(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2487,9 +2837,33 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_xisf_file(int6
                                                                             struct wire_cst_list_prim_u_16_loose *data,
                                                                             struct wire_cst_list_record_string_string *properties);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_sequencer_apply_defect_map(int64_t port_,
+                                                                                        struct wire_cst_list_prim_u_8_strict *camera_id,
+                                                                                        uint32_t width,
+                                                                                        uint32_t height,
+                                                                                        double sensor_temperature_celsius,
+                                                                                        bool enabled,
+                                                                                        struct wire_cst_list_prim_u_8_strict *method,
+                                                                                        uint8_t kernel_diameter,
+                                                                                        bool save_original);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_checkpoint(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_checkpoint_info(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_current_recovery_json(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_recovery_history_json(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_state(int64_t port_);
 
@@ -2503,6 +2877,16 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_load_js
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_pause(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_plugin_node_finished(int64_t port_,
+                                                                                              struct wire_cst_list_prim_u_8_strict *node_id,
+                                                                                              bool success,
+                                                                                              struct wire_cst_list_prim_u_8_strict *message,
+                                                                                              struct wire_cst_list_prim_u_8_strict *structured_detail_json);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_abort(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_try_now(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_reset(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume(int64_t port_);
@@ -2511,8 +2895,14 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume_
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_save_checkpoint(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id(int64_t port_,
+                                                                                                    int64_t *sequence_run_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir(int64_t port_,
                                                                                             struct wire_cst_list_prim_u_8_strict *path);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(int64_t port_,
+                                                                                                      bool enabled);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_devices(int64_t port_,
                                                                                      struct wire_cst_list_prim_u_8_strict *camera_id,
@@ -2522,6 +2912,9 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_dev
                                                                                      struct wire_cst_list_prim_u_8_strict *rotator_id,
                                                                                      struct wire_cst_list_String *filter_names,
                                                                                      struct wire_cst_list_record_string_i_32 *filter_focus_offsets);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds(int64_t port_,
+                                                                                                           uint32_t seconds);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode(int64_t port_,
                                                                                               struct wire_cst_list_prim_u_8_strict *mode);
@@ -2534,11 +2927,58 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_sim
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip(int64_t port_);
 
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip_to_node(int64_t port_,
+                                                                                      struct wire_cst_list_prim_u_8_strict *node_id);
+
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_start(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_stop(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_subscribe_events(int64_t port_);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(int64_t port_,
+                                                                                                   uint32_t every_n_frames);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_cloud_motion(int64_t port_,
+                                                                                             double *current_cover_percent,
+                                                                                             double *predicted_arrival_minutes,
+                                                                                             double *predicted_opening_minutes,
+                                                                                             double *predicted_opening_duration_secs,
+                                                                                             double *predicted_clear_sky_alt,
+                                                                                             double *predicted_clear_sky_az);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_conditions_score(int64_t port_,
+                                                                                                 double *score,
+                                                                                                 double *transparency_score,
+                                                                                                 double *seeing_score,
+                                                                                                 double *cloud_score,
+                                                                                                 double *wind_score,
+                                                                                                 double transparency_weight,
+                                                                                                 double seeing_weight,
+                                                                                                 double cloud_weight,
+                                                                                                 double wind_weight,
+                                                                                                 int64_t generated_unix_secs);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure(int64_t port_,
+                                                                                                          bool enabled,
+                                                                                                          double target_snr,
+                                                                                                          double reference_sky_brightness_mag,
+                                                                                                          double min_exposure_secs,
+                                                                                                          double max_exposure_secs,
+                                                                                                          struct wire_cst_list_String *per_filter_enabled_keys,
+                                                                                                          struct wire_cst_list_bool *per_filter_enabled_values,
+                                                                                                          struct wire_cst_list_String *per_filter_min_keys,
+                                                                                                          struct wire_cst_list_prim_f_64_loose *per_filter_min_values,
+                                                                                                          struct wire_cst_list_String *per_filter_max_keys,
+                                                                                                          struct wire_cst_list_prim_f_64_loose *per_filter_max_values);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_quality_check(int64_t port_,
+                                                                                                      double *hfr_threshold,
+                                                                                                      double *hfr_baseline_percent,
+                                                                                                      double *eccentricity_threshold,
+                                                                                                      uint32_t *star_count_min,
+                                                                                                      uint32_t max_consecutive_rejects,
+                                                                                                      bool enabled);
 
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_dither_config(int64_t port_,
                                                                                               double pixels,
@@ -2553,6 +2993,27 @@ void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_
 void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_location(int64_t port_,
                                                                                          double *latitude,
                                                                                          double *longitude);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_observer_profile(int64_t port_,
+                                                                                                 struct wire_cst_list_prim_u_8_strict *observer_name,
+                                                                                                 double *site_elevation_m,
+                                                                                                 struct wire_cst_list_prim_u_8_strict *camera_make,
+                                                                                                 struct wire_cst_list_prim_u_8_strict *camera_model,
+                                                                                                 struct wire_cst_list_prim_u_8_strict *telescope_name,
+                                                                                                 double *telescope_focal_length_mm,
+                                                                                                 double *telescope_aperture_mm);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over(int64_t port_,
+                                                                                                               struct wire_cst_list_record_string_map_string_f_64_none *carry_over);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_recovery_config(int64_t port_,
+                                                                                                struct wire_cst_recovery_config_update *update);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_reject_folder_path(int64_t port_,
+                                                                                                   struct wire_cst_list_prim_u_8_strict *path);
+
+void frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness(int64_t port_,
+                                                                                               double *mag);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_set_camera_binning(int64_t port_,
                                                                                         struct wire_cst_list_prim_u_8_strict *device_id,
@@ -2692,6 +3153,10 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__switch__api_switch_set_
                                                                                       int32_t switch_id,
                                                                                       double value);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_update_fits_keywords(int64_t port_,
+                                                                                  struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                                  struct wire_cst_list_fits_keyword_update *updates);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__storage__api_update_settings(struct wire_cst_app_settings *settings);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__cancel_exposure(int64_t port_,
@@ -2722,6 +3187,8 @@ void frbgen_nightshade_bridge_wire__crate__api__devices__filter_wheel__filter_wh
 void frbgen_nightshade_bridge_wire__crate__api__devices__filter_wheel__filter_wheel_set_position(int64_t port_,
                                                                                                  struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                                  int32_t position);
+
+void frbgen_nightshade_bridge_wire__crate__api__imaging__fits_write_header_rich_default(int64_t port_);
 
 void frbgen_nightshade_bridge_wire__crate__api__devices__focuser__focuser_get_details(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
@@ -2827,6 +3294,21 @@ void frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__m
                                                                                                   struct wire_cst_list_prim_u_8_strict *prog_id,
                                                                                                   int32_t position);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_create(int64_t engine_handle);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_dispose(int64_t handle);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_resize(int64_t handle,
+                                                                                                            uint32_t width,
+                                                                                                            uint32_t height);
+
+void frbgen_nightshade_bridge_wire__crate__api__imaging__save_fits_file_rich(int64_t port_,
+                                                                             struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                             uint32_t width,
+                                                                             uint32_t height,
+                                                                             struct wire_cst_list_prim_u_16_loose *data,
+                                                                             struct wire_cst_fits_write_header_rich *header_data);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__camera__set_camera_cooler(int64_t port_,
                                                                                    struct wire_cst_list_prim_u_8_strict *device_id,
                                                                                    uint8_t enabled,
@@ -2869,7 +3351,15 @@ void frbgen_nightshade_bridge_rust_arc_increment_strong_count_RustOpaque_flutter
 
 void frbgen_nightshade_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(const void *ptr);
 
+void frbgen_nightshade_bridge_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(const void *ptr);
+
+void frbgen_nightshade_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(const void *ptr);
+
 uintptr_t *frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(uintptr_t value);
+
+uintptr_t *frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(uintptr_t value);
+
+struct wire_cst_api_combine_method *frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method(void);
 
 struct wire_cst_api_defect_map_status *frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status(void);
 
@@ -2905,6 +3395,8 @@ struct wire_cst_filter_wheel_capabilities *frbgen_nightshade_bridge_cst_new_box_
 
 struct wire_cst_fits_write_header *frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header(void);
 
+struct wire_cst_fits_write_header_rich *frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich(void);
+
 struct wire_cst_focuser_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities(void);
 
 struct wire_cst_guiding_event *frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event(void);
@@ -2916,6 +3408,8 @@ int64_t *frbgen_nightshade_bridge_cst_new_box_autoadd_i_64(int64_t value);
 struct wire_cst_imaging_event *frbgen_nightshade_bridge_cst_new_box_autoadd_imaging_event(void);
 
 struct wire_cst_indi_autofocus_config_api *frbgen_nightshade_bridge_cst_new_box_autoadd_indi_autofocus_config_api(void);
+
+struct wire_cst_live_stacking_broadcast_snapshot *frbgen_nightshade_bridge_cst_new_box_autoadd_live_stacking_broadcast_snapshot(void);
 
 struct wire_cst_mount_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_mount_capabilities(void);
 
@@ -2930,6 +3424,8 @@ struct wire_cst_polar_alignment_event *frbgen_nightshade_bridge_cst_new_box_auto
 struct wire_cst_polar_alignment_image_event *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event(void);
 
 struct wire_cst_polar_alignment_status *frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_status(void);
+
+struct wire_cst_recovery_config_update *frbgen_nightshade_bridge_cst_new_box_autoadd_recovery_config_update(void);
 
 struct wire_cst_rotator_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_rotator_capabilities(void);
 
@@ -2963,11 +3459,15 @@ struct wire_cst_weather_capabilities *frbgen_nightshade_bridge_cst_new_box_autoa
 
 struct wire_cst_list_String *frbgen_nightshade_bridge_cst_new_list_String(int32_t len);
 
+struct wire_cst_list_bool *frbgen_nightshade_bridge_cst_new_list_bool(int32_t len);
+
 struct wire_cst_list_detected_star_info *frbgen_nightshade_bridge_cst_new_list_detected_star_info(int32_t len);
 
 struct wire_cst_list_device_info *frbgen_nightshade_bridge_cst_new_list_device_info(int32_t len);
 
 struct wire_cst_list_equipment_profile *frbgen_nightshade_bridge_cst_new_list_equipment_profile(int32_t len);
+
+struct wire_cst_list_fits_keyword_update *frbgen_nightshade_bridge_cst_new_list_fits_keyword_update(int32_t len);
 
 struct wire_cst_list_focus_data_point *frbgen_nightshade_bridge_cst_new_list_focus_data_point(int32_t len);
 
@@ -2980,6 +3480,8 @@ struct wire_cst_list_node_definition_api *frbgen_nightshade_bridge_cst_new_list_
 struct wire_cst_list_phd_2_algo_param *frbgen_nightshade_bridge_cst_new_list_phd_2_algo_param(int32_t len);
 
 struct wire_cst_list_prim_f_32_strict *frbgen_nightshade_bridge_cst_new_list_prim_f_32_strict(int32_t len);
+
+struct wire_cst_list_prim_f_64_loose *frbgen_nightshade_bridge_cst_new_list_prim_f_64_loose(int32_t len);
 
 struct wire_cst_list_prim_f_64_strict *frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict(int32_t len);
 
@@ -2997,11 +3499,17 @@ struct wire_cst_list_quality_tile_metric_api *frbgen_nightshade_bridge_cst_new_l
 
 struct wire_cst_list_quirk_info *frbgen_nightshade_bridge_cst_new_list_quirk_info(int32_t len);
 
+struct wire_cst_list_record_string_f_64 *frbgen_nightshade_bridge_cst_new_list_record_string_f_64(int32_t len);
+
 struct wire_cst_list_record_string_field_availability *frbgen_nightshade_bridge_cst_new_list_record_string_field_availability(int32_t len);
 
 struct wire_cst_list_record_string_i_32 *frbgen_nightshade_bridge_cst_new_list_record_string_i_32(int32_t len);
 
+struct wire_cst_list_record_string_map_string_f_64_none *frbgen_nightshade_bridge_cst_new_list_record_string_map_string_f_64_none(int32_t len);
+
 struct wire_cst_list_record_string_string *frbgen_nightshade_bridge_cst_new_list_record_string_string(int32_t len);
+
+struct wire_cst_list_scheduler_score_entry *frbgen_nightshade_bridge_cst_new_list_scheduler_score_entry(int32_t len);
 
 struct wire_cst_list_star_crop_api *frbgen_nightshade_bridge_cst_new_list_star_crop_api(int32_t len);
 
@@ -3011,6 +3519,8 @@ struct wire_cst_list_tracking_rate *frbgen_nightshade_bridge_cst_new_list_tracki
 static int64_t dummy_method_to_enforce_bundling(void) {
     int64_t dummy_var = 0;
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_defect_map_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_api_live_stacking_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_app_settings);
@@ -3028,12 +3538,14 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_f_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_filter_wheel_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_imaging_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_indi_autofocus_config_api);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_live_stacking_broadcast_snapshot);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_mount_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_pier_side);
@@ -3041,6 +3553,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_image_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_polar_alignment_status);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_recovery_config_update);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_rotator_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_safety_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_safety_monitor_capabilities);
@@ -3057,15 +3570,18 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_u_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_weather_capabilities);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_String);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_bool);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_detected_star_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_device_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_equipment_profile);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_fits_keyword_update);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_focus_data_point);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_focus_data_point_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_mosaic_panel_result);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_node_definition_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_phd_2_algo_param);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_f_32_strict);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_f_64_loose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_f_64_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_i_32_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_loose);
@@ -3074,14 +3590,19 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_f_64);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_field_availability);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_i_32);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_map_string_f_64_none);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_record_string_string);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_scheduler_score_entry);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_star_crop_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_switch_info);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_tracking_rate);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_invalidate_discovery_cache);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_version__api_device_supports_action);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__api_version__api_device_supports_version);
@@ -3103,6 +3624,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__get_ascom_mount_coords);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__move_ascom_focuser);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__connection__ascom_connections__slew_ascom_mount);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_capture_preview);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_get_recommended_settings);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_set_readout_mode);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_set_camera_binning);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__camera__cancel_exposure);
@@ -3119,12 +3642,15 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__cover_calibrator__api_cover_calibrator_get_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__cover_calibrator__api_cover_calibrator_halt_cover);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__cover_calibrator__api_cover_calibrator_open_cover);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_abort_slew);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_close_shutter);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_find_home);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_get_azimuth);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_get_shutter_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_is_slewing);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_open_shutter);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_park);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_set_slaved);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_slew_to_azimuth);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_get_dome_status);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__devices__filter_wheel__filter_wheel_get_config);
@@ -3238,6 +3764,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_camera_start_exposure);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_cancel_autofocus);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_clear_device_image);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_combine_master_frames);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_compute_fits_quality_maps);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_compute_last_capture_quality_maps);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_debayer_fits_file);
@@ -3266,6 +3793,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_png_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_tiff_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_xisf_file);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_sequencer_apply_defect_map);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_add_frame);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_add_frame_from_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_frame_count);
@@ -3276,7 +3804,10 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_start_from_data);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_stacking_stop);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_update_fits_keywords);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__fits_write_header_rich_default);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__indi_autofocus_config_api_default);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__save_fits_file_rich);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__star_detection_config_api_default);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_export_logs);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__init__api_get_current_log_file);
@@ -3291,6 +3822,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_deselect_star);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_dither);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_find_star);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_calibration);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_lock_position);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_star_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_status);
@@ -3323,6 +3855,9 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_set_paused);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_start_guiding);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_stop_guiding);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_create);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_dispose);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_resize);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_get_plate_solver_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_is_plate_solver_available);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_plate_solve_blind);
@@ -3334,6 +3869,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_all_sky_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_start_polar_alignment);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__polar_alignment__api_stop_polar_alignment);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_build_sequence);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_calculate_altitude);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_calculate_mosaic_area);
@@ -3358,28 +3895,52 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_warm_camera_node);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_estimate_mosaic_time);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_checkpoint);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_checkpoint_info);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_current_recovery_json);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_recovery_history_json);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_has_checkpoint);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_load);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_load_json);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_pause);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_plugin_node_finished);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_abort);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_try_now);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_reset);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_resume_from_checkpoint);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_save_checkpoint);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_devices);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_save_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_simulation_mode);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip_to_node);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_start);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_stop);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_subscribe_events);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_cloud_motion);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_conditions_score);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_quality_check);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_dither_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_filter_offsets);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_location);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_observer_profile);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_recovery_config);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_reject_folder_path);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_end_session);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_get_session_state);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__session__api_start_session);

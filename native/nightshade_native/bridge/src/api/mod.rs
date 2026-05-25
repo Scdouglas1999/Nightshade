@@ -8,6 +8,7 @@ use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
 use crate::state::*;
+use std::collections::HashMap;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
 use std::sync::OnceLock;
@@ -33,22 +34,32 @@ pub fn get_device_manager() -> &'static Arc<DeviceManager> {
 }
 
 // =============================================================================
-// Unified Discovery Cache (ASCOM + Alpaca + Native + INDI)
+// Per-(DeviceType, DriverType) Discovery Cache
 // =============================================================================
 
-/// Unified cache for ALL discovered devices across every discovery source.
-/// When `api_discover_devices()` is called for any device type, the first call
-/// runs full discovery for all sources (ASCOM, Alpaca, Native, INDI) and caches
-/// every result. Subsequent calls within the TTL just filter by device_type.
-struct DiscoveryCache {
-    /// All discovered devices from every source, unfiltered
-    all_devices: Vec<DeviceInfo>,
-    /// When the cache was last populated
-    timestamp: Instant,
+/// Cached outcome of a single (DeviceType, DriverType) discovery scan.
+///
+/// Each (type, driver) pair has its own entry so that:
+///   * Asking for cameras does not force a mount-driver scan.
+///   * An error in one backend (e.g. ASCOM) cannot poison another (e.g. Alpaca)
+///     for the same device type — each entry holds its own `result`.
+///   * Backends that errored still respect the TTL, preventing a tight
+///     hammer-the-broken-backend loop while still surfacing the failure to the
+///     caller (errors are a feature, per CLAUDE.md — they are not silently
+///     swallowed).
+pub(crate) struct DiscoveryCacheEntry {
+    /// Outcome of the last discovery scan: either the discovered devices
+    /// (possibly empty if the backend ran cleanly but found nothing) or the
+    /// error string from the failing backend.
+    pub(crate) result: Result<Vec<DeviceInfo>, String>,
+    /// When this entry was last populated.
+    pub(crate) timestamp: Instant,
 }
 
-/// Global unified discovery cache
-static DISCOVERY_CACHE: OnceLock<Mutex<Option<DiscoveryCache>>> = OnceLock::new();
+/// Global per-pair discovery cache keyed by (device type, driver type).
+pub(crate) type DiscoveryCacheMap = HashMap<(DeviceType, DriverType), DiscoveryCacheEntry>;
+
+static DISCOVERY_CACHE: OnceLock<Mutex<DiscoveryCacheMap>> = OnceLock::new();
 
 // =============================================================================
 // Event Stream Overflow Tracking
@@ -61,19 +72,23 @@ use std::sync::atomic::AtomicU64;
 static TOTAL_DROPPED_EVENTS: AtomicU64 = AtomicU64::new(0);
 static TEMP_FITS_FILE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
-/// How long to cache unified discovery results (60 seconds)
-const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(60);
+/// How long to cache per-(type, driver) discovery results (60 seconds).
+pub(crate) const DISCOVERY_CACHE_TTL: Duration = Duration::from_secs(60);
 
-/// Get or initialize the discovery cache
-fn get_discovery_cache() -> &'static Mutex<Option<DiscoveryCache>> {
-    DISCOVERY_CACHE.get_or_init(|| Mutex::new(None))
+/// Get or initialize the per-pair discovery cache.
+pub(crate) fn get_discovery_cache() -> &'static Mutex<DiscoveryCacheMap> {
+    DISCOVERY_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
-/// Discovery state to prevent concurrent discovery operations
-static DISCOVERY_IN_PROGRESS: OnceLock<Mutex<bool>> = OnceLock::new();
+/// Discovery state to prevent thundering-herd concurrent discovery scans.
+/// Held briefly across the scan dispatch loop in `api_discover_devices` so that
+/// two simultaneous calls for the same device type do not both run the
+/// expensive backend probes; the second caller will see the freshly written
+/// cache entries and short-circuit.
+static DISCOVERY_IN_PROGRESS: OnceLock<Mutex<()>> = OnceLock::new();
 
-fn get_discovery_lock() -> &'static Mutex<bool> {
-    DISCOVERY_IN_PROGRESS.get_or_init(|| Mutex::new(false))
+pub(crate) fn get_discovery_lock() -> &'static Mutex<()> {
+    DISCOVERY_IN_PROGRESS.get_or_init(|| Mutex::new(()))
 }
 
 pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
@@ -96,14 +111,15 @@ pub(crate) fn create_unique_temp_fits_path(prefix: &str) -> std::path::PathBuf {
     ))
 }
 
-/// Invalidate the unified discovery cache, forcing fresh discovery on next call.
-/// Also invalidates the native SDK discovery cache so vendor SDKs are re-queried.
-/// Called when user explicitly requests a rescan.
+/// Invalidate the per-(type, driver) discovery cache, forcing fresh discovery
+/// on the next call. Also invalidates the native SDK discovery cache so vendor
+/// SDKs are re-queried. Called when the user explicitly requests a rescan.
 pub async fn api_invalidate_discovery_cache() {
-    // Invalidate the unified cache
+    // Invalidate every per-pair entry.
     let mut cache = get_discovery_cache().lock().await;
-    *cache = None;
-    // Also invalidate the native vendor SDK cache so it re-queries all SDKs
+    cache.clear();
+    crate::device_capabilities::invalidate_capability_cache().await;
+    // Also invalidate the native vendor SDK cache so it re-queries all SDKs.
     nightshade_native::invalidate_discovery_cache().await;
     tracing::info!("Discovery cache invalidated");
 }
@@ -122,6 +138,7 @@ pub(crate) mod heartbeat;
 pub mod imaging;
 pub mod init;
 pub mod phd2;
+pub mod planetarium_spike;
 pub mod plate_solve;
 pub mod polar_alignment;
 pub mod sequencer;
@@ -138,6 +155,7 @@ pub use heartbeat::*;
 pub use imaging::*;
 pub use init::*;
 pub use phd2::*;
+pub use planetarium_spike::*;
 pub use plate_solve::*;
 pub use polar_alignment::*;
 pub use sequencer::*;

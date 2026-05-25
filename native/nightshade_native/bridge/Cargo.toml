@@ -29,17 +29,24 @@ image = { version = "0.24", default-features = false, features = ["jpeg"] }
 # LRU cache for device ID parsing
 lru = "0.12"
 
+# Sync rwlock used for sequencer ExecutionContext slots that the bridge populates
+# (matches `nightshade_sequencer` choice — see executor.rs § runtime_config doc).
+parking_lot = "0.12"
+
 # Internal crates
 nightshade_sequencer = { path = "../sequencer" }
 nightshade_imaging = { path = "../imaging" }
 nightshade_alpaca = { path = "../alpaca" }
 nightshade_native = { path = "../native" }
 nightshade_indi = { path = "../indi" }
+nightshade_planetarium = { path = "../planetarium" }
 
 [target.'cfg(windows)'.dependencies]
 nightshade_ascom = { path = "../ascom" }
+windows.workspace = true
 
 [target.'cfg(unix)'.dependencies]
+rusb = { version = "0.9", features = ["vendored"] }
 
 [dev-dependencies]
 tempfile = "3.8"

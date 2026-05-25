@@ -46,6 +46,9 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 // All public functions are exposed via flutter_rust_bridge.
 
 pub mod adaptive_polling;
+pub mod planetarium_spike {
+    pub use crate::api::planetarium_spike::*;
+}
 mod api;
 #[cfg(windows)]
 mod ascom_wrapper;
@@ -70,13 +73,13 @@ mod ascom_wrapper_weather;
 mod builtin_guider;
 mod device;
 mod device_capabilities;
-mod device_guard;
 mod device_id;
 mod device_manager;
 mod dispatch;
 mod error;
 mod event;
 mod filter_matching;
+mod hotplug;
 mod imaging_ops;
 mod real_device_ops;
 mod sequencer_api;
@@ -90,13 +93,20 @@ mod util;
 
 pub use api::*;
 pub use device::*;
+// Wave 7 Agent 3 — `DefectMapCorrectionRecord` is referenced in the
+// FRB-generated impl SseDecode / IntoIntoDart blocks (because it is
+// embedded as an `Option<_>` field on `FitsWriteHeaderRich`). FRB's
+// parser produces unqualified references in those generated impls, so
+// the type must be reachable at the crate root for the generated code
+// to compile. Re-exporting it here pulls it into `crate::` scope where
+// `frb_generated.rs` looks for it.
 pub use device_capabilities::*;
-pub use device_guard::*;
 pub use device_id::*;
 pub use device_manager::*;
 pub use error::*;
 pub use event::*;
 pub use imaging_ops::*;
+pub use nightshade_sequencer::scheduling::DefectMapCorrectionRecord;
 pub use real_device_ops::*;
 pub use sequencer_api::*;
 pub use sequencer_ops::*;

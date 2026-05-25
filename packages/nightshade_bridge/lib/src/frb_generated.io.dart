@@ -23,6 +23,7 @@ import 'api/heartbeat.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
 import 'api/phd2.dart';
+import 'api/planetarium_spike.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
 import 'api/sequencer.dart';
@@ -36,6 +37,7 @@ import 'device_capabilities.dart';
 import 'error.dart';
 import 'event.dart';
 import 'frb_generated.dart';
+import 'lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'state.dart';
 import 'storage.dart';
@@ -52,6 +54,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       get rust_arc_decrement_strong_count_ArcAlpacaClientPtr => wire
           ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClientPtr;
 
+  CrossPlatformFinalizerArg
+      get rust_arc_decrement_strong_count_DefectMapCorrectionRecordPtr => wire
+          ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr;
+
   @protected
   AnyhowException dco_decode_AnyhowException(dynamic raw);
 
@@ -59,6 +65,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           dynamic raw);
+
+  @protected
+  DefectMapCorrectionRecord
+      dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          dynamic raw);
+
+  @protected
+  Map<String, Map<String, double>>
+      dco_decode_Map_String_Map_String_f_64_None_None(dynamic raw);
+
+  @protected
+  Map<String, double> dco_decode_Map_String_f_64_None(dynamic raw);
 
   @protected
   Map<String, FieldAvailability> dco_decode_Map_String_field_availability_None(
@@ -73,11 +91,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           dynamic raw);
 
   @protected
+  DefectMapCorrectionRecord
+      dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          dynamic raw);
+
+  @protected
   RustStreamSink<NightshadeEvent> dco_decode_StreamSink_nightshade_event_Dco(
       dynamic raw);
 
   @protected
   String dco_decode_String(dynamic raw);
+
+  @protected
+  ApiCombineMethod dco_decode_api_combine_method(dynamic raw);
 
   @protected
   ApiDefectMapStatus dco_decode_api_defect_map_status(dynamic raw);
@@ -90,6 +116,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ApiLiveStackingStats dco_decode_api_live_stacking_stats(dynamic raw);
+
+  @protected
+  ApiMasterFrameResult dco_decode_api_master_frame_result(dynamic raw);
 
   @protected
   AppSettings dco_decode_app_settings(dynamic raw);
@@ -110,6 +139,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           dynamic raw);
+
+  @protected
+  DefectMapCorrectionRecord
+      dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          dynamic raw);
+
+  @protected
+  ApiCombineMethod dco_decode_box_autoadd_api_combine_method(dynamic raw);
 
   @protected
   ApiDefectMapStatus dco_decode_box_autoadd_api_defect_map_status(dynamic raw);
@@ -166,6 +203,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FitsWriteHeader dco_decode_box_autoadd_fits_write_header(dynamic raw);
 
   @protected
+  FitsWriteHeaderRich dco_decode_box_autoadd_fits_write_header_rich(
+      dynamic raw);
+
+  @protected
   FocuserCapabilities dco_decode_box_autoadd_focuser_capabilities(dynamic raw);
 
   @protected
@@ -183,6 +224,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   IndiAutofocusConfigApi dco_decode_box_autoadd_indi_autofocus_config_api(
       dynamic raw);
+
+  @protected
+  LiveStackingBroadcastSnapshot
+      dco_decode_box_autoadd_live_stacking_broadcast_snapshot(dynamic raw);
 
   @protected
   MountCapabilities dco_decode_box_autoadd_mount_capabilities(dynamic raw);
@@ -206,6 +251,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PolarAlignmentStatus dco_decode_box_autoadd_polar_alignment_status(
+      dynamic raw);
+
+  @protected
+  RecoveryConfigUpdate dco_decode_box_autoadd_recovery_config_update(
       dynamic raw);
 
   @protected
@@ -264,6 +313,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CameraCapabilities dco_decode_camera_capabilities(dynamic raw);
+
+  @protected
+  CameraRecommendedSettings dco_decode_camera_recommended_settings(dynamic raw);
 
   @protected
   CameraState dco_decode_camera_state(dynamic raw);
@@ -348,6 +400,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   FilterWheelStatus dco_decode_filter_wheel_status(dynamic raw);
 
   @protected
+  FitsKeywordUpdate dco_decode_fits_keyword_update(dynamic raw);
+
+  @protected
   FitsLinearReadResult dco_decode_fits_linear_read_result(dynamic raw);
 
   @protected
@@ -355,6 +410,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FitsWriteHeader dco_decode_fits_write_header(dynamic raw);
+
+  @protected
+  FitsWriteHeaderRich dco_decode_fits_write_header_rich(dynamic raw);
 
   @protected
   FocusDataPoint dco_decode_focus_data_point(dynamic raw);
@@ -405,6 +463,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> dco_decode_list_String(dynamic raw);
 
   @protected
+  List<bool> dco_decode_list_bool(dynamic raw);
+
+  @protected
   List<DetectedStarInfo> dco_decode_list_detected_star_info(dynamic raw);
 
   @protected
@@ -412,6 +473,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<EquipmentProfile> dco_decode_list_equipment_profile(dynamic raw);
+
+  @protected
+  List<FitsKeywordUpdate> dco_decode_list_fits_keyword_update(dynamic raw);
 
   @protected
   List<FocusDataPoint> dco_decode_list_focus_data_point(dynamic raw);
@@ -430,6 +494,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List dco_decode_list_prim_f_32_strict(dynamic raw);
+
+  @protected
+  List<double> dco_decode_list_prim_f_64_loose(dynamic raw);
 
   @protected
   Float64List dco_decode_list_prim_f_64_strict(dynamic raw);
@@ -457,6 +524,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QuirkInfo> dco_decode_list_quirk_info(dynamic raw);
 
   @protected
+  List<(String, double)> dco_decode_list_record_string_f_64(dynamic raw);
+
+  @protected
   List<(String, FieldAvailability)>
       dco_decode_list_record_string_field_availability(dynamic raw);
 
@@ -464,7 +534,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<(String, int)> dco_decode_list_record_string_i_32(dynamic raw);
 
   @protected
+  List<(String, Map<String, double>)>
+      dco_decode_list_record_string_map_string_f_64_none(dynamic raw);
+
+  @protected
   List<(String, String)> dco_decode_list_record_string_string(dynamic raw);
+
+  @protected
+  List<SchedulerScoreEntry> dco_decode_list_scheduler_score_entry(dynamic raw);
 
   @protected
   List<StarCropApi> dco_decode_list_star_crop_api(dynamic raw);
@@ -474,6 +551,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<TrackingRate> dco_decode_list_tracking_rate(dynamic raw);
+
+  @protected
+  LiveStackingBroadcastSnapshot dco_decode_live_stacking_broadcast_snapshot(
+      dynamic raw);
 
   @protected
   MosaicPanelResult dco_decode_mosaic_panel_result(dynamic raw);
@@ -508,6 +589,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           dynamic raw);
 
   @protected
+  DefectMapCorrectionRecord?
+      dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          dynamic raw);
+
+  @protected
   ApiDefectMapStatus? dco_decode_opt_box_autoadd_api_defect_map_status(
       dynamic raw);
 
@@ -538,6 +624,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? dco_decode_opt_box_autoadd_i_64(dynamic raw);
+
+  @protected
+  LiveStackingBroadcastSnapshot?
+      dco_decode_opt_box_autoadd_live_stacking_broadcast_snapshot(dynamic raw);
 
   @protected
   ObserverLocation? dco_decode_opt_box_autoadd_observer_location(dynamic raw);
@@ -634,6 +724,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (PlatformInt64, bool) dco_decode_record_i_64_bool(dynamic raw);
 
   @protected
+  (String, double) dco_decode_record_string_f_64(dynamic raw);
+
+  @protected
   (String, FieldAvailability) dco_decode_record_string_field_availability(
       dynamic raw);
 
@@ -641,11 +734,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (String, int) dco_decode_record_string_i_32(dynamic raw);
 
   @protected
+  (String, Map<String, double>) dco_decode_record_string_map_string_f_64_none(
+      dynamic raw);
+
+  @protected
   (String, String) dco_decode_record_string_string(dynamic raw);
 
   @protected
   (BigInt, BigInt, int, bool) dco_decode_record_u_64_u_64_u_32_bool(
       dynamic raw);
+
+  @protected
+  RecoveryConfigUpdate dco_decode_recovery_config_update(dynamic raw);
 
   @protected
   RotatorCapabilities dco_decode_rotator_capabilities(dynamic raw);
@@ -658,6 +758,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SafetyMonitorCapabilities dco_decode_safety_monitor_capabilities(dynamic raw);
+
+  @protected
+  SchedulerScoreEntry dco_decode_scheduler_score_entry(dynamic raw);
 
   @protected
   SequenceDefinitionApi dco_decode_sequence_definition_api(dynamic raw);
@@ -749,6 +852,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           SseDeserializer deserializer);
 
   @protected
+  DefectMapCorrectionRecord
+      sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          SseDeserializer deserializer);
+
+  @protected
+  Map<String, Map<String, double>>
+      sse_decode_Map_String_Map_String_f_64_None_None(
+          SseDeserializer deserializer);
+
+  @protected
+  Map<String, double> sse_decode_Map_String_f_64_None(
+      SseDeserializer deserializer);
+
+  @protected
   Map<String, FieldAvailability> sse_decode_Map_String_field_availability_None(
       SseDeserializer deserializer);
 
@@ -762,11 +879,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           SseDeserializer deserializer);
 
   @protected
+  DefectMapCorrectionRecord
+      sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          SseDeserializer deserializer);
+
+  @protected
   RustStreamSink<NightshadeEvent> sse_decode_StreamSink_nightshade_event_Dco(
       SseDeserializer deserializer);
 
   @protected
   String sse_decode_String(SseDeserializer deserializer);
+
+  @protected
+  ApiCombineMethod sse_decode_api_combine_method(SseDeserializer deserializer);
 
   @protected
   ApiDefectMapStatus sse_decode_api_defect_map_status(
@@ -782,6 +907,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ApiLiveStackingStats sse_decode_api_live_stacking_stats(
+      SseDeserializer deserializer);
+
+  @protected
+  ApiMasterFrameResult sse_decode_api_master_frame_result(
       SseDeserializer deserializer);
 
   @protected
@@ -805,6 +934,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ArcAlpacaClient
       sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           SseDeserializer deserializer);
+
+  @protected
+  DefectMapCorrectionRecord
+      sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          SseDeserializer deserializer);
+
+  @protected
+  ApiCombineMethod sse_decode_box_autoadd_api_combine_method(
+      SseDeserializer deserializer);
 
   @protected
   ApiDefectMapStatus sse_decode_box_autoadd_api_defect_map_status(
@@ -871,6 +1009,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  FitsWriteHeaderRich sse_decode_box_autoadd_fits_write_header_rich(
+      SseDeserializer deserializer);
+
+  @protected
   FocuserCapabilities sse_decode_box_autoadd_focuser_capabilities(
       SseDeserializer deserializer);
 
@@ -891,6 +1033,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   IndiAutofocusConfigApi sse_decode_box_autoadd_indi_autofocus_config_api(
       SseDeserializer deserializer);
+
+  @protected
+  LiveStackingBroadcastSnapshot
+      sse_decode_box_autoadd_live_stacking_broadcast_snapshot(
+          SseDeserializer deserializer);
 
   @protected
   MountCapabilities sse_decode_box_autoadd_mount_capabilities(
@@ -917,6 +1064,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PolarAlignmentStatus sse_decode_box_autoadd_polar_alignment_status(
+      SseDeserializer deserializer);
+
+  @protected
+  RecoveryConfigUpdate sse_decode_box_autoadd_recovery_config_update(
       SseDeserializer deserializer);
 
   @protected
@@ -983,6 +1134,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   CameraCapabilities sse_decode_camera_capabilities(
+      SseDeserializer deserializer);
+
+  @protected
+  CameraRecommendedSettings sse_decode_camera_recommended_settings(
       SseDeserializer deserializer);
 
   @protected
@@ -1076,6 +1231,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  FitsKeywordUpdate sse_decode_fits_keyword_update(
+      SseDeserializer deserializer);
+
+  @protected
   FitsLinearReadResult sse_decode_fits_linear_read_result(
       SseDeserializer deserializer);
 
@@ -1084,6 +1243,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   FitsWriteHeader sse_decode_fits_write_header(SseDeserializer deserializer);
+
+  @protected
+  FitsWriteHeaderRich sse_decode_fits_write_header_rich(
+      SseDeserializer deserializer);
 
   @protected
   FocusDataPoint sse_decode_focus_data_point(SseDeserializer deserializer);
@@ -1138,6 +1301,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<String> sse_decode_list_String(SseDeserializer deserializer);
 
   @protected
+  List<bool> sse_decode_list_bool(SseDeserializer deserializer);
+
+  @protected
   List<DetectedStarInfo> sse_decode_list_detected_star_info(
       SseDeserializer deserializer);
 
@@ -1146,6 +1312,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<EquipmentProfile> sse_decode_list_equipment_profile(
+      SseDeserializer deserializer);
+
+  @protected
+  List<FitsKeywordUpdate> sse_decode_list_fits_keyword_update(
       SseDeserializer deserializer);
 
   @protected
@@ -1170,6 +1340,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Float32List sse_decode_list_prim_f_32_strict(SseDeserializer deserializer);
+
+  @protected
+  List<double> sse_decode_list_prim_f_64_loose(SseDeserializer deserializer);
 
   @protected
   Float64List sse_decode_list_prim_f_64_strict(SseDeserializer deserializer);
@@ -1197,6 +1370,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<QuirkInfo> sse_decode_list_quirk_info(SseDeserializer deserializer);
 
   @protected
+  List<(String, double)> sse_decode_list_record_string_f_64(
+      SseDeserializer deserializer);
+
+  @protected
   List<(String, FieldAvailability)>
       sse_decode_list_record_string_field_availability(
           SseDeserializer deserializer);
@@ -1206,7 +1383,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  List<(String, Map<String, double>)>
+      sse_decode_list_record_string_map_string_f_64_none(
+          SseDeserializer deserializer);
+
+  @protected
   List<(String, String)> sse_decode_list_record_string_string(
+      SseDeserializer deserializer);
+
+  @protected
+  List<SchedulerScoreEntry> sse_decode_list_scheduler_score_entry(
       SseDeserializer deserializer);
 
   @protected
@@ -1217,6 +1403,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<TrackingRate> sse_decode_list_tracking_rate(
+      SseDeserializer deserializer);
+
+  @protected
+  LiveStackingBroadcastSnapshot sse_decode_live_stacking_broadcast_snapshot(
       SseDeserializer deserializer);
 
   @protected
@@ -1255,6 +1445,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           SseDeserializer deserializer);
 
   @protected
+  DefectMapCorrectionRecord?
+      sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          SseDeserializer deserializer);
+
+  @protected
   ApiDefectMapStatus? sse_decode_opt_box_autoadd_api_defect_map_status(
       SseDeserializer deserializer);
 
@@ -1288,6 +1483,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64? sse_decode_opt_box_autoadd_i_64(SseDeserializer deserializer);
+
+  @protected
+  LiveStackingBroadcastSnapshot?
+      sse_decode_opt_box_autoadd_live_stacking_broadcast_snapshot(
+          SseDeserializer deserializer);
 
   @protected
   ObserverLocation? sse_decode_opt_box_autoadd_observer_location(
@@ -1400,6 +1600,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       SseDeserializer deserializer);
 
   @protected
+  (String, double) sse_decode_record_string_f_64(SseDeserializer deserializer);
+
+  @protected
   (String, FieldAvailability) sse_decode_record_string_field_availability(
       SseDeserializer deserializer);
 
@@ -1407,11 +1610,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   (String, int) sse_decode_record_string_i_32(SseDeserializer deserializer);
 
   @protected
+  (String, Map<String, double>) sse_decode_record_string_map_string_f_64_none(
+      SseDeserializer deserializer);
+
+  @protected
   (String, String) sse_decode_record_string_string(
       SseDeserializer deserializer);
 
   @protected
   (BigInt, BigInt, int, bool) sse_decode_record_u_64_u_64_u_32_bool(
+      SseDeserializer deserializer);
+
+  @protected
+  RecoveryConfigUpdate sse_decode_recovery_config_update(
       SseDeserializer deserializer);
 
   @protected
@@ -1426,6 +1637,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   SafetyMonitorCapabilities sse_decode_safety_monitor_capabilities(
+      SseDeserializer deserializer);
+
+  @protected
+  SchedulerScoreEntry sse_decode_scheduler_score_entry(
       SseDeserializer deserializer);
 
   @protected
@@ -1523,6 +1738,23 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>
+      cst_encode_Map_String_Map_String_f_64_None_None(
+          Map<String, Map<String, double>> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_list_record_string_map_string_f_64_none(
+        raw.entries.map((e) => (e.key, e.value)).toList());
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_record_string_f_64> cst_encode_Map_String_f_64_None(
+      Map<String, double> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_list_record_string_f_64(
+        raw.entries.map((e) => (e.key, e.value)).toList());
+  }
+
+  @protected
   ffi.Pointer<wire_cst_list_record_string_field_availability>
       cst_encode_Map_String_field_availability_None(
           Map<String, FieldAvailability> raw) {
@@ -1566,6 +1798,26 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         .cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
             cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
                 raw));
+  }
+
+  @protected
+  ffi.Pointer<ffi.UintPtr>
+      cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return wire
+        .cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+            cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+                raw));
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_api_combine_method>
+      cst_encode_box_autoadd_api_combine_method(ApiCombineMethod raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_api_combine_method();
+    cst_api_fill_to_wire_api_combine_method(raw, ptr.ref);
+    return ptr;
   }
 
   @protected
@@ -1712,6 +1964,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_fits_write_header_rich>
+      cst_encode_box_autoadd_fits_write_header_rich(FitsWriteHeaderRich raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_fits_write_header_rich();
+    cst_api_fill_to_wire_fits_write_header_rich(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_focuser_capabilities>
       cst_encode_box_autoadd_focuser_capabilities(FocuserCapabilities raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -1757,6 +2018,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_indi_autofocus_config_api();
     cst_api_fill_to_wire_indi_autofocus_config_api(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot>
+      cst_encode_box_autoadd_live_stacking_broadcast_snapshot(
+          LiveStackingBroadcastSnapshot raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_live_stacking_broadcast_snapshot();
+    cst_api_fill_to_wire_live_stacking_broadcast_snapshot(raw, ptr.ref);
     return ptr;
   }
 
@@ -1819,6 +2090,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ptr = wire.cst_new_box_autoadd_polar_alignment_status();
     cst_api_fill_to_wire_polar_alignment_status(raw, ptr.ref);
+    return ptr;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_recovery_config_update>
+      cst_encode_box_autoadd_recovery_config_update(RecoveryConfigUpdate raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ptr = wire.cst_new_box_autoadd_recovery_config_update();
+    cst_api_fill_to_wire_recovery_config_update(raw, ptr.ref);
     return ptr;
   }
 
@@ -1966,6 +2246,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_list_bool> cst_encode_list_bool(List<bool> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_bool(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      ans.ref.ptr[i] = cst_encode_bool(raw[i]);
+    }
+    return ans;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_list_detected_star_info>
       cst_encode_list_detected_star_info(List<DetectedStarInfo> raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
@@ -1994,6 +2284,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     final ans = wire.cst_new_list_equipment_profile(raw.length);
     for (var i = 0; i < raw.length; ++i) {
       cst_api_fill_to_wire_equipment_profile(raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_fits_keyword_update>
+      cst_encode_list_fits_keyword_update(List<FitsKeywordUpdate> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_fits_keyword_update(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_fits_keyword_update(raw[i], ans.ref.ptr[i]);
     }
     return ans;
   }
@@ -2058,6 +2359,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Float32List raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_prim_f_32_strict(raw.length);
+    ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_prim_f_64_loose> cst_encode_list_prim_f_64_loose(
+      List<double> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_prim_f_64_loose(raw.length);
     ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
     return ans;
   }
@@ -2139,6 +2449,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_list_record_string_f_64>
+      cst_encode_list_record_string_f_64(List<(String, double)> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_record_string_f_64(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_record_string_f_64(raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_list_record_string_field_availability>
       cst_encode_list_record_string_field_availability(
           List<(String, FieldAvailability)> raw) {
@@ -2163,12 +2484,37 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>
+      cst_encode_list_record_string_map_string_f_64_none(
+          List<(String, Map<String, double>)> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans =
+        wire.cst_new_list_record_string_map_string_f_64_none(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_record_string_map_string_f_64_none(
+          raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
   ffi.Pointer<wire_cst_list_record_string_string>
       cst_encode_list_record_string_string(List<(String, String)> raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_record_string_string(raw.length);
     for (var i = 0; i < raw.length; ++i) {
       cst_api_fill_to_wire_record_string_string(raw[i], ans.ref.ptr[i]);
+    }
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_scheduler_score_entry>
+      cst_encode_list_scheduler_score_entry(List<SchedulerScoreEntry> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_scheduler_score_entry(raw.length);
+    for (var i = 0; i < raw.length; ++i) {
+      cst_api_fill_to_wire_scheduler_score_entry(raw[i], ans.ref.ptr[i]);
     }
     return ans;
   }
@@ -2228,6 +2574,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     return raw == null
         ? ffi.nullptr
         : cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
+            raw);
+  }
+
+  @protected
+  ffi.Pointer<ffi.UintPtr>
+      cst_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
             raw);
   }
 
@@ -2303,6 +2660,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   ffi.Pointer<ffi.Int64> cst_encode_opt_box_autoadd_i_64(PlatformInt64? raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return raw == null ? ffi.nullptr : cst_encode_box_autoadd_i_64(raw);
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot>
+      cst_encode_opt_box_autoadd_live_stacking_broadcast_snapshot(
+          LiveStackingBroadcastSnapshot? raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return raw == null
+        ? ffi.nullptr
+        : cst_encode_box_autoadd_live_stacking_broadcast_snapshot(raw);
   }
 
   @protected
@@ -2393,6 +2760,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_api_combine_method(
+      ApiCombineMethod apiObj, wire_cst_api_combine_method wireObj) {
+    wireObj.method = cst_encode_String(apiObj.method);
+    wireObj.sigma_kappa = cst_encode_opt_box_autoadd_f_64(apiObj.sigmaKappa);
+    wireObj.sigma_iterations =
+        cst_encode_opt_box_autoadd_u_32(apiObj.sigmaIterations);
+  }
+
+  @protected
   void cst_api_fill_to_wire_api_defect_map_status(
       ApiDefectMapStatus apiObj, wire_cst_api_defect_map_status wireObj) {
     wireObj.camera_id = cst_encode_String(apiObj.cameraId);
@@ -2443,6 +2819,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_api_master_frame_result(
+      ApiMasterFrameResult apiObj, wire_cst_api_master_frame_result wireObj) {
+    wireObj.output_path = cst_encode_String(apiObj.outputPath);
+    wireObj.kind = cst_encode_String(apiObj.kind);
+    wireObj.output_type = cst_encode_String(apiObj.outputType);
+    wireObj.frame_count = cst_encode_u_32(apiObj.frameCount);
+    wireObj.method = cst_encode_String(apiObj.method);
+    wireObj.width = cst_encode_u_32(apiObj.width);
+    wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.channels = cst_encode_u_32(apiObj.channels);
+    wireObj.input_mean = cst_encode_f_64(apiObj.inputMean);
+    wireObj.output_mean = cst_encode_f_64(apiObj.outputMean);
+  }
+
+  @protected
   void cst_api_fill_to_wire_app_settings(
       AppSettings apiObj, wire_cst_app_settings wireObj) {
     wireObj.location =
@@ -2473,6 +2864,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.timestamp = cst_encode_i_64(apiObj.timestamp);
     wireObj.curve_fit_quality = cst_encode_f_64(apiObj.curveFitQuality);
     wireObj.backlash_applied = cst_encode_bool(apiObj.backlashApplied);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_api_combine_method(
+      ApiCombineMethod apiObj,
+      ffi.Pointer<wire_cst_api_combine_method> wireObj) {
+    cst_api_fill_to_wire_api_combine_method(apiObj, wireObj.ref);
   }
 
   @protected
@@ -2557,6 +2955,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_box_autoadd_fits_write_header_rich(
+      FitsWriteHeaderRich apiObj,
+      ffi.Pointer<wire_cst_fits_write_header_rich> wireObj) {
+    cst_api_fill_to_wire_fits_write_header_rich(apiObj, wireObj.ref);
+  }
+
+  @protected
   void cst_api_fill_to_wire_box_autoadd_focuser_capabilities(
       FocuserCapabilities apiObj,
       ffi.Pointer<wire_cst_focuser_capabilities> wireObj) {
@@ -2580,6 +2985,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       IndiAutofocusConfigApi apiObj,
       ffi.Pointer<wire_cst_indi_autofocus_config_api> wireObj) {
     cst_api_fill_to_wire_indi_autofocus_config_api(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_live_stacking_broadcast_snapshot(
+      LiveStackingBroadcastSnapshot apiObj,
+      ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot> wireObj) {
+    cst_api_fill_to_wire_live_stacking_broadcast_snapshot(apiObj, wireObj.ref);
   }
 
   @protected
@@ -2622,6 +3034,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       PolarAlignmentStatus apiObj,
       ffi.Pointer<wire_cst_polar_alignment_status> wireObj) {
     cst_api_fill_to_wire_polar_alignment_status(apiObj, wireObj.ref);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_box_autoadd_recovery_config_update(
+      RecoveryConfigUpdate apiObj,
+      ffi.Pointer<wire_cst_recovery_config_update> wireObj) {
+    cst_api_fill_to_wire_recovery_config_update(apiObj, wireObj.ref);
   }
 
   @protected
@@ -2743,6 +3162,17 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         cst_encode_opt_box_autoadd_f_64(apiObj.setCcdTemperature);
     wireObj.cooler_power = cst_encode_opt_box_autoadd_f_64(apiObj.coolerPower);
     wireObj.cooler_on = cst_encode_opt_box_autoadd_bool(apiObj.coolerOn);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_camera_recommended_settings(
+      CameraRecommendedSettings apiObj,
+      wire_cst_camera_recommended_settings wireObj) {
+    wireObj.unity_gain = cst_encode_opt_box_autoadd_i_32(apiObj.unityGain);
+    wireObj.hcg_gain = cst_encode_opt_box_autoadd_i_32(apiObj.hcgGain);
+    wireObj.default_offset =
+        cst_encode_opt_box_autoadd_i_32(apiObj.defaultOffset);
+    wireObj.notes = cst_encode_String(apiObj.notes);
   }
 
   @protected
@@ -3210,6 +3640,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.rotator_id = cst_encode_opt_String(apiObj.rotatorId);
     wireObj.dome_id = cst_encode_opt_String(apiObj.domeId);
     wireObj.weather_id = cst_encode_opt_String(apiObj.weatherId);
+    wireObj.safety_monitor_id = cst_encode_opt_String(apiObj.safetyMonitorId);
     wireObj.cover_calibrator_id =
         cst_encode_opt_String(apiObj.coverCalibratorId);
     wireObj.telescope_focal_length =
@@ -3324,6 +3755,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_fits_keyword_update(
+      FitsKeywordUpdate apiObj, wire_cst_fits_keyword_update wireObj) {
+    wireObj.keyword = cst_encode_String(apiObj.keyword);
+    wireObj.comment = cst_encode_opt_String(apiObj.comment);
+    wireObj.string_value = cst_encode_opt_String(apiObj.stringValue);
+    wireObj.int_value = cst_encode_opt_box_autoadd_i_64(apiObj.intValue);
+    wireObj.float_value = cst_encode_opt_box_autoadd_f_64(apiObj.floatValue);
+  }
+
+  @protected
   void cst_api_fill_to_wire_fits_linear_read_result(
       FitsLinearReadResult apiObj, wire_cst_fits_linear_read_result wireObj) {
     wireObj.width = cst_encode_u_32(apiObj.width);
@@ -3388,6 +3829,87 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         cst_encode_opt_box_autoadd_f_64(apiObj.siteLongitude);
     wireObj.site_elevation =
         cst_encode_opt_box_autoadd_f_64(apiObj.siteElevation);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_fits_write_header_rich(
+      FitsWriteHeaderRich apiObj, wire_cst_fits_write_header_rich wireObj) {
+    wireObj.object_name = cst_encode_opt_String(apiObj.objectName);
+    wireObj.exposure_time = cst_encode_f_64(apiObj.exposureTime);
+    wireObj.capture_timestamp = cst_encode_String(apiObj.captureTimestamp);
+    wireObj.frame_type = cst_encode_String(apiObj.frameType);
+    wireObj.filter = cst_encode_opt_String(apiObj.filter);
+    wireObj.filter_position =
+        cst_encode_opt_box_autoadd_i_32(apiObj.filterPosition);
+    wireObj.gain = cst_encode_opt_box_autoadd_i_32(apiObj.gain);
+    wireObj.offset = cst_encode_opt_box_autoadd_i_32(apiObj.offset);
+    wireObj.ccd_temp = cst_encode_opt_box_autoadd_f_64(apiObj.ccdTemp);
+    wireObj.set_temp = cst_encode_opt_box_autoadd_f_64(apiObj.setTemp);
+    wireObj.ra = cst_encode_opt_box_autoadd_f_64(apiObj.ra);
+    wireObj.dec = cst_encode_opt_box_autoadd_f_64(apiObj.dec);
+    wireObj.altitude = cst_encode_opt_box_autoadd_f_64(apiObj.altitude);
+    wireObj.telescope = cst_encode_opt_String(apiObj.telescope);
+    wireObj.instrument = cst_encode_opt_String(apiObj.instrument);
+    wireObj.observer = cst_encode_opt_String(apiObj.observer);
+    wireObj.bin_x = cst_encode_i_32(apiObj.binX);
+    wireObj.bin_y = cst_encode_i_32(apiObj.binY);
+    wireObj.focal_length = cst_encode_opt_box_autoadd_f_64(apiObj.focalLength);
+    wireObj.aperture = cst_encode_opt_box_autoadd_f_64(apiObj.aperture);
+    wireObj.pixel_size_x = cst_encode_opt_box_autoadd_f_64(apiObj.pixelSizeX);
+    wireObj.pixel_size_y = cst_encode_opt_box_autoadd_f_64(apiObj.pixelSizeY);
+    wireObj.site_latitude =
+        cst_encode_opt_box_autoadd_f_64(apiObj.siteLatitude);
+    wireObj.site_longitude =
+        cst_encode_opt_box_autoadd_f_64(apiObj.siteLongitude);
+    wireObj.site_elevation =
+        cst_encode_opt_box_autoadd_f_64(apiObj.siteElevation);
+    wireObj.focuser_position =
+        cst_encode_opt_box_autoadd_i_32(apiObj.focuserPosition);
+    wireObj.focuser_temperature =
+        cst_encode_opt_box_autoadd_f_64(apiObj.focuserTemperature);
+    wireObj.rotator_angle =
+        cst_encode_opt_box_autoadd_f_64(apiObj.rotatorAngle);
+    wireObj.guide_rms_arcsec =
+        cst_encode_opt_box_autoadd_f_64(apiObj.guideRmsArcsec);
+    wireObj.solved_ra_hours =
+        cst_encode_opt_box_autoadd_f_64(apiObj.solvedRaHours);
+    wireObj.solved_dec_degrees =
+        cst_encode_opt_box_autoadd_f_64(apiObj.solvedDecDegrees);
+    wireObj.plate_solve_pixel_scale_arcsec =
+        cst_encode_opt_box_autoadd_f_64(apiObj.plateSolvePixelScaleArcsec);
+    wireObj.plate_solve_rotation_deg =
+        cst_encode_opt_box_autoadd_f_64(apiObj.plateSolveRotationDeg);
+    wireObj.bayer_pattern = cst_encode_opt_String(apiObj.bayerPattern);
+    wireObj.session_id = cst_encode_opt_String(apiObj.sessionId);
+    wireObj.frame_index = cst_encode_opt_box_autoadd_u_32(apiObj.frameIndex);
+    wireObj.total_planned_frames =
+        cst_encode_opt_box_autoadd_u_32(apiObj.totalPlannedFrames);
+    wireObj.mosaic_name = cst_encode_opt_String(apiObj.mosaicName);
+    wireObj.mosaic_panel_index =
+        cst_encode_opt_box_autoadd_i_32(apiObj.mosaicPanelIndex);
+    wireObj.mosaic_panel_row =
+        cst_encode_opt_box_autoadd_i_32(apiObj.mosaicPanelRow);
+    wireObj.mosaic_panel_column =
+        cst_encode_opt_box_autoadd_i_32(apiObj.mosaicPanelColumn);
+    wireObj.mosaic_total_panels =
+        cst_encode_opt_box_autoadd_i_32(apiObj.mosaicTotalPanels);
+    wireObj.defect_map_correction =
+        cst_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+            apiObj.defectMapCorrection);
+    wireObj.photometry_object_catalog =
+        cst_encode_opt_String(apiObj.photometryObjectCatalog);
+    wireObj.photometry_reference_stars =
+        cst_encode_opt_String(apiObj.photometryReferenceStars);
+    wireObj.photometry_mjd_obs =
+        cst_encode_opt_box_autoadd_f_64(apiObj.photometryMjdObs);
+    wireObj.photometry_instrumental_mag =
+        cst_encode_opt_box_autoadd_f_64(apiObj.photometryInstrumentalMag);
+    wireObj.photometry_differential_mag =
+        cst_encode_opt_box_autoadd_f_64(apiObj.photometryDifferentialMag);
+    wireObj.photometry_fwhm_arcsec =
+        cst_encode_opt_box_autoadd_f_64(apiObj.photometryFwhmArcsec);
+    wireObj.photometry_snr =
+        cst_encode_opt_box_autoadd_f_64(apiObj.photometrySnr);
   }
 
   @protected
@@ -3695,6 +4217,25 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.backlash_applied = cst_encode_bool(apiObj.backlashApplied);
     wireObj.success = cst_encode_bool(apiObj.success);
     wireObj.error_message = cst_encode_opt_String(apiObj.errorMessage);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_live_stacking_broadcast_snapshot(
+      LiveStackingBroadcastSnapshot apiObj,
+      wire_cst_live_stacking_broadcast_snapshot wireObj) {
+    wireObj.node_id = cst_encode_String(apiObj.nodeId);
+    wireObj.mode = cst_encode_String(apiObj.mode);
+    wireObj.stack_method = cst_encode_String(apiObj.stackMethod);
+    wireObj.broadcast_enabled = cst_encode_bool(apiObj.broadcastEnabled);
+    wireObj.broadcast_port = cst_encode_u_16(apiObj.broadcastPort);
+    wireObj.broadcast_path = cst_encode_String(apiObj.broadcastPath);
+    wireObj.auth_token = cst_encode_String(apiObj.authToken);
+    wireObj.watermark_template = cst_encode_String(apiObj.watermarkTemplate);
+    wireObj.thumbnail_width = cst_encode_u_32(apiObj.thumbnailWidth);
+    wireObj.thumbnail_height = cst_encode_u_32(apiObj.thumbnailHeight);
+    wireObj.max_frames_to_stack = cst_encode_u_32(apiObj.maxFramesToStack);
+    wireObj.activated_at_unix_millis =
+        cst_encode_i_64(apiObj.activatedAtUnixMillis);
   }
 
   @protected
@@ -4270,6 +4811,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   }
 
   @protected
+  void cst_api_fill_to_wire_record_string_f_64(
+      (String, double) apiObj, wire_cst_record_string_f_64 wireObj) {
+    wireObj.field0 = cst_encode_String(apiObj.$1);
+    wireObj.field1 = cst_encode_f_64(apiObj.$2);
+  }
+
+  @protected
   void cst_api_fill_to_wire_record_string_field_availability(
       (String, FieldAvailability) apiObj,
       wire_cst_record_string_field_availability wireObj) {
@@ -4282,6 +4830,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       (String, int) apiObj, wire_cst_record_string_i_32 wireObj) {
     wireObj.field0 = cst_encode_String(apiObj.$1);
     wireObj.field1 = cst_encode_i_32(apiObj.$2);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_record_string_map_string_f_64_none(
+      (String, Map<String, double>) apiObj,
+      wire_cst_record_string_map_string_f_64_none wireObj) {
+    wireObj.field0 = cst_encode_String(apiObj.$1);
+    wireObj.field1 = cst_encode_Map_String_f_64_None(apiObj.$2);
   }
 
   @protected
@@ -4299,6 +4855,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.field1 = cst_encode_u_64(apiObj.$2);
     wireObj.field2 = cst_encode_u_32(apiObj.$3);
     wireObj.field3 = cst_encode_bool(apiObj.$4);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_recovery_config_update(
+      RecoveryConfigUpdate apiObj, wire_cst_recovery_config_update wireObj) {
+    wireObj.retry_interval_secs = cst_encode_f_64(apiObj.retryIntervalSecs);
+    wireObj.max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
+    wireObj.stop_tracking_during_recovery =
+        cst_encode_bool(apiObj.stopTrackingDuringRecovery);
+    wireObj.abort_on_meridian = cst_encode_bool(apiObj.abortOnMeridian);
+    wireObj.audible_alert_when_entered =
+        cst_encode_bool(apiObj.audibleAlertWhenEntered);
   }
 
   @protected
@@ -4365,6 +4933,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.is_safe = cst_encode_bool(apiObj.isSafe);
     wireObj.safety_description =
         cst_encode_opt_String(apiObj.safetyDescription);
+  }
+
+  @protected
+  void cst_api_fill_to_wire_scheduler_score_entry(
+      SchedulerScoreEntry apiObj, wire_cst_scheduler_score_entry wireObj) {
+    wireObj.target_id = cst_encode_String(apiObj.targetId);
+    wireObj.target_name = cst_encode_String(apiObj.targetName);
+    wireObj.total_score = cst_encode_f_64(apiObj.totalScore);
+    wireObj.runnable = cst_encode_bool(apiObj.runnable);
+    wireObj.reason = cst_encode_opt_String(apiObj.reason);
   }
 
   @protected
@@ -4490,6 +5068,305 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       wireObj.kind.InstructionProgress.instruction = pre_instruction;
       wireObj.kind.InstructionProgress.progress_percent = pre_progress_percent;
       wireObj.kind.InstructionProgress.detail = pre_detail;
+      return;
+    }
+    if (apiObj is SequencerEvent_InstructionProgressStructured) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_instruction = cst_encode_String(apiObj.instruction);
+      var pre_progress_percent = cst_encode_f_64(apiObj.progressPercent);
+      var pre_detail_kind = cst_encode_String(apiObj.detailKind);
+      var pre_detail_json = cst_encode_String(apiObj.detailJson);
+      wireObj.tag = 15;
+      wireObj.kind.InstructionProgressStructured.node_id = pre_node_id;
+      wireObj.kind.InstructionProgressStructured.instruction = pre_instruction;
+      wireObj.kind.InstructionProgressStructured.progress_percent =
+          pre_progress_percent;
+      wireObj.kind.InstructionProgressStructured.detail_kind = pre_detail_kind;
+      wireObj.kind.InstructionProgressStructured.detail_json = pre_detail_json;
+      return;
+    }
+    if (apiObj is SequencerEvent_FrameAccepted) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_frame = cst_encode_u_32(apiObj.frame);
+      var pre_total = cst_encode_u_32(apiObj.total);
+      var pre_hfr = cst_encode_opt_box_autoadd_f_64(apiObj.hfr);
+      var pre_eccentricity =
+          cst_encode_opt_box_autoadd_f_64(apiObj.eccentricity);
+      var pre_star_count = cst_encode_opt_box_autoadd_u_32(apiObj.starCount);
+      var pre_accepted_total = cst_encode_u_32(apiObj.acceptedTotal);
+      var pre_rejected_total = cst_encode_u_32(apiObj.rejectedTotal);
+      var pre_save_path = cst_encode_opt_String(apiObj.savePath);
+      wireObj.tag = 16;
+      wireObj.kind.FrameAccepted.node_id = pre_node_id;
+      wireObj.kind.FrameAccepted.frame = pre_frame;
+      wireObj.kind.FrameAccepted.total = pre_total;
+      wireObj.kind.FrameAccepted.hfr = pre_hfr;
+      wireObj.kind.FrameAccepted.eccentricity = pre_eccentricity;
+      wireObj.kind.FrameAccepted.star_count = pre_star_count;
+      wireObj.kind.FrameAccepted.accepted_total = pre_accepted_total;
+      wireObj.kind.FrameAccepted.rejected_total = pre_rejected_total;
+      wireObj.kind.FrameAccepted.save_path = pre_save_path;
+      return;
+    }
+    if (apiObj is SequencerEvent_FrameRejected) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_frame = cst_encode_u_32(apiObj.frame);
+      var pre_total = cst_encode_u_32(apiObj.total);
+      var pre_reason = cst_encode_String(apiObj.reason);
+      var pre_hfr = cst_encode_opt_box_autoadd_f_64(apiObj.hfr);
+      var pre_eccentricity =
+          cst_encode_opt_box_autoadd_f_64(apiObj.eccentricity);
+      var pre_star_count = cst_encode_opt_box_autoadd_u_32(apiObj.starCount);
+      var pre_reject_path = cst_encode_String(apiObj.rejectPath);
+      var pre_consecutive_rejects = cst_encode_u_32(apiObj.consecutiveRejects);
+      var pre_accepted_total = cst_encode_u_32(apiObj.acceptedTotal);
+      var pre_rejected_total = cst_encode_u_32(apiObj.rejectedTotal);
+      var pre_likely_cause_label =
+          cst_encode_opt_String(apiObj.likelyCauseLabel);
+      var pre_evidence = cst_encode_list_String(apiObj.evidence);
+      var pre_sky_brightness_at_capture =
+          cst_encode_opt_box_autoadd_f_64(apiObj.skyBrightnessAtCapture);
+      var pre_cloud_cover_at_capture =
+          cst_encode_opt_box_autoadd_f_64(apiObj.cloudCoverAtCapture);
+      var pre_wind_at_capture =
+          cst_encode_opt_box_autoadd_f_64(apiObj.windAtCapture);
+      var pre_guide_rms_at_capture =
+          cst_encode_opt_box_autoadd_f_64(apiObj.guideRmsAtCapture);
+      var pre_sensor_temp_at_capture =
+          cst_encode_opt_box_autoadd_f_64(apiObj.sensorTempAtCapture);
+      wireObj.tag = 17;
+      wireObj.kind.FrameRejected.node_id = pre_node_id;
+      wireObj.kind.FrameRejected.frame = pre_frame;
+      wireObj.kind.FrameRejected.total = pre_total;
+      wireObj.kind.FrameRejected.reason = pre_reason;
+      wireObj.kind.FrameRejected.hfr = pre_hfr;
+      wireObj.kind.FrameRejected.eccentricity = pre_eccentricity;
+      wireObj.kind.FrameRejected.star_count = pre_star_count;
+      wireObj.kind.FrameRejected.reject_path = pre_reject_path;
+      wireObj.kind.FrameRejected.consecutive_rejects = pre_consecutive_rejects;
+      wireObj.kind.FrameRejected.accepted_total = pre_accepted_total;
+      wireObj.kind.FrameRejected.rejected_total = pre_rejected_total;
+      wireObj.kind.FrameRejected.likely_cause_label = pre_likely_cause_label;
+      wireObj.kind.FrameRejected.evidence = pre_evidence;
+      wireObj.kind.FrameRejected.sky_brightness_at_capture =
+          pre_sky_brightness_at_capture;
+      wireObj.kind.FrameRejected.cloud_cover_at_capture =
+          pre_cloud_cover_at_capture;
+      wireObj.kind.FrameRejected.wind_at_capture = pre_wind_at_capture;
+      wireObj.kind.FrameRejected.guide_rms_at_capture =
+          pre_guide_rms_at_capture;
+      wireObj.kind.FrameRejected.sensor_temp_at_capture =
+          pre_sensor_temp_at_capture;
+      return;
+    }
+    if (apiObj is SequencerEvent_SchedulerDecision) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_decision_counter = cst_encode_u_32(apiObj.decisionCounter);
+      var pre_picked_target_id = cst_encode_opt_String(apiObj.pickedTargetId);
+      var pre_picked_target_name =
+          cst_encode_opt_String(apiObj.pickedTargetName);
+      var pre_picked_score =
+          cst_encode_opt_box_autoadd_f_64(apiObj.pickedScore);
+      var pre_scores = cst_encode_list_scheduler_score_entry(apiObj.scores);
+      wireObj.tag = 18;
+      wireObj.kind.SchedulerDecision.node_id = pre_node_id;
+      wireObj.kind.SchedulerDecision.decision_counter = pre_decision_counter;
+      wireObj.kind.SchedulerDecision.picked_target_id = pre_picked_target_id;
+      wireObj.kind.SchedulerDecision.picked_target_name =
+          pre_picked_target_name;
+      wireObj.kind.SchedulerDecision.picked_score = pre_picked_score;
+      wireObj.kind.SchedulerDecision.scores = pre_scores;
+      return;
+    }
+    if (apiObj is SequencerEvent_IntegrationBudget) {
+      var pre_target_id = cst_encode_String(apiObj.targetId);
+      var pre_filter = cst_encode_String(apiObj.filter);
+      var pre_completed_secs = cst_encode_f_64(apiObj.completedSecs);
+      var pre_budget_secs = cst_encode_f_64(apiObj.budgetSecs);
+      var pre_fraction = cst_encode_f_64(apiObj.fraction);
+      var pre_budget_met = cst_encode_bool(apiObj.budgetMet);
+      wireObj.tag = 19;
+      wireObj.kind.IntegrationBudget.target_id = pre_target_id;
+      wireObj.kind.IntegrationBudget.filter = pre_filter;
+      wireObj.kind.IntegrationBudget.completed_secs = pre_completed_secs;
+      wireObj.kind.IntegrationBudget.budget_secs = pre_budget_secs;
+      wireObj.kind.IntegrationBudget.fraction = pre_fraction;
+      wireObj.kind.IntegrationBudget.budget_met = pre_budget_met;
+      return;
+    }
+    if (apiObj is SequencerEvent_ExposureAdjusted) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_adapted_secs = cst_encode_f_64(apiObj.adaptedSecs);
+      var pre_nominal_secs = cst_encode_f_64(apiObj.nominalSecs);
+      var pre_sky_brightness_mag =
+          cst_encode_opt_box_autoadd_f_64(apiObj.skyBrightnessMag);
+      var pre_filter = cst_encode_opt_String(apiObj.filter);
+      var pre_reason = cst_encode_String(apiObj.reason);
+      wireObj.tag = 20;
+      wireObj.kind.ExposureAdjusted.node_id = pre_node_id;
+      wireObj.kind.ExposureAdjusted.adapted_secs = pre_adapted_secs;
+      wireObj.kind.ExposureAdjusted.nominal_secs = pre_nominal_secs;
+      wireObj.kind.ExposureAdjusted.sky_brightness_mag = pre_sky_brightness_mag;
+      wireObj.kind.ExposureAdjusted.filter = pre_filter;
+      wireObj.kind.ExposureAdjusted.reason = pre_reason;
+      return;
+    }
+    if (apiObj is SequencerEvent_RecoveryStarted) {
+      var pre_started_at_iso = cst_encode_String(apiObj.startedAtIso);
+      var pre_cause_kind = cst_encode_String(apiObj.causeKind);
+      var pre_cause_custom_label =
+          cst_encode_opt_String(apiObj.causeCustomLabel);
+      var pre_last_attempt_at_iso =
+          cst_encode_opt_String(apiObj.lastAttemptAtIso);
+      var pre_attempt_count = cst_encode_u_32(apiObj.attemptCount);
+      var pre_max_attempts = cst_encode_u_32(apiObj.maxAttempts);
+      var pre_retry_interval_secs = cst_encode_f_64(apiObj.retryIntervalSecs);
+      var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
+      var pre_phase = cst_encode_String(apiObj.phase);
+      var pre_last_error = cst_encode_opt_String(apiObj.lastError);
+      wireObj.tag = 21;
+      wireObj.kind.RecoveryStarted.started_at_iso = pre_started_at_iso;
+      wireObj.kind.RecoveryStarted.cause_kind = pre_cause_kind;
+      wireObj.kind.RecoveryStarted.cause_custom_label = pre_cause_custom_label;
+      wireObj.kind.RecoveryStarted.last_attempt_at_iso =
+          pre_last_attempt_at_iso;
+      wireObj.kind.RecoveryStarted.attempt_count = pre_attempt_count;
+      wireObj.kind.RecoveryStarted.max_attempts = pre_max_attempts;
+      wireObj.kind.RecoveryStarted.retry_interval_secs =
+          pre_retry_interval_secs;
+      wireObj.kind.RecoveryStarted.max_duration_secs = pre_max_duration_secs;
+      wireObj.kind.RecoveryStarted.phase = pre_phase;
+      wireObj.kind.RecoveryStarted.last_error = pre_last_error;
+      return;
+    }
+    if (apiObj is SequencerEvent_RecoveryProgress) {
+      var pre_started_at_iso = cst_encode_String(apiObj.startedAtIso);
+      var pre_cause_kind = cst_encode_String(apiObj.causeKind);
+      var pre_cause_custom_label =
+          cst_encode_opt_String(apiObj.causeCustomLabel);
+      var pre_last_attempt_at_iso =
+          cst_encode_opt_String(apiObj.lastAttemptAtIso);
+      var pre_attempt_count = cst_encode_u_32(apiObj.attemptCount);
+      var pre_max_attempts = cst_encode_u_32(apiObj.maxAttempts);
+      var pre_retry_interval_secs = cst_encode_f_64(apiObj.retryIntervalSecs);
+      var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
+      var pre_phase = cst_encode_String(apiObj.phase);
+      var pre_last_error = cst_encode_opt_String(apiObj.lastError);
+      wireObj.tag = 22;
+      wireObj.kind.RecoveryProgress.started_at_iso = pre_started_at_iso;
+      wireObj.kind.RecoveryProgress.cause_kind = pre_cause_kind;
+      wireObj.kind.RecoveryProgress.cause_custom_label = pre_cause_custom_label;
+      wireObj.kind.RecoveryProgress.last_attempt_at_iso =
+          pre_last_attempt_at_iso;
+      wireObj.kind.RecoveryProgress.attempt_count = pre_attempt_count;
+      wireObj.kind.RecoveryProgress.max_attempts = pre_max_attempts;
+      wireObj.kind.RecoveryProgress.retry_interval_secs =
+          pre_retry_interval_secs;
+      wireObj.kind.RecoveryProgress.max_duration_secs = pre_max_duration_secs;
+      wireObj.kind.RecoveryProgress.phase = pre_phase;
+      wireObj.kind.RecoveryProgress.last_error = pre_last_error;
+      return;
+    }
+    if (apiObj is SequencerEvent_RecoveryCompleted) {
+      var pre_started_at_iso = cst_encode_String(apiObj.startedAtIso);
+      var pre_cause_kind = cst_encode_String(apiObj.causeKind);
+      var pre_cause_custom_label =
+          cst_encode_opt_String(apiObj.causeCustomLabel);
+      var pre_last_attempt_at_iso =
+          cst_encode_opt_String(apiObj.lastAttemptAtIso);
+      var pre_attempt_count = cst_encode_u_32(apiObj.attemptCount);
+      var pre_max_attempts = cst_encode_u_32(apiObj.maxAttempts);
+      var pre_retry_interval_secs = cst_encode_f_64(apiObj.retryIntervalSecs);
+      var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
+      var pre_phase = cst_encode_String(apiObj.phase);
+      var pre_last_error = cst_encode_opt_String(apiObj.lastError);
+      wireObj.tag = 23;
+      wireObj.kind.RecoveryCompleted.started_at_iso = pre_started_at_iso;
+      wireObj.kind.RecoveryCompleted.cause_kind = pre_cause_kind;
+      wireObj.kind.RecoveryCompleted.cause_custom_label =
+          pre_cause_custom_label;
+      wireObj.kind.RecoveryCompleted.last_attempt_at_iso =
+          pre_last_attempt_at_iso;
+      wireObj.kind.RecoveryCompleted.attempt_count = pre_attempt_count;
+      wireObj.kind.RecoveryCompleted.max_attempts = pre_max_attempts;
+      wireObj.kind.RecoveryCompleted.retry_interval_secs =
+          pre_retry_interval_secs;
+      wireObj.kind.RecoveryCompleted.max_duration_secs = pre_max_duration_secs;
+      wireObj.kind.RecoveryCompleted.phase = pre_phase;
+      wireObj.kind.RecoveryCompleted.last_error = pre_last_error;
+      return;
+    }
+    if (apiObj is SequencerEvent_RecoveryGaveUp) {
+      var pre_started_at_iso = cst_encode_String(apiObj.startedAtIso);
+      var pre_cause_kind = cst_encode_String(apiObj.causeKind);
+      var pre_cause_custom_label =
+          cst_encode_opt_String(apiObj.causeCustomLabel);
+      var pre_last_attempt_at_iso =
+          cst_encode_opt_String(apiObj.lastAttemptAtIso);
+      var pre_attempt_count = cst_encode_u_32(apiObj.attemptCount);
+      var pre_max_attempts = cst_encode_u_32(apiObj.maxAttempts);
+      var pre_retry_interval_secs = cst_encode_f_64(apiObj.retryIntervalSecs);
+      var pre_max_duration_secs = cst_encode_f_64(apiObj.maxDurationSecs);
+      var pre_phase = cst_encode_String(apiObj.phase);
+      var pre_last_error = cst_encode_opt_String(apiObj.lastError);
+      var pre_aborted_by_user = cst_encode_bool(apiObj.abortedByUser);
+      wireObj.tag = 24;
+      wireObj.kind.RecoveryGaveUp.started_at_iso = pre_started_at_iso;
+      wireObj.kind.RecoveryGaveUp.cause_kind = pre_cause_kind;
+      wireObj.kind.RecoveryGaveUp.cause_custom_label = pre_cause_custom_label;
+      wireObj.kind.RecoveryGaveUp.last_attempt_at_iso = pre_last_attempt_at_iso;
+      wireObj.kind.RecoveryGaveUp.attempt_count = pre_attempt_count;
+      wireObj.kind.RecoveryGaveUp.max_attempts = pre_max_attempts;
+      wireObj.kind.RecoveryGaveUp.retry_interval_secs = pre_retry_interval_secs;
+      wireObj.kind.RecoveryGaveUp.max_duration_secs = pre_max_duration_secs;
+      wireObj.kind.RecoveryGaveUp.phase = pre_phase;
+      wireObj.kind.RecoveryGaveUp.last_error = pre_last_error;
+      wireObj.kind.RecoveryGaveUp.aborted_by_user = pre_aborted_by_user;
+      return;
+    }
+    if (apiObj is SequencerEvent_PluginNodeRequested) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_plugin_id = cst_encode_String(apiObj.pluginId);
+      var pre_node_type_id = cst_encode_String(apiObj.nodeTypeId);
+      var pre_config_json = cst_encode_String(apiObj.configJson);
+      var pre_display_name = cst_encode_opt_String(apiObj.displayName);
+      var pre_timeout_secs = cst_encode_u_32(apiObj.timeoutSecs);
+      wireObj.tag = 25;
+      wireObj.kind.PluginNodeRequested.node_id = pre_node_id;
+      wireObj.kind.PluginNodeRequested.plugin_id = pre_plugin_id;
+      wireObj.kind.PluginNodeRequested.node_type_id = pre_node_type_id;
+      wireObj.kind.PluginNodeRequested.config_json = pre_config_json;
+      wireObj.kind.PluginNodeRequested.display_name = pre_display_name;
+      wireObj.kind.PluginNodeRequested.timeout_secs = pre_timeout_secs;
+      return;
+    }
+    if (apiObj is SequencerEvent_PluginNodeProgress) {
+      var pre_node_id = cst_encode_String(apiObj.nodeId);
+      var pre_plugin_id = cst_encode_String(apiObj.pluginId);
+      var pre_node_type_id = cst_encode_String(apiObj.nodeTypeId);
+      var pre_detail_json = cst_encode_String(apiObj.detailJson);
+      wireObj.tag = 26;
+      wireObj.kind.PluginNodeProgress.node_id = pre_node_id;
+      wireObj.kind.PluginNodeProgress.plugin_id = pre_plugin_id;
+      wireObj.kind.PluginNodeProgress.node_type_id = pre_node_type_id;
+      wireObj.kind.PluginNodeProgress.detail_json = pre_detail_json;
+      return;
+    }
+    if (apiObj is SequencerEvent_DecisionLogged) {
+      var pre_timestamp_iso = cst_encode_String(apiObj.timestampIso);
+      var pre_category = cst_encode_String(apiObj.category);
+      var pre_summary = cst_encode_String(apiObj.summary);
+      var pre_details_json = cst_encode_String(apiObj.detailsJson);
+      var pre_node_id = cst_encode_opt_String(apiObj.nodeId);
+      var pre_sequence_run_id =
+          cst_encode_opt_box_autoadd_i_64(apiObj.sequenceRunId);
+      wireObj.tag = 27;
+      wireObj.kind.DecisionLogged.timestamp_iso = pre_timestamp_iso;
+      wireObj.kind.DecisionLogged.category = pre_category;
+      wireObj.kind.DecisionLogged.summary = pre_summary;
+      wireObj.kind.DecisionLogged.details_json = pre_details_json;
+      wireObj.kind.DecisionLogged.node_id = pre_node_id;
+      wireObj.kind.DecisionLogged.sequence_run_id = pre_sequence_run_id;
       return;
     }
   }
@@ -4655,10 +5532,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       var pre_title = cst_encode_String(apiObj.title);
       var pre_message = cst_encode_String(apiObj.message);
       var pre_level = cst_encode_String(apiObj.level);
+      var pre_explicit_transports =
+          cst_encode_opt_list_String(apiObj.explicitTransports);
       wireObj.tag = 4;
       wireObj.kind.Notification.title = pre_title;
       wireObj.kind.Notification.message = pre_message;
       wireObj.kind.Notification.level = pre_level;
+      wireObj.kind.Notification.explicit_transports = pre_explicit_transports;
       return;
     }
     if (apiObj is SystemEvent_EventsDropped) {
@@ -4709,8 +5589,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ArcAlpacaClient raw);
 
   @protected
+  int cst_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+      DefectMapCorrectionRecord raw);
+
+  @protected
   int cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
       ArcAlpacaClient raw);
+
+  @protected
+  int cst_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+      DefectMapCorrectionRecord raw);
 
   @protected
   int cst_encode_bayer_pattern_api(BayerPatternApi raw);
@@ -4797,6 +5685,19 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           ArcAlpacaClient self, SseSerializer serializer);
 
   @protected
+  void
+      sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_Map_String_Map_String_f_64_None_None(
+      Map<String, Map<String, double>> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_Map_String_f_64_None(
+      Map<String, double> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_Map_String_field_availability_None(
       Map<String, FieldAvailability> self, SseSerializer serializer);
 
@@ -4810,11 +5711,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           ArcAlpacaClient self, SseSerializer serializer);
 
   @protected
+  void
+      sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord self, SseSerializer serializer);
+
+  @protected
   void sse_encode_StreamSink_nightshade_event_Dco(
       RustStreamSink<NightshadeEvent> self, SseSerializer serializer);
 
   @protected
   void sse_encode_String(String self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_combine_method(
+      ApiCombineMethod self, SseSerializer serializer);
 
   @protected
   void sse_encode_api_defect_map_status(
@@ -4831,6 +5741,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_api_live_stacking_stats(
       ApiLiveStackingStats self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_api_master_frame_result(
+      ApiMasterFrameResult self, SseSerializer serializer);
 
   @protected
   void sse_encode_app_settings(AppSettings self, SseSerializer serializer);
@@ -4854,6 +5768,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
       sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
           ArcAlpacaClient self, SseSerializer serializer);
+
+  @protected
+  void
+      sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_api_combine_method(
+      ApiCombineMethod self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_api_defect_map_status(
@@ -4921,6 +5844,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       FitsWriteHeader self, SseSerializer serializer);
 
   @protected
+  void sse_encode_box_autoadd_fits_write_header_rich(
+      FitsWriteHeaderRich self, SseSerializer serializer);
+
+  @protected
   void sse_encode_box_autoadd_focuser_capabilities(
       FocuserCapabilities self, SseSerializer serializer);
 
@@ -4942,6 +5869,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_indi_autofocus_config_api(
       IndiAutofocusConfigApi self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_live_stacking_broadcast_snapshot(
+      LiveStackingBroadcastSnapshot self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_mount_capabilities(
@@ -4970,6 +5901,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_polar_alignment_status(
       PolarAlignmentStatus self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_recovery_config_update(
+      RecoveryConfigUpdate self, SseSerializer serializer);
 
   @protected
   void sse_encode_box_autoadd_rotator_capabilities(
@@ -5039,6 +5974,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_camera_capabilities(
       CameraCapabilities self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_camera_recommended_settings(
+      CameraRecommendedSettings self, SseSerializer serializer);
 
   @protected
   void sse_encode_camera_state(CameraState self, SseSerializer serializer);
@@ -5137,6 +6076,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       FilterWheelStatus self, SseSerializer serializer);
 
   @protected
+  void sse_encode_fits_keyword_update(
+      FitsKeywordUpdate self, SseSerializer serializer);
+
+  @protected
   void sse_encode_fits_linear_read_result(
       FitsLinearReadResult self, SseSerializer serializer);
 
@@ -5147,6 +6090,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_fits_write_header(
       FitsWriteHeader self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_fits_write_header_rich(
+      FitsWriteHeaderRich self, SseSerializer serializer);
 
   @protected
   void sse_encode_focus_data_point(
@@ -5204,6 +6151,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_list_String(List<String> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_bool(List<bool> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_detected_star_info(
       List<DetectedStarInfo> self, SseSerializer serializer);
 
@@ -5214,6 +6164,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_equipment_profile(
       List<EquipmentProfile> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_fits_keyword_update(
+      List<FitsKeywordUpdate> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_focus_data_point(
@@ -5238,6 +6192,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_f_32_strict(
       Float32List self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_f_64_loose(
+      List<double> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_f_64_strict(
@@ -5272,6 +6230,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       List<QuirkInfo> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_record_string_f_64(
+      List<(String, double)> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_record_string_field_availability(
       List<(String, FieldAvailability)> self, SseSerializer serializer);
 
@@ -5280,8 +6242,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       List<(String, int)> self, SseSerializer serializer);
 
   @protected
+  void sse_encode_list_record_string_map_string_f_64_none(
+      List<(String, Map<String, double>)> self, SseSerializer serializer);
+
+  @protected
   void sse_encode_list_record_string_string(
       List<(String, String)> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_scheduler_score_entry(
+      List<SchedulerScoreEntry> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_star_crop_api(
@@ -5294,6 +6264,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_tracking_rate(
       List<TrackingRate> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_live_stacking_broadcast_snapshot(
+      LiveStackingBroadcastSnapshot self, SseSerializer serializer);
 
   @protected
   void sse_encode_mosaic_panel_result(
@@ -5335,6 +6309,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
           ArcAlpacaClient? self, SseSerializer serializer);
 
   @protected
+  void
+      sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+          DefectMapCorrectionRecord? self, SseSerializer serializer);
+
+  @protected
   void sse_encode_opt_box_autoadd_api_defect_map_status(
       ApiDefectMapStatus? self, SseSerializer serializer);
 
@@ -5369,6 +6348,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_i_64(
       PlatformInt64? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_box_autoadd_live_stacking_broadcast_snapshot(
+      LiveStackingBroadcastSnapshot? self, SseSerializer serializer);
 
   @protected
   void sse_encode_opt_box_autoadd_observer_location(
@@ -5488,6 +6471,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       (PlatformInt64, bool) self, SseSerializer serializer);
 
   @protected
+  void sse_encode_record_string_f_64(
+      (String, double) self, SseSerializer serializer);
+
+  @protected
   void sse_encode_record_string_field_availability(
       (String, FieldAvailability) self, SseSerializer serializer);
 
@@ -5496,12 +6483,20 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       (String, int) self, SseSerializer serializer);
 
   @protected
+  void sse_encode_record_string_map_string_f_64_none(
+      (String, Map<String, double>) self, SseSerializer serializer);
+
+  @protected
   void sse_encode_record_string_string(
       (String, String) self, SseSerializer serializer);
 
   @protected
   void sse_encode_record_u_64_u_64_u_32_bool(
       (BigInt, BigInt, int, bool) self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_recovery_config_update(
+      RecoveryConfigUpdate self, SseSerializer serializer);
 
   @protected
   void sse_encode_rotator_capabilities(
@@ -5516,6 +6511,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_safety_monitor_capabilities(
       SafetyMonitorCapabilities self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_scheduler_score_entry(
+      SchedulerScoreEntry self, SseSerializer serializer);
 
   @protected
   void sse_encode_sequence_definition_api(
@@ -5707,6 +6706,30 @@ class RustLibWire implements BaseWire {
             int,
             ffi.Pointer<wire_cst_list_prim_u_16_loose>,
           )>();
+
+  WireSyncRust2DartDco wire__crate__api__sequencer__api_broadcast_deactivate() {
+    return _wire__crate__api__sequencer__api_broadcast_deactivate();
+  }
+
+  late final _wire__crate__api__sequencer__api_broadcast_deactivatePtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_deactivate',
+  );
+  late final _wire__crate__api__sequencer__api_broadcast_deactivate =
+      _wire__crate__api__sequencer__api_broadcast_deactivatePtr
+          .asFunction<WireSyncRust2DartDco Function()>();
+
+  WireSyncRust2DartDco wire__crate__api__sequencer__api_broadcast_get_active() {
+    return _wire__crate__api__sequencer__api_broadcast_get_active();
+  }
+
+  late final _wire__crate__api__sequencer__api_broadcast_get_activePtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function()>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_broadcast_get_active',
+  );
+  late final _wire__crate__api__sequencer__api_broadcast_get_active =
+      _wire__crate__api__sequencer__api_broadcast_get_activePtr
+          .asFunction<WireSyncRust2DartDco Function()>();
 
   WireSyncRust2DartDco wire__crate__api__sequencer__api_build_sequence(
     ffi.Pointer<wire_cst_list_prim_u_8_strict> id,
@@ -6092,6 +7115,54 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__imaging__api_camera_cancel_exposurePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
+  void wire__crate__api__devices__camera__api_camera_capture_preview(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__camera__api_camera_capture_preview(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__devices__camera__api_camera_capture_previewPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_capture_preview',
+  );
+  late final _wire__crate__api__devices__camera__api_camera_capture_preview =
+      _wire__crate__api__devices__camera__api_camera_capture_previewPtr
+          .asFunction<
+              void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__devices__camera__api_camera_get_recommended_settings(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__camera__api_camera_get_recommended_settings(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__devices__camera__api_camera_get_recommended_settingsPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__devices__camera__api_camera_get_recommended_settings',
+  );
+  late final _wire__crate__api__devices__camera__api_camera_get_recommended_settings =
+      _wire__crate__api__devices__camera__api_camera_get_recommended_settingsPtr
+          .asFunction<
+              void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__devices__camera__api_camera_set_readout_mode(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -6195,6 +7266,47 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__imaging__api_clear_device_image =
       _wire__crate__api__imaging__api_clear_device_imagePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__imaging__api_combine_master_frames(
+    int port_,
+    ffi.Pointer<wire_cst_list_String> input_paths,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> kind,
+    ffi.Pointer<wire_cst_api_combine_method> method,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> output_type,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> output_path,
+  ) {
+    return _wire__crate__api__imaging__api_combine_master_frames(
+      port_,
+      input_paths,
+      kind,
+      method,
+      output_type,
+      output_path,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_combine_master_framesPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_String>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_api_combine_method>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_combine_master_frames',
+  );
+  late final _wire__crate__api__imaging__api_combine_master_frames =
+      _wire__crate__api__imaging__api_combine_master_framesPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_String>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_api_combine_method>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>();
 
   void wire__crate__api__imaging__api_compute_fits_quality_maps(
     int port_,
@@ -7117,6 +8229,7 @@ class RustLibWire implements BaseWire {
     ffi.Pointer<ffi.Int64> start_after,
     ffi.Pointer<ffi.Int64> end_before,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> mosaic_panel_json,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> integration_budget_json,
     ffi.Pointer<wire_cst_list_String> children,
   ) {
     return _wire__crate__api__sequencer__api_create_target_header_node(
@@ -7132,6 +8245,7 @@ class RustLibWire implements BaseWire {
       start_after,
       end_before,
       mosaic_panel_json,
+      integration_budget_json,
       children,
     );
   }
@@ -7152,6 +8266,7 @@ class RustLibWire implements BaseWire {
                 ffi.Pointer<ffi.Int64>,
                 ffi.Pointer<ffi.Int64>,
                 ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
                 ffi.Pointer<wire_cst_list_String>,
               )>>(
     'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_create_target_header_node',
@@ -7170,6 +8285,7 @@ class RustLibWire implements BaseWire {
             int,
             ffi.Pointer<ffi.Int64>,
             ffi.Pointer<ffi.Int64>,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_list_String>,
           )>();
@@ -7719,6 +8835,28 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__discovery__api_discover_indi_networkPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__devices__dome__api_dome_abort_slew(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__dome__api_dome_abort_slew(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__devices__dome__api_dome_abort_slewPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_abort_slew',
+  );
+  late final _wire__crate__api__devices__dome__api_dome_abort_slew =
+      _wire__crate__api__devices__dome__api_dome_abort_slewPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__devices__dome__api_dome_close_shutter(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -7740,6 +8878,28 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__devices__dome__api_dome_close_shutter =
       _wire__crate__api__devices__dome__api_dome_close_shutterPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__devices__dome__api_dome_find_home(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__devices__dome__api_dome_find_home(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__devices__dome__api_dome_find_homePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_find_home',
+  );
+  late final _wire__crate__api__devices__dome__api_dome_find_home =
+      _wire__crate__api__devices__dome__api_dome_find_homePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__devices__dome__api_dome_get_azimuth(
@@ -7852,6 +9012,32 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__devices__dome__api_dome_park =
       _wire__crate__api__devices__dome__api_dome_parkPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__devices__dome__api_dome_set_slaved(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+    bool slaved,
+  ) {
+    return _wire__crate__api__devices__dome__api_dome_set_slaved(
+      port_,
+      device_id,
+      slaved,
+    );
+  }
+
+  late final _wire__crate__api__devices__dome__api_dome_set_slavedPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Bool,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__devices__dome__api_dome_set_slaved',
+  );
+  late final _wire__crate__api__devices__dome__api_dome_set_slaved =
+      _wire__crate__api__devices__dome__api_dome_set_slavedPtr.asFunction<
+          void Function(
+              int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, bool)>();
 
   void wire__crate__api__devices__dome__api_dome_slew_to_azimuth(
     int port_,
@@ -9152,6 +10338,28 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__phd2__api_guider_find_star =
       _wire__crate__api__phd2__api_guider_find_starPtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__phd2__api_guider_get_calibration(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
+  ) {
+    return _wire__crate__api__phd2__api_guider_get_calibration(
+      port_,
+      device_id,
+    );
+  }
+
+  late final _wire__crate__api__phd2__api_guider_get_calibrationPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__phd2__api_guider_get_calibration',
+  );
+  late final _wire__crate__api__phd2__api_guider_get_calibration =
+      _wire__crate__api__phd2__api_guider_get_calibrationPtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
 
   void wire__crate__api__phd2__api_guider_get_lock_position(
@@ -10812,6 +12020,60 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_record_string_string>,
           )>();
 
+  void wire__crate__api__imaging__api_sequencer_apply_defect_map(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_id,
+    int width,
+    int height,
+    double sensor_temperature_celsius,
+    bool enabled,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> method,
+    int kernel_diameter,
+    bool save_original,
+  ) {
+    return _wire__crate__api__imaging__api_sequencer_apply_defect_map(
+      port_,
+      camera_id,
+      width,
+      height,
+      sensor_temperature_celsius,
+      enabled,
+      method,
+      kernel_diameter,
+      save_original,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_sequencer_apply_defect_mapPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Double,
+                ffi.Bool,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Uint8,
+                ffi.Bool,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_sequencer_apply_defect_map',
+  );
+  late final _wire__crate__api__imaging__api_sequencer_apply_defect_map =
+      _wire__crate__api__imaging__api_sequencer_apply_defect_mapPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            double,
+            bool,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            bool,
+          )>();
+
   void wire__crate__api__sequencer__api_sequencer_clear_checkpoint(int port_) {
     return _wire__crate__api__sequencer__api_sequencer_clear_checkpoint(port_);
   }
@@ -10822,6 +12084,55 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__sequencer__api_sequencer_clear_checkpoint =
       _wire__crate__api__sequencer__api_sequencer_clear_checkpointPtr
+          .asFunction<void Function(int)>();
+
+  void
+      wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposurePtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposure =
+      _wire__crate__api__sequencer__api_sequencer_clear_default_adaptive_exposurePtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_idPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_id =
+      _wire__crate__api__sequencer__api_sequencer_get_active_sequence_run_idPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_json =
+      _wire__crate__api__sequencer__api_sequencer_get_adaptive_swap_jsonPtr
           .asFunction<void Function(int)>();
 
   void wire__crate__api__sequencer__api_sequencer_get_checkpoint_info(
@@ -10838,6 +12149,70 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__sequencer__api_sequencer_get_checkpoint_info =
       _wire__crate__api__sequencer__api_sequencer_get_checkpoint_infoPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_cloud_motion_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_cloud_motion_json =
+      _wire__crate__api__sequencer__api_sequencer_get_cloud_motion_jsonPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_current_recovery_json(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_current_recovery_json(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_current_recovery_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_current_recovery_json',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_current_recovery_json =
+      _wire__crate__api__sequencer__api_sequencer_get_current_recovery_jsonPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabledPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabled =
+      _wire__crate__api__sequencer__api_sequencer_get_decision_logging_enabledPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_get_recovery_history_json(
+    int port_,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_get_recovery_history_json(
+      port_,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_get_recovery_history_jsonPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_get_recovery_history_json',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_get_recovery_history_json =
+      _wire__crate__api__sequencer__api_sequencer_get_recovery_history_jsonPtr
           .asFunction<void Function(int)>();
 
   void wire__crate__api__sequencer__api_sequencer_get_state(int port_) {
@@ -10914,6 +12289,69 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_pausePtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__sequencer__api_sequencer_plugin_node_finished(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id,
+    bool success,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> message,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> structured_detail_json,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_plugin_node_finished(
+      port_,
+      node_id,
+      success,
+      message,
+      structured_detail_json,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_plugin_node_finishedPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Bool,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_plugin_node_finished',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_plugin_node_finished =
+      _wire__crate__api__sequencer__api_sequencer_plugin_node_finishedPtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                bool,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>();
+
+  void wire__crate__api__sequencer__api_sequencer_recovery_abort(int port_) {
+    return _wire__crate__api__sequencer__api_sequencer_recovery_abort(port_);
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_recovery_abortPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_abort',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_recovery_abort =
+      _wire__crate__api__sequencer__api_sequencer_recovery_abortPtr
+          .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_recovery_try_now(int port_) {
+    return _wire__crate__api__sequencer__api_sequencer_recovery_try_now(port_);
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_recovery_try_nowPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_recovery_try_now',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_recovery_try_now =
+      _wire__crate__api__sequencer__api_sequencer_recovery_try_nowPtr
+          .asFunction<void Function(int)>();
+
   void wire__crate__api__sequencer__api_sequencer_reset(int port_) {
     return _wire__crate__api__sequencer__api_sequencer_reset(port_);
   }
@@ -10966,6 +12404,26 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_save_checkpointPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id(
+    int port_,
+    ffi.Pointer<ffi.Int64> sequence_run_id,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id(
+      port_,
+      sequence_run_id,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_idPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Int64, ffi.Pointer<ffi.Int64>)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_id =
+      _wire__crate__api__sequencer__api_sequencer_set_active_sequence_run_idPtr
+          .asFunction<void Function(int, ffi.Pointer<ffi.Int64>)>();
+
   void wire__crate__api__sequencer__api_sequencer_set_checkpoint_dir(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
@@ -10989,6 +12447,24 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_set_checkpoint_dirPtr
           .asFunction<
               void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(
+    int port_,
+    bool enabled,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled(
+      port_,
+      enabled,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabledPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Bool)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabled =
+      _wire__crate__api__sequencer__api_sequencer_set_decision_logging_enabledPtr
+          .asFunction<void Function(int, bool)>();
 
   void wire__crate__api__sequencer__api_sequencer_set_devices(
     int port_,
@@ -11039,6 +12515,25 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_list_String>,
             ffi.Pointer<wire_cst_list_record_string_i_32>,
           )>();
+
+  void
+      wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds(
+    int port_,
+    int seconds,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds(
+      port_,
+      seconds,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_secondsPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Uint32)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_seconds =
+      _wire__crate__api__sequencer__api_sequencer_set_safety_check_interval_secondsPtr
+          .asFunction<void Function(int, int)>();
 
   void wire__crate__api__sequencer__api_sequencer_set_safety_fail_mode(
     int port_,
@@ -11117,6 +12612,29 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_skipPtr
           .asFunction<void Function(int)>();
 
+  void wire__crate__api__sequencer__api_sequencer_skip_to_node(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_skip_to_node(
+      port_,
+      node_id,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_skip_to_nodePtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_skip_to_node',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_skip_to_node =
+      _wire__crate__api__sequencer__api_sequencer_skip_to_nodePtr.asFunction<
+          void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
   void wire__crate__api__sequencer__api_sequencer_start(int port_) {
     return _wire__crate__api__sequencer__api_sequencer_start(port_);
   }
@@ -11152,6 +12670,249 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__sequencer__api_sequencer_subscribe_events =
       _wire__crate__api__sequencer__api_sequencer_subscribe_eventsPtr
           .asFunction<void Function(int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(
+    int port_,
+    int every_n_frames,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_autofocus_interval(
+      port_,
+      every_n_frames,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_autofocus_intervalPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64, ffi.Uint32)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_autofocus_interval',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_autofocus_interval =
+      _wire__crate__api__sequencer__api_sequencer_update_autofocus_intervalPtr
+          .asFunction<void Function(int, int)>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_cloud_motion(
+    int port_,
+    ffi.Pointer<ffi.Double> current_cover_percent,
+    ffi.Pointer<ffi.Double> predicted_arrival_minutes,
+    ffi.Pointer<ffi.Double> predicted_opening_minutes,
+    ffi.Pointer<ffi.Double> predicted_opening_duration_secs,
+    ffi.Pointer<ffi.Double> predicted_clear_sky_alt,
+    ffi.Pointer<ffi.Double> predicted_clear_sky_az,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_cloud_motion(
+      port_,
+      current_cover_percent,
+      predicted_arrival_minutes,
+      predicted_opening_minutes,
+      predicted_opening_duration_secs,
+      predicted_clear_sky_alt,
+      predicted_clear_sky_az,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_cloud_motionPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_cloud_motion',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_cloud_motion =
+      _wire__crate__api__sequencer__api_sequencer_update_cloud_motionPtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+              )>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_conditions_score(
+    int port_,
+    ffi.Pointer<ffi.Double> score,
+    ffi.Pointer<ffi.Double> transparency_score,
+    ffi.Pointer<ffi.Double> seeing_score,
+    ffi.Pointer<ffi.Double> cloud_score,
+    ffi.Pointer<ffi.Double> wind_score,
+    double transparency_weight,
+    double seeing_weight,
+    double cloud_weight,
+    double wind_weight,
+    int generated_unix_secs,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_conditions_score(
+      port_,
+      score,
+      transparency_score,
+      seeing_score,
+      cloud_score,
+      wind_score,
+      transparency_weight,
+      seeing_weight,
+      cloud_weight,
+      wind_weight,
+      generated_unix_secs,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_conditions_scorePtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Double,
+                ffi.Double,
+                ffi.Double,
+                ffi.Double,
+                ffi.Int64,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_conditions_score',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_conditions_score =
+      _wire__crate__api__sequencer__api_sequencer_update_conditions_scorePtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                double,
+                double,
+                double,
+                double,
+                int,
+              )>();
+
+  void
+      wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure(
+    int port_,
+    bool enabled,
+    double target_snr,
+    double reference_sky_brightness_mag,
+    double min_exposure_secs,
+    double max_exposure_secs,
+    ffi.Pointer<wire_cst_list_String> per_filter_enabled_keys,
+    ffi.Pointer<wire_cst_list_bool> per_filter_enabled_values,
+    ffi.Pointer<wire_cst_list_String> per_filter_min_keys,
+    ffi.Pointer<wire_cst_list_prim_f_64_loose> per_filter_min_values,
+    ffi.Pointer<wire_cst_list_String> per_filter_max_keys,
+    ffi.Pointer<wire_cst_list_prim_f_64_loose> per_filter_max_values,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure(
+      port_,
+      enabled,
+      target_snr,
+      reference_sky_brightness_mag,
+      min_exposure_secs,
+      max_exposure_secs,
+      per_filter_enabled_keys,
+      per_filter_enabled_values,
+      per_filter_min_keys,
+      per_filter_min_values,
+      per_filter_max_keys,
+      per_filter_max_values,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposurePtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Bool,
+                ffi.Double,
+                ffi.Double,
+                ffi.Double,
+                ffi.Double,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_bool>,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_prim_f_64_loose>,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_prim_f_64_loose>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposure =
+      _wire__crate__api__sequencer__api_sequencer_update_default_adaptive_exposurePtr
+          .asFunction<
+              void Function(
+                int,
+                bool,
+                double,
+                double,
+                double,
+                double,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_bool>,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_prim_f_64_loose>,
+                ffi.Pointer<wire_cst_list_String>,
+                ffi.Pointer<wire_cst_list_prim_f_64_loose>,
+              )>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_default_quality_check(
+    int port_,
+    ffi.Pointer<ffi.Double> hfr_threshold,
+    ffi.Pointer<ffi.Double> hfr_baseline_percent,
+    ffi.Pointer<ffi.Double> eccentricity_threshold,
+    ffi.Pointer<ffi.Uint32> star_count_min,
+    int max_consecutive_rejects,
+    bool enabled,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_default_quality_check(
+      port_,
+      hfr_threshold,
+      hfr_baseline_percent,
+      eccentricity_threshold,
+      star_count_min,
+      max_consecutive_rejects,
+      enabled,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_default_quality_checkPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Uint32>,
+                ffi.Uint32,
+                ffi.Bool,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_default_quality_check',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_default_quality_check =
+      _wire__crate__api__sequencer__api_sequencer_update_default_quality_checkPtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Uint32>,
+                int,
+                bool,
+              )>();
 
   void wire__crate__api__sequencer__api_sequencer_update_dither_config(
     int port_,
@@ -11240,6 +13001,154 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__sequencer__api_sequencer_update_locationPtr.asFunction<
           void Function(
               int, ffi.Pointer<ffi.Double>, ffi.Pointer<ffi.Double>)>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_observer_profile(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> observer_name,
+    ffi.Pointer<ffi.Double> site_elevation_m,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_make,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> camera_model,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> telescope_name,
+    ffi.Pointer<ffi.Double> telescope_focal_length_mm,
+    ffi.Pointer<ffi.Double> telescope_aperture_mm,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_observer_profile(
+      port_,
+      observer_name,
+      site_elevation_m,
+      camera_make,
+      camera_model,
+      telescope_name,
+      telescope_focal_length_mm,
+      telescope_aperture_mm,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_observer_profilePtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_observer_profile',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_observer_profile =
+      _wire__crate__api__sequencer__api_sequencer_update_observer_profilePtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+                ffi.Pointer<ffi.Double>,
+                ffi.Pointer<ffi.Double>,
+              )>();
+
+  void
+      wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over(
+    int port_,
+    ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none> carry_over,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over(
+      port_,
+      carry_over,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_overPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_over =
+      _wire__crate__api__sequencer__api_sequencer_update_pending_integration_carry_overPtr
+          .asFunction<
+              void Function(
+                int,
+                ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>,
+              )>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_recovery_config(
+    int port_,
+    ffi.Pointer<wire_cst_recovery_config_update> update,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_recovery_config(
+      port_,
+      update,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_recovery_configPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_recovery_config_update>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_recovery_config',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_recovery_config =
+      _wire__crate__api__sequencer__api_sequencer_update_recovery_configPtr
+          .asFunction<
+              void Function(
+                  int, ffi.Pointer<wire_cst_recovery_config_update>)>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_reject_folder_path(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_reject_folder_path(
+      port_,
+      path,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_reject_folder_pathPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(
+                ffi.Int64,
+                ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_reject_folder_path',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_reject_folder_path =
+      _wire__crate__api__sequencer__api_sequencer_update_reject_folder_pathPtr
+          .asFunction<
+              void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__sequencer__api_sequencer_update_sky_brightness(
+    int port_,
+    ffi.Pointer<ffi.Double> mag,
+  ) {
+    return _wire__crate__api__sequencer__api_sequencer_update_sky_brightness(
+      port_,
+      mag,
+    );
+  }
+
+  late final _wire__crate__api__sequencer__api_sequencer_update_sky_brightnessPtr =
+      _lookup<
+          ffi.NativeFunction<
+              ffi.Void Function(ffi.Int64, ffi.Pointer<ffi.Double>)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__sequencer__api_sequencer_update_sky_brightness',
+  );
+  late final _wire__crate__api__sequencer__api_sequencer_update_sky_brightness =
+      _wire__crate__api__sequencer__api_sequencer_update_sky_brightnessPtr
+          .asFunction<void Function(int, ffi.Pointer<ffi.Double>)>();
 
   void wire__crate__api__devices__camera__api_set_camera_binning(
     int port_,
@@ -12144,6 +14053,35 @@ class RustLibWire implements BaseWire {
             double,
           )>();
 
+  void wire__crate__api__imaging__api_update_fits_keywords(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+    ffi.Pointer<wire_cst_list_fits_keyword_update> updates,
+  ) {
+    return _wire__crate__api__imaging__api_update_fits_keywords(
+      port_,
+      file_path,
+      updates,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_update_fits_keywordsPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_fits_keyword_update>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_update_fits_keywords',
+  );
+  late final _wire__crate__api__imaging__api_update_fits_keywords =
+      _wire__crate__api__imaging__api_update_fits_keywordsPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Pointer<wire_cst_list_fits_keyword_update>,
+          )>();
+
   WireSyncRust2DartDco wire__crate__api__storage__api_update_settings(
     ffi.Pointer<wire_cst_app_settings> settings,
   ) {
@@ -12381,6 +14319,18 @@ class RustLibWire implements BaseWire {
           .asFunction<
               void Function(
                   int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
+
+  void wire__crate__api__imaging__fits_write_header_rich_default(int port_) {
+    return _wire__crate__api__imaging__fits_write_header_rich_default(port_);
+  }
+
+  late final _wire__crate__api__imaging__fits_write_header_rich_defaultPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__fits_write_header_rich_default',
+  );
+  late final _wire__crate__api__imaging__fits_write_header_rich_default =
+      _wire__crate__api__imaging__fits_write_header_rich_defaultPtr
+          .asFunction<void Function(int)>();
 
   void wire__crate__api__devices__focuser__focuser_get_details(
     int port_,
@@ -13104,6 +15054,104 @@ class RustLibWire implements BaseWire {
               void Function(
                   int, ffi.Pointer<wire_cst_list_prim_u_8_strict>, int)>();
 
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium_spike__planetarium_spike_create(
+    int engine_handle,
+  ) {
+    return _wire__crate__api__planetarium_spike__planetarium_spike_create(
+      engine_handle,
+    );
+  }
+
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_createPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_create',
+  );
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_create =
+      _wire__crate__api__planetarium_spike__planetarium_spike_createPtr
+          .asFunction<WireSyncRust2DartDco Function(int)>();
+
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium_spike__planetarium_spike_dispose(
+          int handle) {
+    return _wire__crate__api__planetarium_spike__planetarium_spike_dispose(
+      handle,
+    );
+  }
+
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_disposePtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_dispose',
+  );
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_dispose =
+      _wire__crate__api__planetarium_spike__planetarium_spike_disposePtr
+          .asFunction<WireSyncRust2DartDco Function(int)>();
+
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium_spike__planetarium_spike_resize(
+    int handle,
+    int width,
+    int height,
+  ) {
+    return _wire__crate__api__planetarium_spike__planetarium_spike_resize(
+      handle,
+      width,
+      height,
+    );
+  }
+
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_resizePtr =
+      _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                  ffi.Int64, ffi.Uint32, ffi.Uint32)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_resize',
+  );
+  late final _wire__crate__api__planetarium_spike__planetarium_spike_resize =
+      _wire__crate__api__planetarium_spike__planetarium_spike_resizePtr
+          .asFunction<WireSyncRust2DartDco Function(int, int, int)>();
+
+  void wire__crate__api__imaging__save_fits_file_rich(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+    int width,
+    int height,
+    ffi.Pointer<wire_cst_list_prim_u_16_loose> data,
+    ffi.Pointer<wire_cst_fits_write_header_rich> header_data,
+  ) {
+    return _wire__crate__api__imaging__save_fits_file_rich(
+      port_,
+      file_path,
+      width,
+      height,
+      data,
+      header_data,
+    );
+  }
+
+  late final _wire__crate__api__imaging__save_fits_file_richPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Pointer<wire_cst_list_prim_u_16_loose>,
+            ffi.Pointer<wire_cst_fits_write_header_rich>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__save_fits_file_rich',
+  );
+  late final _wire__crate__api__imaging__save_fits_file_rich =
+      _wire__crate__api__imaging__save_fits_file_richPtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_16_loose>,
+            ffi.Pointer<wire_cst_fits_write_header_rich>,
+          )>();
+
   void wire__crate__api__devices__camera__set_camera_cooler(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> device_id,
@@ -13397,6 +15445,40 @@ class RustLibWire implements BaseWire {
       _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClientPtr
           .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
 
+  void
+      rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+    'frbgen_nightshade_bridge_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord',
+  );
+  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord =
+      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
+  void
+      rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+    ffi.Pointer<ffi.Void> ptr,
+  ) {
+    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+      ptr,
+    );
+  }
+
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
+    'frbgen_nightshade_bridge_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord',
+  );
+  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord =
+      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr
+          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+
   ffi.Pointer<ffi.UintPtr>
       cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient(
     int value,
@@ -13414,6 +15496,37 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClient =
       _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerArcAlpacaClientPtr
           .asFunction<ffi.Pointer<ffi.UintPtr> Function(int)>();
+
+  ffi.Pointer<ffi.UintPtr>
+      cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+    int value,
+  ) {
+    return _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord(
+      value,
+    );
+  }
+
+  late final _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr =
+      _lookup<
+          ffi.NativeFunction<ffi.Pointer<ffi.UintPtr> Function(ffi.UintPtr)>>(
+    'frbgen_nightshade_bridge_cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord',
+  );
+  late final _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecord =
+      _cst_new_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDefectMapCorrectionRecordPtr
+          .asFunction<ffi.Pointer<ffi.UintPtr> Function(int)>();
+
+  ffi.Pointer<wire_cst_api_combine_method>
+      cst_new_box_autoadd_api_combine_method() {
+    return _cst_new_box_autoadd_api_combine_method();
+  }
+
+  late final _cst_new_box_autoadd_api_combine_methodPtr = _lookup<
+          ffi
+          .NativeFunction<ffi.Pointer<wire_cst_api_combine_method> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_api_combine_method');
+  late final _cst_new_box_autoadd_api_combine_method =
+      _cst_new_box_autoadd_api_combine_methodPtr
+          .asFunction<ffi.Pointer<wire_cst_api_combine_method> Function()>();
 
   ffi.Pointer<wire_cst_api_defect_map_status>
       cst_new_box_autoadd_api_defect_map_status() {
@@ -13627,6 +15740,19 @@ class RustLibWire implements BaseWire {
       _cst_new_box_autoadd_fits_write_headerPtr
           .asFunction<ffi.Pointer<wire_cst_fits_write_header> Function()>();
 
+  ffi.Pointer<wire_cst_fits_write_header_rich>
+      cst_new_box_autoadd_fits_write_header_rich() {
+    return _cst_new_box_autoadd_fits_write_header_rich();
+  }
+
+  late final _cst_new_box_autoadd_fits_write_header_richPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_fits_write_header_rich> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich');
+  late final _cst_new_box_autoadd_fits_write_header_rich =
+      _cst_new_box_autoadd_fits_write_header_richPtr.asFunction<
+          ffi.Pointer<wire_cst_fits_write_header_rich> Function()>();
+
   ffi.Pointer<wire_cst_focuser_capabilities>
       cst_new_box_autoadd_focuser_capabilities() {
     return _cst_new_box_autoadd_focuser_capabilities();
@@ -13697,6 +15823,20 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_indi_autofocus_config_api =
       _cst_new_box_autoadd_indi_autofocus_config_apiPtr.asFunction<
           ffi.Pointer<wire_cst_indi_autofocus_config_api> Function()>();
+
+  ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot>
+      cst_new_box_autoadd_live_stacking_broadcast_snapshot() {
+    return _cst_new_box_autoadd_live_stacking_broadcast_snapshot();
+  }
+
+  late final _cst_new_box_autoadd_live_stacking_broadcast_snapshotPtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot> Function()>>(
+    'frbgen_nightshade_bridge_cst_new_box_autoadd_live_stacking_broadcast_snapshot',
+  );
+  late final _cst_new_box_autoadd_live_stacking_broadcast_snapshot =
+      _cst_new_box_autoadd_live_stacking_broadcast_snapshotPtr.asFunction<
+          ffi.Pointer<wire_cst_live_stacking_broadcast_snapshot> Function()>();
 
   ffi.Pointer<wire_cst_mount_capabilities>
       cst_new_box_autoadd_mount_capabilities() {
@@ -13788,6 +15928,19 @@ class RustLibWire implements BaseWire {
   late final _cst_new_box_autoadd_polar_alignment_status =
       _cst_new_box_autoadd_polar_alignment_statusPtr.asFunction<
           ffi.Pointer<wire_cst_polar_alignment_status> Function()>();
+
+  ffi.Pointer<wire_cst_recovery_config_update>
+      cst_new_box_autoadd_recovery_config_update() {
+    return _cst_new_box_autoadd_recovery_config_update();
+  }
+
+  late final _cst_new_box_autoadd_recovery_config_updatePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_recovery_config_update> Function()>>(
+      'frbgen_nightshade_bridge_cst_new_box_autoadd_recovery_config_update');
+  late final _cst_new_box_autoadd_recovery_config_update =
+      _cst_new_box_autoadd_recovery_config_updatePtr.asFunction<
+          ffi.Pointer<wire_cst_recovery_config_update> Function()>();
 
   ffi.Pointer<wire_cst_rotator_capabilities>
       cst_new_box_autoadd_rotator_capabilities() {
@@ -13983,6 +16136,17 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_String = _cst_new_list_StringPtr
       .asFunction<ffi.Pointer<wire_cst_list_String> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_bool> cst_new_list_bool(int len) {
+    return _cst_new_list_bool(len);
+  }
+
+  late final _cst_new_list_boolPtr = _lookup<
+          ffi
+          .NativeFunction<ffi.Pointer<wire_cst_list_bool> Function(ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_bool');
+  late final _cst_new_list_bool = _cst_new_list_boolPtr
+      .asFunction<ffi.Pointer<wire_cst_list_bool> Function(int)>();
+
   ffi.Pointer<wire_cst_list_detected_star_info> cst_new_list_detected_star_info(
     int len,
   ) {
@@ -14023,6 +16187,20 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_equipment_profile =
       _cst_new_list_equipment_profilePtr.asFunction<
           ffi.Pointer<wire_cst_list_equipment_profile> Function(int)>();
+
+  ffi.Pointer<wire_cst_list_fits_keyword_update>
+      cst_new_list_fits_keyword_update(int len) {
+    return _cst_new_list_fits_keyword_update(len);
+  }
+
+  late final _cst_new_list_fits_keyword_updatePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_fits_keyword_update> Function(
+                  ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_fits_keyword_update');
+  late final _cst_new_list_fits_keyword_update =
+      _cst_new_list_fits_keyword_updatePtr.asFunction<
+          ffi.Pointer<wire_cst_list_fits_keyword_update> Function(int)>();
 
   ffi.Pointer<wire_cst_list_focus_data_point> cst_new_list_focus_data_point(
     int len,
@@ -14104,6 +16282,19 @@ class RustLibWire implements BaseWire {
       'frbgen_nightshade_bridge_cst_new_list_prim_f_32_strict');
   late final _cst_new_list_prim_f_32_strict = _cst_new_list_prim_f_32_strictPtr
       .asFunction<ffi.Pointer<wire_cst_list_prim_f_32_strict> Function(int)>();
+
+  ffi.Pointer<wire_cst_list_prim_f_64_loose> cst_new_list_prim_f_64_loose(
+    int len,
+  ) {
+    return _cst_new_list_prim_f_64_loose(len);
+  }
+
+  late final _cst_new_list_prim_f_64_loosePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_prim_f_64_loose> Function(ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_prim_f_64_loose');
+  late final _cst_new_list_prim_f_64_loose = _cst_new_list_prim_f_64_loosePtr
+      .asFunction<ffi.Pointer<wire_cst_list_prim_f_64_loose> Function(int)>();
 
   ffi.Pointer<wire_cst_list_prim_f_64_strict> cst_new_list_prim_f_64_strict(
     int len,
@@ -14208,6 +16399,21 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_quirk_info = _cst_new_list_quirk_infoPtr
       .asFunction<ffi.Pointer<wire_cst_list_quirk_info> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_record_string_f_64> cst_new_list_record_string_f_64(
+    int len,
+  ) {
+    return _cst_new_list_record_string_f_64(len);
+  }
+
+  late final _cst_new_list_record_string_f_64Ptr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_record_string_f_64> Function(
+                  ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_record_string_f_64');
+  late final _cst_new_list_record_string_f_64 =
+      _cst_new_list_record_string_f_64Ptr.asFunction<
+          ffi.Pointer<wire_cst_list_record_string_f_64> Function(int)>();
+
   ffi.Pointer<wire_cst_list_record_string_field_availability>
       cst_new_list_record_string_field_availability(int len) {
     return _cst_new_list_record_string_field_availability(len);
@@ -14240,6 +16446,22 @@ class RustLibWire implements BaseWire {
       _cst_new_list_record_string_i_32Ptr.asFunction<
           ffi.Pointer<wire_cst_list_record_string_i_32> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>
+      cst_new_list_record_string_map_string_f_64_none(int len) {
+    return _cst_new_list_record_string_map_string_f_64_none(len);
+  }
+
+  late final _cst_new_list_record_string_map_string_f_64_nonePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>
+              Function(ffi.Int32)>>(
+    'frbgen_nightshade_bridge_cst_new_list_record_string_map_string_f_64_none',
+  );
+  late final _cst_new_list_record_string_map_string_f_64_none =
+      _cst_new_list_record_string_map_string_f_64_nonePtr.asFunction<
+          ffi.Pointer<wire_cst_list_record_string_map_string_f_64_none>
+              Function(int)>();
+
   ffi.Pointer<wire_cst_list_record_string_string>
       cst_new_list_record_string_string(int len) {
     return _cst_new_list_record_string_string(len);
@@ -14253,6 +16475,20 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_record_string_string =
       _cst_new_list_record_string_stringPtr.asFunction<
           ffi.Pointer<wire_cst_list_record_string_string> Function(int)>();
+
+  ffi.Pointer<wire_cst_list_scheduler_score_entry>
+      cst_new_list_scheduler_score_entry(int len) {
+    return _cst_new_list_scheduler_score_entry(len);
+  }
+
+  late final _cst_new_list_scheduler_score_entryPtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_scheduler_score_entry> Function(
+                  ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_scheduler_score_entry');
+  late final _cst_new_list_scheduler_score_entry =
+      _cst_new_list_scheduler_score_entryPtr.asFunction<
+          ffi.Pointer<wire_cst_list_scheduler_score_entry> Function(int)>();
 
   ffi.Pointer<wire_cst_list_star_crop_api> cst_new_list_star_crop_api(int len) {
     return _cst_new_list_star_crop_api(len);
@@ -14345,6 +16581,14 @@ final class wire_cst_list_prim_u_16_strict extends ffi.Struct {
 
   @ffi.Int32()
   external int len;
+}
+
+final class wire_cst_api_combine_method extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> method;
+
+  external ffi.Pointer<ffi.Double> sigma_kappa;
+
+  external ffi.Pointer<ffi.Uint32> sigma_iterations;
 }
 
 final class wire_cst_star_detection_config_api extends ffi.Struct {
@@ -14504,6 +16748,8 @@ final class wire_cst_equipment_profile extends ffi.Struct {
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> weather_id;
 
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> safety_monitor_id;
+
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> cover_calibrator_id;
 
   @ffi.Double()
@@ -14574,6 +16820,65 @@ final class wire_cst_list_record_string_i_32 extends ffi.Struct {
   external int len;
 }
 
+final class wire_cst_list_bool extends ffi.Struct {
+  external ffi.Pointer<ffi.Bool> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_list_prim_f_64_loose extends ffi.Struct {
+  external ffi.Pointer<ffi.Double> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_record_string_f_64 extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> field0;
+
+  @ffi.Double()
+  external double field1;
+}
+
+final class wire_cst_list_record_string_f_64 extends ffi.Struct {
+  external ffi.Pointer<wire_cst_record_string_f_64> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_record_string_map_string_f_64_none extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> field0;
+
+  external ffi.Pointer<wire_cst_list_record_string_f_64> field1;
+}
+
+final class wire_cst_list_record_string_map_string_f_64_none
+    extends ffi.Struct {
+  external ffi.Pointer<wire_cst_record_string_map_string_f_64_none> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_recovery_config_update extends ffi.Struct {
+  @ffi.Double()
+  external double retry_interval_secs;
+
+  @ffi.Double()
+  external double max_duration_secs;
+
+  @ffi.Bool()
+  external bool stop_tracking_during_recovery;
+
+  @ffi.Bool()
+  external bool abort_on_meridian;
+
+  @ffi.Bool()
+  external bool audible_alert_when_entered;
+}
+
 final class wire_cst_observer_location extends ffi.Struct {
   @ffi.Double()
   external double latitude;
@@ -14605,6 +16910,25 @@ final class wire_cst_api_live_stacking_config extends ffi.Struct {
   external int min_matched_pairs;
 }
 
+final class wire_cst_fits_keyword_update extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> keyword;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> comment;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> string_value;
+
+  external ffi.Pointer<ffi.Int64> int_value;
+
+  external ffi.Pointer<ffi.Double> float_value;
+}
+
+final class wire_cst_list_fits_keyword_update extends ffi.Struct {
+  external ffi.Pointer<wire_cst_fits_keyword_update> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
 final class wire_cst_app_settings extends ffi.Struct {
   external ffi.Pointer<wire_cst_observer_location> location;
 
@@ -14614,6 +16938,112 @@ final class wire_cst_app_settings extends ffi.Struct {
 
   @ffi.Bool()
   external bool auto_connect;
+}
+
+final class wire_cst_fits_write_header_rich extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> object_name;
+
+  @ffi.Double()
+  external double exposure_time;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> capture_timestamp;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> frame_type;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  external ffi.Pointer<ffi.Int32> filter_position;
+
+  external ffi.Pointer<ffi.Int32> gain;
+
+  external ffi.Pointer<ffi.Int32> offset;
+
+  external ffi.Pointer<ffi.Double> ccd_temp;
+
+  external ffi.Pointer<ffi.Double> set_temp;
+
+  external ffi.Pointer<ffi.Double> ra;
+
+  external ffi.Pointer<ffi.Double> dec;
+
+  external ffi.Pointer<ffi.Double> altitude;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> telescope;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> instrument;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> observer;
+
+  @ffi.Int32()
+  external int bin_x;
+
+  @ffi.Int32()
+  external int bin_y;
+
+  external ffi.Pointer<ffi.Double> focal_length;
+
+  external ffi.Pointer<ffi.Double> aperture;
+
+  external ffi.Pointer<ffi.Double> pixel_size_x;
+
+  external ffi.Pointer<ffi.Double> pixel_size_y;
+
+  external ffi.Pointer<ffi.Double> site_latitude;
+
+  external ffi.Pointer<ffi.Double> site_longitude;
+
+  external ffi.Pointer<ffi.Double> site_elevation;
+
+  external ffi.Pointer<ffi.Int32> focuser_position;
+
+  external ffi.Pointer<ffi.Double> focuser_temperature;
+
+  external ffi.Pointer<ffi.Double> rotator_angle;
+
+  external ffi.Pointer<ffi.Double> guide_rms_arcsec;
+
+  external ffi.Pointer<ffi.Double> solved_ra_hours;
+
+  external ffi.Pointer<ffi.Double> solved_dec_degrees;
+
+  external ffi.Pointer<ffi.Double> plate_solve_pixel_scale_arcsec;
+
+  external ffi.Pointer<ffi.Double> plate_solve_rotation_deg;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> bayer_pattern;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> session_id;
+
+  external ffi.Pointer<ffi.Uint32> frame_index;
+
+  external ffi.Pointer<ffi.Uint32> total_planned_frames;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> mosaic_name;
+
+  external ffi.Pointer<ffi.Int32> mosaic_panel_index;
+
+  external ffi.Pointer<ffi.Int32> mosaic_panel_row;
+
+  external ffi.Pointer<ffi.Int32> mosaic_panel_column;
+
+  external ffi.Pointer<ffi.Int32> mosaic_total_panels;
+
+  external ffi.Pointer<ffi.UintPtr> defect_map_correction;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> photometry_object_catalog;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict>
+      photometry_reference_stars;
+
+  external ffi.Pointer<ffi.Double> photometry_mjd_obs;
+
+  external ffi.Pointer<ffi.Double> photometry_instrumental_mag;
+
+  external ffi.Pointer<ffi.Double> photometry_differential_mag;
+
+  external ffi.Pointer<ffi.Double> photometry_fwhm_arcsec;
+
+  external ffi.Pointer<ffi.Double> photometry_snr;
 }
 
 final class wire_cst_api_defect_map_status extends ffi.Struct {
@@ -15254,6 +17684,38 @@ final class wire_cst_imaging_event extends ffi.Struct {
   external ImagingEventKind kind;
 }
 
+final class wire_cst_live_stacking_broadcast_snapshot extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> mode;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> stack_method;
+
+  @ffi.Bool()
+  external bool broadcast_enabled;
+
+  @ffi.Uint16()
+  external int broadcast_port;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> broadcast_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> auth_token;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> watermark_template;
+
+  @ffi.Uint32()
+  external int thumbnail_width;
+
+  @ffi.Uint32()
+  external int thumbnail_height;
+
+  @ffi.Uint32()
+  external int max_frames_to_stack;
+
+  @ffi.Int64()
+  external int activated_at_unix_millis;
+}
+
 final class wire_cst_list_tracking_rate extends ffi.Struct {
   external ffi.Pointer<ffi.Int32> ptr;
 
@@ -15519,6 +17981,303 @@ final class wire_cst_SequencerEvent_InstructionProgress extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> detail;
 }
 
+final class wire_cst_SequencerEvent_InstructionProgressStructured
+    extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> instruction;
+
+  @ffi.Double()
+  external double progress_percent;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> detail_kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> detail_json;
+}
+
+final class wire_cst_SequencerEvent_FrameAccepted extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  @ffi.Uint32()
+  external int frame;
+
+  @ffi.Uint32()
+  external int total;
+
+  external ffi.Pointer<ffi.Double> hfr;
+
+  external ffi.Pointer<ffi.Double> eccentricity;
+
+  external ffi.Pointer<ffi.Uint32> star_count;
+
+  @ffi.Uint32()
+  external int accepted_total;
+
+  @ffi.Uint32()
+  external int rejected_total;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> save_path;
+}
+
+final class wire_cst_SequencerEvent_FrameRejected extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  @ffi.Uint32()
+  external int frame;
+
+  @ffi.Uint32()
+  external int total;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+
+  external ffi.Pointer<ffi.Double> hfr;
+
+  external ffi.Pointer<ffi.Double> eccentricity;
+
+  external ffi.Pointer<ffi.Uint32> star_count;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reject_path;
+
+  @ffi.Uint32()
+  external int consecutive_rejects;
+
+  @ffi.Uint32()
+  external int accepted_total;
+
+  @ffi.Uint32()
+  external int rejected_total;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> likely_cause_label;
+
+  external ffi.Pointer<wire_cst_list_String> evidence;
+
+  external ffi.Pointer<ffi.Double> sky_brightness_at_capture;
+
+  external ffi.Pointer<ffi.Double> cloud_cover_at_capture;
+
+  external ffi.Pointer<ffi.Double> wind_at_capture;
+
+  external ffi.Pointer<ffi.Double> guide_rms_at_capture;
+
+  external ffi.Pointer<ffi.Double> sensor_temp_at_capture;
+}
+
+final class wire_cst_scheduler_score_entry extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_name;
+
+  @ffi.Double()
+  external double total_score;
+
+  @ffi.Bool()
+  external bool runnable;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+}
+
+final class wire_cst_list_scheduler_score_entry extends ffi.Struct {
+  external ffi.Pointer<wire_cst_scheduler_score_entry> ptr;
+
+  @ffi.Int32()
+  external int len;
+}
+
+final class wire_cst_SequencerEvent_SchedulerDecision extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  @ffi.Uint32()
+  external int decision_counter;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> picked_target_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> picked_target_name;
+
+  external ffi.Pointer<ffi.Double> picked_score;
+
+  external ffi.Pointer<wire_cst_list_scheduler_score_entry> scores;
+}
+
+final class wire_cst_SequencerEvent_IntegrationBudget extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> target_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  @ffi.Double()
+  external double completed_secs;
+
+  @ffi.Double()
+  external double budget_secs;
+
+  @ffi.Double()
+  external double fraction;
+
+  @ffi.Bool()
+  external bool budget_met;
+}
+
+final class wire_cst_SequencerEvent_ExposureAdjusted extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  @ffi.Double()
+  external double adapted_secs;
+
+  @ffi.Double()
+  external double nominal_secs;
+
+  external ffi.Pointer<ffi.Double> sky_brightness_mag;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> filter;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> reason;
+}
+
+final class wire_cst_SequencerEvent_RecoveryStarted extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> started_at_iso;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_custom_label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_attempt_at_iso;
+
+  @ffi.Uint32()
+  external int attempt_count;
+
+  @ffi.Uint32()
+  external int max_attempts;
+
+  @ffi.Double()
+  external double retry_interval_secs;
+
+  @ffi.Double()
+  external double max_duration_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> phase;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
+}
+
+final class wire_cst_SequencerEvent_RecoveryProgress extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> started_at_iso;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_custom_label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_attempt_at_iso;
+
+  @ffi.Uint32()
+  external int attempt_count;
+
+  @ffi.Uint32()
+  external int max_attempts;
+
+  @ffi.Double()
+  external double retry_interval_secs;
+
+  @ffi.Double()
+  external double max_duration_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> phase;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
+}
+
+final class wire_cst_SequencerEvent_RecoveryCompleted extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> started_at_iso;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_custom_label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_attempt_at_iso;
+
+  @ffi.Uint32()
+  external int attempt_count;
+
+  @ffi.Uint32()
+  external int max_attempts;
+
+  @ffi.Double()
+  external double retry_interval_secs;
+
+  @ffi.Double()
+  external double max_duration_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> phase;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
+}
+
+final class wire_cst_SequencerEvent_RecoveryGaveUp extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> started_at_iso;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> cause_custom_label;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_attempt_at_iso;
+
+  @ffi.Uint32()
+  external int attempt_count;
+
+  @ffi.Uint32()
+  external int max_attempts;
+
+  @ffi.Double()
+  external double retry_interval_secs;
+
+  @ffi.Double()
+  external double max_duration_secs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> phase;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> last_error;
+
+  @ffi.Bool()
+  external bool aborted_by_user;
+}
+
+final class wire_cst_SequencerEvent_PluginNodeRequested extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> plugin_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_type_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> config_json;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> display_name;
+
+  @ffi.Uint32()
+  external int timeout_secs;
+}
+
+final class wire_cst_SequencerEvent_PluginNodeProgress extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> plugin_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_type_id;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> detail_json;
+}
+
+final class wire_cst_SequencerEvent_DecisionLogged extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> timestamp_iso;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> category;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> summary;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> details_json;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> node_id;
+
+  external ffi.Pointer<ffi.Int64> sequence_run_id;
+}
+
 final class SequencerEventKind extends ffi.Union {
   external wire_cst_SequencerEvent_Started Started;
 
@@ -15541,6 +18300,33 @@ final class SequencerEventKind extends ffi.Union {
   external wire_cst_SequencerEvent_TriggerFired TriggerFired;
 
   external wire_cst_SequencerEvent_InstructionProgress InstructionProgress;
+
+  external wire_cst_SequencerEvent_InstructionProgressStructured
+      InstructionProgressStructured;
+
+  external wire_cst_SequencerEvent_FrameAccepted FrameAccepted;
+
+  external wire_cst_SequencerEvent_FrameRejected FrameRejected;
+
+  external wire_cst_SequencerEvent_SchedulerDecision SchedulerDecision;
+
+  external wire_cst_SequencerEvent_IntegrationBudget IntegrationBudget;
+
+  external wire_cst_SequencerEvent_ExposureAdjusted ExposureAdjusted;
+
+  external wire_cst_SequencerEvent_RecoveryStarted RecoveryStarted;
+
+  external wire_cst_SequencerEvent_RecoveryProgress RecoveryProgress;
+
+  external wire_cst_SequencerEvent_RecoveryCompleted RecoveryCompleted;
+
+  external wire_cst_SequencerEvent_RecoveryGaveUp RecoveryGaveUp;
+
+  external wire_cst_SequencerEvent_PluginNodeRequested PluginNodeRequested;
+
+  external wire_cst_SequencerEvent_PluginNodeProgress PluginNodeProgress;
+
+  external wire_cst_SequencerEvent_DecisionLogged DecisionLogged;
 }
 
 final class wire_cst_sequencer_event extends ffi.Struct {
@@ -15606,6 +18392,8 @@ final class wire_cst_SystemEvent_Notification extends ffi.Struct {
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> message;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> level;
+
+  external ffi.Pointer<wire_cst_list_String> explicit_transports;
 }
 
 final class wire_cst_SystemEvent_EventsDropped extends ffi.Struct {
@@ -15981,6 +18769,34 @@ final class wire_cst_api_live_stacking_result extends ffi.Struct {
   external wire_cst_api_live_stacking_stats stats;
 }
 
+final class wire_cst_api_master_frame_result extends ffi.Struct {
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> output_path;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> kind;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> output_type;
+
+  @ffi.Uint32()
+  external int frame_count;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> method;
+
+  @ffi.Uint32()
+  external int width;
+
+  @ffi.Uint32()
+  external int height;
+
+  @ffi.Uint32()
+  external int channels;
+
+  @ffi.Double()
+  external double input_mean;
+
+  @ffi.Double()
+  external double output_mean;
+}
+
 final class wire_cst_autofocus_result_api extends ffi.Struct {
   @ffi.Int32()
   external int best_position;
@@ -16028,6 +18844,16 @@ final class wire_cst_builtin_guider_config extends ffi.Struct {
 
   @ffi.Double()
   external double max_pulse_ms;
+}
+
+final class wire_cst_camera_recommended_settings extends ffi.Struct {
+  external ffi.Pointer<ffi.Int32> unity_gain;
+
+  external ffi.Pointer<ffi.Int32> hcg_gain;
+
+  external ffi.Pointer<ffi.Int32> default_offset;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> notes;
 }
 
 final class wire_cst_camera_status extends ffi.Struct {
