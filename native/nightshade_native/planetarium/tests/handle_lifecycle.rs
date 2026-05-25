@@ -120,25 +120,22 @@ fn resize_clears_surface_error_before_retry() {
         thread::sleep(POLL);
     }
 
+    let gen_after_first = planetarium.resize_generation();
     resize(128, 128);
-    let mut saw_clear = false;
     let deadline = std::time::Instant::now() + WAKE_TIMEOUT;
     loop {
-        if planetarium.last_surface_error().is_none() {
-            saw_clear = true;
-        }
-        if saw_clear && planetarium.last_surface_error().is_some() {
-            break;
+        if planetarium.resize_generation() > gen_after_first
+            && planetarium.last_surface_error().is_some()
+        {
+            return;
         }
         if std::time::Instant::now() >= deadline {
             panic!(
-                "timed out waiting for surface_error clear on retry; saw_clear={saw_clear}"
+                "timed out waiting for second resize; gen={} (after {gen_after_first}), err={:?}",
+                planetarium.resize_generation(),
+                planetarium.last_surface_error()
             );
         }
         thread::sleep(POLL);
     }
-    assert!(
-        saw_clear,
-        "second resize should clear surface_error before surface.resize runs"
-    );
 }

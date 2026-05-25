@@ -50,6 +50,7 @@ fn smoke_scene(stars: Vec<StarInstance>) -> Scene {
             ..Default::default()
         },
         stars,
+        ..Scene::default()
     }
 }
 
