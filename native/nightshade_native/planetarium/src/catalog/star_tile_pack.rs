@@ -1,11 +1,19 @@
 //! HEALPix star-tile pack opened from a verified on-disk catalog directory.
+//!
+//! Tiles are memory-mapped and accessed in place via [`zerocopy`] — no heap copy
+//! of the per-tile star or LOD arrays is performed. Per the planetarium-v2 design
+//! (§6.2) a single 768-tile HYG pack with ~3k stars/tile keeps ~64 MiB resident as
+//! file-backed virtual memory rather than as anonymous heap, so cold-cache tile
+//! loads page in on demand and warm tiles share OS file cache across processes.
 
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 use std::fs::File;
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 
 use memmap2::Mmap;
+use zerocopy::FromBytes;
 
 use super::hit_index::HitIndex;
 use super::pack::{load_and_verify_pack, PackError, PackManifest};
@@ -22,10 +30,44 @@ struct StarTilePack {
     tiles: BTreeMap<u64, TileBlob>,
 }
 
+/// One tile's backing storage.
+///
+/// Invariants (established at construction by [`load_tile_file`]):
+///
+/// * `mmap[lod_range]` is exactly `lod_count * size_of::<LodEntry>()` bytes and
+///   starts at an offset that satisfies `LodEntry`'s alignment.
+/// * `mmap[stars_range]` is exactly `star_count * size_of::<StarRecord>()` bytes
+///   and starts at an offset that satisfies `StarRecord`'s alignment.
+/// * Both ranges have already been validated by [`parse_tile`] (size, LOD bounds,
+///   magic) — accessors may slice without re-checking.
+///
+/// The mapping is held for the lifetime of the catalog handle; dropping a
+/// [`StarTilePack`] unmaps every tile file.
 struct TileBlob {
+    /// Page-aligned read-only mapping of the tile file. Held alive so the
+    /// `&[StarRecord]` / `&[LodEntry]` slices returned by the accessors remain
+    /// valid for as long as this `TileBlob` exists.
     _file: File,
-    stars: Vec<StarRecord>,
-    lod_entries: Vec<LodEntry>,
+    mmap: Mmap,
+    lod_range: Range<usize>,
+    stars_range: Range<usize>,
+}
+
+impl TileBlob {
+    /// Zero-copy view of the tile's LOD index, borrowed from the mapping.
+    fn lod_entries(&self) -> &[LodEntry] {
+        // SAFETY of unwraps: the byte range was validated by `parse_tile` at
+        // construction. A subsequent unmap is not possible because `mmap` is
+        // owned by `self`.
+        LodEntry::slice_from(&self.mmap[self.lod_range.clone()])
+            .expect("lod range validated at load")
+    }
+
+    /// Zero-copy view of the tile's star records, borrowed from the mapping.
+    fn stars(&self) -> &[StarRecord] {
+        StarRecord::slice_from(&self.mmap[self.stars_range.clone()])
+            .expect("stars range validated at load")
+    }
 }
 
 /// Load and verify `pack_dir`, then open all `tiles/*.bin` entries as a [`StarPack`].
@@ -104,9 +146,8 @@ fn parse_tile_filename_id(rel: &str) -> Result<u64, PackError> {
             "tile filename must be tiles/{healpix_id:012x}.bin",
         ));
     }
-    u64::from_str_radix(name, 16).map_err(|_| {
-        PackError::InvalidManifest("tile filename healpix id is not valid hex")
-    })
+    u64::from_str_radix(name, 16)
+        .map_err(|_| PackError::InvalidManifest("tile filename healpix id is not valid hex"))
 }
 
 fn load_tile_file(path: &Path, rel: &str) -> Result<(TileHeader, TileBlob), PackError> {
@@ -114,7 +155,9 @@ fn load_tile_file(path: &Path, rel: &str) -> Result<(TileHeader, TileBlob), Pack
         context: "open star tile",
         source,
     })?;
-    // SAFETY: pack integrity verified; tiles are read-only for the pack lifetime.
+    // SAFETY: pack integrity verified by `load_and_verify_pack`; tiles are
+    // read-only for the pack lifetime. We never hand out `&mut` aliases into the
+    // mapping and never call `Mmap::map_mut`.
     let mmap = unsafe { Mmap::map(&file) }.map_err(|source| PackError::Io {
         context: "mmap star tile",
         source,
@@ -123,12 +166,26 @@ fn load_tile_file(path: &Path, rel: &str) -> Result<(TileHeader, TileBlob), Pack
         path: rel.to_string(),
         source,
     })?;
+    let header = *parsed.header;
+    let base = mmap.as_ptr() as usize;
+    let lod_start = (parsed.lod_entries.as_ptr() as usize)
+        .checked_sub(base)
+        .expect("lod slice within mmap");
+    let lod_end = lod_start + std::mem::size_of_val(parsed.lod_entries);
+    let stars_start = (parsed.stars.as_ptr() as usize)
+        .checked_sub(base)
+        .expect("stars slice within mmap");
+    let stars_end = stars_start + std::mem::size_of_val(parsed.stars);
+    debug_assert!(lod_end <= stars_start, "LOD must precede stars in v1 tiles");
+    debug_assert!(stars_end <= mmap.len(), "stars range within mmap");
+
     Ok((
-        *parsed.header,
+        header,
         TileBlob {
             _file: file,
-            stars: parsed.stars.to_vec(),
-            lod_entries: parsed.lod_entries.to_vec(),
+            mmap,
+            lod_range: lod_start..lod_end,
+            stars_range: stars_start..stars_end,
         },
     ))
 }
@@ -149,19 +206,19 @@ impl StarPack for StarTilePack {
     fn stars_in_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [StarRecord]>> {
         self.tiles
             .get(&healpix_id)
-            .map(|t| Cow::Borrowed(t.stars.as_slice()))
+            .map(|t| Cow::Borrowed(t.stars()))
     }
 
     fn lod_entries_for_pixel(&self, healpix_id: u64) -> Option<Cow<'_, [LodEntry]>> {
         self.tiles
             .get(&healpix_id)
-            .map(|t| Cow::Borrowed(t.lod_entries.as_slice()))
+            .map(|t| Cow::Borrowed(t.lod_entries()))
     }
 
     fn build_hit_index(&self) -> HitIndex {
         let mut idx = HitIndex::new(self.nside);
         for tile in self.tiles.values() {
-            for &star in &tile.stars {
+            for &star in tile.stars() {
                 idx.insert_star(star)
                     .expect("tile stars must index at pack nside");
             }

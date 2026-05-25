@@ -162,18 +162,59 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
           if (_pinchActive) {
             _pushGesture(
               driver,
-              PlanetariumGestureEvents.zoomStart(details.focalPoint, layoutSize),
+              PlanetariumGestureEvents.zoomStart(
+                details.focalPoint,
+                layoutSize,
+              ),
             );
           } else {
             _pushGesture(
               driver,
-              PlanetariumGestureEvents.panStart(details.focalPoint, layoutSize),
+              PlanetariumGestureEvents.panStart(
+                details.focalPoint,
+                layoutSize,
+              ),
             );
           }
         },
         onScaleUpdate: (details) {
-          if (_pinchActive || details.pointerCount >= 2) {
-            _pinchActive = true;
+          // Pointer-count transitions mid-gesture: explicitly end the
+          // previous active gesture before starting the new one so the
+          // Rust gesture state machine doesn't carry stale momentum into
+          // the wrong mode. (E.g. starting a pan, then putting down a
+          // second finger, would otherwise leave Pan active in Rust while
+          // we ship ZoomUpdate events.)
+          final wantPinch = details.pointerCount >= 2;
+          if (wantPinch != _pinchActive) {
+            if (_pinchActive) {
+              _pushGesture(driver, PlanetariumGestureEvents.zoomEnd);
+            } else {
+              _pushGesture(driver, PlanetariumGestureEvents.panEnd());
+            }
+            if (wantPinch) {
+              _pushGesture(
+                driver,
+                PlanetariumGestureEvents.zoomStart(
+                  details.focalPoint,
+                  layoutSize,
+                ),
+              );
+            } else {
+              _pushGesture(
+                driver,
+                PlanetariumGestureEvents.panStart(
+                  details.focalPoint,
+                  layoutSize,
+                ),
+              );
+            }
+            _pinchActive = wantPinch;
+            _lastFocalPoint = details.focalPoint;
+            _lastScale = details.scale;
+            return;
+          }
+
+          if (_pinchActive) {
             final factor = details.scale / _lastScale;
             _lastScale = details.scale;
             if (factor != 1) {

@@ -106,6 +106,20 @@ class Planetarium implements PlanetariumDriver {
 
   @override
   void quiesce() {
+    // BACKGROUND/QUIESCE — Dart-side hook for the app-lifecycle observer in
+    // [InteractiveSkyView]. The v2 design (§ 9.4) calls for the render
+    // thread to drop GPU resources except resident catalog tiles and
+    // release the texture surface here; that FFI surface is **not yet
+    // implemented in the Rust bridge** (no `planetariumQuiesce` /
+    // `planetariumRestore` exports as of `b3860c2d`). Until those land we
+    // do the minimum that's actually safe and effective from Dart:
+    //   1. Cancel any in-flight gesture so the render thread doesn't keep
+    //      animating momentum while we're backgrounded.
+    //   2. Flip `planetariumQuiescedProvider` (caller responsibility) so
+    //      [SceneSnapshotNotifier] stops the post-frame poll loop —
+    //      eliminates the FFI snapshot read per Flutter frame.
+    // GPU resource release stays in Rust's domain; flagged in the v2 audit
+    // report so a follow-up plan-task can wire the real quiesce FFI.
     pushGesture(
       const GestureEventDto(
         kind: GestureKindDto.cancel,
@@ -122,7 +136,14 @@ class Planetarium implements PlanetariumDriver {
   }
 
   @override
-  void restore() {}
+  void restore() {
+    // FOREGROUND/RESTORE — paired with [quiesce]. Nothing to do on the Dart
+    // side yet because [quiesce] only cancelled the gesture stream; the
+    // snapshot poll resumes via [planetariumQuiescedProvider] flipping back
+    // to `false` in [InteractiveSkyView.didChangeAppLifecycleState]. When
+    // the Rust `planetariumQuiesce` FFI lands, mirror it here with
+    // `planetariumRestore`.
+  }
 
   @override
   SceneSnapshotDto snapshot() {
