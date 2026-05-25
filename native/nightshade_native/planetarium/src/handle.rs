@@ -13,7 +13,8 @@ use crate::bus::dirty::DirtyFlags;
 use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
 use crate::scene::{
-    load, new_snapshot_slot, publish, SceneSnapshot, SelectedObject, SnapshotSlot,
+    load, new_snapshot_slot, publish_snapshot, SceneSnapshot, SelectedObject, SnapshotInputs,
+    SnapshotSlot,
 };
 use crate::surface::{create_surface, PlatformSurface};
 use crate::types::{RenderConfig, ViewPose};
@@ -156,13 +157,12 @@ impl FrameRenderer for PlanetariumRenderer {
         }
 
         self.frame_id = self.frame_id.saturating_add(1);
-        // Full label/selection population arrives in Task 17.
-        publish(
+        publish_snapshot(
             &self.snapshot,
-            SceneSnapshot {
+            SnapshotInputs {
                 frame_id: self.frame_id,
                 view_pose: self.view_pose,
-                labels: Vec::new(),
+                render_config: self.render_config,
                 selected: self.selected.clone(),
             },
         );

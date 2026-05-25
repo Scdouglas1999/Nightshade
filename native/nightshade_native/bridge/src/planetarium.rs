@@ -343,6 +343,19 @@ impl From<LabelCategory> for LabelCategoryDto {
     }
 }
 
+impl From<LabelCategoryDto> for LabelCategory {
+    fn from(value: LabelCategoryDto) -> Self {
+        match value {
+            LabelCategoryDto::Star => Self::Star,
+            LabelCategoryDto::Dso => Self::Dso,
+            LabelCategoryDto::Constellation => Self::Constellation,
+            LabelCategoryDto::Body => Self::Body,
+            LabelCategoryDto::Satellite => Self::Satellite,
+            LabelCategoryDto::MinorPlanet => Self::MinorPlanet,
+        }
+    }
+}
+
 impl From<LabelHint> for LabelHintDto {
     fn from(value: LabelHint) -> Self {
         Self {
@@ -367,6 +380,21 @@ impl From<SelectedObject> for SelectedObjectDto {
             dec_rad: value.dec_rad,
             category: value.category.into(),
             display_name: value.display_name.as_str().to_string(),
+        }
+    }
+}
+
+impl From<SelectedObjectDto> for SelectedObject {
+    fn from(value: SelectedObjectDto) -> Self {
+        use nightshade_planetarium::scene::SmallString;
+        Self {
+            object_id: value.object_id,
+            screen_x: value.screen_x,
+            screen_y: value.screen_y,
+            ra_rad: value.ra_rad,
+            dec_rad: value.dec_rad,
+            category: value.category.into(),
+            display_name: SmallString::new(value.display_name),
         }
     }
 }
@@ -450,6 +478,19 @@ pub fn planetarium_set_config(handle: i64, config: RenderConfigDto) -> Result<()
     })
 }
 
+/// Set or clear the selected object (reprojects screen position each frame).
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_set_selection(
+    handle: i64,
+    selected: Option<SelectedObjectDto>,
+) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .send(PlanetariumCommand::SetSelection(selected.map(Into::into)))
+            .map_err(|e| e.to_string())
+    })
+}
+
 /// Read the latest published scene snapshot for overlay layers.
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_snapshot(handle: i64) -> Result<SceneSnapshotDto, String> {
@@ -516,6 +557,65 @@ mod tests {
         let snap = wait_snapshot_frame(handle);
         assert!(snap.frame_id > 0);
         assert!((snap.view_pose.ra_rad - 2.5).abs() < f64::EPSILON);
+        assert!(
+            !snap.labels.is_empty(),
+            "snapshot should publish label hints from dev catalog"
+        );
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    fn wait_snapshot_frame_after(handle: i64, after: u64) -> SceneSnapshotDto {
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        loop {
+            let snap = planetarium_snapshot(handle).expect("snapshot");
+            if snap.frame_id > after {
+                return snap;
+            }
+            if Instant::now() >= deadline {
+                panic!("timed out waiting for snapshot frame after {after}");
+            }
+            thread::sleep(POLL);
+        }
+    }
+
+    #[test]
+    fn set_selection_publishes_selected_object_in_snapshot() {
+        let handle = planetarium_create(0).expect("create");
+        planetarium_set_pose(
+            handle,
+            ViewPoseDto {
+                ra_rad: 0.0,
+                dec_rad: std::f64::consts::FRAC_PI_2,
+                fov_rad: std::f32::consts::FRAC_PI_2,
+                roll_rad: 0.0,
+                projection: SkyProjectionDto::Stereographic,
+            },
+        )
+        .expect("set_pose");
+        let baseline = wait_snapshot_frame(handle);
+
+        planetarium_set_selection(
+            handle,
+            Some(SelectedObjectDto {
+                object_id: 11767,
+                screen_x: 0.0,
+                screen_y: 0.0,
+                ra_rad: 0.662_062,
+                dec_rad: 1.557_896,
+                category: LabelCategoryDto::Star,
+                display_name: "Polaris".to_string(),
+            }),
+        )
+        .expect("set_selection");
+
+        let snap = wait_snapshot_frame_after(handle, baseline.frame_id);
+        let selected = snap.selected.expect("selected object");
+        assert_eq!(selected.object_id, 11767);
+        assert_eq!(selected.display_name, "Polaris");
+        assert!(
+            (selected.screen_x - 0.5).abs() < 0.1 && (selected.screen_y - 0.5).abs() < 0.1,
+            "selection should be reprojected near center at pole view"
+        );
         planetarium_dispose(handle).expect("dispose");
     }
 
