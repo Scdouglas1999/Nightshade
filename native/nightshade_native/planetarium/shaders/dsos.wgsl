@@ -135,17 +135,22 @@ fn vs_main(in: VsIn) -> VsOut {
     let ndc = vec2<f32>(tan_x, tan_y) * uniforms.proj_scale;
 
     let radius_px = display_radius_px(in.size_arcmin.x, mag);
-    let radius_ndc = radius_px / min(uniforms.viewport_pixels.x, uniforms.viewport_pixels.y) * 2.0;
 
-    var local = in.corner;
     let c = cos(out.pa_rad);
     let s = sin(out.pa_rad);
     let rot = mat2x2<f32>(c, -s, s, c);
-    local.x *= 1.0;
-    local.y *= out.axis_ratio;
-    local = rot * (local * radius_ndc);
+    // Work in pixel space: apply axis-ratio squash, then rotate by position angle.
+    // Doing the rotation in NDC (per-axis scaled) space would warp on non-square
+    // viewports — rotation must happen with isotropic units.
+    let squashed = vec2<f32>(in.corner.x, in.corner.y * out.axis_ratio) * radius_px;
+    let pixel_offset = rot * squashed;
+    // Convert pixel offset to NDC (NDC spans 2.0 per axis regardless of aspect).
+    let ndc_offset = vec2<f32>(
+        pixel_offset.x * 2.0 / uniforms.viewport_pixels.x,
+        pixel_offset.y * 2.0 / uniforms.viewport_pixels.y,
+    );
 
-    out.clip = vec4<f32>(ndc + local, 0.0, 1.0);
+    out.clip = vec4<f32>(ndc + ndc_offset, 0.0, 1.0);
     return out;
 }
 
@@ -164,14 +169,19 @@ fn type_base_rgb(type_id: u32) -> vec3<f32> {
 }
 
 fn ellipse_alpha(uv: vec2<f32>, axis_ratio: f32) -> f32 {
-    let p = vec2<f32>(uv.x, uv.y / max(axis_ratio, 0.2));
-    let r = length(p);
+    // The vertex shader already squashes and rotates the quad in clip space along the
+    // minor axis by `axis_ratio`. `uv` is the original unit-square corner ([-1, 1]^2),
+    // so the rendered geometry is the unit circle in `uv` space. Do NOT divide by
+    // `axis_ratio` again — that double-applied the squash and clipped pixels at the
+    // rendered edge to zero alpha.
+    let _suppress = axis_ratio * 0.0;
+    let r = length(uv);
     if (r > 1.05) {
         return 0.0;
     }
     let body = exp(-r * r * 3.5);
     let core = 0.35 * exp(-r * r * 25.0);
-    return clamp(body + core, 0.0, 1.0);
+    return clamp(body + core + _suppress, 0.0, 1.0);
 }
 
 fn nebula_alpha(uv: vec2<f32>) -> f32 {

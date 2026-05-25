@@ -107,7 +107,13 @@ fn vs_main(in: VsIn) -> VsOut {
     let ndc = vec2<f32>(tan_x, tan_y) * uniforms.proj_scale;
 
     let radius_px = psf_radius_px(in.mag);
-    let radius_ndc = radius_px / min(uniforms.viewport_pixels.x, uniforms.viewport_pixels.y) * 2.0;
+    // NDC spans 2.0 per axis regardless of aspect — scale per-axis so the rendered
+    // PSF stays circular on non-square surfaces. Using a single scalar collapses to
+    // a horizontal ellipse on widescreen targets.
+    let radius_ndc = vec2<f32>(
+        radius_px * 2.0 / uniforms.viewport_pixels.x,
+        radius_px * 2.0 / uniforms.viewport_pixels.y,
+    );
     let offset = in.corner * radius_ndc;
 
     out.clip = vec4<f32>(ndc + offset, 0.0, 1.0);

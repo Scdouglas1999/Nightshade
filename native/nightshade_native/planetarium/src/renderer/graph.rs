@@ -3,6 +3,7 @@
 //! Pass 0 clears to black; pass 2 draws the Milky Way intensity map; pass 3 draws stars.
 
 use super::Scene;
+use crate::renderer::pipelines::dsos::DsosPipeline;
 use crate::renderer::pipelines::lines::LinesPipeline;
 use crate::renderer::pipelines::milky_way::MilkyWayPipeline;
 use crate::renderer::pipelines::stars::StarsPipeline;
@@ -55,6 +56,7 @@ pub struct FrameGraph;
 
 impl FrameGraph {
     /// Run the full pass graph into `target_view`.
+    #[allow(clippy::too_many_arguments)]
     pub fn render(
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
@@ -63,6 +65,9 @@ impl FrameGraph {
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
+        dsos: &DsosPipeline,
+        dso_instance_buf: &wgpu::Buffer,
+        dso_instance_count: u32,
         lines: &mut LinesPipeline,
         width: u32,
         height: u32,
@@ -76,6 +81,9 @@ impl FrameGraph {
                 stars,
                 star_instance_buf,
                 star_instance_count,
+                dsos,
+                dso_instance_buf,
+                dso_instance_count,
                 lines,
                 width,
                 height,
@@ -85,6 +93,7 @@ impl FrameGraph {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     fn run_pass(
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
@@ -93,6 +102,9 @@ impl FrameGraph {
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
+        dsos: &DsosPipeline,
+        dso_instance_buf: &wgpu::Buffer,
+        dso_instance_count: u32,
         lines: &mut LinesPipeline,
         width: u32,
         height: u32,
@@ -131,6 +143,17 @@ impl FrameGraph {
                 scene,
                 star_instance_buf,
                 star_instance_count,
+                width,
+                height,
+            );
+        }
+
+        if pass_id == RenderPassId::Dsos {
+            dsos.draw_with_viewport(
+                &mut pass,
+                scene,
+                dso_instance_buf,
+                dso_instance_count,
                 width,
                 height,
             );

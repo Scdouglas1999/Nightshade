@@ -3,12 +3,24 @@
 //! [`Renderer`] owns the render target and drives [`graph::FrameGraph`] each frame.
 
 pub mod assets;
+#[cfg(feature = "bruneton-precompute")]
+pub mod bruneton;
 mod graph;
-mod pipelines;
+// Exposed publicly because other crate modules (scene/build.rs) reach into
+// `pipelines::dsos` directly. Re-exports below remain the documented API.
+pub mod pipelines;
 
 use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
+pub use pipelines::milky_way::{
+    count_mw_visible_pixels, mw_galactic_center_scene, mw_galactic_center_view_pose,
+    render_mw_golden_rgba, MilkyWayPipeline, MW_GOLDEN_SIZE,
+};
+pub use pipelines::dsos::{
+    collect_dso_instances, collect_dso_instances_from_records, dso_surface_brightness,
+    DsoInstance, DsosPipeline,
+};
 pub use pipelines::lines::{
     any_lines_visible, build_constellation_line_vertices, build_overlay_line_vertices,
     constellation_line_vertex_count, LineVertex, LinesPipeline,
@@ -39,6 +51,8 @@ pub struct Scene {
     pub config: RenderConfig,
     /// GPU star instances for the current frame (may be empty).
     pub stars: Vec<StarInstance>,
+    /// GPU DSO instances for the current frame (may be empty).
+    pub dsos: Vec<DsoInstance>,
     /// Observer for horizontal altitude (twinkle / extinction).
     pub observer: Observer,
     /// Epoch for the frame chain.
@@ -53,6 +67,7 @@ impl Default for Scene {
             view_pose: ViewPose::default(),
             config: RenderConfig::default(),
             stars: Vec::new(),
+            dsos: Vec::new(),
             observer: Observer::default(),
             astro_time: AstroTime::from_jd_utc(crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC),
             twinkle_phase: 0.0,
@@ -65,13 +80,19 @@ pub struct Renderer {
     device: Arc<wgpu::Device>,
     queue: Arc<wgpu::Queue>,
     target: wgpu::Texture,
+    /// Cached view of [`Self::target`]; used by the internal-target [`Self::render`] path
+    /// so we do not allocate a `TextureView` per frame.
     target_view: wgpu::TextureView,
     width: u32,
     height: u32,
     format: wgpu::TextureFormat,
+    milky_way: MilkyWayPipeline,
     stars: StarsPipeline,
     star_instance_buf: wgpu::Buffer,
     star_instance_count: u32,
+    dsos: DsosPipeline,
+    dso_instance_buf: wgpu::Buffer,
+    dso_instance_count: u32,
     lines: LinesPipeline,
 }
 
@@ -100,10 +121,18 @@ impl Renderer {
         });
         let target_view = target.create_view(&wgpu::TextureViewDescriptor::default());
 
+        let milky_way = MilkyWayPipeline::new(device.clone(), queue.clone(), format);
         let stars = StarsPipeline::new(device.clone(), queue.clone(), format);
         let lines = LinesPipeline::new(device.clone(), queue.clone(), format);
+        let dsos = DsosPipeline::new(device.clone(), queue.clone(), format);
         let star_instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("planetarium.stars.instances"),
+            size: 4,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        let dso_instance_buf = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("planetarium.dsos.instances"),
             size: 4,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
@@ -117,9 +146,13 @@ impl Renderer {
             width,
             height,
             format,
+            milky_way,
             stars,
             star_instance_buf,
             star_instance_count: 0,
+            dsos,
+            dso_instance_buf,
+            dso_instance_count: 0,
             lines,
         }
     }
@@ -151,15 +184,39 @@ impl Renderer {
 
     /// Run the frame graph for `scene` into the internal render target.
     pub fn render(&mut self, scene: &Scene) {
-        let view = self
-            .target
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        self.render_into(&view, scene);
+        // Use the cached view of `self.target` (one allocation in `new`) instead of
+        // creating a new `TextureView` per frame.
+        self.upload_star_instances(scene);
+        self.upload_dso_instances(scene);
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("planetarium.renderer.encoder"),
+        });
+        FrameGraph::render(
+            &mut encoder,
+            &self.target_view,
+            scene,
+            &self.milky_way,
+            &self.stars,
+            &self.star_instance_buf,
+            self.star_instance_count,
+            &self.dsos,
+            &self.dso_instance_buf,
+            self.dso_instance_count,
+            &mut self.lines,
+            self.width,
+            self.height,
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
+        // Block until GPU finishes so readback / single-frame tests are deterministic.
+        // The live render loop must use [`Self::submit_into`] which does not stall.
+        self.device.poll(wgpu::Maintain::Wait);
     }
 
     /// Run the frame graph for `scene` into an external color attachment (Flutter shared texture).
+    /// Blocks on GPU completion; use [`Self::submit_into`] for the live render loop.
     pub fn render_into(&mut self, target_view: &wgpu::TextureView, scene: &Scene) {
         self.upload_star_instances(scene);
+        self.upload_dso_instances(scene);
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("planetarium.renderer.encoder"),
@@ -168,15 +225,47 @@ impl Renderer {
             &mut encoder,
             target_view,
             scene,
+            &self.milky_way,
             &self.stars,
             &self.star_instance_buf,
             self.star_instance_count,
+            &self.dsos,
+            &self.dso_instance_buf,
+            self.dso_instance_count,
             &mut self.lines,
             self.width,
             self.height,
         );
         self.queue.submit(std::iter::once(encoder.finish()));
         self.device.poll(wgpu::Maintain::Wait);
+    }
+
+    /// Submit a frame without waiting for the GPU. Use this in the live render
+    /// loop where vsync / present handles pacing — `render_into` is for tests
+    /// and headless readback that need GPU completion before reading pixels.
+    pub fn submit_into(&mut self, target_view: &wgpu::TextureView, scene: &Scene) {
+        self.upload_star_instances(scene);
+        self.upload_dso_instances(scene);
+
+        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
+            label: Some("planetarium.renderer.encoder"),
+        });
+        FrameGraph::render(
+            &mut encoder,
+            target_view,
+            scene,
+            &self.milky_way,
+            &self.stars,
+            &self.star_instance_buf,
+            self.star_instance_count,
+            &self.dsos,
+            &self.dso_instance_buf,
+            self.dso_instance_count,
+            &mut self.lines,
+            self.width,
+            self.height,
+        );
+        self.queue.submit(std::iter::once(encoder.finish()));
     }
 
     fn upload_star_instances(&mut self, scene: &Scene) {
@@ -197,6 +286,26 @@ impl Renderer {
         self.queue
             .write_buffer(&self.star_instance_buf, 0, bytemuck::cast_slice(&scene.stars));
         self.star_instance_count = count as u32;
+    }
+
+    fn upload_dso_instances(&mut self, scene: &Scene) {
+        let count = scene.dsos.len();
+        if count == 0 {
+            self.dso_instance_count = 0;
+            return;
+        }
+        let byte_len = (count * std::mem::size_of::<DsoInstance>()) as u64;
+        if self.dso_instance_buf.size() < byte_len {
+            self.dso_instance_buf = self.device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("planetarium.dsos.instances"),
+                size: byte_len,
+                usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+                mapped_at_creation: false,
+            });
+        }
+        self.queue
+            .write_buffer(&self.dso_instance_buf, 0, bytemuck::cast_slice(&scene.dsos));
+        self.dso_instance_count = count as u32;
     }
 
     /// Read back RGBA8 pixels from the internal target (`width * height * 4` bytes).

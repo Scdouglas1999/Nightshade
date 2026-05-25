@@ -146,7 +146,10 @@ impl LinesPipeline {
                 compilation_options: Default::default(),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: target_format,
-                    blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                    // `lines.wgsl` returns premultiplied alpha (`vec4(rgb * alpha, alpha)`),
+                    // so blend factors must be (1, 1-srcA). `ALPHA_BLENDING` is straight-alpha
+                    // and would multiply RGB by alpha a second time, darkening grids.
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
             }),
