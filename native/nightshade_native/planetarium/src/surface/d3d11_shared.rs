@@ -14,6 +14,7 @@ use winapi::{
             D3D12_RESOURCE_DIMENSION_TEXTURE2D, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
             D3D12_RESOURCE_STATE_COMMON, D3D12_TEXTURE_LAYOUT_UNKNOWN,
         },
+        handleapi::CloseHandle,
         winnt::GENERIC_ALL,
     },
     Interface,
@@ -25,11 +26,28 @@ pub struct SharedTexture {
     /// wgpu texture wrapping the shared D3D12 resource.
     pub wgpu: Arc<wgpu::Texture>,
     /// NT handle for `irondash_texture::DxgiSharedHandle` registration.
+    ///
+    /// Closed by [`Drop`] — Flutter holds its own duplicated handle via
+    /// `DxgiSharedHandle` so closing the source handle here does not break
+    /// the registered texture; it just releases this process's reference.
     pub shared_handle: isize,
     /// Texture width in pixels.
     pub width: u32,
     /// Texture height in pixels.
     pub height: u32,
+}
+
+impl Drop for SharedTexture {
+    fn drop(&mut self) {
+        if self.shared_handle != 0 {
+            // SAFETY: handle was produced by `ID3D12Device::CreateSharedHandle` in
+            // `create_shared_d3d12_texture` and is owned by this `SharedTexture`.
+            unsafe {
+                CloseHandle(self.shared_handle as *mut _);
+            }
+            self.shared_handle = 0;
+        }
+    }
 }
 
 /// Allocate a BGRA8 render target with a DXGI-exportable shared handle.
