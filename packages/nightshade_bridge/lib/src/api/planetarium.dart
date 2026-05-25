@@ -53,13 +53,19 @@ void planetariumPushGesture(
     RustLib.instance.api
         .crateApiPlanetariumPlanetariumPushGesture(handle: handle, evt: evt);
 
-/// Screen pick against the dev star table (catalog hit index in Task 72).
+/// Screen pick via projection inverse and registered catalog hit indexes.
 SelectedObjectDto? planetariumHitTest(
         {required PlatformInt64 handle,
         required double x,
         required double y}) =>
     RustLib.instance.api
         .crateApiPlanetariumPlanetariumHitTest(handle: handle, x: x, y: y);
+
+/// Register a star pack for catalog queries and hit testing (tests / pack-load path).
+Future<void> planetariumRegisterStarPack(
+        {required PlatformInt64 handle, required BoxStarPack pack}) =>
+    RustLib.instance.api.crateApiPlanetariumPlanetariumRegisterStarPack(
+        handle: handle, pack: pack);
 
 /// Set or clear the selected object (reprojects screen position each frame).
 void planetariumSetSelection(
@@ -74,6 +80,9 @@ SceneSnapshotDto planetariumSnapshot({required PlatformInt64 handle}) =>
 /// Tear down the planetarium handle (stops render thread and releases surface).
 void planetariumDispose({required PlatformInt64 handle}) =>
     RustLib.instance.api.crateApiPlanetariumPlanetariumDispose(handle: handle);
+
+// Rust type: RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Box < dyn StarPack >>>
+abstract class BoxStarPack implements RustOpaqueInterface {}
 
 /// Astronomical time (FFI).
 class AstroTimeDto {

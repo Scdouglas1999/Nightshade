@@ -40,6 +40,15 @@ Future<void> apiSequencerStop() =>
 Future<void> apiSequencerSkip() =>
     RustLib.instance.api.crateApiSequencerApiSequencerSkip();
 
+/// Wave 1.5 Pack A / trust-patch §7: jump execution to a specific node id,
+/// marking preceding siblings as Skipped. Honoured on the next container's
+/// tree-walk step; the currently-running instruction (e.g. an exposure burst)
+/// completes before the jump takes effect. Returns an error if the executor
+/// is not running (caller should gate the UI button on execution state).
+Future<void> apiSequencerSkipToNode({required String nodeId}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerSkipToNode(nodeId: nodeId);
+
 /// Reset the sequence executor
 Future<void> apiSequencerReset() =>
     RustLib.instance.api.crateApiSequencerApiSequencerReset();
@@ -102,8 +111,9 @@ Future<void> apiSequencerSetDevices(
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
-/// - "fail_closed": Treat unavailable safety data as unsafe (enforced)
-/// - "fail_open"/"warn_only": accepted for backward compatibility and coerced to fail_closed
+/// - "fail_closed": Treat unavailable safety data as unsafe
+/// - "fail_open": Treat unavailable safety data as safe
+/// - "warn_only": Preserve the previous safety state and emit a warning event
 Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
     RustLib.instance.api
         .crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
@@ -145,6 +155,16 @@ Future<void> apiSequencerUpdateFilterOffsets(
         {required Map<String, int> offsets}) =>
     RustLib.instance.api
         .crateApiSequencerApiSequencerUpdateFilterOffsets(offsets: offsets);
+
+/// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
+/// The default in `default_autofocus_interval_frames()` is 25 frames; this
+/// is wrong for both very-short (5 s) and very-long (5 min) subs, so the UI
+/// must let the user override it. `every_n_frames == 0` is rejected because
+/// the trigger evaluator disables the periodic AF when the cadence is zero,
+/// which would silently turn AF off (CLAUDE.md "errors are a feature").
+Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
+        everyNFrames: everyNFrames);
 
 /// Create an exposure node configuration
 String apiCreateExposureNode(

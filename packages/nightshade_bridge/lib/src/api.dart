@@ -7,11 +7,11 @@ import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `create_unique_temp_fits_path`, `get_discovery_cache`, `get_discovery_lock`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DiscoveryCache`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DiscoveryCacheEntry`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `get_device_manager`, `get_state`
 
-/// Invalidate the unified discovery cache, forcing fresh discovery on next call.
-/// Also invalidates the native SDK discovery cache so vendor SDKs are re-queried.
-/// Called when user explicitly requests a rescan.
+/// Invalidate the per-(type, driver) discovery cache, forcing fresh discovery
+/// on the next call. Also invalidates the native SDK discovery cache so vendor
+/// SDKs are re-queried. Called when the user explicitly requests a rescan.
 Future<void> apiInvalidateDiscoveryCache() =>
     RustLib.instance.api.crateApiApiInvalidateDiscoveryCache();
