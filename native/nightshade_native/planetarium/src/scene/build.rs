@@ -3,6 +3,8 @@
 use crate::animation::AnimationState;
 use crate::catalog::healpix::{angular_separation_rad, pixel_center_radec, HealpixError};
 use crate::catalog::CatalogSet;
+use crate::catalog::ParsedDsoCatalog;
+use crate::renderer::pipelines::dsos::collect_dso_instances;
 use crate::renderer::{Scene, StarInstance};
 use crate::scene::lod::{select_lod, tile_star_mag_limit, MagLimitConfig, QualityConfig};
 use crate::scene::projection::project_icrs;
@@ -84,12 +86,17 @@ pub fn build_render_scene(
     catalog: &CatalogSet,
     inputs: BuildSceneInputs,
     anim: &AnimationState,
+    dso_catalog: Option<&ParsedDsoCatalog<'_>>,
 ) -> Result<Scene, HealpixError> {
     let stars = collect_star_instances(catalog, inputs)?;
+    let dsos = dso_catalog
+        .map(|c| collect_dso_instances(c, inputs))
+        .unwrap_or_default();
     Ok(Scene {
         view_pose: inputs.view_pose,
         config: inputs.render_config,
         stars,
+        dsos,
         observer: inputs.observer,
         astro_time: inputs.astro_time,
         twinkle_phase: anim.twinkle_phase,

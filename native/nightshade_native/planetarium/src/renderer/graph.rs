@@ -1,9 +1,10 @@
 //! Frame graph: ordered render passes per design §5.1.
 //!
-//! Pass 0 clears to black; pass 3 draws instanced stars when present.
+//! Pass 0 clears to black; pass 2 draws the Milky Way intensity map; pass 3 draws stars.
 
 use super::Scene;
 use crate::renderer::pipelines::lines::LinesPipeline;
+use crate::renderer::pipelines::milky_way::MilkyWayPipeline;
 use crate::renderer::pipelines::stars::StarsPipeline;
 use crate::renderer::FRAME_CLEAR;
 
@@ -58,6 +59,7 @@ impl FrameGraph {
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
         scene: &Scene,
+        milky_way: &MilkyWayPipeline,
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
@@ -70,6 +72,7 @@ impl FrameGraph {
                 encoder,
                 target_view,
                 scene,
+                milky_way,
                 stars,
                 star_instance_buf,
                 star_instance_count,
@@ -86,6 +89,7 @@ impl FrameGraph {
         encoder: &mut wgpu::CommandEncoder,
         target_view: &wgpu::TextureView,
         scene: &Scene,
+        milky_way: &MilkyWayPipeline,
         stars: &StarsPipeline,
         star_instance_buf: &wgpu::Buffer,
         star_instance_count: u32,
@@ -116,6 +120,10 @@ impl FrameGraph {
             timestamp_writes: None,
             occlusion_query_set: None,
         });
+
+        if pass_id == RenderPassId::MilkyWay {
+            milky_way.draw(&mut pass, scene, width, height);
+        }
 
         if pass_id == RenderPassId::Stars {
             stars.draw_with_viewport(

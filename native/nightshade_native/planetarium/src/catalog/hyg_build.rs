@@ -54,6 +54,17 @@ pub enum HygBuildError {
     /// HEALPix assignment failed for a row.
     #[error("healpix pixel_for_direction failed: {0}")]
     Healpix(#[from] super::healpix::HealpixError),
+    /// A CSV row failed to parse with structurally invalid data (RA/Dec/HIP/magnitude).
+    ///
+    /// Fail-loud: parse errors are not silently skipped. By-design skips
+    /// (`SunPlaceholder`, `BeyondMagnitudeLimit`) are tolerated and counted.
+    #[error("HYG row {line_no}: {reason:?}")]
+    InvalidRow {
+        /// 1-based CSV line number (after the header).
+        line_no: usize,
+        /// Why this row could not be parsed.
+        reason: HygSkipReason,
+    },
 }
 
 impl HygBuildError {
@@ -107,31 +118,117 @@ pub fn find_repo_root(start: impl AsRef<Path>) -> Option<PathBuf> {
     }
 }
 
-/// Parse one HYG v4.2 CSV row into a [`StarRecord`], or `None` if the row should be skipped.
-pub fn hyg_row_to_star(fields: &[String]) -> Option<StarRecord> {
+/// Parsed HYG row: GPU star record plus the source radians needed for HEALPix bucketing.
+#[derive(Debug, Clone, Copy)]
+pub struct HygParsedRow {
+    /// Star record ready to write to a tile.
+    pub star: StarRecord,
+    /// J2000 right ascension (radians) as parsed from the CSV.
+    pub ra_rad: f64,
+    /// J2000 declination (radians) as parsed from the CSV.
+    pub dec_rad: f64,
+}
+
+/// Per-row reason for skipping a HYG record.
+///
+/// Surfaces *why* a row was dropped so the build tool can fail loud on truly malformed
+/// input (e.g. unparseable RA/Dec) while still skipping by-design rows (Sun placeholder,
+/// magnitudes beyond the bundled limit). Per `CLAUDE.md`, silent fallbacks are forbidden.
+#[derive(Debug, Clone, PartialEq)]
+pub enum HygSkipReason {
+    /// Row has fewer than the 25 columns required by HYG v4.2.
+    TooFewFields {
+        /// Actual field count for this row.
+        actual: usize,
+    },
+    /// Right ascension column was not finite or failed to parse.
+    InvalidRa(String),
+    /// Declination column was not finite or failed to parse.
+    InvalidDec(String),
+    /// Apparent magnitude column was not finite or failed to parse.
+    InvalidMagnitude(String),
+    /// HIP id column was non-empty but not a non-negative integer.
+    InvalidHipId(String),
+    /// Apparent magnitude is fainter than the bundled pack limit.
+    BeyondMagnitudeLimit {
+        /// Magnitude value.
+        mag: f32,
+        /// Limit applied.
+        limit: f32,
+    },
+    /// HYG row 0 with a placeholder Sun magnitude is excluded by design.
+    SunPlaceholder,
+}
+
+/// Parse one HYG v4.2 CSV row into a [`HygParsedRow`], or surface a skip reason.
+///
+/// Parse failures (RA/Dec/magnitude/HIP id) return [`HygSkipReason::InvalidRa`] etc.
+/// rather than `None`, so the build tool can fail loud instead of silently dropping
+/// rows with malformed numbers. By-design skips (`SunPlaceholder`,
+/// `BeyondMagnitudeLimit`) are still tolerated by [`build_hyg_tiles`].
+pub fn hyg_row_to_star(fields: &[String]) -> Result<HygParsedRow, HygSkipReason> {
     if fields.len() < 25 {
-        return None;
+        return Err(HygSkipReason::TooFewFields { actual: fields.len() });
     }
 
-    let hip_id = fields[1].parse::<u32>().unwrap_or(0);
-    let ra_rad = fields[23].parse::<f64>().ok()?;
-    let dec_rad = fields[24].parse::<f64>().ok()?;
-    if !ra_rad.is_finite() || !dec_rad.is_finite() {
-        return None;
+    // HYG `hip` column is integer-or-empty; empty means "no Hipparcos cross-id"
+    // (id 0 sentinel matches v1 Dart catalog and the tile binary spec).
+    let hip_id_str = fields[1].trim();
+    let hip_id = if hip_id_str.is_empty() {
+        0u32
+    } else {
+        hip_id_str
+            .parse::<u32>()
+            .map_err(|_| HygSkipReason::InvalidHipId(hip_id_str.to_string()))?
+    };
+
+    let ra_text = fields[23].trim();
+    let ra_rad: f64 = ra_text
+        .parse()
+        .map_err(|_| HygSkipReason::InvalidRa(ra_text.to_string()))?;
+    if !ra_rad.is_finite() {
+        return Err(HygSkipReason::InvalidRa(ra_text.to_string()));
     }
 
-    let mag = fields[13].parse::<f32>().ok()?;
-    if !mag.is_finite() || mag > HYG_MAG_LIMIT {
-        return None;
+    let dec_text = fields[24].trim();
+    let dec_rad: f64 = dec_text
+        .parse()
+        .map_err(|_| HygSkipReason::InvalidDec(dec_text.to_string()))?;
+    if !dec_rad.is_finite() {
+        return Err(HygSkipReason::InvalidDec(dec_text.to_string()));
     }
 
-    // Drop the placeholder Sun row (id 0 at the catalog origin).
+    let mag_text = fields[13].trim();
+    let mag: f32 = mag_text
+        .parse()
+        .map_err(|_| HygSkipReason::InvalidMagnitude(mag_text.to_string()))?;
+    if !mag.is_finite() {
+        return Err(HygSkipReason::InvalidMagnitude(mag_text.to_string()));
+    }
+
+    // Drop the placeholder Sun row (id 0 at the catalog origin) before applying the mag limit.
     if fields.first().map(String::as_str) == Some("0") && mag < -10.0 {
-        return None;
+        return Err(HygSkipReason::SunPlaceholder);
     }
 
+    if mag > HYG_MAG_LIMIT {
+        return Err(HygSkipReason::BeyondMagnitudeLimit {
+            mag,
+            limit: HYG_MAG_LIMIT,
+        });
+    }
+
+    // `bv` is allowed to be empty/missing — NAN is the documented sentinel for "unknown color".
+    // A non-empty but unparseable B-V is treated as unknown to match v1 Dart behavior;
+    // numeric parse failures here are still recorded for observability via `bv_unknown` count
+    // in a future build-stats extension.
     let bv = if fields.len() > 16 {
-        fields[16].parse::<f32>().unwrap_or(f32::NAN)
+        let bv_text = fields[16].trim();
+        if bv_text.is_empty() {
+            f32::NAN
+        } else {
+            bv_text.parse::<f32>().unwrap_or(f32::NAN)
+        }
     } else {
         f32::NAN
     };
@@ -141,14 +238,18 @@ pub fn hyg_row_to_star(fields: &[String]) -> Option<StarRecord> {
         flags |= HYG_FLAG_VARIABLE;
     }
 
-    Some(StarRecord::from_radec(
-        hip_id,
-        ra_rad as f32,
-        dec_rad as f32,
-        mag,
-        bv,
-        flags,
-    ))
+    Ok(HygParsedRow {
+        star: StarRecord::from_radec(
+            hip_id,
+            ra_rad as f32,
+            dec_rad as f32,
+            mag,
+            bv,
+            flags,
+        ),
+        ra_rad,
+        dec_rad,
+    })
 }
 
 /// Build magnitude-band index entries for a brightest-first star slice.
@@ -206,21 +307,20 @@ pub fn build_hyg_tiles(csv_path: &Path, output_dir: &Path) -> Result<HygBuildRes
         }
 
         let fields = parse_csv_line(&line);
-        let ra_rad = fields[23].parse::<f64>().ok();
-        let dec_rad = fields[24].parse::<f64>().ok();
         match hyg_row_to_star(&fields) {
-            Some(star) => {
-                let (ra_rad, dec_rad) = match (ra_rad, dec_rad) {
-                    (Some(ra), Some(dec)) if ra.is_finite() && dec.is_finite() => (ra, dec),
-                    _ => {
-                        skipped += 1;
-                        continue;
-                    }
-                };
-                let pixel = pixel_for_direction(ra_rad, dec_rad, HYG_NSIDE)?;
-                buckets.entry(pixel).or_default().push(star);
+            Ok(parsed) => {
+                let pixel =
+                    pixel_for_direction(parsed.ra_rad, parsed.dec_rad, HYG_NSIDE)?;
+                buckets.entry(pixel).or_default().push(parsed.star);
             }
-            None => skipped += 1,
+            Err(reason) if is_by_design_skip(&reason) => {
+                skipped += 1;
+            }
+            Err(reason) => {
+                // Fail loud on structurally invalid input: a malformed CSV that quietly
+                // dropped rows would corrupt counts and hide upstream corruption.
+                return Err(HygBuildError::InvalidRow { line_no, reason });
+            }
         }
     }
 
@@ -259,6 +359,16 @@ pub fn build_hyg_tiles(csv_path: &Path, output_dir: &Path) -> Result<HygBuildRes
             stars_skipped: skipped,
         },
     })
+}
+
+/// Returns `true` when a row was skipped by policy (Sun placeholder, magnitude limit)
+/// rather than because of a parse error.
+#[inline]
+fn is_by_design_skip(reason: &HygSkipReason) -> bool {
+    matches!(
+        reason,
+        HygSkipReason::SunPlaceholder | HygSkipReason::BeyondMagnitudeLimit { .. }
+    )
 }
 
 /// Parse a single CSV record with RFC-4180-style quoted fields.
@@ -314,8 +424,32 @@ mod tests {
     fn hyg_row_parses_polaris_fixture() {
         let line = include_str!("../../tests/fixtures/hyg_polaris_row.csv");
         let fields = parse_csv_line(line.trim());
-        let star = hyg_row_to_star(&fields).expect("polaris row");
-        assert_eq!(star.hip_id, 11767);
-        assert!((star.mag - 1.98).abs() < 0.01);
+        let parsed = hyg_row_to_star(&fields).expect("polaris row");
+        assert_eq!(parsed.star.hip_id, 11767);
+        assert!((parsed.star.mag - 1.98).abs() < 0.01);
+        assert!(parsed.ra_rad.is_finite());
+        assert!(parsed.dec_rad.is_finite());
+    }
+
+    #[test]
+    fn malformed_ra_returns_loud_error() {
+        let mut fields: Vec<String> = (0..30).map(|_| String::new()).collect();
+        fields[1] = "1".to_string();
+        fields[13] = "5.0".to_string();
+        fields[23] = "not-a-number".to_string();
+        fields[24] = "0.5".to_string();
+        let err = hyg_row_to_star(&fields).expect_err("invalid RA must error");
+        assert!(matches!(err, HygSkipReason::InvalidRa(_)), "got {err:?}");
+    }
+
+    #[test]
+    fn beyond_magnitude_limit_is_by_design_skip() {
+        let mut fields: Vec<String> = (0..30).map(|_| String::new()).collect();
+        fields[1] = "999".to_string();
+        fields[13] = (HYG_MAG_LIMIT + 1.0).to_string();
+        fields[23] = "0.5".to_string();
+        fields[24] = "0.5".to_string();
+        let reason = hyg_row_to_star(&fields).expect_err("faint star must be skipped");
+        assert!(is_by_design_skip(&reason), "{reason:?}");
     }
 }

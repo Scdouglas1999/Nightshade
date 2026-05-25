@@ -76,9 +76,10 @@ pub use dso::{
 };
 pub use hyg_build::{
     build_hyg_tiles, build_lod_entries, default_hyg_csv_path, default_output_dir, find_repo_root,
-    hyg_row_to_star, HygBuildError, HygBuildResult, HygBuildStats, HYG_CATALOG_ID, HYG_CSV_REL_PATH,
-    HYG_FLAG_VARIABLE, HYG_LOD_MAG_THRESHOLDS, HYG_MAG_LIMIT, HYG_NSIDE, HYG_OUTPUT_REL_DIR,
-    HYG_PACK_VERSION, HYG_V42_EXPECTED_STARS, HYG_V42_EXPECTED_TILES,
+    hyg_row_to_star, HygBuildError, HygBuildResult, HygBuildStats, HygParsedRow, HygSkipReason,
+    HYG_CATALOG_ID, HYG_CSV_REL_PATH, HYG_FLAG_VARIABLE, HYG_LOD_MAG_THRESHOLDS, HYG_MAG_LIMIT,
+    HYG_NSIDE, HYG_OUTPUT_REL_DIR, HYG_PACK_VERSION, HYG_V42_EXPECTED_STARS,
+    HYG_V42_EXPECTED_TILES,
 };
 pub use opengnc_build::{
     build_opengnc_catalog, default_opengnc_csv_path, default_output_path,

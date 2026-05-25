@@ -19,7 +19,8 @@ use crate::catalog::{open_star_tile_pack, CatalogSet, StarPack};
 use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
 use crate::scene::{
     build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs,
-    SceneSnapshot, SelectedObject, SnapshotInputs, SnapshotSlot,
+    MountPosition, PoseController, PoseInputs, PoseLock, SceneSnapshot, SelectedObject,
+    SnapshotInputs, SnapshotSlot, TrackingTarget,
 };
 use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use crate::surface::{create_surface, PlatformSurface};
@@ -65,12 +66,44 @@ struct PlanetariumRenderer {
     catalog: Arc<Mutex<CatalogSet>>,
     frame_id: u64,
     view_pose: ViewPose,
+    pose_ctrl: PoseController,
+    mount: Option<MountPosition>,
+    tracking_target: Option<TrackingTarget>,
     astro_time: AstroTime,
     observer: Observer,
     render_config: RenderConfig,
     selected: Option<SelectedObject>,
     gestures: GestureStateMachine,
     last_anim: AnimationState,
+}
+
+impl PlanetariumRenderer {
+    fn pose_inputs(&self) -> PoseInputs {
+        PoseInputs {
+            time: self.astro_time,
+            mount: self.mount,
+            target: self.tracking_target,
+        }
+    }
+
+    fn refresh_view_pose(&mut self) {
+        let inputs = self.pose_inputs();
+        match self.pose_ctrl.derived_pose(&inputs) {
+            Ok(pose) => self.view_pose = pose,
+            Err(err) => tracing::error!("derived view pose failed: {err}"),
+        }
+    }
+
+    fn sync_gestures_to_pose_ctrl(&mut self) {
+        let inputs = self.pose_inputs();
+        if let Err(err) = self
+            .pose_ctrl
+            .apply_user_pose(&inputs, self.gestures.pose())
+        {
+            tracing::error!("apply gesture pose failed: {err}");
+        }
+        self.refresh_view_pose();
+    }
 }
 
 impl Planetarium {
@@ -96,6 +129,9 @@ impl Planetarium {
             catalog: Arc::clone(&catalog),
             frame_id: 0,
             view_pose: ViewPose::default(),
+            pose_ctrl: PoseController::new(ViewPose::default()),
+            mount: None,
+            tracking_target: None,
             astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
             observer: Observer::default(),
             render_config: RenderConfig::default(),
@@ -207,19 +243,40 @@ impl FrameRenderer for PlanetariumRenderer {
             PlanetariumCommand::SetTime(time) => {
                 self.astro_time = *time;
                 *dirty |= DirtyFlags::TIME;
+                if !matches!(self.pose_ctrl.lock(), PoseLock::Free) {
+                    self.refresh_view_pose();
+                }
             }
             PlanetariumCommand::SetObserver(observer) => {
                 self.observer = *observer;
                 *dirty |= DirtyFlags::OBSERVER;
             }
             PlanetariumCommand::SetPose(pose) => {
-                self.view_pose = *pose;
-                self.gestures = GestureStateMachine::new(*pose);
+                if let Err(err) = self.pose_ctrl.apply_user_pose(&self.pose_inputs(), *pose) {
+                    tracing::error!("SetPose apply_user_pose failed: {err}");
+                }
+                self.refresh_view_pose();
+                self.gestures = GestureStateMachine::new(self.view_pose);
                 *dirty |= DirtyFlags::POSE;
+            }
+            PlanetariumCommand::SetMountPosition(mount) => {
+                self.mount = *mount;
+                self.refresh_view_pose();
+            }
+            PlanetariumCommand::SetTrackingTarget(target) => {
+                self.tracking_target = target.clone();
+                if let Some(t) = target {
+                    self.pose_ctrl.set_lock(PoseLock::LockedToTarget(t.id));
+                }
+                self.refresh_view_pose();
+            }
+            PlanetariumCommand::SetPoseLock(lock) => {
+                self.pose_ctrl.set_lock(*lock);
+                self.refresh_view_pose();
             }
             PlanetariumCommand::PushGesture(evt) => {
                 if self.gestures.apply(*evt) {
-                    self.view_pose = self.gestures.pose();
+                    self.sync_gestures_to_pose_ctrl();
                     *dirty |= DirtyFlags::POSE;
                 }
             }
@@ -237,6 +294,7 @@ impl FrameRenderer for PlanetariumRenderer {
 
     fn render_frame(&mut self, _dirty: DirtyFlags, anim: &AnimationState) {
         self.last_anim = *anim;
+        self.refresh_view_pose();
         let build_inputs = BuildSceneInputs {
             view_pose: self.view_pose,
             render_config: self.render_config,

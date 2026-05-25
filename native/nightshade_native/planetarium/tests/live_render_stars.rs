@@ -90,7 +90,8 @@ fn catalog_pack_yields_non_empty_star_scene() {
         astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
     };
 
-    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE).expect("scene");
+    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE)
+        .expect("scene");
     assert!(
         !scene.stars.is_empty(),
         "registered pack must populate Scene.stars"
@@ -119,7 +120,8 @@ fn catalog_stars_render_non_black_pixels_offscreen() {
         observer: Observer::default(),
         astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
     };
-    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE).expect("scene");
+    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE)
+        .expect("scene");
     assert!(!scene.stars.is_empty());
 
     let pixels = pollster::block_on(async {
