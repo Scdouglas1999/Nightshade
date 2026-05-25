@@ -38,6 +38,7 @@ export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
 export 'src/models/settings/app_settings.dart';
+export 'src/models/settings/rendering_platform.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';
@@ -108,6 +109,7 @@ export 'src/providers/session_provider.dart';
 // samples-based HorizonProfile (services/scheduler/horizon_profile.dart) wins
 // at the barrel. Direct importers of settings_provider.dart still see it.
 export 'src/providers/settings_provider.dart' hide HorizonProfile;
+export 'src/providers/rendering_platform_provider.dart';
 export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
 export 'src/providers/guiding_provider.dart';

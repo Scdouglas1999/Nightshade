@@ -4,6 +4,7 @@ import 'database_provider.dart';
 import 'backend_provider.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/settings/app_settings.dart' show SafetyFailMode;
+import '../models/settings/rendering_platform.dart';
 import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
 
@@ -137,6 +138,9 @@ class AppSettingsState {
   /// imaging where the user has walked away from the laptop.
   final bool audibleAlertsOnCritical;
 
+  /// Planetarium renderer: legacy CustomPainter (v1) or Rust+wgpu (v2).
+  final RenderingPlatform renderingPlatform;
+
   // Autofocus Settings
   final String afMethod; // 'Star HFR'
   final String afCurveFitting; // 'Hyperbolic', 'Parabolic', 'Trend Lines'
@@ -268,6 +272,7 @@ class AppSettingsState {
         '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
     this.effectiveHorizonDeg = 0.0,
     this.audibleAlertsOnCritical = false,
+    this.renderingPlatform = RenderingPlatform.v1,
 
     // Autofocus Settings
     this.afMethod = 'Star HFR',
@@ -368,6 +373,7 @@ class AppSettingsState {
     String? horizonProfileJson,
     double? effectiveHorizonDeg,
     bool? audibleAlertsOnCritical,
+    RenderingPlatform? renderingPlatform,
     // Autofocus Settings
     String? afMethod,
     String? afCurveFitting,
@@ -472,6 +478,7 @@ class AppSettingsState {
       effectiveHorizonDeg: effectiveHorizonDeg ?? this.effectiveHorizonDeg,
       audibleAlertsOnCritical:
           audibleAlertsOnCritical ?? this.audibleAlertsOnCritical,
+      renderingPlatform: renderingPlatform ?? this.renderingPlatform,
       afMethod: afMethod ?? this.afMethod,
       afCurveFitting: afCurveFitting ?? this.afCurveFitting,
       afStepSize: afStepSize ?? this.afStepSize,
@@ -738,6 +745,8 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
           _parseDouble(allSettings['effective_horizon_deg'], 0.0),
       audibleAlertsOnCritical:
           _parseBool(allSettings['audible_alerts_on_critical'], false),
+      renderingPlatform:
+          RenderingPlatform.parseStored(allSettings['rendering_platform']),
 
       afMethod: allSettings['af_method'] ?? 'Star HFR',
       afCurveFitting: allSettings['af_curve_fitting'] ?? 'Hyperbolic',
@@ -1067,6 +1076,9 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
               current.audibleAlertsOnCritical,
             )
           : null,
+      renderingPlatform: settings.containsKey('rendering_platform')
+          ? RenderingPlatform.parseStored(settings['rendering_platform'])
+          : null,
       afMethod: settings['af_method'],
       afCurveFitting: settings['af_curve_fitting'],
       afStepSize: settings.containsKey('af_step_size')
@@ -1296,6 +1308,12 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
   Future<void> setAudibleAlertsOnCritical(bool value) async {
     await _saveSetting('audible_alerts_on_critical', value.toString());
     _patchState((s) => s.copyWith(audibleAlertsOnCritical: value));
+  }
+
+  /// Select planetarium rendering stack (v1 legacy or v2 Rust+wgpu).
+  Future<void> setRenderingPlatform(RenderingPlatform value) async {
+    await _saveSetting('rendering_platform', value.storageValue);
+    _patchState((s) => s.copyWith(renderingPlatform: value));
   }
 
   // ========== Imaging Settings ==========
