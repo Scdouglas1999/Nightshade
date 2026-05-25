@@ -2447,7 +2447,7 @@ Which approach?
 
 ## Implementation progress (coordinator log)
 
-> **Last updated:** 2026-05-25 (coordinator handoff). **Branch:** `main`. **HEAD:** `6036c45` (`feat(planetarium-v2): atmospheric extinction LUT`). Verify with `git log --oneline --grep="planetarium-v2" -50`.
+> **Last updated:** 2026-05-25 (coordinator handoff). **Branch:** `main`. **Planetarium code HEAD:** `29380a9` (precession); **docs log commit:** `fcdb9bf`. Verify with `git log --oneline --grep="planetarium-v2" -50`.
 
 ### Work completed (by phase/task)
 
@@ -2487,26 +2487,26 @@ Which approach?
 |------|---------|--------|----------------|
 | 19 | `AstroTime` + JD/TT/UT1 | **done** | `93c5d03` |
 | 20 | Earth Rotation Angle + sidereal | **done** | `ac847c8` |
-| 21 | IAU 2006 P03 precession | **in progress** | WIP on disk: `precession.rs`, `tests/astrometry_precession.rs`; uncommitted `pub mod precession` in `astrometry/mod.rs` |
+| 21 | IAU 2006 P03 precession | **done** | `29380a9` |
 | 22 | IAU 2000B nutation | **not started** | — |
 | 23 | Annual aberration | **not started** | — |
-| 24 | Saemundsson refraction | **in progress** | WIP: `refraction.rs`, `tests/astrometry_refraction.rs` (file header: `INTEGRATE: add pub mod refraction to astrometry/mod.rs`) |
-| 25 | Atmospheric extinction LUT | **done** (integrator wire-up pending) | `6036c45` — `extinction.rs` committed but **`pub mod extinction` not yet in `astrometry/mod.rs` at HEAD** |
+| 24 | Saemundsson refraction | **done** (integrator wire-up pending) | `849ccb5` — **`pub mod refraction` not in committed `mod.rs` until integrator pass** |
+| 25 | Atmospheric extinction LUT | **done** (integrator wire-up pending) | `6036c45` — same integrator note for `pub mod extinction` |
 | 26 | `FrameChain` + `icrs_to_horizontal` | **not started** | — |
 | 27 | VSOP87D Sun + planets | **not started** | — |
 | 28 | ELP2000-82B Moon | **not started** | — |
 | 29 | Kepler + minor bodies | **not started** | — |
-| 30 | SGP4 propagation | **in progress** | `sgp4` dep in `079d1a2`; WIP: `sgp4_prop.rs`, `tests/astrometry_sgp4.rs`; planned `#[path]` child under `time.rs` (not committed at HEAD) |
+| 30 | SGP4 propagation | **done** (integrator wire-up pending) | `23aabed` — `sgp4_prop.rs` + `time.rs` `#[path]` child; top-level `pub mod sgp4_prop` pending integrator |
 | 31 | Body lighting & phase | **not started** | — |
 | 32 | Astrometry benchmark suite | **not started** | — |
 
-**Parallel batch note (24 / 25 / 30 / 75):** Task **25** landed as `6036c45`. Tasks **24** and **30** have local WIP files. Task **75** has an uncommitted skeleton (see Phase 7). Task **21** precession WIP overlaps with integrator `mod.rs` edits — coordinate before committing.
+**Parallel batch (21 / 24 / 25 / 30 / 75):** Tasks **21** (`29380a9`), **24** (`849ccb5`), **25** (`6036c45`), **30** (`23aabed`), **75** (`41efa5e`) are committed. **Integrator still needed:** one commit on `astrometry/mod.rs` exporting `extinction`, `refraction`, and `sgp4_prop` (working-tree diff may already exist — verify `git status` before duplicating).
 
-#### Phase 7 — Task 75 (Dart package skeleton): **in progress (uncommitted)**
+#### Phase 7 — Task 75 (Dart package skeleton): **done**
 
-| Task | Status | Notes |
-|------|--------|-------|
-| 75 New package skeleton | **in progress** | Untracked: `packages/nightshade_planetarium_v2/` (`pubspec.yaml`, `lib/nightshade_planetarium_v2.dart`). Uncommitted: `melos.yaml`, `apps/desktop/pubspec.yaml` path deps. **No** `feat(planetarium-v2): new package skeleton` commit yet. |
+| Task | Status | Commit |
+|------|--------|--------|
+| 75 New package skeleton | **done** | `41efa5e` — `packages/nightshade_planetarium_v2/`, `melos.yaml`, `apps/desktop/pubspec.yaml`, `apps/mobile/pubspec.yaml` |
 
 Phases 4–6 and Phase 7 tasks 76+ are **not started** (no `planetarium-v2` commits; verify with `git log --grep=planetarium-v2`).
 
@@ -2526,10 +2526,10 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 | **scene/** | `mod.rs`, `snapshot.rs`, `publish.rs`, `projection.rs`, `dev_catalog.rs` |
 | **gesture/** | `mod.rs`, `hit_test.rs` |
 | **animation/** | `mod.rs` |
-| **astrometry/** | `mod.rs`, `time.rs`, `earth_rotation.rs`, `extinction.rs` (committed); **WIP:** `precession.rs`, `refraction.rs`, `sgp4_prop.rs` |
+| **astrometry/** | `mod.rs`, `time.rs`, `earth_rotation.rs`, `precession.rs`, `extinction.rs`, `refraction.rs`, `sgp4_prop.rs` |
 | **handle** | `src/handle.rs`, `src/types.rs` |
 | **vendor/** | `vendor/irondash_texture/**` (vendored for Windows texture handoff) |
-| **tests/** | `smoke.rs`, `spike_render.rs`, `types.rs`, `bus_dirty.rs`, `loop_thread.rs`, `handle_lifecycle.rs`, `snapshot.rs`, `snapshot_publish.rs`, `animation.rs`, `astrometry_time.rs`, `astrometry_sidereal.rs`, `astrometry_extinction.rs`; **WIP:** `astrometry_precession.rs`, `astrometry_refraction.rs`, `astrometry_sgp4.rs` |
+| **tests/** | `smoke.rs`, `spike_render.rs`, `types.rs`, `bus_dirty.rs`, `loop_thread.rs`, `handle_lifecycle.rs`, `snapshot.rs`, `snapshot_publish.rs`, `animation.rs`, `astrometry_time.rs`, `astrometry_sidereal.rs`, `astrometry_precession.rs`, `astrometry_extinction.rs`, `astrometry_refraction.rs`, `astrometry_sgp4.rs` |
 
 #### `native/nightshade_native/bridge/**`
 
@@ -2548,7 +2548,7 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 
 #### `apps/desktop/**`
 
-- `pubspec.yaml` — spike-era path deps in `f53592c`; v2 path dep **uncommitted** (Task 75 WIP)
+- `pubspec.yaml` — v2 path dep added in `41efa5e`
 - `lib/main.dart` — dev-route wiring in `f53592c`, reverted in `587b3cb`
 - **Deleted:** `lib/dev/planetarium_spike_screen.dart` (`587b3cb`)
 
@@ -2556,9 +2556,9 @@ All paths below are from `git log --grep="planetarium-v2" --name-only` on `main`
 
 - `lib/router/app_router.dart` — dev route in `f53592c`, reverted in `587b3cb`
 
-#### `packages/nightshade_planetarium_v2/**` (**WIP, untracked**)
+#### `packages/nightshade_planetarium_v2/**` (committed in `41efa5e`)
 
-- `pubspec.yaml`, `analysis_options.yaml`, `lib/nightshade_planetarium_v2.dart` (library stub only)
+- `pubspec.yaml`, `pubspec.lock`, `pubspec_overrides.yaml`, `analysis_options.yaml`, `lib/nightshade_planetarium_v2.dart` (library stub; Task 76+ adds widgets)
 
 #### `planetarium/vendor/**`
 
@@ -2582,8 +2582,8 @@ When multiple agents work Phase 3 astrometry in parallel:
 
 1. **Module agents** own exactly one pair: `src/astrometry/<name>.rs` + `tests/astrometry_<name>.rs`. Do **not** edit `astrometry/mod.rs` (see `refraction.rs` header: `INTEGRATE: add pub mod refraction;`).
 2. **Integrator agent** (single owner) merges `astrometry/mod.rs`: add `pub mod …;` lines, resolve order, run `cargo test -p nightshade_planetarium`, commit integrator-only or rebase module commits.
-3. **Known integrator debt at handoff:** `6036c45` added `extinction.rs` but HEAD `mod.rs` still only exports `earth_rotation` + `time` (+ uncommitted `precession`). Wire `extinction`, then land 21/24/30 commits.
-4. **Exception:** Task 30 may use `time.rs` `#[path = "sgp4_prop.rs"] pub mod sgp4_prop` instead of a top-level `mod.rs` line — pick one pattern and document in the integrator commit.
+3. **Known integrator debt at `29380a9`:** `mod.rs` exports `earth_rotation`, `precession`, `time` only. Committed modules **without** `pub mod` lines yet: `extinction` (`6036c45`), `refraction` (`849ccb5`), `sgp4_prop` (`23aabed`, also wired as child in `time.rs`). Land one integrator commit adding all three to `mod.rs` (or drop `time.rs` child if using top-level only).
+4. **SGP4 layout:** `23aabed` uses `time.rs` `#[path = "sgp4_prop.rs"] pub mod sgp4_prop`; integrator may also add top-level `pub mod sgp4_prop` — avoid duplicate paths.
 
 #### FRB regeneration — when?
 
@@ -2618,13 +2618,12 @@ melos run dev       # after any Rust bridge or DLL-affecting change
 3. **Bundled Bruneton LUTs vs runtime precompute** — Task 52 (not started).
 4. **HEALPix nside** — Tasks 33–35 (not started).
 5. **Linux GL FBO** — Task 111 (not started).
-6. **Integrator:** `extinction` module not exported in `mod.rs` despite `6036c45`.
+6. **Integrator:** `extinction` / `refraction` / `sgp4_prop` not all exported in committed `mod.rs` (verify with `git show 29380a9:native/nightshade_native/planetarium/src/astrometry/mod.rs`).
 
 #### Next recommended batches
 
-1. **Integrator commit** on `astrometry/mod.rs`: `pub mod extinction;`, commit Task **21** precession (`precession.rs` + test), then Task **24** refraction, then Task **30** SGP4 (choose `mod.rs` vs `time.rs` child module).
-2. **Sequential astrometry:** Task **22** nutation after **21** precession lands; **23** aberration; **26** `FrameChain` (touches `mod.rs` — integrator or dedicated single agent).
-3. **Task 75** commit: `packages/nightshade_planetarium_v2/**`, `melos.yaml`, `apps/desktop/pubspec.yaml` only — message `feat(planetarium-v2): new package skeleton`.
-4. **Phase 7:** Task **76** `Planetarium` Dart handle wrapper after 75.
+1. **Integrator commit** on `astrometry/mod.rs` only: add `pub mod extinction;`, `pub mod refraction;`, `pub mod sgp4_prop;` (resolve duplicate with `time.rs` child if needed). Run `cargo test -p nightshade_planetarium`.
+2. **Sequential astrometry:** Task **22** nutation; **23** aberration; **26** `FrameChain` (integrator owns `mod.rs` + new `frame_chain.rs`).
+3. **Phase 7:** Task **76** `Planetarium` Dart handle wrapper (`41efa5e` skeleton is in place).
 
 To refresh this log: `git log --oneline --grep="planetarium-v2" -50` and `git status` under `native/nightshade_native/planetarium/`.
