@@ -8,6 +8,7 @@ pub mod healpix;
 pub mod hit_index;
 pub mod hyg_build;
 mod pack;
+mod residency;
 mod set;
 mod tile;
 
@@ -21,6 +22,7 @@ pub use healpix::{
     pixels_in_cone, HealpixError,
 };
 pub use hit_index::{HitIndex, HitPick};
+pub use residency::{HealpixId, ResidentTile, ResidencySync, TileResidency};
 pub use pack::{
     load_and_verify_pack, sha256_hex, PackError, PackManifest, PACK_MANIFEST_NAME,
 };
