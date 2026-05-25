@@ -6,7 +6,7 @@
 //! Gesture input and dev-catalog hit-testing cross the FFI here.
 
 use std::collections::HashMap;
-use std::sync::OnceLock;
+use std::sync::{Arc, OnceLock};
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -21,13 +21,13 @@ use nightshade_planetarium::types::{
 use nightshade_planetarium::{Planetarium, PlanetariumError};
 use parking_lot::Mutex;
 
-static REGISTRY: OnceLock<Mutex<HashMap<i64, Planetarium>>> = OnceLock::new();
+static REGISTRY: OnceLock<Mutex<HashMap<i64, Arc<Planetarium>>>> = OnceLock::new();
 static NEXT_ID: OnceLock<Mutex<i64>> = OnceLock::new();
 
 const TEXTURE_POLL: Duration = Duration::from_millis(2);
 const TEXTURE_TIMEOUT: Duration = Duration::from_secs(2);
 
-fn registry() -> &'static Mutex<HashMap<i64, Planetarium>> {
+fn registry() -> &'static Mutex<HashMap<i64, Arc<Planetarium>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -61,10 +61,16 @@ where
 fn wait_texture_id(planetarium: &Planetarium) -> Result<i64, String> {
     let deadline = Instant::now() + TEXTURE_TIMEOUT;
     loop {
+        if let Some(err) = planetarium.last_surface_error() {
+            return Err(err);
+        }
         match planetarium.texture_id() {
             Ok(id) => return Ok(id),
             Err(PlanetariumError::NotAllocated) => {
                 if Instant::now() >= deadline {
+                    if let Some(err) = planetarium.last_surface_error() {
+                        return Err(err);
+                    }
                     return Err(
                         "texture not allocated after resize — use a valid Flutter engine handle"
                             .to_string(),
@@ -484,23 +490,28 @@ impl From<SceneSnapshot> for SceneSnapshotDto {
 pub fn planetarium_create(engine_handle: i64) -> Result<i64, String> {
     let planetarium = Planetarium::new(engine_handle).map_err(|e| e.to_string())?;
     let id = next_id();
-    registry().lock().insert(id, planetarium);
+    registry().lock().insert(id, Arc::new(planetarium));
     Ok(id)
 }
 
 /// Resize the render target and return the Flutter texture id once allocated.
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, String> {
-    with_planetarium(handle, |planetarium| {
-        planetarium
-            .send(PlanetariumCommand::Resize {
-                width: w,
-                height: h,
-                dpr,
-            })
-            .map_err(|e| e.to_string())?;
-        wait_texture_id(planetarium)
-    })
+    let planetarium = {
+        let reg = registry().lock();
+        Arc::clone(
+            reg.get(&handle)
+                .ok_or_else(|| format!("planetarium handle {handle} not found"))?,
+        )
+    };
+    planetarium
+        .send(PlanetariumCommand::Resize {
+            width: w,
+            height: h,
+            dpr,
+        })
+        .map_err(|e| e.to_string())?;
+    wait_texture_id(planetarium.as_ref())
 }
 
 /// Update view pose (pan/zoom/roll/projection).
@@ -771,7 +782,9 @@ mod tests {
         let handle = planetarium_create(0).expect("create");
         let err = planetarium_resize(handle, 64, 64, 1.0).unwrap_err();
         assert!(
-            err.contains("texture not allocated"),
+            err.contains("texture not allocated")
+                || err.contains("platform surface unsupported")
+                || err.contains("irondash_texture"),
             "unexpected error: {err}"
         );
         planetarium_dispose(handle).expect("dispose");
