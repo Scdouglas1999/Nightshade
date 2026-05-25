@@ -46,8 +46,8 @@ mod frb_generated; /* AUTO INJECTED BY flutter_rust_bridge. This line may not be
 // All public functions are exposed via flutter_rust_bridge.
 
 pub mod adaptive_polling;
-pub mod planetarium_spike {
-    pub use crate::api::planetarium_spike::*;
+pub mod planetarium {
+    pub use crate::api::planetarium::*;
 }
 mod api;
 #[cfg(windows)]

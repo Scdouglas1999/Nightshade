@@ -9,7 +9,6 @@ import 'package:window_manager/window_manager.dart';
 
 import 'desktop_app_bootstrap.dart';
 import 'desktop_logging_init.dart';
-import 'dev/planetarium_spike_screen.dart';
 import 'main_headless.dart' as headless;
 
 // Current app version - must match version.yaml
@@ -70,13 +69,6 @@ void main(List<String> args) async {
       // wired (the user could not author a sequence containing a
       // plugin node from the GUI).
       pluginNodePaletteBlueprintsOverride(),
-      extraTopLevelRoutesProvider.overrideWithValue([
-        GoRoute(
-          path: '/dev/planetarium-spike',
-          name: 'dev-planetarium-spike',
-          builder: (context, state) => const PlanetariumSpikeScreen(),
-        ),
-      ]),
     ],
   );
 

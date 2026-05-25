@@ -138,7 +138,8 @@ pub(crate) mod heartbeat;
 pub mod imaging;
 pub mod init;
 pub mod phd2;
-pub mod planetarium_spike;
+#[path = "../planetarium.rs"]
+pub mod planetarium;
 pub mod plate_solve;
 pub mod polar_alignment;
 pub mod sequencer;
@@ -155,7 +156,7 @@ pub use heartbeat::*;
 pub use imaging::*;
 pub use init::*;
 pub use phd2::*;
-pub use planetarium_spike::*;
+pub use planetarium::*;
 pub use plate_solve::*;
 pub use polar_alignment::*;
 pub use sequencer::*;

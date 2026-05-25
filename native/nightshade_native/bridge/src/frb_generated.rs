@@ -39,7 +39,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -1983305229;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -676788946;
 
 // Section: executor
 
@@ -9212,81 +9212,164 @@ fn wire__crate__api__connection__ascom_connections__move_ascom_focuser_impl(
         },
     )
 }
-fn wire__crate__api__planetarium_spike__planetarium_spike_create_impl(
+fn wire__crate__api__planetarium__planetarium_create_impl(
     engine_handle: impl CstDecode<i64>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "planetarium_spike_create",
+            debug_name: "planetarium_create",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let api_engine_handle = engine_handle.cst_decode();
             transform_result_dco::<_, _, String>((move || {
-                let output_ok =
-                    crate::api::planetarium_spike::planetarium_spike_create(api_engine_handle)?;
+                let output_ok = crate::api::planetarium::planetarium_create(api_engine_handle)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__planetarium_spike__planetarium_spike_dispose_impl(
+fn wire__crate__api__planetarium__planetarium_dispose_impl(
     handle: impl CstDecode<i64>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "planetarium_spike_dispose",
+            debug_name: "planetarium_dispose",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let api_handle = handle.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok = crate::api::planetarium::planetarium_dispose(api_handle)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_resize_impl(
+    handle: impl CstDecode<i64>,
+    w: impl CstDecode<u32>,
+    h: impl CstDecode<u32>,
+    dpr: impl CstDecode<f32>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_resize",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_w = w.cst_decode();
+            let api_h = h.cst_decode();
+            let api_dpr = dpr.cst_decode();
             transform_result_dco::<_, _, String>((move || {
                 let output_ok =
-                    crate::api::planetarium_spike::planetarium_spike_dispose(api_handle)?;
+                    crate::api::planetarium::planetarium_resize(api_handle, api_w, api_h, api_dpr)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__planetarium_spike__planetarium_spike_resize_impl(
+fn wire__crate__api__planetarium__planetarium_set_config_impl(
     handle: impl CstDecode<i64>,
-    width: impl CstDecode<u32>,
-    height: impl CstDecode<u32>,
+    config: impl CstDecode<crate::api::planetarium::RenderConfigDto>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "planetarium_spike_resize",
+            debug_name: "planetarium_set_config",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let api_handle = handle.cst_decode();
-            let api_width = width.cst_decode();
-            let api_height = height.cst_decode();
+            let api_config = config.cst_decode();
             transform_result_dco::<_, _, String>((move || {
-                let output_ok = crate::api::planetarium_spike::planetarium_spike_resize(
-                    api_handle, api_width, api_height,
-                )?;
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_config(api_handle, api_config)?;
                 Ok(output_ok)
             })())
         },
     )
 }
-fn wire__crate__api__planetarium_spike__planetarium_spike_tick_impl(
+fn wire__crate__api__planetarium__planetarium_set_observer_impl(
+    handle: impl CstDecode<i64>,
+    observer: impl CstDecode<crate::api::planetarium::ObserverDto>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_observer",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_observer = observer.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_observer(api_handle, api_observer)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_set_pose_impl(
+    handle: impl CstDecode<i64>,
+    pose: impl CstDecode<crate::api::planetarium::ViewPoseDto>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_pose",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_pose = pose.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_pose(api_handle, api_pose)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_set_time_impl(
+    handle: impl CstDecode<i64>,
+    time: impl CstDecode<crate::api::planetarium::AstroTimeDto>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_set_time",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            let api_time = time.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_set_time(api_handle, api_time)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_snapshot_impl(
     handle: impl CstDecode<i64>,
 ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
     FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
         flutter_rust_bridge::for_generated::TaskInfo {
-            debug_name: "planetarium_spike_tick",
+            debug_name: "planetarium_snapshot",
             port: None,
             mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
         },
         move || {
             let api_handle = handle.cst_decode();
             transform_result_dco::<_, _, String>((move || {
-                let output_ok = crate::api::planetarium_spike::planetarium_spike_tick(api_handle)?;
+                let output_ok = crate::api::planetarium::planetarium_snapshot(api_handle)?;
                 Ok(output_ok)
             })())
         },
@@ -9829,6 +9912,20 @@ impl CstDecode<i64> for i64 {
         self
     }
 }
+impl CstDecode<crate::api::planetarium::LabelCategoryDto> for i32 {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    fn cst_decode(self) -> crate::api::planetarium::LabelCategoryDto {
+        match self {
+            0 => crate::api::planetarium::LabelCategoryDto::Star,
+            1 => crate::api::planetarium::LabelCategoryDto::Dso,
+            2 => crate::api::planetarium::LabelCategoryDto::Constellation,
+            3 => crate::api::planetarium::LabelCategoryDto::Body,
+            4 => crate::api::planetarium::LabelCategoryDto::Satellite,
+            5 => crate::api::planetarium::LabelCategoryDto::MinorPlanet,
+            _ => unreachable!("Invalid variant for LabelCategoryDto: {}", self),
+        }
+    }
+}
 impl CstDecode<crate::device::PierSide> for i32 {
     // Codec=Cst (C-struct based), see doc to use other codecs
     fn cst_decode(self) -> crate::device::PierSide {
@@ -9864,6 +9961,17 @@ impl CstDecode<crate::device_capabilities::ShutterStatus> for i32 {
             3 => crate::device_capabilities::ShutterStatus::Closing,
             4 => crate::device_capabilities::ShutterStatus::Unknown,
             _ => unreachable!("Invalid variant for ShutterStatus: {}", self),
+        }
+    }
+}
+impl CstDecode<crate::api::planetarium::SkyProjectionDto> for i32 {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    fn cst_decode(self) -> crate::api::planetarium::SkyProjectionDto {
+        match self {
+            0 => crate::api::planetarium::SkyProjectionDto::Stereographic,
+            1 => crate::api::planetarium::SkyProjectionDto::Orthographic,
+            2 => crate::api::planetarium::SkyProjectionDto::AzimuthalEquidistant,
+            _ => unreachable!("Invalid variant for SkyProjectionDto: {}", self),
         }
     }
 }
@@ -10145,6 +10253,20 @@ impl SseDecode for crate::storage::AppSettings {
             theme: var_theme,
             language: var_language,
             auto_connect: var_autoConnect,
+        };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::AstroTimeDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_jdUtc = <f64>::sse_decode(deserializer);
+        let mut var_jdUt1 = <f64>::sse_decode(deserializer);
+        let mut var_jdTt = <f64>::sse_decode(deserializer);
+        return crate::api::planetarium::AstroTimeDto {
+            jd_utc: var_jdUtc,
+            jd_ut1: var_jdUt1,
+            jd_tt: var_jdTt,
         };
     }
 }
@@ -11858,6 +11980,45 @@ impl SseDecode for crate::api::imaging::IndiAutofocusResultApi {
     }
 }
 
+impl SseDecode for crate::api::planetarium::LabelCategoryDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::planetarium::LabelCategoryDto::Star,
+            1 => crate::api::planetarium::LabelCategoryDto::Dso,
+            2 => crate::api::planetarium::LabelCategoryDto::Constellation,
+            3 => crate::api::planetarium::LabelCategoryDto::Body,
+            4 => crate::api::planetarium::LabelCategoryDto::Satellite,
+            5 => crate::api::planetarium::LabelCategoryDto::MinorPlanet,
+            _ => unreachable!("Invalid variant for LabelCategoryDto: {}", inner),
+        };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::LabelHintDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_objectId = <u64>::sse_decode(deserializer);
+        let mut var_screenX = <f32>::sse_decode(deserializer);
+        let mut var_screenY = <f32>::sse_decode(deserializer);
+        let mut var_apparentMag = <f32>::sse_decode(deserializer);
+        let mut var_priority = <u8>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_category =
+            <crate::api::planetarium::LabelCategoryDto>::sse_decode(deserializer);
+        return crate::api::planetarium::LabelHintDto {
+            object_id: var_objectId,
+            screen_x: var_screenX,
+            screen_y: var_screenY,
+            apparent_mag: var_apparentMag,
+            priority: var_priority,
+            text: var_text,
+            category: var_category,
+        };
+    }
+}
+
 impl SseDecode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11955,6 +12116,20 @@ impl SseDecode for Vec<crate::api::imaging::FocusDataPointApi> {
         let mut ans_ = vec![];
         for idx_ in 0..len_ {
             ans_.push(<crate::api::imaging::FocusDataPointApi>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::api::planetarium::LabelHintDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = vec![];
+        for idx_ in 0..len_ {
+            ans_.push(<crate::api::planetarium::LabelHintDto>::sse_decode(
                 deserializer,
             ));
         }
@@ -12655,6 +12830,24 @@ impl SseDecode for crate::api::sequencer::NodeDefinitionApi {
     }
 }
 
+impl SseDecode for crate::api::planetarium::ObserverDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_latitudeRad = <f64>::sse_decode(deserializer);
+        let mut var_longitudeRad = <f64>::sse_decode(deserializer);
+        let mut var_elevationM = <f64>::sse_decode(deserializer);
+        let mut var_pressureHpa = <f32>::sse_decode(deserializer);
+        let mut var_temperatureC = <f32>::sse_decode(deserializer);
+        return crate::api::planetarium::ObserverDto {
+            latitude_rad: var_latitudeRad,
+            longitude_rad: var_longitudeRad,
+            elevation_m: var_elevationM,
+            pressure_hpa: var_pressureHpa,
+            temperature_c: var_temperatureC,
+        };
+    }
+}
+
 impl SseDecode for crate::storage::ObserverLocation {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12858,6 +13051,19 @@ impl SseDecode for Option<crate::device::PierSide> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::device::PierSide>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::planetarium::SelectedObjectDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::planetarium::SelectedObjectDto>::sse_decode(
+                deserializer,
+            ));
         } else {
             return None;
         }
@@ -13388,6 +13594,56 @@ impl SseDecode for crate::api::sequencer::RecoveryConfigUpdate {
     }
 }
 
+impl SseDecode for crate::api::planetarium::RenderConfigDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_showStars = <bool>::sse_decode(deserializer);
+        let mut var_showConstellations = <bool>::sse_decode(deserializer);
+        let mut var_showConstellationBoundaries = <bool>::sse_decode(deserializer);
+        let mut var_showConstellationArt = <bool>::sse_decode(deserializer);
+        let mut var_showEquatorialGrid = <bool>::sse_decode(deserializer);
+        let mut var_showAltAzGrid = <bool>::sse_decode(deserializer);
+        let mut var_showGalacticGrid = <bool>::sse_decode(deserializer);
+        let mut var_showEcliptic = <bool>::sse_decode(deserializer);
+        let mut var_showGalacticPlane = <bool>::sse_decode(deserializer);
+        let mut var_showMilkyWay = <bool>::sse_decode(deserializer);
+        let mut var_showHorizon = <bool>::sse_decode(deserializer);
+        let mut var_showAtmosphere = <bool>::sse_decode(deserializer);
+        let mut var_showDsos = <bool>::sse_decode(deserializer);
+        let mut var_showSolarSystem = <bool>::sse_decode(deserializer);
+        let mut var_showSatellites = <bool>::sse_decode(deserializer);
+        let mut var_showMinorPlanets = <bool>::sse_decode(deserializer);
+        let mut var_showVariableStars = <bool>::sse_decode(deserializer);
+        let mut var_magnitudeLimit = <f32>::sse_decode(deserializer);
+        let mut var_quality = <u32>::sse_decode(deserializer);
+        let mut var_bortleClass = <u32>::sse_decode(deserializer);
+        let mut var_twinkle = <bool>::sse_decode(deserializer);
+        return crate::api::planetarium::RenderConfigDto {
+            show_stars: var_showStars,
+            show_constellations: var_showConstellations,
+            show_constellation_boundaries: var_showConstellationBoundaries,
+            show_constellation_art: var_showConstellationArt,
+            show_equatorial_grid: var_showEquatorialGrid,
+            show_alt_az_grid: var_showAltAzGrid,
+            show_galactic_grid: var_showGalacticGrid,
+            show_ecliptic: var_showEcliptic,
+            show_galactic_plane: var_showGalacticPlane,
+            show_milky_way: var_showMilkyWay,
+            show_horizon: var_showHorizon,
+            show_atmosphere: var_showAtmosphere,
+            show_dsos: var_showDsos,
+            show_solar_system: var_showSolarSystem,
+            show_satellites: var_showSatellites,
+            show_minor_planets: var_showMinorPlanets,
+            show_variable_stars: var_showVariableStars,
+            magnitude_limit: var_magnitudeLimit,
+            quality: var_quality,
+            bortle_class: var_bortleClass,
+            twinkle: var_twinkle,
+        };
+    }
+}
+
 impl SseDecode for crate::device_capabilities::RotatorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13476,6 +13732,23 @@ impl SseDecode for crate::device_capabilities::SafetyMonitorCapabilities {
     }
 }
 
+impl SseDecode for crate::api::planetarium::SceneSnapshotDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_frameId = <u64>::sse_decode(deserializer);
+        let mut var_viewPose = <crate::api::planetarium::ViewPoseDto>::sse_decode(deserializer);
+        let mut var_labels = <Vec<crate::api::planetarium::LabelHintDto>>::sse_decode(deserializer);
+        let mut var_selected =
+            <Option<crate::api::planetarium::SelectedObjectDto>>::sse_decode(deserializer);
+        return crate::api::planetarium::SceneSnapshotDto {
+            frame_id: var_frameId,
+            view_pose: var_viewPose,
+            labels: var_labels,
+            selected: var_selected,
+        };
+    }
+}
+
 impl SseDecode for crate::event::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13490,6 +13763,29 @@ impl SseDecode for crate::event::SchedulerScoreEntry {
             total_score: var_totalScore,
             runnable: var_runnable,
             reason: var_reason,
+        };
+    }
+}
+
+impl SseDecode for crate::api::planetarium::SelectedObjectDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_objectId = <u64>::sse_decode(deserializer);
+        let mut var_screenX = <f32>::sse_decode(deserializer);
+        let mut var_screenY = <f32>::sse_decode(deserializer);
+        let mut var_raRad = <f64>::sse_decode(deserializer);
+        let mut var_decRad = <f64>::sse_decode(deserializer);
+        let mut var_category =
+            <crate::api::planetarium::LabelCategoryDto>::sse_decode(deserializer);
+        let mut var_displayName = <String>::sse_decode(deserializer);
+        return crate::api::planetarium::SelectedObjectDto {
+            object_id: var_objectId,
+            screen_x: var_screenX,
+            screen_y: var_screenY,
+            ra_rad: var_raRad,
+            dec_rad: var_decRad,
+            category: var_category,
+            display_name: var_displayName,
         };
     }
 }
@@ -14033,6 +14329,19 @@ impl SseDecode for crate::api::devices::simulation::SimulatedRotator {
     }
 }
 
+impl SseDecode for crate::api::planetarium::SkyProjectionDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::planetarium::SkyProjectionDto::Stereographic,
+            1 => crate::api::planetarium::SkyProjectionDto::Orthographic,
+            2 => crate::api::planetarium::SkyProjectionDto::AzimuthalEquidistant,
+            _ => unreachable!("Invalid variant for SkyProjectionDto: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::imaging::StarCropApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -14254,6 +14563,25 @@ impl SseDecode for usize {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         deserializer.cursor.read_u64::<NativeEndian>().unwrap() as _
+    }
+}
+
+impl SseDecode for crate::api::planetarium::ViewPoseDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_raRad = <f64>::sse_decode(deserializer);
+        let mut var_decRad = <f64>::sse_decode(deserializer);
+        let mut var_fovRad = <f32>::sse_decode(deserializer);
+        let mut var_rollRad = <f32>::sse_decode(deserializer);
+        let mut var_projection =
+            <crate::api::planetarium::SkyProjectionDto>::sse_decode(deserializer);
+        return crate::api::planetarium::ViewPoseDto {
+            ra_rad: var_raRad,
+            dec_rad: var_decRad,
+            fov_rad: var_fovRad,
+            roll_rad: var_rollRad,
+            projection: var_projection,
+        };
     }
 }
 
@@ -14551,6 +14879,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::storage::AppSettings>
     for crate::storage::AppSettings
 {
     fn into_into_dart(self) -> crate::storage::AppSettings {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::AstroTimeDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.jd_utc.into_into_dart().into_dart(),
+            self.jd_ut1.into_into_dart().into_dart(),
+            self.jd_tt.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::AstroTimeDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::AstroTimeDto>
+    for crate::api::planetarium::AstroTimeDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::AstroTimeDto {
         self
     }
 }
@@ -16212,6 +16562,57 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::imaging::IndiAutofocusResultA
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::LabelCategoryDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Star => 0.into_dart(),
+            Self::Dso => 1.into_dart(),
+            Self::Constellation => 2.into_dart(),
+            Self::Body => 3.into_dart(),
+            Self::Satellite => 4.into_dart(),
+            Self::MinorPlanet => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::LabelCategoryDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::LabelCategoryDto>
+    for crate::api::planetarium::LabelCategoryDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::LabelCategoryDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::LabelHintDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.object_id.into_into_dart().into_dart(),
+            self.screen_x.into_into_dart().into_dart(),
+            self.screen_y.into_into_dart().into_dart(),
+            self.apparent_mag.into_into_dart().into_dart(),
+            self.priority.into_into_dart().into_dart(),
+            self.text.into_into_dart().into_dart(),
+            self.category.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::LabelHintDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::LabelHintDto>
+    for crate::api::planetarium::LabelHintDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::LabelHintDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::sequencer::LiveStackingBroadcastSnapshot {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -16609,6 +17010,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::NodeDefinitionApi>
     for crate::api::sequencer::NodeDefinitionApi
 {
     fn into_into_dart(self) -> crate::api::sequencer::NodeDefinitionApi {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::ObserverDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.latitude_rad.into_into_dart().into_dart(),
+            self.longitude_rad.into_into_dart().into_dart(),
+            self.elevation_m.into_into_dart().into_dart(),
+            self.pressure_hpa.into_into_dart().into_dart(),
+            self.temperature_c.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::ObserverDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::ObserverDto>
+    for crate::api::planetarium::ObserverDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::ObserverDto {
         self
     }
 }
@@ -17069,6 +17494,48 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::sequencer::RecoveryConfigUpda
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::RenderConfigDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.show_stars.into_into_dart().into_dart(),
+            self.show_constellations.into_into_dart().into_dart(),
+            self.show_constellation_boundaries
+                .into_into_dart()
+                .into_dart(),
+            self.show_constellation_art.into_into_dart().into_dart(),
+            self.show_equatorial_grid.into_into_dart().into_dart(),
+            self.show_alt_az_grid.into_into_dart().into_dart(),
+            self.show_galactic_grid.into_into_dart().into_dart(),
+            self.show_ecliptic.into_into_dart().into_dart(),
+            self.show_galactic_plane.into_into_dart().into_dart(),
+            self.show_milky_way.into_into_dart().into_dart(),
+            self.show_horizon.into_into_dart().into_dart(),
+            self.show_atmosphere.into_into_dart().into_dart(),
+            self.show_dsos.into_into_dart().into_dart(),
+            self.show_solar_system.into_into_dart().into_dart(),
+            self.show_satellites.into_into_dart().into_dart(),
+            self.show_minor_planets.into_into_dart().into_dart(),
+            self.show_variable_stars.into_into_dart().into_dart(),
+            self.magnitude_limit.into_into_dart().into_dart(),
+            self.quality.into_into_dart().into_dart(),
+            self.bortle_class.into_into_dart().into_dart(),
+            self.twinkle.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::RenderConfigDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::RenderConfigDto>
+    for crate::api::planetarium::RenderConfigDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::RenderConfigDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::device_capabilities::RotatorCapabilities {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17167,6 +17634,29 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device_capabilities::SafetyMonitor
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::SceneSnapshotDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.frame_id.into_into_dart().into_dart(),
+            self.view_pose.into_into_dart().into_dart(),
+            self.labels.into_into_dart().into_dart(),
+            self.selected.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::SceneSnapshotDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::SceneSnapshotDto>
+    for crate::api::planetarium::SceneSnapshotDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::SceneSnapshotDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::event::SchedulerScoreEntry {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -17187,6 +17677,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::event::SchedulerScoreEntry>
     for crate::event::SchedulerScoreEntry
 {
     fn into_into_dart(self) -> crate::event::SchedulerScoreEntry {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::SelectedObjectDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.object_id.into_into_dart().into_dart(),
+            self.screen_x.into_into_dart().into_dart(),
+            self.screen_y.into_into_dart().into_dart(),
+            self.ra_rad.into_into_dart().into_dart(),
+            self.dec_rad.into_into_dart().into_dart(),
+            self.category.into_into_dart().into_dart(),
+            self.display_name.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::SelectedObjectDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::SelectedObjectDto>
+    for crate::api::planetarium::SelectedObjectDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::SelectedObjectDto {
         self
     }
 }
@@ -17789,6 +18305,28 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::devices::simulation::Simulate
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::SkyProjectionDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self {
+            Self::Stereographic => 0.into_dart(),
+            Self::Orthographic => 1.into_dart(),
+            Self::AzimuthalEquidistant => 2.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::SkyProjectionDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::SkyProjectionDto>
+    for crate::api::planetarium::SkyProjectionDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::SkyProjectionDto {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::imaging::StarCropApi {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
@@ -18001,6 +18539,30 @@ impl flutter_rust_bridge::IntoIntoDart<crate::device::TrackingRate>
     for crate::device::TrackingRate
 {
     fn into_into_dart(self) -> crate::device::TrackingRate {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::api::planetarium::ViewPoseDto {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.ra_rad.into_into_dart().into_dart(),
+            self.dec_rad.into_into_dart().into_dart(),
+            self.fov_rad.into_into_dart().into_dart(),
+            self.roll_rad.into_into_dart().into_dart(),
+            self.projection.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::api::planetarium::ViewPoseDto
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::api::planetarium::ViewPoseDto>
+    for crate::api::planetarium::ViewPoseDto
+{
+    fn into_into_dart(self) -> crate::api::planetarium::ViewPoseDto {
         self
     }
 }
@@ -18244,6 +18806,15 @@ impl SseEncode for crate::storage::AppSettings {
         <String>::sse_encode(self.theme, serializer);
         <String>::sse_encode(self.language, serializer);
         <bool>::sse_encode(self.auto_connect, serializer);
+    }
+}
+
+impl SseEncode for crate::api::planetarium::AstroTimeDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.jd_utc, serializer);
+        <f64>::sse_encode(self.jd_ut1, serializer);
+        <f64>::sse_encode(self.jd_tt, serializer);
     }
 }
 
@@ -19552,6 +20123,39 @@ impl SseEncode for crate::api::imaging::IndiAutofocusResultApi {
     }
 }
 
+impl SseEncode for crate::api::planetarium::LabelCategoryDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::planetarium::LabelCategoryDto::Star => 0,
+                crate::api::planetarium::LabelCategoryDto::Dso => 1,
+                crate::api::planetarium::LabelCategoryDto::Constellation => 2,
+                crate::api::planetarium::LabelCategoryDto::Body => 3,
+                crate::api::planetarium::LabelCategoryDto::Satellite => 4,
+                crate::api::planetarium::LabelCategoryDto::MinorPlanet => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
+impl SseEncode for crate::api::planetarium::LabelHintDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.object_id, serializer);
+        <f32>::sse_encode(self.screen_x, serializer);
+        <f32>::sse_encode(self.screen_y, serializer);
+        <f32>::sse_encode(self.apparent_mag, serializer);
+        <u8>::sse_encode(self.priority, serializer);
+        <String>::sse_encode(self.text, serializer);
+        <crate::api::planetarium::LabelCategoryDto>::sse_encode(self.category, serializer);
+    }
+}
+
 impl SseEncode for Vec<String> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19628,6 +20232,16 @@ impl SseEncode for Vec<crate::api::imaging::FocusDataPointApi> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::imaging::FocusDataPointApi>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::api::planetarium::LabelHintDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::api::planetarium::LabelHintDto>::sse_encode(item, serializer);
         }
     }
 }
@@ -20162,6 +20776,17 @@ impl SseEncode for crate::api::sequencer::NodeDefinitionApi {
     }
 }
 
+impl SseEncode for crate::api::planetarium::ObserverDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.latitude_rad, serializer);
+        <f64>::sse_encode(self.longitude_rad, serializer);
+        <f64>::sse_encode(self.elevation_m, serializer);
+        <f32>::sse_encode(self.pressure_hpa, serializer);
+        <f32>::sse_encode(self.temperature_c, serializer);
+    }
+}
+
 impl SseEncode for crate::storage::ObserverLocation {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20337,6 +20962,16 @@ impl SseEncode for Option<crate::device::PierSide> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::device::PierSide>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::planetarium::SelectedObjectDto> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::planetarium::SelectedObjectDto>::sse_encode(value, serializer);
         }
     }
 }
@@ -20717,6 +21352,33 @@ impl SseEncode for crate::api::sequencer::RecoveryConfigUpdate {
     }
 }
 
+impl SseEncode for crate::api::planetarium::RenderConfigDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.show_stars, serializer);
+        <bool>::sse_encode(self.show_constellations, serializer);
+        <bool>::sse_encode(self.show_constellation_boundaries, serializer);
+        <bool>::sse_encode(self.show_constellation_art, serializer);
+        <bool>::sse_encode(self.show_equatorial_grid, serializer);
+        <bool>::sse_encode(self.show_alt_az_grid, serializer);
+        <bool>::sse_encode(self.show_galactic_grid, serializer);
+        <bool>::sse_encode(self.show_ecliptic, serializer);
+        <bool>::sse_encode(self.show_galactic_plane, serializer);
+        <bool>::sse_encode(self.show_milky_way, serializer);
+        <bool>::sse_encode(self.show_horizon, serializer);
+        <bool>::sse_encode(self.show_atmosphere, serializer);
+        <bool>::sse_encode(self.show_dsos, serializer);
+        <bool>::sse_encode(self.show_solar_system, serializer);
+        <bool>::sse_encode(self.show_satellites, serializer);
+        <bool>::sse_encode(self.show_minor_planets, serializer);
+        <bool>::sse_encode(self.show_variable_stars, serializer);
+        <f32>::sse_encode(self.magnitude_limit, serializer);
+        <u32>::sse_encode(self.quality, serializer);
+        <u32>::sse_encode(self.bortle_class, serializer);
+        <bool>::sse_encode(self.twinkle, serializer);
+    }
+}
+
 impl SseEncode for crate::device_capabilities::RotatorCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20781,6 +21443,16 @@ impl SseEncode for crate::device_capabilities::SafetyMonitorCapabilities {
     }
 }
 
+impl SseEncode for crate::api::planetarium::SceneSnapshotDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.frame_id, serializer);
+        <crate::api::planetarium::ViewPoseDto>::sse_encode(self.view_pose, serializer);
+        <Vec<crate::api::planetarium::LabelHintDto>>::sse_encode(self.labels, serializer);
+        <Option<crate::api::planetarium::SelectedObjectDto>>::sse_encode(self.selected, serializer);
+    }
+}
+
 impl SseEncode for crate::event::SchedulerScoreEntry {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -20789,6 +21461,19 @@ impl SseEncode for crate::event::SchedulerScoreEntry {
         <f64>::sse_encode(self.total_score, serializer);
         <bool>::sse_encode(self.runnable, serializer);
         <Option<String>>::sse_encode(self.reason, serializer);
+    }
+}
+
+impl SseEncode for crate::api::planetarium::SelectedObjectDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <u64>::sse_encode(self.object_id, serializer);
+        <f32>::sse_encode(self.screen_x, serializer);
+        <f32>::sse_encode(self.screen_y, serializer);
+        <f64>::sse_encode(self.ra_rad, serializer);
+        <f64>::sse_encode(self.dec_rad, serializer);
+        <crate::api::planetarium::LabelCategoryDto>::sse_encode(self.category, serializer);
+        <String>::sse_encode(self.display_name, serializer);
     }
 }
 
@@ -21282,6 +21967,23 @@ impl SseEncode for crate::api::devices::simulation::SimulatedRotator {
     }
 }
 
+impl SseEncode for crate::api::planetarium::SkyProjectionDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::planetarium::SkyProjectionDto::Stereographic => 0,
+                crate::api::planetarium::SkyProjectionDto::Orthographic => 1,
+                crate::api::planetarium::SkyProjectionDto::AzimuthalEquidistant => 2,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::imaging::StarCropApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -21457,6 +22159,17 @@ impl SseEncode for usize {
             .cursor
             .write_u64::<NativeEndian>(self as _)
             .unwrap();
+    }
+}
+
+impl SseEncode for crate::api::planetarium::ViewPoseDto {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <f64>::sse_encode(self.ra_rad, serializer);
+        <f64>::sse_encode(self.dec_rad, serializer);
+        <f32>::sse_encode(self.fov_rad, serializer);
+        <f32>::sse_encode(self.roll_rad, serializer);
+        <crate::api::planetarium::SkyProjectionDto>::sse_encode(self.projection, serializer);
     }
 }
 
@@ -21725,6 +22438,16 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::AstroTimeDto> for wire_cst_astro_time_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::AstroTimeDto {
+            crate::api::planetarium::AstroTimeDto {
+                jd_utc: self.jd_utc.cst_decode(),
+                jd_ut1: self.jd_ut1.cst_decode(),
+                jd_tt: self.jd_tt.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::api::imaging::AutofocusConfigApi> for wire_cst_autofocus_config_api {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::api::imaging::AutofocusConfigApi {
@@ -21794,6 +22517,13 @@ mod io {
         fn cst_decode(self) -> crate::storage::AppSettings {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::storage::AppSettings>::cst_decode(*wrap).into()
+        }
+    }
+    impl CstDecode<crate::api::planetarium::AstroTimeDto> for *mut wire_cst_astro_time_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::AstroTimeDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::AstroTimeDto>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::imaging::AutofocusConfigApi> for *mut wire_cst_autofocus_config_api {
@@ -21967,6 +22697,13 @@ mod io {
             CstDecode::<crate::device_capabilities::MountCapabilities>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::api::planetarium::ObserverDto> for *mut wire_cst_observer_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::ObserverDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::ObserverDto>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::storage::ObserverLocation> for *mut wire_cst_observer_location {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::storage::ObserverLocation {
@@ -22022,6 +22759,13 @@ mod io {
             CstDecode::<crate::api::sequencer::RecoveryConfigUpdate>::cst_decode(*wrap).into()
         }
     }
+    impl CstDecode<crate::api::planetarium::RenderConfigDto> for *mut wire_cst_render_config_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::RenderConfigDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::RenderConfigDto>::cst_decode(*wrap).into()
+        }
+    }
     impl CstDecode<crate::device_capabilities::RotatorCapabilities>
         for *mut wire_cst_rotator_capabilities
     {
@@ -22046,6 +22790,13 @@ mod io {
             let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
             CstDecode::<crate::device_capabilities::SafetyMonitorCapabilities>::cst_decode(*wrap)
                 .into()
+        }
+    }
+    impl CstDecode<crate::api::planetarium::SelectedObjectDto> for *mut wire_cst_selected_object_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::SelectedObjectDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::SelectedObjectDto>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::api::sequencer::SequenceDefinitionApi>
@@ -22126,6 +22877,13 @@ mod io {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> u64 {
             unsafe { *flutter_rust_bridge::for_generated::box_from_leak_ptr(self) }
+        }
+    }
+    impl CstDecode<crate::api::planetarium::ViewPoseDto> for *mut wire_cst_view_pose_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::ViewPoseDto {
+            let wrap = unsafe { flutter_rust_bridge::for_generated::box_from_leak_ptr(self) };
+            CstDecode::<crate::api::planetarium::ViewPoseDto>::cst_decode(*wrap).into()
         }
     }
     impl CstDecode<crate::device_capabilities::WeatherCapabilities>
@@ -23106,6 +23864,20 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::LabelHintDto> for wire_cst_label_hint_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::LabelHintDto {
+            crate::api::planetarium::LabelHintDto {
+                object_id: self.object_id.cst_decode(),
+                screen_x: self.screen_x.cst_decode(),
+                screen_y: self.screen_y.cst_decode(),
+                apparent_mag: self.apparent_mag.cst_decode(),
+                priority: self.priority.cst_decode(),
+                text: self.text.cst_decode(),
+                category: self.category.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<Vec<String>> for *mut wire_cst_list_String {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<String> {
@@ -23185,6 +23957,16 @@ mod io {
     {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<crate::api::imaging::FocusDataPointApi> {
+            let vec = unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            };
+            vec.into_iter().map(CstDecode::cst_decode).collect()
+        }
+    }
+    impl CstDecode<Vec<crate::api::planetarium::LabelHintDto>> for *mut wire_cst_list_label_hint_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<crate::api::planetarium::LabelHintDto> {
             let vec = unsafe {
                 let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
                 flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
@@ -23738,6 +24520,18 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::ObserverDto> for wire_cst_observer_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::ObserverDto {
+            crate::api::planetarium::ObserverDto {
+                latitude_rad: self.latitude_rad.cst_decode(),
+                longitude_rad: self.longitude_rad.cst_decode(),
+                elevation_m: self.elevation_m.cst_decode(),
+                pressure_hpa: self.pressure_hpa.cst_decode(),
+                temperature_c: self.temperature_c.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::storage::ObserverLocation> for wire_cst_observer_location {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::storage::ObserverLocation {
@@ -24033,6 +24827,34 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::RenderConfigDto> for wire_cst_render_config_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::RenderConfigDto {
+            crate::api::planetarium::RenderConfigDto {
+                show_stars: self.show_stars.cst_decode(),
+                show_constellations: self.show_constellations.cst_decode(),
+                show_constellation_boundaries: self.show_constellation_boundaries.cst_decode(),
+                show_constellation_art: self.show_constellation_art.cst_decode(),
+                show_equatorial_grid: self.show_equatorial_grid.cst_decode(),
+                show_alt_az_grid: self.show_alt_az_grid.cst_decode(),
+                show_galactic_grid: self.show_galactic_grid.cst_decode(),
+                show_ecliptic: self.show_ecliptic.cst_decode(),
+                show_galactic_plane: self.show_galactic_plane.cst_decode(),
+                show_milky_way: self.show_milky_way.cst_decode(),
+                show_horizon: self.show_horizon.cst_decode(),
+                show_atmosphere: self.show_atmosphere.cst_decode(),
+                show_dsos: self.show_dsos.cst_decode(),
+                show_solar_system: self.show_solar_system.cst_decode(),
+                show_satellites: self.show_satellites.cst_decode(),
+                show_minor_planets: self.show_minor_planets.cst_decode(),
+                show_variable_stars: self.show_variable_stars.cst_decode(),
+                magnitude_limit: self.magnitude_limit.cst_decode(),
+                quality: self.quality.cst_decode(),
+                bortle_class: self.bortle_class.cst_decode(),
+                twinkle: self.twinkle.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::device_capabilities::RotatorCapabilities> for wire_cst_rotator_capabilities {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::device_capabilities::RotatorCapabilities {
@@ -24101,6 +24923,17 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::SceneSnapshotDto> for wire_cst_scene_snapshot_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::SceneSnapshotDto {
+            crate::api::planetarium::SceneSnapshotDto {
+                frame_id: self.frame_id.cst_decode(),
+                view_pose: self.view_pose.cst_decode(),
+                labels: self.labels.cst_decode(),
+                selected: self.selected.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::event::SchedulerScoreEntry> for wire_cst_scheduler_score_entry {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::event::SchedulerScoreEntry {
@@ -24110,6 +24943,20 @@ mod io {
                 total_score: self.total_score.cst_decode(),
                 runnable: self.runnable.cst_decode(),
                 reason: self.reason.cst_decode(),
+            }
+        }
+    }
+    impl CstDecode<crate::api::planetarium::SelectedObjectDto> for wire_cst_selected_object_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::SelectedObjectDto {
+            crate::api::planetarium::SelectedObjectDto {
+                object_id: self.object_id.cst_decode(),
+                screen_x: self.screen_x.cst_decode(),
+                screen_y: self.screen_y.cst_decode(),
+                ra_rad: self.ra_rad.cst_decode(),
+                dec_rad: self.dec_rad.cst_decode(),
+                category: self.category.cst_decode(),
+                display_name: self.display_name.cst_decode(),
             }
         }
     }
@@ -24584,6 +25431,18 @@ mod io {
             }
         }
     }
+    impl CstDecode<crate::api::planetarium::ViewPoseDto> for wire_cst_view_pose_dto {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> crate::api::planetarium::ViewPoseDto {
+            crate::api::planetarium::ViewPoseDto {
+                ra_rad: self.ra_rad.cst_decode(),
+                dec_rad: self.dec_rad.cst_decode(),
+                fov_rad: self.fov_rad.cst_decode(),
+                roll_rad: self.roll_rad.cst_decode(),
+                projection: self.projection.cst_decode(),
+            }
+        }
+    }
     impl CstDecode<crate::device_capabilities::WeatherCapabilities> for wire_cst_weather_capabilities {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> crate::device_capabilities::WeatherCapabilities {
@@ -24733,6 +25592,20 @@ mod io {
         }
     }
     impl Default for wire_cst_app_settings {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_astro_time_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                jd_utc: Default::default(),
+                jd_ut1: Default::default(),
+                jd_tt: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_astro_time_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -25501,6 +26374,24 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_label_hint_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                object_id: Default::default(),
+                screen_x: Default::default(),
+                screen_y: Default::default(),
+                apparent_mag: Default::default(),
+                priority: Default::default(),
+                text: core::ptr::null_mut(),
+                category: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_label_hint_dto {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_live_stacking_broadcast_snapshot {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -25647,6 +26538,22 @@ mod io {
         }
     }
     impl Default for wire_cst_node_definition_api {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_observer_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                latitude_rad: Default::default(),
+                longitude_rad: Default::default(),
+                elevation_m: Default::default(),
+                pressure_hpa: Default::default(),
+                temperature_c: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_observer_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -26079,6 +26986,38 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_render_config_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                show_stars: Default::default(),
+                show_constellations: Default::default(),
+                show_constellation_boundaries: Default::default(),
+                show_constellation_art: Default::default(),
+                show_equatorial_grid: Default::default(),
+                show_alt_az_grid: Default::default(),
+                show_galactic_grid: Default::default(),
+                show_ecliptic: Default::default(),
+                show_galactic_plane: Default::default(),
+                show_milky_way: Default::default(),
+                show_horizon: Default::default(),
+                show_atmosphere: Default::default(),
+                show_dsos: Default::default(),
+                show_solar_system: Default::default(),
+                show_satellites: Default::default(),
+                show_minor_planets: Default::default(),
+                show_variable_stars: Default::default(),
+                magnitude_limit: Default::default(),
+                quality: Default::default(),
+                bortle_class: Default::default(),
+                twinkle: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_render_config_dto {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_rotator_capabilities {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -26142,6 +27081,21 @@ mod io {
             Self::new_with_null_ptr()
         }
     }
+    impl NewWithNullPtr for wire_cst_scene_snapshot_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                frame_id: Default::default(),
+                view_pose: Default::default(),
+                labels: core::ptr::null_mut(),
+                selected: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_scene_snapshot_dto {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
     impl NewWithNullPtr for wire_cst_scheduler_score_entry {
         fn new_with_null_ptr() -> Self {
             Self {
@@ -26154,6 +27108,24 @@ mod io {
         }
     }
     impl Default for wire_cst_scheduler_score_entry {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_selected_object_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                object_id: Default::default(),
+                screen_x: Default::default(),
+                screen_y: Default::default(),
+                ra_rad: Default::default(),
+                dec_rad: Default::default(),
+                category: Default::default(),
+                display_name: core::ptr::null_mut(),
+            }
+        }
+    }
+    impl Default for wire_cst_selected_object_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -26402,6 +27374,22 @@ mod io {
         }
     }
     impl Default for wire_cst_system_event {
+        fn default() -> Self {
+            Self::new_with_null_ptr()
+        }
+    }
+    impl NewWithNullPtr for wire_cst_view_pose_dto {
+        fn new_with_null_ptr() -> Self {
+            Self {
+                ra_rad: Default::default(),
+                dec_rad: Default::default(),
+                fov_rad: Default::default(),
+                roll_rad: Default::default(),
+                projection: Default::default(),
+            }
+        }
+    }
+    impl Default for wire_cst_view_pose_dto {
         fn default() -> Self {
             Self::new_with_null_ptr()
         }
@@ -29873,33 +30861,66 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_create(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_create(
         engine_handle: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__planetarium_spike__planetarium_spike_create_impl(engine_handle)
+        wire__crate__api__planetarium__planetarium_create_impl(engine_handle)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_dispose(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_dispose(
         handle: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__planetarium_spike__planetarium_spike_dispose_impl(handle)
+        wire__crate__api__planetarium__planetarium_dispose_impl(handle)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_resize(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_resize(
         handle: i64,
-        width: u32,
-        height: u32,
+        w: u32,
+        h: u32,
+        dpr: f32,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__planetarium_spike__planetarium_spike_resize_impl(handle, width, height)
+        wire__crate__api__planetarium__planetarium_resize_impl(handle, w, h, dpr)
     }
 
     #[unsafe(no_mangle)]
-    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium_spike__planetarium_spike_tick(
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_config(
+        handle: i64,
+        config: *mut wire_cst_render_config_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_config_impl(handle, config)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_observer(
+        handle: i64,
+        observer: *mut wire_cst_observer_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_observer_impl(handle, observer)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose(
+        handle: i64,
+        pose: *mut wire_cst_view_pose_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_pose_impl(handle, pose)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time(
+        handle: i64,
+        time: *mut wire_cst_astro_time_dto,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_set_time_impl(handle, time)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot(
         handle: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
-        wire__crate__api__planetarium_spike__planetarium_spike_tick_impl(handle)
+        wire__crate__api__planetarium__planetarium_snapshot_impl(handle)
     }
 
     #[unsafe(no_mangle)]
@@ -30116,6 +31137,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_astro_time_dto(
+    ) -> *mut wire_cst_astro_time_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_astro_time_dto::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_autofocus_config_api(
     ) -> *mut wire_cst_autofocus_config_api {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -30283,6 +31312,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_observer_dto(
+    ) -> *mut wire_cst_observer_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_observer_dto::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_observer_location(
     ) -> *mut wire_cst_observer_location {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -30338,6 +31375,14 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_render_config_dto(
+    ) -> *mut wire_cst_render_config_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_render_config_dto::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_rotator_capabilities(
     ) -> *mut wire_cst_rotator_capabilities {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
@@ -30358,6 +31403,14 @@ mod io {
     ) -> *mut wire_cst_safety_monitor_capabilities {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(
             wire_cst_safety_monitor_capabilities::new_with_null_ptr(),
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_selected_object_dto(
+    ) -> *mut wire_cst_selected_object_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_selected_object_dto::new_with_null_ptr(),
         )
     }
 
@@ -30436,6 +31489,14 @@ mod io {
     #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_u_64(value: u64) -> *mut u64 {
         flutter_rust_bridge::for_generated::new_leak_box_ptr(value)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_box_autoadd_view_pose_dto(
+    ) -> *mut wire_cst_view_pose_dto {
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(
+            wire_cst_view_pose_dto::new_with_null_ptr(),
+        )
     }
 
     #[unsafe(no_mangle)]
@@ -30548,6 +31609,20 @@ mod io {
         let wrap = wire_cst_list_focus_data_point_api {
             ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
                 <wire_cst_focus_data_point_api>::new_with_null_ptr(),
+                len,
+            ),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(wrap)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_label_hint_dto(
+        len: i32,
+    ) -> *mut wire_cst_list_label_hint_dto {
+        let wrap = wire_cst_list_label_hint_dto {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(
+                <wire_cst_label_hint_dto>::new_with_null_ptr(),
                 len,
             ),
             len,
@@ -30904,6 +31979,13 @@ mod io {
         theme: *mut wire_cst_list_prim_u_8_strict,
         language: *mut wire_cst_list_prim_u_8_strict,
         auto_connect: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_astro_time_dto {
+        jd_utc: f64,
+        jd_ut1: f64,
+        jd_tt: f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -31832,6 +32914,17 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_label_hint_dto {
+        object_id: u64,
+        screen_x: f32,
+        screen_y: f32,
+        apparent_mag: f32,
+        priority: u8,
+        text: *mut wire_cst_list_prim_u_8_strict,
+        category: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_list_String {
         ptr: *mut *mut wire_cst_list_prim_u_8_strict,
         len: i32,
@@ -31876,6 +32969,12 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_list_focus_data_point_api {
         ptr: *mut wire_cst_focus_data_point_api,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_list_label_hint_dto {
+        ptr: *mut wire_cst_label_hint_dto,
         len: i32,
     }
     #[repr(C)]
@@ -32344,6 +33443,15 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_observer_dto {
+        latitude_rad: f64,
+        longitude_rad: f64,
+        elevation_m: f64,
+        pressure_hpa: f32,
+        temperature_c: f32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_observer_location {
         latitude: f64,
         longitude: f64,
@@ -32576,6 +33684,31 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_render_config_dto {
+        show_stars: bool,
+        show_constellations: bool,
+        show_constellation_boundaries: bool,
+        show_constellation_art: bool,
+        show_equatorial_grid: bool,
+        show_alt_az_grid: bool,
+        show_galactic_grid: bool,
+        show_ecliptic: bool,
+        show_galactic_plane: bool,
+        show_milky_way: bool,
+        show_horizon: bool,
+        show_atmosphere: bool,
+        show_dsos: bool,
+        show_solar_system: bool,
+        show_satellites: bool,
+        show_minor_planets: bool,
+        show_variable_stars: bool,
+        magnitude_limit: f32,
+        quality: u32,
+        bortle_class: u32,
+        twinkle: bool,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_rotator_capabilities {
         can_reverse: bool,
         reverse: bool,
@@ -32634,12 +33767,31 @@ mod io {
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
+    pub struct wire_cst_scene_snapshot_dto {
+        frame_id: u64,
+        view_pose: wire_cst_view_pose_dto,
+        labels: *mut wire_cst_list_label_hint_dto,
+        selected: *mut wire_cst_selected_object_dto,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
     pub struct wire_cst_scheduler_score_entry {
         target_id: *mut wire_cst_list_prim_u_8_strict,
         target_name: *mut wire_cst_list_prim_u_8_strict,
         total_score: f64,
         runnable: bool,
         reason: *mut wire_cst_list_prim_u_8_strict,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_selected_object_dto {
+        object_id: u64,
+        screen_x: f32,
+        screen_y: f32,
+        ra_rad: f64,
+        dec_rad: f64,
+        category: i32,
+        display_name: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -33067,6 +34219,15 @@ mod io {
     pub struct wire_cst_SystemEvent_EventsDropped {
         dropped_count: u64,
         total_dropped: u64,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_view_pose_dto {
+        ra_rad: f64,
+        dec_rad: f64,
+        fov_rad: f32,
+        roll_rad: f32,
+        projection: i32,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

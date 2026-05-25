@@ -23,7 +23,7 @@ import 'api/heartbeat.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
 import 'api/phd2.dart';
-import 'api/planetarium_spike.dart';
+import 'api/planetarium.dart';
 import 'api/plate_solve.dart';
 import 'api/polar_alignment.dart';
 import 'api/sequencer.dart';
@@ -100,7 +100,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -1983305229;
+  int get rustContentHash => -676788946;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1313,16 +1313,30 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiConnectionAscomConnectionsMoveAscomFocuser(
       {required String progId, required int position});
 
-  PlatformInt64 crateApiPlanetariumSpikePlanetariumSpikeCreate(
+  PlatformInt64 crateApiPlanetariumPlanetariumCreate(
       {required PlatformInt64 engineHandle});
 
-  void crateApiPlanetariumSpikePlanetariumSpikeDispose(
-      {required PlatformInt64 handle});
+  void crateApiPlanetariumPlanetariumDispose({required PlatformInt64 handle});
 
-  PlatformInt64 crateApiPlanetariumSpikePlanetariumSpikeResize(
-      {required PlatformInt64 handle, required int width, required int height});
+  PlatformInt64 crateApiPlanetariumPlanetariumResize(
+      {required PlatformInt64 handle,
+      required int w,
+      required int h,
+      required double dpr});
 
-  void crateApiPlanetariumSpikePlanetariumSpikeTick(
+  void crateApiPlanetariumPlanetariumSetConfig(
+      {required PlatformInt64 handle, required RenderConfigDto config});
+
+  void crateApiPlanetariumPlanetariumSetObserver(
+      {required PlatformInt64 handle, required ObserverDto observer});
+
+  void crateApiPlanetariumPlanetariumSetPose(
+      {required PlatformInt64 handle, required ViewPoseDto pose});
+
+  void crateApiPlanetariumPlanetariumSetTime(
+      {required PlatformInt64 handle, required AstroTimeDto time});
+
+  SceneSnapshotDto crateApiPlanetariumPlanetariumSnapshot(
       {required PlatformInt64 handle});
 
   Future<void> crateApiImagingSaveFitsFileRich(
@@ -10906,109 +10920,208 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
 
   @override
-  PlatformInt64 crateApiPlanetariumSpikePlanetariumSpikeCreate(
+  PlatformInt64 crateApiPlanetariumPlanetariumCreate(
       {required PlatformInt64 engineHandle}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_i_64(engineHandle);
-        return wire
-            .wire__crate__api__planetarium_spike__planetarium_spike_create(
-                arg0);
+        return wire.wire__crate__api__planetarium__planetarium_create(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_64,
         decodeErrorData: dco_decode_String,
       ),
-      constMeta: kCrateApiPlanetariumSpikePlanetariumSpikeCreateConstMeta,
+      constMeta: kCrateApiPlanetariumPlanetariumCreateConstMeta,
       argValues: [engineHandle],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiPlanetariumSpikePlanetariumSpikeCreateConstMeta =>
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumCreateConstMeta =>
       const TaskConstMeta(
-        debugName: "planetarium_spike_create",
+        debugName: "planetarium_create",
         argNames: ["engineHandle"],
       );
 
   @override
-  void crateApiPlanetariumSpikePlanetariumSpikeDispose(
-      {required PlatformInt64 handle}) {
+  void crateApiPlanetariumPlanetariumDispose({required PlatformInt64 handle}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_i_64(handle);
-        return wire
-            .wire__crate__api__planetarium_spike__planetarium_spike_dispose(
-                arg0);
+        return wire.wire__crate__api__planetarium__planetarium_dispose(arg0);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_String,
       ),
-      constMeta: kCrateApiPlanetariumSpikePlanetariumSpikeDisposeConstMeta,
+      constMeta: kCrateApiPlanetariumPlanetariumDisposeConstMeta,
       argValues: [handle],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiPlanetariumSpikePlanetariumSpikeDisposeConstMeta =>
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumDisposeConstMeta =>
       const TaskConstMeta(
-        debugName: "planetarium_spike_dispose",
+        debugName: "planetarium_dispose",
         argNames: ["handle"],
       );
 
   @override
-  PlatformInt64 crateApiPlanetariumSpikePlanetariumSpikeResize(
+  PlatformInt64 crateApiPlanetariumPlanetariumResize(
       {required PlatformInt64 handle,
-      required int width,
-      required int height}) {
+      required int w,
+      required int h,
+      required double dpr}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_i_64(handle);
-        var arg1 = cst_encode_u_32(width);
-        var arg2 = cst_encode_u_32(height);
-        return wire
-            .wire__crate__api__planetarium_spike__planetarium_spike_resize(
-                arg0, arg1, arg2);
+        var arg1 = cst_encode_u_32(w);
+        var arg2 = cst_encode_u_32(h);
+        var arg3 = cst_encode_f_32(dpr);
+        return wire.wire__crate__api__planetarium__planetarium_resize(
+            arg0, arg1, arg2, arg3);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_i_64,
         decodeErrorData: dco_decode_String,
       ),
-      constMeta: kCrateApiPlanetariumSpikePlanetariumSpikeResizeConstMeta,
-      argValues: [handle, width, height],
+      constMeta: kCrateApiPlanetariumPlanetariumResizeConstMeta,
+      argValues: [handle, w, h, dpr],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiPlanetariumSpikePlanetariumSpikeResizeConstMeta =>
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumResizeConstMeta =>
       const TaskConstMeta(
-        debugName: "planetarium_spike_resize",
-        argNames: ["handle", "width", "height"],
+        debugName: "planetarium_resize",
+        argNames: ["handle", "w", "h", "dpr"],
       );
 
   @override
-  void crateApiPlanetariumSpikePlanetariumSpikeTick(
-      {required PlatformInt64 handle}) {
+  void crateApiPlanetariumPlanetariumSetConfig(
+      {required PlatformInt64 handle, required RenderConfigDto config}) {
     return handler.executeSync(SyncTask(
       callFfi: () {
         var arg0 = cst_encode_i_64(handle);
-        return wire
-            .wire__crate__api__planetarium_spike__planetarium_spike_tick(arg0);
+        var arg1 = cst_encode_box_autoadd_render_config_dto(config);
+        return wire.wire__crate__api__planetarium__planetarium_set_config(
+            arg0, arg1);
       },
       codec: DcoCodec(
         decodeSuccessData: dco_decode_unit,
         decodeErrorData: dco_decode_String,
       ),
-      constMeta: kCrateApiPlanetariumSpikePlanetariumSpikeTickConstMeta,
+      constMeta: kCrateApiPlanetariumPlanetariumSetConfigConstMeta,
+      argValues: [handle, config],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetConfigConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_config",
+        argNames: ["handle", "config"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumSetObserver(
+      {required PlatformInt64 handle, required ObserverDto observer}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_box_autoadd_observer_dto(observer);
+        return wire.wire__crate__api__planetarium__planetarium_set_observer(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetObserverConstMeta,
+      argValues: [handle, observer],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetObserverConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_observer",
+        argNames: ["handle", "observer"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumSetPose(
+      {required PlatformInt64 handle, required ViewPoseDto pose}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_box_autoadd_view_pose_dto(pose);
+        return wire.wire__crate__api__planetarium__planetarium_set_pose(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetPoseConstMeta,
+      argValues: [handle, pose],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetPoseConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_pose",
+        argNames: ["handle", "pose"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumSetTime(
+      {required PlatformInt64 handle, required AstroTimeDto time}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_box_autoadd_astro_time_dto(time);
+        return wire.wire__crate__api__planetarium__planetarium_set_time(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetTimeConstMeta,
+      argValues: [handle, time],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetTimeConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_time",
+        argNames: ["handle", "time"],
+      );
+
+  @override
+  SceneSnapshotDto crateApiPlanetariumPlanetariumSnapshot(
+      {required PlatformInt64 handle}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        return wire.wire__crate__api__planetarium__planetarium_snapshot(arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_scene_snapshot_dto,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSnapshotConstMeta,
       argValues: [handle],
       apiImpl: this,
     ));
   }
 
-  TaskConstMeta get kCrateApiPlanetariumSpikePlanetariumSpikeTickConstMeta =>
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSnapshotConstMeta =>
       const TaskConstMeta(
-        debugName: "planetarium_spike_tick",
+        debugName: "planetarium_snapshot",
         argNames: ["handle"],
       );
 
@@ -11556,6 +11669,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AstroTimeDto dco_decode_astro_time_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
+    return AstroTimeDto(
+      jdUtc: dco_decode_f_64(arr[0]),
+      jdUt1: dco_decode_f_64(arr[1]),
+      jdTt: dco_decode_f_64(arr[2]),
+    );
+  }
+
+  @protected
   AutofocusConfigApi dco_decode_autofocus_config_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11641,6 +11767,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AppSettings dco_decode_box_autoadd_app_settings(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_app_settings(raw);
+  }
+
+  @protected
+  AstroTimeDto dco_decode_box_autoadd_astro_time_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_astro_time_dto(raw);
   }
 
   @protected
@@ -11787,6 +11919,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ObserverDto dco_decode_box_autoadd_observer_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_observer_dto(raw);
+  }
+
+  @protected
   ObserverLocation dco_decode_box_autoadd_observer_location(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_observer_location(raw);
@@ -11834,6 +11972,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RenderConfigDto dco_decode_box_autoadd_render_config_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_render_config_dto(raw);
+  }
+
+  @protected
   RotatorCapabilities dco_decode_box_autoadd_rotator_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_rotator_capabilities(raw);
@@ -11850,6 +11994,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_safety_monitor_capabilities(raw);
+  }
+
+  @protected
+  SelectedObjectDto dco_decode_box_autoadd_selected_object_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_selected_object_dto(raw);
   }
 
   @protected
@@ -11918,6 +12068,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_box_autoadd_u_64(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_u_64(raw);
+  }
+
+  @protected
+  ViewPoseDto dco_decode_box_autoadd_view_pose_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_view_pose_dto(raw);
   }
 
   @protected
@@ -13025,6 +13181,29 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LabelCategoryDto dco_decode_label_category_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LabelCategoryDto.values[raw as int];
+  }
+
+  @protected
+  LabelHintDto dco_decode_label_hint_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return LabelHintDto(
+      objectId: dco_decode_u_64(arr[0]),
+      screenX: dco_decode_f_32(arr[1]),
+      screenY: dco_decode_f_32(arr[2]),
+      apparentMag: dco_decode_f_32(arr[3]),
+      priority: dco_decode_u_8(arr[4]),
+      text: dco_decode_String(arr[5]),
+      category: dco_decode_label_category_dto(arr[6]),
+    );
+  }
+
+  @protected
   List<String> dco_decode_list_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_String).toList();
@@ -13070,6 +13249,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   List<FocusDataPointApi> dco_decode_list_focus_data_point_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_focus_data_point_api).toList();
+  }
+
+  @protected
+  List<LabelHintDto> dco_decode_list_label_hint_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_label_hint_dto).toList();
   }
 
   @protected
@@ -13523,6 +13708,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ObserverDto dco_decode_observer_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ObserverDto(
+      latitudeRad: dco_decode_f_64(arr[0]),
+      longitudeRad: dco_decode_f_64(arr[1]),
+      elevationM: dco_decode_f_64(arr[2]),
+      pressureHpa: dco_decode_f_32(arr[3]),
+      temperatureC: dco_decode_f_32(arr[4]),
+    );
+  }
+
+  @protected
   ObserverLocation dco_decode_observer_location(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -13652,6 +13852,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   PierSide? dco_decode_opt_box_autoadd_pier_side(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_box_autoadd_pier_side(raw);
+  }
+
+  @protected
+  SelectedObjectDto? dco_decode_opt_box_autoadd_selected_object_dto(
+      dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_selected_object_dto(raw);
   }
 
   @protected
@@ -14112,6 +14319,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RenderConfigDto dco_decode_render_config_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 21)
+      throw Exception('unexpected arr length: expect 21 but see ${arr.length}');
+    return RenderConfigDto(
+      showStars: dco_decode_bool(arr[0]),
+      showConstellations: dco_decode_bool(arr[1]),
+      showConstellationBoundaries: dco_decode_bool(arr[2]),
+      showConstellationArt: dco_decode_bool(arr[3]),
+      showEquatorialGrid: dco_decode_bool(arr[4]),
+      showAltAzGrid: dco_decode_bool(arr[5]),
+      showGalacticGrid: dco_decode_bool(arr[6]),
+      showEcliptic: dco_decode_bool(arr[7]),
+      showGalacticPlane: dco_decode_bool(arr[8]),
+      showMilkyWay: dco_decode_bool(arr[9]),
+      showHorizon: dco_decode_bool(arr[10]),
+      showAtmosphere: dco_decode_bool(arr[11]),
+      showDsos: dco_decode_bool(arr[12]),
+      showSolarSystem: dco_decode_bool(arr[13]),
+      showSatellites: dco_decode_bool(arr[14]),
+      showMinorPlanets: dco_decode_bool(arr[15]),
+      showVariableStars: dco_decode_bool(arr[16]),
+      magnitudeLimit: dco_decode_f_32(arr[17]),
+      quality: dco_decode_u_32(arr[18]),
+      bortleClass: dco_decode_u_32(arr[19]),
+      twinkle: dco_decode_bool(arr[20]),
+    );
+  }
+
+  @protected
   RotatorCapabilities dco_decode_rotator_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -14185,6 +14423,20 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SceneSnapshotDto dco_decode_scene_snapshot_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    return SceneSnapshotDto(
+      frameId: dco_decode_u_64(arr[0]),
+      viewPose: dco_decode_view_pose_dto(arr[1]),
+      labels: dco_decode_list_label_hint_dto(arr[2]),
+      selected: dco_decode_opt_box_autoadd_selected_object_dto(arr[3]),
+    );
+  }
+
+  @protected
   SchedulerScoreEntry dco_decode_scheduler_score_entry(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -14196,6 +14448,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       totalScore: dco_decode_f_64(arr[2]),
       runnable: dco_decode_bool(arr[3]),
       reason: dco_decode_opt_String(arr[4]),
+    );
+  }
+
+  @protected
+  SelectedObjectDto dco_decode_selected_object_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return SelectedObjectDto(
+      objectId: dco_decode_u_64(arr[0]),
+      screenX: dco_decode_f_32(arr[1]),
+      screenY: dco_decode_f_32(arr[2]),
+      raRad: dco_decode_f_64(arr[3]),
+      decRad: dco_decode_f_64(arr[4]),
+      category: dco_decode_label_category_dto(arr[5]),
+      displayName: dco_decode_String(arr[6]),
     );
   }
 
@@ -14547,6 +14816,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SkyProjectionDto dco_decode_sky_projection_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return SkyProjectionDto.values[raw as int];
+  }
+
+  @protected
   StarCropApi dco_decode_star_crop_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -14714,6 +14989,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt dco_decode_usize(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dcoDecodeU64(raw);
+  }
+
+  @protected
+  ViewPoseDto dco_decode_view_pose_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
+    return ViewPoseDto(
+      raRad: dco_decode_f_64(arr[0]),
+      decRad: dco_decode_f_64(arr[1]),
+      fovRad: dco_decode_f_32(arr[2]),
+      rollRad: dco_decode_f_32(arr[3]),
+      projection: dco_decode_sky_projection_dto(arr[4]),
+    );
   }
 
   @protected
@@ -14976,6 +15266,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  AstroTimeDto sse_decode_astro_time_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_jdUtc = sse_decode_f_64(deserializer);
+    var var_jdUt1 = sse_decode_f_64(deserializer);
+    var var_jdTt = sse_decode_f_64(deserializer);
+    return AstroTimeDto(jdUtc: var_jdUtc, jdUt1: var_jdUt1, jdTt: var_jdTt);
+  }
+
+  @protected
   AutofocusConfigApi sse_decode_autofocus_config_api(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15072,6 +15371,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_app_settings(deserializer));
+  }
+
+  @protected
+  AstroTimeDto sse_decode_box_autoadd_astro_time_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_astro_time_dto(deserializer));
   }
 
   @protected
@@ -15232,6 +15538,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ObserverDto sse_decode_box_autoadd_observer_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_observer_dto(deserializer));
+  }
+
+  @protected
   ObserverLocation sse_decode_box_autoadd_observer_location(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15280,6 +15593,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RenderConfigDto sse_decode_box_autoadd_render_config_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_render_config_dto(deserializer));
+  }
+
+  @protected
   RotatorCapabilities sse_decode_box_autoadd_rotator_capabilities(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -15298,6 +15618,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_safety_monitor_capabilities(deserializer));
+  }
+
+  @protected
+  SelectedObjectDto sse_decode_box_autoadd_selected_object_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_selected_object_dto(deserializer));
   }
 
   @protected
@@ -15372,6 +15699,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_box_autoadd_u_64(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_u_64(deserializer));
+  }
+
+  @protected
+  ViewPoseDto sse_decode_box_autoadd_view_pose_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_view_pose_dto(deserializer));
   }
 
   @protected
@@ -16747,6 +17081,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LabelCategoryDto sse_decode_label_category_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LabelCategoryDto.values[inner];
+  }
+
+  @protected
+  LabelHintDto sse_decode_label_hint_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_objectId = sse_decode_u_64(deserializer);
+    var var_screenX = sse_decode_f_32(deserializer);
+    var var_screenY = sse_decode_f_32(deserializer);
+    var var_apparentMag = sse_decode_f_32(deserializer);
+    var var_priority = sse_decode_u_8(deserializer);
+    var var_text = sse_decode_String(deserializer);
+    var var_category = sse_decode_label_category_dto(deserializer);
+    return LabelHintDto(
+        objectId: var_objectId,
+        screenX: var_screenX,
+        screenY: var_screenY,
+        apparentMag: var_apparentMag,
+        priority: var_priority,
+        text: var_text,
+        category: var_category);
+  }
+
+  @protected
   List<String> sse_decode_list_String(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -16843,6 +17204,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var ans_ = <FocusDataPointApi>[];
     for (var idx_ = 0; idx_ < len_; ++idx_) {
       ans_.add(sse_decode_focus_data_point_api(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
+  List<LabelHintDto> sse_decode_list_label_hint_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <LabelHintDto>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_label_hint_dto(deserializer));
     }
     return ans_;
   }
@@ -17447,6 +17821,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  ObserverDto sse_decode_observer_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_latitudeRad = sse_decode_f_64(deserializer);
+    var var_longitudeRad = sse_decode_f_64(deserializer);
+    var var_elevationM = sse_decode_f_64(deserializer);
+    var var_pressureHpa = sse_decode_f_32(deserializer);
+    var var_temperatureC = sse_decode_f_32(deserializer);
+    return ObserverDto(
+        latitudeRad: var_latitudeRad,
+        longitudeRad: var_longitudeRad,
+        elevationM: var_elevationM,
+        pressureHpa: var_pressureHpa,
+        temperatureC: var_temperatureC);
+  }
+
+  @protected
   ObserverLocation sse_decode_observer_location(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_latitude = sse_decode_f_64(deserializer);
@@ -17656,6 +18046,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_box_autoadd_pier_side(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  SelectedObjectDto? sse_decode_opt_box_autoadd_selected_object_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_selected_object_dto(deserializer));
     } else {
       return null;
     }
@@ -18143,6 +18545,54 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  RenderConfigDto sse_decode_render_config_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_showStars = sse_decode_bool(deserializer);
+    var var_showConstellations = sse_decode_bool(deserializer);
+    var var_showConstellationBoundaries = sse_decode_bool(deserializer);
+    var var_showConstellationArt = sse_decode_bool(deserializer);
+    var var_showEquatorialGrid = sse_decode_bool(deserializer);
+    var var_showAltAzGrid = sse_decode_bool(deserializer);
+    var var_showGalacticGrid = sse_decode_bool(deserializer);
+    var var_showEcliptic = sse_decode_bool(deserializer);
+    var var_showGalacticPlane = sse_decode_bool(deserializer);
+    var var_showMilkyWay = sse_decode_bool(deserializer);
+    var var_showHorizon = sse_decode_bool(deserializer);
+    var var_showAtmosphere = sse_decode_bool(deserializer);
+    var var_showDsos = sse_decode_bool(deserializer);
+    var var_showSolarSystem = sse_decode_bool(deserializer);
+    var var_showSatellites = sse_decode_bool(deserializer);
+    var var_showMinorPlanets = sse_decode_bool(deserializer);
+    var var_showVariableStars = sse_decode_bool(deserializer);
+    var var_magnitudeLimit = sse_decode_f_32(deserializer);
+    var var_quality = sse_decode_u_32(deserializer);
+    var var_bortleClass = sse_decode_u_32(deserializer);
+    var var_twinkle = sse_decode_bool(deserializer);
+    return RenderConfigDto(
+        showStars: var_showStars,
+        showConstellations: var_showConstellations,
+        showConstellationBoundaries: var_showConstellationBoundaries,
+        showConstellationArt: var_showConstellationArt,
+        showEquatorialGrid: var_showEquatorialGrid,
+        showAltAzGrid: var_showAltAzGrid,
+        showGalacticGrid: var_showGalacticGrid,
+        showEcliptic: var_showEcliptic,
+        showGalacticPlane: var_showGalacticPlane,
+        showMilkyWay: var_showMilkyWay,
+        showHorizon: var_showHorizon,
+        showAtmosphere: var_showAtmosphere,
+        showDsos: var_showDsos,
+        showSolarSystem: var_showSolarSystem,
+        showSatellites: var_showSatellites,
+        showMinorPlanets: var_showMinorPlanets,
+        showVariableStars: var_showVariableStars,
+        magnitudeLimit: var_magnitudeLimit,
+        quality: var_quality,
+        bortleClass: var_bortleClass,
+        twinkle: var_twinkle);
+  }
+
+  @protected
   RotatorCapabilities sse_decode_rotator_capabilities(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -18220,6 +18670,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SceneSnapshotDto sse_decode_scene_snapshot_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_frameId = sse_decode_u_64(deserializer);
+    var var_viewPose = sse_decode_view_pose_dto(deserializer);
+    var var_labels = sse_decode_list_label_hint_dto(deserializer);
+    var var_selected =
+        sse_decode_opt_box_autoadd_selected_object_dto(deserializer);
+    return SceneSnapshotDto(
+        frameId: var_frameId,
+        viewPose: var_viewPose,
+        labels: var_labels,
+        selected: var_selected);
+  }
+
+  @protected
   SchedulerScoreEntry sse_decode_scheduler_score_entry(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -18234,6 +18699,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         totalScore: var_totalScore,
         runnable: var_runnable,
         reason: var_reason);
+  }
+
+  @protected
+  SelectedObjectDto sse_decode_selected_object_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_objectId = sse_decode_u_64(deserializer);
+    var var_screenX = sse_decode_f_32(deserializer);
+    var var_screenY = sse_decode_f_32(deserializer);
+    var var_raRad = sse_decode_f_64(deserializer);
+    var var_decRad = sse_decode_f_64(deserializer);
+    var var_category = sse_decode_label_category_dto(deserializer);
+    var var_displayName = sse_decode_String(deserializer);
+    return SelectedObjectDto(
+        objectId: var_objectId,
+        screenX: var_screenX,
+        screenY: var_screenY,
+        raRad: var_raRad,
+        decRad: var_decRad,
+        category: var_category,
+        displayName: var_displayName);
   }
 
   @protected
@@ -18690,6 +19176,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  SkyProjectionDto sse_decode_sky_projection_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return SkyProjectionDto.values[inner];
+  }
+
+  @protected
   StarCropApi sse_decode_star_crop_api(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_pixelsBase64 = sse_decode_String(deserializer);
@@ -18873,6 +19366,22 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   BigInt sse_decode_usize(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return deserializer.buffer.getBigUint64();
+  }
+
+  @protected
+  ViewPoseDto sse_decode_view_pose_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_raRad = sse_decode_f_64(deserializer);
+    var var_decRad = sse_decode_f_64(deserializer);
+    var var_fovRad = sse_decode_f_32(deserializer);
+    var var_rollRad = sse_decode_f_32(deserializer);
+    var var_projection = sse_decode_sky_projection_dto(deserializer);
+    return ViewPoseDto(
+        raRad: var_raRad,
+        decRad: var_decRad,
+        fovRad: var_fovRad,
+        rollRad: var_rollRad,
+        projection: var_projection);
   }
 
   @protected
@@ -19066,6 +19575,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int cst_encode_label_category_dto(LabelCategoryDto raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_i_32(raw.index);
+  }
+
+  @protected
   int cst_encode_pier_side(PierSide raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_i_32(raw.index);
@@ -19079,6 +19594,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   int cst_encode_shutter_status(ShutterStatus raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_i_32(raw.index);
+  }
+
+  @protected
+  int cst_encode_sky_projection_dto(SkyProjectionDto raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_i_32(raw.index);
   }
@@ -19296,6 +19817,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_astro_time_dto(AstroTimeDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.jdUtc, serializer);
+    sse_encode_f_64(self.jdUt1, serializer);
+    sse_encode_f_64(self.jdTt, serializer);
+  }
+
+  @protected
   void sse_encode_autofocus_config_api(
       AutofocusConfigApi self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -19377,6 +19906,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       AppSettings self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_app_settings(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_astro_time_dto(
+      AstroTimeDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_astro_time_dto(self, serializer);
   }
 
   @protected
@@ -19537,6 +20073,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_observer_dto(
+      ObserverDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_observer_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_observer_location(
       ObserverLocation self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -19586,6 +20129,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_render_config_dto(
+      RenderConfigDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_render_config_dto(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_rotator_capabilities(
       RotatorCapabilities self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -19604,6 +20154,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       SafetyMonitorCapabilities self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_safety_monitor_capabilities(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_selected_object_dto(
+      SelectedObjectDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_selected_object_dto(self, serializer);
   }
 
   @protected
@@ -19678,6 +20235,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_box_autoadd_u_64(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_64(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_view_pose_dto(
+      ViewPoseDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_view_pose_dto(self, serializer);
   }
 
   @protected
@@ -20681,6 +21245,25 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_label_category_dto(
+      LabelCategoryDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_label_hint_dto(LabelHintDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.objectId, serializer);
+    sse_encode_f_32(self.screenX, serializer);
+    sse_encode_f_32(self.screenY, serializer);
+    sse_encode_f_32(self.apparentMag, serializer);
+    sse_encode_u_8(self.priority, serializer);
+    sse_encode_String(self.text, serializer);
+    sse_encode_label_category_dto(self.category, serializer);
+  }
+
+  @protected
   void sse_encode_list_String(List<String> self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
@@ -20755,6 +21338,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_i_32(self.length, serializer);
     for (final item in self) {
       sse_encode_focus_data_point_api(item, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_list_label_hint_dto(
+      List<LabelHintDto> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_label_hint_dto(item, serializer);
     }
   }
 
@@ -21277,6 +21870,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_observer_dto(ObserverDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.latitudeRad, serializer);
+    sse_encode_f_64(self.longitudeRad, serializer);
+    sse_encode_f_64(self.elevationM, serializer);
+    sse_encode_f_32(self.pressureHpa, serializer);
+    sse_encode_f_32(self.temperatureC, serializer);
+  }
+
+  @protected
   void sse_encode_observer_location(
       ObserverLocation self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -21468,6 +22071,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_box_autoadd_pier_side(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_selected_object_dto(
+      SelectedObjectDto? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_selected_object_dto(self, serializer);
     }
   }
 
@@ -21840,6 +22454,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_render_config_dto(
+      RenderConfigDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_bool(self.showStars, serializer);
+    sse_encode_bool(self.showConstellations, serializer);
+    sse_encode_bool(self.showConstellationBoundaries, serializer);
+    sse_encode_bool(self.showConstellationArt, serializer);
+    sse_encode_bool(self.showEquatorialGrid, serializer);
+    sse_encode_bool(self.showAltAzGrid, serializer);
+    sse_encode_bool(self.showGalacticGrid, serializer);
+    sse_encode_bool(self.showEcliptic, serializer);
+    sse_encode_bool(self.showGalacticPlane, serializer);
+    sse_encode_bool(self.showMilkyWay, serializer);
+    sse_encode_bool(self.showHorizon, serializer);
+    sse_encode_bool(self.showAtmosphere, serializer);
+    sse_encode_bool(self.showDsos, serializer);
+    sse_encode_bool(self.showSolarSystem, serializer);
+    sse_encode_bool(self.showSatellites, serializer);
+    sse_encode_bool(self.showMinorPlanets, serializer);
+    sse_encode_bool(self.showVariableStars, serializer);
+    sse_encode_f_32(self.magnitudeLimit, serializer);
+    sse_encode_u_32(self.quality, serializer);
+    sse_encode_u_32(self.bortleClass, serializer);
+    sse_encode_bool(self.twinkle, serializer);
+  }
+
+  @protected
   void sse_encode_rotator_capabilities(
       RotatorCapabilities self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -21894,6 +22535,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_scene_snapshot_dto(
+      SceneSnapshotDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.frameId, serializer);
+    sse_encode_view_pose_dto(self.viewPose, serializer);
+    sse_encode_list_label_hint_dto(self.labels, serializer);
+    sse_encode_opt_box_autoadd_selected_object_dto(self.selected, serializer);
+  }
+
+  @protected
   void sse_encode_scheduler_score_entry(
       SchedulerScoreEntry self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -21902,6 +22553,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.totalScore, serializer);
     sse_encode_bool(self.runnable, serializer);
     sse_encode_opt_String(self.reason, serializer);
+  }
+
+  @protected
+  void sse_encode_selected_object_dto(
+      SelectedObjectDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_u_64(self.objectId, serializer);
+    sse_encode_f_32(self.screenX, serializer);
+    sse_encode_f_32(self.screenY, serializer);
+    sse_encode_f_64(self.raRad, serializer);
+    sse_encode_f_64(self.decRad, serializer);
+    sse_encode_label_category_dto(self.category, serializer);
+    sse_encode_String(self.displayName, serializer);
   }
 
   @protected
@@ -22342,6 +23006,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_sky_projection_dto(
+      SkyProjectionDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_star_crop_api(StarCropApi self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.pixelsBase64, serializer);
@@ -22484,6 +23155,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_usize(BigInt self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     serializer.buffer.putBigUint64(self);
+  }
+
+  @protected
+  void sse_encode_view_pose_dto(ViewPoseDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_f_64(self.raRad, serializer);
+    sse_encode_f_64(self.decRad, serializer);
+    sse_encode_f_32(self.fovRad, serializer);
+    sse_encode_f_32(self.rollRad, serializer);
+    sse_encode_sky_projection_dto(self.projection, serializer);
   }
 
   @protected
