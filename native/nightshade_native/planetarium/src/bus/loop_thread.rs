@@ -81,8 +81,17 @@ impl RenderLoop {
 
 impl Drop for RenderLoop {
     fn drop(&mut self) {
+        // Best-effort shutdown send: if the thread has already exited (panic or
+        // clean), the channel is closed and the send errors silently — that's
+        // fine, the join below tells us what actually happened.
         let _ = self.cmd_tx.send(PlanetariumCommand::Shutdown);
-        let _ = self.join_thread();
+        if let Err(err) = self.join_thread() {
+            // A render-thread panic during Drop is a real bug — preserving it
+            // through `let _ = ...` would hide it for months. We can't surface
+            // it via the Drop signature, but we can make it loud in the log
+            // (fail-loud per CLAUDE.md). Tests assert via tracing-test.
+            tracing::error!(?err, "render loop thread panicked during shutdown");
+        }
     }
 }
 

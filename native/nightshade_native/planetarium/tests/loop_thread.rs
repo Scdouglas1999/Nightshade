@@ -204,3 +204,34 @@ fn shutdown_exits_cleanly() {
         .shutdown()
         .expect("render thread joined without panic");
 }
+
+/// FrameRenderer that panics on its first render — used to verify the
+/// render-loop Drop swallows the panic without aborting the process.
+struct PanickingRenderer;
+
+impl FrameRenderer for PanickingRenderer {
+    fn render_frame(&mut self, _dirty: DirtyFlags, _anim: &AnimationState) {
+        panic!("intentional panic for test");
+    }
+}
+
+#[test]
+fn drop_with_panicked_render_thread_does_not_double_panic() {
+    // Prior implementation: `let _ = self.join_thread()` silently swallowed
+    // a thread panic during Drop. Now Drop logs the error via tracing
+    // before continuing — Drop itself must not panic (double-panic aborts).
+    let loop_handle =
+        RenderLoop::spawn_with_animations(PanickingRenderer, AnimationSet::new(idle_config()));
+
+    // Send a command that causes a render → render thread panics.
+    loop_handle
+        .send(PlanetariumCommand::SetPose(ViewPose::default()))
+        .expect("send before panic");
+    // Give the render thread time to wake, panic, and unwind.
+    thread::sleep(Duration::from_millis(50));
+
+    // Drop runs here at end of scope; must not double-panic. If it does,
+    // the test process aborts and reports as a hard fail (not a regular
+    // test failure) — distinct enough to be obvious in CI.
+    drop(loop_handle);
+}
