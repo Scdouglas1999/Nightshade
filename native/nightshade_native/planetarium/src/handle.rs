@@ -296,6 +296,14 @@ impl FrameRenderer for PlanetariumRenderer {
     fn render_frame(&mut self, _dirty: DirtyFlags, anim: &AnimationState) {
         self.last_anim = *anim;
         self.refresh_view_pose();
+
+        // Each call advances the frame counter exactly once, regardless of which
+        // sub-step (scene build / GPU draw / present) fails. Dart polls the
+        // snapshot frame_id to detect liveness; a stalled counter would be read
+        // as "render loop hung" — far worse than publishing a snapshot whose
+        // view_pose is fresh but whose texture wasn't redrawn this frame.
+        self.frame_id = self.frame_id.saturating_add(1);
+
         let build_inputs = BuildSceneInputs {
             view_pose: self.view_pose,
             render_config: self.render_config,
@@ -304,39 +312,27 @@ impl FrameRenderer for PlanetariumRenderer {
         };
 
         let catalog = self.catalog.lock();
-        let scene = match build_render_scene(&catalog, build_inputs, anim, None) {
-            Ok(scene) => scene,
+        match build_render_scene(&catalog, build_inputs, anim, None) {
+            Ok(scene) => {
+                if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
+                    if let Err(err) = self.surface.render(&scene) {
+                        tracing::error!("surface render failed: {err}");
+                    }
+                    if let Err(err) = self.surface.mark_frame_available() {
+                        tracing::error!("mark_frame_available failed: {err}");
+                    }
+                }
+            }
             Err(err) => {
                 tracing::error!("build_render_scene failed: {err}");
-                self.frame_id = self.frame_id.saturating_add(1);
-                publish_snapshot(
-                    &self.snapshot,
-                    &catalog,
-                    SnapshotInputs {
-                        frame_id: self.frame_id,
-                        view_pose: self.view_pose,
-                        astro_time: self.astro_time,
-                        observer: self.observer,
-                        render_config: self.render_config,
-                        selected: self.selected.clone(),
-                    },
-                );
-                return;
-            }
-        };
-        drop(catalog);
-
-        if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
-            if let Err(err) = self.surface.render(&scene) {
-                tracing::error!("surface render failed: {err}");
-            }
-            if let Err(err) = self.surface.mark_frame_available() {
-                tracing::error!("mark_frame_available failed: {err}");
             }
         }
 
-        self.frame_id = self.frame_id.saturating_add(1);
-        let catalog = self.catalog.lock();
+        // Publish exactly once per frame so frame_id advances monotonically by 1
+        // across error/success transitions. The snapshot always reflects current
+        // pose/time/observer so Dart overlay layers (labels, FOV ring) stay
+        // consistent with whatever the GPU drew (or, on a build failure, with
+        // what was attempted).
         publish_snapshot(
             &self.snapshot,
             &catalog,

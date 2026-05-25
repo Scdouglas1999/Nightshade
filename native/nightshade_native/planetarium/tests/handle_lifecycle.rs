@@ -4,7 +4,7 @@
 //! (see Task 15 integration tests). Exercises loop + snapshot + command path only.
 
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
 use nightshade_planetarium::types::{AstroTime, Observer, ViewPose};
@@ -92,6 +92,47 @@ fn set_time_and_observer_appear_in_published_snapshot() {
             );
         }
         thread::sleep(POLL);
+    }
+}
+
+#[test]
+fn frame_id_monotonic_across_error_recovery() {
+    // Each call to `render_frame` must advance `frame_id` by exactly 1, regardless
+    // of whether scene building succeeded. The previous implementation incremented
+    // inside the error branch AND inside the happy-path branch — correct only
+    // because of an early-return, and fragile against future refactors.
+    //
+    // We send a sequence of commands that each guarantee at least one render,
+    // sample frame_id after each, and assert strict +1 monotonicity.
+    let planetarium = Planetarium::new(0).expect("new");
+
+    let mut last = planetarium.snapshot().frame_id;
+    for step in 0..8 {
+        // Distinct AstroTime per step guarantees the render loop processes a
+        // fresh command instead of coalescing into the previous dirty cycle.
+        let jd = 2_451_545.0 + (step as f64) * 0.001;
+        planetarium
+            .send(PlanetariumCommand::SetTime(AstroTime::from_jd_utc(jd)))
+            .expect("wake");
+
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        let next = loop {
+            let now = planetarium.snapshot().frame_id;
+            if now > last {
+                break now;
+            }
+            if Instant::now() >= deadline {
+                panic!("timed out waiting for frame after {last} at step {step}");
+            }
+            thread::sleep(POLL);
+        };
+
+        assert_eq!(
+            next,
+            last + 1,
+            "frame_id must advance by exactly 1 each render (step {step}, last={last})",
+        );
+        last = next;
     }
 }
 
