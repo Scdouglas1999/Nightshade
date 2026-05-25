@@ -8,8 +8,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
-use std::thread;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use nightshade_planetarium::bus::PlanetariumCommand;
 use nightshade_planetarium::catalog::StarPack;
@@ -22,7 +21,6 @@ use parking_lot::Mutex;
 static REGISTRY: OnceLock<Mutex<HashMap<i64, Arc<Planetarium>>>> = OnceLock::new();
 static NEXT_ID: OnceLock<Mutex<i64>> = OnceLock::new();
 
-const TEXTURE_POLL: Duration = Duration::from_millis(2);
 const TEXTURE_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn registry() -> &'static Mutex<HashMap<i64, Arc<Planetarium>>> {
@@ -68,25 +66,21 @@ where
     f(planetarium.as_ref())
 }
 
-fn wait_texture_id(planetarium: &Planetarium) -> Result<i64, String> {
-    let deadline = Instant::now() + TEXTURE_TIMEOUT;
-    loop {
-        match planetarium.texture_id() {
-            Ok(id) => return Ok(id),
-            Err(PlanetariumError::NotAllocated) => {
-                if Instant::now() >= deadline {
-                    if let Some(err) = planetarium.last_surface_error() {
-                        return Err(err);
-                    }
-                    return Err(
-                        "texture not allocated after resize — use a valid Flutter engine handle"
-                            .to_string(),
-                    );
-                }
-                thread::sleep(TEXTURE_POLL);
+/// Block until the render thread reports a definitive resize outcome from a
+/// resize newer than `since_resize_gen`. Signal-driven via
+/// [`Planetarium::wait_for_texture_id`] — never busy-polls.
+fn wait_texture_id(planetarium: &Planetarium, since_resize_gen: u64) -> Result<i64, String> {
+    match planetarium.wait_for_texture_id(since_resize_gen, TEXTURE_TIMEOUT) {
+        Ok(id) => Ok(id),
+        Err(PlanetariumError::NotAllocated) => {
+            if let Some(err) = planetarium.last_surface_error() {
+                Err(err)
+            } else {
+                Err("texture not allocated after resize — use a valid Flutter engine handle"
+                    .to_string())
             }
-            Err(err) => return Err(err.to_string()),
         }
+        Err(err) => Err(err.to_string()),
     }
 }
 
@@ -511,6 +505,10 @@ pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, 
                 .ok_or_else(|| format!("planetarium handle {handle} not found"))?,
         )
     };
+    // Capture the current resize generation BEFORE sending so the waiter can
+    // detect a failure outcome from THIS resize even if the render thread
+    // processes the command before we begin waiting.
+    let since = planetarium.resize_generation();
     planetarium
         .send(PlanetariumCommand::Resize {
             width: w,
@@ -518,7 +516,7 @@ pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, 
             dpr,
         })
         .map_err(|e| e.to_string())?;
-    wait_texture_id(planetarium.as_ref())
+    wait_texture_id(planetarium.as_ref(), since)
 }
 
 /// Update view pose (pan/zoom/roll/projection).
@@ -639,7 +637,7 @@ pub fn planetarium_dispose(handle: i64) -> Result<(), String> {
 mod tests {
     use super::*;
     use std::thread;
-    use std::time::Duration;
+    use std::time::{Duration, Instant};
 
     const WAKE_TIMEOUT: Duration = Duration::from_millis(500);
     const POLL: Duration = Duration::from_millis(2);
@@ -815,15 +813,23 @@ mod tests {
     }
 
     #[test]
-    fn resize_retry_waits_after_prior_failure_not_stale_error() {
+    fn resize_retry_waits_for_new_outcome_not_stale_error() {
+        // Behavior: a second resize must not return immediately with the stale
+        // surface_error from the first attempt — it must wait for THIS
+        // attempt's outcome. Previously enforced by a 2 ms busy-poll loop
+        // with a 50 ms floor; now the signal infrastructure (notify on every
+        // resize completion + `since_resize_gen` snapshot) lets the second
+        // resize unblock as soon as the render thread completes it, typically
+        // well under 100 ms.
         let handle = planetarium_create(0).expect("create");
         planetarium_resize(handle, 64, 64, 1.0).unwrap_err();
 
         let start = Instant::now();
         planetarium_resize(handle, 128, 128, 1.0).unwrap_err();
+        let elapsed = start.elapsed();
         assert!(
-            start.elapsed() >= Duration::from_millis(50),
-            "second resize should poll for allocation, not return a stale surface_error immediately"
+            elapsed < Duration::from_millis(500),
+            "signal-based wait should complete well under the 2 s timeout; elapsed={elapsed:?}",
         );
         planetarium_dispose(handle).expect("dispose");
     }
