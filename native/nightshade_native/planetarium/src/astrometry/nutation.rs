@@ -3,6 +3,9 @@
 //! Algorithms match IAU SOFA `eraNut00b` (ERFA). Reference: McCarthy & Luzum (2003);
 //! MHB_2000_SHORT series (Luzum 2001).
 
+use glam::DMat3;
+
+use super::precession::mean_obliquity_from_julian_centuries_tt;
 use crate::astrometry::time::{DAYS_PER_JULIAN_CENTURY, J2000_JD_TT};
 
 /// Arcseconds to radians (SOFA `ERFA_DAS2R`).
@@ -180,4 +183,21 @@ pub fn nutation_from_julian_centuries_tt(t: f64) -> (f64, f64) {
 #[inline]
 pub fn nutation_from_jd_tt(date1: f64, date2: f64) -> (f64, f64) {
     nutation_from_julian_centuries_tt(julian_centuries_tt(date1, date2))
+}
+
+/// Nutation matrix (mean equator of date → true equator of date); SOFA `eraNmat` / `eraNut00b`.
+///
+/// `N = R_x(-(ε_A + Δε)) · R_z(-Δψ) · R_x(ε_A)` with mean obliquity ε_A.
+/// `V(true) = matrix * V(mean)` for column vectors. Combine with precession as `N * P`.
+pub fn nutation_matrix_from_julian_centuries_tt(t: f64, dpsi: f64, deps: f64) -> DMat3 {
+    let epsa = mean_obliquity_from_julian_centuries_tt(t);
+    DMat3::from_rotation_x(-(epsa + deps)) * DMat3::from_rotation_z(-dpsi) * DMat3::from_rotation_x(epsa)
+}
+
+/// Nutation matrix from a two-part TT Julian Date.
+#[inline]
+pub fn nutation_matrix_from_jd_tt(date1: f64, date2: f64) -> DMat3 {
+    let t = julian_centuries_tt(date1, date2);
+    let (dpsi, deps) = nutation_from_julian_centuries_tt(t);
+    nutation_matrix_from_julian_centuries_tt(t, dpsi, deps)
 }

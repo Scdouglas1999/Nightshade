@@ -17,6 +17,11 @@ fn julian_centuries_tt(date1: f64, date2: f64) -> f64 {
 }
 
 /// Mean obliquity of the ecliptic (radians); SOFA `eraObl06`.
+pub fn mean_obliquity_from_julian_centuries_tt(t: f64) -> f64 {
+    mean_obliquity_rad(t)
+}
+
+/// Mean obliquity of the ecliptic (radians); SOFA `eraObl06`.
 fn mean_obliquity_rad(t: f64) -> f64 {
     let arcsec = 84_381.406
         + t * (-46.836_769
