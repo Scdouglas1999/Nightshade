@@ -21,7 +21,6 @@ class FakePlanetariumDriver implements PlanetariumDriver {
   ViewPoseDto? lastPose;
   AstroTimeDto? lastTime;
   ObserverDto? lastObserver;
-  RenderConfigDto? lastConfig;
 
   @override
   int resize({
@@ -43,7 +42,4 @@ class FakePlanetariumDriver implements PlanetariumDriver {
 
   @override
   void setObserver(ObserverDto observer) => lastObserver = observer;
-
-  @override
-  void setConfig(RenderConfigDto config) => lastConfig = config;
 }

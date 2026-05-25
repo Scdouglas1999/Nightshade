@@ -25,6 +25,4 @@ abstract class PlanetariumDriver {
   void setTime(AstroTimeDto time);
 
   void setObserver(ObserverDto observer);
-
-  void setConfig(RenderConfigDto config);
 }
