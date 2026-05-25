@@ -960,6 +960,41 @@ mod tests {
     }
 
     #[test]
+    fn dispose_then_call_returns_not_found_error_no_panic() {
+        // After P2#9 (`with_planetarium` clones the Arc out of the registry
+        // and releases the lock), dispose IS a soft drop: it removes the
+        // registry entry. Any future FFI call for the same handle returns
+        // a clean "not found" — never a panic, never a stale handle.
+        let handle = planetarium_create(0).expect("create");
+        planetarium_dispose(handle).expect("dispose");
+
+        // Every FFI surface that goes through `with_planetarium` (or the
+        // direct registry lookups in `planetarium_resize`/`planetarium_dispose`)
+        // must report the handle as missing.
+        let err = planetarium_set_pose(
+            handle,
+            ViewPoseDto {
+                ra_rad: 0.0,
+                dec_rad: 0.0,
+                fov_rad: 1.0,
+                roll_rad: 0.0,
+                projection: SkyProjectionDto::Stereographic,
+            },
+        )
+        .unwrap_err();
+        assert!(
+            err.contains("not found"),
+            "expected 'not found' error, got: {err}",
+        );
+
+        let err = planetarium_snapshot(handle).unwrap_err();
+        assert!(err.contains("not found"));
+
+        let err = planetarium_dispose(handle).unwrap_err();
+        assert!(err.contains("not found"));
+    }
+
+    #[test]
     fn with_planetarium_releases_registry_lock_before_running_closure() {
         // Regression: `with_planetarium` used to hold the registry mutex across
         // the user's closure, so any slow FFI op (notably `planetarium_load_pack`
