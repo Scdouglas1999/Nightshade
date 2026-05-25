@@ -3,14 +3,11 @@
 //! Reference geocentric positions computed with the v1 Dart `KeplerianPropagator`
 //! algorithm (Python cross-check). Elements from `MinorPlanetCatalog` (MPC, 2024).
 
-#[path = "../src/astrometry/kepler.rs"]
-mod kepler;
-
 use glam::DVec3;
-use kepler::{
+use nightshade_planetarium::astrometry::kepler::{
     geocentric_equatorial_j2000, heliocentric_ecliptic_j2000, kepler_equation_residual,
-    solve_kepler, HeliocentricState, OrbitalElements, NEAR_PARABOLIC_ECCENTRICITY,
-    KEPLER_TOLERANCE_RAD,
+    solve_kepler, GeocentricEquatorial, HeliocentricState, OrbitalElements,
+    NEAR_PARABOLIC_ECCENTRICITY, KEPLER_TOLERANCE_RAD,
 };
 
 /// 1 Ceres — MPC osculating elements, epoch 2024 Jan 1.0 TT (JD 2460310.5).
@@ -140,7 +137,7 @@ fn assert_helio_near(actual: HeliocentricState, expected: &HelioFixture) {
     );
 }
 
-fn assert_geo_near(actual: &kepler::GeocentricEquatorial, expected: &GeoFixture) {
+fn assert_geo_near(actual: &GeocentricEquatorial, expected: &GeoFixture) {
     assert!(
         (actual.ra_hours - expected.ra_hours).abs() < ANGLE_TOLERANCE_DEG / 15.0,
         "RA mismatch at JD {}: got {} h expected {} h",

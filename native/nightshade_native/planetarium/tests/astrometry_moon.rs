@@ -1,11 +1,6 @@
 //! ELP2000-82B truncated Moon — comparison to published approximate positions.
-//!
-//! Until `astrometry/mod.rs` exports `moon`, tests compile the module via `path`.
 
-#[path = "../src/astrometry/moon.rs"]
-mod moon;
-
-use moon::{
+use nightshade_planetarium::astrometry::moon::{
     angular_separation_arcmin, ecliptic_to_equatorial_j2000_rad, moon_ecliptic_j2000_from_jd_tt,
     moon_equatorial_j2000_from_jd_tt, MoonEclipticJ2000, TRUNCATED_TERM_COUNT,
 };

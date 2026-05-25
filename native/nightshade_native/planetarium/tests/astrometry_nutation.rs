@@ -1,12 +1,10 @@
 //! IAU 2000B nutation — ground truth from IAU SOFA `eraNut00b` (ERFA 0.2.1).
 //!
 //! Reference values computed with pyerfa (SOFA Issue 2021-01-25).
-//! Module is included directly until the integrator adds `pub mod nutation` to `astrometry/mod.rs`.
 
-#[path = "../src/astrometry/nutation.rs"]
-mod nutation;
-
-use nutation::{nutation_from_jd_tt, nutation_from_julian_centuries_tt};
+use nightshade_planetarium::astrometry::nutation::{
+    nutation_from_jd_tt, nutation_from_julian_centuries_tt,
+};
 use nightshade_planetarium::astrometry::time::J2000_JD_TT;
 
 /// Match SOFA nutation components to ~1 nanoradian (well below 1 mas).

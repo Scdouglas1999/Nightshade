@@ -3,7 +3,7 @@
 //! Algorithms match IAU SOFA `eraNut00b` (ERFA). Reference: McCarthy & Luzum (2003);
 //! MHB_2000_SHORT series (Luzum 2001).
 
-use nightshade_planetarium::astrometry::time::{DAYS_PER_JULIAN_CENTURY, J2000_JD_TT};
+use crate::astrometry::time::{DAYS_PER_JULIAN_CENTURY, J2000_JD_TT};
 
 /// Arcseconds to radians (SOFA `ERFA_DAS2R`).
 const ARCSEC_TO_RAD: f64 = std::f64::consts::PI / (180.0 * 3_600.0);
