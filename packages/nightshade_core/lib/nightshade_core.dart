@@ -112,6 +112,7 @@ export 'src/providers/settings_provider.dart' hide HorizonProfile;
 export 'src/providers/rendering_platform_provider.dart';
 export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
+export 'src/providers/equipment_fov_provider.dart';
 export 'src/providers/guiding_provider.dart';
 export 'src/providers/backend_provider.dart';
 export 'src/providers/simbad_provider.dart';

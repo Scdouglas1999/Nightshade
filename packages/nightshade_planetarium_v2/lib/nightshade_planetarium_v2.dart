@@ -22,5 +22,6 @@ export 'src/providers/selection_provider.dart';
 export 'src/providers/view_pose_provider.dart';
 export 'src/rendering/label_layout_manager.dart';
 export 'src/widgets/constellation_art_layer.dart';
+export 'src/widgets/fov_overlay.dart';
 export 'src/widgets/interactive_sky_view.dart';
 export 'src/widgets/label_layer.dart';

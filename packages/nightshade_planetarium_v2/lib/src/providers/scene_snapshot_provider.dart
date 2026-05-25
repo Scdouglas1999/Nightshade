@@ -1,5 +1,6 @@
 import 'package:flutter/scheduler.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 import '../models/scene_snapshot.dart';
 import 'planetarium_handle_provider.dart';
