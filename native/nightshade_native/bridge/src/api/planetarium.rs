@@ -3,7 +3,8 @@
 //! Replaces the Phase 1 spike module. Dart holds opaque handle ids; each function
 //! looks up the handle in a static registry and forwards commands to the render loop.
 //!
-//! Gesture input and dev-catalog hit-testing cross the FFI here.
+//! Gesture input, dev-catalog hit-testing, and pose-lock state (tracking target,
+//! mount position, lock mode) cross the FFI here.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -11,9 +12,16 @@ use std::sync::{Arc, OnceLock};
 use std::time::Duration;
 
 use nightshade_planetarium::bus::PlanetariumCommand;
-use nightshade_planetarium::catalog::StarPack;
+// Re-exported so the FRB-generated wire decoder for
+// `planetarium_register_star_pack` (which emits unqualified
+// `Box<dyn StarPack>` references) resolves the trait via the
+// `use crate::api::planetarium::*;` glob in `frb_generated.rs`.
+pub use nightshade_planetarium::catalog::StarPack;
 use nightshade_planetarium::gesture::GestureEvent;
-use nightshade_planetarium::scene::{LabelCategory, LabelHint, SceneSnapshot, SelectedObject};
+use nightshade_planetarium::scene::{
+    BodyId, ConstellationArtPlacement, LabelCategory, LabelHint, MountPosition, PoseLock,
+    SceneSnapshot, SelectedObject, TrackingTarget,
+};
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, SkyProjection, ViewPose};
 use nightshade_planetarium::{Planetarium, PlanetariumError};
 use parking_lot::Mutex;
@@ -249,12 +257,212 @@ impl From<GestureEventDto> for GestureEvent {
     }
 }
 
+/// Solar-system body identifier carried across the FFI for pose-lock control.
+///
+/// Mirrors [`nightshade_planetarium::scene::BodyId`]. Used by Dart when the user
+/// chooses to track a planet (e.g. "follow Jupiter" in the planetarium UI):
+/// the host wraps the selection in [`PoseLockDto::LockedToBody`] and sends it
+/// down via [`planetarium_set_pose_lock`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BodyIdDto {
+    Mercury,
+    Venus,
+    Mars,
+    Jupiter,
+    Saturn,
+    Uranus,
+    Neptune,
+    Moon,
+    Sun,
+}
+
+impl From<BodyId> for BodyIdDto {
+    fn from(value: BodyId) -> Self {
+        match value {
+            BodyId::Mercury => Self::Mercury,
+            BodyId::Venus => Self::Venus,
+            BodyId::Mars => Self::Mars,
+            BodyId::Jupiter => Self::Jupiter,
+            BodyId::Saturn => Self::Saturn,
+            BodyId::Uranus => Self::Uranus,
+            BodyId::Neptune => Self::Neptune,
+            BodyId::Moon => Self::Moon,
+            BodyId::Sun => Self::Sun,
+        }
+    }
+}
+
+impl From<BodyIdDto> for BodyId {
+    fn from(value: BodyIdDto) -> Self {
+        match value {
+            BodyIdDto::Mercury => Self::Mercury,
+            BodyIdDto::Venus => Self::Venus,
+            BodyIdDto::Mars => Self::Mars,
+            BodyIdDto::Jupiter => Self::Jupiter,
+            BodyIdDto::Saturn => Self::Saturn,
+            BodyIdDto::Uranus => Self::Uranus,
+            BodyIdDto::Neptune => Self::Neptune,
+            BodyIdDto::Moon => Self::Moon,
+            BodyIdDto::Sun => Self::Sun,
+        }
+    }
+}
+
+/// Pose lock mode carried across the FFI. Mirrors
+/// [`nightshade_planetarium::scene::PoseLock`] but represents the lock-target
+/// payload inline (catalog id, body id, or unit) so the Dart side never has
+/// to allocate.
+///
+/// Sent by [`planetarium_set_pose_lock`]. Tracking-target / mount-position
+/// payloads required for `LockedToTarget` and `LockedToMount` are pushed
+/// separately via [`planetarium_set_tracking_target`] /
+/// [`planetarium_set_mount_position`] so the lock mode and the latest
+/// reference data can be updated independently.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PoseLockDto {
+    /// User-controlled pose; gestures write the free pose directly.
+    Free,
+    /// Center on the catalog object identified by `object_id`.
+    LockedToTarget { object_id: u64 },
+    /// Center on the mount's most-recently reported RA/Dec.
+    LockedToMount,
+    /// Center on the named solar-system body at the current time.
+    LockedToBody { body: BodyIdDto },
+}
+
+impl From<PoseLock> for PoseLockDto {
+    fn from(value: PoseLock) -> Self {
+        match value {
+            PoseLock::Free => Self::Free,
+            PoseLock::LockedToTarget(id) => Self::LockedToTarget { object_id: id },
+            PoseLock::LockedToMount => Self::LockedToMount,
+            PoseLock::LockedToBody(body) => Self::LockedToBody { body: body.into() },
+        }
+    }
+}
+
+impl From<PoseLockDto> for PoseLock {
+    fn from(value: PoseLockDto) -> Self {
+        match value {
+            PoseLockDto::Free => Self::Free,
+            PoseLockDto::LockedToTarget { object_id } => Self::LockedToTarget(object_id),
+            PoseLockDto::LockedToMount => Self::LockedToMount,
+            PoseLockDto::LockedToBody { body } => Self::LockedToBody(body.into()),
+        }
+    }
+}
+
+/// Catalog tracking target carried across the FFI. Mirrors
+/// [`nightshade_planetarium::scene::TrackingTarget`].
+///
+/// Pushed by [`planetarium_set_tracking_target`] whenever the Dart side
+/// selects a star/DSO to follow; the renderer holds the most-recent value and
+/// uses it when [`PoseLockDto::LockedToTarget`] is active. The `object_id`
+/// MUST match the id in the lock — the renderer fails loud (no silent reuse)
+/// when the ids do not agree, mirroring the `MismatchedTarget` error in
+/// `PoseError`.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct TrackingTargetDto {
+    /// Catalog object id (must match the id in `PoseLockDto::LockedToTarget`).
+    pub object_id: u64,
+    /// Target right ascension (radians, J2000).
+    pub ra_rad: f64,
+    /// Target declination (radians, J2000).
+    pub dec_rad: f64,
+}
+
+impl From<TrackingTarget> for TrackingTargetDto {
+    fn from(value: TrackingTarget) -> Self {
+        Self {
+            object_id: value.id,
+            ra_rad: value.ra_rad,
+            dec_rad: value.dec_rad,
+        }
+    }
+}
+
+impl From<TrackingTargetDto> for TrackingTarget {
+    fn from(value: TrackingTargetDto) -> Self {
+        Self {
+            id: value.object_id,
+            ra_rad: value.ra_rad,
+            dec_rad: value.dec_rad,
+        }
+    }
+}
+
+/// Mount-reported equatorial position carried across the FFI. Mirrors
+/// [`nightshade_planetarium::scene::MountPosition`].
+///
+/// Pushed by [`planetarium_set_mount_position`] from mount state updates
+/// (ASCOM/INDI/Alpaca telescope drivers). When `None` is sent and the lock
+/// mode is [`PoseLockDto::LockedToMount`], the renderer raises a
+/// `MissingMount` pose error instead of silently freezing on a stale value.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct MountPositionDto {
+    /// Mount right ascension (radians, J2000).
+    pub ra_rad: f64,
+    /// Mount declination (radians, J2000).
+    pub dec_rad: f64,
+}
+
+impl From<MountPosition> for MountPositionDto {
+    fn from(value: MountPosition) -> Self {
+        Self {
+            ra_rad: value.ra_rad,
+            dec_rad: value.dec_rad,
+        }
+    }
+}
+
+impl From<MountPositionDto> for MountPosition {
+    fn from(value: MountPositionDto) -> Self {
+        Self {
+            ra_rad: value.ra_rad,
+            dec_rad: value.dec_rad,
+        }
+    }
+}
+
+/// Screen-space placement for a single constellation art overlay figure,
+/// carried across the FFI per published snapshot.
+///
+/// Mirrors [`nightshade_planetarium::scene::ConstellationArtPlacement`]; the
+/// renderer reprojects every visible figure each frame and the Flutter side
+/// draws them as a `CustomPainter` overlay on top of the GPU texture.
+#[derive(Debug, Clone, PartialEq)]
+pub struct ConstellationArtPlacementDto {
+    /// IAU three-letter abbreviation (e.g. `"Ori"`, `"UMa"`).
+    pub abbreviation: String,
+    /// Normalized screen X in widget coordinates (0 = left).
+    pub screen_x: f32,
+    /// Normalized screen Y in widget coordinates (0 = top).
+    pub screen_y: f32,
+    /// Size multiplier relative to the catalog figure.
+    pub scale: f32,
+    /// Fill/stroke alpha multiplier in [0, 1].
+    pub opacity: f32,
+}
+
+impl From<ConstellationArtPlacement> for ConstellationArtPlacementDto {
+    fn from(value: ConstellationArtPlacement) -> Self {
+        Self {
+            abbreviation: value.abbrev.as_str().to_string(),
+            screen_x: value.screen_x,
+            screen_y: value.screen_y,
+            scale: value.scale,
+            opacity: value.opacity,
+        }
+    }
+}
+
 /// Immutable per-frame scene snapshot for Dart overlays (FFI).
 #[derive(Debug, Clone, PartialEq)]
 pub struct SceneSnapshotDto {
     pub frame_id: u64,
     pub view_pose: ViewPoseDto,
     pub labels: Vec<LabelHintDto>,
+    pub constellation_art: Vec<ConstellationArtPlacementDto>,
     pub selected: Option<SelectedObjectDto>,
 }
 
@@ -477,6 +685,11 @@ impl From<SceneSnapshot> for SceneSnapshotDto {
             frame_id: value.frame_id,
             view_pose: value.view_pose.into(),
             labels: value.labels.into_iter().map(Into::into).collect(),
+            constellation_art: value
+                .constellation_art
+                .into_iter()
+                .map(Into::into)
+                .collect(),
             selected: value.selected.map(Into::into),
         }
     }
@@ -615,6 +828,62 @@ pub fn planetarium_set_selection(
     })
 }
 
+/// Update the catalog tracking target used by [`PoseLockDto::LockedToTarget`].
+///
+/// Sent from Dart whenever the user picks a star/DSO to follow. Passing
+/// `None` clears the target, which causes the renderer to raise a
+/// `MissingTarget` pose error if the lock is still
+/// [`PoseLockDto::LockedToTarget`] — silent fall-back to a stale target is
+/// explicitly avoided per `CLAUDE.md` "errors are a feature".
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_set_tracking_target(
+    handle: i64,
+    target: Option<TrackingTargetDto>,
+) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .send(PlanetariumCommand::SetTrackingTarget(
+                target.map(Into::into),
+            ))
+            .map_err(|e| e.to_string())
+    })
+}
+
+/// Update the pose-lock mode (free / target / mount / body).
+///
+/// Sent from Dart when the user toggles tracking. The lock mode and its
+/// reference data (mount position, tracking target) are decoupled so the
+/// Dart side can refresh either without rewriting the other; the renderer
+/// fails loud when the required reference is missing for the requested
+/// mode.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_set_pose_lock(handle: i64, lock: PoseLockDto) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .send(PlanetariumCommand::SetPoseLock(lock.into()))
+            .map_err(|e| e.to_string())
+    })
+}
+
+/// Update the mount's last-reported equatorial position used by
+/// [`PoseLockDto::LockedToMount`].
+///
+/// Pushed from the equipment layer whenever a telescope driver reports a new
+/// RA/Dec. Passing `None` clears the cached position; combined with the lock
+/// being [`PoseLockDto::LockedToMount`] this surfaces a `MissingMount` pose
+/// error rather than silently freezing the view at a stale position.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_set_mount_position(
+    handle: i64,
+    mount: Option<MountPositionDto>,
+) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .send(PlanetariumCommand::SetMountPosition(mount.map(Into::into)))
+            .map_err(|e| e.to_string())
+    })
+}
+
 /// Read the latest published scene snapshot for overlay layers.
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_snapshot(handle: i64) -> Result<SceneSnapshotDto, String> {
@@ -638,6 +907,152 @@ mod tests {
     use super::*;
     use std::thread;
     use std::time::{Duration, Instant};
+
+    // ------------------------------------------------------------------
+    // DTO round-trip From conversions (FFI surface invariants)
+    // ------------------------------------------------------------------
+    //
+    // Every DTO that maps onto a `nightshade_planetarium` domain type MUST
+    // round-trip without data loss: `From<Domain>` followed by `From<Dto>`
+    // (or the reverse) yields the original value. If a future refactor
+    // adds or reorders a variant/field, these tests fail loudly instead
+    // of silently truncating the value mid-flight.
+
+    #[test]
+    fn body_id_dto_round_trip_covers_every_variant() {
+        for body in [
+            BodyId::Mercury,
+            BodyId::Venus,
+            BodyId::Mars,
+            BodyId::Jupiter,
+            BodyId::Saturn,
+            BodyId::Uranus,
+            BodyId::Neptune,
+            BodyId::Moon,
+            BodyId::Sun,
+        ] {
+            let dto: BodyIdDto = body.into();
+            let back: BodyId = dto.into();
+            assert_eq!(body, back, "BodyId round-trip lost {body:?}");
+        }
+    }
+
+    #[test]
+    fn pose_lock_dto_round_trip_covers_every_variant() {
+        let cases = [
+            PoseLock::Free,
+            PoseLock::LockedToTarget(91262),
+            PoseLock::LockedToMount,
+            PoseLock::LockedToBody(BodyId::Jupiter),
+        ];
+        for lock in cases {
+            let dto: PoseLockDto = lock.into();
+            let back: PoseLock = dto.into();
+            assert_eq!(lock, back, "PoseLock round-trip lost {lock:?}");
+        }
+    }
+
+    #[test]
+    fn tracking_target_dto_round_trip_preserves_all_fields() {
+        let target = TrackingTarget {
+            id: 11767,
+            ra_rad: 0.662_062,
+            dec_rad: 1.557_896,
+        };
+        let dto: TrackingTargetDto = target.into();
+        assert_eq!(dto.object_id, target.id);
+        let back: TrackingTarget = dto.into();
+        assert_eq!(back, target);
+    }
+
+    #[test]
+    fn mount_position_dto_round_trip_preserves_all_fields() {
+        let mount = MountPosition {
+            ra_rad: 4.872_013,
+            dec_rad: 0.676_757,
+        };
+        let dto: MountPositionDto = mount.into();
+        let back: MountPosition = dto.into();
+        assert_eq!(back, mount);
+    }
+
+    #[test]
+    fn constellation_art_placement_dto_preserves_all_fields() {
+        use nightshade_planetarium::scene::snapshot::SmallString;
+
+        let placement = ConstellationArtPlacement {
+            abbrev: SmallString::new("Ori"),
+            screen_x: 0.42,
+            screen_y: 0.58,
+            scale: 1.25,
+            opacity: 0.75,
+        };
+        let dto: ConstellationArtPlacementDto = placement.clone().into();
+        assert_eq!(dto.abbreviation, placement.abbrev.as_str());
+        assert_eq!(dto.screen_x, placement.screen_x);
+        assert_eq!(dto.screen_y, placement.screen_y);
+        assert_eq!(dto.scale, placement.scale);
+        assert_eq!(dto.opacity, placement.opacity);
+    }
+
+    // ------------------------------------------------------------------
+    // Wrapper functions: round-trip set -> snapshot to verify the
+    // command lands on the planetarium loop and the lock state advances.
+    // ------------------------------------------------------------------
+
+    #[test]
+    fn set_tracking_target_does_not_error_on_valid_handle() {
+        let handle = planetarium_create(0).expect("create");
+        let target = TrackingTargetDto {
+            object_id: 91262,
+            ra_rad: 4.872,
+            dec_rad: 0.677,
+        };
+        planetarium_set_tracking_target(handle, Some(target)).expect("set target");
+        // Clearing must also succeed without error so Dart can drop the
+        // selection.
+        planetarium_set_tracking_target(handle, None).expect("clear target");
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn set_pose_lock_accepts_every_variant() {
+        let handle = planetarium_create(0).expect("create");
+        for lock in [
+            PoseLockDto::Free,
+            PoseLockDto::LockedToTarget { object_id: 11767 },
+            PoseLockDto::LockedToMount,
+            PoseLockDto::LockedToBody {
+                body: BodyIdDto::Jupiter,
+            },
+        ] {
+            planetarium_set_pose_lock(handle, lock).expect("set lock");
+        }
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn set_mount_position_set_and_clear_succeed() {
+        let handle = planetarium_create(0).expect("create");
+        planetarium_set_mount_position(
+            handle,
+            Some(MountPositionDto {
+                ra_rad: 4.872,
+                dec_rad: 0.677,
+            }),
+        )
+        .expect("set mount");
+        planetarium_set_mount_position(handle, None).expect("clear mount");
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn set_tracking_target_on_disposed_handle_fails_loud() {
+        let handle = planetarium_create(0).expect("create");
+        planetarium_dispose(handle).expect("dispose");
+        let err = planetarium_set_tracking_target(handle, None).unwrap_err();
+        assert!(err.contains("not found"), "unexpected: {err}");
+    }
 
     const WAKE_TIMEOUT: Duration = Duration::from_millis(500);
     const POLL: Duration = Duration::from_millis(2);
