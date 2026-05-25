@@ -25,6 +25,7 @@ pub use handle::Planetarium;
 
 pub mod animation;
 pub mod bus;
+pub mod gesture;
 pub mod scene;
 pub mod surface;
 pub mod spike;

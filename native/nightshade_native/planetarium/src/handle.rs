@@ -10,6 +10,7 @@ use crossbeam_channel::SendError;
 
 use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
+use crate::gesture::GestureStateMachine;
 use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
 use crate::scene::{
@@ -45,6 +46,7 @@ struct PlanetariumRenderer {
     view_pose: ViewPose,
     render_config: RenderConfig,
     selected: Option<SelectedObject>,
+    gestures: GestureStateMachine,
     last_anim: AnimationState,
 }
 
@@ -67,6 +69,7 @@ impl Planetarium {
             view_pose: ViewPose::default(),
             render_config: RenderConfig::default(),
             selected: None,
+            gestures: GestureStateMachine::new(ViewPose::default()),
             last_anim: AnimationState::INACTIVE,
         };
 
@@ -131,7 +134,14 @@ impl FrameRenderer for PlanetariumRenderer {
             }
             PlanetariumCommand::SetPose(pose) => {
                 self.view_pose = *pose;
+                self.gestures = GestureStateMachine::new(*pose);
                 *dirty |= DirtyFlags::POSE;
+            }
+            PlanetariumCommand::PushGesture(evt) => {
+                if self.gestures.apply(*evt) {
+                    self.view_pose = self.gestures.pose();
+                    *dirty |= DirtyFlags::POSE;
+                }
             }
             PlanetariumCommand::SetConfig(cfg) => {
                 self.render_config = *cfg;

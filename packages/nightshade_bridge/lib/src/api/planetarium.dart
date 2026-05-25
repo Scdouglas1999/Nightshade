@@ -7,7 +7,7 @@ import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 // These functions are ignored because they are not marked as `pub`: `lookup`, `next_id`, `registry`, `wait_texture_id`, `with_planetarium`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Create a planetarium instance bound to the Flutter engine handle.
 PlatformInt64 planetariumCreate({required PlatformInt64 engineHandle}) =>
@@ -47,6 +47,26 @@ void planetariumSetConfig(
     RustLib.instance.api.crateApiPlanetariumPlanetariumSetConfig(
         handle: handle, config: config);
 
+/// Forward a normalized gesture event; updates view pose on pan/zoom/rotate.
+void planetariumPushGesture(
+        {required PlatformInt64 handle, required GestureEventDto evt}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumPushGesture(handle: handle, evt: evt);
+
+/// Screen pick against the dev star table (catalog hit index in Task 72).
+SelectedObjectDto? planetariumHitTest(
+        {required PlatformInt64 handle,
+        required double x,
+        required double y}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumHitTest(handle: handle, x: x, y: y);
+
+/// Set or clear the selected object (reprojects screen position each frame).
+void planetariumSetSelection(
+        {required PlatformInt64 handle, SelectedObjectDto? selected}) =>
+    RustLib.instance.api.crateApiPlanetariumPlanetariumSetSelection(
+        handle: handle, selected: selected);
+
 /// Read the latest published scene snapshot for overlay layers.
 SceneSnapshotDto planetariumSnapshot({required PlatformInt64 handle}) =>
     RustLib.instance.api.crateApiPlanetariumPlanetariumSnapshot(handle: handle);
@@ -78,6 +98,75 @@ class AstroTimeDto {
           jdUtc == other.jdUtc &&
           jdUt1 == other.jdUt1 &&
           jdTt == other.jdTt;
+}
+
+/// Normalized gesture event (FFI).
+class GestureEventDto {
+  final GestureKindDto kind;
+  final double x;
+  final double y;
+  final double dx;
+  final double dy;
+  final double vx;
+  final double vy;
+  final double factor;
+  final double radians;
+
+  const GestureEventDto({
+    required this.kind,
+    required this.x,
+    required this.y,
+    required this.dx,
+    required this.dy,
+    required this.vx,
+    required this.vy,
+    required this.factor,
+    required this.radians,
+  });
+
+  @override
+  int get hashCode =>
+      kind.hashCode ^
+      x.hashCode ^
+      y.hashCode ^
+      dx.hashCode ^
+      dy.hashCode ^
+      vx.hashCode ^
+      vy.hashCode ^
+      factor.hashCode ^
+      radians.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GestureEventDto &&
+          runtimeType == other.runtimeType &&
+          kind == other.kind &&
+          x == other.x &&
+          y == other.y &&
+          dx == other.dx &&
+          dy == other.dy &&
+          vx == other.vx &&
+          vy == other.vy &&
+          factor == other.factor &&
+          radians == other.radians;
+}
+
+/// Gesture phase forwarded from Flutter (FFI).
+enum GestureKindDto {
+  panStart,
+  panUpdate,
+  panEnd,
+  zoomStart,
+  zoomUpdate,
+  zoomEnd,
+  rotateStart,
+  rotateUpdate,
+  rotateEnd,
+  tap,
+  doubleTap,
+  cancel,
+  ;
 }
 
 /// Label category for overlay styling (FFI).

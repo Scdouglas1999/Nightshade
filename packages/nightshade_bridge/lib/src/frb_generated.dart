@@ -100,7 +100,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -676788946;
+  int get rustContentHash => 221225601;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -1318,6 +1318,12 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiPlanetariumPlanetariumDispose({required PlatformInt64 handle});
 
+  SelectedObjectDto? crateApiPlanetariumPlanetariumHitTest(
+      {required PlatformInt64 handle, required double x, required double y});
+
+  void crateApiPlanetariumPlanetariumPushGesture(
+      {required PlatformInt64 handle, required GestureEventDto evt});
+
   PlatformInt64 crateApiPlanetariumPlanetariumResize(
       {required PlatformInt64 handle,
       required int w,
@@ -1332,6 +1338,9 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiPlanetariumPlanetariumSetPose(
       {required PlatformInt64 handle, required ViewPoseDto pose});
+
+  void crateApiPlanetariumPlanetariumSetSelection(
+      {required PlatformInt64 handle, SelectedObjectDto? selected});
 
   void crateApiPlanetariumPlanetariumSetTime(
       {required PlatformInt64 handle, required AstroTimeDto time});
@@ -10967,6 +10976,59 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  SelectedObjectDto? crateApiPlanetariumPlanetariumHitTest(
+      {required PlatformInt64 handle, required double x, required double y}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_f_32(x);
+        var arg2 = cst_encode_f_32(y);
+        return wire.wire__crate__api__planetarium__planetarium_hit_test(
+            arg0, arg1, arg2);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_opt_box_autoadd_selected_object_dto,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumHitTestConstMeta,
+      argValues: [handle, x, y],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumHitTestConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_hit_test",
+        argNames: ["handle", "x", "y"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumPushGesture(
+      {required PlatformInt64 handle, required GestureEventDto evt}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_box_autoadd_gesture_event_dto(evt);
+        return wire.wire__crate__api__planetarium__planetarium_push_gesture(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumPushGestureConstMeta,
+      argValues: [handle, evt],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumPushGestureConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_push_gesture",
+        argNames: ["handle", "evt"],
+      );
+
+  @override
   PlatformInt64 crateApiPlanetariumPlanetariumResize(
       {required PlatformInt64 handle,
       required int w,
@@ -11073,6 +11135,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "planetarium_set_pose",
         argNames: ["handle", "pose"],
+      );
+
+  @override
+  void crateApiPlanetariumPlanetariumSetSelection(
+      {required PlatformInt64 handle, SelectedObjectDto? selected}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        var arg1 = cst_encode_opt_box_autoadd_selected_object_dto(selected);
+        return wire.wire__crate__api__planetarium__planetarium_set_selection(
+            arg0, arg1);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumSetSelectionConstMeta,
+      argValues: [handle, selected],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumSetSelectionConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_set_selection",
+        argNames: ["handle", "selected"],
       );
 
   @override
@@ -11872,6 +11960,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   FocuserCapabilities dco_decode_box_autoadd_focuser_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_focuser_capabilities(raw);
+  }
+
+  @protected
+  GestureEventDto dco_decode_box_autoadd_gesture_event_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_gesture_event_dto(raw);
   }
 
   @protected
@@ -12964,6 +13058,31 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   FrameTypeApi dco_decode_frame_type_api(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return FrameTypeApi.values[raw as int];
+  }
+
+  @protected
+  GestureEventDto dco_decode_gesture_event_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    return GestureEventDto(
+      kind: dco_decode_gesture_kind_dto(arr[0]),
+      x: dco_decode_f_32(arr[1]),
+      y: dco_decode_f_32(arr[2]),
+      dx: dco_decode_f_32(arr[3]),
+      dy: dco_decode_f_32(arr[4]),
+      vx: dco_decode_f_32(arr[5]),
+      vy: dco_decode_f_32(arr[6]),
+      factor: dco_decode_f_32(arr[7]),
+      radians: dco_decode_f_32(arr[8]),
+    );
+  }
+
+  @protected
+  GestureKindDto dco_decode_gesture_kind_dto(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return GestureKindDto.values[raw as int];
   }
 
   @protected
@@ -15490,6 +15609,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  GestureEventDto sse_decode_box_autoadd_gesture_event_dto(
+      SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_gesture_event_dto(deserializer));
+  }
+
+  @protected
   GuidingEvent sse_decode_box_autoadd_guiding_event(
       SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
@@ -16844,6 +16970,37 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var inner = sse_decode_i_32(deserializer);
     return FrameTypeApi.values[inner];
+  }
+
+  @protected
+  GestureEventDto sse_decode_gesture_event_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_kind = sse_decode_gesture_kind_dto(deserializer);
+    var var_x = sse_decode_f_32(deserializer);
+    var var_y = sse_decode_f_32(deserializer);
+    var var_dx = sse_decode_f_32(deserializer);
+    var var_dy = sse_decode_f_32(deserializer);
+    var var_vx = sse_decode_f_32(deserializer);
+    var var_vy = sse_decode_f_32(deserializer);
+    var var_factor = sse_decode_f_32(deserializer);
+    var var_radians = sse_decode_f_32(deserializer);
+    return GestureEventDto(
+        kind: var_kind,
+        x: var_x,
+        y: var_y,
+        dx: var_dx,
+        dy: var_dy,
+        vx: var_vx,
+        vy: var_vy,
+        factor: var_factor,
+        radians: var_radians);
+  }
+
+  @protected
+  GestureKindDto sse_decode_gesture_kind_dto(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return GestureKindDto.values[inner];
   }
 
   @protected
@@ -19557,6 +19714,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  int cst_encode_gesture_kind_dto(GestureKindDto raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    return cst_encode_i_32(raw.index);
+  }
+
+  @protected
   int cst_encode_heartbeat_status(HeartbeatStatus raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     return cst_encode_i_32(raw.index);
@@ -20022,6 +20185,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       FocuserCapabilities self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_focuser_capabilities(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_gesture_event_dto(
+      GestureEventDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_gesture_event_dto(self, serializer);
   }
 
   @protected
@@ -21030,6 +21200,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @protected
   void sse_encode_frame_type_api(FrameTypeApi self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
+  void sse_encode_gesture_event_dto(
+      GestureEventDto self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_gesture_kind_dto(self.kind, serializer);
+    sse_encode_f_32(self.x, serializer);
+    sse_encode_f_32(self.y, serializer);
+    sse_encode_f_32(self.dx, serializer);
+    sse_encode_f_32(self.dy, serializer);
+    sse_encode_f_32(self.vx, serializer);
+    sse_encode_f_32(self.vy, serializer);
+    sse_encode_f_32(self.factor, serializer);
+    sse_encode_f_32(self.radians, serializer);
+  }
+
+  @protected
+  void sse_encode_gesture_kind_dto(
+      GestureKindDto self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
   }

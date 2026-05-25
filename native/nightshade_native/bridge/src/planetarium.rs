@@ -3,7 +3,7 @@
 //! Replaces the Phase 1 spike module. Dart holds opaque handle ids; each function
 //! looks up the handle in a static registry and forwards commands to the render loop.
 //!
-//! Gesture input and hit-testing are deferred to Tasks 16–18 (not exposed here).
+//! Gesture input and dev-catalog hit-testing cross the FFI here.
 
 use std::collections::HashMap;
 use std::sync::OnceLock;
@@ -11,6 +11,7 @@ use std::thread;
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
+use nightshade_planetarium::gesture::{hit_test::hit_test_dev_catalog, GestureEvent};
 use nightshade_planetarium::scene::{
     LabelCategory, LabelHint, SceneSnapshot, SelectedObject,
 };
@@ -175,6 +176,70 @@ pub struct SelectedObjectDto {
     pub dec_rad: f64,
     pub category: LabelCategoryDto,
     pub display_name: String,
+}
+
+/// Gesture phase forwarded from Flutter (FFI).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum GestureKindDto {
+    PanStart,
+    PanUpdate,
+    PanEnd,
+    ZoomStart,
+    ZoomUpdate,
+    ZoomEnd,
+    RotateStart,
+    RotateUpdate,
+    RotateEnd,
+    Tap,
+    DoubleTap,
+    Cancel,
+}
+
+/// Normalized gesture event (FFI).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GestureEventDto {
+    pub kind: GestureKindDto,
+    pub x: f32,
+    pub y: f32,
+    pub dx: f32,
+    pub dy: f32,
+    pub vx: f32,
+    pub vy: f32,
+    pub factor: f32,
+    pub radians: f32,
+}
+
+impl From<GestureEventDto> for GestureEvent {
+    fn from(dto: GestureEventDto) -> Self {
+        match dto.kind {
+            GestureKindDto::PanStart => Self::PanStart { x: dto.x, y: dto.y },
+            GestureKindDto::PanUpdate => Self::PanUpdate {
+                dx: dto.dx,
+                dy: dto.dy,
+                vx: dto.vx,
+                vy: dto.vy,
+            },
+            GestureKindDto::PanEnd => Self::PanEnd {
+                vx: dto.vx,
+                vy: dto.vy,
+            },
+            GestureKindDto::ZoomStart => Self::ZoomStart { x: dto.x, y: dto.y },
+            GestureKindDto::ZoomUpdate => Self::ZoomUpdate {
+                factor: dto.factor,
+                x: dto.x,
+                y: dto.y,
+            },
+            GestureKindDto::ZoomEnd => Self::ZoomEnd,
+            GestureKindDto::RotateStart => Self::RotateStart,
+            GestureKindDto::RotateUpdate => Self::RotateUpdate {
+                radians: dto.radians,
+            },
+            GestureKindDto::RotateEnd => Self::RotateEnd,
+            GestureKindDto::Tap => Self::Tap { x: dto.x, y: dto.y },
+            GestureKindDto::DoubleTap => Self::DoubleTap { x: dto.x, y: dto.y },
+            GestureKindDto::Cancel => Self::Cancel,
+        }
+    }
 }
 
 /// Immutable per-frame scene snapshot for Dart overlays (FFI).
@@ -478,6 +543,32 @@ pub fn planetarium_set_config(handle: i64, config: RenderConfigDto) -> Result<()
     })
 }
 
+/// Forward a normalized gesture event; updates view pose on pan/zoom/rotate.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_push_gesture(
+    handle: i64,
+    evt: GestureEventDto,
+) -> Result<(), String> {
+    with_planetarium(handle, |planetarium| {
+        planetarium
+            .send(PlanetariumCommand::PushGesture(evt.into()))
+            .map_err(|e| e.to_string())
+    })
+}
+
+/// Screen pick against the dev star table (catalog hit index in Task 72).
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_hit_test(
+    handle: i64,
+    x: f32,
+    y: f32,
+) -> Result<Option<SelectedObjectDto>, String> {
+    with_planetarium(handle, |planetarium| {
+        let pose = planetarium.snapshot().view_pose;
+        Ok(hit_test_dev_catalog(x, y, pose).map(Into::into))
+    })
+}
+
 /// Set or clear the selected object (reprojects screen position each frame).
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_set_selection(
@@ -532,6 +623,22 @@ mod tests {
         }
     }
 
+    fn wait_snapshot_with_ra(handle: i64, expected_ra: f64) -> SceneSnapshotDto {
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        let mut last_ra = 0.0_f64;
+        loop {
+            let snap = planetarium_snapshot(handle).expect("snapshot");
+            last_ra = snap.view_pose.ra_rad;
+            if snap.frame_id > 0 && (snap.view_pose.ra_rad - expected_ra).abs() < f64::EPSILON {
+                return snap;
+            }
+            if Instant::now() >= deadline {
+                panic!("timed out waiting for snapshot ra={expected_ra}; last ra={last_ra}");
+            }
+            thread::sleep(POLL);
+        }
+    }
+
     #[test]
     fn create_dispose_round_trip_without_flutter_engine() {
         let handle = planetarium_create(0).expect("create");
@@ -554,9 +661,8 @@ mod tests {
             },
         )
         .expect("set_pose");
-        let snap = wait_snapshot_frame(handle);
+        let snap = wait_snapshot_with_ra(handle, 2.5);
         assert!(snap.frame_id > 0);
-        assert!((snap.view_pose.ra_rad - 2.5).abs() < f64::EPSILON);
         assert!(
             !snap.labels.is_empty(),
             "snapshot should publish label hints from dev catalog"
@@ -615,6 +721,47 @@ mod tests {
         assert!(
             (selected.screen_x - 0.5).abs() < 0.1 && (selected.screen_y - 0.5).abs() < 0.1,
             "selection should be reprojected near center at pole view"
+        );
+        planetarium_dispose(handle).expect("dispose");
+    }
+
+    #[test]
+    fn push_gesture_pan_updates_snapshot_pose() {
+        let handle = planetarium_create(0).expect("create");
+        planetarium_set_pose(
+            handle,
+            ViewPoseDto {
+                ra_rad: 1.0,
+                dec_rad: 0.5,
+                fov_rad: 1.0,
+                roll_rad: 0.0,
+                projection: SkyProjectionDto::Stereographic,
+            },
+        )
+        .expect("set_pose");
+        let baseline = wait_snapshot_frame(handle);
+        let ra_before = baseline.view_pose.ra_rad;
+
+        planetarium_push_gesture(
+            handle,
+            GestureEventDto {
+                kind: GestureKindDto::PanUpdate,
+                x: 0.0,
+                y: 0.0,
+                dx: 0.2,
+                dy: 0.0,
+                vx: 0.0,
+                vy: 0.0,
+                factor: 1.0,
+                radians: 0.0,
+            },
+        )
+        .expect("push_gesture");
+
+        let snap = wait_snapshot_frame_after(handle, baseline.frame_id);
+        assert!(
+            (snap.view_pose.ra_rad - ra_before).abs() > 1e-6,
+            "pan should change RA in published snapshot"
         );
         planetarium_dispose(handle).expect("dispose");
     }

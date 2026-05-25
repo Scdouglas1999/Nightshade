@@ -260,6 +260,18 @@ typedef struct wire_cst_app_settings {
   bool auto_connect;
 } wire_cst_app_settings;
 
+typedef struct wire_cst_gesture_event_dto {
+  int32_t kind;
+  float x;
+  float y;
+  float dx;
+  float dy;
+  float vx;
+  float vy;
+  float factor;
+  float radians;
+} wire_cst_gesture_event_dto;
+
 typedef struct wire_cst_render_config_dto {
   bool show_stars;
   bool show_constellations;
@@ -299,6 +311,16 @@ typedef struct wire_cst_view_pose_dto {
   float roll_rad;
   int32_t projection;
 } wire_cst_view_pose_dto;
+
+typedef struct wire_cst_selected_object_dto {
+  uint64_t object_id;
+  float screen_x;
+  float screen_y;
+  double ra_rad;
+  double dec_rad;
+  int32_t category;
+  struct wire_cst_list_prim_u_8_strict *display_name;
+} wire_cst_selected_object_dto;
 
 typedef struct wire_cst_astro_time_dto {
   double jd_utc;
@@ -836,16 +858,6 @@ typedef struct wire_cst_safety_monitor_capabilities {
   bool is_safe;
   struct wire_cst_list_prim_u_8_strict *safety_description;
 } wire_cst_safety_monitor_capabilities;
-
-typedef struct wire_cst_selected_object_dto {
-  uint64_t object_id;
-  float screen_x;
-  float screen_y;
-  double ra_rad;
-  double dec_rad;
-  int32_t category;
-  struct wire_cst_list_prim_u_8_strict *display_name;
-} wire_cst_selected_object_dto;
 
 typedef struct wire_cst_SequencerEvent_Started {
   struct wire_cst_list_prim_u_8_strict *sequence_name;
@@ -3376,6 +3388,13 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_dispose(int64_t handle);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_hit_test(int64_t handle,
+                                                                                                  float x,
+                                                                                                  float y);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_push_gesture(int64_t handle,
+                                                                                                      struct wire_cst_gesture_event_dto *evt);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_resize(int64_t handle,
                                                                                                 uint32_t w,
                                                                                                 uint32_t h,
@@ -3389,6 +3408,9 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose(int64_t handle,
                                                                                                   struct wire_cst_view_pose_dto *pose);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_selection(int64_t handle,
+                                                                                                       struct wire_cst_selected_object_dto *selected);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time(int64_t handle,
                                                                                                   struct wire_cst_astro_time_dto *time);
@@ -3493,6 +3515,8 @@ struct wire_cst_fits_write_header *frbgen_nightshade_bridge_cst_new_box_autoadd_
 struct wire_cst_fits_write_header_rich *frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich(void);
 
 struct wire_cst_focuser_capabilities *frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities(void);
+
+struct wire_cst_gesture_event_dto *frbgen_nightshade_bridge_cst_new_box_autoadd_gesture_event_dto(void);
 
 struct wire_cst_guiding_event *frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event(void);
 
@@ -3646,6 +3670,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_fits_write_header_rich);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_focuser_capabilities);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_gesture_event_dto);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_guiding_event);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_32);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_box_autoadd_i_64);
@@ -3968,10 +3993,13 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__phd2__api_phd2_stop_guiding);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_create);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_dispose);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_hit_test);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_push_gesture);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_resize);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_observer);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_pose);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_selection);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_get_plate_solver_path);
