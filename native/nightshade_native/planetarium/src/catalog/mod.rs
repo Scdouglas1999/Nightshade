@@ -4,6 +4,7 @@
 //! See `docs/plans/2026-05-25-planetarium-v2-design.md` §6.2.
 
 pub mod constellation_lines;
+pub mod variable_stars;
 pub mod healpix;
 pub mod hit_index;
 pub mod hyg_build;
@@ -16,6 +17,11 @@ pub use constellation_lines::{
     find_by_abbreviation, icrs_dir_from_j2000, line_vertex_count, ConstellationLines,
     ConstellationSegment, CONSTELLATION_COUNT, CONSTELLATIONS, LINE_SEGMENT_COUNT,
     LINE_VERTEX_COUNT,
+};
+pub use variable_stars::{
+    brighter_than, by_constellation, by_kind, estimate_magnitude, find_by_name, icrs_dir,
+    julian_date_from_utc, mag_range, search as search_variable_stars, stars as variable_stars,
+    VariableStar, VariableStarKind, STAR_COUNT as VARIABLE_STAR_COUNT,
 };
 pub use healpix::{
     bounding_pixels_for_fov, depth_for_nside, fov_cap_radius_rad, pixel_for_direction,
