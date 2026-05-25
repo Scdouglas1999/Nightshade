@@ -8,6 +8,12 @@ authors.workspace = true
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
+wgpu = "22"
+bytemuck = { version = "1.16", features = ["derive"] }
+pollster = "0.3"
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [features]
 default = []
