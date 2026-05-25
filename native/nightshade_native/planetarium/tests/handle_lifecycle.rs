@@ -267,6 +267,62 @@ fn hit_test_uses_render_thread_pose_not_published_snapshot() {
 }
 
 #[test]
+fn wait_for_texture_id_unblocks_on_render_thread_signal_not_busy_poll() {
+    // Resize without a Flutter engine always fails (surface allocate errors),
+    // and the render thread notifies the texture_signal condvar on BOTH success
+    // and failure. The waiter must return promptly after the failure is
+    // observable — not wait for the 2s deadline.
+    let planetarium = Planetarium::new(0).expect("new");
+    let since = planetarium.resize_generation();
+    planetarium
+        .send(PlanetariumCommand::Resize {
+            width: 64,
+            height: 64,
+            dpr: 1.0,
+        })
+        .expect("resize");
+
+    let start = Instant::now();
+    let result = planetarium.wait_for_texture_id(since, Duration::from_secs(2));
+    let elapsed = start.elapsed();
+
+    assert!(
+        matches!(result, Err(PlanetariumError::NotAllocated)),
+        "expected NotAllocated, got {result:?}",
+    );
+    // The condvar should have woken us well within 500 ms even on slow CI.
+    // Regression guarded: prior busy-poll polled every 2 ms but would still
+    // time out at 2 s without an outcome signal.
+    assert!(
+        elapsed < Duration::from_millis(500),
+        "wait_for_texture_id elapsed {elapsed:?} — signal mechanism didn't fire",
+    );
+}
+
+#[test]
+fn wait_for_texture_id_returns_immediately_when_already_allocated() {
+    // No way to allocate a texture in unit tests (no Flutter engine), but the
+    // fast-path branch is observable: if texture_id is NotAllocated and no
+    // resize is ever queued, wait_for_texture_id should return NotAllocated
+    // after exactly the timeout — never sooner.
+    let planetarium = Planetarium::new(0).expect("new");
+    let since = planetarium.resize_generation();
+    let start = Instant::now();
+    let result = planetarium.wait_for_texture_id(since, Duration::from_millis(40));
+    let elapsed = start.elapsed();
+
+    assert!(matches!(result, Err(PlanetariumError::NotAllocated)));
+    assert!(
+        elapsed >= Duration::from_millis(35),
+        "wait returned too early ({elapsed:?}); expected ~40ms",
+    );
+    assert!(
+        elapsed < Duration::from_millis(300),
+        "wait should not over-stay timeout by much ({elapsed:?})",
+    );
+}
+
+#[test]
 fn live_render_config_updates_through_render_thread() {
     // Before the fix, SetConfig wrote both an FFI-thread Mutex<RenderConfig>
     // mirror AND queued the command for the render thread. The two could

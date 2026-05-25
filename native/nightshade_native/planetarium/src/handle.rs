@@ -8,7 +8,8 @@ use std::sync::Arc;
 
 use arc_swap::ArcSwap;
 use crossbeam_channel::SendError;
-use parking_lot::Mutex;
+use parking_lot::{Condvar, Mutex};
+use std::time::Duration;
 
 use crate::animation::AnimationState;
 use crate::bus::dirty::DirtyFlags;
@@ -63,6 +64,11 @@ struct PlanetariumInner {
     surface_error: Arc<Mutex<Option<String>>>,
     /// Incremented at the start of each [`PlanetariumCommand::Resize`] (observable retry).
     resize_generation: Arc<AtomicU64>,
+    /// Mutex+Condvar pair the render thread notifies after EVERY resize attempt,
+    /// success or failure. [`Planetarium::wait_for_texture_id`] blocks on it so
+    /// FFI callers don't busy-poll. The bool is incremented (mod 2 — boolean
+    /// semantics don't matter, only the wakeup) to satisfy spurious-wake checks.
+    texture_signal: Arc<(Mutex<u64>, Condvar)>,
     catalog: Arc<Mutex<CatalogSet>>,
 }
 
@@ -78,6 +84,7 @@ struct PlanetariumRenderer {
     texture_id: Arc<AtomicI64>,
     surface_error: Arc<Mutex<Option<String>>>,
     resize_generation: Arc<AtomicU64>,
+    texture_signal: Arc<(Mutex<u64>, Condvar)>,
     catalog: Arc<Mutex<CatalogSet>>,
     frame_id: u64,
     view_pose: ViewPose,
@@ -141,6 +148,7 @@ impl Planetarium {
         let texture_id = Arc::new(AtomicI64::new(NO_TEXTURE_ID));
         let surface_error = Arc::new(Mutex::new(None));
         let resize_generation = Arc::new(AtomicU64::new(0));
+        let texture_signal = Arc::new((Mutex::new(0_u64), Condvar::new()));
         let catalog = Arc::new(Mutex::new(CatalogSet::new()));
 
         let renderer = PlanetariumRenderer {
@@ -151,6 +159,7 @@ impl Planetarium {
             texture_id: Arc::clone(&texture_id),
             surface_error: Arc::clone(&surface_error),
             resize_generation: Arc::clone(&resize_generation),
+            texture_signal: Arc::clone(&texture_signal),
             catalog: Arc::clone(&catalog),
             frame_id: 0,
             view_pose: ViewPose::default(),
@@ -177,6 +186,7 @@ impl Planetarium {
                 texture_id,
                 surface_error,
                 resize_generation,
+                texture_signal,
                 catalog,
             }),
             _render_loop: render_loop,
@@ -240,6 +250,62 @@ impl Planetarium {
         }
     }
 
+    /// Block until the render thread reports a texture allocation outcome from
+    /// a resize attempt newer than `since_resize_gen`, or `timeout` elapses.
+    ///
+    /// Use [`Self::resize_generation`] to capture `since_resize_gen` BEFORE
+    /// sending the [`PlanetariumCommand::Resize`] command — that way the
+    /// waiter correctly detects an outcome from a resize that completed
+    /// before the waiter began waiting. (If you call `wait_for_texture_id`
+    /// without first snapshotting the generation, you may miss the notify
+    /// that fired before you started listening.)
+    ///
+    /// Returns `Ok(id)` when the surface allocates successfully. Returns
+    /// `Err(NotAllocated)` either when `timeout` elapses or when the render
+    /// thread completes a resize attempt that produced an error (use
+    /// [`Self::last_surface_error`] to distinguish). Signal-driven —
+    /// the render thread notifies the underlying condvar after every resize
+    /// attempt (success OR failure), so the FFI caller unblocks the moment a
+    /// definitive outcome exists, without busy-polling.
+    pub fn wait_for_texture_id(
+        &self,
+        since_resize_gen: u64,
+        timeout: Duration,
+    ) -> Result<i64, PlanetariumError> {
+        // Fast path: already allocated. No mutex acquisition.
+        if let Ok(id) = self.texture_id() {
+            return Ok(id);
+        }
+        // Fast path: a resize newer than `since_resize_gen` has already
+        // completed and produced a definitive failure outcome.
+        if self.resize_generation() > since_resize_gen
+            && self.inner.surface_error.lock().is_some()
+        {
+            return Err(PlanetariumError::NotAllocated);
+        }
+
+        let (lock, cond) = &*self.inner.texture_signal;
+        let mut guard = lock.lock();
+        let deadline = std::time::Instant::now() + timeout;
+        loop {
+            // Re-check on every wake — handles spurious wakes and notifies
+            // that fired between the fast-path check and the lock acquisition.
+            if let Ok(id) = self.texture_id() {
+                return Ok(id);
+            }
+            if self.resize_generation() > since_resize_gen
+                && self.inner.surface_error.lock().is_some()
+            {
+                return Err(PlanetariumError::NotAllocated);
+            }
+            let now = std::time::Instant::now();
+            if now >= deadline {
+                return Err(PlanetariumError::NotAllocated);
+            }
+            let _ = cond.wait_for(&mut guard, deadline - now);
+        }
+    }
+
     /// Last surface allocate/resize failure from the render thread, if any.
     pub fn last_surface_error(&self) -> Option<String> {
         self.inner.surface_error.lock().clone()
@@ -288,6 +354,11 @@ impl FrameRenderer for PlanetariumRenderer {
                         tracing::error!("surface resize failed: {err}");
                     }
                 }
+                // Wake any FFI thread blocked in `wait_for_texture_id` regardless
+                // of success/failure — both outcomes are observable on the slot.
+                let (lock, cond) = &*self.texture_signal;
+                *lock.lock() += 1;
+                cond.notify_all();
             }
             PlanetariumCommand::SetTime(time) => {
                 self.astro_time = *time;

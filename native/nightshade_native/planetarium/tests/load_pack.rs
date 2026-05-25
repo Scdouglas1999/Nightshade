@@ -77,15 +77,29 @@ fn planetarium_load_pack_registers_catalog_for_hit_test() {
     let planetarium = Planetarium::new(0).expect("create");
     planetarium.load_pack(&pack_dir).expect("load_pack");
 
+    let target_pose = ViewPose {
+        ra_rad: 0.662_062,
+        dec_rad: 1.557_896,
+        fov_rad: 1.5, // wider FOV so the hit-test pick cone is generous
+        roll_rad: 0.0,
+        projection: SkyProjection::Stereographic,
+    };
     planetarium
-        .send(nightshade_planetarium::bus::PlanetariumCommand::SetPose(ViewPose {
-            ra_rad: 0.662_062,
-            dec_rad: 1.557_896,
-            fov_rad: 0.35,
-            roll_rad: 0.0,
-            projection: SkyProjection::Stereographic,
-        }))
+        .send(nightshade_planetarium::bus::PlanetariumCommand::SetPose(
+            target_pose,
+        ))
         .expect("set_pose");
+
+    // Wait for the render thread to process SetPose so live_pose (the source
+    // hit_test reads from) reflects the new pose; otherwise this races against
+    // render-thread scheduling and is flaky.
+    let deadline = std::time::Instant::now() + std::time::Duration::from_millis(500);
+    while (planetarium.live_pose().ra_rad - target_pose.ra_rad).abs() > 1e-9 {
+        if std::time::Instant::now() >= deadline {
+            panic!("live_pose did not catch up to target SetPose");
+        }
+        std::thread::sleep(std::time::Duration::from_millis(2));
+    }
 
     let selected = planetarium
         .hit_test(0.5, 0.5)
