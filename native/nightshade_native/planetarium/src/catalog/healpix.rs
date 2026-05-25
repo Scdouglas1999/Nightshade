@@ -82,6 +82,23 @@ pub fn depth_for_nside(nside: u32) -> Result<u8, HealpixError> {
     }
 }
 
+/// ICRS (ra, dec) radians of a NESTED pixel cell center.
+#[must_use]
+pub fn pixel_center_radec(healpix_id: u64, nside: u32) -> Result<(f64, f64), HealpixError> {
+    let depth = depth_for_nside(nside)?;
+    Ok(nested::center(depth, healpix_id))
+}
+
+/// Great-circle angular separation (radians) between two ICRS directions.
+#[must_use]
+pub fn angular_separation_rad(ra0: f64, dec0: f64, ra1: f64, dec1: f64) -> f64 {
+    let (s0, c0) = dec0.sin_cos();
+    let (s1, c1) = dec1.sin_cos();
+    let d_ra = ra1 - ra0;
+    let cos_sep = (s0 * s1 + c0 * c1 * d_ra.cos()).clamp(-1.0, 1.0);
+    cos_sep.acos()
+}
+
 /// Angular radius (radians) of the sphere cap enclosing the projected viewport.
 #[must_use]
 pub fn fov_cap_radius_rad(pose: &ViewPose, fov_rad: f32) -> f64 {

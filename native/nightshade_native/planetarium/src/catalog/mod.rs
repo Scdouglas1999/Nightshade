@@ -6,6 +6,7 @@
 
 pub mod constellation_lines;
 pub mod dso;
+pub mod milky_way;
 pub mod minor_body;
 pub mod satellite;
 pub mod variable_stars;
@@ -16,6 +17,7 @@ pub mod opengnc_build;
 mod pack;
 mod residency;
 mod set;
+mod star_tile_pack;
 pub mod tile;
 
 pub use constellation_lines::{
@@ -38,6 +40,7 @@ pub use pack::{
     load_and_verify_pack, sha256_hex, PackError, PackManifest, PACK_MANIFEST_NAME,
 };
 pub use set::{CatalogHit, CatalogSet, StarPack};
+pub use star_tile_pack::open_star_tile_pack;
 pub use minor_body::{
     catalog_byte_len as minor_body_catalog_byte_len, encode_catalog as encode_minor_body_catalog,
     parse_catalog as parse_minor_body_catalog, parse_mpc_orbit_line, parse_mpcorb_dat,
@@ -54,6 +57,16 @@ pub use satellite::{
     SatelliteTleRecord, TleEntry, TleTextParseError, ParsedSatelliteTleCatalog,
     SATELLITE_TLE_CATALOG_ID, SATELLITE_TLE_CATALOG_MAGIC, SATELLITE_TLE_HEADER_LEN,
     SATELLITE_TLE_PACK_VERSION, SATELLITE_TLE_RECORD_LEN, TLE_LINE_WIDTH,
+};
+pub use milky_way::{
+    build_milky_way_asset, build_milky_way_map, default_mw_asset_path, encode_milky_way_map,
+    equatorial_to_galactic_deg, galactic_intensity, galactic_to_equatorial_deg, load_milky_way_map,
+    parse_milky_way_map, MilkyWayBuildResult, MilkyWayError, MilkyWayHeader, MilkyWayMap,
+    GALACTIC_ASCENDING_NODE_DEG, GALACTIC_CENTER_DEC_DEG, GALACTIC_CENTER_RA_DEG,
+    GALACTIC_NORTH_POLE_DEC_DEG, GALACTIC_NORTH_POLE_RA_DEG, MILKY_WAY_ASSET_REL_PATH,
+    MILKY_WAY_FILE_LEN, MILKY_WAY_FORMAT_R8, MILKY_WAY_HEADER_LEN, MILKY_WAY_HEIGHT,
+    MILKY_WAY_INTENSITY_FLOOR, MILKY_WAY_MAGIC, MILKY_WAY_PACK_VERSION, MILKY_WAY_PAYLOAD_LEN,
+    MILKY_WAY_WIDTH,
 };
 pub use dso::{
     catalog_byte_len, encode_catalog, parse_catalog, type_id_from_opengnc, DsoCatalogHeader,

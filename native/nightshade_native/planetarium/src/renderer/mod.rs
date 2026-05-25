@@ -151,6 +151,14 @@ impl Renderer {
 
     /// Run the frame graph for `scene` into the internal render target.
     pub fn render(&mut self, scene: &Scene) {
+        let view = self
+            .target
+            .create_view(&wgpu::TextureViewDescriptor::default());
+        self.render_into(&view, scene);
+    }
+
+    /// Run the frame graph for `scene` into an external color attachment (Flutter shared texture).
+    pub fn render_into(&mut self, target_view: &wgpu::TextureView, scene: &Scene) {
         self.upload_star_instances(scene);
 
         let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
@@ -158,7 +166,7 @@ impl Renderer {
         });
         FrameGraph::render(
             &mut encoder,
-            &self.target_view,
+            target_view,
             scene,
             &self.stars,
             &self.star_instance_buf,

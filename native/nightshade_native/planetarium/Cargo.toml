@@ -13,6 +13,10 @@ path = "src/bin/build_hyg_tiles.rs"
 name = "build_opengnc"
 path = "src/bin/build_opengnc.rs"
 
+[[bin]]
+name = "build_milky_way"
+path = "src/bin/build_milky_way.rs"
+
 [dependencies]
 thiserror.workspace = true
 tracing.workspace = true
