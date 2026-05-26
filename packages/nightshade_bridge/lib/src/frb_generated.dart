@@ -20,6 +20,7 @@ import 'api/diagnostics.dart';
 import 'api/discovery.dart';
 import 'api/event_stream.dart';
 import 'api/heartbeat.dart';
+import 'api/hotplug.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
 import 'api/phd2.dart';
@@ -100,7 +101,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => 1803850016;
+  int get rustContentHash => -897549093;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -840,6 +841,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<XisfReadResult> crateApiImagingApiReadXisfFile(
       {required String filePath});
+
+  Future<void> crateApiHotplugApiRescanDevices();
 
   Future<void> crateApiDevicesSimulationApiRotatorHalt(
       {required String deviceId});
@@ -7069,6 +7072,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_read_xisf_file",
         argNames: ["filePath"],
+      );
+
+  @override
+  Future<void> crateApiHotplugApiRescanDevices() {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        return wire.wire__crate__api__hotplug__api_rescan_devices(port_);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: null,
+      ),
+      constMeta: kCrateApiHotplugApiRescanDevicesConstMeta,
+      argValues: [],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiHotplugApiRescanDevicesConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_rescan_devices",
+        argNames: [],
       );
 
   @override

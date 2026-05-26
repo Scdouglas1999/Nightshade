@@ -161,7 +161,8 @@ class NetworkBackend implements NightshadeBackend {
   final String serverHost;
   final int serverPort;
   final int webSocketPort;
-  final String? authToken;
+  String? authToken;
+  final Future<String?> Function()? refreshAuthToken;
   final Duration webSocketHeartbeatInterval;
   final Duration webSocketHeartbeatTimeout;
 
@@ -262,6 +263,7 @@ class NetworkBackend implements NightshadeBackend {
     this.serverPort = 8080,
     this.webSocketPort = 8080, // WebSocket is on same port as HTTP
     this.authToken,
+    this.refreshAuthToken,
     this.webSocketHeartbeatInterval = const Duration(seconds: 15),
     this.webSocketHeartbeatTimeout = const Duration(seconds: 45),
     http.Client? httpClient,
@@ -1033,10 +1035,58 @@ class NetworkBackend implements NightshadeBackend {
     headers[RemoteApiCompatibility.apiVersionHeader] =
         RemoteApiCompatibility.clientApiVersion.format();
     headers[_requestIdHeader] = _nextRequestId(endpoint);
-    if (authToken != null) {
+    if (authToken != null && authToken!.isNotEmpty) {
       headers['Authorization'] = 'Bearer $authToken';
     }
     return headers;
+  }
+
+  Map<String, String> _buildRequestHeaders(
+    String endpoint, {
+    bool jsonContent = false,
+    Map<String, String>? extraHeaders,
+  }) {
+    final headers = _addAuthHeaders({}, endpoint: endpoint);
+    if (jsonContent) {
+      headers[HttpHeaders.contentTypeHeader] = 'application/json';
+    }
+    if (extraHeaders != null && extraHeaders.isNotEmpty) {
+      headers.addAll(extraHeaders);
+    }
+    return headers;
+  }
+
+  Future<http.Response> _sendWithAuthRefresh({
+    required String endpoint,
+    required Future<http.Response> Function(Map<String, String> headers) send,
+    bool jsonContent = false,
+    Map<String, String>? extraHeaders,
+  }) async {
+    var headers = _buildRequestHeaders(
+      endpoint,
+      jsonContent: jsonContent,
+      extraHeaders: extraHeaders,
+    );
+    final response = await send(headers);
+    if (response.statusCode != 401 || refreshAuthToken == null) {
+      return response;
+    }
+
+    final previousToken = authToken;
+    final refreshedToken = await refreshAuthToken!();
+    if (refreshedToken == null ||
+        refreshedToken.isEmpty ||
+        refreshedToken == previousToken) {
+      return response;
+    }
+
+    authToken = refreshedToken;
+    headers = _buildRequestHeaders(
+      endpoint,
+      jsonContent: jsonContent,
+      extraHeaders: extraHeaders,
+    );
+    return send(headers);
   }
 
   /// Determine if an HTTP exception is a transient failure that can be retried
@@ -1243,8 +1293,10 @@ class NetworkBackend implements NightshadeBackend {
               ...queryParams.map((k, v) => MapEntry(k, v.toString())),
             });
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      final response = await _http.get(uri, headers: headers);
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        send: (headers) => _http.get(uri, headers: headers),
+      );
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
@@ -1260,20 +1312,15 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers[HttpHeaders.contentTypeHeader] = 'application/json';
-      // [Wave 6B settings sync] callers can stamp identification headers
-      // (e.g. X-Nightshade-Command-Id) onto the request so server-emitted
-      // events can be correlated back to the originating client and that
-      // client can drop its own echo.
-      if (extraHeaders != null && extraHeaders.isNotEmpty) {
-        headers.addAll(extraHeaders);
-      }
-
-      final response = await _http.post(
-        uri,
-        headers: headers,
-        body: body == null ? null : jsonEncode(body),
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        jsonContent: true,
+        extraHeaders: extraHeaders,
+        send: (headers) => _http.post(
+          uri,
+          headers: headers,
+          body: body == null ? null : jsonEncode(body),
+        ),
       );
 
       if (response.statusCode != 200) {
@@ -1289,8 +1336,10 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      final response = await _http.delete(uri, headers: headers);
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        send: (headers) => _http.delete(uri, headers: headers),
+      );
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
@@ -1304,13 +1353,14 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers[HttpHeaders.contentTypeHeader] = 'application/json';
-
-      final response = await _http.put(
-        uri,
-        headers: headers,
-        body: body == null ? null : jsonEncode(body),
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        jsonContent: true,
+        send: (headers) => _http.put(
+          uri,
+          headers: headers,
+          body: body == null ? null : jsonEncode(body),
+        ),
       );
 
       if (response.statusCode != 200) {
@@ -1343,9 +1393,10 @@ class NetworkBackend implements NightshadeBackend {
               ...baseUri.queryParameters,
               ...queryParams.map((k, v) => MapEntry(k, v.toString())),
             });
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-
-      final response = await _http.get(uri, headers: headers);
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        send: (headers) => _http.get(uri, headers: headers),
+      );
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
             response.statusCode, response.body, 'GET', endpoint);
@@ -1380,10 +1431,11 @@ class NetworkBackend implements NightshadeBackend {
             queryParams.map((key, value) => MapEntry(key, value.toString())),
       );
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers[HttpHeaders.contentTypeHeader] = contentType;
-
-      final response = await _http.post(uri, headers: headers, body: bytes);
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        extraHeaders: {HttpHeaders.contentTypeHeader: contentType},
+        send: (headers) => _http.post(uri, headers: headers, body: bytes),
+      );
 
       if (response.statusCode != 200) {
         throw _parseErrorResponse(
@@ -1401,13 +1453,14 @@ class NetworkBackend implements NightshadeBackend {
     return _retryableRequest(() async {
       final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
 
-      final headers = _addAuthHeaders({}, endpoint: endpoint);
-      headers[HttpHeaders.contentTypeHeader] = 'application/json';
-
-      final response = await _http.post(
-        uri,
-        headers: headers,
-        body: jsonEncode(body),
+      final response = await _sendWithAuthRefresh(
+        endpoint: endpoint,
+        jsonContent: true,
+        send: (headers) => _http.post(
+          uri,
+          headers: headers,
+          body: jsonEncode(body),
+        ),
       );
       if (response.statusCode != 200) {
         throw _parseErrorResponse(

@@ -34,7 +34,7 @@ void main() {
       mountId: mountId,
       totalRmsArcsec: rms,
       sampleCount: sampleCount,
-      exposureSeconds: exposureSeconds,
+      exposureSeconds: Value(exposureSeconds),
       recordedAt: recordedAt,
       targetId: targetId == null ? const Value.absent() : Value(targetId),
     );

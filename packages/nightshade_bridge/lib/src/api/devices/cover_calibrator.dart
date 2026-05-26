@@ -8,64 +8,38 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Open cover calibrator dust cover
-Future<void> apiCoverCalibratorOpenCover({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorOpenCover(
-            deviceId: deviceId);
+
+            
+
+            /// Open cover calibrator dust cover
+Future<void>  apiCoverCalibratorOpenCover({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorOpenCover(deviceId: deviceId);
 
 /// Close cover calibrator dust cover
-Future<void> apiCoverCalibratorCloseCover({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorCloseCover(
-            deviceId: deviceId);
+Future<void>  apiCoverCalibratorCloseCover({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorCloseCover(deviceId: deviceId);
 
 /// Halt cover calibrator cover movement
-Future<void> apiCoverCalibratorHaltCover({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorHaltCover(
-            deviceId: deviceId);
+Future<void>  apiCoverCalibratorHaltCover({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorHaltCover(deviceId: deviceId);
 
 /// Turn on cover calibrator light at specified brightness
-Future<void> apiCoverCalibratorCalibratorOn(
-        {required String deviceId, required int brightness}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOn(
-            deviceId: deviceId, brightness: brightness);
+Future<void>  apiCoverCalibratorCalibratorOn({required String deviceId , required int brightness }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOn(deviceId: deviceId, brightness: brightness);
 
 /// Turn off cover calibrator light
-Future<void> apiCoverCalibratorCalibratorOff({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOff(
-            deviceId: deviceId);
+Future<void>  apiCoverCalibratorCalibratorOff({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorCalibratorOff(deviceId: deviceId);
 
 /// Get cover calibrator cover state (0=NotPresent, 1=Closed, 2=Moving, 3=Open, 4=Unknown, 5=Error)
-Future<int> apiCoverCalibratorGetCoverState({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverState(
-            deviceId: deviceId);
+Future<int>  apiCoverCalibratorGetCoverState({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorGetCoverState(deviceId: deviceId);
 
 /// Get cover calibrator calibrator state (0=NotPresent, 1=Off, 2=NotReady, 3=Ready, 4=Unknown, 5=Error)
-Future<int> apiCoverCalibratorGetCalibratorState({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorState(
-            deviceId: deviceId);
+Future<int>  apiCoverCalibratorGetCalibratorState({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorGetCalibratorState(deviceId: deviceId);
 
 /// Get cover calibrator current brightness
-Future<int> apiCoverCalibratorGetBrightness({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightness(
-            deviceId: deviceId);
+Future<int>  apiCoverCalibratorGetBrightness({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorGetBrightness(deviceId: deviceId);
 
 /// Get cover calibrator maximum brightness
-Future<int> apiCoverCalibratorGetMaxBrightness({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightness(
-            deviceId: deviceId);
+Future<int>  apiCoverCalibratorGetMaxBrightness({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorGetMaxBrightness(deviceId: deviceId);
 
 /// Get cover calibrator full status
-Future<CoverCalibratorStatus> apiCoverCalibratorGetStatus(
-        {required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesCoverCalibratorApiCoverCalibratorGetStatus(
-            deviceId: deviceId);
+Future<CoverCalibratorStatus>  apiCoverCalibratorGetStatus({required String deviceId }) => RustLib.instance.api.crateApiDevicesCoverCalibratorApiCoverCalibratorGetStatus(deviceId: deviceId);
+
+            
+            

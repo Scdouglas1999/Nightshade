@@ -412,6 +412,10 @@ void main() {
           await backend.connectionStateStream
               .firstWhere((s) => s == BackendConnectionState.reconnecting)
               .timeout(const Duration(seconds: 5));
+          await _waitUntil(
+            () => connectionCount > 1,
+            timeout: const Duration(seconds: 5),
+          );
 
           expect(connectionCount, greaterThan(1));
         } finally {
@@ -434,8 +438,7 @@ void main() {
             socket.add(jsonEncode({'type': 'pong'}));
             return;
           }
-          if (data['type'] == 'collaboration.join' &&
-              !joinFrame.isCompleted) {
+          if (data['type'] == 'collaboration.join' && !joinFrame.isCompleted) {
             joinFrame.complete(data);
           }
         });
@@ -457,8 +460,8 @@ void main() {
 
       try {
         unawaited(backend.connect());
-        final frame = await joinFrame.future
-            .timeout(const Duration(seconds: 3));
+        final frame =
+            await joinFrame.future.timeout(const Duration(seconds: 3));
         expect(frame['type'], 'collaboration.join');
         expect(frame['viewerId'], 'digest-fingerprint-abc');
         expect(frame['name'], 'iPhone · 1234');
@@ -577,4 +580,17 @@ Future<HttpServer> _startServer(
   });
 
   return server;
+}
+
+Future<void> _waitUntil(
+  bool Function() condition, {
+  required Duration timeout,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (!condition()) {
+    if (DateTime.now().isAfter(deadline)) {
+      throw TimeoutException('Condition was not met within $timeout');
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+  }
 }

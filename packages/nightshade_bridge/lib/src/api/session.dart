@@ -8,15 +8,17 @@ import '../frb_generated.dart';
 import '../state.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Get current session state
-Future<SessionState> apiGetSessionState() =>
-    RustLib.instance.api.crateApiSessionApiGetSessionState();
+
+            
+
+            /// Get current session state
+Future<SessionState>  apiGetSessionState() => RustLib.instance.api.crateApiSessionApiGetSessionState();
 
 /// Start a new imaging session
-Future<void> apiStartSession({String? targetName, double? ra, double? dec}) =>
-    RustLib.instance.api.crateApiSessionApiStartSession(
-        targetName: targetName, ra: ra, dec: dec);
+Future<void>  apiStartSession({String? targetName , double? ra , double? dec }) => RustLib.instance.api.crateApiSessionApiStartSession(targetName: targetName, ra: ra, dec: dec);
 
 /// End the current session
-Future<void> apiEndSession() =>
-    RustLib.instance.api.crateApiSessionApiEndSession();
+Future<void>  apiEndSession() => RustLib.instance.api.crateApiSessionApiEndSession();
+
+            
+            

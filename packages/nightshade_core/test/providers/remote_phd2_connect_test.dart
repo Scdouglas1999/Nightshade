@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/services/phd2_status_poll.dart';
 
 class _MockNetworkBackend extends Mock implements NetworkBackend {}
 
@@ -18,16 +17,6 @@ class _Phd2PathSettingsNotifier extends AppSettingsNotifier {
   Future<AppSettingsState> build() async {
     return const AppSettingsState(
       phd2Path: r'C:\Program Files\PHD2\phd2.exe',
-      phd2Host: 'localhost',
-      phd2Port: 4400,
-    );
-  }
-}
-
-class _EmptyPhd2PathSettingsNotifier extends AppSettingsNotifier {
-  @override
-  Future<AppSettingsState> build() async {
-    return const AppSettingsState(
       phd2Host: 'localhost',
       phd2Port: 4400,
     );
@@ -85,7 +74,8 @@ void main() {
         (_) => const Stream<NightshadeEvent>.empty(),
       );
       when(
-        () => backend.phd2Connect(host: any(named: 'host'), port: any(named: 'port')),
+        () => backend.phd2Connect(
+            host: any(named: 'host'), port: any(named: 'port')),
       ).thenAnswer((_) async {});
       when(() => backend.phd2GetStatus()).thenAnswer(
         (_) async => const Phd2Status(
@@ -123,7 +113,8 @@ void main() {
       );
     });
 
-    test('pollPhd2Connected throws when host never reports connected', () async {
+    test('pollPhd2Connected throws when host never reports connected',
+        () async {
       final backend = _MockNetworkBackend();
       when(() => backend.phd2GetStatus()).thenAnswer(
         (_) async => kPhd2DisconnectedStatus,
@@ -148,7 +139,8 @@ void main() {
         (_) => const Stream<NightshadeEvent>.empty(),
       );
       when(
-        () => backend.phd2Connect(host: any(named: 'host'), port: any(named: 'port')),
+        () => backend.phd2Connect(
+            host: any(named: 'host'), port: any(named: 'port')),
       ).thenAnswer((_) async {});
       when(() => backend.phd2GetStatus()).thenAnswer(
         (_) async => const Phd2Status(
@@ -177,7 +169,7 @@ void main() {
       await container.read(deviceServiceProvider).connectGuider('phd2_guider');
 
       verify(
-        () => backend.phd2Connect(host: 'localhost', port: 4400),
+        () => backend.phd2Connect(host: '127.0.0.1', port: 4400),
       ).called(1);
       verify(() => backend.phd2GetStatus()).called(1);
       expect(
@@ -188,7 +180,8 @@ void main() {
   });
 
   group('remote session PHD2 hydration', () {
-    test('does not clear guider when status poll fails after device list hydrate',
+    test(
+        'does not clear guider when status poll fails after device list hydrate',
         () async {
       final backend = _MockNetworkBackend();
       when(() => backend.sequencerGetStatus()).thenAnswer(

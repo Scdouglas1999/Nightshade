@@ -116,6 +116,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+        await _createFrameForensicsTable();
         await _ensureCapturedImagesProducingNodeColumns();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
@@ -1670,41 +1671,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         //     payload as JSON so future heuristic columns can be added
         //     without breaking forward / backward compat.
         if (from < 32) {
-          await customStatement(
-            'CREATE TABLE IF NOT EXISTS frame_forensics ('
-            'id TEXT PRIMARY KEY NOT NULL,'
-            'captured_image_id INTEGER REFERENCES captured_images(id) ON DELETE CASCADE,'
-            'session_id TEXT,'
-            'sequence_run_id INTEGER,'
-            'node_id TEXT,'
-            'frame_index INTEGER NOT NULL,'
-            'total_frames INTEGER NOT NULL,'
-            'reject_path TEXT NOT NULL,'
-            'reason TEXT NOT NULL,'
-            'likely_cause TEXT NOT NULL DEFAULT \'unknown\','
-            'evidence_json TEXT NOT NULL DEFAULT \'[]\','
-            'environment_json TEXT NOT NULL DEFAULT \'{}\','
-            'hfr REAL,'
-            'eccentricity REAL,'
-            'star_count INTEGER,'
-            'created_at INTEGER NOT NULL)',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_session '
-            'ON frame_forensics (session_id, created_at)',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_run '
-            'ON frame_forensics (sequence_run_id, created_at)',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_cause '
-            'ON frame_forensics (likely_cause, created_at)',
-          );
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_image '
-            'ON frame_forensics (captured_image_id)',
-          );
+          await _createFrameForensicsTable();
         }
 
         // Version 33: Wave 8 Replay Debug — `sequence_decisions` table.
@@ -1894,6 +1861,44 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   /// Drift creates the table on fresh installs through `m.createAll()`, but
   /// this helper is intentionally idempotent so upgrades and fresh-install
   /// index setup share the same schema path.
+  Future<void> _createFrameForensicsTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS frame_forensics ('
+      'id TEXT PRIMARY KEY NOT NULL,'
+      'captured_image_id INTEGER REFERENCES captured_images(id) ON DELETE CASCADE,'
+      'session_id TEXT,'
+      'sequence_run_id INTEGER,'
+      'node_id TEXT,'
+      'frame_index INTEGER NOT NULL,'
+      'total_frames INTEGER NOT NULL,'
+      'reject_path TEXT NOT NULL,'
+      'reason TEXT NOT NULL,'
+      'likely_cause TEXT NOT NULL DEFAULT \'unknown\','
+      'evidence_json TEXT NOT NULL DEFAULT \'[]\','
+      'environment_json TEXT NOT NULL DEFAULT \'{}\','
+      'hfr REAL,'
+      'eccentricity REAL,'
+      'star_count INTEGER,'
+      'created_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_frame_forensics_session '
+      'ON frame_forensics (session_id, created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_frame_forensics_run '
+      'ON frame_forensics (sequence_run_id, created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_frame_forensics_cause '
+      'ON frame_forensics (likely_cause, created_at)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_frame_forensics_image '
+      'ON frame_forensics (captured_image_id)',
+    );
+  }
+
   Future<void> _createGuideRmsHistoryTable() async {
     await customStatement('''
       CREATE TABLE IF NOT EXISTS guide_rms_history (

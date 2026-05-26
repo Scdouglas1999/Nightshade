@@ -371,8 +371,21 @@ class PredictiveAfService {
     ];
     final maxSamples = (existing?['max_training_samples'] as int?) ?? 50;
     if (samples.length > maxSamples) {
-      samples.sort((a, b) => a.timestampSecs.compareTo(b.timestampSecs));
-      samples.removeRange(0, samples.length - maxSamples);
+      final indexedSamples = <MapEntry<int, FocusTrainingSample>>[
+        for (var i = 0; i < samples.length; i++) MapEntry(i, samples[i]),
+      ];
+      indexedSamples.sort((a, b) {
+        final byTimestamp =
+            a.value.timestampSecs.compareTo(b.value.timestampSecs);
+        return byTimestamp != 0 ? byTimestamp : a.key.compareTo(b.key);
+      });
+      samples
+        ..clear()
+        ..addAll(
+          indexedSamples
+              .skip(indexedSamples.length - maxSamples)
+              .map((entry) => entry.value),
+        );
     }
 
     final regression = _fitRegression(samples);
@@ -842,14 +855,12 @@ class PredictiveAfService {
       equipmentProfileId: raw['equipment_profile_id'] as int?,
       filterName: raw['filter_name'] as String,
       filterIndex: raw['filter_index'] as int?,
-      slopeStepsPerC:
-          (raw['temperature_compensation_slope'] as num).toDouble(),
+      slopeStepsPerC: (raw['temperature_compensation_slope'] as num).toDouble(),
       focusOffsetRelativeToLum:
           (raw['focus_offset_relative_to_lum'] as num).toInt(),
       interceptAtReferenceTemp:
           (raw['intercept_at_reference_temp'] as num).toInt(),
-      referenceTempCelsius:
-          (raw['reference_temp_celsius'] as num).toDouble(),
+      referenceTempCelsius: (raw['reference_temp_celsius'] as num).toDouble(),
       lastTrainedAt: DateTime.fromMillisecondsSinceEpoch(
           (raw['last_trained_at'] as num).toInt() * 1000,
           isUtc: true),
@@ -864,8 +875,7 @@ class PredictiveAfService {
       maxTrainingSamples: (raw['max_training_samples'] as num).toInt(),
       consecutiveBadPredictions:
           (raw['consecutive_bad_predictions'] as num).toInt(),
-      accumulatedDriftSteps:
-          (raw['accumulated_drift_steps'] as num).toInt(),
+      accumulatedDriftSteps: (raw['accumulated_drift_steps'] as num).toInt(),
     );
   }
 
@@ -914,7 +924,8 @@ class PredictiveAfService {
     final meanY = sumY / n;
     double ssTot = 0, ssRes = 0;
     for (final p in best) {
-      final predicted = interceptAtRef + slope * (p.temperatureCelsius - refTemp);
+      final predicted =
+          interceptAtRef + slope * (p.temperatureCelsius - refTemp);
       ssTot += math.pow(p.focusPosition - meanY, 2).toDouble();
       ssRes += math.pow(p.focusPosition - predicted, 2).toDouble();
     }

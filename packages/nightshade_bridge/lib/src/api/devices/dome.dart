@@ -8,57 +8,41 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Get dome status
-Future<DomeStatus> apiGetDomeStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiGetDomeStatus(deviceId: deviceId);
+
+            
+
+            /// Get dome status
+Future<DomeStatus>  apiGetDomeStatus({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiGetDomeStatus(deviceId: deviceId);
 
 /// Open dome shutter
-Future<void> apiDomeOpenShutter({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeOpenShutter(deviceId: deviceId);
+Future<void>  apiDomeOpenShutter({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeOpenShutter(deviceId: deviceId);
 
 /// Close dome shutter
-Future<void> apiDomeCloseShutter({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeCloseShutter(deviceId: deviceId);
+Future<void>  apiDomeCloseShutter({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeCloseShutter(deviceId: deviceId);
 
 /// Slew dome to azimuth
-Future<void> apiDomeSlewToAzimuth(
-        {required String deviceId, required double azimuth}) =>
-    RustLib.instance.api.crateApiDevicesDomeApiDomeSlewToAzimuth(
-        deviceId: deviceId, azimuth: azimuth);
+Future<void>  apiDomeSlewToAzimuth({required String deviceId , required double azimuth }) => RustLib.instance.api.crateApiDevicesDomeApiDomeSlewToAzimuth(deviceId: deviceId, azimuth: azimuth);
 
 /// Park dome
-Future<void> apiDomePark({required String deviceId}) =>
-    RustLib.instance.api.crateApiDevicesDomeApiDomePark(deviceId: deviceId);
+Future<void>  apiDomePark({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomePark(deviceId: deviceId);
 
 /// Get dome azimuth
-Future<double> apiDomeGetAzimuth({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeGetAzimuth(deviceId: deviceId);
+Future<double>  apiDomeGetAzimuth({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeGetAzimuth(deviceId: deviceId);
 
 /// Get dome shutter status
-Future<int> apiDomeGetShutterStatus({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeGetShutterStatus(deviceId: deviceId);
+Future<int>  apiDomeGetShutterStatus({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeGetShutterStatus(deviceId: deviceId);
 
 /// Check if dome is slewing
-Future<bool> apiDomeIsSlewing({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeIsSlewing(deviceId: deviceId);
+Future<bool>  apiDomeIsSlewing({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeIsSlewing(deviceId: deviceId);
 
 /// Enable or disable dome slaving to the mount
-Future<void> apiDomeSetSlaved(
-        {required String deviceId, required bool slaved}) =>
-    RustLib.instance.api.crateApiDevicesDomeApiDomeSetSlaved(
-        deviceId: deviceId, slaved: slaved);
+Future<void>  apiDomeSetSlaved({required String deviceId , required bool slaved }) => RustLib.instance.api.crateApiDevicesDomeApiDomeSetSlaved(deviceId: deviceId, slaved: slaved);
 
 /// Find the dome home position
-Future<void> apiDomeFindHome({required String deviceId}) =>
-    RustLib.instance.api.crateApiDevicesDomeApiDomeFindHome(deviceId: deviceId);
+Future<void>  apiDomeFindHome({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeFindHome(deviceId: deviceId);
 
 /// Abort dome slew / shutter motion
-Future<void> apiDomeAbortSlew({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiDevicesDomeApiDomeAbortSlew(deviceId: deviceId);
+Future<void>  apiDomeAbortSlew({required String deviceId }) => RustLib.instance.api.crateApiDevicesDomeApiDomeAbortSlew(deviceId: deviceId);
+
+            
+            

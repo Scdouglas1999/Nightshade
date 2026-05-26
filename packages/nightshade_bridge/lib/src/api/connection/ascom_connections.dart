@@ -7,45 +7,33 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_ascom_cameras`, `get_ascom_focusers`, `get_ascom_mounts`
 
-/// Connect to a real ASCOM camera
-Future<void> connectAscomCamera({required String progId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAscomConnectionsConnectAscomCamera(progId: progId);
+            // These functions are ignored because they are not marked as `pub`: `get_ascom_cameras`, `get_ascom_focusers`, `get_ascom_mounts`
+
+
+            /// Connect to a real ASCOM camera
+Future<void>  connectAscomCamera({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsConnectAscomCamera(progId: progId);
 
 /// Connect to a real ASCOM mount
-Future<void> connectAscomMount({required String progId}) => RustLib.instance.api
-    .crateApiConnectionAscomConnectionsConnectAscomMount(progId: progId);
+Future<void>  connectAscomMount({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsConnectAscomMount(progId: progId);
 
 /// Connect to a real ASCOM focuser
-Future<void> connectAscomFocuser({required String progId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAscomConnectionsConnectAscomFocuser(progId: progId);
+Future<void>  connectAscomFocuser({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsConnectAscomFocuser(progId: progId);
 
 /// Get real ASCOM camera temperature
-Future<double> getAscomCameraTemp({required String progId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAscomConnectionsGetAscomCameraTemp(progId: progId);
+Future<double>  getAscomCameraTemp({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsGetAscomCameraTemp(progId: progId);
 
 /// Get real ASCOM mount coordinates
-Future<(double, double)> getAscomMountCoords({required String progId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAscomConnectionsGetAscomMountCoords(progId: progId);
+Future<(double,double)>  getAscomMountCoords({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsGetAscomMountCoords(progId: progId);
 
 /// Slew real ASCOM mount
-Future<void> slewAscomMount(
-        {required String progId, required double ra, required double dec}) =>
-    RustLib.instance.api.crateApiConnectionAscomConnectionsSlewAscomMount(
-        progId: progId, ra: ra, dec: dec);
+Future<void>  slewAscomMount({required String progId , required double ra , required double dec }) => RustLib.instance.api.crateApiConnectionAscomConnectionsSlewAscomMount(progId: progId, ra: ra, dec: dec);
 
 /// Get real ASCOM focuser position
-Future<int> getAscomFocuserPosition({required String progId}) => RustLib
-    .instance.api
-    .crateApiConnectionAscomConnectionsGetAscomFocuserPosition(progId: progId);
+Future<int>  getAscomFocuserPosition({required String progId }) => RustLib.instance.api.crateApiConnectionAscomConnectionsGetAscomFocuserPosition(progId: progId);
 
 /// Move real ASCOM focuser
-Future<void> moveAscomFocuser(
-        {required String progId, required int position}) =>
-    RustLib.instance.api.crateApiConnectionAscomConnectionsMoveAscomFocuser(
-        progId: progId, position: position);
+Future<void>  moveAscomFocuser({required String progId , required int position }) => RustLib.instance.api.crateApiConnectionAscomConnectionsMoveAscomFocuser(progId: progId, position: position);
+
+            
+            

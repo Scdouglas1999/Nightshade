@@ -8,7 +8,10 @@ import '../event.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Stream of events from the native side
+
+            
+
+            /// Stream of events from the native side
 /// The Dart side should listen to this stream for UI updates
 ///
 /// # Overflow Handling
@@ -17,10 +20,11 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 /// the event stream will skip lagged events and send an `EventsDropped` notification
 /// so the Dart side knows to refresh its state. The total number of dropped events
 /// is tracked for diagnostics.
-Stream<NightshadeEvent> apiEventStream() =>
-    RustLib.instance.api.crateApiEventStreamApiEventStream();
+Stream<NightshadeEvent>  apiEventStream() => RustLib.instance.api.crateApiEventStreamApiEventStream();
 
 /// Get the total number of events dropped since app start.
 /// Useful for diagnostics and monitoring event stream health.
-BigInt apiGetDroppedEventCount() =>
-    RustLib.instance.api.crateApiEventStreamApiGetDroppedEventCount();
+BigInt  apiGetDroppedEventCount() => RustLib.instance.api.crateApiEventStreamApiGetDroppedEventCount();
+
+            
+            

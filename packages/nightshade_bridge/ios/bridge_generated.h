@@ -2905,6 +2905,8 @@ void frbgen_nightshade_bridge_wire__crate__api__init__api_read_log_file(int64_t 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_read_xisf_file(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *file_path);
 
+void frbgen_nightshade_bridge_wire__crate__api__hotplug__api_rescan_devices(int64_t port_);
+
 void frbgen_nightshade_bridge_wire__crate__api__devices__simulation__api_rotator_halt(int64_t port_,
                                                                                       struct wire_cst_list_prim_u_8_strict *device_id);
 
@@ -3966,6 +3968,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_start_device_heartbeat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_start_device_heartbeat_with_config);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_stop_device_heartbeat);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__hotplug__api_rescan_devices);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_apply_stretch);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_calculate_auto_stretch);

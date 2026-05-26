@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,7 +87,7 @@ void main() {
         mountId: 'mount-a',
         totalRmsArcsec: 1.0,
         sampleCount: 100,
-        exposureSeconds: 2.0,
+        exposureSeconds: const Value(2.0),
         recordedAt: now.subtract(const Duration(days: 2)),
       ),
     );
@@ -96,7 +97,7 @@ void main() {
         mountId: 'mount-a',
         totalRmsArcsec: 1.0,
         sampleCount: 120,
-        exposureSeconds: 2.0,
+        exposureSeconds: const Value(2.0),
         recordedAt: now.subtract(const Duration(days: 10)),
       ),
     );
@@ -106,7 +107,7 @@ void main() {
         mountId: 'mount-a',
         totalRmsArcsec: 3.0,
         sampleCount: 80,
-        exposureSeconds: 2.0,
+        exposureSeconds: const Value(2.0),
         recordedAt: now.subtract(const Duration(days: 45)),
       ),
     );

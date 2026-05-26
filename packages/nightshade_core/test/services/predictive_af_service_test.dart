@@ -8,6 +8,7 @@
 //   * Per-profile isolation (two profiles never cross-contaminate).
 //   * Export/import JSON round-trip.
 
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/database.dart' as db;
@@ -25,6 +26,18 @@ void main() {
     // test` workers), and we don't need persistence within a single test
     // anyway — every assertion completes before tear-down.
     database = db.NightshadeDatabase.forTesting(NativeDatabase.memory());
+    await database.into(database.equipmentProfiles).insert(
+          db.EquipmentProfilesCompanion.insert(
+            id: const Value(1),
+            name: 'Test Profile 1',
+          ),
+        );
+    await database.into(database.equipmentProfiles).insert(
+          db.EquipmentProfilesCompanion.insert(
+            id: const Value(2),
+            name: 'Test Profile 2',
+          ),
+        );
     service = PredictiveAfService(database);
   });
 

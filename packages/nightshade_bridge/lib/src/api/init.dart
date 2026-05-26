@@ -7,37 +7,37 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-/// Initialize the native bridge with optional file logging
+
+            
+
+            /// Initialize the native bridge with optional file logging
 /// Must be called once at app startup before any other API calls
 ///
 /// # Arguments
 /// * `log_directory` - Optional path to store log files. If None, logs only to console.
-void apiInitWithLogging({String? logDirectory}) => RustLib.instance.api
-    .crateApiInitApiInitWithLogging(logDirectory: logDirectory);
+void  apiInitWithLogging({String? logDirectory }) => RustLib.instance.api.crateApiInitApiInitWithLogging(logDirectory: logDirectory);
 
 /// Initialize the native bridge and return success (console logging only)
 /// Must be called once at app startup before any other API calls
-void apiInit() => RustLib.instance.api.crateApiInitApiInit();
+void  apiInit() => RustLib.instance.api.crateApiInitApiInit();
 
 /// Get the version of the native library
-String apiGetVersion() => RustLib.instance.api.crateApiInitApiGetVersion();
+String  apiGetVersion() => RustLib.instance.api.crateApiInitApiGetVersion();
 
 /// Get the current log directory path
-String? apiGetLogDirectory() =>
-    RustLib.instance.api.crateApiInitApiGetLogDirectory();
+String?  apiGetLogDirectory() => RustLib.instance.api.crateApiInitApiGetLogDirectory();
 
 /// Get the current log file path (today's log)
-String? apiGetCurrentLogFile() =>
-    RustLib.instance.api.crateApiInitApiGetCurrentLogFile();
+String?  apiGetCurrentLogFile() => RustLib.instance.api.crateApiInitApiGetCurrentLogFile();
 
 /// List all available log files
-Future<List<String>> apiListLogFiles() =>
-    RustLib.instance.api.crateApiInitApiListLogFiles();
+Future<List<String>>  apiListLogFiles() => RustLib.instance.api.crateApiInitApiListLogFiles();
 
 /// Read a log file's contents
-Future<String> apiReadLogFile({required String path}) =>
-    RustLib.instance.api.crateApiInitApiReadLogFile(path: path);
+Future<String>  apiReadLogFile({required String path }) => RustLib.instance.api.crateApiInitApiReadLogFile(path: path);
 
 /// Export all logs to a single file for diagnostics
-Future<void> apiExportLogs({required String outputPath}) =>
-    RustLib.instance.api.crateApiInitApiExportLogs(outputPath: outputPath);
+Future<void>  apiExportLogs({required String outputPath }) => RustLib.instance.api.crateApiInitApiExportLogs(outputPath: outputPath);
+
+            
+            

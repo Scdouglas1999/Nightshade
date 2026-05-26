@@ -8,65 +8,41 @@ import '../frb_generated.dart';
 import '../lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
+
+            // These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `RawImageInfo`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
 
-/// Run autofocus
-Future<AutofocusResultApi> apiRunAutofocus(
-        {required String deviceId,
-        required String cameraId,
-        required AutofocusConfigApi config}) =>
-    RustLib.instance.api.crateApiImagingApiRunAutofocus(
-        deviceId: deviceId, cameraId: cameraId, config: config);
+
+            /// Run autofocus
+Future<AutofocusResultApi>  apiRunAutofocus({required String deviceId , required String cameraId , required AutofocusConfigApi config }) => RustLib.instance.api.crateApiImagingApiRunAutofocus(deviceId: deviceId, cameraId: cameraId, config: config);
 
 /// Cancel autofocus
-Future<void> apiCancelAutofocus() =>
-    RustLib.instance.api.crateApiImagingApiCancelAutofocus();
+Future<void>  apiCancelAutofocus() => RustLib.instance.api.crateApiImagingApiCancelAutofocus();
 
 /// Start a camera exposure
 /// Returns progress updates via events, final image available via api_get_last_image
-Future<void> apiCameraStartExposure(
-        {required String deviceId,
-        required double durationSecs,
-        required int gain,
-        required int offset,
-        required int binX,
-        required int binY}) =>
-    RustLib.instance.api.crateApiImagingApiCameraStartExposure(
-        deviceId: deviceId,
-        durationSecs: durationSecs,
-        gain: gain,
-        offset: offset,
-        binX: binX,
-        binY: binY);
+Future<void>  apiCameraStartExposure({required String deviceId , required double durationSecs , required int gain , required int offset , required int binX , required int binY }) => RustLib.instance.api.crateApiImagingApiCameraStartExposure(deviceId: deviceId, durationSecs: durationSecs, gain: gain, offset: offset, binX: binX, binY: binY);
 
 /// Get the last captured image for a specific device (display-ready format)
 /// Reads from per-device atomic storage to ensure consistency with raw data
-Future<CapturedImageResult> apiGetLastImage({required String deviceId}) =>
-    RustLib.instance.api.crateApiImagingApiGetLastImage(deviceId: deviceId);
+Future<CapturedImageResult>  apiGetLastImage({required String deviceId }) => RustLib.instance.api.crateApiImagingApiGetLastImage(deviceId: deviceId);
 
 /// Get the last captured raw image data (u16) for a specific device
 /// This is used for saving FITS files with original bit depth
 /// Reads from per-device atomic storage to ensure consistency with display data
-Future<Uint16List> apiGetLastRawImageData({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiImagingApiGetLastRawImageData(deviceId: deviceId);
+Future<Uint16List>  apiGetLastRawImageData({required String deviceId }) => RustLib.instance.api.crateApiImagingApiGetLastRawImageData(deviceId: deviceId);
 
 /// Clear stored image data for a specific device
 /// This is used to free memory when a camera is disconnected or when explicitly requested
-Future<void> apiClearDeviceImage({required String deviceId}) =>
-    RustLib.instance.api.crateApiImagingApiClearDeviceImage(deviceId: deviceId);
+Future<void>  apiClearDeviceImage({required String deviceId }) => RustLib.instance.api.crateApiImagingApiClearDeviceImage(deviceId: deviceId);
 
 /// Cancel current exposure
-Future<void> apiCameraCancelExposure({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiImagingApiCameraCancelExposure(deviceId: deviceId);
+Future<void>  apiCameraCancelExposure({required String deviceId }) => RustLib.instance.api.crateApiImagingApiCameraCancelExposure(deviceId: deviceId);
 
 /// Read a FITS file from disk
-Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
-    RustLib.instance.api.crateApiImagingApiReadFitsFile(filePath: filePath);
+Future<FitsReadResult>  apiReadFitsFile({required String filePath }) => RustLib.instance.api.crateApiImagingApiReadFitsFile(filePath: filePath);
 
 /// Update (overwrite or inject) one or more keywords on an existing FITS file.
 ///
@@ -79,204 +55,66 @@ Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
 /// stamp `MAGZP`, `MAGZPERR`, `TRANSPAR`, etc. back onto captured frames so
 /// that PixInsight / AstroPixelProcessor / Siril can read Nightshade's
 /// science products without going through our database.
-Future<void> apiUpdateFitsKeywords(
-        {required String filePath, required List<FitsKeywordUpdate> updates}) =>
-    RustLib.instance.api.crateApiImagingApiUpdateFitsKeywords(
-        filePath: filePath, updates: updates);
+Future<void>  apiUpdateFitsKeywords({required String filePath , required List<FitsKeywordUpdate> updates }) => RustLib.instance.api.crateApiImagingApiUpdateFitsKeywords(filePath: filePath, updates: updates);
 
 /// Read a FITS file and return unstretched linear pixel values for science analysis.
-Future<FitsLinearReadResult> apiReadFitsLinearData(
-        {required String filePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiReadFitsLinearData(filePath: filePath);
+Future<FitsLinearReadResult>  apiReadFitsLinearData({required String filePath }) => RustLib.instance.api.crateApiImagingApiReadFitsLinearData(filePath: filePath);
 
 /// Compute quality maps from the last captured image in memory for a device.
-Future<QualityMapsResultApi> apiComputeLastCaptureQualityMaps(
-        {required String deviceId,
-        required int gridRows,
-        required int gridCols,
-        required int lowClipAdu,
-        required int highClipAdu}) =>
-    RustLib.instance.api.crateApiImagingApiComputeLastCaptureQualityMaps(
-        deviceId: deviceId,
-        gridRows: gridRows,
-        gridCols: gridCols,
-        lowClipAdu: lowClipAdu,
-        highClipAdu: highClipAdu);
+Future<QualityMapsResultApi>  apiComputeLastCaptureQualityMaps({required String deviceId , required int gridRows , required int gridCols , required int lowClipAdu , required int highClipAdu }) => RustLib.instance.api.crateApiImagingApiComputeLastCaptureQualityMaps(deviceId: deviceId, gridRows: gridRows, gridCols: gridCols, lowClipAdu: lowClipAdu, highClipAdu: highClipAdu);
 
 /// Compute quality maps directly from a FITS file.
-Future<QualityMapsResultApi> apiComputeFitsQualityMaps(
-        {required String filePath,
-        required int gridRows,
-        required int gridCols,
-        required int lowClipAdu,
-        required int highClipAdu}) =>
-    RustLib.instance.api.crateApiImagingApiComputeFitsQualityMaps(
-        filePath: filePath,
-        gridRows: gridRows,
-        gridCols: gridCols,
-        lowClipAdu: lowClipAdu,
-        highClipAdu: highClipAdu);
+Future<QualityMapsResultApi>  apiComputeFitsQualityMaps({required String filePath , required int gridRows , required int gridCols , required int lowClipAdu , required int highClipAdu }) => RustLib.instance.api.crateApiImagingApiComputeFitsQualityMaps(filePath: filePath, gridRows: gridRows, gridCols: gridCols, lowClipAdu: lowClipAdu, highClipAdu: highClipAdu);
 
 /// Detect stars in a FITS file
-Future<StarDetectionResultApi> apiDetectStarsInFile(
-        {required String filePath, StarDetectionConfigApi? config}) =>
-    RustLib.instance.api.crateApiImagingApiDetectStarsInFile(
-        filePath: filePath, config: config);
+Future<StarDetectionResultApi>  apiDetectStarsInFile({required String filePath , StarDetectionConfigApi? config }) => RustLib.instance.api.crateApiImagingApiDetectStarsInFile(filePath: filePath, config: config);
 
 /// Get star crops from the last captured image for a device
 ///
 /// This extracts the top N brightest stars from the last image and returns
 /// cropped 80x80 pixel regions centered on each star, auto-stretched for display.
 /// Used by the autofocus UI to show star crops for visual feedback.
-Future<List<StarCropApi>> apiGetStarCropsFromLastImage(
-        {required String deviceId, required int maxCrops}) =>
-    RustLib.instance.api.crateApiImagingApiGetStarCropsFromLastImage(
-        deviceId: deviceId, maxCrops: maxCrops);
+Future<List<StarCropApi>>  apiGetStarCropsFromLastImage({required String deviceId , required int maxCrops }) => RustLib.instance.api.crateApiImagingApiGetStarCropsFromLastImage(deviceId: deviceId, maxCrops: maxCrops);
 
 /// Calculate HFR for a FITS file
-Future<double?> apiCalculateHfr({required String filePath}) =>
-    RustLib.instance.api.crateApiImagingApiCalculateHfr(filePath: filePath);
+Future<double?>  apiCalculateHfr({required String filePath }) => RustLib.instance.api.crateApiImagingApiCalculateHfr(filePath: filePath);
 
 /// Calculate histogram for a FITS file
-Future<Float32List> apiCalculateHistogram(
-        {required String filePath,
-        required int bins,
-        required int logarithmic}) =>
-    RustLib.instance.api.crateApiImagingApiCalculateHistogram(
-        filePath: filePath, bins: bins, logarithmic: logarithmic);
+Future<Float32List>  apiCalculateHistogram({required String filePath , required int bins , required int logarithmic }) => RustLib.instance.api.crateApiImagingApiCalculateHistogram(filePath: filePath, bins: bins, logarithmic: logarithmic);
 
 /// Auto-calculate stretch parameters for an image
-Future<StretchParamsApi> apiCalculateAutoStretch({required String filePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiCalculateAutoStretch(filePath: filePath);
+Future<StretchParamsApi>  apiCalculateAutoStretch({required String filePath }) => RustLib.instance.api.crateApiImagingApiCalculateAutoStretch(filePath: filePath);
 
 /// Apply stretch to a FITS file and return display data
-Future<Uint8List> apiApplyStretch(
-        {required String filePath, required StretchParamsApi params}) =>
-    RustLib.instance.api
-        .crateApiImagingApiApplyStretch(filePath: filePath, params: params);
+Future<Uint8List>  apiApplyStretch({required String filePath , required StretchParamsApi params }) => RustLib.instance.api.crateApiImagingApiApplyStretch(filePath: filePath, params: params);
 
 /// Debayer a raw FITS image and return RGB display data
 /// Debayer a raw FITS file and return RGB display data
-Future<Uint8List> apiDebayerFitsFile(
-        {required String filePath,
-        required BayerPatternApi pattern,
-        required DebayerAlgorithmApi algorithm}) =>
-    RustLib.instance.api.crateApiImagingApiDebayerFitsFile(
-        filePath: filePath, pattern: pattern, algorithm: algorithm);
+Future<Uint8List>  apiDebayerFitsFile({required String filePath , required BayerPatternApi pattern , required DebayerAlgorithmApi algorithm }) => RustLib.instance.api.crateApiImagingApiDebayerFitsFile(filePath: filePath, pattern: pattern, algorithm: algorithm);
 
 /// Read an XISF file
-Future<XisfReadResult> apiReadXisfFile({required String filePath}) =>
-    RustLib.instance.api.crateApiImagingApiReadXisfFile(filePath: filePath);
+Future<XisfReadResult>  apiReadXisfFile({required String filePath }) => RustLib.instance.api.crateApiImagingApiReadXisfFile(filePath: filePath);
 
 /// Save image as XISF
-Future<void> apiSaveXisfFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required List<(String, String)> properties}) =>
-    RustLib.instance.api.crateApiImagingApiSaveXisfFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        properties: properties);
+Future<void>  apiSaveXisfFile({required String filePath , required int width , required int height , required List<int> data , required List<(String,String)> properties }) => RustLib.instance.api.crateApiImagingApiSaveXisfFile(filePath: filePath, width: width, height: height, data: data, properties: properties);
 
 /// Save image as TIFF (16-bit preserving)
-Future<void> apiSaveTiffFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiSaveTiffFile(
-        filePath: filePath, width: width, height: height, data: data);
+Future<void>  apiSaveTiffFile({required String filePath , required int width , required int height , required List<int> data }) => RustLib.instance.api.crateApiImagingApiSaveTiffFile(filePath: filePath, width: width, height: height, data: data);
 
 /// Save image as PNG (16-bit preserving, lossless)
-Future<void> apiSavePngFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiSavePngFile(
-        filePath: filePath, width: width, height: height, data: data);
+Future<void>  apiSavePngFile({required String filePath , required int width , required int height , required List<int> data }) => RustLib.instance.api.crateApiImagingApiSavePngFile(filePath: filePath, width: width, height: height, data: data);
 
 /// Save image as JPEG (8-bit, lossy - for previews)
-Future<void> apiSaveJpegFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required int quality}) =>
-    RustLib.instance.api.crateApiImagingApiSaveJpegFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        quality: quality);
+Future<void>  apiSaveJpegFile({required String filePath , required int width , required int height , required List<int> data , required int quality }) => RustLib.instance.api.crateApiImagingApiSaveJpegFile(filePath: filePath, width: width, height: height, data: data, quality: quality);
 
 /// Generate a filename from pattern and context
-Future<String> apiGenerateFilename(
-        {required String pattern,
-        required String baseDir,
-        String? target,
-        String? filter,
-        required double exposureTime,
-        required FrameTypeApi frameType,
-        required int frameNumber,
-        int? gain,
-        int? offset,
-        double? temperature,
-        required int binningX,
-        required int binningY,
-        String? camera,
-        String? telescope,
-        required String extension_}) =>
-    RustLib.instance.api.crateApiImagingApiGenerateFilename(
-        pattern: pattern,
-        baseDir: baseDir,
-        target: target,
-        filter: filter,
-        exposureTime: exposureTime,
-        frameType: frameType,
-        frameNumber: frameNumber,
-        gain: gain,
-        offset: offset,
-        temperature: temperature,
-        binningX: binningX,
-        binningY: binningY,
-        camera: camera,
-        telescope: telescope,
-        extension_: extension_);
+Future<String>  apiGenerateFilename({required String pattern , required String baseDir , String? target , String? filter , required double exposureTime , required FrameTypeApi frameType , required int frameNumber , int? gain , int? offset , double? temperature , required int binningX , required int binningY , String? camera , String? telescope , required String extension_ }) => RustLib.instance.api.crateApiImagingApiGenerateFilename(pattern: pattern, baseDir: baseDir, target: target, filter: filter, exposureTime: exposureTime, frameType: frameType, frameNumber: frameNumber, gain: gain, offset: offset, temperature: temperature, binningX: binningX, binningY: binningY, camera: camera, telescope: telescope, extension_: extension_);
 
 /// Get the next frame number for a directory
-Future<int> apiGetNextFrameNumber(
-        {required String baseDir,
-        required String pattern,
-        String? target,
-        String? filter,
-        required FrameTypeApi frameType}) =>
-    RustLib.instance.api.crateApiImagingApiGetNextFrameNumber(
-        baseDir: baseDir,
-        pattern: pattern,
-        target: target,
-        filter: filter,
-        frameType: frameType);
+Future<int>  apiGetNextFrameNumber({required String baseDir , required String pattern , String? target , String? filter , required FrameTypeApi frameType }) => RustLib.instance.api.crateApiImagingApiGetNextFrameNumber(baseDir: baseDir, pattern: pattern, target: target, filter: filter, frameType: frameType);
 
 /// Save image data to FITS file
-Future<void> apiSaveFitsFile(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required FitsWriteHeader headerData}) =>
-    RustLib.instance.api.crateApiImagingApiSaveFitsFile(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        headerData: headerData);
+Future<void>  apiSaveFitsFile({required String filePath , required int width , required int height , required List<int> data , required FitsWriteHeader headerData }) => RustLib.instance.api.crateApiImagingApiSaveFitsFile(filePath: filePath, width: width, height: height, data: data, headerData: headerData);
 
 /// Wave 3 Image Grading: save FITS with the rich (~40-keyword) header
 /// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
@@ -287,63 +125,27 @@ Future<void> apiSaveFitsFile(
 /// Nightshade-specific `NS-*` keywords for session / mosaic / frame
 /// accounting. Missing optional fields are silently omitted — never
 /// substituted with sentinel values.
-Future<void> saveFitsFileRich(
-        {required String filePath,
-        required int width,
-        required int height,
-        required List<int> data,
-        required FitsWriteHeaderRich headerData}) =>
-    RustLib.instance.api.crateApiImagingSaveFitsFileRich(
-        filePath: filePath,
-        width: width,
-        height: height,
-        data: data,
-        headerData: headerData);
+Future<void>  saveFitsFileRich({required String filePath , required int width , required int height , required List<int> data , required FitsWriteHeaderRich headerData }) => RustLib.instance.api.crateApiImagingSaveFitsFileRich(filePath: filePath, width: width, height: height, data: data, headerData: headerData);
 
 /// Save FITS file directly from the last captured image stored in Rust
 /// This eliminates the need to transfer raw pixel data across the FFI boundary
 /// by using the image data already stored from the last exposure.
 ///
 /// Returns an error if no image has been captured yet for the specified device.
-Future<void> apiSaveFitsFromLastCapture(
-        {required String deviceId,
-        required String filePath,
-        required FitsWriteHeader headerData}) =>
-    RustLib.instance.api.crateApiImagingApiSaveFitsFromLastCapture(
-        deviceId: deviceId, filePath: filePath, headerData: headerData);
+Future<void>  apiSaveFitsFromLastCapture({required String deviceId , required String filePath , required FitsWriteHeader headerData }) => RustLib.instance.api.crateApiImagingApiSaveFitsFromLastCapture(deviceId: deviceId, filePath: filePath, headerData: headerData);
 
 /// Calculate image statistics
-ImageStatsResult apiGetImageStats(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiGetImageStats(
-        width: width, height: height, data: data);
+ImageStatsResult  apiGetImageStats({required int width , required int height , required List<int> data }) => RustLib.instance.api.crateApiImagingApiGetImageStats(width: width, height: height, data: data);
 
 /// Auto-stretch image for display
-Uint8List apiAutoStretchImage(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiAutoStretchImage(
-        width: width, height: height, data: data);
+Uint8List  apiAutoStretchImage({required int width , required int height , required List<int> data }) => RustLib.instance.api.crateApiImagingApiAutoStretchImage(width: width, height: height, data: data);
 
 /// Debayer image
-Uint8List apiDebayerImage(
-        {required int width,
-        required int height,
-        required List<int> data,
-        required String patternStr,
-        required String algoStr}) =>
-    RustLib.instance.api.crateApiImagingApiDebayerImage(
-        width: width,
-        height: height,
-        data: data,
-        patternStr: patternStr,
-        algoStr: algoStr);
+Uint8List  apiDebayerImage({required int width , required int height , required List<int> data , required String patternStr , required String algoStr }) => RustLib.instance.api.crateApiImagingApiDebayerImage(width: width, height: height, data: data, patternStr: patternStr, algoStr: algoStr);
 
 /// Generate thumbnail from FITS file
 /// Returns JPEG-encoded thumbnail data (~512x512 pixels)
-Uint8List apiGenerateFitsThumbnail(
-        {required String filePath, required int maxSize}) =>
-    RustLib.instance.api.crateApiImagingApiGenerateFitsThumbnail(
-        filePath: filePath, maxSize: maxSize);
+Uint8List  apiGenerateFitsThumbnail({required String filePath , required int maxSize }) => RustLib.instance.api.crateApiImagingApiGenerateFitsThumbnail(filePath: filePath, maxSize: maxSize);
 
 /// Run INDI autofocus routine
 ///
@@ -354,12 +156,7 @@ Uint8List apiGenerateFitsThumbnail(
 ///
 /// # Returns
 /// Autofocus result with best focus position and curve data
-Future<IndiAutofocusResultApi> apiRunIndiAutofocus(
-        {required String cameraId,
-        required String focuserId,
-        required IndiAutofocusConfigApi config}) =>
-    RustLib.instance.api.crateApiImagingApiRunIndiAutofocus(
-        cameraId: cameraId, focuserId: focuserId, config: config);
+Future<IndiAutofocusResultApi>  apiRunIndiAutofocus({required String cameraId , required String focuserId , required IndiAutofocusConfigApi config }) => RustLib.instance.api.crateApiImagingApiRunIndiAutofocus(cameraId: cameraId, focuserId: focuserId, config: config);
 
 /// Calibrate an image file using dark, flat, and/or bias calibration frames.
 ///
@@ -372,93 +169,47 @@ Future<IndiAutofocusResultApi> apiRunIndiAutofocus(
 /// 3. Divide light by normalized flat
 ///
 /// Any calibration frame path can be empty/None to skip that correction.
-Future<void> apiCalibrateImageFile(
-        {required String lightPath,
-        String? darkPath,
-        String? flatPath,
-        String? biasPath,
-        required String outputPath}) =>
-    RustLib.instance.api.crateApiImagingApiCalibrateImageFile(
-        lightPath: lightPath,
-        darkPath: darkPath,
-        flatPath: flatPath,
-        biasPath: biasPath,
-        outputPath: outputPath);
+Future<void>  apiCalibrateImageFile({required String lightPath , String? darkPath , String? flatPath , String? biasPath , required String outputPath }) => RustLib.instance.api.crateApiImagingApiCalibrateImageFile(lightPath: lightPath, darkPath: darkPath, flatPath: flatPath, biasPath: biasPath, outputPath: outputPath);
 
 /// Calibrate raw pixel data in memory (u16).
 ///
 /// Takes pixel data directly rather than file paths. Returns calibrated pixel data.
 /// All frames must have the same dimensions and be single-channel u16.
-Uint16List apiCalibrateImageData(
-        {required int width,
-        required int height,
-        required List<int> lightData,
-        Uint16List? darkData,
-        Uint16List? flatData,
-        Uint16List? biasData}) =>
-    RustLib.instance.api.crateApiImagingApiCalibrateImageData(
-        width: width,
-        height: height,
-        lightData: lightData,
-        darkData: darkData,
-        flatData: flatData,
-        biasData: biasData);
+Uint16List  apiCalibrateImageData({required int width , required int height , required List<int> lightData , Uint16List? darkData , Uint16List? flatData , Uint16List? biasData }) => RustLib.instance.api.crateApiImagingApiCalibrateImageData(width: width, height: height, lightData: lightData, darkData: darkData, flatData: flatData, biasData: biasData);
 
 /// Start live stacking with a reference image file.
 ///
 /// All subsequent frames will be aligned to this reference.
-Future<ApiLiveStackingStats> apiStackingStart(
-        {required String referenceImagePath,
-        required ApiLiveStackingConfig config}) =>
-    RustLib.instance.api.crateApiImagingApiStackingStart(
-        referenceImagePath: referenceImagePath, config: config);
+Future<ApiLiveStackingStats>  apiStackingStart({required String referenceImagePath , required ApiLiveStackingConfig config }) => RustLib.instance.api.crateApiImagingApiStackingStart(referenceImagePath: referenceImagePath, config: config);
 
 /// Start live stacking from raw pixel data in memory.
-Future<ApiLiveStackingStats> apiStackingStartFromData(
-        {required int width,
-        required int height,
-        required List<int> data,
-        required ApiLiveStackingConfig config}) =>
-    RustLib.instance.api.crateApiImagingApiStackingStartFromData(
-        width: width, height: height, data: data, config: config);
+Future<ApiLiveStackingStats>  apiStackingStartFromData({required int width , required int height , required List<int> data , required ApiLiveStackingConfig config }) => RustLib.instance.api.crateApiImagingApiStackingStartFromData(width: width, height: height, data: data, config: config);
 
 /// Add a frame to the live stack from a file path.
 ///
 /// Returns the current stacked result.
-Future<ApiLiveStackingResult> apiStackingAddFrame(
-        {required String imagePath}) =>
-    RustLib.instance.api
-        .crateApiImagingApiStackingAddFrame(imagePath: imagePath);
+Future<ApiLiveStackingResult>  apiStackingAddFrame({required String imagePath }) => RustLib.instance.api.crateApiImagingApiStackingAddFrame(imagePath: imagePath);
 
 /// Add a frame to the live stack from raw pixel data.
-Future<ApiLiveStackingResult> apiStackingAddFrameFromData(
-        {required int width, required int height, required List<int> data}) =>
-    RustLib.instance.api.crateApiImagingApiStackingAddFrameFromData(
-        width: width, height: height, data: data);
+Future<ApiLiveStackingResult>  apiStackingAddFrameFromData({required int width , required int height , required List<int> data }) => RustLib.instance.api.crateApiImagingApiStackingAddFrameFromData(width: width, height: height, data: data);
 
 /// Get the current stacked result without adding a frame.
-Future<ApiLiveStackingResult> apiStackingGetResult() =>
-    RustLib.instance.api.crateApiImagingApiStackingGetResult();
+Future<ApiLiveStackingResult>  apiStackingGetResult() => RustLib.instance.api.crateApiImagingApiStackingGetResult();
 
 /// Get the current stacking statistics.
-Future<ApiLiveStackingStats> apiStackingGetStats() =>
-    RustLib.instance.api.crateApiImagingApiStackingGetStats();
+Future<ApiLiveStackingStats>  apiStackingGetStats() => RustLib.instance.api.crateApiImagingApiStackingGetStats();
 
 /// Reset the live stacker, clearing accumulated data but keeping the reference.
-Future<void> apiStackingReset() =>
-    RustLib.instance.api.crateApiImagingApiStackingReset();
+Future<void>  apiStackingReset() => RustLib.instance.api.crateApiImagingApiStackingReset();
 
 /// Stop live stacking and release all resources.
-Future<void> apiStackingStop() =>
-    RustLib.instance.api.crateApiImagingApiStackingStop();
+Future<void>  apiStackingStop() => RustLib.instance.api.crateApiImagingApiStackingStop();
 
 /// Check if live stacking is currently active.
-bool apiStackingIsActive() =>
-    RustLib.instance.api.crateApiImagingApiStackingIsActive();
+bool  apiStackingIsActive() => RustLib.instance.api.crateApiImagingApiStackingIsActive();
 
 /// Get the current stacked frame count.
-int apiStackingFrameCount() =>
-    RustLib.instance.api.crateApiImagingApiStackingFrameCount();
+int  apiStackingFrameCount() => RustLib.instance.api.crateApiImagingApiStackingFrameCount();
 
 /// Build a defect map for a camera from a set of dark frames provided as
 /// FITS/XISF file paths. Frames must all share dimensions and pixel type.
@@ -466,37 +217,18 @@ int apiStackingFrameCount() =>
 /// The resulting map is written to disk under
 /// `$NIGHTSHADE_DATA_DIR/defect_maps/` keyed by camera id, sensor size and
 /// temperature bucket, and the status is returned.
-Future<ApiDefectMapStatus> apiDefectMapBuild(
-        {required String cameraId,
-        required List<String> darkFramePaths,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapBuild(
-        cameraId: cameraId,
-        darkFramePaths: darkFramePaths,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<ApiDefectMapStatus>  apiDefectMapBuild({required String cameraId , required List<String> darkFramePaths , required double sensorTemperatureCelsius }) => RustLib.instance.api.crateApiImagingApiDefectMapBuild(cameraId: cameraId, darkFramePaths: darkFramePaths, sensorTemperatureCelsius: sensorTemperatureCelsius);
 
 /// Toggle whether the defect map for this camera is applied to lights
 /// during capture. The map must already exist on disk for the toggle to
 /// take effect at the next capture; this call only updates the user's
 /// preference.
-Future<void> apiDefectMapApply(
-        {required String cameraId, required bool applyDuringCapture}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapApply(
-        cameraId: cameraId, applyDuringCapture: applyDuringCapture);
+Future<void>  apiDefectMapApply({required String cameraId , required bool applyDuringCapture }) => RustLib.instance.api.crateApiImagingApiDefectMapApply(cameraId: cameraId, applyDuringCapture: applyDuringCapture);
 
 /// Delete the defect map stored on disk for the given camera, sensor
 /// dimensions and temperature bucket. Also resets the apply-during-
 /// capture flag for that camera.
-Future<void> apiDefectMapClear(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapClear(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<void>  apiDefectMapClear({required String cameraId , required int width , required int height , required double sensorTemperatureCelsius }) => RustLib.instance.api.crateApiImagingApiDefectMapClear(cameraId: cameraId, width: width, height: height, sensorTemperatureCelsius: sensorTemperatureCelsius);
 
 /// Wave 7 Agent 3 — push the active defect-map application state to the
 /// running sequencer.
@@ -512,38 +244,12 @@ Future<void> apiDefectMapClear(
 /// Method / kernel come from the user's settings (validated here so a
 /// bad combination is rejected at the FFI boundary rather than at
 /// per-frame application time).
-Future<void> apiSequencerApplyDefectMap(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius,
-        required bool enabled,
-        required String method,
-        required int kernelDiameter,
-        required bool saveOriginal}) =>
-    RustLib.instance.api.crateApiImagingApiSequencerApplyDefectMap(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius,
-        enabled: enabled,
-        method: method,
-        kernelDiameter: kernelDiameter,
-        saveOriginal: saveOriginal);
+Future<void>  apiSequencerApplyDefectMap({required String cameraId , required int width , required int height , required double sensorTemperatureCelsius , required bool enabled , required String method , required int kernelDiameter , required bool saveOriginal }) => RustLib.instance.api.crateApiImagingApiSequencerApplyDefectMap(cameraId: cameraId, width: width, height: height, sensorTemperatureCelsius: sensorTemperatureCelsius, enabled: enabled, method: method, kernelDiameter: kernelDiameter, saveOriginal: saveOriginal);
 
 /// Look up the status of the stored defect map for a camera at the given
 /// sensor size and temperature. Returns `Ok(None)` if no map is stored
 /// for that combination.
-Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
-        {required String cameraId,
-        required int width,
-        required int height,
-        required double sensorTemperatureCelsius}) =>
-    RustLib.instance.api.crateApiImagingApiDefectMapGetStatus(
-        cameraId: cameraId,
-        width: width,
-        height: height,
-        sensorTemperatureCelsius: sensorTemperatureCelsius);
+Future<ApiDefectMapStatus?>  apiDefectMapGetStatus({required String cameraId , required int width , required int height , required double sensorTemperatureCelsius }) => RustLib.instance.api.crateApiImagingApiDefectMapGetStatus(cameraId: cameraId, width: width, height: height, sensorTemperatureCelsius: sensorTemperatureCelsius);
 
 /// Combine a set of calibration frames into a single master and write it
 /// to disk as FITS.
@@ -561,500 +267,348 @@ Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
 /// - Empty input list, mismatched dimensions/channels/pixel types, or any
 ///   read failure surfaces as `NightshadeError::ImageError`/`InvalidParameter`.
 ///   No silent fallback to a partial result.
-Future<ApiMasterFrameResult> apiCombineMasterFrames(
-        {required List<String> inputPaths,
-        required String kind,
-        required ApiCombineMethod method,
-        required String outputType,
-        required String outputPath}) =>
-    RustLib.instance.api.crateApiImagingApiCombineMasterFrames(
-        inputPaths: inputPaths,
-        kind: kind,
-        method: method,
-        outputType: outputType,
-        outputPath: outputPath);
+Future<ApiMasterFrameResult>  apiCombineMasterFrames({required List<String> inputPaths , required String kind , required ApiCombineMethod method , required String outputType , required String outputPath }) => RustLib.instance.api.crateApiImagingApiCombineMasterFrames(inputPaths: inputPaths, kind: kind, method: method, outputType: outputType, outputPath: outputPath);
 
-/// Combine method exposed across the FFI surface.
+            /// Combine method exposed across the FFI surface.
 ///
 /// Dart sends a tag string ("MEAN", "MEDIAN", "SIGMA_CLIP") with optional
 /// sigma parameters. We deliberately use a flat struct rather than a
 /// tagged enum here because flutter_rust_bridge handles plain structs
 /// with optional fields cleanly across both Dart isolates and the new
 /// codec path.
-class ApiCombineMethod {
-  /// "MEAN" | "MEDIAN" | "SIGMA_CLIP" (case-insensitive)
-  final String method;
+class ApiCombineMethod  {
+                /// "MEAN" | "MEDIAN" | "SIGMA_CLIP" (case-insensitive)
+final String method;
+/// Kappa threshold for sigma clip; required for SIGMA_CLIP, ignored otherwise.
+final double? sigmaKappa;
+/// Number of clip iterations; required for SIGMA_CLIP, ignored otherwise.
+final int? sigmaIterations;
 
-  /// Kappa threshold for sigma clip; required for SIGMA_CLIP, ignored otherwise.
-  final double? sigmaKappa;
+                const ApiCombineMethod({required this.method ,this.sigmaKappa ,this.sigmaIterations ,});
 
-  /// Number of clip iterations; required for SIGMA_CLIP, ignored otherwise.
-  final int? sigmaIterations;
+                
+                
 
-  const ApiCombineMethod({
-    required this.method,
-    this.sigmaKappa,
-    this.sigmaIterations,
-  });
+                
+        @override
+        int get hashCode => method.hashCode^sigmaKappa.hashCode^sigmaIterations.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      method.hashCode ^ sigmaKappa.hashCode ^ sigmaIterations.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiCombineMethod &&
-          runtimeType == other.runtimeType &&
-          method == other.method &&
-          sigmaKappa == other.sigmaKappa &&
-          sigmaIterations == other.sigmaIterations;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiCombineMethod &&
+                runtimeType == other.runtimeType
+                && method == other.method&& sigmaKappa == other.sigmaKappa&& sigmaIterations == other.sigmaIterations;
+        
+            }
 
 /// Status of a stored defect map for a given camera / sensor / temperature.
-class ApiDefectMapStatus {
-  final String cameraId;
-  final int width;
-  final int height;
-  final int temperatureBucketDecicelsius;
-  final int defectivePixelCount;
-  final PlatformInt64 lastRebuiltUnixSeconds;
-  final bool applyDuringCapture;
-  final bool storedOnDisk;
+class ApiDefectMapStatus  {
+                final String cameraId;
+final int width;
+final int height;
+final int temperatureBucketDecicelsius;
+final int defectivePixelCount;
+final PlatformInt64 lastRebuiltUnixSeconds;
+final bool applyDuringCapture;
+final bool storedOnDisk;
 
-  const ApiDefectMapStatus({
-    required this.cameraId,
-    required this.width,
-    required this.height,
-    required this.temperatureBucketDecicelsius,
-    required this.defectivePixelCount,
-    required this.lastRebuiltUnixSeconds,
-    required this.applyDuringCapture,
-    required this.storedOnDisk,
-  });
+                const ApiDefectMapStatus({required this.cameraId ,required this.width ,required this.height ,required this.temperatureBucketDecicelsius ,required this.defectivePixelCount ,required this.lastRebuiltUnixSeconds ,required this.applyDuringCapture ,required this.storedOnDisk ,});
 
-  @override
-  int get hashCode =>
-      cameraId.hashCode ^
-      width.hashCode ^
-      height.hashCode ^
-      temperatureBucketDecicelsius.hashCode ^
-      defectivePixelCount.hashCode ^
-      lastRebuiltUnixSeconds.hashCode ^
-      applyDuringCapture.hashCode ^
-      storedOnDisk.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiDefectMapStatus &&
-          runtimeType == other.runtimeType &&
-          cameraId == other.cameraId &&
-          width == other.width &&
-          height == other.height &&
-          temperatureBucketDecicelsius == other.temperatureBucketDecicelsius &&
-          defectivePixelCount == other.defectivePixelCount &&
-          lastRebuiltUnixSeconds == other.lastRebuiltUnixSeconds &&
-          applyDuringCapture == other.applyDuringCapture &&
-          storedOnDisk == other.storedOnDisk;
-}
+                
+        @override
+        int get hashCode => cameraId.hashCode^width.hashCode^height.hashCode^temperatureBucketDecicelsius.hashCode^defectivePixelCount.hashCode^lastRebuiltUnixSeconds.hashCode^applyDuringCapture.hashCode^storedOnDisk.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiDefectMapStatus &&
+                runtimeType == other.runtimeType
+                && cameraId == other.cameraId&& width == other.width&& height == other.height&& temperatureBucketDecicelsius == other.temperatureBucketDecicelsius&& defectivePixelCount == other.defectivePixelCount&& lastRebuiltUnixSeconds == other.lastRebuiltUnixSeconds&& applyDuringCapture == other.applyDuringCapture&& storedOnDisk == other.storedOnDisk;
+        
+            }
 
 /// Live stacking configuration exposed to Dart
-class ApiLiveStackingConfig {
-  final bool sigmaClipEnabled;
-  final double sigmaClipThreshold;
-  final int maxMatchStars;
-  final double matchRadiusPx;
-  final double matchFluxTolerance;
-  final int minMatchedPairs;
+class ApiLiveStackingConfig  {
+                final bool sigmaClipEnabled;
+final double sigmaClipThreshold;
+final int maxMatchStars;
+final double matchRadiusPx;
+final double matchFluxTolerance;
+final int minMatchedPairs;
 
-  const ApiLiveStackingConfig({
-    required this.sigmaClipEnabled,
-    required this.sigmaClipThreshold,
-    required this.maxMatchStars,
-    required this.matchRadiusPx,
-    required this.matchFluxTolerance,
-    required this.minMatchedPairs,
-  });
+                const ApiLiveStackingConfig({required this.sigmaClipEnabled ,required this.sigmaClipThreshold ,required this.maxMatchStars ,required this.matchRadiusPx ,required this.matchFluxTolerance ,required this.minMatchedPairs ,});
 
-  static Future<ApiLiveStackingConfig> default_() =>
-      RustLib.instance.api.crateApiImagingApiLiveStackingConfigDefault();
+                static Future<ApiLiveStackingConfig>  default_()=>RustLib.instance.api.crateApiImagingApiLiveStackingConfigDefault();
 
-  @override
-  int get hashCode =>
-      sigmaClipEnabled.hashCode ^
-      sigmaClipThreshold.hashCode ^
-      maxMatchStars.hashCode ^
-      matchRadiusPx.hashCode ^
-      matchFluxTolerance.hashCode ^
-      minMatchedPairs.hashCode;
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiLiveStackingConfig &&
-          runtimeType == other.runtimeType &&
-          sigmaClipEnabled == other.sigmaClipEnabled &&
-          sigmaClipThreshold == other.sigmaClipThreshold &&
-          maxMatchStars == other.maxMatchStars &&
-          matchRadiusPx == other.matchRadiusPx &&
-          matchFluxTolerance == other.matchFluxTolerance &&
-          minMatchedPairs == other.minMatchedPairs;
-}
+                
+
+                
+        @override
+        int get hashCode => sigmaClipEnabled.hashCode^sigmaClipThreshold.hashCode^maxMatchStars.hashCode^matchRadiusPx.hashCode^matchFluxTolerance.hashCode^minMatchedPairs.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiLiveStackingConfig &&
+                runtimeType == other.runtimeType
+                && sigmaClipEnabled == other.sigmaClipEnabled&& sigmaClipThreshold == other.sigmaClipThreshold&& maxMatchStars == other.maxMatchStars&& matchRadiusPx == other.matchRadiusPx&& matchFluxTolerance == other.matchFluxTolerance&& minMatchedPairs == other.minMatchedPairs;
+        
+            }
 
 /// Result from adding a frame to the live stack
-class ApiLiveStackingResult {
-  final int width;
-  final int height;
-  final Uint16List data;
-  final ApiLiveStackingStats stats;
+class ApiLiveStackingResult  {
+                final int width;
+final int height;
+final Uint16List data;
+final ApiLiveStackingStats stats;
 
-  const ApiLiveStackingResult({
-    required this.width,
-    required this.height,
-    required this.data,
-    required this.stats,
-  });
+                const ApiLiveStackingResult({required this.width ,required this.height ,required this.data ,required this.stats ,});
 
-  @override
-  int get hashCode =>
-      width.hashCode ^ height.hashCode ^ data.hashCode ^ stats.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiLiveStackingResult &&
-          runtimeType == other.runtimeType &&
-          width == other.width &&
-          height == other.height &&
-          data == other.data &&
-          stats == other.stats;
-}
+                
+        @override
+        int get hashCode => width.hashCode^height.hashCode^data.hashCode^stats.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiLiveStackingResult &&
+                runtimeType == other.runtimeType
+                && width == other.width&& height == other.height&& data == other.data&& stats == other.stats;
+        
+            }
 
 /// Live stacking statistics returned to Dart
-class ApiLiveStackingStats {
-  final int stackedFrameCount;
-  final int totalFramesAttempted;
-  final int rejectedAlignmentFailures;
-  final double avgMatchedPairs;
-  final double avgAlignmentResidual;
-  final BigInt totalSigmaRejectedPixels;
+class ApiLiveStackingStats  {
+                final int stackedFrameCount;
+final int totalFramesAttempted;
+final int rejectedAlignmentFailures;
+final double avgMatchedPairs;
+final double avgAlignmentResidual;
+final BigInt totalSigmaRejectedPixels;
 
-  const ApiLiveStackingStats({
-    required this.stackedFrameCount,
-    required this.totalFramesAttempted,
-    required this.rejectedAlignmentFailures,
-    required this.avgMatchedPairs,
-    required this.avgAlignmentResidual,
-    required this.totalSigmaRejectedPixels,
-  });
+                const ApiLiveStackingStats({required this.stackedFrameCount ,required this.totalFramesAttempted ,required this.rejectedAlignmentFailures ,required this.avgMatchedPairs ,required this.avgAlignmentResidual ,required this.totalSigmaRejectedPixels ,});
 
-  @override
-  int get hashCode =>
-      stackedFrameCount.hashCode ^
-      totalFramesAttempted.hashCode ^
-      rejectedAlignmentFailures.hashCode ^
-      avgMatchedPairs.hashCode ^
-      avgAlignmentResidual.hashCode ^
-      totalSigmaRejectedPixels.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiLiveStackingStats &&
-          runtimeType == other.runtimeType &&
-          stackedFrameCount == other.stackedFrameCount &&
-          totalFramesAttempted == other.totalFramesAttempted &&
-          rejectedAlignmentFailures == other.rejectedAlignmentFailures &&
-          avgMatchedPairs == other.avgMatchedPairs &&
-          avgAlignmentResidual == other.avgAlignmentResidual &&
-          totalSigmaRejectedPixels == other.totalSigmaRejectedPixels;
-}
+                
+        @override
+        int get hashCode => stackedFrameCount.hashCode^totalFramesAttempted.hashCode^rejectedAlignmentFailures.hashCode^avgMatchedPairs.hashCode^avgAlignmentResidual.hashCode^totalSigmaRejectedPixels.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiLiveStackingStats &&
+                runtimeType == other.runtimeType
+                && stackedFrameCount == other.stackedFrameCount&& totalFramesAttempted == other.totalFramesAttempted&& rejectedAlignmentFailures == other.rejectedAlignmentFailures&& avgMatchedPairs == other.avgMatchedPairs&& avgAlignmentResidual == other.avgAlignmentResidual&& totalSigmaRejectedPixels == other.totalSigmaRejectedPixels;
+        
+            }
 
 /// Result returned from a master-frame build.
-class ApiMasterFrameResult {
-  /// Where the master FITS was written.
-  final String outputPath;
+class ApiMasterFrameResult  {
+                /// Where the master FITS was written.
+final String outputPath;
+/// "BIAS" | "DARK" | "FLAT"
+final String kind;
+/// "U16" | "F32"
+final String outputType;
+/// How many input frames contributed.
+final int frameCount;
+/// String rendering of the combine method actually used.
+final String method;
+/// Width of the resulting master in pixels.
+final int width;
+/// Height of the resulting master in pixels.
+final int height;
+/// Channel count of the resulting master.
+final int channels;
+/// Pre-normalisation mean of the combined master.
+final double inputMean;
+/// Post-normalisation mean (equals `input_mean` for bias/dark, 1.0 / 32768 for flat).
+final double outputMean;
 
-  /// "BIAS" | "DARK" | "FLAT"
-  final String kind;
+                const ApiMasterFrameResult({required this.outputPath ,required this.kind ,required this.outputType ,required this.frameCount ,required this.method ,required this.width ,required this.height ,required this.channels ,required this.inputMean ,required this.outputMean ,});
 
-  /// "U16" | "F32"
-  final String outputType;
+                
+                
 
-  /// How many input frames contributed.
-  final int frameCount;
+                
+        @override
+        int get hashCode => outputPath.hashCode^kind.hashCode^outputType.hashCode^frameCount.hashCode^method.hashCode^width.hashCode^height.hashCode^channels.hashCode^inputMean.hashCode^outputMean.hashCode;
+        
 
-  /// String rendering of the combine method actually used.
-  final String method;
-
-  /// Width of the resulting master in pixels.
-  final int width;
-
-  /// Height of the resulting master in pixels.
-  final int height;
-
-  /// Channel count of the resulting master.
-  final int channels;
-
-  /// Pre-normalisation mean of the combined master.
-  final double inputMean;
-
-  /// Post-normalisation mean (equals `input_mean` for bias/dark, 1.0 / 32768 for flat).
-  final double outputMean;
-
-  const ApiMasterFrameResult({
-    required this.outputPath,
-    required this.kind,
-    required this.outputType,
-    required this.frameCount,
-    required this.method,
-    required this.width,
-    required this.height,
-    required this.channels,
-    required this.inputMean,
-    required this.outputMean,
-  });
-
-  @override
-  int get hashCode =>
-      outputPath.hashCode ^
-      kind.hashCode ^
-      outputType.hashCode ^
-      frameCount.hashCode ^
-      method.hashCode ^
-      width.hashCode ^
-      height.hashCode ^
-      channels.hashCode ^
-      inputMean.hashCode ^
-      outputMean.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ApiMasterFrameResult &&
-          runtimeType == other.runtimeType &&
-          outputPath == other.outputPath &&
-          kind == other.kind &&
-          outputType == other.outputType &&
-          frameCount == other.frameCount &&
-          method == other.method &&
-          width == other.width &&
-          height == other.height &&
-          channels == other.channels &&
-          inputMean == other.inputMean &&
-          outputMean == other.outputMean;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ApiMasterFrameResult &&
+                runtimeType == other.runtimeType
+                && outputPath == other.outputPath&& kind == other.kind&& outputType == other.outputType&& frameCount == other.frameCount&& method == other.method&& width == other.width&& height == other.height&& channels == other.channels&& inputMean == other.inputMean&& outputMean == other.outputMean;
+        
+            }
 
 /// Autofocus configuration for API
-class AutofocusConfigApi {
-  final double exposureTime;
-  final int stepSize;
-  final int stepsOut;
-  final String method;
-  final int binning;
+class AutofocusConfigApi  {
+                final double exposureTime;
+final int stepSize;
+final int stepsOut;
+final String method;
+final int binning;
 
-  const AutofocusConfigApi({
-    required this.exposureTime,
-    required this.stepSize,
-    required this.stepsOut,
-    required this.method,
-    required this.binning,
-  });
+                const AutofocusConfigApi({required this.exposureTime ,required this.stepSize ,required this.stepsOut ,required this.method ,required this.binning ,});
 
-  @override
-  int get hashCode =>
-      exposureTime.hashCode ^
-      stepSize.hashCode ^
-      stepsOut.hashCode ^
-      method.hashCode ^
-      binning.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AutofocusConfigApi &&
-          runtimeType == other.runtimeType &&
-          exposureTime == other.exposureTime &&
-          stepSize == other.stepSize &&
-          stepsOut == other.stepsOut &&
-          method == other.method &&
-          binning == other.binning;
-}
+                
+        @override
+        int get hashCode => exposureTime.hashCode^stepSize.hashCode^stepsOut.hashCode^method.hashCode^binning.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AutofocusConfigApi &&
+                runtimeType == other.runtimeType
+                && exposureTime == other.exposureTime&& stepSize == other.stepSize&& stepsOut == other.stepsOut&& method == other.method&& binning == other.binning;
+        
+            }
 
 /// Autofocus result containing all data for display and analysis
-class AutofocusResultApi {
-  final int bestPosition;
-  final double bestHfr;
-  final List<FocusDataPoint> focusData;
-  final String method;
-  final double? temperature;
-  final PlatformInt64 timestamp;
-  final double curveFitQuality;
-  final bool backlashApplied;
+class AutofocusResultApi  {
+                final int bestPosition;
+final double bestHfr;
+final List<FocusDataPoint> focusData;
+final String method;
+final double? temperature;
+final PlatformInt64 timestamp;
+final double curveFitQuality;
+final bool backlashApplied;
 
-  const AutofocusResultApi({
-    required this.bestPosition,
-    required this.bestHfr,
-    required this.focusData,
-    required this.method,
-    this.temperature,
-    required this.timestamp,
-    required this.curveFitQuality,
-    required this.backlashApplied,
-  });
+                const AutofocusResultApi({required this.bestPosition ,required this.bestHfr ,required this.focusData ,required this.method ,this.temperature ,required this.timestamp ,required this.curveFitQuality ,required this.backlashApplied ,});
 
-  @override
-  int get hashCode =>
-      bestPosition.hashCode ^
-      bestHfr.hashCode ^
-      focusData.hashCode ^
-      method.hashCode ^
-      temperature.hashCode ^
-      timestamp.hashCode ^
-      curveFitQuality.hashCode ^
-      backlashApplied.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is AutofocusResultApi &&
-          runtimeType == other.runtimeType &&
-          bestPosition == other.bestPosition &&
-          bestHfr == other.bestHfr &&
-          focusData == other.focusData &&
-          method == other.method &&
-          temperature == other.temperature &&
-          timestamp == other.timestamp &&
-          curveFitQuality == other.curveFitQuality &&
-          backlashApplied == other.backlashApplied;
-}
+                
+        @override
+        int get hashCode => bestPosition.hashCode^bestHfr.hashCode^focusData.hashCode^method.hashCode^temperature.hashCode^timestamp.hashCode^curveFitQuality.hashCode^backlashApplied.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is AutofocusResultApi &&
+                runtimeType == other.runtimeType
+                && bestPosition == other.bestPosition&& bestHfr == other.bestHfr&& focusData == other.focusData&& method == other.method&& temperature == other.temperature&& timestamp == other.timestamp&& curveFitQuality == other.curveFitQuality&& backlashApplied == other.backlashApplied;
+        
+            }
 
 /// Bayer pattern type
 enum BayerPatternApi {
-  rggb,
-  bggr,
-  grbg,
-  gbrg,
-  ;
-}
+                    rggb,
+bggr,
+grbg,
+gbrg,
+                    ;
+                    
+                }
 
 /// Captured image result containing display-ready data
-class CapturedImageResult {
-  final int width;
-  final int height;
-  final Uint8List displayData;
-  final Uint32List histogram;
-  final ImageStatsResult stats;
-  final double exposureTime;
-  final String timestamp;
-  final bool isColor;
+class CapturedImageResult  {
+                final int width;
+final int height;
+final Uint8List displayData;
+final Uint32List histogram;
+final ImageStatsResult stats;
+final double exposureTime;
+final String timestamp;
+final bool isColor;
 
-  const CapturedImageResult({
-    required this.width,
-    required this.height,
-    required this.displayData,
-    required this.histogram,
-    required this.stats,
-    required this.exposureTime,
-    required this.timestamp,
-    required this.isColor,
-  });
+                const CapturedImageResult({required this.width ,required this.height ,required this.displayData ,required this.histogram ,required this.stats ,required this.exposureTime ,required this.timestamp ,required this.isColor ,});
 
-  @override
-  int get hashCode =>
-      width.hashCode ^
-      height.hashCode ^
-      displayData.hashCode ^
-      histogram.hashCode ^
-      stats.hashCode ^
-      exposureTime.hashCode ^
-      timestamp.hashCode ^
-      isColor.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CapturedImageResult &&
-          runtimeType == other.runtimeType &&
-          width == other.width &&
-          height == other.height &&
-          displayData == other.displayData &&
-          histogram == other.histogram &&
-          stats == other.stats &&
-          exposureTime == other.exposureTime &&
-          timestamp == other.timestamp &&
-          isColor == other.isColor;
-}
+                
+        @override
+        int get hashCode => width.hashCode^height.hashCode^displayData.hashCode^histogram.hashCode^stats.hashCode^exposureTime.hashCode^timestamp.hashCode^isColor.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is CapturedImageResult &&
+                runtimeType == other.runtimeType
+                && width == other.width&& height == other.height&& displayData == other.displayData&& histogram == other.histogram&& stats == other.stats&& exposureTime == other.exposureTime&& timestamp == other.timestamp&& isColor == other.isColor;
+        
+            }
 
 /// Debayer algorithm
 enum DebayerAlgorithmApi {
-  bilinear,
-  vng,
-  superPixel,
-  ;
-}
+                    bilinear,
+vng,
+superPixel,
+                    ;
+                    
+                }
 
 /// FITS header for writing
 /// Detected star information
-class DetectedStarInfo {
-  final double x;
-  final double y;
-  final double flux;
-  final double hfr;
-  final double fwhm;
-  final double peak;
-  final double background;
-  final double snr;
+class DetectedStarInfo  {
+                final double x;
+final double y;
+final double flux;
+final double hfr;
+final double fwhm;
+final double peak;
+final double background;
+final double snr;
+/// Eccentricity: 0 = perfect circle, 1 = line (elongated)
+final double eccentricity;
+/// Sharpness: ratio of peak to spread - hot pixels have high sharpness
+final double sharpness;
 
-  /// Eccentricity: 0 = perfect circle, 1 = line (elongated)
-  final double eccentricity;
+                const DetectedStarInfo({required this.x ,required this.y ,required this.flux ,required this.hfr ,required this.fwhm ,required this.peak ,required this.background ,required this.snr ,required this.eccentricity ,required this.sharpness ,});
 
-  /// Sharpness: ratio of peak to spread - hot pixels have high sharpness
-  final double sharpness;
+                
+                
 
-  const DetectedStarInfo({
-    required this.x,
-    required this.y,
-    required this.flux,
-    required this.hfr,
-    required this.fwhm,
-    required this.peak,
-    required this.background,
-    required this.snr,
-    required this.eccentricity,
-    required this.sharpness,
-  });
+                
+        @override
+        int get hashCode => x.hashCode^y.hashCode^flux.hashCode^hfr.hashCode^fwhm.hashCode^peak.hashCode^background.hashCode^snr.hashCode^eccentricity.hashCode^sharpness.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      x.hashCode ^
-      y.hashCode ^
-      flux.hashCode ^
-      hfr.hashCode ^
-      fwhm.hashCode ^
-      peak.hashCode ^
-      background.hashCode ^
-      snr.hashCode ^
-      eccentricity.hashCode ^
-      sharpness.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is DetectedStarInfo &&
-          runtimeType == other.runtimeType &&
-          x == other.x &&
-          y == other.y &&
-          flux == other.flux &&
-          hfr == other.hfr &&
-          fwhm == other.fwhm &&
-          peak == other.peak &&
-          background == other.background &&
-          snr == other.snr &&
-          eccentricity == other.eccentricity &&
-          sharpness == other.sharpness;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is DetectedStarInfo &&
+                runtimeType == other.runtimeType
+                && x == other.x&& y == other.y&& flux == other.flux&& hfr == other.hfr&& fwhm == other.fwhm&& peak == other.peak&& background == other.background&& snr == other.snr&& eccentricity == other.eccentricity&& sharpness == other.sharpness;
+        
+            }
 
 /// A single keyword to inject (or overwrite) on an existing FITS file.
 ///
@@ -1062,173 +616,106 @@ class DetectedStarInfo {
 /// The remaining fields must be `None`. The Rust side validates this and
 /// returns an `InvalidParameters` error rather than guessing — silent
 /// fallbacks would let a caller bury a typo and have the keyword vanish.
-class FitsKeywordUpdate {
-  /// FITS keyword. Uppercased on insert. Must be 1..=8 ASCII chars per the
-  /// FITS Standard (4.4.2.1); longer keys are rejected at write time.
-  final String keyword;
+class FitsKeywordUpdate  {
+                /// FITS keyword. Uppercased on insert. Must be 1..=8 ASCII chars per the
+/// FITS Standard (4.4.2.1); longer keys are rejected at write time.
+final String keyword;
+/// Optional inline comment ("/ comment" segment of the value card).
+final String? comment;
+final String? stringValue;
+final PlatformInt64? intValue;
+final double? floatValue;
 
-  /// Optional inline comment ("/ comment" segment of the value card).
-  final String? comment;
-  final String? stringValue;
-  final PlatformInt64? intValue;
-  final double? floatValue;
+                const FitsKeywordUpdate({required this.keyword ,this.comment ,this.stringValue ,this.intValue ,this.floatValue ,});
 
-  const FitsKeywordUpdate({
-    required this.keyword,
-    this.comment,
-    this.stringValue,
-    this.intValue,
-    this.floatValue,
-  });
+                
+                
 
-  @override
-  int get hashCode =>
-      keyword.hashCode ^
-      comment.hashCode ^
-      stringValue.hashCode ^
-      intValue.hashCode ^
-      floatValue.hashCode;
+                
+        @override
+        int get hashCode => keyword.hashCode^comment.hashCode^stringValue.hashCode^intValue.hashCode^floatValue.hashCode;
+        
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FitsKeywordUpdate &&
-          runtimeType == other.runtimeType &&
-          keyword == other.keyword &&
-          comment == other.comment &&
-          stringValue == other.stringValue &&
-          intValue == other.intValue &&
-          floatValue == other.floatValue;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FitsKeywordUpdate &&
+                runtimeType == other.runtimeType
+                && keyword == other.keyword&& comment == other.comment&& stringValue == other.stringValue&& intValue == other.intValue&& floatValue == other.floatValue;
+        
+            }
 
 /// Result from reading FITS file linear pixel data.
 /// This is intended for scientific workflows that require unstretched values.
-class FitsLinearReadResult {
-  final int width;
-  final int height;
-  final int bitpix;
-  final Float64List linearData;
-  final String? objectName;
-  final double? exposureTime;
-  final String? filter;
-  final double? ra;
-  final double? dec;
-  final String? dateObs;
-  final String? bayerPattern;
+class FitsLinearReadResult  {
+                final int width;
+final int height;
+final int bitpix;
+final Float64List linearData;
+final String? objectName;
+final double? exposureTime;
+final String? filter;
+final double? ra;
+final double? dec;
+final String? dateObs;
+final String? bayerPattern;
 
-  const FitsLinearReadResult({
-    required this.width,
-    required this.height,
-    required this.bitpix,
-    required this.linearData,
-    this.objectName,
-    this.exposureTime,
-    this.filter,
-    this.ra,
-    this.dec,
-    this.dateObs,
-    this.bayerPattern,
-  });
+                const FitsLinearReadResult({required this.width ,required this.height ,required this.bitpix ,required this.linearData ,this.objectName ,this.exposureTime ,this.filter ,this.ra ,this.dec ,this.dateObs ,this.bayerPattern ,});
 
-  @override
-  int get hashCode =>
-      width.hashCode ^
-      height.hashCode ^
-      bitpix.hashCode ^
-      linearData.hashCode ^
-      objectName.hashCode ^
-      exposureTime.hashCode ^
-      filter.hashCode ^
-      ra.hashCode ^
-      dec.hashCode ^
-      dateObs.hashCode ^
-      bayerPattern.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FitsLinearReadResult &&
-          runtimeType == other.runtimeType &&
-          width == other.width &&
-          height == other.height &&
-          bitpix == other.bitpix &&
-          linearData == other.linearData &&
-          objectName == other.objectName &&
-          exposureTime == other.exposureTime &&
-          filter == other.filter &&
-          ra == other.ra &&
-          dec == other.dec &&
-          dateObs == other.dateObs &&
-          bayerPattern == other.bayerPattern;
-}
+                
+        @override
+        int get hashCode => width.hashCode^height.hashCode^bitpix.hashCode^linearData.hashCode^objectName.hashCode^exposureTime.hashCode^filter.hashCode^ra.hashCode^dec.hashCode^dateObs.hashCode^bayerPattern.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FitsLinearReadResult &&
+                runtimeType == other.runtimeType
+                && width == other.width&& height == other.height&& bitpix == other.bitpix&& linearData == other.linearData&& objectName == other.objectName&& exposureTime == other.exposureTime&& filter == other.filter&& ra == other.ra&& dec == other.dec&& dateObs == other.dateObs&& bayerPattern == other.bayerPattern;
+        
+            }
 
 /// Result from reading a FITS file
-class FitsReadResult {
-  final int width;
-  final int height;
-  final int bitpix;
-  final Uint8List displayData;
-  final Uint32List histogram;
-  final ImageStatsResult stats;
-  final String? objectName;
-  final double? exposureTime;
-  final String? filter;
-  final double? ra;
-  final double? dec;
-  final String? dateObs;
-  final String? bayerPattern;
+class FitsReadResult  {
+                final int width;
+final int height;
+final int bitpix;
+final Uint8List displayData;
+final Uint32List histogram;
+final ImageStatsResult stats;
+final String? objectName;
+final double? exposureTime;
+final String? filter;
+final double? ra;
+final double? dec;
+final String? dateObs;
+final String? bayerPattern;
 
-  const FitsReadResult({
-    required this.width,
-    required this.height,
-    required this.bitpix,
-    required this.displayData,
-    required this.histogram,
-    required this.stats,
-    this.objectName,
-    this.exposureTime,
-    this.filter,
-    this.ra,
-    this.dec,
-    this.dateObs,
-    this.bayerPattern,
-  });
+                const FitsReadResult({required this.width ,required this.height ,required this.bitpix ,required this.displayData ,required this.histogram ,required this.stats ,this.objectName ,this.exposureTime ,this.filter ,this.ra ,this.dec ,this.dateObs ,this.bayerPattern ,});
 
-  @override
-  int get hashCode =>
-      width.hashCode ^
-      height.hashCode ^
-      bitpix.hashCode ^
-      displayData.hashCode ^
-      histogram.hashCode ^
-      stats.hashCode ^
-      objectName.hashCode ^
-      exposureTime.hashCode ^
-      filter.hashCode ^
-      ra.hashCode ^
-      dec.hashCode ^
-      dateObs.hashCode ^
-      bayerPattern.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FitsReadResult &&
-          runtimeType == other.runtimeType &&
-          width == other.width &&
-          height == other.height &&
-          bitpix == other.bitpix &&
-          displayData == other.displayData &&
-          histogram == other.histogram &&
-          stats == other.stats &&
-          objectName == other.objectName &&
-          exposureTime == other.exposureTime &&
-          filter == other.filter &&
-          ra == other.ra &&
-          dec == other.dec &&
-          dateObs == other.dateObs &&
-          bayerPattern == other.bayerPattern;
-}
+                
+        @override
+        int get hashCode => width.hashCode^height.hashCode^bitpix.hashCode^displayData.hashCode^histogram.hashCode^stats.hashCode^objectName.hashCode^exposureTime.hashCode^filter.hashCode^ra.hashCode^dec.hashCode^dateObs.hashCode^bayerPattern.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FitsReadResult &&
+                runtimeType == other.runtimeType
+                && width == other.width&& height == other.height&& bitpix == other.bitpix&& displayData == other.displayData&& histogram == other.histogram&& stats == other.stats&& objectName == other.objectName&& exposureTime == other.exposureTime&& filter == other.filter&& ra == other.ra&& dec == other.dec&& dateObs == other.dateObs&& bayerPattern == other.bayerPattern;
+        
+            }
 
 /// Header data for FITS file writing.
 ///
@@ -1242,112 +729,50 @@ class FitsReadResult {
 /// panel, etc.). The rich path is internal — not exposed via FRB — so
 /// sequencer-driven saves can grow the FITS surface without disrupting
 /// Dart-side FRB schema.
-class FitsWriteHeader {
-  final String? objectName;
-  final double exposureTime;
-  final String captureTimestamp;
-  final String frameType;
-  final String? filter;
-  final int? gain;
-  final int? offset;
-  final double? ccdTemp;
-  final double? ra;
-  final double? dec;
-  final double? altitude;
-  final String? telescope;
-  final String? instrument;
-  final String? observer;
-  final int binX;
-  final int binY;
-  final double? focalLength;
-  final double? aperture;
-  final double? pixelSizeX;
-  final double? pixelSizeY;
-  final double? siteLatitude;
-  final double? siteLongitude;
-  final double? siteElevation;
+class FitsWriteHeader  {
+                final String? objectName;
+final double exposureTime;
+final String captureTimestamp;
+final String frameType;
+final String? filter;
+final int? gain;
+final int? offset;
+final double? ccdTemp;
+final double? ra;
+final double? dec;
+final double? altitude;
+final String? telescope;
+final String? instrument;
+final String? observer;
+final int binX;
+final int binY;
+final double? focalLength;
+final double? aperture;
+final double? pixelSizeX;
+final double? pixelSizeY;
+final double? siteLatitude;
+final double? siteLongitude;
+final double? siteElevation;
 
-  const FitsWriteHeader({
-    this.objectName,
-    required this.exposureTime,
-    required this.captureTimestamp,
-    required this.frameType,
-    this.filter,
-    this.gain,
-    this.offset,
-    this.ccdTemp,
-    this.ra,
-    this.dec,
-    this.altitude,
-    this.telescope,
-    this.instrument,
-    this.observer,
-    required this.binX,
-    required this.binY,
-    this.focalLength,
-    this.aperture,
-    this.pixelSizeX,
-    this.pixelSizeY,
-    this.siteLatitude,
-    this.siteLongitude,
-    this.siteElevation,
-  });
+                const FitsWriteHeader({this.objectName ,required this.exposureTime ,required this.captureTimestamp ,required this.frameType ,this.filter ,this.gain ,this.offset ,this.ccdTemp ,this.ra ,this.dec ,this.altitude ,this.telescope ,this.instrument ,this.observer ,required this.binX ,required this.binY ,this.focalLength ,this.aperture ,this.pixelSizeX ,this.pixelSizeY ,this.siteLatitude ,this.siteLongitude ,this.siteElevation ,});
 
-  @override
-  int get hashCode =>
-      objectName.hashCode ^
-      exposureTime.hashCode ^
-      captureTimestamp.hashCode ^
-      frameType.hashCode ^
-      filter.hashCode ^
-      gain.hashCode ^
-      offset.hashCode ^
-      ccdTemp.hashCode ^
-      ra.hashCode ^
-      dec.hashCode ^
-      altitude.hashCode ^
-      telescope.hashCode ^
-      instrument.hashCode ^
-      observer.hashCode ^
-      binX.hashCode ^
-      binY.hashCode ^
-      focalLength.hashCode ^
-      aperture.hashCode ^
-      pixelSizeX.hashCode ^
-      pixelSizeY.hashCode ^
-      siteLatitude.hashCode ^
-      siteLongitude.hashCode ^
-      siteElevation.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FitsWriteHeader &&
-          runtimeType == other.runtimeType &&
-          objectName == other.objectName &&
-          exposureTime == other.exposureTime &&
-          captureTimestamp == other.captureTimestamp &&
-          frameType == other.frameType &&
-          filter == other.filter &&
-          gain == other.gain &&
-          offset == other.offset &&
-          ccdTemp == other.ccdTemp &&
-          ra == other.ra &&
-          dec == other.dec &&
-          altitude == other.altitude &&
-          telescope == other.telescope &&
-          instrument == other.instrument &&
-          observer == other.observer &&
-          binX == other.binX &&
-          binY == other.binY &&
-          focalLength == other.focalLength &&
-          aperture == other.aperture &&
-          pixelSizeX == other.pixelSizeX &&
-          pixelSizeY == other.pixelSizeY &&
-          siteLatitude == other.siteLatitude &&
-          siteLongitude == other.siteLongitude &&
-          siteElevation == other.siteElevation;
-}
+                
+        @override
+        int get hashCode => objectName.hashCode^exposureTime.hashCode^captureTimestamp.hashCode^frameType.hashCode^filter.hashCode^gain.hashCode^offset.hashCode^ccdTemp.hashCode^ra.hashCode^dec.hashCode^altitude.hashCode^telescope.hashCode^instrument.hashCode^observer.hashCode^binX.hashCode^binY.hashCode^focalLength.hashCode^aperture.hashCode^pixelSizeX.hashCode^pixelSizeY.hashCode^siteLatitude.hashCode^siteLongitude.hashCode^siteElevation.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FitsWriteHeader &&
+                runtimeType == other.runtimeType
+                && objectName == other.objectName&& exposureTime == other.exposureTime&& captureTimestamp == other.captureTimestamp&& frameType == other.frameType&& filter == other.filter&& gain == other.gain&& offset == other.offset&& ccdTemp == other.ccdTemp&& ra == other.ra&& dec == other.dec&& altitude == other.altitude&& telescope == other.telescope&& instrument == other.instrument&& observer == other.observer&& binX == other.binX&& binY == other.binY&& focalLength == other.focalLength&& aperture == other.aperture&& pixelSizeX == other.pixelSizeX&& pixelSizeY == other.pixelSizeY&& siteLatitude == other.siteLatitude&& siteLongitude == other.siteLongitude&& siteElevation == other.siteElevation;
+        
+            }
 
 /// Wave 3 Image Grading: internal FITS-header bundle used by the
 /// sequencer's per-frame save path. Carries every field the standard
@@ -1358,856 +783,511 @@ class FitsWriteHeader {
 /// `real_device_ops.rs` / `unified_device_ops.rs` / `sequencer_ops.rs`)
 /// constructs this. Dart callers continue to use the simpler
 /// [`FitsWriteHeader`] for ad-hoc snapshot saves.
-class FitsWriteHeaderRich {
-  final String? objectName;
-  final double exposureTime;
-  final String captureTimestamp;
-  final String frameType;
-  final String? filter;
+class FitsWriteHeaderRich  {
+                final String? objectName;
+final double exposureTime;
+final String captureTimestamp;
+final String frameType;
+final String? filter;
+/// 1-based filter wheel position (FITS `FILTPOS`).
+final int? filterPosition;
+final int? gain;
+final int? offset;
+final double? ccdTemp;
+/// Cooler target temperature in °C (FITS `SET-TEMP`).
+final double? setTemp;
+final double? ra;
+final double? dec;
+final double? altitude;
+final String? telescope;
+final String? instrument;
+final String? observer;
+final int binX;
+final int binY;
+final double? focalLength;
+final double? aperture;
+final double? pixelSizeX;
+final double? pixelSizeY;
+final double? siteLatitude;
+final double? siteLongitude;
+final double? siteElevation;
+/// Focuser absolute position (FITS `FOCUSPOS`).
+final int? focuserPosition;
+/// Focuser temperature in °C (FITS `FOCTEMP`).
+final double? focuserTemperature;
+/// Rotator mechanical angle in degrees (FITS `ROTATPOS`).
+final double? rotatorAngle;
+/// Total guiding RMS in arcseconds (FITS `GUIDERMS`).
+final double? guideRmsArcsec;
+/// Plate-solved RA in hours (FITS `SOLVED-RA`).
+final double? solvedRaHours;
+/// Plate-solved Dec in degrees (FITS `SOLVED-DEC`).
+final double? solvedDecDegrees;
+/// Solved pixel scale in arcsec/pixel (FITS `PIXSCALE`).
+final double? plateSolvePixelScaleArcsec;
+/// Solved field rotation in degrees (FITS `CROTA1` and `CROTA2`).
+final double? plateSolveRotationDeg;
+/// Bayer pattern ("RGGB", "BGGR", etc.) (FITS `BAYERPAT`).
+final String? bayerPattern;
+/// Nightshade session identifier (FITS `NS-SESID`).
+final String? sessionId;
+/// 1-based frame index within the burst (FITS `NS-FIDX`).
+final int? frameIndex;
+/// Total planned frames in the burst (FITS `NS-NPLN`).
+final int? totalPlannedFrames;
+/// Mosaic identification (FITS `NS-MOSNM`).
+final String? mosaicName;
+/// 0-based mosaic panel index (FITS `NS-PIDX`).
+final int? mosaicPanelIndex;
+/// Mosaic panel row (FITS `NS-PROW`).
+final int? mosaicPanelRow;
+/// Mosaic panel column (FITS `NS-PCOL`).
+final int? mosaicPanelColumn;
+/// Mosaic total panel count (FITS `NS-NPAN`).
+final int? mosaicTotalPanels;
+final DefectMapCorrectionRecord? defectMapCorrection;
+final String? photometryObjectCatalog;
+final String? photometryReferenceStars;
+final double? photometryMjdObs;
+final double? photometryInstrumentalMag;
+final double? photometryDifferentialMag;
+final double? photometryFwhmArcsec;
+final double? photometrySnr;
 
-  /// 1-based filter wheel position (FITS `FILTPOS`).
-  final int? filterPosition;
-  final int? gain;
-  final int? offset;
-  final double? ccdTemp;
+                const FitsWriteHeaderRich({this.objectName ,required this.exposureTime ,required this.captureTimestamp ,required this.frameType ,this.filter ,this.filterPosition ,this.gain ,this.offset ,this.ccdTemp ,this.setTemp ,this.ra ,this.dec ,this.altitude ,this.telescope ,this.instrument ,this.observer ,required this.binX ,required this.binY ,this.focalLength ,this.aperture ,this.pixelSizeX ,this.pixelSizeY ,this.siteLatitude ,this.siteLongitude ,this.siteElevation ,this.focuserPosition ,this.focuserTemperature ,this.rotatorAngle ,this.guideRmsArcsec ,this.solvedRaHours ,this.solvedDecDegrees ,this.plateSolvePixelScaleArcsec ,this.plateSolveRotationDeg ,this.bayerPattern ,this.sessionId ,this.frameIndex ,this.totalPlannedFrames ,this.mosaicName ,this.mosaicPanelIndex ,this.mosaicPanelRow ,this.mosaicPanelColumn ,this.mosaicTotalPanels ,this.defectMapCorrection ,this.photometryObjectCatalog ,this.photometryReferenceStars ,this.photometryMjdObs ,this.photometryInstrumentalMag ,this.photometryDifferentialMag ,this.photometryFwhmArcsec ,this.photometrySnr ,});
 
-  /// Cooler target temperature in °C (FITS `SET-TEMP`).
-  final double? setTemp;
-  final double? ra;
-  final double? dec;
-  final double? altitude;
-  final String? telescope;
-  final String? instrument;
-  final String? observer;
-  final int binX;
-  final int binY;
-  final double? focalLength;
-  final double? aperture;
-  final double? pixelSizeX;
-  final double? pixelSizeY;
-  final double? siteLatitude;
-  final double? siteLongitude;
-  final double? siteElevation;
+                static Future<FitsWriteHeaderRich>  default_()=>RustLib.instance.api.crateApiImagingFitsWriteHeaderRichDefault();
 
-  /// Focuser absolute position (FITS `FOCUSPOS`).
-  final int? focuserPosition;
 
-  /// Focuser temperature in °C (FITS `FOCTEMP`).
-  final double? focuserTemperature;
+                
 
-  /// Rotator mechanical angle in degrees (FITS `ROTATPOS`).
-  final double? rotatorAngle;
+                
+        @override
+        int get hashCode => objectName.hashCode^exposureTime.hashCode^captureTimestamp.hashCode^frameType.hashCode^filter.hashCode^filterPosition.hashCode^gain.hashCode^offset.hashCode^ccdTemp.hashCode^setTemp.hashCode^ra.hashCode^dec.hashCode^altitude.hashCode^telescope.hashCode^instrument.hashCode^observer.hashCode^binX.hashCode^binY.hashCode^focalLength.hashCode^aperture.hashCode^pixelSizeX.hashCode^pixelSizeY.hashCode^siteLatitude.hashCode^siteLongitude.hashCode^siteElevation.hashCode^focuserPosition.hashCode^focuserTemperature.hashCode^rotatorAngle.hashCode^guideRmsArcsec.hashCode^solvedRaHours.hashCode^solvedDecDegrees.hashCode^plateSolvePixelScaleArcsec.hashCode^plateSolveRotationDeg.hashCode^bayerPattern.hashCode^sessionId.hashCode^frameIndex.hashCode^totalPlannedFrames.hashCode^mosaicName.hashCode^mosaicPanelIndex.hashCode^mosaicPanelRow.hashCode^mosaicPanelColumn.hashCode^mosaicTotalPanels.hashCode^defectMapCorrection.hashCode^photometryObjectCatalog.hashCode^photometryReferenceStars.hashCode^photometryMjdObs.hashCode^photometryInstrumentalMag.hashCode^photometryDifferentialMag.hashCode^photometryFwhmArcsec.hashCode^photometrySnr.hashCode;
+        
 
-  /// Total guiding RMS in arcseconds (FITS `GUIDERMS`).
-  final double? guideRmsArcsec;
-
-  /// Plate-solved RA in hours (FITS `SOLVED-RA`).
-  final double? solvedRaHours;
-
-  /// Plate-solved Dec in degrees (FITS `SOLVED-DEC`).
-  final double? solvedDecDegrees;
-
-  /// Solved pixel scale in arcsec/pixel (FITS `PIXSCALE`).
-  final double? plateSolvePixelScaleArcsec;
-
-  /// Solved field rotation in degrees (FITS `CROTA1` and `CROTA2`).
-  final double? plateSolveRotationDeg;
-
-  /// Bayer pattern ("RGGB", "BGGR", etc.) (FITS `BAYERPAT`).
-  final String? bayerPattern;
-
-  /// Nightshade session identifier (FITS `NS-SESID`).
-  final String? sessionId;
-
-  /// 1-based frame index within the burst (FITS `NS-FIDX`).
-  final int? frameIndex;
-
-  /// Total planned frames in the burst (FITS `NS-NPLN`).
-  final int? totalPlannedFrames;
-
-  /// Mosaic identification (FITS `NS-MOSNM`).
-  final String? mosaicName;
-
-  /// 0-based mosaic panel index (FITS `NS-PIDX`).
-  final int? mosaicPanelIndex;
-
-  /// Mosaic panel row (FITS `NS-PROW`).
-  final int? mosaicPanelRow;
-
-  /// Mosaic panel column (FITS `NS-PCOL`).
-  final int? mosaicPanelColumn;
-
-  /// Mosaic total panel count (FITS `NS-NPAN`).
-  final int? mosaicTotalPanels;
-  final DefectMapCorrectionRecord? defectMapCorrection;
-  final String? photometryObjectCatalog;
-  final String? photometryReferenceStars;
-  final double? photometryMjdObs;
-  final double? photometryInstrumentalMag;
-  final double? photometryDifferentialMag;
-  final double? photometryFwhmArcsec;
-  final double? photometrySnr;
-
-  const FitsWriteHeaderRich({
-    this.objectName,
-    required this.exposureTime,
-    required this.captureTimestamp,
-    required this.frameType,
-    this.filter,
-    this.filterPosition,
-    this.gain,
-    this.offset,
-    this.ccdTemp,
-    this.setTemp,
-    this.ra,
-    this.dec,
-    this.altitude,
-    this.telescope,
-    this.instrument,
-    this.observer,
-    required this.binX,
-    required this.binY,
-    this.focalLength,
-    this.aperture,
-    this.pixelSizeX,
-    this.pixelSizeY,
-    this.siteLatitude,
-    this.siteLongitude,
-    this.siteElevation,
-    this.focuserPosition,
-    this.focuserTemperature,
-    this.rotatorAngle,
-    this.guideRmsArcsec,
-    this.solvedRaHours,
-    this.solvedDecDegrees,
-    this.plateSolvePixelScaleArcsec,
-    this.plateSolveRotationDeg,
-    this.bayerPattern,
-    this.sessionId,
-    this.frameIndex,
-    this.totalPlannedFrames,
-    this.mosaicName,
-    this.mosaicPanelIndex,
-    this.mosaicPanelRow,
-    this.mosaicPanelColumn,
-    this.mosaicTotalPanels,
-    this.defectMapCorrection,
-    this.photometryObjectCatalog,
-    this.photometryReferenceStars,
-    this.photometryMjdObs,
-    this.photometryInstrumentalMag,
-    this.photometryDifferentialMag,
-    this.photometryFwhmArcsec,
-    this.photometrySnr,
-  });
-
-  static Future<FitsWriteHeaderRich> default_() =>
-      RustLib.instance.api.crateApiImagingFitsWriteHeaderRichDefault();
-
-  @override
-  int get hashCode =>
-      objectName.hashCode ^
-      exposureTime.hashCode ^
-      captureTimestamp.hashCode ^
-      frameType.hashCode ^
-      filter.hashCode ^
-      filterPosition.hashCode ^
-      gain.hashCode ^
-      offset.hashCode ^
-      ccdTemp.hashCode ^
-      setTemp.hashCode ^
-      ra.hashCode ^
-      dec.hashCode ^
-      altitude.hashCode ^
-      telescope.hashCode ^
-      instrument.hashCode ^
-      observer.hashCode ^
-      binX.hashCode ^
-      binY.hashCode ^
-      focalLength.hashCode ^
-      aperture.hashCode ^
-      pixelSizeX.hashCode ^
-      pixelSizeY.hashCode ^
-      siteLatitude.hashCode ^
-      siteLongitude.hashCode ^
-      siteElevation.hashCode ^
-      focuserPosition.hashCode ^
-      focuserTemperature.hashCode ^
-      rotatorAngle.hashCode ^
-      guideRmsArcsec.hashCode ^
-      solvedRaHours.hashCode ^
-      solvedDecDegrees.hashCode ^
-      plateSolvePixelScaleArcsec.hashCode ^
-      plateSolveRotationDeg.hashCode ^
-      bayerPattern.hashCode ^
-      sessionId.hashCode ^
-      frameIndex.hashCode ^
-      totalPlannedFrames.hashCode ^
-      mosaicName.hashCode ^
-      mosaicPanelIndex.hashCode ^
-      mosaicPanelRow.hashCode ^
-      mosaicPanelColumn.hashCode ^
-      mosaicTotalPanels.hashCode ^
-      defectMapCorrection.hashCode ^
-      photometryObjectCatalog.hashCode ^
-      photometryReferenceStars.hashCode ^
-      photometryMjdObs.hashCode ^
-      photometryInstrumentalMag.hashCode ^
-      photometryDifferentialMag.hashCode ^
-      photometryFwhmArcsec.hashCode ^
-      photometrySnr.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FitsWriteHeaderRich &&
-          runtimeType == other.runtimeType &&
-          objectName == other.objectName &&
-          exposureTime == other.exposureTime &&
-          captureTimestamp == other.captureTimestamp &&
-          frameType == other.frameType &&
-          filter == other.filter &&
-          filterPosition == other.filterPosition &&
-          gain == other.gain &&
-          offset == other.offset &&
-          ccdTemp == other.ccdTemp &&
-          setTemp == other.setTemp &&
-          ra == other.ra &&
-          dec == other.dec &&
-          altitude == other.altitude &&
-          telescope == other.telescope &&
-          instrument == other.instrument &&
-          observer == other.observer &&
-          binX == other.binX &&
-          binY == other.binY &&
-          focalLength == other.focalLength &&
-          aperture == other.aperture &&
-          pixelSizeX == other.pixelSizeX &&
-          pixelSizeY == other.pixelSizeY &&
-          siteLatitude == other.siteLatitude &&
-          siteLongitude == other.siteLongitude &&
-          siteElevation == other.siteElevation &&
-          focuserPosition == other.focuserPosition &&
-          focuserTemperature == other.focuserTemperature &&
-          rotatorAngle == other.rotatorAngle &&
-          guideRmsArcsec == other.guideRmsArcsec &&
-          solvedRaHours == other.solvedRaHours &&
-          solvedDecDegrees == other.solvedDecDegrees &&
-          plateSolvePixelScaleArcsec == other.plateSolvePixelScaleArcsec &&
-          plateSolveRotationDeg == other.plateSolveRotationDeg &&
-          bayerPattern == other.bayerPattern &&
-          sessionId == other.sessionId &&
-          frameIndex == other.frameIndex &&
-          totalPlannedFrames == other.totalPlannedFrames &&
-          mosaicName == other.mosaicName &&
-          mosaicPanelIndex == other.mosaicPanelIndex &&
-          mosaicPanelRow == other.mosaicPanelRow &&
-          mosaicPanelColumn == other.mosaicPanelColumn &&
-          mosaicTotalPanels == other.mosaicTotalPanels &&
-          defectMapCorrection == other.defectMapCorrection &&
-          photometryObjectCatalog == other.photometryObjectCatalog &&
-          photometryReferenceStars == other.photometryReferenceStars &&
-          photometryMjdObs == other.photometryMjdObs &&
-          photometryInstrumentalMag == other.photometryInstrumentalMag &&
-          photometryDifferentialMag == other.photometryDifferentialMag &&
-          photometryFwhmArcsec == other.photometryFwhmArcsec &&
-          photometrySnr == other.photometrySnr;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FitsWriteHeaderRich &&
+                runtimeType == other.runtimeType
+                && objectName == other.objectName&& exposureTime == other.exposureTime&& captureTimestamp == other.captureTimestamp&& frameType == other.frameType&& filter == other.filter&& filterPosition == other.filterPosition&& gain == other.gain&& offset == other.offset&& ccdTemp == other.ccdTemp&& setTemp == other.setTemp&& ra == other.ra&& dec == other.dec&& altitude == other.altitude&& telescope == other.telescope&& instrument == other.instrument&& observer == other.observer&& binX == other.binX&& binY == other.binY&& focalLength == other.focalLength&& aperture == other.aperture&& pixelSizeX == other.pixelSizeX&& pixelSizeY == other.pixelSizeY&& siteLatitude == other.siteLatitude&& siteLongitude == other.siteLongitude&& siteElevation == other.siteElevation&& focuserPosition == other.focuserPosition&& focuserTemperature == other.focuserTemperature&& rotatorAngle == other.rotatorAngle&& guideRmsArcsec == other.guideRmsArcsec&& solvedRaHours == other.solvedRaHours&& solvedDecDegrees == other.solvedDecDegrees&& plateSolvePixelScaleArcsec == other.plateSolvePixelScaleArcsec&& plateSolveRotationDeg == other.plateSolveRotationDeg&& bayerPattern == other.bayerPattern&& sessionId == other.sessionId&& frameIndex == other.frameIndex&& totalPlannedFrames == other.totalPlannedFrames&& mosaicName == other.mosaicName&& mosaicPanelIndex == other.mosaicPanelIndex&& mosaicPanelRow == other.mosaicPanelRow&& mosaicPanelColumn == other.mosaicPanelColumn&& mosaicTotalPanels == other.mosaicTotalPanels&& defectMapCorrection == other.defectMapCorrection&& photometryObjectCatalog == other.photometryObjectCatalog&& photometryReferenceStars == other.photometryReferenceStars&& photometryMjdObs == other.photometryMjdObs&& photometryInstrumentalMag == other.photometryInstrumentalMag&& photometryDifferentialMag == other.photometryDifferentialMag&& photometryFwhmArcsec == other.photometryFwhmArcsec&& photometrySnr == other.photometrySnr;
+        
+            }
 
 /// A single focus data point (position and HFR)
-class FocusDataPoint {
-  final int position;
-  final double hfr;
-  final double? fwhm;
-  final int starCount;
+class FocusDataPoint  {
+                final int position;
+final double hfr;
+final double? fwhm;
+final int starCount;
 
-  const FocusDataPoint({
-    required this.position,
-    required this.hfr,
-    this.fwhm,
-    required this.starCount,
-  });
+                const FocusDataPoint({required this.position ,required this.hfr ,this.fwhm ,required this.starCount ,});
 
-  @override
-  int get hashCode =>
-      position.hashCode ^ hfr.hashCode ^ fwhm.hashCode ^ starCount.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FocusDataPoint &&
-          runtimeType == other.runtimeType &&
-          position == other.position &&
-          hfr == other.hfr &&
-          fwhm == other.fwhm &&
-          starCount == other.starCount;
-}
+                
+        @override
+        int get hashCode => position.hashCode^hfr.hashCode^fwhm.hashCode^starCount.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FocusDataPoint &&
+                runtimeType == other.runtimeType
+                && position == other.position&& hfr == other.hfr&& fwhm == other.fwhm&& starCount == other.starCount;
+        
+            }
 
 /// Focus data point for autofocus curve
-class FocusDataPointApi {
-  final int position;
-  final double hfr;
-  final double? fwhm;
-  final int starCount;
+class FocusDataPointApi  {
+                final int position;
+final double hfr;
+final double? fwhm;
+final int starCount;
 
-  const FocusDataPointApi({
-    required this.position,
-    required this.hfr,
-    this.fwhm,
-    required this.starCount,
-  });
+                const FocusDataPointApi({required this.position ,required this.hfr ,this.fwhm ,required this.starCount ,});
 
-  @override
-  int get hashCode =>
-      position.hashCode ^ hfr.hashCode ^ fwhm.hashCode ^ starCount.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is FocusDataPointApi &&
-          runtimeType == other.runtimeType &&
-          position == other.position &&
-          hfr == other.hfr &&
-          fwhm == other.fwhm &&
-          starCount == other.starCount;
-}
+                
+        @override
+        int get hashCode => position.hashCode^hfr.hashCode^fwhm.hashCode^starCount.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is FocusDataPointApi &&
+                runtimeType == other.runtimeType
+                && position == other.position&& hfr == other.hfr&& fwhm == other.fwhm&& starCount == other.starCount;
+        
+            }
 
 /// Frame type for file naming
 enum FrameTypeApi {
-  light,
-  dark,
-  flat,
-  bias,
-  darkFlat,
-  snapshot,
-  ;
-}
+                    light,
+dark,
+flat,
+bias,
+darkFlat,
+snapshot,
+                    ;
+                    
+                }
 
 /// Image statistics
-class ImageStatsResult {
-  final double min;
-  final double max;
-  final double mean;
-  final double median;
-  final double stdDev;
-  final double? hfr;
-  final int starCount;
+class ImageStatsResult  {
+                final double min;
+final double max;
+final double mean;
+final double median;
+final double stdDev;
+final double? hfr;
+final int starCount;
 
-  const ImageStatsResult({
-    required this.min,
-    required this.max,
-    required this.mean,
-    required this.median,
-    required this.stdDev,
-    this.hfr,
-    required this.starCount,
-  });
+                const ImageStatsResult({required this.min ,required this.max ,required this.mean ,required this.median ,required this.stdDev ,this.hfr ,required this.starCount ,});
 
-  @override
-  int get hashCode =>
-      min.hashCode ^
-      max.hashCode ^
-      mean.hashCode ^
-      median.hashCode ^
-      stdDev.hashCode ^
-      hfr.hashCode ^
-      starCount.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is ImageStatsResult &&
-          runtimeType == other.runtimeType &&
-          min == other.min &&
-          max == other.max &&
-          mean == other.mean &&
-          median == other.median &&
-          stdDev == other.stdDev &&
-          hfr == other.hfr &&
-          starCount == other.starCount;
-}
+                
+        @override
+        int get hashCode => min.hashCode^max.hashCode^mean.hashCode^median.hashCode^stdDev.hashCode^hfr.hashCode^starCount.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is ImageStatsResult &&
+                runtimeType == other.runtimeType
+                && min == other.min&& max == other.max&& mean == other.mean&& median == other.median&& stdDev == other.stdDev&& hfr == other.hfr&& starCount == other.starCount;
+        
+            }
 
 /// INDI autofocus configuration
-class IndiAutofocusConfigApi {
-  final String method;
-  final int stepSize;
-  final int stepsOut;
-  final double exposureDuration;
-  final int backlashCompensation;
-  final bool useTemperaturePrediction;
-  final double? maxStarCountChange;
-  final double outlierRejectionSigma;
-  final int binning;
-  final BigInt moveTimeoutSecs;
-  final BigInt settlingTimeMs;
+class IndiAutofocusConfigApi  {
+                final String method;
+final int stepSize;
+final int stepsOut;
+final double exposureDuration;
+final int backlashCompensation;
+final bool useTemperaturePrediction;
+final double? maxStarCountChange;
+final double outlierRejectionSigma;
+final int binning;
+final BigInt moveTimeoutSecs;
+final BigInt settlingTimeMs;
 
-  const IndiAutofocusConfigApi({
-    required this.method,
-    required this.stepSize,
-    required this.stepsOut,
-    required this.exposureDuration,
-    required this.backlashCompensation,
-    required this.useTemperaturePrediction,
-    this.maxStarCountChange,
-    required this.outlierRejectionSigma,
-    required this.binning,
-    required this.moveTimeoutSecs,
-    required this.settlingTimeMs,
-  });
+                const IndiAutofocusConfigApi({required this.method ,required this.stepSize ,required this.stepsOut ,required this.exposureDuration ,required this.backlashCompensation ,required this.useTemperaturePrediction ,this.maxStarCountChange ,required this.outlierRejectionSigma ,required this.binning ,required this.moveTimeoutSecs ,required this.settlingTimeMs ,});
 
-  static Future<IndiAutofocusConfigApi> default_() =>
-      RustLib.instance.api.crateApiImagingIndiAutofocusConfigApiDefault();
+                static Future<IndiAutofocusConfigApi>  default_()=>RustLib.instance.api.crateApiImagingIndiAutofocusConfigApiDefault();
 
-  @override
-  int get hashCode =>
-      method.hashCode ^
-      stepSize.hashCode ^
-      stepsOut.hashCode ^
-      exposureDuration.hashCode ^
-      backlashCompensation.hashCode ^
-      useTemperaturePrediction.hashCode ^
-      maxStarCountChange.hashCode ^
-      outlierRejectionSigma.hashCode ^
-      binning.hashCode ^
-      moveTimeoutSecs.hashCode ^
-      settlingTimeMs.hashCode;
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is IndiAutofocusConfigApi &&
-          runtimeType == other.runtimeType &&
-          method == other.method &&
-          stepSize == other.stepSize &&
-          stepsOut == other.stepsOut &&
-          exposureDuration == other.exposureDuration &&
-          backlashCompensation == other.backlashCompensation &&
-          useTemperaturePrediction == other.useTemperaturePrediction &&
-          maxStarCountChange == other.maxStarCountChange &&
-          outlierRejectionSigma == other.outlierRejectionSigma &&
-          binning == other.binning &&
-          moveTimeoutSecs == other.moveTimeoutSecs &&
-          settlingTimeMs == other.settlingTimeMs;
-}
+                
+
+                
+        @override
+        int get hashCode => method.hashCode^stepSize.hashCode^stepsOut.hashCode^exposureDuration.hashCode^backlashCompensation.hashCode^useTemperaturePrediction.hashCode^maxStarCountChange.hashCode^outlierRejectionSigma.hashCode^binning.hashCode^moveTimeoutSecs.hashCode^settlingTimeMs.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is IndiAutofocusConfigApi &&
+                runtimeType == other.runtimeType
+                && method == other.method&& stepSize == other.stepSize&& stepsOut == other.stepsOut&& exposureDuration == other.exposureDuration&& backlashCompensation == other.backlashCompensation&& useTemperaturePrediction == other.useTemperaturePrediction&& maxStarCountChange == other.maxStarCountChange&& outlierRejectionSigma == other.outlierRejectionSigma&& binning == other.binning&& moveTimeoutSecs == other.moveTimeoutSecs&& settlingTimeMs == other.settlingTimeMs;
+        
+            }
 
 /// INDI autofocus result
-class IndiAutofocusResultApi {
-  final int bestPosition;
-  final double bestHfr;
-  final double curveFitQuality;
-  final String methodUsed;
-  final List<FocusDataPointApi> dataPoints;
-  final double? temperatureCelsius;
-  final bool backlashApplied;
-  final bool success;
-  final String? errorMessage;
+class IndiAutofocusResultApi  {
+                final int bestPosition;
+final double bestHfr;
+final double curveFitQuality;
+final String methodUsed;
+final List<FocusDataPointApi> dataPoints;
+final double? temperatureCelsius;
+final bool backlashApplied;
+final bool success;
+final String? errorMessage;
 
-  const IndiAutofocusResultApi({
-    required this.bestPosition,
-    required this.bestHfr,
-    required this.curveFitQuality,
-    required this.methodUsed,
-    required this.dataPoints,
-    this.temperatureCelsius,
-    required this.backlashApplied,
-    required this.success,
-    this.errorMessage,
-  });
+                const IndiAutofocusResultApi({required this.bestPosition ,required this.bestHfr ,required this.curveFitQuality ,required this.methodUsed ,required this.dataPoints ,this.temperatureCelsius ,required this.backlashApplied ,required this.success ,this.errorMessage ,});
 
-  @override
-  int get hashCode =>
-      bestPosition.hashCode ^
-      bestHfr.hashCode ^
-      curveFitQuality.hashCode ^
-      methodUsed.hashCode ^
-      dataPoints.hashCode ^
-      temperatureCelsius.hashCode ^
-      backlashApplied.hashCode ^
-      success.hashCode ^
-      errorMessage.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is IndiAutofocusResultApi &&
-          runtimeType == other.runtimeType &&
-          bestPosition == other.bestPosition &&
-          bestHfr == other.bestHfr &&
-          curveFitQuality == other.curveFitQuality &&
-          methodUsed == other.methodUsed &&
-          dataPoints == other.dataPoints &&
-          temperatureCelsius == other.temperatureCelsius &&
-          backlashApplied == other.backlashApplied &&
-          success == other.success &&
-          errorMessage == other.errorMessage;
-}
+                
+        @override
+        int get hashCode => bestPosition.hashCode^bestHfr.hashCode^curveFitQuality.hashCode^methodUsed.hashCode^dataPoints.hashCode^temperatureCelsius.hashCode^backlashApplied.hashCode^success.hashCode^errorMessage.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is IndiAutofocusResultApi &&
+                runtimeType == other.runtimeType
+                && bestPosition == other.bestPosition&& bestHfr == other.bestHfr&& curveFitQuality == other.curveFitQuality&& methodUsed == other.methodUsed&& dataPoints == other.dataPoints&& temperatureCelsius == other.temperatureCelsius&& backlashApplied == other.backlashApplied&& success == other.success&& errorMessage == other.errorMessage;
+        
+            }
 
 /// Frame-level quality metrics for Science visualizations.
-class QualityFrameMetricsApi {
-  final double median;
-  final double mean;
-  final double stdDev;
-  final double mad;
-  final double background;
-  final double noise;
-  final double snr;
-  final double dynamicRangeP1P99;
-  final double lowClipPercent;
-  final double highClipPercent;
-  final double uniformityCv;
-  final double gradientX;
-  final double gradientY;
-  final String processingTier;
-  final int processingMs;
+class QualityFrameMetricsApi  {
+                final double median;
+final double mean;
+final double stdDev;
+final double mad;
+final double background;
+final double noise;
+final double snr;
+final double dynamicRangeP1P99;
+final double lowClipPercent;
+final double highClipPercent;
+final double uniformityCv;
+final double gradientX;
+final double gradientY;
+final String processingTier;
+final int processingMs;
 
-  const QualityFrameMetricsApi({
-    required this.median,
-    required this.mean,
-    required this.stdDev,
-    required this.mad,
-    required this.background,
-    required this.noise,
-    required this.snr,
-    required this.dynamicRangeP1P99,
-    required this.lowClipPercent,
-    required this.highClipPercent,
-    required this.uniformityCv,
-    required this.gradientX,
-    required this.gradientY,
-    required this.processingTier,
-    required this.processingMs,
-  });
+                const QualityFrameMetricsApi({required this.median ,required this.mean ,required this.stdDev ,required this.mad ,required this.background ,required this.noise ,required this.snr ,required this.dynamicRangeP1P99 ,required this.lowClipPercent ,required this.highClipPercent ,required this.uniformityCv ,required this.gradientX ,required this.gradientY ,required this.processingTier ,required this.processingMs ,});
 
-  @override
-  int get hashCode =>
-      median.hashCode ^
-      mean.hashCode ^
-      stdDev.hashCode ^
-      mad.hashCode ^
-      background.hashCode ^
-      noise.hashCode ^
-      snr.hashCode ^
-      dynamicRangeP1P99.hashCode ^
-      lowClipPercent.hashCode ^
-      highClipPercent.hashCode ^
-      uniformityCv.hashCode ^
-      gradientX.hashCode ^
-      gradientY.hashCode ^
-      processingTier.hashCode ^
-      processingMs.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is QualityFrameMetricsApi &&
-          runtimeType == other.runtimeType &&
-          median == other.median &&
-          mean == other.mean &&
-          stdDev == other.stdDev &&
-          mad == other.mad &&
-          background == other.background &&
-          noise == other.noise &&
-          snr == other.snr &&
-          dynamicRangeP1P99 == other.dynamicRangeP1P99 &&
-          lowClipPercent == other.lowClipPercent &&
-          highClipPercent == other.highClipPercent &&
-          uniformityCv == other.uniformityCv &&
-          gradientX == other.gradientX &&
-          gradientY == other.gradientY &&
-          processingTier == other.processingTier &&
-          processingMs == other.processingMs;
-}
+                
+        @override
+        int get hashCode => median.hashCode^mean.hashCode^stdDev.hashCode^mad.hashCode^background.hashCode^noise.hashCode^snr.hashCode^dynamicRangeP1P99.hashCode^lowClipPercent.hashCode^highClipPercent.hashCode^uniformityCv.hashCode^gradientX.hashCode^gradientY.hashCode^processingTier.hashCode^processingMs.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is QualityFrameMetricsApi &&
+                runtimeType == other.runtimeType
+                && median == other.median&& mean == other.mean&& stdDev == other.stdDev&& mad == other.mad&& background == other.background&& noise == other.noise&& snr == other.snr&& dynamicRangeP1P99 == other.dynamicRangeP1P99&& lowClipPercent == other.lowClipPercent&& highClipPercent == other.highClipPercent&& uniformityCv == other.uniformityCv&& gradientX == other.gradientX&& gradientY == other.gradientY&& processingTier == other.processingTier&& processingMs == other.processingMs;
+        
+            }
 
 /// Result container for quality map computation endpoints.
-class QualityMapsResultApi {
-  final QualityFrameMetricsApi frame;
-  final List<QualityTileMetricApi> tiles;
+class QualityMapsResultApi  {
+                final QualityFrameMetricsApi frame;
+final List<QualityTileMetricApi> tiles;
 
-  const QualityMapsResultApi({
-    required this.frame,
-    required this.tiles,
-  });
+                const QualityMapsResultApi({required this.frame ,required this.tiles ,});
 
-  @override
-  int get hashCode => frame.hashCode ^ tiles.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is QualityMapsResultApi &&
-          runtimeType == other.runtimeType &&
-          frame == other.frame &&
-          tiles == other.tiles;
-}
+                
+        @override
+        int get hashCode => frame.hashCode^tiles.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is QualityMapsResultApi &&
+                runtimeType == other.runtimeType
+                && frame == other.frame&& tiles == other.tiles;
+        
+            }
 
 /// Tile-level quality metrics for Science overlays/surfaces.
-class QualityTileMetricApi {
-  final String layerType;
-  final int tileRow;
-  final int tileCol;
-  final int sampleCount;
-  final double value;
-  final double p05;
-  final double p50;
-  final double p95;
-  final double auxValue;
+class QualityTileMetricApi  {
+                final String layerType;
+final int tileRow;
+final int tileCol;
+final int sampleCount;
+final double value;
+final double p05;
+final double p50;
+final double p95;
+final double auxValue;
 
-  const QualityTileMetricApi({
-    required this.layerType,
-    required this.tileRow,
-    required this.tileCol,
-    required this.sampleCount,
-    required this.value,
-    required this.p05,
-    required this.p50,
-    required this.p95,
-    required this.auxValue,
-  });
+                const QualityTileMetricApi({required this.layerType ,required this.tileRow ,required this.tileCol ,required this.sampleCount ,required this.value ,required this.p05 ,required this.p50 ,required this.p95 ,required this.auxValue ,});
 
-  @override
-  int get hashCode =>
-      layerType.hashCode ^
-      tileRow.hashCode ^
-      tileCol.hashCode ^
-      sampleCount.hashCode ^
-      value.hashCode ^
-      p05.hashCode ^
-      p50.hashCode ^
-      p95.hashCode ^
-      auxValue.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is QualityTileMetricApi &&
-          runtimeType == other.runtimeType &&
-          layerType == other.layerType &&
-          tileRow == other.tileRow &&
-          tileCol == other.tileCol &&
-          sampleCount == other.sampleCount &&
-          value == other.value &&
-          p05 == other.p05 &&
-          p50 == other.p50 &&
-          p95 == other.p95 &&
-          auxValue == other.auxValue;
-}
+                
+        @override
+        int get hashCode => layerType.hashCode^tileRow.hashCode^tileCol.hashCode^sampleCount.hashCode^value.hashCode^p05.hashCode^p50.hashCode^p95.hashCode^auxValue.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is QualityTileMetricApi &&
+                runtimeType == other.runtimeType
+                && layerType == other.layerType&& tileRow == other.tileRow&& tileCol == other.tileCol&& sampleCount == other.sampleCount&& value == other.value&& p05 == other.p05&& p50 == other.p50&& p95 == other.p95&& auxValue == other.auxValue;
+        
+            }
 
 /// Star crop data for UI display
-class StarCropApi {
-  /// Base64-encoded grayscale pixel data
-  final String pixelsBase64;
+class StarCropApi  {
+                /// Base64-encoded grayscale pixel data
+final String pixelsBase64;
+/// Width of the crop
+final int width;
+/// Height of the crop
+final int height;
+/// HFR of this star
+final double hfr;
+/// SNR of this star
+final double snr;
 
-  /// Width of the crop
-  final int width;
+                const StarCropApi({required this.pixelsBase64 ,required this.width ,required this.height ,required this.hfr ,required this.snr ,});
 
-  /// Height of the crop
-  final int height;
+                
+                
 
-  /// HFR of this star
-  final double hfr;
+                
+        @override
+        int get hashCode => pixelsBase64.hashCode^width.hashCode^height.hashCode^hfr.hashCode^snr.hashCode;
+        
 
-  /// SNR of this star
-  final double snr;
-
-  const StarCropApi({
-    required this.pixelsBase64,
-    required this.width,
-    required this.height,
-    required this.hfr,
-    required this.snr,
-  });
-
-  @override
-  int get hashCode =>
-      pixelsBase64.hashCode ^
-      width.hashCode ^
-      height.hashCode ^
-      hfr.hashCode ^
-      snr.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StarCropApi &&
-          runtimeType == other.runtimeType &&
-          pixelsBase64 == other.pixelsBase64 &&
-          width == other.width &&
-          height == other.height &&
-          hfr == other.hfr &&
-          snr == other.snr;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is StarCropApi &&
+                runtimeType == other.runtimeType
+                && pixelsBase64 == other.pixelsBase64&& width == other.width&& height == other.height&& hfr == other.hfr&& snr == other.snr;
+        
+            }
 
 /// Star detection configuration
-class StarDetectionConfigApi {
-  final double detectionSigma;
-  final int minArea;
-  final int maxArea;
-  final double maxEccentricity;
-  final int saturationLimit;
-  final int hfrRadius;
+class StarDetectionConfigApi  {
+                final double detectionSigma;
+final int minArea;
+final int maxArea;
+final double maxEccentricity;
+final int saturationLimit;
+final int hfrRadius;
+/// Minimum HFR to be considered a real star (filters hot pixels)
+final double? minHfr;
+/// Minimum SNR to be considered a valid detection
+final double? minSnr;
+/// Maximum sharpness (filters hot pixels which have very high sharpness)
+final double? maxSharpness;
 
-  /// Minimum HFR to be considered a real star (filters hot pixels)
-  final double? minHfr;
+                const StarDetectionConfigApi({required this.detectionSigma ,required this.minArea ,required this.maxArea ,required this.maxEccentricity ,required this.saturationLimit ,required this.hfrRadius ,this.minHfr ,this.minSnr ,this.maxSharpness ,});
 
-  /// Minimum SNR to be considered a valid detection
-  final double? minSnr;
+                static Future<StarDetectionConfigApi>  default_()=>RustLib.instance.api.crateApiImagingStarDetectionConfigApiDefault();
 
-  /// Maximum sharpness (filters hot pixels which have very high sharpness)
-  final double? maxSharpness;
 
-  const StarDetectionConfigApi({
-    required this.detectionSigma,
-    required this.minArea,
-    required this.maxArea,
-    required this.maxEccentricity,
-    required this.saturationLimit,
-    required this.hfrRadius,
-    this.minHfr,
-    this.minSnr,
-    this.maxSharpness,
-  });
+                
 
-  static Future<StarDetectionConfigApi> default_() =>
-      RustLib.instance.api.crateApiImagingStarDetectionConfigApiDefault();
+                
+        @override
+        int get hashCode => detectionSigma.hashCode^minArea.hashCode^maxArea.hashCode^maxEccentricity.hashCode^saturationLimit.hashCode^hfrRadius.hashCode^minHfr.hashCode^minSnr.hashCode^maxSharpness.hashCode;
+        
 
-  @override
-  int get hashCode =>
-      detectionSigma.hashCode ^
-      minArea.hashCode ^
-      maxArea.hashCode ^
-      maxEccentricity.hashCode ^
-      saturationLimit.hashCode ^
-      hfrRadius.hashCode ^
-      minHfr.hashCode ^
-      minSnr.hashCode ^
-      maxSharpness.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StarDetectionConfigApi &&
-          runtimeType == other.runtimeType &&
-          detectionSigma == other.detectionSigma &&
-          minArea == other.minArea &&
-          maxArea == other.maxArea &&
-          maxEccentricity == other.maxEccentricity &&
-          saturationLimit == other.saturationLimit &&
-          hfrRadius == other.hfrRadius &&
-          minHfr == other.minHfr &&
-          minSnr == other.minSnr &&
-          maxSharpness == other.maxSharpness;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is StarDetectionConfigApi &&
+                runtimeType == other.runtimeType
+                && detectionSigma == other.detectionSigma&& minArea == other.minArea&& maxArea == other.maxArea&& maxEccentricity == other.maxEccentricity&& saturationLimit == other.saturationLimit&& hfrRadius == other.hfrRadius&& minHfr == other.minHfr&& minSnr == other.minSnr&& maxSharpness == other.maxSharpness;
+        
+            }
 
 /// Star detection result
-class StarDetectionResultApi {
-  final List<DetectedStarInfo> stars;
-  final int starCount;
-  final double medianHfr;
-  final double medianFwhm;
-  final double medianSnr;
-  final double background;
-  final double noise;
+class StarDetectionResultApi  {
+                final List<DetectedStarInfo> stars;
+final int starCount;
+final double medianHfr;
+final double medianFwhm;
+final double medianSnr;
+final double background;
+final double noise;
 
-  const StarDetectionResultApi({
-    required this.stars,
-    required this.starCount,
-    required this.medianHfr,
-    required this.medianFwhm,
-    required this.medianSnr,
-    required this.background,
-    required this.noise,
-  });
+                const StarDetectionResultApi({required this.stars ,required this.starCount ,required this.medianHfr ,required this.medianFwhm ,required this.medianSnr ,required this.background ,required this.noise ,});
 
-  @override
-  int get hashCode =>
-      stars.hashCode ^
-      starCount.hashCode ^
-      medianHfr.hashCode ^
-      medianFwhm.hashCode ^
-      medianSnr.hashCode ^
-      background.hashCode ^
-      noise.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StarDetectionResultApi &&
-          runtimeType == other.runtimeType &&
-          stars == other.stars &&
-          starCount == other.starCount &&
-          medianHfr == other.medianHfr &&
-          medianFwhm == other.medianFwhm &&
-          medianSnr == other.medianSnr &&
-          background == other.background &&
-          noise == other.noise;
-}
+                
+        @override
+        int get hashCode => stars.hashCode^starCount.hashCode^medianHfr.hashCode^medianFwhm.hashCode^medianSnr.hashCode^background.hashCode^noise.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is StarDetectionResultApi &&
+                runtimeType == other.runtimeType
+                && stars == other.stars&& starCount == other.starCount&& medianHfr == other.medianHfr&& medianFwhm == other.medianFwhm&& medianSnr == other.medianSnr&& background == other.background&& noise == other.noise;
+        
+            }
 
 /// Stretch parameters for manual control
-class StretchParamsApi {
-  final double shadows;
-  final double highlights;
-  final double midtones;
+class StretchParamsApi  {
+                final double shadows;
+final double highlights;
+final double midtones;
 
-  const StretchParamsApi({
-    required this.shadows,
-    required this.highlights,
-    required this.midtones,
-  });
+                const StretchParamsApi({required this.shadows ,required this.highlights ,required this.midtones ,});
 
-  @override
-  int get hashCode =>
-      shadows.hashCode ^ highlights.hashCode ^ midtones.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is StretchParamsApi &&
-          runtimeType == other.runtimeType &&
-          shadows == other.shadows &&
-          highlights == other.highlights &&
-          midtones == other.midtones;
-}
+                
+        @override
+        int get hashCode => shadows.hashCode^highlights.hashCode^midtones.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is StretchParamsApi &&
+                runtimeType == other.runtimeType
+                && shadows == other.shadows&& highlights == other.highlights&& midtones == other.midtones;
+        
+            }
 
 /// XISF file read result
-class XisfReadResult {
-  final int width;
-  final int height;
-  final int channels;
-  final Uint8List displayData;
-  final Uint32List histogram;
-  final ImageStatsResult stats;
-  final List<(String, String)> properties;
+class XisfReadResult  {
+                final int width;
+final int height;
+final int channels;
+final Uint8List displayData;
+final Uint32List histogram;
+final ImageStatsResult stats;
+final List<(String,String)> properties;
 
-  const XisfReadResult({
-    required this.width,
-    required this.height,
-    required this.channels,
-    required this.displayData,
-    required this.histogram,
-    required this.stats,
-    required this.properties,
-  });
+                const XisfReadResult({required this.width ,required this.height ,required this.channels ,required this.displayData ,required this.histogram ,required this.stats ,required this.properties ,});
 
-  @override
-  int get hashCode =>
-      width.hashCode ^
-      height.hashCode ^
-      channels.hashCode ^
-      displayData.hashCode ^
-      histogram.hashCode ^
-      stats.hashCode ^
-      properties.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is XisfReadResult &&
-          runtimeType == other.runtimeType &&
-          width == other.width &&
-          height == other.height &&
-          channels == other.channels &&
-          displayData == other.displayData &&
-          histogram == other.histogram &&
-          stats == other.stats &&
-          properties == other.properties;
-}
+                
+        @override
+        int get hashCode => width.hashCode^height.hashCode^channels.hashCode^displayData.hashCode^histogram.hashCode^stats.hashCode^properties.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is XisfReadResult &&
+                runtimeType == other.runtimeType
+                && width == other.width&& height == other.height&& channels == other.channels&& displayData == other.displayData&& histogram == other.histogram&& stats == other.stats&& properties == other.properties;
+        
+            }
+            

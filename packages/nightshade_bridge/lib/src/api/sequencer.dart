@@ -7,51 +7,42 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `recovery_cause_fields`, `recovery_event_completed`, `recovery_event_gave_up`, `recovery_event_progress`, `recovery_event_started`, `recovery_phase_str`, `run_decision_event_loop`, `run_sequencer_event_loop`, `serialize_node_definition`, `serialize_sequence_definition`, `structured_progress_payload_from_progress_detail`, `typed_sequencer_event_from_progress_detail`
+
+            // These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `recovery_cause_fields`, `recovery_event_completed`, `recovery_event_gave_up`, `recovery_event_progress`, `recovery_event_started`, `recovery_phase_str`, `run_decision_event_loop`, `run_sequencer_event_loop`, `serialize_node_definition`, `serialize_sequence_definition`, `structured_progress_payload_from_progress_detail`, `typed_sequencer_event_from_progress_detail`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`
 
-/// Load a sequence from JSON
-Future<void> apiSequencerLoadJson({required String json}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerLoadJson(json: json);
+
+            /// Load a sequence from JSON
+Future<void>  apiSequencerLoadJson({required String json }) => RustLib.instance.api.crateApiSequencerApiSequencerLoadJson(json: json);
 
 /// Load a sequence from a definition struct
-Future<void> apiSequencerLoad({required SequenceDefinitionApi definition}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerLoad(definition: definition);
+Future<void>  apiSequencerLoad({required SequenceDefinitionApi definition }) => RustLib.instance.api.crateApiSequencerApiSequencerLoad(definition: definition);
 
 /// Start the sequence executor
-Future<void> apiSequencerStart() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerStart();
+Future<void>  apiSequencerStart() => RustLib.instance.api.crateApiSequencerApiSequencerStart();
 
 /// Pause the sequence executor
-Future<void> apiSequencerPause() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerPause();
+Future<void>  apiSequencerPause() => RustLib.instance.api.crateApiSequencerApiSequencerPause();
 
 /// Resume the sequence executor
-Future<void> apiSequencerResume() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerResume();
+Future<void>  apiSequencerResume() => RustLib.instance.api.crateApiSequencerApiSequencerResume();
 
 /// Stop the sequence executor
-Future<void> apiSequencerStop() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerStop();
+Future<void>  apiSequencerStop() => RustLib.instance.api.crateApiSequencerApiSequencerStop();
 
 /// Skip to the next instruction
-Future<void> apiSequencerSkip() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSkip();
+Future<void>  apiSequencerSkip() => RustLib.instance.api.crateApiSequencerApiSequencerSkip();
 
 /// Wave 1.5 Pack A / trust-patch §7: jump execution to a specific node id,
 /// marking preceding siblings as Skipped. Honoured on the next container's
 /// tree-walk step; the currently-running instruction (e.g. an exposure burst)
 /// completes before the jump takes effect. Returns an error if the executor
 /// is not running (caller should gate the UI button on execution state).
-Future<void> apiSequencerSkipToNode({required String nodeId}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSkipToNode(nodeId: nodeId);
+Future<void>  apiSequencerSkipToNode({required String nodeId }) => RustLib.instance.api.crateApiSequencerApiSequencerSkipToNode(nodeId: nodeId);
 
 /// Reset the sequence executor
-Future<void> apiSequencerReset() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerReset();
+Future<void>  apiSequencerReset() => RustLib.instance.api.crateApiSequencerApiSequencerReset();
 
 /// Wave 6 Pack P — Dart side reports the verdict of a plugin-dispatched
 /// node back to the Rust executor. Routes to
@@ -66,120 +57,64 @@ Future<void> apiSequencerReset() =>
 /// Returns an error if the executor is not currently running — the
 /// caller should treat that as a stale reply (the run was cancelled
 /// between dispatch and reply) and drop the result.
-Future<void> apiSequencerPluginNodeFinished(
-        {required String nodeId,
-        required bool success,
-        String? message,
-        String? structuredDetailJson}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerPluginNodeFinished(
-        nodeId: nodeId,
-        success: success,
-        message: message,
-        structuredDetailJson: structuredDetailJson);
+Future<void>  apiSequencerPluginNodeFinished({required String nodeId , required bool success , String? message , String? structuredDetailJson }) => RustLib.instance.api.crateApiSequencerApiSequencerPluginNodeFinished(nodeId: nodeId, success: success, message: message, structuredDetailJson: structuredDetailJson);
 
 /// Get the current sequencer state
-Future<SequencerState> apiSequencerGetState() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetState();
+Future<SequencerState>  apiSequencerGetState() => RustLib.instance.api.crateApiSequencerApiSequencerGetState();
 
 /// Subscribe to sequencer events and forward them to the main event stream
-Future<void> apiSequencerSubscribeEvents() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSubscribeEvents();
+Future<void>  apiSequencerSubscribeEvents() => RustLib.instance.api.crateApiSequencerApiSequencerSubscribeEvents();
 
 /// Set the checkpoint directory for crash recovery
-Future<void> apiSequencerSetCheckpointDir({required String path}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetCheckpointDir(path: path);
+Future<void>  apiSequencerSetCheckpointDir({required String path }) => RustLib.instance.api.crateApiSequencerApiSequencerSetCheckpointDir(path: path);
 
 /// Check if a recoverable checkpoint exists
-Future<bool> apiSequencerHasCheckpoint() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerHasCheckpoint();
+Future<bool>  apiSequencerHasCheckpoint() => RustLib.instance.api.crateApiSequencerApiSequencerHasCheckpoint();
 
 /// Get info about the current checkpoint
-Future<CheckpointInfoApi?> apiSequencerGetCheckpointInfo() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetCheckpointInfo();
+Future<CheckpointInfoApi?>  apiSequencerGetCheckpointInfo() => RustLib.instance.api.crateApiSequencerApiSequencerGetCheckpointInfo();
 
 /// Resume sequence from checkpoint
-Future<void> apiSequencerResumeFromCheckpoint() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerResumeFromCheckpoint();
+Future<void>  apiSequencerResumeFromCheckpoint() => RustLib.instance.api.crateApiSequencerApiSequencerResumeFromCheckpoint();
 
 /// Save current execution state as checkpoint
-Future<void> apiSequencerSaveCheckpoint() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSaveCheckpoint();
+Future<void>  apiSequencerSaveCheckpoint() => RustLib.instance.api.crateApiSequencerApiSequencerSaveCheckpoint();
 
 /// Clear/discard checkpoint (call when sequence completes normally or user discards)
-Future<void> apiSequencerClearCheckpoint() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerClearCheckpoint();
+Future<void>  apiSequencerClearCheckpoint() => RustLib.instance.api.crateApiSequencerApiSequencerClearCheckpoint();
 
 /// Set simulation mode (use mock devices instead of real hardware)
-Future<void> apiSequencerSetSimulationMode({required bool enabled}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSimulationMode(enabled: enabled);
+Future<void>  apiSequencerSetSimulationMode({required bool enabled }) => RustLib.instance.api.crateApiSequencerApiSequencerSetSimulationMode(enabled: enabled);
 
 /// Set connected devices for the sequencer
-Future<void> apiSequencerSetDevices(
-        {String? cameraId,
-        String? mountId,
-        String? focuserId,
-        String? filterwheelId,
-        String? rotatorId,
-        List<String>? filterNames,
-        Map<String, int>? filterFocusOffsets}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetDevices(
-        cameraId: cameraId,
-        mountId: mountId,
-        focuserId: focuserId,
-        filterwheelId: filterwheelId,
-        rotatorId: rotatorId,
-        filterNames: filterNames,
-        filterFocusOffsets: filterFocusOffsets);
+Future<void>  apiSequencerSetDevices({String? cameraId , String? mountId , String? focuserId , String? filterwheelId , String? rotatorId , List<String>? filterNames , Map<String, int>? filterFocusOffsets }) => RustLib.instance.api.crateApiSequencerApiSequencerSetDevices(cameraId: cameraId, mountId: mountId, focuserId: focuserId, filterwheelId: filterwheelId, rotatorId: rotatorId, filterNames: filterNames, filterFocusOffsets: filterFocusOffsets);
 
 /// Set the safety fail mode for the sequencer.
 /// This determines behavior when safety devices fail or are unavailable:
 /// - "fail_closed": Treat unavailable safety data as unsafe
 /// - "fail_open": Treat unavailable safety data as safe
 /// - "warn_only": Preserve the previous safety state and emit a warning event
-Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
+Future<void>  apiSequencerSetSafetyFailMode({required String mode }) => RustLib.instance.api.crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
 
 /// Set the safety/humidity polling interval for the sequencer.
 /// Must be between 5 seconds and 3600 seconds. The executor applies the
 /// update live without restarting the current sequence.
-Future<void> apiSequencerSetSafetyCheckIntervalSeconds(
-        {required int seconds}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerSetSafetyCheckIntervalSeconds(
-            seconds: seconds);
+Future<void>  apiSequencerSetSafetyCheckIntervalSeconds({required int seconds }) => RustLib.instance.api.crateApiSequencerApiSequencerSetSafetyCheckIntervalSeconds(seconds: seconds);
 
 /// Set the save path for sequencer images.
 /// This is the base directory where captured images will be saved.
 /// If not set (or set to None), images will NOT be saved to disk.
-Future<void> apiSequencerSetSavePath({String? path}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetSavePath(path: path);
+Future<void>  apiSequencerSetSavePath({String? path }) => RustLib.instance.api.crateApiSequencerApiSequencerSetSavePath(path: path);
 
 /// Update dither configuration at runtime while a sequence is running or paused.
 /// The updated values are stored on the executor and will be used by subsequent
 /// trigger-initiated dithers and checkpoint resumes.
-Future<void> apiSequencerUpdateDitherConfig(
-        {required double pixels,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout,
-        required bool raOnly}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateDitherConfig(
-        pixels: pixels,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-        raOnly: raOnly);
+Future<void>  apiSequencerUpdateDitherConfig({required double pixels , required double settlePixels , required double settleTime , required double settleTimeout , required bool raOnly }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateDitherConfig(pixels: pixels, settlePixels: settlePixels, settleTime: settleTime, settleTimeout: settleTimeout, raOnly: raOnly);
 
 /// Update observer location at runtime while a sequence is running or paused.
 /// Updates the executor's stored latitude/longitude so altitude-based triggers
 /// use the correct location on their next evaluation.
-Future<void> apiSequencerUpdateLocation(
-        {double? latitude, double? longitude}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateLocation(
-        latitude: latitude, longitude: longitude);
+Future<void>  apiSequencerUpdateLocation({double? latitude , double? longitude }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateLocation(latitude: latitude, longitude: longitude);
 
 /// Wave 7.5 — stage per-target / per-filter carry-over integration so the
 /// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
@@ -193,19 +128,12 @@ Future<void> apiSequencerUpdateLocation(
 /// `carry_over` shape: `target_id` -> { `filter_name` -> `seconds` }.
 /// The Rust side merges entries (last-write-wins per target_id), then drains
 /// the staged map on the next `start()`.
-Future<void> apiSequencerUpdatePendingIntegrationCarryOver(
-        {required Map<String, Map<String, double>> carryOver}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdatePendingIntegrationCarryOver(
-            carryOver: carryOver);
+Future<void>  apiSequencerUpdatePendingIntegrationCarryOver({required Map<String, Map<String, double>> carryOver }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdatePendingIntegrationCarryOver(carryOver: carryOver);
 
 /// Update filter focus offsets at runtime while a sequence is running or paused.
 /// Updates the executor's stored offsets so subsequent filter changes apply
 /// the correct focus compensation.
-Future<void> apiSequencerUpdateFilterOffsets(
-        {required Map<String, int> offsets}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateFilterOffsets(offsets: offsets);
+Future<void>  apiSequencerUpdateFilterOffsets({required Map<String, int> offsets }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateFilterOffsets(offsets: offsets);
 
 /// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at runtime.
 /// The default in `default_autofocus_interval_frames()` is 25 frames; this
@@ -213,9 +141,7 @@ Future<void> apiSequencerUpdateFilterOffsets(
 /// must let the user override it. `every_n_frames == 0` is rejected because
 /// the trigger evaluator disables the periodic AF when the cadence is zero,
 /// which would silently turn AF off (CLAUDE.md "errors are a feature").
-Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
-        everyNFrames: everyNFrames);
+Future<void>  apiSequencerUpdateAutofocusInterval({required int everyNFrames }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(everyNFrames: everyNFrames);
 
 /// Pack G — update the global default image-grading thresholds at runtime.
 ///
@@ -223,48 +149,18 @@ Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
 /// is NOT constructed (grading disabled globally — per-node `quality_check`
 /// on TakeExposure still wins). The Dart `enableImageGrading` toggle on
 /// app settings drives this directly.
-Future<void> apiSequencerUpdateDefaultQualityCheck(
-        {double? hfrThreshold,
-        double? hfrBaselinePercent,
-        double? eccentricityThreshold,
-        int? starCountMin,
-        required int maxConsecutiveRejects,
-        required bool enabled}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateDefaultQualityCheck(
-        hfrThreshold: hfrThreshold,
-        hfrBaselinePercent: hfrBaselinePercent,
-        eccentricityThreshold: eccentricityThreshold,
-        starCountMin: starCountMin,
-        maxConsecutiveRejects: maxConsecutiveRejects,
-        enabled: enabled);
+Future<void>  apiSequencerUpdateDefaultQualityCheck({double? hfrThreshold , double? hfrBaselinePercent , double? eccentricityThreshold , int? starCountMin , required int maxConsecutiveRejects , required bool enabled }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateDefaultQualityCheck(hfrThreshold: hfrThreshold, hfrBaselinePercent: hfrBaselinePercent, eccentricityThreshold: eccentricityThreshold, starCountMin: starCountMin, maxConsecutiveRejects: maxConsecutiveRejects, enabled: enabled);
 
 /// Pack G — update the reject-folder override at runtime. Empty string =>
 /// None (i.e. fall back to `<save_path>/Reject/`).
-Future<void> apiSequencerUpdateRejectFolderPath({String? path}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
+Future<void>  apiSequencerUpdateRejectFolderPath({String? path }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
 
 /// Pack G — push observer / equipment identification to the executor so
 /// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
 /// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
 /// headless / no-profile runs we'd rather omit the keyword than emit a
 /// sentinel — silent fallbacks are bugs.
-Future<void> apiSequencerUpdateObserverProfile(
-        {String? observerName,
-        double? siteElevationM,
-        String? cameraMake,
-        String? cameraModel,
-        String? telescopeName,
-        double? telescopeFocalLengthMm,
-        double? telescopeApertureMm}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateObserverProfile(
-        observerName: observerName,
-        siteElevationM: siteElevationM,
-        cameraMake: cameraMake,
-        cameraModel: cameraModel,
-        telescopeName: telescopeName,
-        telescopeFocalLengthMm: telescopeFocalLengthMm,
-        telescopeApertureMm: telescopeApertureMm);
+Future<void>  apiSequencerUpdateObserverProfile({String? observerName , double? siteElevationM , String? cameraMake , String? cameraModel , String? telescopeName , double? telescopeFocalLengthMm , double? telescopeApertureMm }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateObserverProfile(observerName: observerName, siteElevationM: siteElevationM, cameraMake: cameraMake, cameraModel: cameraModel, telescopeName: telescopeName, telescopeFocalLengthMm: telescopeFocalLengthMm, telescopeApertureMm: telescopeApertureMm);
 
 /// Push the latest cloud-motion analyzer reading into the executor.
 ///
@@ -276,34 +172,18 @@ Future<void> apiSequencerUpdateObserverProfile(
 /// `predicted_clear_sky_alt` / `predicted_clear_sky_az` must be either
 /// both `Some` or both `None`; a half-specified direction is logged at
 /// WARN and treated as no-direction.
-Future<void> apiSequencerUpdateCloudMotion(
-        {double? currentCoverPercent,
-        double? predictedArrivalMinutes,
-        double? predictedOpeningMinutes,
-        double? predictedOpeningDurationSecs,
-        double? predictedClearSkyAlt,
-        double? predictedClearSkyAz}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateCloudMotion(
-        currentCoverPercent: currentCoverPercent,
-        predictedArrivalMinutes: predictedArrivalMinutes,
-        predictedOpeningMinutes: predictedOpeningMinutes,
-        predictedOpeningDurationSecs: predictedOpeningDurationSecs,
-        predictedClearSkyAlt: predictedClearSkyAlt,
-        predictedClearSkyAz: predictedClearSkyAz);
+Future<void>  apiSequencerUpdateCloudMotion({double? currentCoverPercent , double? predictedArrivalMinutes , double? predictedOpeningMinutes , double? predictedOpeningDurationSecs , double? predictedClearSkyAlt , double? predictedClearSkyAz }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateCloudMotion(currentCoverPercent: currentCoverPercent, predictedArrivalMinutes: predictedArrivalMinutes, predictedOpeningMinutes: predictedOpeningMinutes, predictedOpeningDurationSecs: predictedOpeningDurationSecs, predictedClearSkyAlt: predictedClearSkyAlt, predictedClearSkyAz: predictedClearSkyAz);
 
 /// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
 /// dashboard. Returns `Ok(None)` when no data has been pushed yet.
-Future<String?> apiSequencerGetCloudMotionJson() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetCloudMotionJson();
+Future<String?>  apiSequencerGetCloudMotionJson() => RustLib.instance.api.crateApiSequencerApiSequencerGetCloudMotionJson();
 
 /// Push the latest live sky-brightness reading to the executor.
 ///
 /// `mag` is the sky brightness in mag/arcsec² (bigger = darker). Pass
 /// `None` when the tracker has lost lock — the adapter then falls back to
 /// the nominal duration and emits a structured `Unavailable` event.
-Future<void> apiSequencerUpdateSkyBrightness({double? mag}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateSkyBrightness(mag: mag);
+Future<void>  apiSequencerUpdateSkyBrightness({double? mag }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateSkyBrightness(mag: mag);
 
 /// Push the global default sky-brightness adaptive-exposure config to the
 /// executor. Per-node `ExposureConfig.adaptive_exposure` still wins; this
@@ -314,49 +194,22 @@ Future<void> apiSequencerUpdateSkyBrightness({double? mag}) =>
 /// maps are flattened into parallel arrays because FRB cannot bridge
 /// `HashMap<String, T>` directly — Dart serialises its own filter map to
 /// the (`*_filters`, `*_values`) pair shape.
-Future<void> apiSequencerUpdateDefaultAdaptiveExposure(
-        {required bool enabled,
-        required double targetSnr,
-        required double referenceSkyBrightnessMag,
-        required double minExposureSecs,
-        required double maxExposureSecs,
-        required List<String> perFilterEnabledKeys,
-        required List<bool> perFilterEnabledValues,
-        required List<String> perFilterMinKeys,
-        required List<double> perFilterMinValues,
-        required List<String> perFilterMaxKeys,
-        required List<double> perFilterMaxValues}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateDefaultAdaptiveExposure(
-            enabled: enabled,
-            targetSnr: targetSnr,
-            referenceSkyBrightnessMag: referenceSkyBrightnessMag,
-            minExposureSecs: minExposureSecs,
-            maxExposureSecs: maxExposureSecs,
-            perFilterEnabledKeys: perFilterEnabledKeys,
-            perFilterEnabledValues: perFilterEnabledValues,
-            perFilterMinKeys: perFilterMinKeys,
-            perFilterMinValues: perFilterMinValues,
-            perFilterMaxKeys: perFilterMaxKeys,
-            perFilterMaxValues: perFilterMaxValues);
+Future<void>  apiSequencerUpdateDefaultAdaptiveExposure({required bool enabled , required double targetSnr , required double referenceSkyBrightnessMag , required double minExposureSecs , required double maxExposureSecs , required List<String> perFilterEnabledKeys , required List<bool> perFilterEnabledValues , required List<String> perFilterMinKeys , required List<double> perFilterMinValues , required List<String> perFilterMaxKeys , required List<double> perFilterMaxValues }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateDefaultAdaptiveExposure(enabled: enabled, targetSnr: targetSnr, referenceSkyBrightnessMag: referenceSkyBrightnessMag, minExposureSecs: minExposureSecs, maxExposureSecs: maxExposureSecs, perFilterEnabledKeys: perFilterEnabledKeys, perFilterEnabledValues: perFilterEnabledValues, perFilterMinKeys: perFilterMinKeys, perFilterMinValues: perFilterMinValues, perFilterMaxKeys: perFilterMaxKeys, perFilterMaxValues: perFilterMaxValues);
 
 /// Wave 5 Agent 2 — disable the global default adaptive-exposure config
 /// (push `None`). Convenience entry-point so the Dart side doesn't have
 /// to pass a sentinel struct just to disable.
-Future<void> apiSequencerClearDefaultAdaptiveExposure() => RustLib.instance.api
-    .crateApiSequencerApiSequencerClearDefaultAdaptiveExposure();
+Future<void>  apiSequencerClearDefaultAdaptiveExposure() => RustLib.instance.api.crateApiSequencerApiSequencerClearDefaultAdaptiveExposure();
 
 /// Operator pressed "Try Now" on the Run Dashboard banner — punch through
 /// the wait timer and force the next recovery attempt immediately. No-op
 /// when the executor is not currently in `Recovering`.
-Future<void> apiSequencerRecoveryTryNow() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerRecoveryTryNow();
+Future<void>  apiSequencerRecoveryTryNow() => RustLib.instance.api.crateApiSequencerApiSequencerRecoveryTryNow();
 
 /// Operator pressed "Abort" on the Run Dashboard banner — exits the recovery
 /// loop and transitions the executor to `Failed`. No-op when not in
 /// `Recovering`.
-Future<void> apiSequencerRecoveryAbort() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerRecoveryAbort();
+Future<void>  apiSequencerRecoveryAbort() => RustLib.instance.api.crateApiSequencerApiSequencerRecoveryAbort();
 
 /// Push updated recovery defaults into the executor's runtime config. The
 /// next recovery entry uses these values; an in-flight loop continues with
@@ -366,10 +219,7 @@ Future<void> apiSequencerRecoveryAbort() =>
 /// both `retry_interval_secs` and `max_duration_secs` must be > 0. We
 /// surface a structured InvalidParameter error so the Dart settings page
 /// can render a precise validation message instead of "unknown error".
-Future<void> apiSequencerUpdateRecoveryConfig(
-        {required RecoveryConfigUpdate update}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiSequencerUpdateRecoveryConfig(update: update);
+Future<void>  apiSequencerUpdateRecoveryConfig({required RecoveryConfigUpdate update }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateRecoveryConfig(update: update);
 
 /// JSON-serialised snapshot of the current in-flight `RecoveryContext`.
 /// Returns `None` when the executor is not currently in `Recovering`.
@@ -379,116 +229,30 @@ Future<void> apiSequencerUpdateRecoveryConfig(
 /// `nightshade_core/lib/src/models/sequencer/recovery_status.dart`) so
 /// piping serde JSON across is cheaper than asking FRB to bridge the
 /// chrono-dependent `RecoveryContext` Rust struct.
-Future<String?> apiSequencerGetCurrentRecoveryJson() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetCurrentRecoveryJson();
+Future<String?>  apiSequencerGetCurrentRecoveryJson() => RustLib.instance.api.crateApiSequencerApiSequencerGetCurrentRecoveryJson();
 
 /// JSON-serialised dump of every completed recovery loop since the executor
 /// was constructed. Surfaced for the post-session report dialog. Returns an
 /// empty JSON array `"[]"` when no recoveries have completed yet.
-Future<String> apiSequencerGetRecoveryHistoryJson() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetRecoveryHistoryJson();
+Future<String>  apiSequencerGetRecoveryHistoryJson() => RustLib.instance.api.crateApiSequencerApiSequencerGetRecoveryHistoryJson();
 
 /// Create an exposure node configuration
-String apiCreateExposureNode(
-        {required String id,
-        required String name,
-        required double durationSecs,
-        required int count,
-        String? filter,
-        int? filterIndex,
-        int? gain,
-        int? offset,
-        required int binning,
-        int? ditherEvery}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateExposureNode(
-        id: id,
-        name: name,
-        durationSecs: durationSecs,
-        count: count,
-        filter: filter,
-        filterIndex: filterIndex,
-        gain: gain,
-        offset: offset,
-        binning: binning,
-        ditherEvery: ditherEvery);
+String  apiCreateExposureNode({required String id , required String name , required double durationSecs , required int count , String? filter , int? filterIndex , int? gain , int? offset , required int binning , int? ditherEvery }) => RustLib.instance.api.crateApiSequencerApiCreateExposureNode(id: id, name: name, durationSecs: durationSecs, count: count, filter: filter, filterIndex: filterIndex, gain: gain, offset: offset, binning: binning, ditherEvery: ditherEvery);
 
 /// Create a slew node configuration
-String apiCreateSlewNode(
-        {required String id,
-        required String name,
-        required int useTargetCoords,
-        double? customRa,
-        double? customDec}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateSlewNode(
-        id: id,
-        name: name,
-        useTargetCoords: useTargetCoords,
-        customRa: customRa,
-        customDec: customDec);
+String  apiCreateSlewNode({required String id , required String name , required int useTargetCoords , double? customRa , double? customDec }) => RustLib.instance.api.crateApiSequencerApiCreateSlewNode(id: id, name: name, useTargetCoords: useTargetCoords, customRa: customRa, customDec: customDec);
 
 /// Create a center node configuration
-String apiCreateCenterNode(
-        {required String id,
-        required String name,
-        required int useTargetCoords,
-        required double accuracyArcsec,
-        required int maxAttempts,
-        required double exposureDuration}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateCenterNode(
-        id: id,
-        name: name,
-        useTargetCoords: useTargetCoords,
-        accuracyArcsec: accuracyArcsec,
-        maxAttempts: maxAttempts,
-        exposureDuration: exposureDuration);
+String  apiCreateCenterNode({required String id , required String name , required int useTargetCoords , required double accuracyArcsec , required int maxAttempts , required double exposureDuration }) => RustLib.instance.api.crateApiSequencerApiCreateCenterNode(id: id, name: name, useTargetCoords: useTargetCoords, accuracyArcsec: accuracyArcsec, maxAttempts: maxAttempts, exposureDuration: exposureDuration);
 
 /// Create an autofocus node configuration
-String apiCreateAutofocusNode(
-        {required String id,
-        required String name,
-        required int stepSize,
-        required int stepsOut,
-        required double exposureDuration,
-        required String method}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateAutofocusNode(
-        id: id,
-        name: name,
-        stepSize: stepSize,
-        stepsOut: stepsOut,
-        exposureDuration: exposureDuration,
-        method: method);
+String  apiCreateAutofocusNode({required String id , required String name , required int stepSize , required int stepsOut , required double exposureDuration , required String method }) => RustLib.instance.api.crateApiSequencerApiCreateAutofocusNode(id: id, name: name, stepSize: stepSize, stepsOut: stepsOut, exposureDuration: exposureDuration, method: method);
 
 /// Create a filter change node configuration
-String apiCreateFilterNode(
-        {required String id,
-        required String name,
-        required String filterName}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateFilterNode(
-        id: id, name: name, filterName: filterName);
+String  apiCreateFilterNode({required String id , required String name , required String filterName }) => RustLib.instance.api.crateApiSequencerApiCreateFilterNode(id: id, name: name, filterName: filterName);
 
 /// Create a target group node configuration (legacy - use target_header instead)
-String apiCreateTargetGroupNode(
-        {required String id,
-        required String name,
-        required String targetName,
-        required double raHours,
-        required double decDegrees,
-        double? rotation,
-        double? minAltitude,
-        double? maxAltitude,
-        required int priority,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateTargetGroupNode(
-        id: id,
-        name: name,
-        targetName: targetName,
-        raHours: raHours,
-        decDegrees: decDegrees,
-        rotation: rotation,
-        minAltitude: minAltitude,
-        maxAltitude: maxAltitude,
-        priority: priority,
-        children: children);
+String  apiCreateTargetGroupNode({required String id , required String name , required String targetName , required double raHours , required double decDegrees , double? rotation , double? minAltitude , double? maxAltitude , required int priority , required List<String> children }) => RustLib.instance.api.crateApiSequencerApiCreateTargetGroupNode(id: id, name: name, targetName: targetName, raHours: raHours, decDegrees: decDegrees, rotation: rotation, minAltitude: minAltitude, maxAltitude: maxAltitude, priority: priority, children: children);
 
 /// Create a target header node configuration
 ///
@@ -497,157 +261,43 @@ String apiCreateTargetGroupNode(
 /// Dart-side `IntegrationBudget` model. Passing `None` leaves the
 /// target without a budget (current behaviour); passing a valid JSON
 /// string installs the budget on the TargetHeader.
-String apiCreateTargetHeaderNode(
-        {required String id,
-        required String name,
-        required String targetName,
-        required double raHours,
-        required double decDegrees,
-        double? rotation,
-        double? minAltitude,
-        double? maxAltitude,
-        required int priority,
-        PlatformInt64? startAfter,
-        PlatformInt64? endBefore,
-        String? mosaicPanelJson,
-        String? integrationBudgetJson,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateTargetHeaderNode(
-        id: id,
-        name: name,
-        targetName: targetName,
-        raHours: raHours,
-        decDegrees: decDegrees,
-        rotation: rotation,
-        minAltitude: minAltitude,
-        maxAltitude: maxAltitude,
-        priority: priority,
-        startAfter: startAfter,
-        endBefore: endBefore,
-        mosaicPanelJson: mosaicPanelJson,
-        integrationBudgetJson: integrationBudgetJson,
-        children: children);
+String  apiCreateTargetHeaderNode({required String id , required String name , required String targetName , required double raHours , required double decDegrees , double? rotation , double? minAltitude , double? maxAltitude , required int priority , PlatformInt64? startAfter , PlatformInt64? endBefore , String? mosaicPanelJson , String? integrationBudgetJson , required List<String> children }) => RustLib.instance.api.crateApiSequencerApiCreateTargetHeaderNode(id: id, name: name, targetName: targetName, raHours: raHours, decDegrees: decDegrees, rotation: rotation, minAltitude: minAltitude, maxAltitude: maxAltitude, priority: priority, startAfter: startAfter, endBefore: endBefore, mosaicPanelJson: mosaicPanelJson, integrationBudgetJson: integrationBudgetJson, children: children);
 
 /// Create a loop node configuration
-String apiCreateLoopNode(
-        {required String id,
-        required String name,
-        int? iterations,
-        required String condition,
-        required List<String> children}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateLoopNode(
-        id: id,
-        name: name,
-        iterations: iterations,
-        condition: condition,
-        children: children);
+String  apiCreateLoopNode({required String id , required String name , int? iterations , required String condition , required List<String> children }) => RustLib.instance.api.crateApiSequencerApiCreateLoopNode(id: id, name: name, iterations: iterations, condition: condition, children: children);
 
 /// Create a delay node configuration
-String apiCreateDelayNode(
-        {required String id, required String name, required double seconds}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateDelayNode(
-        id: id, name: name, seconds: seconds);
+String  apiCreateDelayNode({required String id , required String name , required double seconds }) => RustLib.instance.api.crateApiSequencerApiCreateDelayNode(id: id, name: name, seconds: seconds);
 
 /// Create a park node configuration
-String apiCreateParkNode({required String id, required String name}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateParkNode(id: id, name: name);
+String  apiCreateParkNode({required String id , required String name }) => RustLib.instance.api.crateApiSequencerApiCreateParkNode(id: id, name: name);
 
 /// Create an unpark node configuration
-String apiCreateUnparkNode({required String id, required String name}) =>
-    RustLib.instance.api
-        .crateApiSequencerApiCreateUnparkNode(id: id, name: name);
+String  apiCreateUnparkNode({required String id , required String name }) => RustLib.instance.api.crateApiSequencerApiCreateUnparkNode(id: id, name: name);
 
 /// Create a cool camera node configuration
-String apiCreateCoolCameraNode(
-        {required String id,
-        required String name,
-        required double targetTemp,
-        double? durationMins}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateCoolCameraNode(
-        id: id, name: name, targetTemp: targetTemp, durationMins: durationMins);
+String  apiCreateCoolCameraNode({required String id , required String name , required double targetTemp , double? durationMins }) => RustLib.instance.api.crateApiSequencerApiCreateCoolCameraNode(id: id, name: name, targetTemp: targetTemp, durationMins: durationMins);
 
 /// Create a warm camera node configuration
-String apiCreateWarmCameraNode(
-        {required String id,
-        required String name,
-        required double ratePerMin,
-        double? targetTemp}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateWarmCameraNode(
-        id: id, name: name, ratePerMin: ratePerMin, targetTemp: targetTemp);
+String  apiCreateWarmCameraNode({required String id , required String name , required double ratePerMin , double? targetTemp }) => RustLib.instance.api.crateApiSequencerApiCreateWarmCameraNode(id: id, name: name, ratePerMin: ratePerMin, targetTemp: targetTemp);
 
 /// Create a dither node configuration
-String apiCreateDitherNode(
-        {required String id,
-        required String name,
-        required double pixels,
-        required double settlePixels,
-        required double settleTime,
-        required double settleTimeout,
-        required int raOnly}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateDitherNode(
-        id: id,
-        name: name,
-        pixels: pixels,
-        settlePixels: settlePixels,
-        settleTime: settleTime,
-        settleTimeout: settleTimeout,
-        raOnly: raOnly);
+String  apiCreateDitherNode({required String id , required String name , required double pixels , required double settlePixels , required double settleTime , required double settleTimeout , required int raOnly }) => RustLib.instance.api.crateApiSequencerApiCreateDitherNode(id: id, name: name, pixels: pixels, settlePixels: settlePixels, settleTime: settleTime, settleTimeout: settleTimeout, raOnly: raOnly);
 
 /// Create a wait time node configuration
-String apiCreateWaitTimeNode(
-        {required String id,
-        required String name,
-        PlatformInt64? waitUntil,
-        String? twilightType}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateWaitTimeNode(
-        id: id, name: name, waitUntil: waitUntil, twilightType: twilightType);
+String  apiCreateWaitTimeNode({required String id , required String name , PlatformInt64? waitUntil , String? twilightType }) => RustLib.instance.api.crateApiSequencerApiCreateWaitTimeNode(id: id, name: name, waitUntil: waitUntil, twilightType: twilightType);
 
 /// Create a notification node configuration
-String apiCreateNotificationNode(
-        {required String id,
-        required String name,
-        required String title,
-        required String message,
-        required String level}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateNotificationNode(
-        id: id, name: name, title: title, message: message, level: level);
+String  apiCreateNotificationNode({required String id , required String name , required String title , required String message , required String level }) => RustLib.instance.api.crateApiSequencerApiCreateNotificationNode(id: id, name: name, title: title, message: message, level: level);
 
 /// Create a script node configuration
-String apiCreateScriptNode(
-        {required String id,
-        required String name,
-        required String scriptPath,
-        required List<String> arguments,
-        int? timeoutSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateScriptNode(
-        id: id,
-        name: name,
-        scriptPath: scriptPath,
-        arguments: arguments,
-        timeoutSecs: timeoutSecs);
+String  apiCreateScriptNode({required String id , required String name , required String scriptPath , required List<String> arguments , int? timeoutSecs }) => RustLib.instance.api.crateApiSequencerApiCreateScriptNode(id: id, name: name, scriptPath: scriptPath, arguments: arguments, timeoutSecs: timeoutSecs);
 
 /// Create a rotator node configuration
-String apiCreateRotatorNode(
-        {required String id,
-        required String name,
-        required double targetAngle,
-        required int relative}) =>
-    RustLib.instance.api.crateApiSequencerApiCreateRotatorNode(
-        id: id, name: name, targetAngle: targetAngle, relative: relative);
+String  apiCreateRotatorNode({required String id , required String name , required double targetAngle , required int relative }) => RustLib.instance.api.crateApiSequencerApiCreateRotatorNode(id: id, name: name, targetAngle: targetAngle, relative: relative);
 
 /// Build a complete sequence definition from nodes
-String apiBuildSequence(
-        {required String id,
-        required String name,
-        String? description,
-        required List<String> nodeJsons,
-        String? rootNodeId}) =>
-    RustLib.instance.api.crateApiSequencerApiBuildSequence(
-        id: id,
-        name: name,
-        description: description,
-        nodeJsons: nodeJsons,
-        rootNodeId: rootNodeId);
+String  apiBuildSequence({required String id , required String name , String? description , required List<String> nodeJsons , String? rootNodeId }) => RustLib.instance.api.crateApiSequencerApiBuildSequence(id: id, name: name, description: description, nodeJsons: nodeJsons, rootNodeId: rootNodeId);
 
 /// Calculate mosaic panel positions given center coordinates and configuration
 ///
@@ -663,36 +313,10 @@ String apiBuildSequence(
 ///
 /// # Returns
 /// Vector of MosaicPanelResult with calculated RA/Dec for each panel
-List<MosaicPanelResult> apiCalculateMosaicPanels(
-        {required double centerRa,
-        required double centerDec,
-        required double panelWidthArcmin,
-        required double panelHeightArcmin,
-        required double overlapPercent,
-        required double rotation,
-        required int panelsHorizontal,
-        required int panelsVertical}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateMosaicPanels(
-        centerRa: centerRa,
-        centerDec: centerDec,
-        panelWidthArcmin: panelWidthArcmin,
-        panelHeightArcmin: panelHeightArcmin,
-        overlapPercent: overlapPercent,
-        rotation: rotation,
-        panelsHorizontal: panelsHorizontal,
-        panelsVertical: panelsVertical);
+List<MosaicPanelResult>  apiCalculateMosaicPanels({required double centerRa , required double centerDec , required double panelWidthArcmin , required double panelHeightArcmin , required double overlapPercent , required double rotation , required int panelsHorizontal , required int panelsVertical }) => RustLib.instance.api.crateApiSequencerApiCalculateMosaicPanels(centerRa: centerRa, centerDec: centerDec, panelWidthArcmin: panelWidthArcmin, panelHeightArcmin: panelHeightArcmin, overlapPercent: overlapPercent, rotation: rotation, panelsHorizontal: panelsHorizontal, panelsVertical: panelsVertical);
 
 /// Calculate total mosaic coverage area in square degrees
-double apiCalculateMosaicArea(
-        {required double panelWidthArcmin,
-        required double panelHeightArcmin,
-        required int panelsHorizontal,
-        required int panelsVertical}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateMosaicArea(
-        panelWidthArcmin: panelWidthArcmin,
-        panelHeightArcmin: panelHeightArcmin,
-        panelsHorizontal: panelsHorizontal,
-        panelsVertical: panelsVertical);
+double  apiCalculateMosaicArea({required double panelWidthArcmin , required double panelHeightArcmin , required int panelsHorizontal , required int panelsVertical }) => RustLib.instance.api.crateApiSequencerApiCalculateMosaicArea(panelWidthArcmin: panelWidthArcmin, panelHeightArcmin: panelHeightArcmin, panelsHorizontal: panelsHorizontal, panelsVertical: panelsVertical);
 
 /// Estimate total imaging time for mosaic in seconds
 ///
@@ -701,16 +325,7 @@ double apiCalculateMosaicArea(
 /// * `exposure_secs` - Exposure time per frame
 /// * `exposures_per_panel` - Number of exposures per panel
 /// * `overhead_per_panel_secs` - Overhead per panel (slew, center, settle) - defaults to 60s if 0
-double apiEstimateMosaicTime(
-        {required int totalPanels,
-        required double exposureSecs,
-        required int exposuresPerPanel,
-        required double overheadPerPanelSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiEstimateMosaicTime(
-        totalPanels: totalPanels,
-        exposureSecs: exposureSecs,
-        exposuresPerPanel: exposuresPerPanel,
-        overheadPerPanelSecs: overheadPerPanelSecs);
+double  apiEstimateMosaicTime({required int totalPanels , required double exposureSecs , required int exposuresPerPanel , required double overheadPerPanelSecs }) => RustLib.instance.api.crateApiSequencerApiEstimateMosaicTime(totalPanels: totalPanels, exposureSecs: exposureSecs, exposuresPerPanel: exposuresPerPanel, overheadPerPanelSecs: overheadPerPanelSecs);
 
 /// Calculate altitude for a target at a specific time and observer location
 ///
@@ -723,18 +338,7 @@ double apiEstimateMosaicTime(
 ///
 /// # Returns
 /// Altitude in degrees above the horizon (-90 to +90)
-double apiCalculateAltitude(
-        {required double raHours,
-        required double decDegrees,
-        required double latitude,
-        required double longitude,
-        required PlatformInt64 timeUnixMillis}) =>
-    RustLib.instance.api.crateApiSequencerApiCalculateAltitude(
-        raHours: raHours,
-        decDegrees: decDegrees,
-        latitude: latitude,
-        longitude: longitude,
-        timeUnixMillis: timeUnixMillis);
+double  apiCalculateAltitude({required double raHours , required double decDegrees , required double latitude , required double longitude , required PlatformInt64 timeUnixMillis }) => RustLib.instance.api.crateApiSequencerApiCalculateAltitude(raHours: raHours, decDegrees: decDegrees, latitude: latitude, longitude: longitude, timeUnixMillis: timeUnixMillis);
 
 /// Returns the currently-active LiveStacking broadcast session, or
 /// `None` when no LiveStacking node has been executed in the current
@@ -742,14 +346,12 @@ double apiCalculateAltitude(
 ///
 /// Wave 7 Agent 2 — consumed by the Dart `BroadcastService` to decide
 /// whether `/api/broadcast/*` endpoints should answer 200 or 404.
-LiveStackingBroadcastSnapshot? apiBroadcastGetActive() =>
-    RustLib.instance.api.crateApiSequencerApiBroadcastGetActive();
+LiveStackingBroadcastSnapshot?  apiBroadcastGetActive() => RustLib.instance.api.crateApiSequencerApiBroadcastGetActive();
 
 /// Force-deactivate the active broadcast session. Called by the Dart
 /// side when the user toggles broadcast off mid-sequence, or by tests
 /// that want a deterministic baseline. A no-op if no session is active.
-void apiBroadcastDeactivate() =>
-    RustLib.instance.api.crateApiSequencerApiBroadcastDeactivate();
+void  apiBroadcastDeactivate() => RustLib.instance.api.crateApiSequencerApiBroadcastDeactivate();
 
 /// Wave 8 Replay Debug — stamp the active `sequence_runs.id` onto the
 /// executor so every subsequent emitted DecisionEvent carries it as
@@ -758,28 +360,21 @@ void apiBroadcastDeactivate() =>
 ///
 /// Pass `None` (Dart `null`) to clear the slot — useful at run end /
 /// reset.
-Future<void> apiSequencerSetActiveSequenceRunId(
-        {PlatformInt64? sequenceRunId}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetActiveSequenceRunId(
-        sequenceRunId: sequenceRunId);
+Future<void>  apiSequencerSetActiveSequenceRunId({PlatformInt64? sequenceRunId }) => RustLib.instance.api.crateApiSequencerApiSequencerSetActiveSequenceRunId(sequenceRunId: sequenceRunId);
 
 /// Wave 8 Replay Debug — read back the currently-stamped
 /// `sequence_runs.id`. Used by tests and as a sanity check from the
 /// Dart side.
-Future<PlatformInt64?> apiSequencerGetActiveSequenceRunId() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetActiveSequenceRunId();
+Future<PlatformInt64?>  apiSequencerGetActiveSequenceRunId() => RustLib.instance.api.crateApiSequencerApiSequencerGetActiveSequenceRunId();
 
 /// Wave 8 Replay Debug — runtime toggle for decision emission. When
 /// `enabled = false`, the executor short-circuits all decision sends
 /// (no channel publish, no allocation) so power users who don't want
 /// the replay log can opt out. Defaults to ON.
-Future<void> apiSequencerSetDecisionLoggingEnabled({required bool enabled}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerSetDecisionLoggingEnabled(
-        enabled: enabled);
+Future<void>  apiSequencerSetDecisionLoggingEnabled({required bool enabled }) => RustLib.instance.api.crateApiSequencerApiSequencerSetDecisionLoggingEnabled(enabled: enabled);
 
 /// Wave 8 Replay Debug — readback for the runtime toggle.
-Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
-    .crateApiSequencerApiSequencerGetDecisionLoggingEnabled();
+Future<bool>  apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api.crateApiSequencerApiSequencerGetDecisionLoggingEnabled();
 
 /// Push the latest composite sky-conditions score to the executor. All
 /// fields are optional because the Dart composer may not have every axis
@@ -789,364 +384,237 @@ Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
 ///
 /// Pass `score = None` to clear the slot (telemetry lost — the
 /// scheduler then falls back to the ordinary ranking).
-Future<void> apiSequencerUpdateConditionsScore(
-        {double? score,
-        double? transparencyScore,
-        double? seeingScore,
-        double? cloudScore,
-        double? windScore,
-        required double transparencyWeight,
-        required double seeingWeight,
-        required double cloudWeight,
-        required double windWeight,
-        required PlatformInt64 generatedUnixSecs}) =>
-    RustLib.instance.api.crateApiSequencerApiSequencerUpdateConditionsScore(
-        score: score,
-        transparencyScore: transparencyScore,
-        seeingScore: seeingScore,
-        cloudScore: cloudScore,
-        windScore: windScore,
-        transparencyWeight: transparencyWeight,
-        seeingWeight: seeingWeight,
-        cloudWeight: cloudWeight,
-        windWeight: windWeight,
-        generatedUnixSecs: generatedUnixSecs);
+Future<void>  apiSequencerUpdateConditionsScore({double? score , double? transparencyScore , double? seeingScore , double? cloudScore , double? windScore , required double transparencyWeight , required double seeingWeight , required double cloudWeight , required double windWeight , required PlatformInt64 generatedUnixSecs }) => RustLib.instance.api.crateApiSequencerApiSequencerUpdateConditionsScore(score: score, transparencyScore: transparencyScore, seeingScore: seeingScore, cloudScore: cloudScore, windScore: windScore, transparencyWeight: transparencyWeight, seeingWeight: seeingWeight, cloudWeight: cloudWeight, windWeight: windWeight, generatedUnixSecs: generatedUnixSecs);
 
 /// JSON-serialised snapshot of the live conditions score + adaptive
 /// swap accounting (last swap timestamp, current tier, hysteresis
 /// countdown info) for the Run Dashboard "Adaptive Conditions" panel.
 /// Returns `Ok(None)` when no telemetry has been pushed since startup.
-Future<String?> apiSequencerGetAdaptiveSwapJson() =>
-    RustLib.instance.api.crateApiSequencerApiSequencerGetAdaptiveSwapJson();
+Future<String?>  apiSequencerGetAdaptiveSwapJson() => RustLib.instance.api.crateApiSequencerApiSequencerGetAdaptiveSwapJson();
 
-/// Checkpoint info returned to Dart
-class CheckpointInfoApi {
-  final String sequenceName;
-  final String timestamp;
-  final int completedExposures;
-  final double completedIntegrationSecs;
-  final bool canResume;
-  final PlatformInt64 ageSeconds;
+            /// Checkpoint info returned to Dart
+class CheckpointInfoApi  {
+                final String sequenceName;
+final String timestamp;
+final int completedExposures;
+final double completedIntegrationSecs;
+final bool canResume;
+final PlatformInt64 ageSeconds;
 
-  const CheckpointInfoApi({
-    required this.sequenceName,
-    required this.timestamp,
-    required this.completedExposures,
-    required this.completedIntegrationSecs,
-    required this.canResume,
-    required this.ageSeconds,
-  });
+                const CheckpointInfoApi({required this.sequenceName ,required this.timestamp ,required this.completedExposures ,required this.completedIntegrationSecs ,required this.canResume ,required this.ageSeconds ,});
 
-  @override
-  int get hashCode =>
-      sequenceName.hashCode ^
-      timestamp.hashCode ^
-      completedExposures.hashCode ^
-      completedIntegrationSecs.hashCode ^
-      canResume.hashCode ^
-      ageSeconds.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is CheckpointInfoApi &&
-          runtimeType == other.runtimeType &&
-          sequenceName == other.sequenceName &&
-          timestamp == other.timestamp &&
-          completedExposures == other.completedExposures &&
-          completedIntegrationSecs == other.completedIntegrationSecs &&
-          canResume == other.canResume &&
-          ageSeconds == other.ageSeconds;
-}
+                
+        @override
+        int get hashCode => sequenceName.hashCode^timestamp.hashCode^completedExposures.hashCode^completedIntegrationSecs.hashCode^canResume.hashCode^ageSeconds.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is CheckpointInfoApi &&
+                runtimeType == other.runtimeType
+                && sequenceName == other.sequenceName&& timestamp == other.timestamp&& completedExposures == other.completedExposures&& completedIntegrationSecs == other.completedIntegrationSecs&& canResume == other.canResume&& ageSeconds == other.ageSeconds;
+        
+            }
 
 /// Mirror of the active broadcast session exposed to Dart. Fields are
 /// flattened so FRB does not have to bridge the Rust `BroadcastSession`
 /// struct directly (the `chrono::DateTime` field would not bridge
 /// cleanly).
-class LiveStackingBroadcastSnapshot {
-  /// Node id of the LiveStacking node that armed the broadcast.
-  final String nodeId;
+class LiveStackingBroadcastSnapshot  {
+                /// Node id of the LiveStacking node that armed the broadcast.
+final String nodeId;
+/// `broadcast_only` or `record_and_broadcast`.
+final String mode;
+/// `average`, `median_rej`, or `sigma`.
+final String stackMethod;
+final bool broadcastEnabled;
+final int broadcastPort;
+final String broadcastPath;
+/// Empty string when public (no token required). Non-empty when
+/// `?token=…` is required on every broadcast endpoint.
+final String authToken;
+/// Empty string when no watermark configured. The Dart side does the
+/// variable-interpolation render against the live `${target}` /
+/// `${integration.hms}` context — Rust only carries the raw template.
+final String watermarkTemplate;
+final int thumbnailWidth;
+final int thumbnailHeight;
+final int maxFramesToStack;
+/// Unix epoch milliseconds the broadcast was armed at.
+final PlatformInt64 activatedAtUnixMillis;
 
-  /// `broadcast_only` or `record_and_broadcast`.
-  final String mode;
+                const LiveStackingBroadcastSnapshot({required this.nodeId ,required this.mode ,required this.stackMethod ,required this.broadcastEnabled ,required this.broadcastPort ,required this.broadcastPath ,required this.authToken ,required this.watermarkTemplate ,required this.thumbnailWidth ,required this.thumbnailHeight ,required this.maxFramesToStack ,required this.activatedAtUnixMillis ,});
 
-  /// `average`, `median_rej`, or `sigma`.
-  final String stackMethod;
-  final bool broadcastEnabled;
-  final int broadcastPort;
-  final String broadcastPath;
+                
+                
 
-  /// Empty string when public (no token required). Non-empty when
-  /// `?token=…` is required on every broadcast endpoint.
-  final String authToken;
+                
+        @override
+        int get hashCode => nodeId.hashCode^mode.hashCode^stackMethod.hashCode^broadcastEnabled.hashCode^broadcastPort.hashCode^broadcastPath.hashCode^authToken.hashCode^watermarkTemplate.hashCode^thumbnailWidth.hashCode^thumbnailHeight.hashCode^maxFramesToStack.hashCode^activatedAtUnixMillis.hashCode;
+        
 
-  /// Empty string when no watermark configured. The Dart side does the
-  /// variable-interpolation render against the live `${target}` /
-  /// `${integration.hms}` context — Rust only carries the raw template.
-  final String watermarkTemplate;
-  final int thumbnailWidth;
-  final int thumbnailHeight;
-  final int maxFramesToStack;
-
-  /// Unix epoch milliseconds the broadcast was armed at.
-  final PlatformInt64 activatedAtUnixMillis;
-
-  const LiveStackingBroadcastSnapshot({
-    required this.nodeId,
-    required this.mode,
-    required this.stackMethod,
-    required this.broadcastEnabled,
-    required this.broadcastPort,
-    required this.broadcastPath,
-    required this.authToken,
-    required this.watermarkTemplate,
-    required this.thumbnailWidth,
-    required this.thumbnailHeight,
-    required this.maxFramesToStack,
-    required this.activatedAtUnixMillis,
-  });
-
-  @override
-  int get hashCode =>
-      nodeId.hashCode ^
-      mode.hashCode ^
-      stackMethod.hashCode ^
-      broadcastEnabled.hashCode ^
-      broadcastPort.hashCode ^
-      broadcastPath.hashCode ^
-      authToken.hashCode ^
-      watermarkTemplate.hashCode ^
-      thumbnailWidth.hashCode ^
-      thumbnailHeight.hashCode ^
-      maxFramesToStack.hashCode ^
-      activatedAtUnixMillis.hashCode;
-
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is LiveStackingBroadcastSnapshot &&
-          runtimeType == other.runtimeType &&
-          nodeId == other.nodeId &&
-          mode == other.mode &&
-          stackMethod == other.stackMethod &&
-          broadcastEnabled == other.broadcastEnabled &&
-          broadcastPort == other.broadcastPort &&
-          broadcastPath == other.broadcastPath &&
-          authToken == other.authToken &&
-          watermarkTemplate == other.watermarkTemplate &&
-          thumbnailWidth == other.thumbnailWidth &&
-          thumbnailHeight == other.thumbnailHeight &&
-          maxFramesToStack == other.maxFramesToStack &&
-          activatedAtUnixMillis == other.activatedAtUnixMillis;
-}
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is LiveStackingBroadcastSnapshot &&
+                runtimeType == other.runtimeType
+                && nodeId == other.nodeId&& mode == other.mode&& stackMethod == other.stackMethod&& broadcastEnabled == other.broadcastEnabled&& broadcastPort == other.broadcastPort&& broadcastPath == other.broadcastPath&& authToken == other.authToken&& watermarkTemplate == other.watermarkTemplate&& thumbnailWidth == other.thumbnailWidth&& thumbnailHeight == other.thumbnailHeight&& maxFramesToStack == other.maxFramesToStack&& activatedAtUnixMillis == other.activatedAtUnixMillis;
+        
+            }
 
 /// Result structure for mosaic panel calculations (FFI-safe)
-class MosaicPanelResult {
-  final double raHours;
-  final double decDegrees;
-  final int panelIndex;
-  final int row;
-  final int col;
+class MosaicPanelResult  {
+                final double raHours;
+final double decDegrees;
+final int panelIndex;
+final int row;
+final int col;
 
-  const MosaicPanelResult({
-    required this.raHours,
-    required this.decDegrees,
-    required this.panelIndex,
-    required this.row,
-    required this.col,
-  });
+                const MosaicPanelResult({required this.raHours ,required this.decDegrees ,required this.panelIndex ,required this.row ,required this.col ,});
 
-  @override
-  int get hashCode =>
-      raHours.hashCode ^
-      decDegrees.hashCode ^
-      panelIndex.hashCode ^
-      row.hashCode ^
-      col.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is MosaicPanelResult &&
-          runtimeType == other.runtimeType &&
-          raHours == other.raHours &&
-          decDegrees == other.decDegrees &&
-          panelIndex == other.panelIndex &&
-          row == other.row &&
-          col == other.col;
-}
+                
+        @override
+        int get hashCode => raHours.hashCode^decDegrees.hashCode^panelIndex.hashCode^row.hashCode^col.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is MosaicPanelResult &&
+                runtimeType == other.runtimeType
+                && raHours == other.raHours&& decDegrees == other.decDegrees&& panelIndex == other.panelIndex&& row == other.row&& col == other.col;
+        
+            }
 
 /// Node definition for Flutter
-class NodeDefinitionApi {
-  final String id;
-  final String name;
-  final String nodeType;
-  final bool enabled;
-  final List<String> children;
-  final String configJson;
+class NodeDefinitionApi  {
+                final String id;
+final String name;
+final String nodeType;
+final bool enabled;
+final List<String> children;
+final String configJson;
 
-  const NodeDefinitionApi({
-    required this.id,
-    required this.name,
-    required this.nodeType,
-    required this.enabled,
-    required this.children,
-    required this.configJson,
-  });
+                const NodeDefinitionApi({required this.id ,required this.name ,required this.nodeType ,required this.enabled ,required this.children ,required this.configJson ,});
 
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      nodeType.hashCode ^
-      enabled.hashCode ^
-      children.hashCode ^
-      configJson.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is NodeDefinitionApi &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          name == other.name &&
-          nodeType == other.nodeType &&
-          enabled == other.enabled &&
-          children == other.children &&
-          configJson == other.configJson;
-}
+                
+        @override
+        int get hashCode => id.hashCode^name.hashCode^nodeType.hashCode^enabled.hashCode^children.hashCode^configJson.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is NodeDefinitionApi &&
+                runtimeType == other.runtimeType
+                && id == other.id&& name == other.name&& nodeType == other.nodeType&& enabled == other.enabled&& children == other.children&& configJson == other.configJson;
+        
+            }
 
 /// User-tunable recovery defaults pushed from the Settings > Recovery Mode
 /// page. Field-for-field mirror of
 /// `nightshade_sequencer::recovery::RecoveryRuntimeConfig` so the FRB wire
 /// shape stays stable across regen cycles.
-class RecoveryConfigUpdate {
-  final double retryIntervalSecs;
-  final double maxDurationSecs;
-  final bool stopTrackingDuringRecovery;
-  final bool abortOnMeridian;
-  final bool audibleAlertWhenEntered;
+class RecoveryConfigUpdate  {
+                final double retryIntervalSecs;
+final double maxDurationSecs;
+final bool stopTrackingDuringRecovery;
+final bool abortOnMeridian;
+final bool audibleAlertWhenEntered;
 
-  const RecoveryConfigUpdate({
-    required this.retryIntervalSecs,
-    required this.maxDurationSecs,
-    required this.stopTrackingDuringRecovery,
-    required this.abortOnMeridian,
-    required this.audibleAlertWhenEntered,
-  });
+                const RecoveryConfigUpdate({required this.retryIntervalSecs ,required this.maxDurationSecs ,required this.stopTrackingDuringRecovery ,required this.abortOnMeridian ,required this.audibleAlertWhenEntered ,});
 
-  @override
-  int get hashCode =>
-      retryIntervalSecs.hashCode ^
-      maxDurationSecs.hashCode ^
-      stopTrackingDuringRecovery.hashCode ^
-      abortOnMeridian.hashCode ^
-      audibleAlertWhenEntered.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is RecoveryConfigUpdate &&
-          runtimeType == other.runtimeType &&
-          retryIntervalSecs == other.retryIntervalSecs &&
-          maxDurationSecs == other.maxDurationSecs &&
-          stopTrackingDuringRecovery == other.stopTrackingDuringRecovery &&
-          abortOnMeridian == other.abortOnMeridian &&
-          audibleAlertWhenEntered == other.audibleAlertWhenEntered;
-}
+                
+        @override
+        int get hashCode => retryIntervalSecs.hashCode^maxDurationSecs.hashCode^stopTrackingDuringRecovery.hashCode^abortOnMeridian.hashCode^audibleAlertWhenEntered.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is RecoveryConfigUpdate &&
+                runtimeType == other.runtimeType
+                && retryIntervalSecs == other.retryIntervalSecs&& maxDurationSecs == other.maxDurationSecs&& stopTrackingDuringRecovery == other.stopTrackingDuringRecovery&& abortOnMeridian == other.abortOnMeridian&& audibleAlertWhenEntered == other.audibleAlertWhenEntered;
+        
+            }
 
 /// Sequence definition for Flutter
-class SequenceDefinitionApi {
-  final String id;
-  final String name;
-  final String? description;
-  final List<NodeDefinitionApi> nodes;
-  final String? rootNodeId;
+class SequenceDefinitionApi  {
+                final String id;
+final String name;
+final String? description;
+final List<NodeDefinitionApi> nodes;
+final String? rootNodeId;
 
-  const SequenceDefinitionApi({
-    required this.id,
-    required this.name,
-    this.description,
-    required this.nodes,
-    this.rootNodeId,
-  });
+                const SequenceDefinitionApi({required this.id ,required this.name ,this.description ,required this.nodes ,this.rootNodeId ,});
 
-  @override
-  int get hashCode =>
-      id.hashCode ^
-      name.hashCode ^
-      description.hashCode ^
-      nodes.hashCode ^
-      rootNodeId.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SequenceDefinitionApi &&
-          runtimeType == other.runtimeType &&
-          id == other.id &&
-          name == other.name &&
-          description == other.description &&
-          nodes == other.nodes &&
-          rootNodeId == other.rootNodeId;
-}
+                
+        @override
+        int get hashCode => id.hashCode^name.hashCode^description.hashCode^nodes.hashCode^rootNodeId.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is SequenceDefinitionApi &&
+                runtimeType == other.runtimeType
+                && id == other.id&& name == other.name&& description == other.description&& nodes == other.nodes&& rootNodeId == other.rootNodeId;
+        
+            }
 
 /// Sequencer state for Flutter
-class SequencerState {
-  final String state;
-  final String? currentNodeId;
-  final String? currentNodeName;
-  final int totalExposures;
-  final int completedExposures;
-  final double totalIntegrationSecs;
-  final double elapsedSecs;
-  final double? estimatedRemainingSecs;
-  final String? currentTarget;
-  final String? currentFilter;
-  final String? message;
+class SequencerState  {
+                final String state;
+final String? currentNodeId;
+final String? currentNodeName;
+final int totalExposures;
+final int completedExposures;
+final double totalIntegrationSecs;
+final double elapsedSecs;
+final double? estimatedRemainingSecs;
+final String? currentTarget;
+final String? currentFilter;
+final String? message;
 
-  const SequencerState({
-    required this.state,
-    this.currentNodeId,
-    this.currentNodeName,
-    required this.totalExposures,
-    required this.completedExposures,
-    required this.totalIntegrationSecs,
-    required this.elapsedSecs,
-    this.estimatedRemainingSecs,
-    this.currentTarget,
-    this.currentFilter,
-    this.message,
-  });
+                const SequencerState({required this.state ,this.currentNodeId ,this.currentNodeName ,required this.totalExposures ,required this.completedExposures ,required this.totalIntegrationSecs ,required this.elapsedSecs ,this.estimatedRemainingSecs ,this.currentTarget ,this.currentFilter ,this.message ,});
 
-  @override
-  int get hashCode =>
-      state.hashCode ^
-      currentNodeId.hashCode ^
-      currentNodeName.hashCode ^
-      totalExposures.hashCode ^
-      completedExposures.hashCode ^
-      totalIntegrationSecs.hashCode ^
-      elapsedSecs.hashCode ^
-      estimatedRemainingSecs.hashCode ^
-      currentTarget.hashCode ^
-      currentFilter.hashCode ^
-      message.hashCode;
+                
+                
 
-  @override
-  bool operator ==(Object other) =>
-      identical(this, other) ||
-      other is SequencerState &&
-          runtimeType == other.runtimeType &&
-          state == other.state &&
-          currentNodeId == other.currentNodeId &&
-          currentNodeName == other.currentNodeName &&
-          totalExposures == other.totalExposures &&
-          completedExposures == other.completedExposures &&
-          totalIntegrationSecs == other.totalIntegrationSecs &&
-          elapsedSecs == other.elapsedSecs &&
-          estimatedRemainingSecs == other.estimatedRemainingSecs &&
-          currentTarget == other.currentTarget &&
-          currentFilter == other.currentFilter &&
-          message == other.message;
-}
+                
+        @override
+        int get hashCode => state.hashCode^currentNodeId.hashCode^currentNodeName.hashCode^totalExposures.hashCode^completedExposures.hashCode^totalIntegrationSecs.hashCode^elapsedSecs.hashCode^estimatedRemainingSecs.hashCode^currentTarget.hashCode^currentFilter.hashCode^message.hashCode;
+        
+
+                
+        @override
+        bool operator ==(Object other) =>
+            identical(this, other) ||
+            other is SequencerState &&
+                runtimeType == other.runtimeType
+                && state == other.state&& currentNodeId == other.currentNodeId&& currentNodeName == other.currentNodeName&& totalExposures == other.totalExposures&& completedExposures == other.completedExposures&& totalIntegrationSecs == other.totalIntegrationSecs&& elapsedSecs == other.elapsedSecs&& estimatedRemainingSecs == other.estimatedRemainingSecs&& currentTarget == other.currentTarget&& currentFilter == other.currentFilter&& message == other.message;
+        
+            }
+            

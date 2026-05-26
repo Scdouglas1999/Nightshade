@@ -21,6 +21,7 @@ export 'api/diagnostics.dart';
 export 'api/discovery.dart';
 export 'api/event_stream.dart';
 export 'api/heartbeat.dart';
+export 'api/hotplug.dart';
 export 'api/imaging.dart';
 export 'api/init.dart';
 export 'api/phd2.dart';

@@ -8,28 +8,28 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `parse_alpaca_id`
 
-/// Connect to an Alpaca device (delegates to unified `DeviceManager` registry).
-Future<void> connectAlpacaDevice(
-        {required DeviceType deviceType, required String deviceId}) =>
-    RustLib.instance.api.crateApiConnectionAlpacaConnectionsConnectAlpacaDevice(
-        deviceType: deviceType, deviceId: deviceId);
+            // These functions are ignored because they are not marked as `pub`: `parse_alpaca_id`
+
+
+            /// Connect to an Alpaca device (delegates to unified `DeviceManager` registry).
+Future<void>  connectAlpacaDevice({required DeviceType deviceType , required String deviceId }) => RustLib.instance.api.crateApiConnectionAlpacaConnectionsConnectAlpacaDevice(deviceType: deviceType, deviceId: deviceId);
 
 /// Disconnect from an Alpaca device (delegates to unified `DeviceManager` registry).
-Future<void> disconnectAlpacaDevice({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAlpacaConnectionsDisconnectAlpacaDevice(
-            deviceId: deviceId);
+Future<void>  disconnectAlpacaDevice({required String deviceId }) => RustLib.instance.api.crateApiConnectionAlpacaConnectionsDisconnectAlpacaDevice(deviceId: deviceId);
 
 /// Get an Alpaca client from the `DeviceManager` typed Alpaca maps.
-Future<ArcAlpacaClient?> getAlpacaClient({required String deviceId}) =>
-    RustLib.instance.api
-        .crateApiConnectionAlpacaConnectionsGetAlpacaClient(deviceId: deviceId);
+Future<ArcAlpacaClient?>  getAlpacaClient({required String deviceId }) => RustLib.instance.api.crateApiConnectionAlpacaConnectionsGetAlpacaClient(deviceId: deviceId);
 
 /// Check if Alpaca is connected via `DeviceManager` (not a separate static map).
-Future<bool> isConnected({required String deviceId}) => RustLib.instance.api
-    .crateApiConnectionAlpacaConnectionsIsConnected(deviceId: deviceId);
+Future<bool>  isConnected({required String deviceId }) => RustLib.instance.api.crateApiConnectionAlpacaConnectionsIsConnected(deviceId: deviceId);
 
-// Rust type: RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Arc < AlpacaClient >>>
-abstract class ArcAlpacaClient implements RustOpaqueInterface {}
+            
+                // Rust type: RustOpaqueNom<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<Arc < AlpacaClient >>>
+                abstract class ArcAlpacaClient implements RustOpaqueInterface {
+                    
+
+                    
+                }
+                
+            

@@ -20,6 +20,7 @@ import 'api/diagnostics.dart';
 import 'api/discovery.dart';
 import 'api/event_stream.dart';
 import 'api/heartbeat.dart';
+import 'api/hotplug.dart';
 import 'api/imaging.dart';
 import 'api/init.dart';
 import 'api/phd2.dart';
@@ -12305,6 +12306,18 @@ class RustLibWire implements BaseWire {
   late final _wire__crate__api__imaging__api_read_xisf_file =
       _wire__crate__api__imaging__api_read_xisf_filePtr.asFunction<
           void Function(int, ffi.Pointer<wire_cst_list_prim_u_8_strict>)>();
+
+  void wire__crate__api__hotplug__api_rescan_devices(int port_) {
+    return _wire__crate__api__hotplug__api_rescan_devices(port_);
+  }
+
+  late final _wire__crate__api__hotplug__api_rescan_devicesPtr =
+      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__hotplug__api_rescan_devices',
+  );
+  late final _wire__crate__api__hotplug__api_rescan_devices =
+      _wire__crate__api__hotplug__api_rescan_devicesPtr
+          .asFunction<void Function(int)>();
 
   void wire__crate__api__devices__simulation__api_rotator_halt(
     int port_,

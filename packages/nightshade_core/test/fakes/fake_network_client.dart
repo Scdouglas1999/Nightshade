@@ -102,6 +102,7 @@ class FakeNetworkClient implements http.Client {
 
   late final MockClient _inner;
   final Map<_RouteKey, _CannedResponse> _routes = {};
+  final Map<_RouteKey, List<_CannedResponse>> _responseSequences = {};
 
   /// Optional default response used when no route matches. If `null`, an
   /// unmatched request throws `StateError` to surface the bug loudly rather
@@ -127,6 +128,32 @@ class FakeNetworkClient implements http.Client {
       body: body,
       headers: headers ?? const {'content-type': 'application/json'},
     );
+  }
+
+  /// Register ordered canned responses for repeated calls to a route.
+  ///
+  /// Once the sequence is exhausted, the final response is reused. This keeps
+  /// retry tests deterministic without requiring each retry to register a
+  /// different endpoint or query string.
+  void setResponseSequence(
+    String endpoint, {
+    String method = 'GET',
+    required List<({int status, String body, Map<String, String>? headers})>
+        responses,
+  }) {
+    if (responses.isEmpty) {
+      throw ArgumentError.value(responses, 'responses', 'must not be empty');
+    }
+    _responseSequences[_RouteKey(method.toUpperCase(), endpoint)] = responses
+        .map(
+          (response) => _CannedResponse(
+            status: response.status,
+            body: response.body,
+            headers:
+                response.headers ?? const {'content-type': 'application/json'},
+          ),
+        )
+        .toList(growable: true);
   }
 
   /// Register a canned binary response (e.g. JPEG download endpoints).
@@ -163,6 +190,7 @@ class FakeNetworkClient implements http.Client {
   void reset() {
     requests.clear();
     _routes.clear();
+    _responseSequences.clear();
     _defaultResponse = null;
   }
 
@@ -187,7 +215,12 @@ class FakeNetworkClient implements http.Client {
     ));
 
     final key = _RouteKey(request.method.toUpperCase(), request.url.path);
-    final canned = _routes[key] ?? _defaultResponse;
+    final sequence = _responseSequences[key];
+    final canned = sequence == null
+        ? _routes[key] ?? _defaultResponse
+        : sequence.length > 1
+            ? sequence.removeAt(0)
+            : sequence.single;
     if (canned == null) {
       throw StateError(
         'FakeNetworkClient: no canned response for '
