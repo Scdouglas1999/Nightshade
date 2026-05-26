@@ -1,7 +1,8 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // Top-of-screen chrome: the planner header (title + icon) and the controls bar that arranges search, filter chips, and sort.
 part of '../planner_screen.dart';
+
 // ============================================================================
 // Header
 // ============================================================================

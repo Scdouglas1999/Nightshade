@@ -1,7 +1,8 @@
-﻿// Part of ../polar_alignment_screen.dart — extracted for maintainability.
+// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 //
 // Polar alignment error visualizations: the sparkline error-trend chart (public ErrorTrendChart), the bullseye overlay painter, and the radar-style live error indicator.
 part of '../polar_alignment_screen.dart';
+
 // =============================================================================
 // Task 4.5: Error Trend Sparkline Chart
 // =============================================================================

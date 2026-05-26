@@ -1,8 +1,9 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // Owns the Recommendation tab: its state notifier, scroll-driven pagination, and the orchestrating build/error/loading scaffolding around primary card + candidate list + risk/rationale sections.
 part of '../planner_screen.dart';
-/// "Recommendation" tab â€” the original Plan Tonight body. Kept as a separate
+
+/// "Recommendation" tab — the original Plan Tonight body. Kept as a separate
 /// widget so the search/filter state and infinite-scroll machinery stay
 /// scoped to this tab (the other tabs don't need it).
 class _RecommendationTab extends ConsumerStatefulWidget {
@@ -103,7 +104,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     final l10n = context.l10n;
 
     // Determine the effective primary (optimizer pick, alternate override,
-    // or â€” when filters strip the optimizer pick out â€” fall back to the top
+    // or — when filters strip the optimizer pick out — fall back to the top
     // candidate in the filtered list).
     TargetSuggestion? effectivePrimary;
     if (_selectedAlternateIndex != null &&
@@ -169,7 +170,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
               SectionHeader(
                 title: candidates.isEmpty
                     ? 'No matching candidates'
-                    : 'Tonightâ€™s candidates',
+                    : 'Tonight’s candidates',
                 subtitle: candidates.isEmpty
                     ? 'Adjust filters below to bring more targets back.'
                     : '${candidates.length} target${candidates.length == 1 ? '' : 's'} after filters',
@@ -195,7 +196,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                   colors: colors,
                 ),
 
-              // External SIMBAD name resolver â€” shows up only when the user
+              // External SIMBAD name resolver — shows up only when the user
               // is actively searching and either nothing local matched or
               // they want to broaden beyond the installed catalog. Reads the
               // current search query via ref so this method doesn't need a

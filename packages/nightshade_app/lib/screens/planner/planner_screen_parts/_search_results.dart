@@ -1,10 +1,11 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // Installed-catalog and SIMBAD search-result sections that mount under the candidate list once the user has typed enough characters into the planner search bar.
 part of '../planner_screen.dart';
+
 /// Section that resolves a name fragment against SIMBAD and renders the
 /// matches as send-to-framing rows. Only mounts when the planner search bar
-/// has â‰¥3 characters typed.
+/// has ≥3 characters typed.
 class _InstalledCatalogResultsSection extends ConsumerWidget {
   final String query;
   final NightshadeColors colors;
@@ -112,7 +113,7 @@ class _CatalogResultRow extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  metaParts.join(' Â· '),
+                  metaParts.join(' · '),
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.textSecondary,
@@ -174,7 +175,7 @@ class _SimbadResultsSection extends ConsumerWidget {
             ),
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
-              'Searching SIMBAD for "$query"â€¦',
+              'Searching SIMBAD for "$query"…',
               style: TextStyle(fontSize: 12, color: colors.textSecondary),
             ),
           ],
@@ -205,7 +206,7 @@ class _SimbadResultsSection extends ConsumerWidget {
             SectionHeader(
               title: 'From SIMBAD',
               subtitle:
-                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" â€” not scored for tonight',
+                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" — not scored for tonight',
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             for (final m in matches) _SimbadResultRow(match: m, colors: colors),
@@ -261,7 +262,7 @@ class _SimbadResultRow extends ConsumerWidget {
                   ),
                 ),
                 Text(
-                  metaParts.join(' Â· '),
+                  metaParts.join(' · '),
                   style: TextStyle(
                     fontSize: 11,
                     color: colors.textSecondary,
@@ -307,6 +308,6 @@ class _SimbadResultRow extends ConsumerWidget {
     final mDec = (v - d) * 60;
     final m = mDec.floor();
     final s = ((mDec - m) * 60);
-    return '$sign${d.toString().padLeft(2, '0')}Â° ${m.toString().padLeft(2, '0')}\' ${s.toStringAsFixed(1)}"';
+    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' ${s.toStringAsFixed(1)}"';
   }
 }

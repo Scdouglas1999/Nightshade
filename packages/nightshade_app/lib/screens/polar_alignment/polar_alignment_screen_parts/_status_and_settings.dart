@@ -1,7 +1,8 @@
-﻿// Part of ../polar_alignment_screen.dart — extracted for maintainability.
+// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 //
 // Generic status chip, labelled-setting row, and tip-list item used across the polar alignment side panels.
 part of '../polar_alignment_screen.dart';
+
 class _StatusChip extends StatelessWidget {
   final IconData icon;
   final String label;

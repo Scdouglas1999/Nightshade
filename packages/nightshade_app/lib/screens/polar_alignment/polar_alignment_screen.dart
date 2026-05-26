@@ -1,4 +1,4 @@
-﻿import 'dart:async';
+import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,13 +13,12 @@ import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
 import 'polar_alignment_body_layout.dart';
 import 'widgets/all_sky_target_reticle.dart';
 import 'widgets/polar_alignment_segmented_button.dart';
-
 // ---------------------------------------------------------------------------
 // File split: the helper widgets and painters that compose the side panels
 // live in `polar_alignment_screen_parts/`. The PolarAlignmentScreen widget
 // and its private state class stay in this file because the state class is
-// the orchestrator — it owns the pulse animation, hosts every build_* helper
-// for the run/finish/reset flows, and reaches into a wide surface of
+// the orchestrator -- it owns the pulse animation, hosts every build_*
+// helper for the run/finish/reset flows, and reaches into a wide surface of
 // providers in a way that doesn't extract cleanly into a notifier without
 // significant churn.
 // ---------------------------------------------------------------------------
@@ -27,6 +26,7 @@ import 'widgets/polar_alignment_segmented_button.dart';
 part 'polar_alignment_screen_parts/_status_and_settings.dart';
 part 'polar_alignment_screen_parts/_progress_widgets.dart';
 part 'polar_alignment_screen_parts/_error_visualization.dart';
+
 
 class PolarAlignmentScreen extends ConsumerStatefulWidget {
   const PolarAlignmentScreen({super.key});
@@ -80,7 +80,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     if (mode == PolarAlignmentMode.allSky) {
       // All-sky routine: route through the polar alignment service which
       // calls the bridge `apiStartAllSkyPolarAlignment` entry point. The
-      // backend raises a structured "Plate solver required â€” install
+      // backend raises a structured "Plate solver required — install
       // ASTAP" error when no solver is configured; surface it directly.
       final service = ref.read(polarAlignmentServiceProvider);
       final config = ref.read(polarAlignmentConfigProvider);
@@ -151,7 +151,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             // Header bar
             _buildHeader(colors, isRunning),
 
-            // Main content â€” responsive layout avoids squeezing the guide
+            // Main content — responsive layout avoids squeezing the guide
             // column when embedded beside the app shell or on smaller displays.
             Expanded(
               child: PolarAlignmentBodyLayout(
@@ -542,7 +542,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                 SizedBox(
                   width: 40,
                   child: Text(
-                    '${config.stepSize.toInt()}Â°',
+                    '${config.stepSize.toInt()}°',
                     style: TextStyle(fontSize: 11, color: colors.textPrimary),
                   ),
                 ),
@@ -856,7 +856,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   ///
   /// Why: uses the streaming history provider (`polarAlignmentHistoryStreamProvider`)
   /// so new alignment runs appear in the panel immediately after the run
-  /// completes â€” previously the panel was on a one-shot Future and stale until
+  /// completes — previously the panel was on a one-shot Future and stale until
   /// the screen was rebuilt.
   Widget _buildHistoryPanel(NightshadeColors colors) {
     final profileId = ref.watch(activeEquipmentProfileProvider)?.id;
@@ -1062,7 +1062,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               ),
             ),
 
-          // Main content area â€” scroll + width cap so idle copy never wraps
+          // Main content area — scroll + width cap so idle copy never wraps
           // one character per line in a narrow center column.
           Expanded(
             child: LayoutBuilder(
@@ -1186,7 +1186,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           const SizedBox(height: 12),
           Text(
             isAllSky
-                ? 'Align from any part of the sky â€” no need to point near the '
+                ? 'Align from any part of the sky — no need to point near the '
                     'celestial pole. Nightshade plate-solves a live frame and '
                     'shows azimuth/altitude error on the target reticle while '
                     'you adjust the mount.'
@@ -1490,7 +1490,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     final d = abs.floor();
     final m = ((abs - d) * 60).floor();
     final s = (((abs - d) * 60 - m) * 60).toStringAsFixed(0);
-    return '$sign${d.toString().padLeft(2, '0')}Â° ${m.toString().padLeft(2, '0')}\' $s"';
+    return '$sign${d.toString().padLeft(2, '0')}° ${m.toString().padLeft(2, '0')}\' $s"';
   }
 
   Widget _buildAdjustmentInstructions(

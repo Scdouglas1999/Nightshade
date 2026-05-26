@@ -1,7 +1,8 @@
-﻿// Part of ../polar_alignment_screen.dart — extracted for maintainability.
+// Part of ../polar_alignment_screen.dart -- extracted for maintainability.
 //
 // Step-by-step progress UI for the polar alignment routine: per-measurement tiles, progress steps and connectors, instruction lines, error read-outs, and the spinner that ticks elapsed seconds while a solve is running.
 part of '../polar_alignment_screen.dart';
+
 class _MeasurementProgressItem extends StatelessWidget {
   final NightshadeColors colors;
   final String label;

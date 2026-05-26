@@ -1,7 +1,8 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // Candidate list with cursor-driven pagination, the per-target row (info + altitude panel), score/integration/stat chips, and the skeleton placeholder used while suggestions are loading.
 part of '../planner_screen.dart';
+
 // ============================================================================
 // Candidate list with pagination
 // ============================================================================
@@ -127,7 +128,7 @@ class _CandidateRowInfo extends ConsumerWidget {
               ),
             _StatChip(
               icon: LucideIcons.arrowUp,
-              label: 'Peak ${peakAlt.toStringAsFixed(0)}Â°',
+              label: 'Peak ${peakAlt.toStringAsFixed(0)}°',
               colors: colors,
             ),
             _IntegrationEstimateChip(
@@ -137,7 +138,7 @@ class _CandidateRowInfo extends ConsumerWidget {
             ),
             _StatChip(
               icon: LucideIcons.moon,
-              label: 'Moon ${moonDist.toStringAsFixed(0)}Â°',
+              label: 'Moon ${moonDist.toStringAsFixed(0)}°',
               colors: colors,
               isWarning: moonDist < 45,
             ),
@@ -360,7 +361,7 @@ class _CandidateRow extends ConsumerWidget {
                   ),
                 const SizedBox(height: NightshadeTokens.spaceSm),
                 NightshadeButton(
-                  label: 'Create new listâ€¦',
+                  label: 'Create new list…',
                   icon: LucideIcons.plus,
                   variant: ButtonVariant.outline,
                   size: ButtonSize.small,

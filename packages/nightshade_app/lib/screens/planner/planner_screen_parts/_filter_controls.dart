@@ -1,7 +1,8 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
-// Search field, filter chips (object type, constellation, magnitude, size, altitude, moon separation), sort dropdown, and the shared _showAngleSlider helper used by the angle-based filter sheets.
+// Search field, filter chips (object type, constellation, magnitude, size, altitude, moon separation), sort dropdown, reset chip, the _ControlChip primitive, and the shared _showAngleSlider helper used by the angle-based filter sheets.
 part of '../planner_screen.dart';
+
 class _SearchField extends StatelessWidget {
   final TextEditingController controller;
   final NightshadeColors colors;
@@ -258,7 +259,7 @@ class _MagnitudeRangeControl extends ConsumerWidget {
     if (active) {
       final lo = min?.toStringAsFixed(1) ?? 'any';
       final hi = max?.toStringAsFixed(1) ?? 'any';
-      label = 'Mag $loâ€“$hi';
+      label = 'Mag $lo–$hi';
     } else {
       label = 'Magnitude: any';
     }
@@ -288,7 +289,7 @@ class _MagnitudeRangeControl extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        'Brighter ${lo.toStringAsFixed(1)} â€“ Dimmer ${hi.toStringAsFixed(1)}',
+                        'Brighter ${lo.toStringAsFixed(1)} – Dimmer ${hi.toStringAsFixed(1)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
@@ -368,7 +369,7 @@ class _SizeRangeControl extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final active = min != null || max != null;
     final label = active
-        ? 'Size ${_formatSizeLabel(min)}â€“${_formatSizeLabel(max)}'
+        ? 'Size ${_formatSizeLabel(min)}–${_formatSizeLabel(max)}'
         : 'Size: any';
 
     return _ControlChip(
@@ -410,7 +411,7 @@ class _SizeRangeControl extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Text(
-                        '${_formatSizeLabel(lo)} â€“ ${_formatSizeLabel(hi)}',
+                        '${_formatSizeLabel(lo)} – ${_formatSizeLabel(hi)}',
                         style: TextStyle(
                           fontSize: 12,
                           color: colors.textSecondary,
@@ -479,7 +480,7 @@ class _SizeRangeControl extends ConsumerWidget {
 }
 
 /// Format an arcminute value for compact display in size chips/labels.
-/// Sub-arcminute â†’ arcseconds (`45"`); >=1' â†’ arcminutes with one decimal
+/// Sub-arcminute → arcseconds (`45"`); >=1' → arcminutes with one decimal
 /// (`12.4'`). Nulls and non-positive values render as "any".
 String _formatSizeLabel(double? arcmin) {
   if (arcmin == null || arcmin <= 0) return 'any';
@@ -500,7 +501,7 @@ class _MinAltitudeControl extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final active = value != null;
     final label =
-        active ? 'Alt now â‰¥ ${value!.toStringAsFixed(0)}Â°' : 'Alt now: any';
+        active ? 'Alt now ≥ ${value!.toStringAsFixed(0)}°' : 'Alt now: any';
 
     return _ControlChip(
       colors: colors,
@@ -525,7 +526,7 @@ class _MinAltitudeControl extends ConsumerWidget {
           context: context,
           colors: colors,
           title: 'Minimum altitude right now',
-          unit: 'Â°',
+          unit: '°',
           initial: seed,
           min: 0,
           max: 89,
@@ -551,7 +552,7 @@ class _MoonSeparationControl extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final active = value != null;
-    final label = active ? 'Moon â‰¥ ${value!.toStringAsFixed(0)}Â°' : 'Moon: any';
+    final label = active ? 'Moon ≥ ${value!.toStringAsFixed(0)}°' : 'Moon: any';
 
     return _ControlChip(
       colors: colors,
@@ -563,7 +564,7 @@ class _MoonSeparationControl extends ConsumerWidget {
           context: context,
           colors: colors,
           title: 'Minimum moon separation',
-          unit: 'Â°',
+          unit: '°',
           initial: value ?? 30.0,
           min: 0,
           max: 180,
@@ -764,7 +765,7 @@ Future<double?> _showAngleSlider({
     },
   ).then((value) {
     if (value == null) return null;
-    // -1 sentinel from the Clear button â†’ tell caller to reset to null.
+    // -1 sentinel from the Clear button → tell caller to reset to null.
     if (value < 0) return double.nan;
     return value;
   }).then((v) {

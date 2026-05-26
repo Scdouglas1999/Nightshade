@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -11,7 +11,6 @@ import '../../localization/nightshade_localizations.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/progress_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
-
 // ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `planner_screen_parts/`.
 // Each part is `part of '../planner_screen.dart';` and contains a cohesive
@@ -26,6 +25,7 @@ part 'planner_screen_parts/_candidate_list.dart';
 part 'planner_screen_parts/_filtered_empty_state.dart';
 part 'planner_screen_parts/_primary_target_card.dart';
 part 'planner_screen_parts/_search_results.dart';
+
 
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the
@@ -93,14 +93,14 @@ final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
 /// Full "Plan Tonight" workspace.
 ///
 /// Three sub-tabs (W8-SCHED-MERGE):
-///   * Recommendation â€” the primary scoring engine: best target right now,
+///   * Recommendation — the primary scoring engine: best target right now,
 ///     filterable / sortable / searchable candidate list, SIMBAD fallback,
 ///     risk factors and rationale.
-///   * Target Queue â€” RoboTarget-class dynamic scheduler, formerly the
+///   * Target Queue — RoboTarget-class dynamic scheduler, formerly the
 ///     standalone `/scheduler` screen. The body is embedded via
 ///     [SchedulerTabContent] so the `/scheduler` deep-link redirect lands
 ///     on the same code path.
-///   * Progress â€” per-target imaging progress + ETA, consumes
+///   * Progress — per-target imaging progress + ETA, consumes
 ///     `allTargetProgressProvider`.
 ///
 /// Query param `?tab=` selects the initial tab via [plannerTabFromQuery].
@@ -188,4 +188,3 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     );
   }
 }
-

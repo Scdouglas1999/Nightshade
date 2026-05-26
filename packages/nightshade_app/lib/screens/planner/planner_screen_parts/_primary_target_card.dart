@@ -1,7 +1,8 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // The hero card for tonight's primary recommendation plus the auxiliary RiskFactors and Rationale lists. Public API: invoked from the Recommendation tab when an effective primary exists.
 part of '../planner_screen.dart';
+
 // ============================================================================
 // Primary target card + auxiliary lists (kept from original screen)
 // ============================================================================
@@ -141,7 +142,7 @@ class _PrimaryTargetCard extends ConsumerWidget {
             if (plan.recommendedFilterNames.isNotEmpty)
               _StatChip(
                 icon: LucideIcons.aperture,
-                label: plan.recommendedFilterNames.join(' Â· '),
+                label: plan.recommendedFilterNames.join(' · '),
                 colors: colors,
               )
             else if (plan.recommendedFilterName != null)

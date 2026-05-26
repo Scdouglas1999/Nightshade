@@ -1,9 +1,10 @@
-﻿// Part of ../planner_screen.dart — extracted for maintainability.
+// Part of ../planner_screen.dart -- extracted for maintainability.
 //
 // Empty-state card shown when filters strip every candidate; ranks which filters caused the most exclusions and offers a one-tap reset.
 part of '../planner_screen.dart';
+
 // ============================================================================
-// Empty state (filters applied) â€” explains which filter excluded the most
+// Empty state (filters applied) — explains which filter excluded the most
 // ============================================================================
 
 class _FilteredEmptyState extends ConsumerWidget {
@@ -52,7 +53,7 @@ class _FilteredEmptyState extends ConsumerWidget {
           if (breakdown.total == 0) ...[
             // Why: when the suggestion pool is fully empty, the dominant
             // real-world cause is "the OpenNGC catalog hasn't been
-            // downloaded yet" â€” not "your filters/altitude/twilight are
+            // downloaded yet" — not "your filters/altitude/twilight are
             // wrong." Detect that case and surface the actual fix.
             Builder(builder: (ctx) {
               final catalogState = ref.watch(catalogStateProvider);
@@ -127,7 +128,7 @@ class _FilteredEmptyState extends ConsumerWidget {
                         ),
                       ),
                       Text(
-                        'âˆ’${entry.value}',
+                        '−${entry.value}',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
