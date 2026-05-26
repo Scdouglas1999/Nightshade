@@ -14,8 +14,6 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:nightshade_updater/nightshade_updater.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 import 'package:shelf/shelf.dart';
 import 'package:shelf/shelf_io.dart' as shelf_io;
 import 'package:shelf_router/shelf_router.dart';
@@ -247,6 +245,7 @@ class HeadlessApiServer {
   late final StaticFileHandlers _staticFileHandlers;
   late final AuthHandlers _authHandlers;
   late final PairingHandlers _pairingHandlers;
+  late final SystemHandlers _systemHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -504,6 +503,26 @@ class HeadlessApiServer {
       pairingPrintCodes: pairingPrintCodes,
       logger: container.read(loggingServiceProvider),
     );
+    _systemHandlers = SystemHandlers(
+      container: container,
+      view: SystemServerView(
+        // Wrap every server field in a closure so the handler always
+        // reads the live value (the event-seq counter advances on
+        // every broadcast, so a one-shot capture would be wrong by
+        // the second request).
+        fingerprint: () => _serverFingerprint,
+        instanceId: () => _serverInstanceId,
+        currentEventSeq: () => _eventSeq,
+        eventReplayBufferSize: () => eventReplayBufferSize,
+        eventReplayBufferOldestSeq: () => _eventReplayBuffer.oldestSeq,
+        port: () => port,
+        bindLocalOnly: () => bindLocalOnly,
+        authRequired: () => _effectiveAuthTokensByValue.isNotEmpty,
+        availableAuthScopes: _availableAuthScopes,
+      ),
+      staticFileHandlers: _staticFileHandlers,
+      logger: container.read(loggingServiceProvider),
+    );
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
@@ -616,10 +635,10 @@ class HeadlessApiServer {
     final router = Router();
 
     // Core endpoints
-    router.get('/api/info', _handleInfo);
-    router.get('/api/status', _handleStatus);
-    router.get('/api/self-test', _handleSelfTest);
-    router.get('/api/openapi.json', _handleOpenApiSpec);
+    router.get('/api/info', _systemHandlers.handleInfo);
+    router.get('/api/status', _systemHandlers.handleStatus);
+    router.get('/api/self-test', _systemHandlers.handleSelfTest);
+    router.get('/api/openapi.json', _systemHandlers.handleOpenApiSpec);
 
     // Pairing flow (web dashboard first-run UX). See §2.1 in
     // 2026-05-09-v250-audit-fixes.md.
@@ -797,10 +816,16 @@ class HeadlessApiServer {
     // Plate Solving
     router.post('/api/plate-solve', _imagingHandlers.handlePlateSolve);
 
-    // Sequencing (legacy)
-    router.get('/api/sequences/status', _handleSequenceStatus);
-    router.post('/api/sequences/start', _handleSequenceStart);
-    router.post('/api/sequences/stop', _handleSequenceStop);
+    // Sequencing (legacy). These three are direct aliases for the
+    // /api/sequencer/* surface — kept for pinned mobile builds that
+    // pre-date the rename. The router accepts the same handler refs so
+    // there is no double dispatch.
+    router.get(
+        '/api/sequences/status', _sequencerHandlers.handleSequencerStatus);
+    router.post(
+        '/api/sequences/start', _sequencerHandlers.handleSequencerStart);
+    router.post(
+        '/api/sequences/stop', _sequencerHandlers.handleSequencerStop);
 
     // Sequencing (extended)
     router.get(
@@ -2389,57 +2414,21 @@ class HeadlessApiServer {
   }
 
   // ===========================================================================
-  // Core Handlers (kept inline for simplicity)
+  // Core Handlers (moved to handlers/system_handlers.dart)
+  //
+  // The four read-only system endpoints (/api/info, /api/status,
+  // /api/self-test, /api/openapi.json), together with the canonical
+  // `availableHeadlessEndpoints()` catalog and the storage/DB/connected-
+  // device probes that back self-test, now live in [SystemHandlers].
+  // The closure-based [SystemServerView] passed at construction time
+  // keeps the snapshot live (every getter is called per request) so
+  // the JSON envelope matches the inline implementation exactly.
   // ===========================================================================
 
-  Future<Response> _handleInfo(Request request) async {
-    final platformCapabilities =
-        PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
-    final versionInfo = container.read(appVersionProvider);
-    final dashboardAvailable = _staticFileHandlers.dashboardAvailable;
-
-    return jsonOk(
-      {
-        'name': 'Nightshade Headless',
-        'version': versionInfo.version,
-        'apiVersion': RemoteApiCompatibility.serverApiVersion.format(),
-        'minimumSupportedApiVersion':
-            RemoteApiCompatibility.minimumSupportedVersion.format(),
-        'apiVersionHeader': RemoteApiCompatibility.apiVersionHeader,
-        'mode': 'headless',
-        'platform': platformCapabilities.platform,
-        'platformCapabilities': platformCapabilities.toJson(),
-        'authRequired': _effectiveAuthTokensByValue.isNotEmpty,
-        'authenticationMode':
-            _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
-        'authScopes': _availableAuthScopes(),
-        'pairingSupported': true,
-        'fingerprint': _serverFingerprint,
-        // P1-1: surface the sequencing + replay state so a reconnecting
-        // client can decide between `?since=` replay and a full
-        // `/api/run-watch/snapshot` rehydrate without guessing.
-        'serverInstanceId': _serverInstanceId,
-        'currentEventSeq': _eventSeq,
-        'eventReplayBufferSize': eventReplayBufferSize,
-        'eventReplayBufferOldestSeq': _eventReplayBuffer.oldestSeq,
-        'apiOnlyMode': true,
-        'webUIAvailable': dashboardAvailable,
-        'publicEndpoints': [
-          '/api/info',
-          '/api/pairing/start',
-          '/api/pairing/verify',
-          '/dashboard',
-          // Wave 6: the run-watch SPA bundle is auth-exempt so the
-          // phone can load it before pairing. The /api/run-watch/*
-          // endpoints themselves still require a Bearer token.
-          '/run-watch',
-        ],
-        'endpoints': _getAvailableEndpoints(),
-      },
-      headers: _apiCompatibilityHeaders(),
-    );
-  }
-
+  /// Sorted, deduplicated list of scope names present in the configured
+  /// + paired token tables. Captured into [SystemServerView] so the
+  /// extracted [SystemHandlers] can surface it on /api/info and
+  /// /api/self-test without re-reading server state.
   List<String> _availableAuthScopes() {
     final scopes = _effectiveAuthTokensByValue.values
         .map(headlessTokenScopeName)
@@ -2449,700 +2438,6 @@ class HeadlessApiServer {
     return scopes;
   }
 
-  List<String> _getAvailableEndpoints() {
-    return [
-      // Core
-      'GET /api/info',
-      'GET /api/status',
-      'GET /api/self-test',
-      'GET /api/openapi.json',
-      'POST /api/pairing/start',
-      'POST /api/pairing/verify',
-      // P0-3: admin-only diagnostic listing currently-valid pairing
-      // codes so a headless operator on a paired admin client can
-      // retrieve the code without watching stdout.
-      'GET /api/pairing/active',
-      'POST /api/ws/ticket',
-      'POST /api/auth/cookie',
-      'GET /api/auth/csrf',
-      'POST /api/auth/logout',
-      'GET /api/collaboration/state',
-      'POST /api/collaboration/viewers/join',
-      'POST /api/collaboration/viewers/leave',
-      'POST /api/collaboration/preview',
-      'POST /api/collaboration/chat',
-      'POST /api/collaboration/annotations',
-      'GET /api/session-handoff',
-      'POST /api/session-handoff',
-      'DELETE /api/session-handoff',
-      'GET /api/devices',
-      'GET /api/devices/discover-indi',
-      'GET /api/devices/discover-alpaca',
-      'GET /api/devices/connected',
-      'POST /api/devices/connect',
-      'POST /api/devices/disconnect',
-      // Camera
-      'POST /api/camera/expose',
-      'POST /api/camera/abort',
-      'GET /api/camera/last-image',
-      'GET /api/camera/last-image/jpeg',
-      'GET /api/camera/live-view/frame',
-      // P2-10 — push-based live-view streaming. Listed alongside the pull
-      // endpoint so OpenAPI consumers see both options.
-      'WS /ws/live-view',
-      'POST /api/camera/cooling',
-      'GET /api/camera/cooling',
-      'GET /api/camera/readout-modes',
-      'POST /api/camera/readoutMode',
-      'POST /api/camera/gain',
-      'POST /api/camera/offset',
-      'GET /api/camera/recommended-settings',
-      // Mount
-      'POST /api/mount/slew',
-      'POST /api/mount/sync',
-      'POST /api/mount/park',
-      'POST /api/mount/unpark',
-      'POST /api/mount/tracking',
-      'POST /api/mount/pulse-guide',
-      'POST /api/mount/abort',
-      'GET /api/mount/status',
-      'POST /api/mount/set-tracking-rate',
-      'POST /api/mount/move-axis',
-      'POST /api/mount/slew-alt-az',
-      'POST /api/mount/find-home',
-      // Focuser
-      'POST /api/focuser/move-to',
-      'POST /api/focuser/move-relative',
-      'POST /api/focuser/halt',
-      'POST /api/focuser/autofocus/start',
-      'POST /api/focuser/autofocus/cancel',
-      // Filter Wheel
-      'POST /api/filter-wheel/position',
-      'GET /api/filter-wheel/position',
-      'GET /api/filter-wheel/names',
-      'POST /api/filter-wheel/names',
-      'POST /api/filter-wheel/set-by-name',
-      // Rotator
-      'POST /api/rotator/move-to',
-      'POST /api/rotator/move-relative',
-      'GET /api/rotator/status',
-      'POST /api/rotator/halt',
-      'POST /api/rotator/sync',
-      // PHD2
-      'POST /api/phd2/connect',
-      'POST /api/phd2/disconnect',
-      'POST /api/phd2/start-guiding',
-      'POST /api/phd2/stop-guiding',
-      'POST /api/phd2/dither',
-      'GET /api/phd2/status',
-      'POST /api/phd2/pause',
-      'POST /api/phd2/clear-calibration',
-      'POST /api/phd2/flip-calibration',
-      'POST /api/phd2/get-calibration-data',
-      'POST /api/phd2/find-star',
-      'POST /api/phd2/set-lock-position',
-      'GET /api/phd2/lock-position',
-      'POST /api/phd2/loop',
-      'POST /api/phd2/deselect-star',
-      'GET /api/phd2/star-image',
-      'GET /api/phd2/algo-params',
-      'GET /api/phd2/algo-param',
-      'POST /api/phd2/algo-param',
-      // Generic Guider
-      'POST /api/guider/start-guiding',
-      'POST /api/guider/stop-guiding',
-      'POST /api/guider/dither',
-      'POST /api/guider/loop',
-      'POST /api/guider/find-star',
-      'POST /api/guider/set-lock-position',
-      'GET /api/guider/lock-position',
-      'POST /api/guider/deselect-star',
-      'GET /api/guider/star-image',
-      'GET /api/builtin-guider/config',
-      'POST /api/builtin-guider/config',
-      // Broadcast
-      'GET /api/broadcast/info',
-      'GET /api/broadcast/live-stack',
-      'GET /api/broadcast/sse',
-      // Plate Solving
-      'POST /api/plate-solve',
-      // Legacy Sequencer
-      'GET /api/sequences/status',
-      'POST /api/sequences/start',
-      'POST /api/sequences/stop',
-      // Sequencer
-      'GET /api/sequencer/status',
-      'POST /api/sequencer/start',
-      'POST /api/sequencer/stop',
-      'POST /api/sequencer/pause',
-      'POST /api/sequencer/resume',
-      'POST /api/sequencer/skip',
-      'POST /api/sequencer/skip-to-node',
-      'POST /api/sequencer/plugin-node-finished',
-      'POST /api/sequencer/reset',
-      'POST /api/sequencer/load',
-      'POST /api/sequencer/simulation',
-      'POST /api/sequencer/devices',
-      'POST /api/sequencer/safety-fail-mode',
-      'POST /api/sequencer/safety-check-interval',
-      'POST /api/sequencer/save-path',
-      'POST /api/sequencer/active-sequence-run-id',
-      'POST /api/sequencer/decision-logging-enabled',
-      'POST /api/sequencer/update-dither-config',
-      'POST /api/sequencer/update-location',
-      'POST /api/sequencer/update-filter-offsets',
-      'POST /api/sequencer/update-pending-integration-carry-over',
-      'POST /api/sequencer/update-autofocus-interval',
-      'POST /api/sequencer/update-default-quality-check',
-      'POST /api/sequencer/update-reject-folder-path',
-      'POST /api/sequencer/update-observer-profile',
-      'POST /api/sequencer/update-sky-brightness',
-      'POST /api/sequencer/update-default-adaptive-exposure',
-      'POST /api/sequencer/clear-default-adaptive-exposure',
-      'POST /api/sequencer/checkpoint/dir',
-      'GET /api/sequencer/checkpoint/has',
-      'GET /api/sequencer/checkpoint/info',
-      'POST /api/sequencer/checkpoint/resume',
-      'POST /api/sequencer/checkpoint/discard',
-      'POST /api/sequencer/checkpoint/save',
-      'POST /api/sequencer/recovery/try-now',
-      'POST /api/sequencer/recovery/abort',
-      'POST /api/sequencer/recovery/update-config',
-      'GET /api/sequencer/recovery/current',
-      'GET /api/sequencer/recovery/history',
-      'POST /api/sequencer/update-cloud-motion',
-      'GET /api/sequencer/cloud-motion',
-      'POST /api/sequencer/update-conditions-score',
-      'GET /api/sequencer/adaptive-swap',
-      // Equipment Status
-      'GET /api/equipment/camera/status',
-      'GET /api/equipment/mount/status',
-      'GET /api/equipment/focuser/status',
-      'GET /api/equipment/filter-wheel/status',
-      'GET /api/equipment/rotator/status',
-      // Equipment Capabilities
-      'GET /api/equipment/camera/capabilities',
-      'GET /api/equipment/mount/capabilities',
-      'GET /api/equipment/focuser/capabilities',
-      'GET /api/equipment/filter-wheel/capabilities',
-      'GET /api/equipment/rotator/capabilities',
-      // Device Health
-      'POST /api/device/heartbeat/start',
-      'POST /api/device/heartbeat/stop',
-      'GET /api/device/health/<deviceId>',
-      // Profiles
-      'GET /api/profiles',
-      'POST /api/profiles',
-      'DELETE /api/profiles/<profileId>',
-      'POST /api/profiles/<profileId>/load',
-      'GET /api/profiles/active',
-      // Settings
-      'GET /api/settings',
-      'POST /api/settings',
-      'GET /api/settings/location',
-      'POST /api/settings/location',
-      'GET /api/location',
-      // Imaging
-      'POST /api/imaging/stats',
-      'POST /api/imaging/stretch',
-      'GET /api/imaging/star-crops',
-      'POST /api/imaging/debayer',
-      'GET /api/imaging/raw-data',
-      'POST /api/imaging/save-fits',
-      'POST /api/imaging/save-fits-from-capture',
-      'POST /api/imaging/calibrate-file',
-      'DELETE /api/imaging/device-image/<deviceId>',
-      // Polar Alignment
-      'POST /api/polar-alignment/start',
-      'POST /api/polar-alignment/all-sky/start',
-      'POST /api/polar-alignment/stop',
-      // Session Images
-      'GET /api/sessions/<sessionId>/images',
-      'GET /api/images',
-      'GET /api/images/recent',
-      'GET /api/images/standalone',
-      'POST /api/images',
-      'GET /api/images/<imageId>',
-      'PUT /api/images/<imageId>',
-      'GET /api/images/<imageId>/thumbnail',
-      // P1-13: thumbnail cache management.
-      'POST /api/images/backfill-thumbnails',
-      'POST /api/images/<imageId>/regenerate-thumbnail',
-      'GET /api/images/<imageId>/download',
-      'GET /api/sessions/<sessionId>/export/json',
-      'GET /api/sessions/<sessionId>/export/csv',
-      'GET /api/sessions/<sessionId>/export/html',
-      'GET /api/sessions/<sessionId>/export/<format>',
-      // Targets
-      'GET /api/targets',
-      'GET /api/targets/favorites',
-      'GET /api/targets/search',
-      'GET /api/targets/by-type',
-      'GET /api/targets/by-priority',
-      'GET /api/targets/<id>',
-      'POST /api/targets',
-      'PUT /api/targets/<id>',
-      'DELETE /api/targets/<id>',
-      'POST /api/targets/<id>/favorite',
-      'PUT /api/targets/<id>/progress',
-      // Sequence Management
-      'GET /api/sequence-management/list',
-      'GET /api/sequence-management/list-full',
-      'GET /api/sequence-management/templates-full',
-      'POST /api/sequence-management/save-full',
-      'GET /api/sequence-management/templates',
-      'GET /api/sequence-management/<id>',
-      'GET /api/sequence-management/<id>/nodes',
-      'GET /api/sequence-management/<id>/children',
-      'POST /api/sequence-management',
-      'PUT /api/sequence-management/<id>',
-      'DELETE /api/sequence-management/<id>',
-      'POST /api/sequence-management/<id>/duplicate',
-      'POST /api/sequence-management/<id>/nodes',
-      'PUT /api/sequence-management/nodes/<nodeId>',
-      'DELETE /api/sequence-management/nodes/<nodeId>',
-      'POST /api/sequence-management/<id>/reorder',
-      'POST /api/sequence-management/nodes/<nodeId>/enabled',
-      // Flat Wizard
-      'POST /api/flat-wizard/calibrate',
-      'POST /api/flat-wizard/calibrate-multi',
-      'POST /api/flat-wizard/generate-sequence',
-      'POST /api/flat-wizard/quick-calibrate',
-      // Mosaic
-      'POST /api/mosaic/generate-panels',
-      'POST /api/mosaic/generate-sequence',
-      'POST /api/mosaic/calculate-area',
-      'POST /api/mosaic/validate',
-      'POST /api/mosaic/estimate-time',
-      'GET /api/mosaic/recommended-exposure',
-      // Sessions & Analytics
-      'GET /api/sessions',
-      'GET /api/sessions/active',
-      'GET /api/sessions/recent',
-      'GET /api/sessions/<id>',
-      'GET /api/sessions/<id>/stats',
-      'GET /api/sessions/<id>/psf-tiles',
-      'GET /api/sessions/<id>/residuals',
-      'GET /api/sessions/target/<targetId>',
-      'POST /api/sessions',
-      'PUT /api/sessions/<id>',
-      'POST /api/sessions/<id>/end',
-      'DELETE /api/sessions/<id>',
-      'GET /api/files/browse',
-      'POST /api/files/validate',
-      // Science
-      'GET /api/science/session/<sessionId>/bundle',
-      'GET /api/science/sessionless/recent',
-      'GET /api/science/settings',
-      'POST /api/science/settings',
-      'GET /api/science/session/<sessionId>/config',
-      'POST /api/science/session/<sessionId>/config',
-      'GET /api/science/transforms',
-      'POST /api/science/calibration/image/<imageId>/match-stars',
-      'POST /api/science/calibration/compute-transform',
-      'POST /api/science/calibration/save-transform',
-      'POST /api/science/session/<sessionId>/generate-line-ratios',
-      'POST /api/science/session/<sessionId>/export/aavso',
-      'GET /api/science/session/<sessionId>/report/pdf',
-      'GET /api/analytics/summary',
-      'GET /api/analytics/integration-time',
-      'GET /api/analytics/target-statistics',
-      // Weather
-      'GET /api/weather/radar',
-      'GET /api/weather/forecast',
-      'GET /api/weather/alerts',
-      'GET /api/weather/cloud-cover',
-      'GET /api/weather/settings',
-      'POST /api/weather/settings',
-      'GET /api/weather/safe-imaging',
-      'GET /api/weather/current',
-      'POST /api/weather/clear-cache',
-      // Suggestions
-      'GET /api/suggestions/tonight',
-      'GET /api/suggestions/config',
-      'GET /api/suggestions/score/<targetId>',
-      // Transients
-      'GET /api/transients',
-      'GET /api/transients/settings',
-      'POST /api/transients/settings',
-      'GET /api/transients/queued',
-      'POST /api/transients/<id>/queue',
-      'POST /api/transients/<id>/dismiss',
-      'POST /api/transients/refresh',
-      // Backup
-      'GET /api/backup/list',
-      'POST /api/backup/create',
-      'POST /api/backup/restore',
-      'POST /api/backup/auto-save',
-      'POST /api/backup/upload-restore',
-      'GET /api/backup/<id>/metadata',
-      'GET /api/backup/<id>/download',
-      'DELETE /api/backup/<id>',
-      // Framing
-      'POST /api/framing/slew-to-target',
-      'POST /api/framing/center-on-target',
-      'POST /api/framing/sync',
-      'GET /api/framing/current-position',
-      'POST /api/framing/rotate-to',
-      'POST /api/framing/abort-slew',
-      'POST /api/framing/park',
-      'POST /api/framing/unpark',
-      'POST /api/framing/set-target',
-      'POST /api/framing/save',
-      // Planetarium (remote client support)
-      'GET /api/planetarium/mount-position',
-      'GET /api/planetarium/fov-config',
-      'POST /api/planetarium/slew-to',
-      'POST /api/planetarium/center-on',
-      'POST /api/planetarium/sync-to',
-      'GET /api/planetarium/catalog/search',
-      'GET /api/planetarium/catalog/region',
-      'GET /api/planetarium/catalog/object/<objectId>',
-      'GET /api/planetarium/subscribe-info',
-      'GET /api/planetarium/location',
-      // Dome
-      'POST /api/dome/open',
-      'POST /api/dome/close',
-      'POST /api/dome/slew',
-      'POST /api/dome/sync',
-      'POST /api/dome/park',
-      'POST /api/dome/home',
-      'POST /api/dome/halt',
-      'GET /api/dome/status',
-      'GET /api/dome/capabilities',
-      // Safety Monitor
-      'GET /api/safety/status',
-      'GET /api/safety/settings',
-      'POST /api/safety/settings',
-      'POST /api/safety/acknowledge',
-      // Switch
-      'GET /api/switch/status',
-      'POST /api/switch/set',
-      // Cover Calibrator
-      'GET /api/cover/status',
-      'POST /api/cover/open',
-      'POST /api/cover/close',
-      'POST /api/cover/brightness',
-      'POST /api/cover/calibrator-on',
-      'POST /api/cover/calibrator-off',
-      // Intelligent Scheduler
-      'GET /api/scheduler/altitude',
-      'GET /api/scheduler/transit-time',
-      'GET /api/scheduler/rise-set',
-      'GET /api/scheduler/hours-above-horizon',
-      'POST /api/scheduler/optimize-targets',
-      'GET /api/scheduler/twilight-times',
-      'GET /api/scheduler/moon-info',
-      // Focus Model
-      'GET /api/focus-model/data',
-      'POST /api/focus-model/add-point',
-      'DELETE /api/focus-model/clear',
-      'GET /api/focus-model/model',
-      'GET /api/focus-model/predict',
-      'GET /api/focus-model/filter-offsets',
-      'POST /api/focus-model/filter-offsets',
-      'GET /api/focus-model/should-refocus',
-      'GET /api/focus-model/export',
-      'POST /api/focus-model/import',
-      // P1-2 / P1-3 — Long-running operation jobs
-      'GET /api/jobs',
-      'GET /api/jobs/<jobId>',
-      'POST /api/jobs/<jobId>/cancel',
-      'DELETE /api/jobs/<jobId>',
-      // P1-5 — Session ownership
-      'GET /api/session/owner',
-      'GET /api/session/status',
-      'POST /api/session/claim',
-      'POST /api/session/take-over',
-      'POST /api/session/release',
-      // P1-11 — System / OTA update endpoints
-      'GET /api/system/version',
-      'POST /api/system/update/check',
-      'GET /api/system/update/status',
-      'POST /api/system/update/download',
-      'POST /api/system/update/apply',
-      'POST /api/system/update/abort',
-      'POST /api/system/update/rollback',
-      'GET /api/system/update/staged',
-      'DELETE /api/system/update/staged',
-      // WebSocket
-      'WS /api/ws',
-      'WS /events',
-      // Wave 6 — Run-Watch (phone/tablet monitoring SPA)
-      'GET /api/run-watch/snapshot',
-      'GET /api/run-watch/frame-thumbnail',
-      'GET /api/run-watch/events',
-      // P1-14 — Remote log retrieval / tail
-      'GET /api/logs',
-      'GET /api/logs/recent',
-      'GET /api/logs/files/<filename>/download',
-      'GET /api/logs/tail',
-      'POST /api/logs/clear',
-      'POST /api/logs/test-entry',
-      // P1-10 — Remote calibration library management
-      'GET /api/calibration/darks',
-      'POST /api/calibration/darks',
-      'POST /api/calibration/darks/upload',
-      'POST /api/calibration/darks/find-match',
-      'POST /api/calibration/darks/backfill-sizes',
-      'GET /api/calibration/darks/<id>',
-      'GET /api/calibration/darks/<id>/download',
-      'DELETE /api/calibration/darks/<id>',
-      'GET /api/calibration/flats',
-      'POST /api/calibration/flats',
-      'GET /api/calibration/flats/recommendation',
-      'GET /api/calibration/flats/<id>',
-      'DELETE /api/calibration/flats/<id>',
-      'GET /api/calibration/defect-maps',
-      'POST /api/calibration/defect-maps',
-      'GET /api/calibration/defect-maps/<id>',
-      'DELETE /api/calibration/defect-maps/<id>',
-      'POST /api/calibration/defect-maps/<id>/regenerate',
-      // P1-12 — Catalog management (download / upload / verify / etc.)
-      'GET /api/catalog/status',
-      'GET /api/catalog/available',
-      'POST /api/catalog/download',
-      'POST /api/catalog/upload',
-      'POST /api/catalog/verify',
-      'POST /api/catalog/reload',
-      'DELETE /api/catalog/<name>',
-
-      // P2-8 — Read-only DB endpoints (paginated)
-      'GET /api/sequence-runs',
-      'GET /api/notes-journal',
-      'GET /api/guide-rms-history',
-      'GET /api/polar-alignment-history',
-      'GET /api/db/dark-library',
-      'GET /api/db/flat-history',
-
-      // P2-11 — Plugin management
-      'GET /api/plugins',
-      'POST /api/plugins/upload',
-      'POST /api/plugins/<pluginId>/enable',
-      'POST /api/plugins/<pluginId>/disable',
-      'DELETE /api/plugins/<pluginId>',
-    ];
-  }
-
-  Future<Response> _handleStatus(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/status');
-    try {
-      final backend = container.read(backendProvider);
-      final status = await backend.sequencerGetStatus();
-      return jsonOk({
-        "sequencer": {
-          "state": status.state,
-          "currentNodeId": status.currentNodeId,
-          "currentNodeName": status.currentNodeName,
-          "progress": status.progress,
-          "message": status.message
-        },
-      });
-    } catch (e, stackTrace) {
-      _logError('[API][$requestId] Status error: $e\n$stackTrace');
-      return jsonInternalServerError({"error": "Internal server error"});
-    }
-  }
-
-  Future<Response> _handleSelfTest(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/self-test');
-    try {
-      final platformCapabilities =
-          PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
-      final backend = container.read(backendProvider);
-      final storageChecks = await _runStorageSelfTests();
-      final databaseCheck = _runDatabaseSelfTest();
-      final connectedDeviceProbe = await _probeConnectedDevices(backend);
-      final endpointCount = _getAvailableEndpoints().length;
-
-      final checks = [
-        ...storageChecks.map((check) => check['status']),
-        databaseCheck['status'],
-        connectedDeviceProbe['status'],
-      ];
-      final hasFailures = checks.contains('error');
-
-      return jsonOk({
-        'status': hasFailures ? 'degraded' : 'ok',
-        'timestamp': DateTime.now().toUtc().toIso8601String(),
-        'platform': {
-          'operatingSystem': platformCapabilities.platform,
-          'operatingSystemVersion': Platform.operatingSystemVersion,
-          'executable': Platform.resolvedExecutable,
-        },
-        'server': {
-          'port': port,
-          'bindMode': bindLocalOnly ? 'loopback' : 'lan',
-          'authMode': _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
-          'authRequired': _effectiveAuthTokensByValue.isNotEmpty,
-          'authScopes': _availableAuthScopes(),
-          'dashboardAvailable': _staticFileHandlers.dashboardAvailable,
-        },
-        'backend': {
-          'type': backend.runtimeType.toString(),
-          'connectedDevices': connectedDeviceProbe,
-        },
-        'deviceDrivers': platformCapabilities.toJson(),
-        'storagePaths': storageChecks,
-        'database': databaseCheck,
-        'api': {
-          'endpointCount': endpointCount,
-          'selfTestEndpoint': 'GET /api/self-test',
-        },
-      });
-    } catch (e, stackTrace) {
-      _logError('[API][$requestId] Self-test error: $e\n$stackTrace');
-      return jsonInternalServerError({'error': 'Internal server error'});
-    }
-  }
-
-  Future<Response> _handleOpenApiSpec(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/openapi.json');
-    try {
-      return jsonOk(_buildOpenApiSpec());
-    } catch (e, stackTrace) {
-      _logError('[API][$requestId] OpenAPI generation error: $e\n$stackTrace');
-      return jsonInternalServerError({'error': 'Internal server error'});
-    }
-  }
-
-  Map<String, dynamic> _buildOpenApiSpec() {
-    return route_metadata.buildOpenApiSpec(
-      routes: _getAvailableEndpoints(),
-      port: port,
-    );
-  }
-
-  Map<String, dynamic> _runDatabaseSelfTest() {
-    try {
-      container.read(databaseProvider);
-      return {
-        'name': 'driftDatabase',
-        'status': 'ok',
-        'message': 'Database provider is initialized.',
-      };
-    } catch (e) {
-      return {
-        'name': 'driftDatabase',
-        'status': 'error',
-        'message': e.toString(),
-      };
-    }
-  }
-
-  Future<Map<String, dynamic>> _probeConnectedDevices(
-    NightshadeBackend backend,
-  ) async {
-    try {
-      final devices = await backend.getConnectedDevices().timeout(
-            const Duration(seconds: 2),
-          );
-      return {
-        'status': 'ok',
-        'count': devices.length,
-        'devices': devices.map((device) => device.toJson()).toList(),
-      };
-    } catch (e) {
-      return {
-        'status': 'warning',
-        'count': null,
-        'devices': <Map<String, dynamic>>[],
-        'message': 'Connected-device probe unavailable: $e',
-      };
-    }
-  }
-
-  Future<List<Map<String, dynamic>>> _runStorageSelfTests() async {
-    final checks = <Map<String, dynamic>>[];
-
-    Future<void> addDirectoryCheck(
-      String name,
-      Future<Directory> Function() resolver,
-    ) async {
-      try {
-        final directory = await resolver();
-        checks.add(await _checkWritableDirectory(name, directory));
-      } catch (e) {
-        checks.add({
-          'name': name,
-          'status': 'error',
-          'path': null,
-          'exists': false,
-          'writable': false,
-          'message': e.toString(),
-        });
-      }
-    }
-
-    await addDirectoryCheck(
-      'applicationDocuments',
-      getApplicationDocumentsDirectory,
-    );
-    await addDirectoryCheck(
-      'applicationSupport',
-      getApplicationSupportDirectory,
-    );
-    await addDirectoryCheck(
-      'systemTemp',
-      () async => Directory.systemTemp,
-    );
-
-    return checks;
-  }
-
-  Future<Map<String, dynamic>> _checkWritableDirectory(
-    String name,
-    Directory directory,
-  ) async {
-    final exists = await directory.exists();
-    if (!exists) {
-      return {
-        'name': name,
-        'status': 'error',
-        'path': directory.path,
-        'exists': false,
-        'writable': false,
-        'message': 'Directory does not exist.',
-      };
-    }
-
-    final probeFile = File(
-      p.join(
-        directory.path,
-        '.nightshade-self-test-${DateTime.now().microsecondsSinceEpoch}.tmp',
-      ),
-    );
-    try {
-      await probeFile.writeAsString('ok');
-      await probeFile.delete();
-      return {
-        'name': name,
-        'status': 'ok',
-        'path': directory.path,
-        'exists': true,
-        'writable': true,
-      };
-    } catch (e) {
-      try {
-        if (await probeFile.exists()) {
-          await probeFile.delete();
-        }
-      } catch (_) {
-        // Best-effort cleanup only.
-      }
-      return {
-        'name': name,
-        'status': 'error',
-        'path': directory.path,
-        'exists': true,
-        'writable': false,
-        'message': e.toString(),
-      };
-    }
-  }
 
   // /api/collaboration/* and /api/session-handoff handlers were moved to
   // [CollaborationHandlers] (handlers/collaboration_handlers.dart). The
@@ -3214,18 +2509,9 @@ class HeadlessApiServer {
   // flow (StateNotifier updates, temperature polling, cool-on-connect,
   // recommended-gain auto-apply, filter-name sync, heartbeat monitoring).
 
-  // Legacy sequence endpoints (map to sequencer)
-  Future<Response> _handleSequenceStatus(Request request) async {
-    return _sequencerHandlers.handleSequencerStatus(request);
-  }
-
-  Future<Response> _handleSequenceStart(Request request) async {
-    return _sequencerHandlers.handleSequencerStart(request);
-  }
-
-  Future<Response> _handleSequenceStop(Request request) async {
-    return _sequencerHandlers.handleSequencerStop(request);
-  }
+  // Legacy /api/sequences/{status,start,stop} routes now register the
+  // sequencer-handler refs directly (see `_setupRoutes()`). Their
+  // previous one-line indirection methods were redundant.
 
   // ===========================================================================
   // WebSocket Handler

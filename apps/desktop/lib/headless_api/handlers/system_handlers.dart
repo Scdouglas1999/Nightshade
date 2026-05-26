@@ -1,0 +1,894 @@
+/// System-info HTTP handlers for the headless API.
+///
+/// Owns the four read-only endpoints a remote client polls to discover
+/// the server before doing any work:
+///   * `GET /api/info` — server name, build version, API-version
+///     envelope, pairing support, fingerprint, scope list, full
+///     endpoint catalog, and the P1-1 replay-buffer cursor.
+///   * `GET /api/status` — sequencer state snapshot (the lightweight
+///     poll endpoint mobile clients use to render the run badge).
+///   * `GET /api/self-test` — full release-quality probe: platform
+///     capabilities, application-data directory write probes, Drift
+///     database initialisation check, connected-device round-trip,
+///     auth/dashboard advertised state.
+///   * `GET /api/openapi.json` — generated OpenAPI 3 document; the
+///     route list is the same hand-maintained array advertised on
+///     `/api/info`'s `endpoints` field.
+///
+/// None of these endpoints mutate state, so they share a single
+/// constructor that captures the server snapshot getters (the auth
+/// fingerprint, the event replay cursor, the static-file availability
+/// flag, etc.) as a typed lookup interface.
+library;
+
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:shelf/shelf.dart';
+
+import '../request_context.dart';
+import '../response_helpers.dart';
+import '../route_metadata.dart' as route_metadata;
+import 'static_file_handlers.dart';
+
+/// Authoritative catalog of every public HTTP endpoint the headless
+/// server exposes. Surfaced in two places:
+///   * the `endpoints` array on `GET /api/info`,
+///   * the OpenAPI route list driving `GET /api/openapi.json`.
+///
+/// The headless-API contract audit
+/// (`tools/production/headless_api_contract_audit.dart`) scans this
+/// list and the actual `router.get/post/…` registrations and fails CI
+/// if the two drift apart, so any new endpoint must be added here in
+/// the same commit that registers it.
+List<String> availableHeadlessEndpoints() {
+  return const [
+    // Core
+    'GET /api/info',
+    'GET /api/status',
+    'GET /api/self-test',
+    'GET /api/openapi.json',
+    'POST /api/pairing/start',
+    'POST /api/pairing/verify',
+    // P0-3: admin-only diagnostic listing currently-valid pairing
+    // codes so a headless operator on a paired admin client can
+    // retrieve the code without watching stdout.
+    'GET /api/pairing/active',
+    'POST /api/ws/ticket',
+    'POST /api/auth/cookie',
+    'GET /api/auth/csrf',
+    'POST /api/auth/logout',
+    'GET /api/collaboration/state',
+    'POST /api/collaboration/viewers/join',
+    'POST /api/collaboration/viewers/leave',
+    'POST /api/collaboration/preview',
+    'POST /api/collaboration/chat',
+    'POST /api/collaboration/annotations',
+    'GET /api/session-handoff',
+    'POST /api/session-handoff',
+    'DELETE /api/session-handoff',
+    'GET /api/devices',
+    'GET /api/devices/discover-indi',
+    'GET /api/devices/discover-alpaca',
+    'GET /api/devices/connected',
+    'POST /api/devices/connect',
+    'POST /api/devices/disconnect',
+    // Camera
+    'POST /api/camera/expose',
+    'POST /api/camera/abort',
+    'GET /api/camera/last-image',
+    'GET /api/camera/last-image/jpeg',
+    'GET /api/camera/live-view/frame',
+    // P2-10 — push-based live-view streaming. Listed alongside the pull
+    // endpoint so OpenAPI consumers see both options.
+    'WS /ws/live-view',
+    'POST /api/camera/cooling',
+    'GET /api/camera/cooling',
+    'GET /api/camera/readout-modes',
+    'POST /api/camera/readoutMode',
+    'POST /api/camera/gain',
+    'POST /api/camera/offset',
+    'GET /api/camera/recommended-settings',
+    // Mount
+    'POST /api/mount/slew',
+    'POST /api/mount/sync',
+    'POST /api/mount/park',
+    'POST /api/mount/unpark',
+    'POST /api/mount/tracking',
+    'POST /api/mount/pulse-guide',
+    'POST /api/mount/abort',
+    'GET /api/mount/status',
+    'POST /api/mount/set-tracking-rate',
+    'POST /api/mount/move-axis',
+    'POST /api/mount/slew-alt-az',
+    'POST /api/mount/find-home',
+    // Focuser
+    'POST /api/focuser/move-to',
+    'POST /api/focuser/move-relative',
+    'POST /api/focuser/halt',
+    'POST /api/focuser/autofocus/start',
+    'POST /api/focuser/autofocus/cancel',
+    // Filter Wheel
+    'POST /api/filter-wheel/position',
+    'GET /api/filter-wheel/position',
+    'GET /api/filter-wheel/names',
+    'POST /api/filter-wheel/names',
+    'POST /api/filter-wheel/set-by-name',
+    // Rotator
+    'POST /api/rotator/move-to',
+    'POST /api/rotator/move-relative',
+    'GET /api/rotator/status',
+    'POST /api/rotator/halt',
+    'POST /api/rotator/sync',
+    // PHD2
+    'POST /api/phd2/connect',
+    'POST /api/phd2/disconnect',
+    'POST /api/phd2/start-guiding',
+    'POST /api/phd2/stop-guiding',
+    'POST /api/phd2/dither',
+    'GET /api/phd2/status',
+    'POST /api/phd2/pause',
+    'POST /api/phd2/clear-calibration',
+    'POST /api/phd2/flip-calibration',
+    'POST /api/phd2/get-calibration-data',
+    'POST /api/phd2/find-star',
+    'POST /api/phd2/set-lock-position',
+    'GET /api/phd2/lock-position',
+    'POST /api/phd2/loop',
+    'POST /api/phd2/deselect-star',
+    'GET /api/phd2/star-image',
+    'GET /api/phd2/algo-params',
+    'GET /api/phd2/algo-param',
+    'POST /api/phd2/algo-param',
+    // Generic Guider
+    'POST /api/guider/start-guiding',
+    'POST /api/guider/stop-guiding',
+    'POST /api/guider/dither',
+    'POST /api/guider/loop',
+    'POST /api/guider/find-star',
+    'POST /api/guider/set-lock-position',
+    'GET /api/guider/lock-position',
+    'POST /api/guider/deselect-star',
+    'GET /api/guider/star-image',
+    'GET /api/builtin-guider/config',
+    'POST /api/builtin-guider/config',
+    // Broadcast
+    'GET /api/broadcast/info',
+    'GET /api/broadcast/live-stack',
+    'GET /api/broadcast/sse',
+    // Plate Solving
+    'POST /api/plate-solve',
+    // Legacy Sequencer
+    'GET /api/sequences/status',
+    'POST /api/sequences/start',
+    'POST /api/sequences/stop',
+    // Sequencer
+    'GET /api/sequencer/status',
+    'POST /api/sequencer/start',
+    'POST /api/sequencer/stop',
+    'POST /api/sequencer/pause',
+    'POST /api/sequencer/resume',
+    'POST /api/sequencer/skip',
+    'POST /api/sequencer/skip-to-node',
+    'POST /api/sequencer/plugin-node-finished',
+    'POST /api/sequencer/reset',
+    'POST /api/sequencer/load',
+    'POST /api/sequencer/simulation',
+    'POST /api/sequencer/devices',
+    'POST /api/sequencer/safety-fail-mode',
+    'POST /api/sequencer/safety-check-interval',
+    'POST /api/sequencer/save-path',
+    'POST /api/sequencer/active-sequence-run-id',
+    'POST /api/sequencer/decision-logging-enabled',
+    'POST /api/sequencer/update-dither-config',
+    'POST /api/sequencer/update-location',
+    'POST /api/sequencer/update-filter-offsets',
+    'POST /api/sequencer/update-pending-integration-carry-over',
+    'POST /api/sequencer/update-autofocus-interval',
+    'POST /api/sequencer/update-default-quality-check',
+    'POST /api/sequencer/update-reject-folder-path',
+    'POST /api/sequencer/update-observer-profile',
+    'POST /api/sequencer/update-sky-brightness',
+    'POST /api/sequencer/update-default-adaptive-exposure',
+    'POST /api/sequencer/clear-default-adaptive-exposure',
+    'POST /api/sequencer/checkpoint/dir',
+    'GET /api/sequencer/checkpoint/has',
+    'GET /api/sequencer/checkpoint/info',
+    'POST /api/sequencer/checkpoint/resume',
+    'POST /api/sequencer/checkpoint/discard',
+    'POST /api/sequencer/checkpoint/save',
+    'POST /api/sequencer/recovery/try-now',
+    'POST /api/sequencer/recovery/abort',
+    'POST /api/sequencer/recovery/update-config',
+    'GET /api/sequencer/recovery/current',
+    'GET /api/sequencer/recovery/history',
+    'POST /api/sequencer/update-cloud-motion',
+    'GET /api/sequencer/cloud-motion',
+    'POST /api/sequencer/update-conditions-score',
+    'GET /api/sequencer/adaptive-swap',
+    // Equipment Status
+    'GET /api/equipment/camera/status',
+    'GET /api/equipment/mount/status',
+    'GET /api/equipment/focuser/status',
+    'GET /api/equipment/filter-wheel/status',
+    'GET /api/equipment/rotator/status',
+    // Equipment Capabilities
+    'GET /api/equipment/camera/capabilities',
+    'GET /api/equipment/mount/capabilities',
+    'GET /api/equipment/focuser/capabilities',
+    'GET /api/equipment/filter-wheel/capabilities',
+    'GET /api/equipment/rotator/capabilities',
+    // Device Health
+    'POST /api/device/heartbeat/start',
+    'POST /api/device/heartbeat/stop',
+    'GET /api/device/health/<deviceId>',
+    // Profiles
+    'GET /api/profiles',
+    'POST /api/profiles',
+    'DELETE /api/profiles/<profileId>',
+    'POST /api/profiles/<profileId>/load',
+    'GET /api/profiles/active',
+    // Settings
+    'GET /api/settings',
+    'POST /api/settings',
+    'GET /api/settings/location',
+    'POST /api/settings/location',
+    'GET /api/location',
+    // Imaging
+    'POST /api/imaging/stats',
+    'POST /api/imaging/stretch',
+    'GET /api/imaging/star-crops',
+    'POST /api/imaging/debayer',
+    'GET /api/imaging/raw-data',
+    'POST /api/imaging/save-fits',
+    'POST /api/imaging/save-fits-from-capture',
+    'POST /api/imaging/calibrate-file',
+    'DELETE /api/imaging/device-image/<deviceId>',
+    // Polar Alignment
+    'POST /api/polar-alignment/start',
+    'POST /api/polar-alignment/all-sky/start',
+    'POST /api/polar-alignment/stop',
+    // Session Images
+    'GET /api/sessions/<sessionId>/images',
+    'GET /api/images',
+    'GET /api/images/recent',
+    'GET /api/images/standalone',
+    'POST /api/images',
+    'GET /api/images/<imageId>',
+    'PUT /api/images/<imageId>',
+    'GET /api/images/<imageId>/thumbnail',
+    // P1-13: thumbnail cache management.
+    'POST /api/images/backfill-thumbnails',
+    'POST /api/images/<imageId>/regenerate-thumbnail',
+    'GET /api/images/<imageId>/download',
+    'GET /api/sessions/<sessionId>/export/json',
+    'GET /api/sessions/<sessionId>/export/csv',
+    'GET /api/sessions/<sessionId>/export/html',
+    'GET /api/sessions/<sessionId>/export/<format>',
+    // Targets
+    'GET /api/targets',
+    'GET /api/targets/favorites',
+    'GET /api/targets/search',
+    'GET /api/targets/by-type',
+    'GET /api/targets/by-priority',
+    'GET /api/targets/<id>',
+    'POST /api/targets',
+    'PUT /api/targets/<id>',
+    'DELETE /api/targets/<id>',
+    'POST /api/targets/<id>/favorite',
+    'PUT /api/targets/<id>/progress',
+    // Sequence Management
+    'GET /api/sequence-management/list',
+    'GET /api/sequence-management/list-full',
+    'GET /api/sequence-management/templates-full',
+    'POST /api/sequence-management/save-full',
+    'GET /api/sequence-management/templates',
+    'GET /api/sequence-management/<id>',
+    'GET /api/sequence-management/<id>/nodes',
+    'GET /api/sequence-management/<id>/children',
+    'POST /api/sequence-management',
+    'PUT /api/sequence-management/<id>',
+    'DELETE /api/sequence-management/<id>',
+    'POST /api/sequence-management/<id>/duplicate',
+    'POST /api/sequence-management/<id>/nodes',
+    'PUT /api/sequence-management/nodes/<nodeId>',
+    'DELETE /api/sequence-management/nodes/<nodeId>',
+    'POST /api/sequence-management/<id>/reorder',
+    'POST /api/sequence-management/nodes/<nodeId>/enabled',
+    // Flat Wizard
+    'POST /api/flat-wizard/calibrate',
+    'POST /api/flat-wizard/calibrate-multi',
+    'POST /api/flat-wizard/generate-sequence',
+    'POST /api/flat-wizard/quick-calibrate',
+    // Mosaic
+    'POST /api/mosaic/generate-panels',
+    'POST /api/mosaic/generate-sequence',
+    'POST /api/mosaic/calculate-area',
+    'POST /api/mosaic/validate',
+    'POST /api/mosaic/estimate-time',
+    'GET /api/mosaic/recommended-exposure',
+    // Sessions & Analytics
+    'GET /api/sessions',
+    'GET /api/sessions/active',
+    'GET /api/sessions/recent',
+    'GET /api/sessions/<id>',
+    'GET /api/sessions/<id>/stats',
+    'GET /api/sessions/<id>/psf-tiles',
+    'GET /api/sessions/<id>/residuals',
+    'GET /api/sessions/target/<targetId>',
+    'POST /api/sessions',
+    'PUT /api/sessions/<id>',
+    'POST /api/sessions/<id>/end',
+    'DELETE /api/sessions/<id>',
+    'GET /api/files/browse',
+    'POST /api/files/validate',
+    // Science
+    'GET /api/science/session/<sessionId>/bundle',
+    'GET /api/science/sessionless/recent',
+    'GET /api/science/settings',
+    'POST /api/science/settings',
+    'GET /api/science/session/<sessionId>/config',
+    'POST /api/science/session/<sessionId>/config',
+    'GET /api/science/transforms',
+    'POST /api/science/calibration/image/<imageId>/match-stars',
+    'POST /api/science/calibration/compute-transform',
+    'POST /api/science/calibration/save-transform',
+    'POST /api/science/session/<sessionId>/generate-line-ratios',
+    'POST /api/science/session/<sessionId>/export/aavso',
+    'GET /api/science/session/<sessionId>/report/pdf',
+    'GET /api/analytics/summary',
+    'GET /api/analytics/integration-time',
+    'GET /api/analytics/target-statistics',
+    // Weather
+    'GET /api/weather/radar',
+    'GET /api/weather/forecast',
+    'GET /api/weather/alerts',
+    'GET /api/weather/cloud-cover',
+    'GET /api/weather/settings',
+    'POST /api/weather/settings',
+    'GET /api/weather/safe-imaging',
+    'GET /api/weather/current',
+    'POST /api/weather/clear-cache',
+    // Suggestions
+    'GET /api/suggestions/tonight',
+    'GET /api/suggestions/config',
+    'GET /api/suggestions/score/<targetId>',
+    // Transients
+    'GET /api/transients',
+    'GET /api/transients/settings',
+    'POST /api/transients/settings',
+    'GET /api/transients/queued',
+    'POST /api/transients/<id>/queue',
+    'POST /api/transients/<id>/dismiss',
+    'POST /api/transients/refresh',
+    // Backup
+    'GET /api/backup/list',
+    'POST /api/backup/create',
+    'POST /api/backup/restore',
+    'POST /api/backup/auto-save',
+    'POST /api/backup/upload-restore',
+    'GET /api/backup/<id>/metadata',
+    'GET /api/backup/<id>/download',
+    'DELETE /api/backup/<id>',
+    // Framing
+    'POST /api/framing/slew-to-target',
+    'POST /api/framing/center-on-target',
+    'POST /api/framing/sync',
+    'GET /api/framing/current-position',
+    'POST /api/framing/rotate-to',
+    'POST /api/framing/abort-slew',
+    'POST /api/framing/park',
+    'POST /api/framing/unpark',
+    'POST /api/framing/set-target',
+    'POST /api/framing/save',
+    // Planetarium (remote client support)
+    'GET /api/planetarium/mount-position',
+    'GET /api/planetarium/fov-config',
+    'POST /api/planetarium/slew-to',
+    'POST /api/planetarium/center-on',
+    'POST /api/planetarium/sync-to',
+    'GET /api/planetarium/catalog/search',
+    'GET /api/planetarium/catalog/region',
+    'GET /api/planetarium/catalog/object/<objectId>',
+    'GET /api/planetarium/subscribe-info',
+    'GET /api/planetarium/location',
+    // Dome
+    'POST /api/dome/open',
+    'POST /api/dome/close',
+    'POST /api/dome/slew',
+    'POST /api/dome/sync',
+    'POST /api/dome/park',
+    'POST /api/dome/home',
+    'POST /api/dome/halt',
+    'GET /api/dome/status',
+    'GET /api/dome/capabilities',
+    // Safety Monitor
+    'GET /api/safety/status',
+    'GET /api/safety/settings',
+    'POST /api/safety/settings',
+    'POST /api/safety/acknowledge',
+    // Switch
+    'GET /api/switch/status',
+    'POST /api/switch/set',
+    // Cover Calibrator
+    'GET /api/cover/status',
+    'POST /api/cover/open',
+    'POST /api/cover/close',
+    'POST /api/cover/brightness',
+    'POST /api/cover/calibrator-on',
+    'POST /api/cover/calibrator-off',
+    // Intelligent Scheduler
+    'GET /api/scheduler/altitude',
+    'GET /api/scheduler/transit-time',
+    'GET /api/scheduler/rise-set',
+    'GET /api/scheduler/hours-above-horizon',
+    'POST /api/scheduler/optimize-targets',
+    'GET /api/scheduler/twilight-times',
+    'GET /api/scheduler/moon-info',
+    // Focus Model
+    'GET /api/focus-model/data',
+    'POST /api/focus-model/add-point',
+    'DELETE /api/focus-model/clear',
+    'GET /api/focus-model/model',
+    'GET /api/focus-model/predict',
+    'GET /api/focus-model/filter-offsets',
+    'POST /api/focus-model/filter-offsets',
+    'GET /api/focus-model/should-refocus',
+    'GET /api/focus-model/export',
+    'POST /api/focus-model/import',
+    // P1-2 / P1-3 — Long-running operation jobs
+    'GET /api/jobs',
+    'GET /api/jobs/<jobId>',
+    'POST /api/jobs/<jobId>/cancel',
+    'DELETE /api/jobs/<jobId>',
+    // P1-5 — Session ownership
+    'GET /api/session/owner',
+    'GET /api/session/status',
+    'POST /api/session/claim',
+    'POST /api/session/take-over',
+    'POST /api/session/release',
+    // P1-11 — System / OTA update endpoints
+    'GET /api/system/version',
+    'POST /api/system/update/check',
+    'GET /api/system/update/status',
+    'POST /api/system/update/download',
+    'POST /api/system/update/apply',
+    'POST /api/system/update/abort',
+    'POST /api/system/update/rollback',
+    'GET /api/system/update/staged',
+    'DELETE /api/system/update/staged',
+    // WebSocket
+    'WS /api/ws',
+    'WS /events',
+    // Wave 6 — Run-Watch (phone/tablet monitoring SPA)
+    'GET /api/run-watch/snapshot',
+    'GET /api/run-watch/frame-thumbnail',
+    'GET /api/run-watch/events',
+    // P1-14 — Remote log retrieval / tail
+    'GET /api/logs',
+    'GET /api/logs/recent',
+    'GET /api/logs/files/<filename>/download',
+    'GET /api/logs/tail',
+    'POST /api/logs/clear',
+    'POST /api/logs/test-entry',
+    // P1-10 — Remote calibration library management
+    'GET /api/calibration/darks',
+    'POST /api/calibration/darks',
+    'POST /api/calibration/darks/upload',
+    'POST /api/calibration/darks/find-match',
+    'POST /api/calibration/darks/backfill-sizes',
+    'GET /api/calibration/darks/<id>',
+    'GET /api/calibration/darks/<id>/download',
+    'DELETE /api/calibration/darks/<id>',
+    'GET /api/calibration/flats',
+    'POST /api/calibration/flats',
+    'GET /api/calibration/flats/recommendation',
+    'GET /api/calibration/flats/<id>',
+    'DELETE /api/calibration/flats/<id>',
+    'GET /api/calibration/defect-maps',
+    'POST /api/calibration/defect-maps',
+    'GET /api/calibration/defect-maps/<id>',
+    'DELETE /api/calibration/defect-maps/<id>',
+    'POST /api/calibration/defect-maps/<id>/regenerate',
+    // P1-12 — Catalog management (download / upload / verify / etc.)
+    'GET /api/catalog/status',
+    'GET /api/catalog/available',
+    'POST /api/catalog/download',
+    'POST /api/catalog/upload',
+    'POST /api/catalog/verify',
+    'POST /api/catalog/reload',
+    'DELETE /api/catalog/<name>',
+
+    // P2-8 — Read-only DB endpoints (paginated)
+    'GET /api/sequence-runs',
+    'GET /api/notes-journal',
+    'GET /api/guide-rms-history',
+    'GET /api/polar-alignment-history',
+    'GET /api/db/dark-library',
+    'GET /api/db/flat-history',
+
+    // P2-11 — Plugin management
+    'GET /api/plugins',
+    'POST /api/plugins/upload',
+    'POST /api/plugins/<pluginId>/enable',
+    'POST /api/plugins/<pluginId>/disable',
+    'DELETE /api/plugins/<pluginId>',
+  ];
+}
+
+/// Read-only snapshot the system handlers pull off the live
+/// [HeadlessApiServer]. Every field is a getter so we never cache stale
+/// values (the event-seq cursor in particular advances on every
+/// broadcast, so a snapshot taken at construction time would be useless
+/// ten seconds later).
+class SystemServerView {
+  /// Hex-encoded server fingerprint. TLS pins to the SubjectPublicKeyInfo
+  /// digest when TLS is active; plain-HTTP falls back to
+  /// `computeServerFingerprint(adminToken)`.
+  final String Function() fingerprint;
+
+  /// UUID assigned at server-construction time. Mirrored onto every
+  /// outbound event and returned by /api/info so clients detect a
+  /// server restart by mismatch.
+  final String Function() instanceId;
+
+  /// Monotonically increasing event sequence counter; 0 before the
+  /// first broadcast.
+  final int Function() currentEventSeq;
+
+  /// Configured capacity of the event ring buffer.
+  final int Function() eventReplayBufferSize;
+
+  /// Oldest seq retained in the ring buffer, or null when no events
+  /// have been emitted yet.
+  final int? Function() eventReplayBufferOldestSeq;
+
+  /// Bound TCP port (post `start()` resolution).
+  final int Function() port;
+
+  /// Whether the bind address is loopback-only (`127.0.0.1`).
+  final bool Function() bindLocalOnly;
+
+  /// Whether the server has any configured auth tokens (admin +
+  /// scoped). When false, `authMode='none'` and the dashboard banner
+  /// warns the operator that anonymous LAN access is enabled.
+  final bool Function() authRequired;
+
+  /// Distinct scope names across every configured token. Returned
+  /// alphabetised for stable comparison.
+  final List<String> Function() availableAuthScopes;
+
+  const SystemServerView({
+    required this.fingerprint,
+    required this.instanceId,
+    required this.currentEventSeq,
+    required this.eventReplayBufferSize,
+    required this.eventReplayBufferOldestSeq,
+    required this.port,
+    required this.bindLocalOnly,
+    required this.authRequired,
+    required this.availableAuthScopes,
+  });
+}
+
+/// HTTP handlers for the four system-info endpoints. Constructed once
+/// per server with the [SystemServerView] snapshot and the
+/// [StaticFileHandlers] reference (for the dashboard-available flag).
+class SystemHandlers {
+  final ProviderContainer container;
+  final SystemServerView view;
+  final StaticFileHandlers staticFileHandlers;
+  final LoggingService logger;
+
+  SystemHandlers({
+    required this.container,
+    required this.view,
+    required this.staticFileHandlers,
+    required this.logger,
+  });
+
+  void _logInfo(String message) =>
+      logger.info(message, source: 'SystemHandlers');
+  void _logError(String message) =>
+      logger.error(message, source: 'SystemHandlers');
+
+  /// `GET /api/info` — server discovery envelope. Returns the build
+  /// version, API-version envelope, fingerprint, paired/scoped auth
+  /// metadata, the P1-1 replay-buffer cursor, and the full endpoint
+  /// catalog so a remote client can render its capabilities map
+  /// without polling individual probes.
+  Future<Response> handleInfo(Request request) async {
+    final platformCapabilities =
+        PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+    final versionInfo = container.read(appVersionProvider);
+    final dashboardAvailable = staticFileHandlers.dashboardAvailable;
+
+    return jsonOk(
+      {
+        'name': 'Nightshade Headless',
+        'version': versionInfo.version,
+        'apiVersion': RemoteApiCompatibility.serverApiVersion.format(),
+        'minimumSupportedApiVersion':
+            RemoteApiCompatibility.minimumSupportedVersion.format(),
+        'apiVersionHeader': RemoteApiCompatibility.apiVersionHeader,
+        'mode': 'headless',
+        'platform': platformCapabilities.platform,
+        'platformCapabilities': platformCapabilities.toJson(),
+        'authRequired': view.authRequired(),
+        'authenticationMode': view.authRequired() ? 'token' : 'none',
+        'authScopes': view.availableAuthScopes(),
+        'pairingSupported': true,
+        'fingerprint': view.fingerprint(),
+        // P1-1: surface the sequencing + replay state so a reconnecting
+        // client can decide between `?since=` replay and a full
+        // `/api/run-watch/snapshot` rehydrate without guessing.
+        'serverInstanceId': view.instanceId(),
+        'currentEventSeq': view.currentEventSeq(),
+        'eventReplayBufferSize': view.eventReplayBufferSize(),
+        'eventReplayBufferOldestSeq': view.eventReplayBufferOldestSeq(),
+        'apiOnlyMode': true,
+        'webUIAvailable': dashboardAvailable,
+        'publicEndpoints': [
+          '/api/info',
+          '/api/pairing/start',
+          '/api/pairing/verify',
+          '/dashboard',
+          // Wave 6: the run-watch SPA bundle is auth-exempt so the
+          // phone can load it before pairing. The /api/run-watch/*
+          // endpoints themselves still require a Bearer token.
+          '/run-watch',
+        ],
+        'endpoints': availableHeadlessEndpoints(),
+      },
+      headers: _apiCompatibilityHeaders(),
+    );
+  }
+
+  /// `GET /api/status` — sequencer state snapshot. Mobile clients poll
+  /// this every second or so to render the run badge; keep the
+  /// envelope small to keep the poll loop cheap.
+  Future<Response> handleStatus(Request request) async {
+    final requestId = requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/status');
+    try {
+      final backend = container.read(backendProvider);
+      final status = await backend.sequencerGetStatus();
+      return jsonOk({
+        "sequencer": {
+          "state": status.state,
+          "currentNodeId": status.currentNodeId,
+          "currentNodeName": status.currentNodeName,
+          "progress": status.progress,
+          "message": status.message
+        },
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Status error: $e\n$stackTrace');
+      return jsonInternalServerError({"error": "Internal server error"});
+    }
+  }
+
+  /// `GET /api/self-test` — release-quality probe. Walks the storage
+  /// directories (write-then-delete a probe file), confirms the Drift
+  /// database provider is initialised, fires a 2s-timeout
+  /// connected-device probe at the backend, and returns the aggregate
+  /// in a single envelope.
+  Future<Response> handleSelfTest(Request request) async {
+    final requestId = requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/self-test');
+    try {
+      final platformCapabilities =
+          PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+      final backend = container.read(backendProvider);
+      final storageChecks = await _runStorageSelfTests();
+      final databaseCheck = _runDatabaseSelfTest();
+      final connectedDeviceProbe = await _probeConnectedDevices(backend);
+      final endpointCount = availableHeadlessEndpoints().length;
+
+      final checks = [
+        ...storageChecks.map((check) => check['status']),
+        databaseCheck['status'],
+        connectedDeviceProbe['status'],
+      ];
+      final hasFailures = checks.contains('error');
+
+      return jsonOk({
+        'status': hasFailures ? 'degraded' : 'ok',
+        'timestamp': DateTime.now().toUtc().toIso8601String(),
+        'platform': {
+          'operatingSystem': platformCapabilities.platform,
+          'operatingSystemVersion': Platform.operatingSystemVersion,
+          'executable': Platform.resolvedExecutable,
+        },
+        'server': {
+          'port': view.port(),
+          'bindMode': view.bindLocalOnly() ? 'loopback' : 'lan',
+          'authMode': view.authRequired() ? 'token' : 'none',
+          'authRequired': view.authRequired(),
+          'authScopes': view.availableAuthScopes(),
+          'dashboardAvailable': staticFileHandlers.dashboardAvailable,
+        },
+        'backend': {
+          'type': backend.runtimeType.toString(),
+          'connectedDevices': connectedDeviceProbe,
+        },
+        'deviceDrivers': platformCapabilities.toJson(),
+        'storagePaths': storageChecks,
+        'database': databaseCheck,
+        'api': {
+          'endpointCount': endpointCount,
+          'selfTestEndpoint': 'GET /api/self-test',
+        },
+      });
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] Self-test error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
+  /// `GET /api/openapi.json` — OpenAPI 3 spec generated from the
+  /// canonical endpoint list. Consumers (the audit, the dashboard
+  /// route-table validator, external client generators) all read this
+  /// rather than re-deriving the list from the source.
+  Future<Response> handleOpenApiSpec(Request request) async {
+    final requestId = requestIdFrom(request);
+    _logInfo('[API][$requestId] GET /api/openapi.json');
+    try {
+      return jsonOk(route_metadata.buildOpenApiSpec(
+        routes: availableHeadlessEndpoints(),
+        port: view.port(),
+      ));
+    } catch (e, stackTrace) {
+      _logError('[API][$requestId] OpenAPI generation error: $e\n$stackTrace');
+      return jsonInternalServerError({'error': 'Internal server error'});
+    }
+  }
+
+  Map<String, String> _apiCompatibilityHeaders() {
+    return {
+      RemoteApiCompatibility.apiVersionHeader:
+          RemoteApiCompatibility.serverApiVersion.format(),
+      'x-nightshade-minimum-api-version':
+          RemoteApiCompatibility.minimumSupportedVersion.format(),
+    };
+  }
+
+  Map<String, dynamic> _runDatabaseSelfTest() {
+    try {
+      container.read(databaseProvider);
+      return {
+        'name': 'driftDatabase',
+        'status': 'ok',
+        'message': 'Database provider is initialized.',
+      };
+    } catch (e) {
+      return {
+        'name': 'driftDatabase',
+        'status': 'error',
+        'message': e.toString(),
+      };
+    }
+  }
+
+  Future<Map<String, dynamic>> _probeConnectedDevices(
+    NightshadeBackend backend,
+  ) async {
+    try {
+      final devices = await backend.getConnectedDevices().timeout(
+            const Duration(seconds: 2),
+          );
+      return {
+        'status': 'ok',
+        'count': devices.length,
+        'devices': devices.map((device) => device.toJson()).toList(),
+      };
+    } catch (e) {
+      return {
+        'status': 'warning',
+        'count': null,
+        'devices': <Map<String, dynamic>>[],
+        'message': 'Connected-device probe unavailable: $e',
+      };
+    }
+  }
+
+  Future<List<Map<String, dynamic>>> _runStorageSelfTests() async {
+    final checks = <Map<String, dynamic>>[];
+
+    Future<void> addDirectoryCheck(
+      String name,
+      Future<Directory> Function() resolver,
+    ) async {
+      try {
+        final directory = await resolver();
+        checks.add(await _checkWritableDirectory(name, directory));
+      } catch (e) {
+        checks.add({
+          'name': name,
+          'status': 'error',
+          'path': null,
+          'exists': false,
+          'writable': false,
+          'message': e.toString(),
+        });
+      }
+    }
+
+    await addDirectoryCheck(
+      'applicationDocuments',
+      getApplicationDocumentsDirectory,
+    );
+    await addDirectoryCheck(
+      'applicationSupport',
+      getApplicationSupportDirectory,
+    );
+    await addDirectoryCheck(
+      'systemTemp',
+      () async => Directory.systemTemp,
+    );
+
+    return checks;
+  }
+
+  Future<Map<String, dynamic>> _checkWritableDirectory(
+    String name,
+    Directory directory,
+  ) async {
+    final exists = await directory.exists();
+    if (!exists) {
+      return {
+        'name': name,
+        'status': 'error',
+        'path': directory.path,
+        'exists': false,
+        'writable': false,
+        'message': 'Directory does not exist.',
+      };
+    }
+
+    final probeFile = File(
+      p.join(
+        directory.path,
+        '.nightshade-self-test-${DateTime.now().microsecondsSinceEpoch}.tmp',
+      ),
+    );
+    try {
+      await probeFile.writeAsString('ok');
+      await probeFile.delete();
+      return {
+        'name': name,
+        'status': 'ok',
+        'path': directory.path,
+        'exists': true,
+        'writable': true,
+      };
+    } catch (e) {
+      // Best-effort cleanup of a half-written probe file. We capture
+      // the cleanup error (rather than silently swallowing it) because
+      // a probe that leaves debris is itself a defect worth surfacing
+      // — the operator's storage-write self-test should not lie about
+      // a clean teardown.
+      String? cleanupNote;
+      try {
+        if (await probeFile.exists()) {
+          await probeFile.delete();
+        }
+      } catch (cleanupErr) {
+        cleanupNote =
+            ' (cleanup of probe file failed: $cleanupErr — manual removal may '
+            'be required at ${probeFile.path})';
+      }
+      return {
+        'name': name,
+        'status': 'error',
+        'path': directory.path,
+        'exists': true,
+        'writable': false,
+        'message': '${e.toString()}${cleanupNote ?? ''}',
+      };
+    }
+  }
+}
