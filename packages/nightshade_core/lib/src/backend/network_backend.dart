@@ -1598,35 +1598,35 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   @override
-  Future<List<DeviceInfo>> discoverIndiAtAddress(String host, int port) async {
-    final response = await _get('devices/discover-indi', {
-      'host': host,
-      'port': port.toString(),
-    });
-
-    final devices = (response['devices'] as List?) ?? const [];
-    return devices
-        .map((d) => DeviceInfo(
-              id: d['id'] as String? ?? '',
-              name: d['name'] as String? ?? '',
-              deviceType: DeviceType.values.firstWhere(
-                (t) => t.name == (d['deviceType'] as String?),
-                orElse: () => DeviceType.camera,
-              ),
-              driverType: DriverType.values.firstWhere(
-                (t) => t.name == (d['driverType'] as String?),
-                orElse: () => DriverType.indi,
-              ),
-              description: d['description'] as String? ?? '',
-              driverVersion: d['driverVersion'] as String? ?? '',
-            ))
-        .toList();
-  }
+  Future<List<DeviceInfo>> discoverIndiAtAddress(String host, int port) =>
+      _discoverAtAddress(
+        endpoint: 'devices/discover-indi',
+        host: host,
+        port: port,
+        fallbackDriverType: DriverType.indi,
+      );
 
   @override
-  Future<List<DeviceInfo>> discoverAlpacaAtAddress(
-      String host, int port) async {
-    final response = await _get('devices/discover-alpaca', {
+  Future<List<DeviceInfo>> discoverAlpacaAtAddress(String host, int port) =>
+      _discoverAtAddress(
+        endpoint: 'devices/discover-alpaca',
+        host: host,
+        port: port,
+        fallbackDriverType: DriverType.alpaca,
+      );
+
+  /// Shared INDI / Alpaca discovery body: hits the headless API endpoint at
+  /// [endpoint] with `host` + `port` query params and decodes each entry in
+  /// the `devices` array into a [DeviceInfo]. [fallbackDriverType] is used
+  /// only when the server omits or misspells the `driverType` field
+  /// (defensive default — the server is supposed to always send it).
+  Future<List<DeviceInfo>> _discoverAtAddress({
+    required String endpoint,
+    required String host,
+    required int port,
+    required DriverType fallbackDriverType,
+  }) async {
+    final response = await _get(endpoint, {
       'host': host,
       'port': port.toString(),
     });
@@ -1642,7 +1642,7 @@ class NetworkBackend implements NightshadeBackend {
               ),
               driverType: DriverType.values.firstWhere(
                 (t) => t.name == (d['driverType'] as String?),
-                orElse: () => DriverType.alpaca,
+                orElse: () => fallbackDriverType,
               ),
               description: d['description'] as String? ?? '',
               driverVersion: d['driverVersion'] as String? ?? '',
