@@ -244,6 +244,7 @@ class HeadlessApiServer {
   late final DeviceHandlers _deviceHandlers;
   late final DeviceDiscoveryHandlers _deviceDiscoveryHandlers;
   late final CollaborationHandlers _collaborationHandlers;
+  late final StaticFileHandlers _staticFileHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -475,6 +476,9 @@ class HeadlessApiServer {
     _deviceDiscoveryHandlers = DeviceDiscoveryHandlers(container);
     _collaborationHandlers = CollaborationHandlers(
       manager: _collaborationManager,
+      logger: container.read(loggingServiceProvider),
+    );
+    _staticFileHandlers = StaticFileHandlers(
       logger: container.read(loggingServiceProvider),
     );
     _guidingHandlers = GuidingHandlers(container);
@@ -1520,16 +1524,16 @@ class HeadlessApiServer {
             _pluginHandlers.handleUninstallPlugin(req, pluginId));
 
     // Web Dashboard - static file serving
-    router.get('/dashboard', _handleDashboardIndex);
-    router.get('/dashboard/', _handleDashboardIndex);
-    router.get('/dashboard/<path|.*>', _handleDashboardFile);
+    router.get('/dashboard', _staticFileHandlers.handleDashboardIndex);
+    router.get('/dashboard/', _staticFileHandlers.handleDashboardIndex);
+    router.get('/dashboard/<path|.*>', _staticFileHandlers.handleDashboardFile);
 
     // Wave 6 — Run-Watch SPA static files. Mirrors the /dashboard
     // resolver but searches `web_run_watch/` next to the executable
     // and in the source tree.
-    router.get('/run-watch', _handleRunWatchIndex);
-    router.get('/run-watch/', _handleRunWatchIndex);
-    router.get('/run-watch/<path|.*>', _handleRunWatchFile);
+    router.get('/run-watch', _staticFileHandlers.handleRunWatchIndex);
+    router.get('/run-watch/', _staticFileHandlers.handleRunWatchIndex);
+    router.get('/run-watch/<path|.*>', _staticFileHandlers.handleRunWatchFile);
 
     final handler = Pipeline()
         .addMiddleware(_requestTrackingMiddleware())
@@ -2368,7 +2372,7 @@ class HeadlessApiServer {
     final platformCapabilities =
         PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
     final versionInfo = container.read(appVersionProvider);
-    final dashboardAvailable = _findDashboardDir() != null;
+    final dashboardAvailable = _staticFileHandlers.dashboardAvailable;
 
     return jsonOk(
       {
@@ -2950,7 +2954,7 @@ class HeadlessApiServer {
           'authMode': _effectiveAuthTokensByValue.isNotEmpty ? 'token' : 'none',
           'authRequired': _effectiveAuthTokensByValue.isNotEmpty,
           'authScopes': _availableAuthScopes(),
-          'dashboardAvailable': _findDashboardDir() != null,
+          'dashboardAvailable': _staticFileHandlers.dashboardAvailable,
         },
         'backend': {
           'type': backend.runtimeType.toString(),
@@ -3902,227 +3906,13 @@ class HeadlessApiServer {
     }
   }
 
-  // ===========================================================================
-  // Web Dashboard Static File Serving
-  // ===========================================================================
-
-  /// Resolves the web_dashboard directory location.
-  /// Checks multiple paths: next to the executable (release), and in the source
-  /// tree (development).
-  Directory? _findDashboardDir() {
-    // 1. Next to the executable (release builds)
-    final exeDir = p.dirname(Platform.resolvedExecutable);
-    final releasePath =
-        p.join(exeDir, 'data', 'flutter_assets', 'web_dashboard');
-    final releaseDir = Directory(releasePath);
-    if (releaseDir.existsSync()) return releaseDir;
-
-    // 2. In the same directory as the executable
-    final sameDirPath = p.join(exeDir, 'web_dashboard');
-    final sameDir = Directory(sameDirPath);
-    if (sameDir.existsSync()) return sameDir;
-
-    // 3. Source tree location (development - walk up from exe to find apps/desktop)
-    // The exe in debug mode is in build/windows/x64/runner/Debug/ or similar
-    var current = exeDir;
-    for (var i = 0; i < 10; i++) {
-      final candidate = p.join(current, 'web_dashboard');
-      if (Directory(candidate).existsSync()) return Directory(candidate);
-      final parent = p.dirname(current);
-      if (parent == current) break;
-      current = parent;
-    }
-
-    // 4. Try relative to current working directory
-    final cwdPath = p.join(Directory.current.path, 'web_dashboard');
-    final cwdDir = Directory(cwdPath);
-    if (cwdDir.existsSync()) return cwdDir;
-
-    return null;
-  }
-
-  static const _mimeTypes = <String, String>{
-    '.html': 'text/html; charset=utf-8',
-    '.css': 'text/css; charset=utf-8',
-    '.js': 'application/javascript; charset=utf-8',
-    '.json': 'application/json; charset=utf-8',
-    '.png': 'image/png',
-    '.jpg': 'image/jpeg',
-    '.jpeg': 'image/jpeg',
-    '.gif': 'image/gif',
-    '.svg': 'image/svg+xml',
-    '.ico': 'image/x-icon',
-    '.woff': 'font/woff',
-    '.woff2': 'font/woff2',
-    '.ttf': 'font/ttf',
-  };
-
-  String _getMimeType(String filePath) {
-    final ext = p.extension(filePath).toLowerCase();
-    return _mimeTypes[ext] ?? 'application/octet-stream';
-  }
-
-  Future<Response> _handleDashboardIndex(Request request) async {
-    return _serveDashboardFile('index.html');
-  }
-
-  Future<Response> _handleDashboardFile(Request request, String path) async {
-    // Sanitize path: prevent directory traversal
-    final normalized = p.normalize(path).replaceAll('\\', '/');
-    if (normalized.contains('..') || normalized.startsWith('/')) {
-      return jsonForbidden({'error': 'Invalid path'});
-    }
-    return _serveDashboardFile(normalized);
-  }
-
-  Future<Response> _serveDashboardFile(String relativePath) async {
-    final dashboardDir = _findDashboardDir();
-    if (dashboardDir == null) {
-      _logWarning('[Dashboard] web_dashboard directory not found');
-      return jsonNotFound(
-        {
-          'error': 'Dashboard not found',
-          'message': 'The web_dashboard directory could not be located. '
-              'Ensure it is deployed alongside the application.',
-        },
-      );
-    }
-
-    final filePath = p.join(dashboardDir.path, relativePath);
-    final file = File(filePath);
-
-    if (!await file.exists()) {
-      return jsonNotFound({'error': 'File not found: $relativePath'});
-    }
-
-    // Ensure the resolved path is still inside the dashboard directory
-    final resolvedPath = await file.resolveSymbolicLinks();
-    final resolvedDashDir = await dashboardDir.resolveSymbolicLinks();
-    final dashDirWithSep = resolvedDashDir.endsWith(Platform.pathSeparator)
-        ? resolvedDashDir
-        : resolvedDashDir + Platform.pathSeparator;
-    if (!resolvedPath.startsWith(dashDirWithSep) &&
-        resolvedPath != resolvedDashDir) {
-      return jsonForbidden({'error': 'Access denied'});
-    }
-
-    final bytes = await file.readAsBytes();
-    return Response.ok(
-      bytes,
-      headers: {
-        'content-type': _getMimeType(filePath),
-        'cache-control': 'no-cache',
-        ..._dashboardSecurityHeaders,
-      },
-    );
-  }
-
-  static const _dashboardSecurityHeaders = {
-    'content-security-policy': "default-src 'self'; script-src 'self'; "
-        "style-src 'self'; img-src 'self' data: blob:; connect-src 'self' "
-        "http://*:* https://*:* ws://*:* wss://*:*; object-src 'none'; "
-        "base-uri 'none'; frame-ancestors 'none'",
-    'x-frame-options': 'DENY',
-    'x-content-type-options': 'nosniff',
-    'referrer-policy': 'no-referrer',
-  };
-
-  // ===========================================================================
-  // Wave 6 — Run-Watch static file serving (mobile-first SPA + PWA)
-  // ===========================================================================
-
-  /// Resolves the web_run_watch directory location. Mirrors
-  /// [_findDashboardDir] so the lookup heuristics stay aligned between
-  /// the two static surfaces.
-  Directory? _findRunWatchDir() {
-    final exeDir = p.dirname(Platform.resolvedExecutable);
-
-    final releasePath =
-        p.join(exeDir, 'data', 'flutter_assets', 'web_run_watch');
-    final releaseDir = Directory(releasePath);
-    if (releaseDir.existsSync()) return releaseDir;
-
-    final sameDirPath = p.join(exeDir, 'web_run_watch');
-    final sameDir = Directory(sameDirPath);
-    if (sameDir.existsSync()) return sameDir;
-
-    var current = exeDir;
-    for (var i = 0; i < 10; i++) {
-      final candidate = p.join(current, 'web_run_watch');
-      if (Directory(candidate).existsSync()) return Directory(candidate);
-      final parent = p.dirname(current);
-      if (parent == current) break;
-      current = parent;
-    }
-
-    final cwdPath = p.join(Directory.current.path, 'web_run_watch');
-    final cwdDir = Directory(cwdPath);
-    if (cwdDir.existsSync()) return cwdDir;
-
-    return null;
-  }
-
-  Future<Response> _handleRunWatchIndex(Request request) async {
-    return _serveRunWatchFile('index.html');
-  }
-
-  Future<Response> _handleRunWatchFile(Request request, String path) async {
-    final normalized = p.normalize(path).replaceAll('\\', '/');
-    if (normalized.contains('..') || normalized.startsWith('/')) {
-      return jsonForbidden({'error': 'Invalid path'});
-    }
-    return _serveRunWatchFile(normalized);
-  }
-
-  Future<Response> _serveRunWatchFile(String relativePath) async {
-    final dir = _findRunWatchDir();
-    if (dir == null) {
-      _logWarning('[run-watch] web_run_watch directory not found');
-      return jsonNotFound({
-        'error': 'Run-watch SPA not found',
-        'message': 'The web_run_watch directory could not be located. '
-            'Ensure it is deployed alongside the application.',
-      });
-    }
-
-    final filePath = p.join(dir.path, relativePath);
-    final file = File(filePath);
-
-    if (!await file.exists()) {
-      return jsonNotFound({'error': 'File not found: $relativePath'});
-    }
-
-    final resolvedPath = await file.resolveSymbolicLinks();
-    final resolvedDir = await dir.resolveSymbolicLinks();
-    final dirWithSep = resolvedDir.endsWith(Platform.pathSeparator)
-        ? resolvedDir
-        : resolvedDir + Platform.pathSeparator;
-    if (!resolvedPath.startsWith(dirWithSep) && resolvedPath != resolvedDir) {
-      return jsonForbidden({'error': 'Access denied'});
-    }
-
-    final bytes = await file.readAsBytes();
-    // Why a permissive cache policy for the service worker only: the
-    // service worker bootstrap (sw.js) must always reload to honour
-    // updates. Everything else can be cached aggressively by the
-    // browser within a single session.
-    final isServiceWorker = relativePath == 'sw.js';
-    final cacheControl =
-        isServiceWorker ? 'no-cache, no-store, must-revalidate' : 'no-cache';
-
-    return Response.ok(
-      bytes,
-      headers: {
-        'content-type': _getMimeType(filePath),
-        'cache-control': cacheControl,
-        // Service workers are restricted to the scope they're served
-        // from. Adding Service-Worker-Allowed lets the worker claim
-        // the /run-watch/ scope cleanly during registration.
-        if (isServiceWorker) 'service-worker-allowed': '/run-watch/',
-        ..._dashboardSecurityHeaders,
-      },
-    );
-  }
+  // Dashboard + Run-Watch static-file serving was moved to
+  // [StaticFileHandlers] (handlers/static_file_handlers.dart). The handlers
+  // there own the SPA-directory resolution, the MIME-type table, the CSP
+  // security headers, and the symlink-traversal guard. Inline `_handleInfo`
+  // / `_handleSelfTest` now read the dashboard-available flag via
+  // `_staticFileHandlers.dashboardAvailable` so the inline JSON shape is
+  // unchanged.
 
   // ===========================================================================
   // Middleware

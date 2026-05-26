@@ -2,6 +2,7 @@
 export 'handlers/collaboration_handlers.dart';
 export 'handlers/device_handlers.dart';
 export 'handlers/device_discovery_handlers.dart';
+export 'handlers/static_file_handlers.dart';
 export 'handlers/equipment_handlers.dart';
 export 'handlers/guiding_handlers.dart';
 export 'handlers/imaging_handlers.dart';
