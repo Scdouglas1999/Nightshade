@@ -10,6 +10,7 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:nightshade_app/screens/onboarding/onboarding_screen.dart';
 import 'package:nightshade_app/screens/onboarding/steps/capture_dir_step.dart';
 import 'package:nightshade_app/screens/onboarding/steps/driver_step.dart';
@@ -40,6 +41,14 @@ Future<void> _pumpStep(
     ProviderScope(
       overrides: [
         databaseProvider.overrideWithValue(db),
+        // OnboardingWelcomeStep reads `allProfilesProvider`, which
+        // transitively depends on `backendProvider`. Without an override
+        // the default `BackendNotifier` is constructed, which spins up
+        // FFI-bound recurring timers; widget tests then fail with
+        // "A Timer is still pending even after the widget tree was
+        // disposed" and the runner stalls until its 10-minute deadline.
+        // Providing a synchronous empty stream short-circuits the chain.
+        allProfilesProvider.overrideWith((ref) => const Stream.empty()),
         if (availableDrivers != null)
           availableOnboardingDriversProvider
               .overrideWithValue(availableDrivers),
@@ -165,8 +174,13 @@ void main() {
       await container.read(onboardingDraftProvider.notifier).loaded;
       await tester.pumpAndSettle();
 
-      // Initially nothing computed
-      expect(find.text('--'), findsWidgets);
+      // Initially nothing computed. The widget renders the
+      // human-friendly "Awaiting inputs..." placeholder (NOT "--") in
+      // each computed-row slot — a stale comment in the widget
+      // mentions "--" but the actual UI text was updated. Three rows
+      // (effective focal length, focal ratio, image scale) all show
+      // the placeholder.
+      expect(find.text('Awaiting inputs...'), findsNWidgets(3));
 
       // Enter realistic values: 1000mm, 80mm, 3.76µm, 1.0x reducer
       // -> image scale ≈ 0.78 arcsec/px, f/12.5
@@ -262,9 +276,19 @@ void main() {
       expect(find.text('EQ6-R'), findsOneWidget);
       expect(find.textContaining('arcsec/px'), findsOneWidget);
 
-      // Profile name field is pre-filled.
-      final nameField = find.widgetWithText(TextField, 'My First Rig');
+      // Profile name field is pre-filled. The TextField renders both
+      // its current value ("My First Rig" from the controller) AND the
+      // identical hint text ("My First Rig"), so `find.widgetWithText`
+      // matches two TextField ancestors. The one we want is the
+      // TextField whose controller value matches; locate it by type
+      // (there is exactly one TextField in the Summary step) and
+      // verify it has the expected starting text via the controller.
+      final nameField = find.byType(TextField);
       expect(nameField, findsOneWidget);
+      expect(
+        tester.widget<TextField>(nameField).controller?.text,
+        'My First Rig',
+      );
 
       // Editing the name persists to the draft.
       await tester.enterText(nameField, 'Backyard Rig');
@@ -288,14 +312,44 @@ void main() {
         tester.view.resetDevicePixelRatio();
       });
 
+      // OnboardingScreen calls `context.go('/dashboard')` after a
+      // successful save. Without a GoRouter ancestor that throws and
+      // the `await context.showSuccessSnackBar(...)` chain never
+      // completes — `pump(5s)` then can't drain its display timer and
+      // the test runner hits the 10-minute timeout. Spin up a tiny
+      // GoRouter that registers both /dashboard (the navigation
+      // target) and an /onboarding initial route hosting the
+      // OnboardingScreen.
+      final router = GoRouter(
+        initialLocation: '/onboarding',
+        routes: [
+          GoRoute(
+            path: '/onboarding',
+            builder: (ctx, _) => const OnboardingScreen(),
+          ),
+          GoRoute(
+            path: '/dashboard',
+            builder: (ctx, _) =>
+                const Scaffold(body: Text('dashboard stub for test')),
+          ),
+        ],
+      );
       await tester.pumpWidget(
         ProviderScope(
-          overrides: [databaseProvider.overrideWithValue(db)],
+          overrides: [
+            databaseProvider.overrideWithValue(db),
+            // See `_pumpStep`: prevent the welcome step's profile-watch
+            // from pulling in the default backend's recurring timers,
+            // which would otherwise leak Timers past tear-down and
+            // hit "A Timer is still pending after widget tree was
+            // disposed" + the test's 10-minute timeout.
+            allProfilesProvider.overrideWith((ref) => const Stream.empty()),
+          ],
           child: Consumer(builder: (ctx, ref, _) {
             container = ProviderScope.containerOf(ctx);
-            return MaterialApp(
+            return MaterialApp.router(
               theme: NightshadeTheme.dark,
-              home: const OnboardingScreen(),
+              routerConfig: router,
             );
           }),
         ),
@@ -331,10 +385,13 @@ void main() {
 
       // Trigger the save action.
       await tester.tap(find.text('Save profile'));
-      // The save action navigates and pushes a snackbar, so we pump but
-      // don't pumpAndSettle (the snackbar timer would leak).
+      // The save action awaits `complete()` and then calls
+      // `context.go('/dashboard')` + a success snackbar. We need to
+      // pump enough to drain (a) the await on complete() so the DAO
+      // query below sees the inserted row and (b) the snackbar
+      // display timer (default 4s) so it doesn't leak past tear-down.
       await tester.pump();
-      await tester.pump(const Duration(seconds: 1));
+      await tester.pump(const Duration(seconds: 5));
 
       final dao = container.read(equipmentProfilesDaoProvider);
       final profiles = await dao.getAllProfiles();
@@ -342,6 +399,22 @@ void main() {
       expect(profiles.single.cameraId, 'sim:camera:0');
       expect(profiles.single.mountId, 'sim:mount:0');
       expect(profiles.single.focalLength, 1000);
+
+      // Drift `StreamQueryStore.markAsClosed` queues a zero-duration
+      // Timer that fires on stream cancel. With the default test
+      // tear-down sequence (test body returns → ProviderScope
+      // unmounts → StreamProviders dispose → markAsClosed enqueues a
+      // Timer), those Timers are created AFTER the test body and the
+      // runner reports "A Timer is still pending even after the
+      // widget tree was disposed". Unmounting the ProviderScope here
+      // — inside the test body — queues the Timers during this
+      // pumpWidget, and the follow-up `pump(Duration(microseconds:1))`
+      // advances the FakeAsync clock far enough to fire them.
+      // Plain `pump()` defaults to Duration.zero which is NOT enough
+      // — Timer(Duration.zero) is scheduled relative to NOW so a zero
+      // advance leaves it pending.
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(microseconds: 1));
     });
   });
 }
