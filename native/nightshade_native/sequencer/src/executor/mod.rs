@@ -1,4 +1,28 @@
-//! Sequence execution engine
+//! Sequence execution engine.
+//!
+//! This module owns the [`SequenceExecutor`] struct, its constructor, the
+//! orchestrating [`SequenceExecutor::start`] method, the sequence-load /
+//! totals-calculation helpers, the free-standing recovery / trigger helper
+//! functions that the inline executor closures rely on, and the public
+//! event / progress / state types.
+//!
+//! Cohesive concerns are split into sibling submodules:
+//!   * [`lifecycle`]    — operator pause/resume/stop/skip/recovery-button.
+//!   * [`recovery`]     — recovery state-machine snapshot accessors.
+//!   * [`runtime_config`] — `update_*` mid-flight config mutators.
+//!   * [`checkpoint`]   — crash-recovery save/load surface.
+//!   * [`decision`]     — Wave 8 structured-decision logging surface.
+//!
+//! What is deliberately kept here in `mod.rs`:
+//!   * `start()` — the orchestrator. It captures dozens of locals into
+//!     spawned tasks; extracting it would require either a giant
+//!     parameter struct or making most private fields `pub(super)`,
+//!     neither of which is a net win.
+//!   * The free-standing helpers (`run_recovery_attempt`,
+//!     `build_trigger_autofocus_context`, etc.) are owned here because
+//!     the inline `start()` closures are their only callers.
+
+mod lifecycle;
 
 use crate::device_ops::SharedDeviceOps;
 use crate::node::{
@@ -5317,151 +5341,6 @@ impl SequenceExecutor {
         Ok(())
     }
 
-    /// Pause the sequence
-    pub async fn pause(&self) -> Result<(), String> {
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Pause)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-        self.emit_manual_intervention("pause", serde_json::json!({}));
-        Ok(())
-    }
-
-    /// Resume the sequence
-    pub async fn resume(&self) -> Result<(), String> {
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Resume)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-        self.emit_manual_intervention("resume", serde_json::json!({}));
-        Ok(())
-    }
-
-    /// Stop the sequence
-    pub async fn stop(&mut self) -> Result<(), String> {
-        self.is_cancelled.store(true, Ordering::Relaxed);
-
-        if let Some(tx) = &self.command_tx {
-            let _ = tx.send(ExecutorCommand::Stop).await;
-        }
-
-        self.emit_manual_intervention("stop", serde_json::json!({}));
-
-        self.command_tx = None;
-        Ok(())
-    }
-
-    /// Wave 8 Replay Debug — emit a [`DecisionCategory::ManualIntervention`]
-    /// event with the supplied action tag (`pause`, `resume`, `stop`,
-    /// `skip`, `skip_to_node`, `recovery_try_now`, `recovery_abort`).
-    /// Direct broadcast — does not go through the command channel so even
-    /// idle / pre-start invocations are logged (mostly a no-op then, but
-    /// the audit trail is honest).
-    fn emit_manual_intervention(&self, action: &str, details: serde_json::Value) {
-        if !self.decision_logging_enabled() {
-            return;
-        }
-        let summary = format!("Operator: {}", action);
-        let mut full = details;
-        if let serde_json::Value::Object(ref mut m) = full {
-            m.insert(
-                "action".to_string(),
-                serde_json::Value::String(action.to_string()),
-            );
-        } else {
-            full = serde_json::json!({ "action": action, "data": full });
-        }
-        let ev = crate::decision::DecisionEvent {
-            timestamp: chrono::Utc::now(),
-            category: crate::decision::DecisionCategory::ManualIntervention,
-            summary,
-            details: full,
-            node_id: None,
-            sequence_run_id: self.active_sequence_run_id(),
-        };
-        let _ = self.decision_tx.send(ev);
-    }
-
-    /// Wave 6 Pack P — Dart side reports the verdict of a plugin node
-    /// that the executor previously dispatched via
-    /// `ExecutorEvent::PluginNodeRequested`. The matching pending
-    /// oneshot (registered by `PluginNodeInstruction::execute`) is
-    /// resolved with the supplied verdict and the awaiting instruction
-    /// future returns Success or Failure.
-    ///
-    /// `structured_detail_json` is optional; when present it is parsed
-    /// as `serde_json::Value` and surfaced via the final
-    /// `ProgressDetail::PluginNode` event. Invalid JSON is logged at
-    /// warn and dropped (the verdict still applies).
-    pub async fn plugin_node_finished(
-        &self,
-        node_id: NodeId,
-        success: bool,
-        message: Option<String>,
-        structured_detail_json: Option<String>,
-    ) -> Result<(), String> {
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::PluginNodeFinished {
-                node_id,
-                success,
-                message,
-                structured_detail_json,
-            })
-            .await
-            .map_err(|e| e.to_string())?;
-            Ok(())
-        } else {
-            Err("Executor is not running".to_string())
-        }
-    }
-
-    /// Skip to the next item
-    pub async fn skip(&self) -> Result<(), String> {
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::Skip)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-        self.emit_manual_intervention("skip", serde_json::json!({}));
-        Ok(())
-    }
-
-    // =========================================================================
-    // Wave 4 Recovery Mode
-    // =========================================================================
-
-    /// Operator pressed "Try Now" on the dashboard banner — punch through
-    /// the wait timer and fire the next recovery attempt immediately. No-op
-    /// when the executor is not in `Recovering`.
-    pub async fn recovery_try_now(&self) -> Result<(), String> {
-        // Direct atomic write so even an executor without an active
-        // command channel still observes the request (e.g. tests).
-        self.recovery_signals.request_try_now();
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::RecoveryTryNow)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-        self.emit_manual_intervention("recovery_try_now", serde_json::json!({}));
-        Ok(())
-    }
-
-    /// Operator pressed "Abort" on the dashboard banner — exit the recovery
-    /// loop and transition the executor to `Failed`. No-op when the
-    /// executor is not in `Recovering`.
-    pub async fn recovery_abort(&self) -> Result<(), String> {
-        self.recovery_signals.request_abort();
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::RecoveryAbort)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-        self.emit_manual_intervention("recovery_abort", serde_json::json!({}));
-        Ok(())
-    }
-
     /// Wave 5 Agent 4 — JSON-serialised snapshot of the current cloud-motion
     /// reading for the run dashboard. Returns `None` when no data has been
     /// pushed since startup. Reads from the trigger manager state (the
@@ -5605,26 +5484,6 @@ impl SequenceExecutor {
     /// going through the command channel.
     pub fn recovery_signals_handle(&self) -> Arc<crate::recovery::RecoverySignals> {
         self.recovery_signals.clone()
-    }
-
-    /// Trust-patch §7: jump execution to the node with the given id, marking
-    /// preceding sibling nodes as Skipped. Honoured on the next container's
-    /// tree-walk step; the currently-running instruction (e.g. an exposure
-    /// burst) continues to completion first.
-    pub async fn skip_to_node(&self, node_id: NodeId) -> Result<(), String> {
-        let node_id_for_decision = node_id.clone();
-        if let Some(tx) = &self.command_tx {
-            tx.send(ExecutorCommand::SkipToNode(node_id))
-                .await
-                .map_err(|e| e.to_string())?;
-        } else {
-            return Err("Executor is not running".to_string());
-        }
-        self.emit_manual_intervention(
-            "skip_to_node",
-            serde_json::json!({ "target_node_id": node_id_for_decision }),
-        );
-        Ok(())
     }
 
     /// Update dither configuration at runtime.
