@@ -1682,10 +1682,10 @@ class __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>
 @JsonSerializable(fieldRename: FieldRename.snake)
 class _$ConditionsScoreWeightsImpl extends _ConditionsScoreWeights {
   const _$ConditionsScoreWeightsImpl(
-      {this.transparencyWeight = 0.40,
+      {this.transparencyWeight = 0.4,
       this.seeingWeight = 0.25,
       this.cloudWeight = 0.25,
-      this.windWeight = 0.10})
+      this.windWeight = 0.1})
       : super._();
 
   factory _$ConditionsScoreWeightsImpl.fromJson(Map<String, dynamic> json) =>

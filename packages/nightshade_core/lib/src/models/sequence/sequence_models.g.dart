@@ -85,10 +85,10 @@ _$ConditionsScoreWeightsImpl _$$ConditionsScoreWeightsImplFromJson(
         Map<String, dynamic> json) =>
     _$ConditionsScoreWeightsImpl(
       transparencyWeight:
-          (json['transparency_weight'] as num?)?.toDouble() ?? 0.40,
+          (json['transparency_weight'] as num?)?.toDouble() ?? 0.4,
       seeingWeight: (json['seeing_weight'] as num?)?.toDouble() ?? 0.25,
       cloudWeight: (json['cloud_weight'] as num?)?.toDouble() ?? 0.25,
-      windWeight: (json['wind_weight'] as num?)?.toDouble() ?? 0.10,
+      windWeight: (json['wind_weight'] as num?)?.toDouble() ?? 0.1,
     );
 
 Map<String, dynamic> _$$ConditionsScoreWeightsImplToJson(

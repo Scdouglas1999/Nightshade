@@ -4956,6 +4956,24 @@ class Sequence extends Equatable {
 }
 
 /// Progress of sequence execution
+//
+// PHASE-2-NOTE: NOT converted to freezed during the Phase 2 standalones
+// batch. `SequenceProgressNotifier.updateProgress`
+// (`lib/src/providers/sequence_provider.dart`) calls `state.copyWith(
+// completedExposures: int?, completedIntegrationSecs: double?, ...)`
+// forwarding nullable parameters into non-null fields, relying on the
+// pre-freezed `?? this.X` semantic for "null = leave alone". Freezed's
+// generated copyWith for non-null fields takes a non-null type and
+// makes this a compile error. The conversion requires either:
+//   (a) Updating sequence_provider.dart's `updateProgress` to filter
+//       nullables via `if (x != null) copyWith(x: x)` collection-if
+//       (caller cleanup — out of scope for Phase 2's strict file
+//       boundary).
+//   (b) Switching non-null fields to nullable-with-default — a wire-
+//       format-affecting tightening since freezed would need
+//       `includeIfNull` decisions per field.
+// Deferred to Phase 3 where the broader SequenceProgressNotifier
+// refactor can land alongside.
 class SequenceProgress extends Equatable {
   final SequenceExecutionState state;
   final String? currentNodeId;
