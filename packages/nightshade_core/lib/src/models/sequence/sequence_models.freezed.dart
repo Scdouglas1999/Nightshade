@@ -2463,3 +2463,199 @@ abstract class _AdaptiveSwapRuntimeState extends AdaptiveSwapRuntimeState {
   _$$AdaptiveSwapRuntimeStateImplCopyWith<_$AdaptiveSwapRuntimeStateImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
+
+AdaptiveSwapSnapshot _$AdaptiveSwapSnapshotFromJson(Map<String, dynamic> json) {
+  return _AdaptiveSwapSnapshot.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AdaptiveSwapSnapshot {
+  ConditionsScore? get score =>
+      throw _privateConstructorUsedError; // Default empty state used when the JSON payload is missing
+// `state` entirely (Phase 1's
+// `from_json_treats_missing_state_as_default_state` contract test).
+  AdaptiveSwapRuntimeState get state => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $AdaptiveSwapSnapshotCopyWith<AdaptiveSwapSnapshot> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AdaptiveSwapSnapshotCopyWith<$Res> {
+  factory $AdaptiveSwapSnapshotCopyWith(AdaptiveSwapSnapshot value,
+          $Res Function(AdaptiveSwapSnapshot) then) =
+      _$AdaptiveSwapSnapshotCopyWithImpl<$Res, AdaptiveSwapSnapshot>;
+  @useResult
+  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
+
+  $ConditionsScoreCopyWith<$Res>? get score;
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
+}
+
+/// @nodoc
+class _$AdaptiveSwapSnapshotCopyWithImpl<$Res,
+        $Val extends AdaptiveSwapSnapshot>
+    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
+  _$AdaptiveSwapSnapshotCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? score = freezed,
+    Object? state = null,
+  }) {
+    return _then(_value.copyWith(
+      score: freezed == score
+          ? _value.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as ConditionsScore?,
+      state: null == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as AdaptiveSwapRuntimeState,
+    ) as $Val);
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreCopyWith<$Res>? get score {
+    if (_value.score == null) {
+      return null;
+    }
+
+    return $ConditionsScoreCopyWith<$Res>(_value.score!, (value) {
+      return _then(_value.copyWith(score: value) as $Val);
+    });
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state {
+    return $AdaptiveSwapRuntimeStateCopyWith<$Res>(_value.state, (value) {
+      return _then(_value.copyWith(state: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$AdaptiveSwapSnapshotImplCopyWith<$Res>
+    implements $AdaptiveSwapSnapshotCopyWith<$Res> {
+  factory _$$AdaptiveSwapSnapshotImplCopyWith(_$AdaptiveSwapSnapshotImpl value,
+          $Res Function(_$AdaptiveSwapSnapshotImpl) then) =
+      __$$AdaptiveSwapSnapshotImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({ConditionsScore? score, AdaptiveSwapRuntimeState state});
+
+  @override
+  $ConditionsScoreCopyWith<$Res>? get score;
+  @override
+  $AdaptiveSwapRuntimeStateCopyWith<$Res> get state;
+}
+
+/// @nodoc
+class __$$AdaptiveSwapSnapshotImplCopyWithImpl<$Res>
+    extends _$AdaptiveSwapSnapshotCopyWithImpl<$Res, _$AdaptiveSwapSnapshotImpl>
+    implements _$$AdaptiveSwapSnapshotImplCopyWith<$Res> {
+  __$$AdaptiveSwapSnapshotImplCopyWithImpl(_$AdaptiveSwapSnapshotImpl _value,
+      $Res Function(_$AdaptiveSwapSnapshotImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? score = freezed,
+    Object? state = null,
+  }) {
+    return _then(_$AdaptiveSwapSnapshotImpl(
+      score: freezed == score
+          ? _value.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as ConditionsScore?,
+      state: null == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as AdaptiveSwapRuntimeState,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(explicitToJson: true)
+class _$AdaptiveSwapSnapshotImpl implements _AdaptiveSwapSnapshot {
+  const _$AdaptiveSwapSnapshotImpl(
+      {this.score, this.state = const AdaptiveSwapRuntimeState()});
+
+  factory _$AdaptiveSwapSnapshotImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AdaptiveSwapSnapshotImplFromJson(json);
+
+  @override
+  final ConditionsScore? score;
+// Default empty state used when the JSON payload is missing
+// `state` entirely (Phase 1's
+// `from_json_treats_missing_state_as_default_state` contract test).
+  @override
+  @JsonKey()
+  final AdaptiveSwapRuntimeState state;
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapSnapshot(score: $score, state: $state)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AdaptiveSwapSnapshotImpl &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.state, state) || other.state == state));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(runtimeType, score, state);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AdaptiveSwapSnapshotImplCopyWith<_$AdaptiveSwapSnapshotImpl>
+      get copyWith =>
+          __$$AdaptiveSwapSnapshotImplCopyWithImpl<_$AdaptiveSwapSnapshotImpl>(
+              this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AdaptiveSwapSnapshotImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _AdaptiveSwapSnapshot implements AdaptiveSwapSnapshot {
+  const factory _AdaptiveSwapSnapshot(
+      {final ConditionsScore? score,
+      final AdaptiveSwapRuntimeState state}) = _$AdaptiveSwapSnapshotImpl;
+
+  factory _AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) =
+      _$AdaptiveSwapSnapshotImpl.fromJson;
+
+  @override
+  ConditionsScore? get score;
+  @override // Default empty state used when the JSON payload is missing
+// `state` entirely (Phase 1's
+// `from_json_treats_missing_state_as_default_state` contract test).
+  AdaptiveSwapRuntimeState get state;
+  @override
+  @JsonKey(ignore: true)
+  _$$AdaptiveSwapSnapshotImplCopyWith<_$AdaptiveSwapSnapshotImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}

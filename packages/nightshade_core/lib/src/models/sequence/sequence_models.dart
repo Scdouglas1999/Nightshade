@@ -3640,32 +3640,23 @@ class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
 /// `api_sequencer_get_adaptive_swap_json`. The score may be null when
 /// telemetry has been lost while a previous adaptive-swap decision is
 /// still on display, so the two fields are independent.
-class AdaptiveSwapSnapshot extends Equatable {
-  final ConditionsScore? score;
-  final AdaptiveSwapRuntimeState state;
+@Freezed(fromJson: true, toJson: true)
+class AdaptiveSwapSnapshot with _$AdaptiveSwapSnapshot {
+  // `explicitToJson: true` so the nested `score` and `state` fields are
+  // serialised as `Map<String, dynamic>` rather than as raw freezed
+  // instances. Phase 1's `to_json_nests_score_and_state` contract test
+  // asserts both nested fields decode as Maps.
+  @JsonSerializable(explicitToJson: true)
+  const factory AdaptiveSwapSnapshot({
+    ConditionsScore? score,
+    // Default empty state used when the JSON payload is missing
+    // `state` entirely (Phase 1's
+    // `from_json_treats_missing_state_as_default_state` contract test).
+    @Default(AdaptiveSwapRuntimeState()) AdaptiveSwapRuntimeState state,
+  }) = _AdaptiveSwapSnapshot;
 
-  const AdaptiveSwapSnapshot({this.score, required this.state});
-
-  factory AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) {
-    return AdaptiveSwapSnapshot(
-      score: json['score'] is Map<String, dynamic>
-          ? ConditionsScore.fromJson(json['score'] as Map<String, dynamic>)
-          : null,
-      state: json['state'] is Map<String, dynamic>
-          ? AdaptiveSwapRuntimeState.fromJson(
-              json['state'] as Map<String, dynamic>,
-            )
-          : const AdaptiveSwapRuntimeState(),
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'score': score?.toJson(),
-        'state': state.toJson(),
-      };
-
-  @override
-  List<Object?> get props => [score, state];
+  factory AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveSwapSnapshotFromJson(json);
 }
 
 /// Container node that picks the highest-scoring runnable [TargetHeaderNode]

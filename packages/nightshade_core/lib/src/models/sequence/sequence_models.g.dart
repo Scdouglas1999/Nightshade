@@ -161,3 +161,22 @@ Map<String, dynamic> _$$AdaptiveSwapRuntimeStateImplToJson(
       'configured_threshold': instance.configuredThreshold,
       'configured_hysteresis_secs': instance.configuredHysteresisSecs,
     };
+
+_$AdaptiveSwapSnapshotImpl _$$AdaptiveSwapSnapshotImplFromJson(
+        Map<String, dynamic> json) =>
+    _$AdaptiveSwapSnapshotImpl(
+      score: json['score'] == null
+          ? null
+          : ConditionsScore.fromJson(json['score'] as Map<String, dynamic>),
+      state: json['state'] == null
+          ? const AdaptiveSwapRuntimeState()
+          : AdaptiveSwapRuntimeState.fromJson(
+              json['state'] as Map<String, dynamic>),
+    );
+
+Map<String, dynamic> _$$AdaptiveSwapSnapshotImplToJson(
+        _$AdaptiveSwapSnapshotImpl instance) =>
+    <String, dynamic>{
+      'score': instance.score?.toJson(),
+      'state': instance.state.toJson(),
+    };
