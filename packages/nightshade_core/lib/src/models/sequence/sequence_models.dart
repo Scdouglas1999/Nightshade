@@ -4407,6 +4407,24 @@ String formatHumanDurationSecs(double secs) {
 ///     `orderIndex` only within the affected parent's children list — never
 ///     a tree-wide rewrite — so reorder/insert/remove cost is bounded by the
 ///     parent's sibling count, not by the total tree size.
+// PHASE-2-NOTE: NOT converted to freezed during the Phase 2 standalones
+// batch. Three structural blockers:
+//   1. `createdAt` / `modifiedAt` default to `DateTime.now()` in the
+//      constructor — freezed's `@Default(...)` requires a const
+//      expression. The conversion would force every call site that
+//      currently omits these fields to pass them explicitly.
+//   2. `id` defaults to `const Uuid().v4()` — not a const expression
+//      either. Same downstream impact.
+//   3. The `_childrenByParent` and `_parentById` lazy `late final`
+//      tree indexes are O(N) to rebuild and are deliberately excluded
+//      from Equatable's `props`. Freezed's generated `==` / `hashCode`
+//      would either need to include them (breaking the contract test
+//      `equality_via_props_uses_nodes_map_and_excludes_derived_indexes`)
+//      OR the indexes need to be hoisted out of the class (a much
+//      larger refactor that touches sequence_editor.dart, validators,
+//      and the executor).
+// Conversion deferred to Phase 3+ where the broader Sequence-tree
+// refactor lands.
 class Sequence extends Equatable {
   final String id;
   final int? databaseId; // Database primary key (null if not persisted)
