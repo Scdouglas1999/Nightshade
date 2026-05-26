@@ -11,7 +11,6 @@ import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../providers/current_screen_provider.dart';
-import '../providers/device_heartbeat_health_provider.dart';
 import 'smart_notification_service.dart';
 import '../backend/ffi_backend.dart';
 import '../backend/network_backend.dart';
@@ -21,6 +20,7 @@ import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../utils/device_id_utils.dart';
 import 'camera_temperature_poller.dart';
 import 'camera_warmup_controller.dart';
+import 'device_heartbeat_router.dart';
 import 'device_reconnect_coordinator.dart';
 import 'device_exceptions.dart';
 import 'logging_service.dart';
@@ -159,6 +159,7 @@ class DeviceService {
   late final CameraWarmupController _warmupController;
   late final Phd2Launcher _phd2Launcher;
   late final DeviceReconnectCoordinator _reconnectCoordinator;
+  late final DeviceHeartbeatRouter _heartbeat;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -206,6 +207,7 @@ class DeviceService {
       resumeSequence: resumeSequence,
       pauseSequence: pauseSequence,
     );
+    _heartbeat = DeviceHeartbeatRouter(ref: _ref, backend: _backend);
     DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
@@ -627,20 +629,21 @@ class DeviceService {
       // method.
       // ---------------------------------------------------------------
       case 'HeartbeatStarted':
-        _routeHeartbeatStarted(data['device_id'] as String?);
+        _heartbeat.onHeartbeatStarted(data['device_id'] as String?);
         break;
 
       case 'HeartbeatStatusChanged':
-        _routeHeartbeatStatusChanged(
+        _heartbeat.onStatusChanged(
           deviceId: data['device_id'] as String?,
           status: data['status'] as String?,
           consecutiveFailures: (data['consecutive_failures'] as num?)?.toInt(),
-          lastRttMs: _coerceIntFromBigInt(data['last_rtt_ms']),
+          lastRttMs: DeviceHeartbeatRouter.coerceIntFromBigInt(
+              data['last_rtt_ms']),
         );
         break;
 
       case 'HeartbeatReconnecting':
-        _routeHeartbeatReconnecting(
+        _heartbeat.onReconnecting(
           deviceId: data['device_id'] as String?,
           attempt: (data['attempt'] as num?)?.toInt(),
           maxAttempts: (data['max_attempts'] as num?)?.toInt(),
@@ -648,7 +651,7 @@ class DeviceService {
         break;
 
       case 'HeartbeatReconnected':
-        _routeHeartbeatReconnected(
+        _heartbeat.onReconnected(
           deviceId: data['device_id'] as String?,
           afterAttempts: (data['after_attempts'] as num?)?.toInt(),
         );
@@ -663,133 +666,17 @@ class DeviceService {
         // first.
         final stoppedId = data['device_id'] as String?;
         if (stoppedId != null && stoppedId.isNotEmpty) {
-          _safeClearHeartbeatHealth(stoppedId);
+          _heartbeat.clearDevice(stoppedId);
         }
         break;
     }
   }
 
-  /// DEV-P3-2: helper — `last_rtt_ms` arrives as a `BigInt` over FRB.
-  /// Squeeze it down to a Dart `int` for the heartbeat provider, which
-  /// only cares about display. Returns null when the input is null or
-  /// not coercible.
-  int? _coerceIntFromBigInt(dynamic value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    if (value is BigInt) {
-      // Guard against absurdly large values that would overflow when
-      // converted to int. We're displaying milliseconds; anything above
-      // 2^31 is meaningless for a tooltip and we clamp to int.maxFinite
-      // equivalent via toInt() (Dart ints are 64-bit on native, so the
-      // guard is effectively only for the JS path which we don't ship
-      // on desktop, but kept here so the cast is total).
-      return value.isValidInt ? value.toInt() : null;
-    }
-    if (value is num) return value.toInt();
-    return null;
-  }
-
-  void _routeHeartbeatStarted(String? deviceId) {
-    if (deviceId == null || deviceId.isEmpty) return;
-    _safeApplyHeartbeat(
-      contextTag: 'heartbeat-started',
-      apply: (notifier) => notifier.applyHeartbeatStarted(deviceId: deviceId),
-    );
-  }
-
-  void _routeHeartbeatStatusChanged({
-    required String? deviceId,
-    required String? status,
-    required int? consecutiveFailures,
-    required int? lastRttMs,
-  }) {
-    if (deviceId == null || deviceId.isEmpty) return;
-    if (status == null || status.isEmpty) {
-      _safeLog(
-        (logger) => logger.warning(
-          'HeartbeatStatusChanged for $deviceId missing status field; '
-          'dropping. Payload may be malformed.',
-          source: 'DeviceService',
-        ),
-        'heartbeat-status-missing',
-      );
-      return;
-    }
-    _safeApplyHeartbeat(
-      contextTag: 'heartbeat-status',
-      apply: (notifier) => notifier.applyStatusEvent(
-        deviceId: deviceId,
-        status: status,
-        consecutiveFailures: consecutiveFailures ?? 0,
-        lastRttMs: lastRttMs,
-      ),
-    );
-  }
-
-  void _routeHeartbeatReconnecting({
-    required String? deviceId,
-    required int? attempt,
-    required int? maxAttempts,
-  }) {
-    if (deviceId == null || deviceId.isEmpty) return;
-    _safeApplyHeartbeat(
-      contextTag: 'heartbeat-reconnecting',
-      apply: (notifier) => notifier.applyReconnecting(
-        deviceId: deviceId,
-        attempt: attempt ?? 0,
-        maxAttempts: maxAttempts ?? 0,
-      ),
-    );
-  }
-
-  void _routeHeartbeatReconnected({
-    required String? deviceId,
-    required int? afterAttempts,
-  }) {
-    if (deviceId == null || deviceId.isEmpty) return;
-    _safeApplyHeartbeat(
-      contextTag: 'heartbeat-reconnected',
-      apply: (notifier) => notifier.applyReconnected(
-        deviceId: deviceId,
-        afterAttempts: afterAttempts ?? 0,
-      ),
-    );
-  }
-
-  void _safeApplyHeartbeat({
-    required String contextTag,
-    required void Function(DeviceHeartbeatHealthNotifier notifier) apply,
-  }) {
-    try {
-      final notifier = _ref.read(deviceHeartbeatHealthProvider.notifier);
-      apply(notifier);
-    } on Object catch (e) {
-      // Diagnostic-only failure — the heartbeat indicator going stale
-      // is strictly less important than the surrounding connection /
-      // error path, so we log and continue rather than rethrowing.
-      _safeLog(
-        (logger) => logger.warning(
-          'Heartbeat provider dispatch failed ($contextTag): $e',
-          source: 'DeviceService',
-        ),
-        contextTag,
-      );
-    }
-  }
-
-  void _safeClearHeartbeatHealth(String deviceId) {
-    try {
-      _ref.read(deviceHeartbeatHealthProvider.notifier).clearDevice(deviceId);
-    } on Object catch (e) {
-      _safeLog(
-        (logger) => logger.warning(
-          'Heartbeat provider clear failed for $deviceId: $e',
-          source: 'DeviceService',
-        ),
-        'heartbeat-clear',
-      );
-    }
-  }
+  // Heartbeat event routing + start/stop helpers live in
+  // [DeviceHeartbeatRouter] (`_heartbeat`). DeviceService just hands
+  // event payloads to it from `_handleEquipmentEvent` and calls
+  // `_heartbeat.start` / `_heartbeat.stop` from connect/disconnect
+  // flows; see `device_heartbeat_router.dart`.
 
   /// Handle device connection event from the native EventBus.
   void _applyDeviceConnected(String deviceType, String deviceId) {
@@ -929,7 +816,7 @@ class DeviceService {
     // stuck on the last-known value. Done unconditionally up-front so
     // a clear failure here cannot block the existing connection-state
     // teardown below (DEV-P0-1 / DEV-P0-5 paths).
-    _safeClearHeartbeatHealth(deviceId);
+    _heartbeat.clearDevice(deviceId);
 
     // Log the disconnection event with timestamp
     try {
@@ -1307,36 +1194,14 @@ class DeviceService {
         // Start temperature polling (this will immediately poll and update)
         _temperaturePoller.start(deviceId);
 
-        // Start heartbeat monitoring (10 second interval)
-        try {
-          await _backend.startDeviceHeartbeat(
-            deviceType: DeviceType.camera,
-            deviceId: deviceId,
-            intervalMs: 10000,
-          );
-
-          // Log successful heartbeat start
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.info(
-              'Started heartbeat monitoring for Camera ($deviceId) with 10s interval',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        } catch (e) {
-          // Heartbeat monitoring is optional - log but don't fail connection
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
-              'Failed to start heartbeat monitoring for Camera ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        }
+        // Start heartbeat monitoring (10 second interval). Optional —
+        // failures inside DeviceHeartbeatRouter.start are logged but
+        // never thrown so connect cannot fail on a missing heartbeat.
+        await _heartbeat.start(
+          deviceType: DeviceType.camera,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
@@ -1558,32 +1423,13 @@ class DeviceService {
       _rotatorVerifyGeneration++;
 
       try {
-        // Stop heartbeat monitoring
-        try {
-          await _backend.stopDeviceHeartbeat(deviceId);
-
-          // Log successful heartbeat stop
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.info(
-              'Stopped heartbeat monitoring for Camera ($deviceId)',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        } catch (e) {
-          // Ignore errors during cleanup but log them
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
-              'Error stopping heartbeat monitoring for Camera ($deviceId): $e',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        }
+        // Stop heartbeat monitoring. DeviceHeartbeatRouter.stop is
+        // fail-soft: it logs and swallows so the disconnect proceeds
+        // even if the driver is already gone.
+        await _heartbeat.stop(
+          deviceType: DeviceType.camera,
+          deviceId: deviceId,
+        );
 
         // Disconnect device
         await _backend.disconnectDevice(DeviceType.camera, deviceId);
@@ -1636,36 +1482,14 @@ class DeviceService {
           );
         }
 
-        // Start heartbeat monitoring (10 second interval) for critical device
-        try {
-          await _backend.startDeviceHeartbeat(
-            deviceType: DeviceType.mount,
-            deviceId: deviceId,
-            intervalMs: 10000,
-          );
-
-          // Log successful heartbeat start
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.info(
-              'Started heartbeat monitoring for Mount ($deviceId) with 10s interval',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        } catch (e) {
-          // Heartbeat monitoring is optional - log but don't fail connection
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
-              'Failed to start heartbeat monitoring for Mount ($deviceId): $e. Device will remain connected but automatic reconnection may not work if connection is lost.',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        }
+        // Start heartbeat monitoring (10 second interval) for critical
+        // device. Fail-soft inside DeviceHeartbeatRouter.start so a
+        // missing heartbeat cannot abort connect.
+        await _heartbeat.start(
+          deviceType: DeviceType.mount,
+          deviceId: deviceId,
+          intervalMs: 10000,
+        );
       } catch (e) {
         notifier.setDisconnected();
         rethrow;
@@ -1688,32 +1512,12 @@ class DeviceService {
       _markUserInitiatedDisconnect(deviceId);
 
       try {
-        // Stop heartbeat monitoring
-        try {
-          await _backend.stopDeviceHeartbeat(deviceId);
-
-          // Log successful heartbeat stop
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.info(
-              'Stopped heartbeat monitoring for Mount ($deviceId)',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        } catch (e) {
-          // Ignore errors during cleanup but log them
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
-              'Error stopping heartbeat monitoring for Mount ($deviceId): $e',
-              source: 'DeviceService',
-            );
-          } catch (logError) {
-            // Logging service not available
-          }
-        }
+        // Stop heartbeat monitoring; fail-soft inside the router so the
+        // matching disconnectDevice call below proceeds regardless.
+        await _heartbeat.stop(
+          deviceType: DeviceType.mount,
+          deviceId: deviceId,
+        );
 
         await _backend.disconnectDevice(
           DeviceType.mount,
