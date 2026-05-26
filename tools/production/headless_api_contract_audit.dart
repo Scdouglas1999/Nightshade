@@ -2,6 +2,15 @@ import 'dart:convert';
 import 'dart:io';
 
 const _serverPath = 'apps/desktop/lib/headless_api_server.dart';
+
+/// File the canonical `availableHeadlessEndpoints()` catalog now lives
+/// in. Moved out of `headless_api_server.dart` when the system
+/// handlers were extracted into their own class; the audit reads this
+/// file's source to compare the advertised list against the registered
+/// routes.
+const _systemHandlersPath =
+    'apps/desktop/lib/headless_api/handlers/system_handlers.dart';
+
 const _networkBackendPath =
     'packages/nightshade_core/lib/src/backend/network_backend.dart';
 const _routeMetadataPath = 'apps/desktop/lib/headless_api/route_metadata.dart';
@@ -73,8 +82,17 @@ void main(List<String> args) {
     dashboardApiSource: _readSource(_dashboardApiPath),
     apiDocsSource: _readSource(_apiDocsPath),
   );
+  final systemHandlersSource = _readSource(_systemHandlersPath);
+  if (systemHandlersSource == null) {
+    stderr.writeln(
+      'SystemHandlers source not found at $_systemHandlersPath — '
+      'the canonical endpoint catalog `availableHeadlessEndpoints()` '
+      'is expected to live there.',
+    );
+    exit(2);
+  }
   final registered = _registeredApiRoutes(serverSource);
-  final advertised = _advertisedApiRoutes(serverSource);
+  final advertised = _advertisedApiRoutes(systemHandlersSource);
   final networkBackendRoutes = _networkBackendRoutes(networkBackendSource);
   final openApiMetadata = _openApiMetadataCoverage(routeMetadataSource);
   final webSocketContractCoverage =
@@ -362,10 +380,32 @@ Set<String> _registeredApiRoutes(String source) {
 }
 
 Set<String> _advertisedApiRoutes(String source) {
-  final match = RegExp(
-    r'List<String>\s+_getAvailableEndpoints\(\)\s*\{\s*return\s*\[(.*?)\];\s*\}',
-    dotAll: true,
-  ).firstMatch(source);
+  // Accept the legacy in-server `List<String> _getAvailableEndpoints()`
+  // method shape AND the post-extraction top-level
+  // `List<String> availableHeadlessEndpoints()` helper. Either match is
+  // valid — the audit just needs the canonical catalog body, wherever it
+  // lives. Listed in priority order so a stale legacy stub in the server
+  // file would still resolve, but the modern location wins when both
+  // exist (which they don't in practice — see system_handlers.dart).
+  final patterns = <RegExp>[
+    RegExp(
+      r'List<String>\s+availableHeadlessEndpoints\(\)\s*\{\s*return\s*const\s*\[(.*?)\];\s*\}',
+      dotAll: true,
+    ),
+    RegExp(
+      r'List<String>\s+availableHeadlessEndpoints\(\)\s*\{\s*return\s*\[(.*?)\];\s*\}',
+      dotAll: true,
+    ),
+    RegExp(
+      r'List<String>\s+_getAvailableEndpoints\(\)\s*\{\s*return\s*\[(.*?)\];\s*\}',
+      dotAll: true,
+    ),
+  ];
+  Match? match;
+  for (final pattern in patterns) {
+    match = pattern.firstMatch(source);
+    if (match != null) break;
+  }
   if (match == null) {
     return const <String>{};
   }
