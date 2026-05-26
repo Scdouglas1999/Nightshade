@@ -3502,16 +3502,19 @@ enum BrightnessTier {
 
 /// Wave 8 — per-tier conditions-score floor preferences. Mirrors the
 /// Rust `BrightnessTierPreferences` struct.
-class BrightnessTierPreferences extends Equatable {
-  final double faintMinScore;
-  final double mediumMinScore;
-  final double brightMinScore;
+@Freezed(fromJson: true, toJson: true)
+class BrightnessTierPreferences with _$BrightnessTierPreferences {
+  const BrightnessTierPreferences._();
 
-  const BrightnessTierPreferences({
-    this.faintMinScore = 70.0,
-    this.mediumMinScore = 50.0,
-    this.brightMinScore = 30.0,
-  });
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory BrightnessTierPreferences({
+    @Default(70.0) double faintMinScore,
+    @Default(50.0) double mediumMinScore,
+    @Default(30.0) double brightMinScore,
+  }) = _BrightnessTierPreferences;
+
+  factory BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =>
+      _$BrightnessTierPreferencesFromJson(json);
 
   double floorFor(BrightnessTier tier) {
     switch (tier) {
@@ -3525,90 +3528,30 @@ class BrightnessTierPreferences extends Equatable {
   }
 
   bool accepts(BrightnessTier tier, double score) => score >= floorFor(tier);
-
-  BrightnessTierPreferences copyWith({
-    double? faintMinScore,
-    double? mediumMinScore,
-    double? brightMinScore,
-  }) {
-    return BrightnessTierPreferences(
-      faintMinScore: faintMinScore ?? this.faintMinScore,
-      mediumMinScore: mediumMinScore ?? this.mediumMinScore,
-      brightMinScore: brightMinScore ?? this.brightMinScore,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'faint_min_score': faintMinScore,
-        'medium_min_score': mediumMinScore,
-        'bright_min_score': brightMinScore,
-      };
-
-  factory BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =>
-      BrightnessTierPreferences(
-        faintMinScore: (json['faint_min_score'] as num?)?.toDouble() ?? 70.0,
-        mediumMinScore: (json['medium_min_score'] as num?)?.toDouble() ?? 50.0,
-        brightMinScore: (json['bright_min_score'] as num?)?.toDouble() ?? 30.0,
-      );
-
-  @override
-  List<Object?> get props => [faintMinScore, mediumMinScore, brightMinScore];
 }
 
 /// Wave 8 — per-axis weights applied when composing the live
 /// ConditionsScore. Mirrors the Rust `ConditionsScoreWeights` struct.
-class ConditionsScoreWeights extends Equatable {
-  final double transparencyWeight;
-  final double seeingWeight;
-  final double cloudWeight;
-  final double windWeight;
+@Freezed(fromJson: true, toJson: true)
+class ConditionsScoreWeights with _$ConditionsScoreWeights {
+  const ConditionsScoreWeights._();
 
-  const ConditionsScoreWeights({
-    this.transparencyWeight = 0.40,
-    this.seeingWeight = 0.25,
-    this.cloudWeight = 0.25,
-    this.windWeight = 0.10,
-  });
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory ConditionsScoreWeights({
+    @Default(0.40) double transparencyWeight,
+    @Default(0.25) double seeingWeight,
+    @Default(0.25) double cloudWeight,
+    @Default(0.10) double windWeight,
+  }) = _ConditionsScoreWeights;
+
+  factory ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =>
+      _$ConditionsScoreWeightsFromJson(json);
 
   double get sum =>
       transparencyWeight + seeingWeight + cloudWeight + windWeight;
 
   /// True when the weights sum to ~1.0 (validator lenient ±5% band).
   bool get isNormalised => sum >= 0.95 && sum <= 1.05;
-
-  ConditionsScoreWeights copyWith({
-    double? transparencyWeight,
-    double? seeingWeight,
-    double? cloudWeight,
-    double? windWeight,
-  }) {
-    return ConditionsScoreWeights(
-      transparencyWeight: transparencyWeight ?? this.transparencyWeight,
-      seeingWeight: seeingWeight ?? this.seeingWeight,
-      cloudWeight: cloudWeight ?? this.cloudWeight,
-      windWeight: windWeight ?? this.windWeight,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'transparency_weight': transparencyWeight,
-        'seeing_weight': seeingWeight,
-        'cloud_weight': cloudWeight,
-        'wind_weight': windWeight,
-      };
-
-  factory ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =>
-      ConditionsScoreWeights(
-        transparencyWeight:
-            (json['transparency_weight'] as num?)?.toDouble() ?? 0.40,
-        seeingWeight: (json['seeing_weight'] as num?)?.toDouble() ?? 0.25,
-        cloudWeight: (json['cloud_weight'] as num?)?.toDouble() ?? 0.25,
-        windWeight: (json['wind_weight'] as num?)?.toDouble() ?? 0.10,
-      );
-
-  @override
-  List<Object?> get props =>
-      [transparencyWeight, seeingWeight, cloudWeight, windWeight];
 }
 
 /// Wave 8 — composite sky-conditions score (0..=100) pushed from Dart

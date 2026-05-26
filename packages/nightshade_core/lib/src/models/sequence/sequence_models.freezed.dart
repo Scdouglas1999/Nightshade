@@ -1358,3 +1358,413 @@ abstract class _AdaptiveExposureConfig extends AdaptiveExposureConfig {
   _$$AdaptiveExposureConfigImplCopyWith<_$AdaptiveExposureConfigImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
+
+BrightnessTierPreferences _$BrightnessTierPreferencesFromJson(
+    Map<String, dynamic> json) {
+  return _BrightnessTierPreferences.fromJson(json);
+}
+
+/// @nodoc
+mixin _$BrightnessTierPreferences {
+  double get faintMinScore => throw _privateConstructorUsedError;
+  double get mediumMinScore => throw _privateConstructorUsedError;
+  double get brightMinScore => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $BrightnessTierPreferencesCopyWith<BrightnessTierPreferences> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $BrightnessTierPreferencesCopyWith<$Res> {
+  factory $BrightnessTierPreferencesCopyWith(BrightnessTierPreferences value,
+          $Res Function(BrightnessTierPreferences) then) =
+      _$BrightnessTierPreferencesCopyWithImpl<$Res, BrightnessTierPreferences>;
+  @useResult
+  $Res call(
+      {double faintMinScore, double mediumMinScore, double brightMinScore});
+}
+
+/// @nodoc
+class _$BrightnessTierPreferencesCopyWithImpl<$Res,
+        $Val extends BrightnessTierPreferences>
+    implements $BrightnessTierPreferencesCopyWith<$Res> {
+  _$BrightnessTierPreferencesCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? faintMinScore = null,
+    Object? mediumMinScore = null,
+    Object? brightMinScore = null,
+  }) {
+    return _then(_value.copyWith(
+      faintMinScore: null == faintMinScore
+          ? _value.faintMinScore
+          : faintMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      mediumMinScore: null == mediumMinScore
+          ? _value.mediumMinScore
+          : mediumMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      brightMinScore: null == brightMinScore
+          ? _value.brightMinScore
+          : brightMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$BrightnessTierPreferencesImplCopyWith<$Res>
+    implements $BrightnessTierPreferencesCopyWith<$Res> {
+  factory _$$BrightnessTierPreferencesImplCopyWith(
+          _$BrightnessTierPreferencesImpl value,
+          $Res Function(_$BrightnessTierPreferencesImpl) then) =
+      __$$BrightnessTierPreferencesImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double faintMinScore, double mediumMinScore, double brightMinScore});
+}
+
+/// @nodoc
+class __$$BrightnessTierPreferencesImplCopyWithImpl<$Res>
+    extends _$BrightnessTierPreferencesCopyWithImpl<$Res,
+        _$BrightnessTierPreferencesImpl>
+    implements _$$BrightnessTierPreferencesImplCopyWith<$Res> {
+  __$$BrightnessTierPreferencesImplCopyWithImpl(
+      _$BrightnessTierPreferencesImpl _value,
+      $Res Function(_$BrightnessTierPreferencesImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? faintMinScore = null,
+    Object? mediumMinScore = null,
+    Object? brightMinScore = null,
+  }) {
+    return _then(_$BrightnessTierPreferencesImpl(
+      faintMinScore: null == faintMinScore
+          ? _value.faintMinScore
+          : faintMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      mediumMinScore: null == mediumMinScore
+          ? _value.mediumMinScore
+          : mediumMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+      brightMinScore: null == brightMinScore
+          ? _value.brightMinScore
+          : brightMinScore // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$BrightnessTierPreferencesImpl extends _BrightnessTierPreferences {
+  const _$BrightnessTierPreferencesImpl(
+      {this.faintMinScore = 70.0,
+      this.mediumMinScore = 50.0,
+      this.brightMinScore = 30.0})
+      : super._();
+
+  factory _$BrightnessTierPreferencesImpl.fromJson(Map<String, dynamic> json) =>
+      _$$BrightnessTierPreferencesImplFromJson(json);
+
+  @override
+  @JsonKey()
+  final double faintMinScore;
+  @override
+  @JsonKey()
+  final double mediumMinScore;
+  @override
+  @JsonKey()
+  final double brightMinScore;
+
+  @override
+  String toString() {
+    return 'BrightnessTierPreferences(faintMinScore: $faintMinScore, mediumMinScore: $mediumMinScore, brightMinScore: $brightMinScore)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$BrightnessTierPreferencesImpl &&
+            (identical(other.faintMinScore, faintMinScore) ||
+                other.faintMinScore == faintMinScore) &&
+            (identical(other.mediumMinScore, mediumMinScore) ||
+                other.mediumMinScore == mediumMinScore) &&
+            (identical(other.brightMinScore, brightMinScore) ||
+                other.brightMinScore == brightMinScore));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, faintMinScore, mediumMinScore, brightMinScore);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$BrightnessTierPreferencesImplCopyWith<_$BrightnessTierPreferencesImpl>
+      get copyWith => __$$BrightnessTierPreferencesImplCopyWithImpl<
+          _$BrightnessTierPreferencesImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$BrightnessTierPreferencesImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _BrightnessTierPreferences extends BrightnessTierPreferences {
+  const factory _BrightnessTierPreferences(
+      {final double faintMinScore,
+      final double mediumMinScore,
+      final double brightMinScore}) = _$BrightnessTierPreferencesImpl;
+  const _BrightnessTierPreferences._() : super._();
+
+  factory _BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =
+      _$BrightnessTierPreferencesImpl.fromJson;
+
+  @override
+  double get faintMinScore;
+  @override
+  double get mediumMinScore;
+  @override
+  double get brightMinScore;
+  @override
+  @JsonKey(ignore: true)
+  _$$BrightnessTierPreferencesImplCopyWith<_$BrightnessTierPreferencesImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+ConditionsScoreWeights _$ConditionsScoreWeightsFromJson(
+    Map<String, dynamic> json) {
+  return _ConditionsScoreWeights.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ConditionsScoreWeights {
+  double get transparencyWeight => throw _privateConstructorUsedError;
+  double get seeingWeight => throw _privateConstructorUsedError;
+  double get cloudWeight => throw _privateConstructorUsedError;
+  double get windWeight => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $ConditionsScoreWeightsCopyWith<ConditionsScoreWeights> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ConditionsScoreWeightsCopyWith<$Res> {
+  factory $ConditionsScoreWeightsCopyWith(ConditionsScoreWeights value,
+          $Res Function(ConditionsScoreWeights) then) =
+      _$ConditionsScoreWeightsCopyWithImpl<$Res, ConditionsScoreWeights>;
+  @useResult
+  $Res call(
+      {double transparencyWeight,
+      double seeingWeight,
+      double cloudWeight,
+      double windWeight});
+}
+
+/// @nodoc
+class _$ConditionsScoreWeightsCopyWithImpl<$Res,
+        $Val extends ConditionsScoreWeights>
+    implements $ConditionsScoreWeightsCopyWith<$Res> {
+  _$ConditionsScoreWeightsCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? transparencyWeight = null,
+    Object? seeingWeight = null,
+    Object? cloudWeight = null,
+    Object? windWeight = null,
+  }) {
+    return _then(_value.copyWith(
+      transparencyWeight: null == transparencyWeight
+          ? _value.transparencyWeight
+          : transparencyWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      seeingWeight: null == seeingWeight
+          ? _value.seeingWeight
+          : seeingWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      cloudWeight: null == cloudWeight
+          ? _value.cloudWeight
+          : cloudWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      windWeight: null == windWeight
+          ? _value.windWeight
+          : windWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$ConditionsScoreWeightsImplCopyWith<$Res>
+    implements $ConditionsScoreWeightsCopyWith<$Res> {
+  factory _$$ConditionsScoreWeightsImplCopyWith(
+          _$ConditionsScoreWeightsImpl value,
+          $Res Function(_$ConditionsScoreWeightsImpl) then) =
+      __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double transparencyWeight,
+      double seeingWeight,
+      double cloudWeight,
+      double windWeight});
+}
+
+/// @nodoc
+class __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>
+    extends _$ConditionsScoreWeightsCopyWithImpl<$Res,
+        _$ConditionsScoreWeightsImpl>
+    implements _$$ConditionsScoreWeightsImplCopyWith<$Res> {
+  __$$ConditionsScoreWeightsImplCopyWithImpl(
+      _$ConditionsScoreWeightsImpl _value,
+      $Res Function(_$ConditionsScoreWeightsImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? transparencyWeight = null,
+    Object? seeingWeight = null,
+    Object? cloudWeight = null,
+    Object? windWeight = null,
+  }) {
+    return _then(_$ConditionsScoreWeightsImpl(
+      transparencyWeight: null == transparencyWeight
+          ? _value.transparencyWeight
+          : transparencyWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      seeingWeight: null == seeingWeight
+          ? _value.seeingWeight
+          : seeingWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      cloudWeight: null == cloudWeight
+          ? _value.cloudWeight
+          : cloudWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+      windWeight: null == windWeight
+          ? _value.windWeight
+          : windWeight // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$ConditionsScoreWeightsImpl extends _ConditionsScoreWeights {
+  const _$ConditionsScoreWeightsImpl(
+      {this.transparencyWeight = 0.40,
+      this.seeingWeight = 0.25,
+      this.cloudWeight = 0.25,
+      this.windWeight = 0.10})
+      : super._();
+
+  factory _$ConditionsScoreWeightsImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ConditionsScoreWeightsImplFromJson(json);
+
+  @override
+  @JsonKey()
+  final double transparencyWeight;
+  @override
+  @JsonKey()
+  final double seeingWeight;
+  @override
+  @JsonKey()
+  final double cloudWeight;
+  @override
+  @JsonKey()
+  final double windWeight;
+
+  @override
+  String toString() {
+    return 'ConditionsScoreWeights(transparencyWeight: $transparencyWeight, seeingWeight: $seeingWeight, cloudWeight: $cloudWeight, windWeight: $windWeight)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ConditionsScoreWeightsImpl &&
+            (identical(other.transparencyWeight, transparencyWeight) ||
+                other.transparencyWeight == transparencyWeight) &&
+            (identical(other.seeingWeight, seeingWeight) ||
+                other.seeingWeight == seeingWeight) &&
+            (identical(other.cloudWeight, cloudWeight) ||
+                other.cloudWeight == cloudWeight) &&
+            (identical(other.windWeight, windWeight) ||
+                other.windWeight == windWeight));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, transparencyWeight, seeingWeight, cloudWeight, windWeight);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ConditionsScoreWeightsImplCopyWith<_$ConditionsScoreWeightsImpl>
+      get copyWith => __$$ConditionsScoreWeightsImplCopyWithImpl<
+          _$ConditionsScoreWeightsImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ConditionsScoreWeightsImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _ConditionsScoreWeights extends ConditionsScoreWeights {
+  const factory _ConditionsScoreWeights(
+      {final double transparencyWeight,
+      final double seeingWeight,
+      final double cloudWeight,
+      final double windWeight}) = _$ConditionsScoreWeightsImpl;
+  const _ConditionsScoreWeights._() : super._();
+
+  factory _ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =
+      _$ConditionsScoreWeightsImpl.fromJson;
+
+  @override
+  double get transparencyWeight;
+  @override
+  double get seeingWeight;
+  @override
+  double get cloudWeight;
+  @override
+  double get windWeight;
+  @override
+  @JsonKey(ignore: true)
+  _$$ConditionsScoreWeightsImplCopyWith<_$ConditionsScoreWeightsImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}

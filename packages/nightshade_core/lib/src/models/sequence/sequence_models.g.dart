@@ -64,3 +64,38 @@ Map<String, dynamic> _$$AdaptiveExposureConfigImplToJson(
       'per_filter_max_secs': instance.perFilterMaxSecs,
       'enabled': instance.enabled,
     };
+
+_$BrightnessTierPreferencesImpl _$$BrightnessTierPreferencesImplFromJson(
+        Map<String, dynamic> json) =>
+    _$BrightnessTierPreferencesImpl(
+      faintMinScore: (json['faint_min_score'] as num?)?.toDouble() ?? 70.0,
+      mediumMinScore: (json['medium_min_score'] as num?)?.toDouble() ?? 50.0,
+      brightMinScore: (json['bright_min_score'] as num?)?.toDouble() ?? 30.0,
+    );
+
+Map<String, dynamic> _$$BrightnessTierPreferencesImplToJson(
+        _$BrightnessTierPreferencesImpl instance) =>
+    <String, dynamic>{
+      'faint_min_score': instance.faintMinScore,
+      'medium_min_score': instance.mediumMinScore,
+      'bright_min_score': instance.brightMinScore,
+    };
+
+_$ConditionsScoreWeightsImpl _$$ConditionsScoreWeightsImplFromJson(
+        Map<String, dynamic> json) =>
+    _$ConditionsScoreWeightsImpl(
+      transparencyWeight:
+          (json['transparency_weight'] as num?)?.toDouble() ?? 0.40,
+      seeingWeight: (json['seeing_weight'] as num?)?.toDouble() ?? 0.25,
+      cloudWeight: (json['cloud_weight'] as num?)?.toDouble() ?? 0.25,
+      windWeight: (json['wind_weight'] as num?)?.toDouble() ?? 0.10,
+    );
+
+Map<String, dynamic> _$$ConditionsScoreWeightsImplToJson(
+        _$ConditionsScoreWeightsImpl instance) =>
+    <String, dynamic>{
+      'transparency_weight': instance.transparencyWeight,
+      'seeing_weight': instance.seeingWeight,
+      'cloud_weight': instance.cloudWeight,
+      'wind_weight': instance.windWeight,
+    };
