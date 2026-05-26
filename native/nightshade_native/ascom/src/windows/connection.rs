@@ -66,7 +66,9 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
         }
     }
 
-    tracing::info!("Found {} ASCOM {} drivers", devices.len(), device_type);
+    // Hot-plug poll re-scans every 4s; debug-level keeps steady-state quiet
+    // while preserving one-off enumeration visibility via RUST_LOG=debug.
+    tracing::debug!("Found {} ASCOM {} drivers", devices.len(), device_type);
     devices
 }
 
