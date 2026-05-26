@@ -140,6 +140,20 @@ mod tests {
         drop(monitor);
         server.await.expect("fake server should finish");
     }
+
+    #[tokio::test]
+    async fn silent_driver_returns_error_not_synthetic_unsafe() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let safety = IndiSafetyMonitor::new(client, "SilentSafety");
+
+        let err = safety
+            .is_safe()
+            .await
+            .expect_err("silent safety monitor must surface an error");
+
+        assert!(err.contains("No INDI safety indicators resolved"));
+        assert!(err.contains("SilentSafety"));
+    }
 }
 
 impl IndiSafetyMonitor {
@@ -412,22 +426,3 @@ impl IndiSafetyMonitor {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use tokio::sync::RwLock;
-
-    #[tokio::test]
-    async fn silent_driver_returns_error_not_synthetic_unsafe() {
-        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
-        let safety = IndiSafetyMonitor::new(client, "SilentSafety");
-
-        let err = safety
-            .is_safe()
-            .await
-            .expect_err("silent safety monitor must surface an error");
-
-        assert!(err.contains("No INDI safety indicators resolved"));
-        assert!(err.contains("SilentSafety"));
-    }
-}

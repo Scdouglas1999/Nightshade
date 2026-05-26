@@ -140,7 +140,7 @@ void main() {
           mountId: 'mount-1',
           totalRmsArcsec: 0.45,
           sampleCount: 120,
-          exposureSeconds: 5.0,
+          exposureSeconds: const Value(5.0),
           recordedAt: DateTime.utc(2026, 5, 1, 22, 0),
         ),
       );
@@ -150,7 +150,7 @@ void main() {
           mountId: 'mount-1',
           totalRmsArcsec: 0.62,
           sampleCount: 240,
-          exposureSeconds: 5.0,
+          exposureSeconds: const Value(5.0),
           recordedAt: DateTime.utc(2026, 5, 1, 23, 0),
         ),
       );

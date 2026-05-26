@@ -1,7 +1,7 @@
 //! Satellite TLE pack: text parse, binary round-trip, SGP4 via catalog loader.
 
 use glam::DVec3;
-use nightshade_planetarium::astrometry::time::sgp4_prop::{
+use nightshade_planetarium::astrometry::sgp4_prop::{
     position_error_km, VERIFICATION_POSITION_TOLERANCE_KM,
 };
 use nightshade_planetarium::catalog::{
