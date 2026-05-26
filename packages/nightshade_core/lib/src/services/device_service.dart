@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
@@ -12,7 +11,6 @@ import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../providers/current_screen_provider.dart';
 import 'smart_notification_service.dart';
-import '../backend/ffi_backend.dart';
 import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
@@ -27,6 +25,7 @@ import 'logging_service.dart';
 import 'error_service.dart';
 import 'phd2_launcher.dart';
 import 'phd2_status_poll.dart';
+import 'switch_channel_service.dart';
 import 'device_service_lifecycle.dart';
 
 // Re-export backend types for backward compatibility
@@ -82,23 +81,6 @@ extension DriverTypeDisplayExtension on DriverType {
   }
 }
 
-/// Type alias for the switch-bridge `apiSwitchGetMax` shim used by
-/// [DeviceService.refreshSwitchChannels]. Tests override the static
-/// hook below to avoid loading the native bridge.
-typedef SwitchBridgeGetMaxFn = Future<int> Function(String deviceId);
-
-/// Type alias for the switch-bridge name fetch.
-typedef SwitchBridgeGetNameFn = Future<String> Function(
-    String deviceId, int switchId);
-
-/// Type alias for the switch-bridge boolean read.
-typedef SwitchBridgeGetStateFn = Future<bool> Function(
-    String deviceId, int switchId);
-
-/// Type alias for the switch-bridge boolean write.
-typedef SwitchBridgeSetStateFn = Future<void> Function(
-    String deviceId, int switchId, bool state);
-
 /// Service for managing device discovery and connections
 ///
 /// This service uses the NightshadeBackend abstraction to communicate
@@ -107,59 +89,19 @@ class DeviceService {
   final Ref _ref;
   final NightshadeBackend _backend;
 
-  // ---- Switch bridge hooks (testable seam) -----------------------------
-  // DEV-P2-1 follow-up: the per-channel switch UI needs to call FFI even
-  // when the test rig swaps in a MockBackend. The MockBackend can't
-  // satisfy `_backend is FfiBackend`, so the actual `apiSwitch*` calls
-  // would otherwise be skipped. Static function-pointer hooks let
-  // tests swap in fakes for the bridge calls without touching the
-  // backend type check. Production code calls
-  // `switchBridge{GetMax,GetName,GetState,SetState}` instead of
-  // `bridge_api.apiSwitch*` directly so the override is centralized.
-  @visibleForTesting
-  static SwitchBridgeGetMaxFn switchBridgeGetMax =
-      (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
-  @visibleForTesting
-  static SwitchBridgeGetNameFn switchBridgeGetName = (deviceId, switchId) =>
-      bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
-  @visibleForTesting
-  static SwitchBridgeGetStateFn switchBridgeGetState = (deviceId, switchId) =>
-      bridge_api.apiSwitchGetState(deviceId: deviceId, switchId: switchId);
-  @visibleForTesting
-  static SwitchBridgeSetStateFn switchBridgeSetState =
-      (deviceId, switchId, state) => bridge_api.apiSwitchSetState(
-          deviceId: deviceId, switchId: switchId, state: state);
-
-  /// When true, [refreshSwitchChannels] and [setSwitchChannel] will
-  /// call the bridge hooks above unconditionally instead of gating on
-  /// `_backend is FfiBackend`. Tests set this to true so MockBackend
-  /// can stand in for FfiBackend without satisfying its type.
-  /// MUST remain false in production builds.
-  @visibleForTesting
-  static bool switchBridgeBypassBackendCheck = false;
-
-  /// Reset switch bridge hooks to their production implementations.
-  /// Call from `tearDown` in any test that overrode them.
-  @visibleForTesting
-  static void resetSwitchBridgeHooks() {
-    switchBridgeBypassBackendCheck = false;
-    switchBridgeGetMax =
-        (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
-    switchBridgeGetName = (deviceId, switchId) =>
-        bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
-    switchBridgeGetState = (deviceId, switchId) =>
-        bridge_api.apiSwitchGetState(deviceId: deviceId, switchId: switchId);
-    switchBridgeSetState = (deviceId, switchId, state) =>
-        bridge_api.apiSwitchSetState(
-            deviceId: deviceId, switchId: switchId, state: state);
-  }
-
+  // Per-channel switch refresh + write logic lives on [SwitchChannelService]
+  // (DEV-P2-1 follow-up, A-10 god-class split). The four `switchBridge*`
+  // static hooks and the `switchBridgeBypassBackendCheck` flag now live
+  // on that class; tests bind directly via
+  // `SwitchChannelService.switchBridge* = ...` and reset with
+  // `SwitchChannelService.resetHooks()` in `tearDown`.
   StreamSubscription? _eventSubscription;
   late final CameraTemperaturePoller _temperaturePoller;
   late final CameraWarmupController _warmupController;
   late final Phd2Launcher _phd2Launcher;
   late final DeviceReconnectCoordinator _reconnectCoordinator;
   late final DeviceHeartbeatRouter _heartbeat;
+  late final SwitchChannelService _switchChannels;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -208,6 +150,8 @@ class DeviceService {
       pauseSequence: pauseSequence,
     );
     _heartbeat = DeviceHeartbeatRouter(ref: _ref, backend: _backend);
+    _switchChannels =
+        SwitchChannelService(ref: _ref, backend: _backend);
     DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
@@ -2138,182 +2082,18 @@ class DeviceService {
   }
 
   /// Refresh the cached channel snapshot for the currently-connected
-  /// switch device.
-  ///
-  /// Polls `api_switch_get_max`, then `api_switch_get_name` +
-  /// `api_switch_get_state` for each channel, and stores the result on
-  /// the [switchStateProvider]. Per-channel name/state fetches that
-  /// individually fail fall back to a generated "Channel N" label and
-  /// `false` state so a single misbehaving channel never blocks the
-  /// whole panel; the failure is logged via the LoggingService.
-  ///
-  /// No-op when there is no connected switch device. No-op (but logs a
-  /// warning) when running against [NetworkBackend], because there is
-  /// no remote REST endpoint for per-channel switch reads yet.
-  ///
-  /// Errors at the top-level (e.g. `apiSwitchGetMax` throws) are
-  /// surfaced through [ErrorService] so the user sees a toast — silent
-  /// fallbacks would hide a real driver fault for the whole session.
-  Future<void> refreshSwitchChannels() async {
-    final notifier = _ref.read(switchStateProvider.notifier);
-    final state = _ref.read(switchStateProvider);
-    final deviceId = state.deviceId;
-    if (deviceId == null || deviceId.isEmpty) return;
-    if (state.connectionState != DeviceConnectionState.connected) return;
+  /// switch device. Delegates to [SwitchChannelService.refreshChannels];
+  /// see that class for the full contract (per-channel fallbacks,
+  /// backend gating, ErrorService surfacing).
+  Future<void> refreshSwitchChannels() => _switchChannels.refreshChannels();
 
-    if (_backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
-      _safeLog(
-        (logger) => logger.warning(
-          'refreshSwitchChannels skipped: NetworkBackend has no remote '
-          'switch endpoint yet (device=$deviceId).',
-          source: 'DeviceService',
-        ),
-        'switch-refresh-network-backend',
-      );
-      return;
-    }
-
-    try {
-      final count = await switchBridgeGetMax(deviceId);
-      final names = <String>[];
-      final states = <bool>[];
-      for (var i = 0; i < count; i++) {
-        String name;
-        try {
-          name = await switchBridgeGetName(deviceId, i);
-        } catch (e) {
-          // Per-channel label fetch failed — fall back to a generated
-          // label so the row still renders. The state below is the
-          // load-bearing data; an opaque label is acceptable.
-          _safeLog(
-            (logger) => logger.warning(
-              'Switch channel name fetch failed for $deviceId#$i: $e',
-              source: 'DeviceService',
-            ),
-            'switch-channel-name-fetch',
-          );
-          name = '';
-        }
-        bool on;
-        try {
-          on = await switchBridgeGetState(deviceId, i);
-        } catch (e) {
-          _safeLog(
-            (logger) => logger.warning(
-              'Switch channel state fetch failed for $deviceId#$i: $e',
-              source: 'DeviceService',
-            ),
-            'switch-channel-state-fetch',
-          );
-          on = false;
-        }
-        names.add(name);
-        states.add(on);
-      }
-      notifier.setChannels(
-        count: count,
-        names: names,
-        states: states,
-        refreshedAt: DateTime.now(),
-      );
-    } catch (e) {
-      _safeLog(
-        (logger) => logger.warning(
-          'refreshSwitchChannels failed for $deviceId: $e',
-          source: 'DeviceService',
-        ),
-        'switch-refresh',
-      );
-      try {
-        final errSvc = _ref.read(errorServiceProvider);
-        errSvc.logDeviceError(
-          operation: 'switch_refresh',
-          message: 'Failed to refresh switch channels: $e',
-          deviceType: 'Switch',
-          deviceId: deviceId,
-          severity: ErrorSeverity.warning,
-        );
-      } on Object catch (errSvcErr) {
-        _safeLog(
-          (logger) => logger.warning(
-            'errorService emission for switch_refresh failed: $errSvcErr',
-            source: 'DeviceService',
-          ),
-          'switch-refresh-errsvc',
-        );
-      }
-    }
-  }
-
-  /// Toggle a single switch channel on or off.
-  ///
-  /// Calls the bridge synchronously and only updates the cached state
-  /// after the bridge confirms success — optimistic updates would lie
-  /// to the user about hardware state when a relay fails to engage.
-  ///
-  /// Throws [DeviceNotConnectedException] when no switch is connected.
-  /// Bridge errors are routed through [ErrorService] (toast + history)
-  /// and then rethrown so callers can react (e.g. a UI that wants to
-  /// revert a switch widget's visual state).
+  /// Toggle a single switch channel on or off. Delegates to
+  /// [SwitchChannelService.setChannel] inside [_trackInFlight] so the
+  /// per-switch write participates in the facade's quiesce accounting.
+  /// See [SwitchChannelService.setChannel] for thrown exceptions and
+  /// error-routing semantics.
   Future<void> setSwitchChannel(int channelIndex, bool on) {
-    return _trackInFlight(() async {
-      final notifier = _ref.read(switchStateProvider.notifier);
-      final state = _ref.read(switchStateProvider);
-      final deviceId = state.deviceId;
-      if (deviceId == null ||
-          deviceId.isEmpty ||
-          state.connectionState != DeviceConnectionState.connected) {
-        throw const DeviceNotConnectedException('switch');
-      }
-      if (channelIndex < 0 || channelIndex >= state.channelCount) {
-        throw ArgumentError.value(
-          channelIndex,
-          'channelIndex',
-          'Out of range for channelCount=${state.channelCount}',
-        );
-      }
-
-      if (_backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
-        throw UnsupportedError(
-          'setSwitchChannel is not supported on the current backend '
-          '(NetworkBackend has no remote switch write endpoint).',
-        );
-      }
-
-      try {
-        await switchBridgeSetState(deviceId, channelIndex, on);
-        notifier.setChannelState(channelIndex, on);
-      } catch (e) {
-        _safeLog(
-          (logger) => logger.warning(
-            'setSwitchChannel failed for $deviceId#$channelIndex on=$on: $e',
-            source: 'DeviceService',
-          ),
-          'switch-set-channel',
-        );
-        try {
-          final errSvc = _ref.read(errorServiceProvider);
-          errSvc.logDeviceError(
-            operation: 'switch_set_state',
-            message: 'Failed to set switch channel $channelIndex to '
-                '${on ? "on" : "off"}: $e',
-            deviceType: 'Switch',
-            deviceId: deviceId,
-            severity: ErrorSeverity.error,
-          );
-        } on Object catch (errSvcErr) {
-          _safeLog(
-            (logger) => logger.warning(
-              'errorService emission for switch_set_state failed: '
-              '$errSvcErr',
-              source: 'DeviceService',
-            ),
-            'switch-set-channel-errsvc',
-          );
-        }
-        rethrow;
-      }
-    });
+    return _trackInFlight(() => _switchChannels.setChannel(channelIndex, on));
   }
 
   /// Connect to a rotator
