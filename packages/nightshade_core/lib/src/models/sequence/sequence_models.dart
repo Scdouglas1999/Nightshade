@@ -5079,61 +5079,26 @@ class SequenceProgress extends Equatable {
 /// `PhotometryQualityGates` struct one-to-one. Frames failing any gate
 /// are routed to the Wave 3 Image Grading reject folder and their
 /// `photometry_measurements` row is marked outlier.
-class PhotometryQualityGates extends Equatable {
-  /// Minimum target SNR. AAVSO research-grade default is 50.
-  final double minSnr;
+@Freezed(fromJson: true, toJson: true)
+class PhotometryQualityGates with _$PhotometryQualityGates {
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory PhotometryQualityGates({
+    /// Minimum target SNR. AAVSO research-grade default is 50.
+    @Default(50.0) double minSnr,
 
-  /// Maximum acceptable FWHM in arcseconds. Default 5".
-  final double maxFwhmArcsec;
+    /// Maximum acceptable FWHM in arcseconds. Default 5".
+    @Default(5.0) double maxFwhmArcsec,
 
-  /// When true, frames where any reference star failed to extract are
-  /// rejected.
-  final bool requireAllRefsVisible;
+    /// When true, frames where any reference star failed to extract are
+    /// rejected.
+    @Default(true) bool requireAllRefsVisible,
 
-  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
-  final double maxAirmass;
+    /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+    @Default(2.5) double maxAirmass,
+  }) = _PhotometryQualityGates;
 
-  const PhotometryQualityGates({
-    this.minSnr = 50.0,
-    this.maxFwhmArcsec = 5.0,
-    this.requireAllRefsVisible = true,
-    this.maxAirmass = 2.5,
-  });
-
-  PhotometryQualityGates copyWith({
-    double? minSnr,
-    double? maxFwhmArcsec,
-    bool? requireAllRefsVisible,
-    double? maxAirmass,
-  }) {
-    return PhotometryQualityGates(
-      minSnr: minSnr ?? this.minSnr,
-      maxFwhmArcsec: maxFwhmArcsec ?? this.maxFwhmArcsec,
-      requireAllRefsVisible:
-          requireAllRefsVisible ?? this.requireAllRefsVisible,
-      maxAirmass: maxAirmass ?? this.maxAirmass,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'min_snr': minSnr,
-        'max_fwhm_arcsec': maxFwhmArcsec,
-        'require_all_refs_visible': requireAllRefsVisible,
-        'max_airmass': maxAirmass,
-      };
-
-  factory PhotometryQualityGates.fromJson(Map<String, dynamic> json) {
-    return PhotometryQualityGates(
-      minSnr: (json['min_snr'] as num?)?.toDouble() ?? 50.0,
-      maxFwhmArcsec: (json['max_fwhm_arcsec'] as num?)?.toDouble() ?? 5.0,
-      requireAllRefsVisible: json['require_all_refs_visible'] as bool? ?? true,
-      maxAirmass: (json['max_airmass'] as num?)?.toDouble() ?? 2.5,
-    );
-  }
-
-  @override
-  List<Object?> get props =>
-      [minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass];
+  factory PhotometryQualityGates.fromJson(Map<String, dynamic> json) =>
+      _$PhotometryQualityGatesFromJson(json);
 }
 
 /// Standard photometric bands recognised by the Dart-side validator.
@@ -5384,58 +5349,26 @@ class SciencePhotometryNode extends SequenceNode {
 /// Either [backupFilter] or [backupTargetId] may be set independently
 /// (or both). When both are null the recovery action falls back to
 /// `PauseAndWaitForClear` rather than silently no-oping.
-class TransparencyBackupPlan extends Equatable {
-  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
-  final String? backupFilter;
+@Freezed(fromJson: true, toJson: true)
+class TransparencyBackupPlan with _$TransparencyBackupPlan {
+  const TransparencyBackupPlan._();
 
-  /// Sequence node id to skip to when transparency drops.
-  final String? backupTargetId;
+  @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+  const factory TransparencyBackupPlan({
+    /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+    String? backupFilter,
 
-  /// Optional human-readable description surfaced in the UI / logs.
-  final String? description;
+    /// Sequence node id to skip to when transparency drops.
+    String? backupTargetId,
 
-  const TransparencyBackupPlan({
-    this.backupFilter,
-    this.backupTargetId,
-    this.description,
-  });
+    /// Optional human-readable description surfaced in the UI / logs.
+    String? description,
+  }) = _TransparencyBackupPlan;
+
+  factory TransparencyBackupPlan.fromJson(Map<String, dynamic> json) =>
+      _$TransparencyBackupPlanFromJson(json);
 
   bool get isEmpty => backupFilter == null && backupTargetId == null;
-
-  TransparencyBackupPlan copyWith({
-    Object? backupFilter = _sentinel,
-    Object? backupTargetId = _sentinel,
-    Object? description = _sentinel,
-  }) {
-    return TransparencyBackupPlan(
-      backupFilter: identical(backupFilter, _sentinel)
-          ? this.backupFilter
-          : backupFilter as String?,
-      backupTargetId: identical(backupTargetId, _sentinel)
-          ? this.backupTargetId
-          : backupTargetId as String?,
-      description: identical(description, _sentinel)
-          ? this.description
-          : description as String?,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'backup_filter': backupFilter,
-        'backup_target_id': backupTargetId,
-        'description': description,
-      };
-
-  factory TransparencyBackupPlan.fromJson(Map<String, dynamic> json) {
-    return TransparencyBackupPlan(
-      backupFilter: json['backup_filter'] as String?,
-      backupTargetId: json['backup_target_id'] as String?,
-      description: json['description'] as String?,
-    );
-  }
-
-  @override
-  List<Object?> get props => [backupFilter, backupTargetId, description];
 }
 
 /// Audit §11 — Plugin-contributed sequence instruction.

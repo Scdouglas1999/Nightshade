@@ -3015,3 +3015,446 @@ abstract class _FilterPlan extends FilterPlan {
   _$$FilterPlanImplCopyWith<_$FilterPlanImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+PhotometryQualityGates _$PhotometryQualityGatesFromJson(
+    Map<String, dynamic> json) {
+  return _PhotometryQualityGates.fromJson(json);
+}
+
+/// @nodoc
+mixin _$PhotometryQualityGates {
+  /// Minimum target SNR. AAVSO research-grade default is 50.
+  double get minSnr => throw _privateConstructorUsedError;
+
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
+  double get maxFwhmArcsec => throw _privateConstructorUsedError;
+
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
+  bool get requireAllRefsVisible => throw _privateConstructorUsedError;
+
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+  double get maxAirmass => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $PhotometryQualityGatesCopyWith<PhotometryQualityGates> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $PhotometryQualityGatesCopyWith<$Res> {
+  factory $PhotometryQualityGatesCopyWith(PhotometryQualityGates value,
+          $Res Function(PhotometryQualityGates) then) =
+      _$PhotometryQualityGatesCopyWithImpl<$Res, PhotometryQualityGates>;
+  @useResult
+  $Res call(
+      {double minSnr,
+      double maxFwhmArcsec,
+      bool requireAllRefsVisible,
+      double maxAirmass});
+}
+
+/// @nodoc
+class _$PhotometryQualityGatesCopyWithImpl<$Res,
+        $Val extends PhotometryQualityGates>
+    implements $PhotometryQualityGatesCopyWith<$Res> {
+  _$PhotometryQualityGatesCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? minSnr = null,
+    Object? maxFwhmArcsec = null,
+    Object? requireAllRefsVisible = null,
+    Object? maxAirmass = null,
+  }) {
+    return _then(_value.copyWith(
+      minSnr: null == minSnr
+          ? _value.minSnr
+          : minSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxFwhmArcsec: null == maxFwhmArcsec
+          ? _value.maxFwhmArcsec
+          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
+              as double,
+      requireAllRefsVisible: null == requireAllRefsVisible
+          ? _value.requireAllRefsVisible
+          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
+              as bool,
+      maxAirmass: null == maxAirmass
+          ? _value.maxAirmass
+          : maxAirmass // ignore: cast_nullable_to_non_nullable
+              as double,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$PhotometryQualityGatesImplCopyWith<$Res>
+    implements $PhotometryQualityGatesCopyWith<$Res> {
+  factory _$$PhotometryQualityGatesImplCopyWith(
+          _$PhotometryQualityGatesImpl value,
+          $Res Function(_$PhotometryQualityGatesImpl) then) =
+      __$$PhotometryQualityGatesImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double minSnr,
+      double maxFwhmArcsec,
+      bool requireAllRefsVisible,
+      double maxAirmass});
+}
+
+/// @nodoc
+class __$$PhotometryQualityGatesImplCopyWithImpl<$Res>
+    extends _$PhotometryQualityGatesCopyWithImpl<$Res,
+        _$PhotometryQualityGatesImpl>
+    implements _$$PhotometryQualityGatesImplCopyWith<$Res> {
+  __$$PhotometryQualityGatesImplCopyWithImpl(
+      _$PhotometryQualityGatesImpl _value,
+      $Res Function(_$PhotometryQualityGatesImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? minSnr = null,
+    Object? maxFwhmArcsec = null,
+    Object? requireAllRefsVisible = null,
+    Object? maxAirmass = null,
+  }) {
+    return _then(_$PhotometryQualityGatesImpl(
+      minSnr: null == minSnr
+          ? _value.minSnr
+          : minSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxFwhmArcsec: null == maxFwhmArcsec
+          ? _value.maxFwhmArcsec
+          : maxFwhmArcsec // ignore: cast_nullable_to_non_nullable
+              as double,
+      requireAllRefsVisible: null == requireAllRefsVisible
+          ? _value.requireAllRefsVisible
+          : requireAllRefsVisible // ignore: cast_nullable_to_non_nullable
+              as bool,
+      maxAirmass: null == maxAirmass
+          ? _value.maxAirmass
+          : maxAirmass // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$PhotometryQualityGatesImpl implements _PhotometryQualityGates {
+  const _$PhotometryQualityGatesImpl(
+      {this.minSnr = 50.0,
+      this.maxFwhmArcsec = 5.0,
+      this.requireAllRefsVisible = true,
+      this.maxAirmass = 2.5});
+
+  factory _$PhotometryQualityGatesImpl.fromJson(Map<String, dynamic> json) =>
+      _$$PhotometryQualityGatesImplFromJson(json);
+
+  /// Minimum target SNR. AAVSO research-grade default is 50.
+  @override
+  @JsonKey()
+  final double minSnr;
+
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
+  @override
+  @JsonKey()
+  final double maxFwhmArcsec;
+
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
+  @override
+  @JsonKey()
+  final bool requireAllRefsVisible;
+
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+  @override
+  @JsonKey()
+  final double maxAirmass;
+
+  @override
+  String toString() {
+    return 'PhotometryQualityGates(minSnr: $minSnr, maxFwhmArcsec: $maxFwhmArcsec, requireAllRefsVisible: $requireAllRefsVisible, maxAirmass: $maxAirmass)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$PhotometryQualityGatesImpl &&
+            (identical(other.minSnr, minSnr) || other.minSnr == minSnr) &&
+            (identical(other.maxFwhmArcsec, maxFwhmArcsec) ||
+                other.maxFwhmArcsec == maxFwhmArcsec) &&
+            (identical(other.requireAllRefsVisible, requireAllRefsVisible) ||
+                other.requireAllRefsVisible == requireAllRefsVisible) &&
+            (identical(other.maxAirmass, maxAirmass) ||
+                other.maxAirmass == maxAirmass));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType, minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$PhotometryQualityGatesImplCopyWith<_$PhotometryQualityGatesImpl>
+      get copyWith => __$$PhotometryQualityGatesImplCopyWithImpl<
+          _$PhotometryQualityGatesImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$PhotometryQualityGatesImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _PhotometryQualityGates implements PhotometryQualityGates {
+  const factory _PhotometryQualityGates(
+      {final double minSnr,
+      final double maxFwhmArcsec,
+      final bool requireAllRefsVisible,
+      final double maxAirmass}) = _$PhotometryQualityGatesImpl;
+
+  factory _PhotometryQualityGates.fromJson(Map<String, dynamic> json) =
+      _$PhotometryQualityGatesImpl.fromJson;
+
+  @override
+
+  /// Minimum target SNR. AAVSO research-grade default is 50.
+  double get minSnr;
+  @override
+
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
+  double get maxFwhmArcsec;
+  @override
+
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
+  bool get requireAllRefsVisible;
+  @override
+
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+  double get maxAirmass;
+  @override
+  @JsonKey(ignore: true)
+  _$$PhotometryQualityGatesImplCopyWith<_$PhotometryQualityGatesImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+TransparencyBackupPlan _$TransparencyBackupPlanFromJson(
+    Map<String, dynamic> json) {
+  return _TransparencyBackupPlan.fromJson(json);
+}
+
+/// @nodoc
+mixin _$TransparencyBackupPlan {
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+  String? get backupFilter => throw _privateConstructorUsedError;
+
+  /// Sequence node id to skip to when transparency drops.
+  String? get backupTargetId => throw _privateConstructorUsedError;
+
+  /// Optional human-readable description surfaced in the UI / logs.
+  String? get description => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $TransparencyBackupPlanCopyWith<TransparencyBackupPlan> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $TransparencyBackupPlanCopyWith<$Res> {
+  factory $TransparencyBackupPlanCopyWith(TransparencyBackupPlan value,
+          $Res Function(TransparencyBackupPlan) then) =
+      _$TransparencyBackupPlanCopyWithImpl<$Res, TransparencyBackupPlan>;
+  @useResult
+  $Res call(
+      {String? backupFilter, String? backupTargetId, String? description});
+}
+
+/// @nodoc
+class _$TransparencyBackupPlanCopyWithImpl<$Res,
+        $Val extends TransparencyBackupPlan>
+    implements $TransparencyBackupPlanCopyWith<$Res> {
+  _$TransparencyBackupPlanCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? backupFilter = freezed,
+    Object? backupTargetId = freezed,
+    Object? description = freezed,
+  }) {
+    return _then(_value.copyWith(
+      backupFilter: freezed == backupFilter
+          ? _value.backupFilter
+          : backupFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      backupTargetId: freezed == backupTargetId
+          ? _value.backupTargetId
+          : backupTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      description: freezed == description
+          ? _value.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$TransparencyBackupPlanImplCopyWith<$Res>
+    implements $TransparencyBackupPlanCopyWith<$Res> {
+  factory _$$TransparencyBackupPlanImplCopyWith(
+          _$TransparencyBackupPlanImpl value,
+          $Res Function(_$TransparencyBackupPlanImpl) then) =
+      __$$TransparencyBackupPlanImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String? backupFilter, String? backupTargetId, String? description});
+}
+
+/// @nodoc
+class __$$TransparencyBackupPlanImplCopyWithImpl<$Res>
+    extends _$TransparencyBackupPlanCopyWithImpl<$Res,
+        _$TransparencyBackupPlanImpl>
+    implements _$$TransparencyBackupPlanImplCopyWith<$Res> {
+  __$$TransparencyBackupPlanImplCopyWithImpl(
+      _$TransparencyBackupPlanImpl _value,
+      $Res Function(_$TransparencyBackupPlanImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? backupFilter = freezed,
+    Object? backupTargetId = freezed,
+    Object? description = freezed,
+  }) {
+    return _then(_$TransparencyBackupPlanImpl(
+      backupFilter: freezed == backupFilter
+          ? _value.backupFilter
+          : backupFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      backupTargetId: freezed == backupTargetId
+          ? _value.backupTargetId
+          : backupTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      description: freezed == description
+          ? _value.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String?,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+class _$TransparencyBackupPlanImpl extends _TransparencyBackupPlan {
+  const _$TransparencyBackupPlanImpl(
+      {this.backupFilter, this.backupTargetId, this.description})
+      : super._();
+
+  factory _$TransparencyBackupPlanImpl.fromJson(Map<String, dynamic> json) =>
+      _$$TransparencyBackupPlanImplFromJson(json);
+
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+  @override
+  final String? backupFilter;
+
+  /// Sequence node id to skip to when transparency drops.
+  @override
+  final String? backupTargetId;
+
+  /// Optional human-readable description surfaced in the UI / logs.
+  @override
+  final String? description;
+
+  @override
+  String toString() {
+    return 'TransparencyBackupPlan(backupFilter: $backupFilter, backupTargetId: $backupTargetId, description: $description)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TransparencyBackupPlanImpl &&
+            (identical(other.backupFilter, backupFilter) ||
+                other.backupFilter == backupFilter) &&
+            (identical(other.backupTargetId, backupTargetId) ||
+                other.backupTargetId == backupTargetId) &&
+            (identical(other.description, description) ||
+                other.description == description));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, backupFilter, backupTargetId, description);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TransparencyBackupPlanImplCopyWith<_$TransparencyBackupPlanImpl>
+      get copyWith => __$$TransparencyBackupPlanImplCopyWithImpl<
+          _$TransparencyBackupPlanImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$TransparencyBackupPlanImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _TransparencyBackupPlan extends TransparencyBackupPlan {
+  const factory _TransparencyBackupPlan(
+      {final String? backupFilter,
+      final String? backupTargetId,
+      final String? description}) = _$TransparencyBackupPlanImpl;
+  const _TransparencyBackupPlan._() : super._();
+
+  factory _TransparencyBackupPlan.fromJson(Map<String, dynamic> json) =
+      _$TransparencyBackupPlanImpl.fromJson;
+
+  @override
+
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+  String? get backupFilter;
+  @override
+
+  /// Sequence node id to skip to when transparency drops.
+  String? get backupTargetId;
+  @override
+
+  /// Optional human-readable description surfaced in the UI / logs.
+  String? get description;
+  @override
+  @JsonKey(ignore: true)
+  _$$TransparencyBackupPlanImplCopyWith<_$TransparencyBackupPlanImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}

@@ -207,3 +207,37 @@ Map<String, dynamic> _$$FilterPlanImplToJson(_$FilterPlanImpl instance) =>
       'binning': const BinningModeJsonConverter().toJson(instance.binning),
       'dither_every': instance.ditherEvery,
     };
+
+_$PhotometryQualityGatesImpl _$$PhotometryQualityGatesImplFromJson(
+        Map<String, dynamic> json) =>
+    _$PhotometryQualityGatesImpl(
+      minSnr: (json['min_snr'] as num?)?.toDouble() ?? 50.0,
+      maxFwhmArcsec: (json['max_fwhm_arcsec'] as num?)?.toDouble() ?? 5.0,
+      requireAllRefsVisible: json['require_all_refs_visible'] as bool? ?? true,
+      maxAirmass: (json['max_airmass'] as num?)?.toDouble() ?? 2.5,
+    );
+
+Map<String, dynamic> _$$PhotometryQualityGatesImplToJson(
+        _$PhotometryQualityGatesImpl instance) =>
+    <String, dynamic>{
+      'min_snr': instance.minSnr,
+      'max_fwhm_arcsec': instance.maxFwhmArcsec,
+      'require_all_refs_visible': instance.requireAllRefsVisible,
+      'max_airmass': instance.maxAirmass,
+    };
+
+_$TransparencyBackupPlanImpl _$$TransparencyBackupPlanImplFromJson(
+        Map<String, dynamic> json) =>
+    _$TransparencyBackupPlanImpl(
+      backupFilter: json['backup_filter'] as String?,
+      backupTargetId: json['backup_target_id'] as String?,
+      description: json['description'] as String?,
+    );
+
+Map<String, dynamic> _$$TransparencyBackupPlanImplToJson(
+        _$TransparencyBackupPlanImpl instance) =>
+    <String, dynamic>{
+      'backup_filter': instance.backupFilter,
+      'backup_target_id': instance.backupTargetId,
+      'description': instance.description,
+    };
