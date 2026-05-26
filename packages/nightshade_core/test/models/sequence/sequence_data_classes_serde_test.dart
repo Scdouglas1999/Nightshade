@@ -269,7 +269,7 @@ void main() {
       // or required fields. The Phase 2 freezed class must use
       // `@Default(30.0) double targetSnr` etc. to preserve missing-field
       // defaults.
-      final back = AdaptiveExposureConfig.fromJson(<String, dynamic>{});
+      final back = AdaptiveExposureConfig.fromJson(const <String, dynamic>{});
       expect(back.targetSnr, equals(30.0));
       expect(back.referenceSkyBrightnessMag, equals(21.5));
       expect(back.minExposureSecs, equals(5.0));
@@ -426,7 +426,7 @@ void main() {
     });
 
     test('from_json_defaults', () {
-      final back = BrightnessTierPreferences.fromJson(<String, dynamic>{});
+      final back = BrightnessTierPreferences.fromJson(const <String, dynamic>{});
       expect(back.faintMinScore, equals(70.0));
       expect(back.mediumMinScore, equals(50.0));
       expect(back.brightMinScore, equals(30.0));
@@ -484,7 +484,7 @@ void main() {
     });
 
     test('from_json_defaults', () {
-      final back = ConditionsScoreWeights.fromJson(<String, dynamic>{});
+      final back = ConditionsScoreWeights.fromJson(const <String, dynamic>{});
       expect(back.transparencyWeight, equals(0.40));
       expect(back.seeingWeight, equals(0.25));
       expect(back.cloudWeight, equals(0.25));
@@ -559,7 +559,7 @@ void main() {
       // PHASE-2-NOTE: When 'weights' is missing or not a Map, the
       // fallback is `const ConditionsScoreWeights()` (the default
       // instance). Phase 2's @Default annotation handles this naturally.
-      final back = ConditionsScore.fromJson({
+      final back = ConditionsScore.fromJson(const {
         'score': 50.0,
         'generated_unix_secs': 1000,
       });
@@ -571,7 +571,7 @@ void main() {
       // bit-exact behaviour because freezed's default JsonConverter
       // would NOT produce this — the conversion must keep a custom
       // converter.
-      final back = ConditionsScore.fromJson({
+      final back = ConditionsScore.fromJson(const {
         'score': 75.0,
         'generated_unix_secs': 1700000000,
       });
@@ -666,7 +666,7 @@ void main() {
     });
 
     test('from_json_defaults_when_minimal_payload', () {
-      final back = AdaptiveSwapRuntimeState.fromJson(<String, dynamic>{});
+      final back = AdaptiveSwapRuntimeState.fromJson(const <String, dynamic>{});
       expect(back.currentTargetId, isNull);
       expect(back.lastSwapAt, isNull);
       expect(back.configuredHysteresisSecs, equals(180.0));
@@ -702,11 +702,14 @@ void main() {
     });
 
     test('equality_via_props', () {
-      final a = AdaptiveSwapRuntimeState(currentTargetId: 'x');
-      final b = AdaptiveSwapRuntimeState(currentTargetId: 'x');
+      const a = AdaptiveSwapRuntimeState(currentTargetId: 'x');
+      const b = AdaptiveSwapRuntimeState(currentTargetId: 'x');
       expect(a, equals(b));
       expect(a.hashCode, equals(b.hashCode));
-      expect(a, isNot(equals(AdaptiveSwapRuntimeState(currentTargetId: 'y'))));
+      expect(
+        a,
+        isNot(equals(const AdaptiveSwapRuntimeState(currentTargetId: 'y'))),
+      );
     });
   });
 
@@ -735,7 +738,7 @@ void main() {
 
     test('from_json_treats_missing_score_as_null', () {
       final back =
-          AdaptiveSwapSnapshot.fromJson(<String, dynamic>{'state': {}});
+          AdaptiveSwapSnapshot.fromJson(const <String, dynamic>{'state': <String, dynamic>{}});
       expect(back.score, isNull);
     });
 
@@ -744,7 +747,7 @@ void main() {
       // to `const AdaptiveSwapRuntimeState()` when the field is missing
       // or not a Map. Phase 2 must preserve this default — the Rust
       // side relies on it for the "no telemetry yet" boot state.
-      final back = AdaptiveSwapSnapshot.fromJson(<String, dynamic>{});
+      final back = AdaptiveSwapSnapshot.fromJson(const <String, dynamic>{});
       expect(back.state, equals(const AdaptiveSwapRuntimeState()));
       expect(back.score, isNull);
     });
@@ -806,7 +809,7 @@ void main() {
       // fromJson defaults it to ''. Freezed must mark the field as
       // required OR provide a Default('') — pick the latter to match
       // current behaviour.
-      final back = FilterPlan.fromJson(<String, dynamic>{});
+      final back = FilterPlan.fromJson(const <String, dynamic>{});
       expect(back.filterName, equals(''));
       expect(back.count, equals(10));
       expect(back.durationSecs, equals(60.0));
@@ -890,7 +893,7 @@ void main() {
     });
 
     test('from_json_applies_defaults', () {
-      final back = PhotometryQualityGates.fromJson(<String, dynamic>{});
+      final back = PhotometryQualityGates.fromJson(const <String, dynamic>{});
       expect(back.minSnr, equals(50.0));
       expect(back.maxFwhmArcsec, equals(5.0));
       expect(back.requireAllRefsVisible, isTrue);
@@ -939,7 +942,7 @@ void main() {
     });
 
     test('from_json_treats_missing_fields_as_null', () {
-      final back = TransparencyBackupPlan.fromJson(<String, dynamic>{});
+      final back = TransparencyBackupPlan.fromJson(const <String, dynamic>{});
       expect(back.backupFilter, isNull);
       expect(back.backupTargetId, isNull);
       expect(back.description, isNull);
