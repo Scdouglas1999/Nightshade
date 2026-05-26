@@ -510,13 +510,75 @@ class IntegrationBudget {
 // ============================================================================
 
 /// One leaf or compound condition that can gate a target's start / end.
-sealed class TargetTrigger {
-  const TargetTrigger();
+///
+/// Freezed-union backed: pattern-matching, equality, hashCode, and
+/// copyWith are all generated. JSON encoding is HAND-WRITTEN (see
+/// [TargetTrigger.toJson] / [TargetTrigger.fromJson]) because the wire
+/// format is externally-tagged
+/// (`{"kind": "<Variant>", "value": <payload>}`), which freezed cannot
+/// natively express — it would emit a flat union with the payload
+/// fields inlined alongside `kind`. The hand-written codec is the
+/// contract pinned by Phase 1's `target_trigger_serde_test.dart`.
+@Freezed(toJson: false, fromJson: false)
+sealed class TargetTrigger with _$TargetTrigger {
+  const TargetTrigger._();
+
+  const factory TargetTrigger.altitudeAbove(double altitudeDeg) =
+      AltitudeAboveTrigger;
+
+  const factory TargetTrigger.altitudeBelow(double altitudeDeg) =
+      AltitudeBelowTrigger;
+
+  /// Unix timestamp (seconds).
+  const factory TargetTrigger.timeAfter(int unixSeconds) = TimeAfterTrigger;
+
+  /// Unix timestamp (seconds).
+  const factory TargetTrigger.timeBefore(int unixSeconds) = TimeBeforeTrigger;
+
+  const factory TargetTrigger.and(List<TargetTrigger> children) = AndTrigger;
+
+  const factory TargetTrigger.or(List<TargetTrigger> children) = OrTrigger;
+
+  const factory TargetTrigger.hourAngleBetween({
+    required double minHa,
+    required double maxHa,
+  }) = HourAngleBetweenTrigger;
 
   /// JSON shape: `{"kind":"AltitudeAbove","value":35.0}` (and nested
   /// `value: [...]` for And/Or). Stays symmetric to the Rust
   /// `#[serde(tag = "kind", content = "value")]` encoding.
-  Map<String, dynamic> toJson();
+  Map<String, dynamic> toJson() {
+    return switch (this) {
+      AltitudeAboveTrigger(altitudeDeg: final v) => {
+          'kind': 'AltitudeAbove',
+          'value': v,
+        },
+      AltitudeBelowTrigger(altitudeDeg: final v) => {
+          'kind': 'AltitudeBelow',
+          'value': v,
+        },
+      TimeAfterTrigger(unixSeconds: final v) => {
+          'kind': 'TimeAfter',
+          'value': v,
+        },
+      TimeBeforeTrigger(unixSeconds: final v) => {
+          'kind': 'TimeBefore',
+          'value': v,
+        },
+      AndTrigger(children: final cs) => {
+          'kind': 'And',
+          'value': cs.map((c) => c.toJson()).toList(),
+        },
+      OrTrigger(children: final cs) => {
+          'kind': 'Or',
+          'value': cs.map((c) => c.toJson()).toList(),
+        },
+      HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi) => {
+          'kind': 'HourAngleBetween',
+          'value': {'minHa': lo, 'maxHa': hi},
+        },
+    };
+  }
 
   /// Decode a `TargetTrigger` from JSON. Throws on unknown / malformed
   /// kinds — errors-are-a-feature; we never silently downgrade to a
@@ -555,179 +617,47 @@ sealed class TargetTrigger {
   }
 
   /// Human-readable label used by the dashboard / live preview.
-  String get label;
+  String get label => switch (this) {
+        AltitudeAboveTrigger(altitudeDeg: final v) =>
+          'altitude ≥ ${v.toStringAsFixed(1)}°',
+        AltitudeBelowTrigger(altitudeDeg: final v) =>
+          'altitude ≤ ${v.toStringAsFixed(1)}°',
+        TimeAfterTrigger(unixSeconds: final v) => 'time ≥ $v',
+        TimeBeforeTrigger(unixSeconds: final v) => 'time < $v',
+        AndTrigger(children: final cs) =>
+          '(${cs.map((c) => c.label).join(' AND ')})',
+        OrTrigger(children: final cs) =>
+          '(${cs.map((c) => c.label).join(' OR ')})',
+        HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi) =>
+          '${lo.toStringAsFixed(2)}h ≤ HA ≤ ${hi.toStringAsFixed(2)}h',
+      };
 
   /// True iff this trigger (or any nested sub-trigger) references an
   /// altitude threshold. Used by the validator to surface "this target
   /// never reaches that altitude from your location" errors.
-  bool get referencesAltitude;
+  bool get referencesAltitude => switch (this) {
+        AltitudeAboveTrigger() || AltitudeBelowTrigger() => true,
+        AndTrigger(children: final cs) ||
+        OrTrigger(children: final cs) =>
+          cs.any((c) => c.referencesAltitude),
+        TimeAfterTrigger() ||
+        TimeBeforeTrigger() ||
+        HourAngleBetweenTrigger() =>
+          false,
+      };
 
   /// Recursively detect empty And / Or compounds. Used by
   /// [TargetTriggerEmptyCompoundRule].
-  bool get hasEmptyCompound;
-}
-
-class AltitudeAboveTrigger extends TargetTrigger {
-  final double altitudeDeg;
-  const AltitudeAboveTrigger(this.altitudeDeg);
-  @override
-  Map<String, dynamic> toJson() =>
-      {'kind': 'AltitudeAbove', 'value': altitudeDeg};
-  @override
-  String get label => 'altitude ≥ ${altitudeDeg.toStringAsFixed(1)}°';
-  @override
-  bool get referencesAltitude => true;
-  @override
-  bool get hasEmptyCompound => false;
-  @override
-  bool operator ==(Object other) =>
-      other is AltitudeAboveTrigger && other.altitudeDeg == altitudeDeg;
-  @override
-  int get hashCode => Object.hash('AltitudeAbove', altitudeDeg);
-}
-
-class AltitudeBelowTrigger extends TargetTrigger {
-  final double altitudeDeg;
-  const AltitudeBelowTrigger(this.altitudeDeg);
-  @override
-  Map<String, dynamic> toJson() =>
-      {'kind': 'AltitudeBelow', 'value': altitudeDeg};
-  @override
-  String get label => 'altitude ≤ ${altitudeDeg.toStringAsFixed(1)}°';
-  @override
-  bool get referencesAltitude => true;
-  @override
-  bool get hasEmptyCompound => false;
-  @override
-  bool operator ==(Object other) =>
-      other is AltitudeBelowTrigger && other.altitudeDeg == altitudeDeg;
-  @override
-  int get hashCode => Object.hash('AltitudeBelow', altitudeDeg);
-}
-
-class TimeAfterTrigger extends TargetTrigger {
-  /// Unix timestamp (seconds).
-  final int unixSeconds;
-  const TimeAfterTrigger(this.unixSeconds);
-  @override
-  Map<String, dynamic> toJson() => {'kind': 'TimeAfter', 'value': unixSeconds};
-  @override
-  String get label => 'time ≥ $unixSeconds';
-  @override
-  bool get referencesAltitude => false;
-  @override
-  bool get hasEmptyCompound => false;
-  @override
-  bool operator ==(Object other) =>
-      other is TimeAfterTrigger && other.unixSeconds == unixSeconds;
-  @override
-  int get hashCode => Object.hash('TimeAfter', unixSeconds);
-}
-
-class TimeBeforeTrigger extends TargetTrigger {
-  /// Unix timestamp (seconds).
-  final int unixSeconds;
-  const TimeBeforeTrigger(this.unixSeconds);
-  @override
-  Map<String, dynamic> toJson() => {'kind': 'TimeBefore', 'value': unixSeconds};
-  @override
-  String get label => 'time < $unixSeconds';
-  @override
-  bool get referencesAltitude => false;
-  @override
-  bool get hasEmptyCompound => false;
-  @override
-  bool operator ==(Object other) =>
-      other is TimeBeforeTrigger && other.unixSeconds == unixSeconds;
-  @override
-  int get hashCode => Object.hash('TimeBefore', unixSeconds);
-}
-
-class AndTrigger extends TargetTrigger {
-  final List<TargetTrigger> children;
-  const AndTrigger(this.children);
-  @override
-  Map<String, dynamic> toJson() => {
-        'kind': 'And',
-        'value': children.map((c) => c.toJson()).toList(),
+  bool get hasEmptyCompound => switch (this) {
+        AndTrigger(children: final cs) || OrTrigger(children: final cs) =>
+          cs.isEmpty || cs.any((c) => c.hasEmptyCompound),
+        AltitudeAboveTrigger() ||
+        AltitudeBelowTrigger() ||
+        TimeAfterTrigger() ||
+        TimeBeforeTrigger() ||
+        HourAngleBetweenTrigger() =>
+          false,
       };
-  @override
-  String get label => '(${children.map((c) => c.label).join(' AND ')})';
-  @override
-  bool get referencesAltitude => children.any((c) => c.referencesAltitude);
-  @override
-  bool get hasEmptyCompound =>
-      children.isEmpty || children.any((c) => c.hasEmptyCompound);
-  @override
-  bool operator ==(Object other) {
-    if (other is! AndTrigger) return false;
-    if (other.children.length != children.length) return false;
-    for (var i = 0; i < children.length; i++) {
-      if (other.children[i] != children[i]) return false;
-    }
-    return true;
-  }
-
-  @override
-  int get hashCode => Object.hash('And', Object.hashAll(children));
-}
-
-class OrTrigger extends TargetTrigger {
-  final List<TargetTrigger> children;
-  const OrTrigger(this.children);
-  @override
-  Map<String, dynamic> toJson() => {
-        'kind': 'Or',
-        'value': children.map((c) => c.toJson()).toList(),
-      };
-  @override
-  String get label => '(${children.map((c) => c.label).join(' OR ')})';
-  @override
-  bool get referencesAltitude => children.any((c) => c.referencesAltitude);
-  @override
-  bool get hasEmptyCompound =>
-      children.isEmpty || children.any((c) => c.hasEmptyCompound);
-  @override
-  bool operator ==(Object other) {
-    if (other is! OrTrigger) return false;
-    if (other.children.length != children.length) return false;
-    for (var i = 0; i < children.length; i++) {
-      if (other.children[i] != children[i]) return false;
-    }
-    return true;
-  }
-
-  @override
-  int get hashCode => Object.hash('Or', Object.hashAll(children));
-}
-
-class HourAngleBetweenTrigger extends TargetTrigger {
-  /// Minimum hour angle in hours (negative = east of meridian).
-  final double minHa;
-
-  /// Maximum hour angle in hours (positive = west of meridian).
-  final double maxHa;
-
-  const HourAngleBetweenTrigger({required this.minHa, required this.maxHa});
-  @override
-  Map<String, dynamic> toJson() => {
-        'kind': 'HourAngleBetween',
-        'value': {'minHa': minHa, 'maxHa': maxHa},
-      };
-  @override
-  String get label =>
-      '${minHa.toStringAsFixed(2)}h ≤ HA ≤ ${maxHa.toStringAsFixed(2)}h';
-  @override
-  bool get referencesAltitude => false;
-  @override
-  bool get hasEmptyCompound => false;
-  @override
-  bool operator ==(Object other) =>
-      other is HourAngleBetweenTrigger &&
-      other.minHa == minHa &&
-      other.maxHa == maxHa;
-  @override
-  int get hashCode => Object.hash('HourAngleBetween', minHa, maxHa);
 }
 
 /// Evaluate a [TargetTrigger] against an observer / target / now snapshot.

@@ -964,6 +964,1291 @@ abstract class _MosaicPanelInfo extends MosaicPanelInfo {
       throw _privateConstructorUsedError;
 }
 
+/// @nodoc
+mixin _$TargetTrigger {
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) =>
+      throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) =>
+      throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) =>
+      throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) =>
+      throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) =>
+      throw _privateConstructorUsedError;
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $TargetTriggerCopyWith<$Res> {
+  factory $TargetTriggerCopyWith(
+          TargetTrigger value, $Res Function(TargetTrigger) then) =
+      _$TargetTriggerCopyWithImpl<$Res, TargetTrigger>;
+}
+
+/// @nodoc
+class _$TargetTriggerCopyWithImpl<$Res, $Val extends TargetTrigger>
+    implements $TargetTriggerCopyWith<$Res> {
+  _$TargetTriggerCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+}
+
+/// @nodoc
+abstract class _$$AltitudeAboveTriggerImplCopyWith<$Res> {
+  factory _$$AltitudeAboveTriggerImplCopyWith(_$AltitudeAboveTriggerImpl value,
+          $Res Function(_$AltitudeAboveTriggerImpl) then) =
+      __$$AltitudeAboveTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({double altitudeDeg});
+}
+
+/// @nodoc
+class __$$AltitudeAboveTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$AltitudeAboveTriggerImpl>
+    implements _$$AltitudeAboveTriggerImplCopyWith<$Res> {
+  __$$AltitudeAboveTriggerImplCopyWithImpl(_$AltitudeAboveTriggerImpl _value,
+      $Res Function(_$AltitudeAboveTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? altitudeDeg = null,
+  }) {
+    return _then(_$AltitudeAboveTriggerImpl(
+      null == altitudeDeg
+          ? _value.altitudeDeg
+          : altitudeDeg // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$AltitudeAboveTriggerImpl extends AltitudeAboveTrigger {
+  const _$AltitudeAboveTriggerImpl(this.altitudeDeg) : super._();
+
+  @override
+  final double altitudeDeg;
+
+  @override
+  String toString() {
+    return 'TargetTrigger.altitudeAbove(altitudeDeg: $altitudeDeg)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AltitudeAboveTriggerImpl &&
+            (identical(other.altitudeDeg, altitudeDeg) ||
+                other.altitudeDeg == altitudeDeg));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, altitudeDeg);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AltitudeAboveTriggerImplCopyWith<_$AltitudeAboveTriggerImpl>
+      get copyWith =>
+          __$$AltitudeAboveTriggerImplCopyWithImpl<_$AltitudeAboveTriggerImpl>(
+              this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return altitudeAbove(altitudeDeg);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return altitudeAbove?.call(altitudeDeg);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (altitudeAbove != null) {
+      return altitudeAbove(altitudeDeg);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return altitudeAbove(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return altitudeAbove?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (altitudeAbove != null) {
+      return altitudeAbove(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AltitudeAboveTrigger extends TargetTrigger {
+  const factory AltitudeAboveTrigger(final double altitudeDeg) =
+      _$AltitudeAboveTriggerImpl;
+  const AltitudeAboveTrigger._() : super._();
+
+  double get altitudeDeg;
+  @JsonKey(ignore: true)
+  _$$AltitudeAboveTriggerImplCopyWith<_$AltitudeAboveTriggerImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$AltitudeBelowTriggerImplCopyWith<$Res> {
+  factory _$$AltitudeBelowTriggerImplCopyWith(_$AltitudeBelowTriggerImpl value,
+          $Res Function(_$AltitudeBelowTriggerImpl) then) =
+      __$$AltitudeBelowTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({double altitudeDeg});
+}
+
+/// @nodoc
+class __$$AltitudeBelowTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$AltitudeBelowTriggerImpl>
+    implements _$$AltitudeBelowTriggerImplCopyWith<$Res> {
+  __$$AltitudeBelowTriggerImplCopyWithImpl(_$AltitudeBelowTriggerImpl _value,
+      $Res Function(_$AltitudeBelowTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? altitudeDeg = null,
+  }) {
+    return _then(_$AltitudeBelowTriggerImpl(
+      null == altitudeDeg
+          ? _value.altitudeDeg
+          : altitudeDeg // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$AltitudeBelowTriggerImpl extends AltitudeBelowTrigger {
+  const _$AltitudeBelowTriggerImpl(this.altitudeDeg) : super._();
+
+  @override
+  final double altitudeDeg;
+
+  @override
+  String toString() {
+    return 'TargetTrigger.altitudeBelow(altitudeDeg: $altitudeDeg)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AltitudeBelowTriggerImpl &&
+            (identical(other.altitudeDeg, altitudeDeg) ||
+                other.altitudeDeg == altitudeDeg));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, altitudeDeg);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AltitudeBelowTriggerImplCopyWith<_$AltitudeBelowTriggerImpl>
+      get copyWith =>
+          __$$AltitudeBelowTriggerImplCopyWithImpl<_$AltitudeBelowTriggerImpl>(
+              this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return altitudeBelow(altitudeDeg);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return altitudeBelow?.call(altitudeDeg);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (altitudeBelow != null) {
+      return altitudeBelow(altitudeDeg);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return altitudeBelow(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return altitudeBelow?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (altitudeBelow != null) {
+      return altitudeBelow(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AltitudeBelowTrigger extends TargetTrigger {
+  const factory AltitudeBelowTrigger(final double altitudeDeg) =
+      _$AltitudeBelowTriggerImpl;
+  const AltitudeBelowTrigger._() : super._();
+
+  double get altitudeDeg;
+  @JsonKey(ignore: true)
+  _$$AltitudeBelowTriggerImplCopyWith<_$AltitudeBelowTriggerImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$TimeAfterTriggerImplCopyWith<$Res> {
+  factory _$$TimeAfterTriggerImplCopyWith(_$TimeAfterTriggerImpl value,
+          $Res Function(_$TimeAfterTriggerImpl) then) =
+      __$$TimeAfterTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int unixSeconds});
+}
+
+/// @nodoc
+class __$$TimeAfterTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$TimeAfterTriggerImpl>
+    implements _$$TimeAfterTriggerImplCopyWith<$Res> {
+  __$$TimeAfterTriggerImplCopyWithImpl(_$TimeAfterTriggerImpl _value,
+      $Res Function(_$TimeAfterTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? unixSeconds = null,
+  }) {
+    return _then(_$TimeAfterTriggerImpl(
+      null == unixSeconds
+          ? _value.unixSeconds
+          : unixSeconds // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$TimeAfterTriggerImpl extends TimeAfterTrigger {
+  const _$TimeAfterTriggerImpl(this.unixSeconds) : super._();
+
+  @override
+  final int unixSeconds;
+
+  @override
+  String toString() {
+    return 'TargetTrigger.timeAfter(unixSeconds: $unixSeconds)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TimeAfterTriggerImpl &&
+            (identical(other.unixSeconds, unixSeconds) ||
+                other.unixSeconds == unixSeconds));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, unixSeconds);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TimeAfterTriggerImplCopyWith<_$TimeAfterTriggerImpl> get copyWith =>
+      __$$TimeAfterTriggerImplCopyWithImpl<_$TimeAfterTriggerImpl>(
+          this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return timeAfter(unixSeconds);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return timeAfter?.call(unixSeconds);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (timeAfter != null) {
+      return timeAfter(unixSeconds);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return timeAfter(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return timeAfter?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (timeAfter != null) {
+      return timeAfter(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class TimeAfterTrigger extends TargetTrigger {
+  const factory TimeAfterTrigger(final int unixSeconds) =
+      _$TimeAfterTriggerImpl;
+  const TimeAfterTrigger._() : super._();
+
+  int get unixSeconds;
+  @JsonKey(ignore: true)
+  _$$TimeAfterTriggerImplCopyWith<_$TimeAfterTriggerImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$TimeBeforeTriggerImplCopyWith<$Res> {
+  factory _$$TimeBeforeTriggerImplCopyWith(_$TimeBeforeTriggerImpl value,
+          $Res Function(_$TimeBeforeTriggerImpl) then) =
+      __$$TimeBeforeTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({int unixSeconds});
+}
+
+/// @nodoc
+class __$$TimeBeforeTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$TimeBeforeTriggerImpl>
+    implements _$$TimeBeforeTriggerImplCopyWith<$Res> {
+  __$$TimeBeforeTriggerImplCopyWithImpl(_$TimeBeforeTriggerImpl _value,
+      $Res Function(_$TimeBeforeTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? unixSeconds = null,
+  }) {
+    return _then(_$TimeBeforeTriggerImpl(
+      null == unixSeconds
+          ? _value.unixSeconds
+          : unixSeconds // ignore: cast_nullable_to_non_nullable
+              as int,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$TimeBeforeTriggerImpl extends TimeBeforeTrigger {
+  const _$TimeBeforeTriggerImpl(this.unixSeconds) : super._();
+
+  @override
+  final int unixSeconds;
+
+  @override
+  String toString() {
+    return 'TargetTrigger.timeBefore(unixSeconds: $unixSeconds)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$TimeBeforeTriggerImpl &&
+            (identical(other.unixSeconds, unixSeconds) ||
+                other.unixSeconds == unixSeconds));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, unixSeconds);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$TimeBeforeTriggerImplCopyWith<_$TimeBeforeTriggerImpl> get copyWith =>
+      __$$TimeBeforeTriggerImplCopyWithImpl<_$TimeBeforeTriggerImpl>(
+          this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return timeBefore(unixSeconds);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return timeBefore?.call(unixSeconds);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (timeBefore != null) {
+      return timeBefore(unixSeconds);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return timeBefore(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return timeBefore?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (timeBefore != null) {
+      return timeBefore(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class TimeBeforeTrigger extends TargetTrigger {
+  const factory TimeBeforeTrigger(final int unixSeconds) =
+      _$TimeBeforeTriggerImpl;
+  const TimeBeforeTrigger._() : super._();
+
+  int get unixSeconds;
+  @JsonKey(ignore: true)
+  _$$TimeBeforeTriggerImplCopyWith<_$TimeBeforeTriggerImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$AndTriggerImplCopyWith<$Res> {
+  factory _$$AndTriggerImplCopyWith(
+          _$AndTriggerImpl value, $Res Function(_$AndTriggerImpl) then) =
+      __$$AndTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({List<TargetTrigger> children});
+}
+
+/// @nodoc
+class __$$AndTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$AndTriggerImpl>
+    implements _$$AndTriggerImplCopyWith<$Res> {
+  __$$AndTriggerImplCopyWithImpl(
+      _$AndTriggerImpl _value, $Res Function(_$AndTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? children = null,
+  }) {
+    return _then(_$AndTriggerImpl(
+      null == children
+          ? _value._children
+          : children // ignore: cast_nullable_to_non_nullable
+              as List<TargetTrigger>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$AndTriggerImpl extends AndTrigger {
+  const _$AndTriggerImpl(final List<TargetTrigger> children)
+      : _children = children,
+        super._();
+
+  final List<TargetTrigger> _children;
+  @override
+  List<TargetTrigger> get children {
+    if (_children is EqualUnmodifiableListView) return _children;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_children);
+  }
+
+  @override
+  String toString() {
+    return 'TargetTrigger.and(children: $children)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AndTriggerImpl &&
+            const DeepCollectionEquality().equals(other._children, _children));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_children));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AndTriggerImplCopyWith<_$AndTriggerImpl> get copyWith =>
+      __$$AndTriggerImplCopyWithImpl<_$AndTriggerImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return and(children);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return and?.call(children);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (and != null) {
+      return and(children);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return and(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return and?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (and != null) {
+      return and(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class AndTrigger extends TargetTrigger {
+  const factory AndTrigger(final List<TargetTrigger> children) =
+      _$AndTriggerImpl;
+  const AndTrigger._() : super._();
+
+  List<TargetTrigger> get children;
+  @JsonKey(ignore: true)
+  _$$AndTriggerImplCopyWith<_$AndTriggerImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$OrTriggerImplCopyWith<$Res> {
+  factory _$$OrTriggerImplCopyWith(
+          _$OrTriggerImpl value, $Res Function(_$OrTriggerImpl) then) =
+      __$$OrTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({List<TargetTrigger> children});
+}
+
+/// @nodoc
+class __$$OrTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$OrTriggerImpl>
+    implements _$$OrTriggerImplCopyWith<$Res> {
+  __$$OrTriggerImplCopyWithImpl(
+      _$OrTriggerImpl _value, $Res Function(_$OrTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? children = null,
+  }) {
+    return _then(_$OrTriggerImpl(
+      null == children
+          ? _value._children
+          : children // ignore: cast_nullable_to_non_nullable
+              as List<TargetTrigger>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$OrTriggerImpl extends OrTrigger {
+  const _$OrTriggerImpl(final List<TargetTrigger> children)
+      : _children = children,
+        super._();
+
+  final List<TargetTrigger> _children;
+  @override
+  List<TargetTrigger> get children {
+    if (_children is EqualUnmodifiableListView) return _children;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_children);
+  }
+
+  @override
+  String toString() {
+    return 'TargetTrigger.or(children: $children)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OrTriggerImpl &&
+            const DeepCollectionEquality().equals(other._children, _children));
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, const DeepCollectionEquality().hash(_children));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OrTriggerImplCopyWith<_$OrTriggerImpl> get copyWith =>
+      __$$OrTriggerImplCopyWithImpl<_$OrTriggerImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return or(children);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return or?.call(children);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (or != null) {
+      return or(children);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return or(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return or?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (or != null) {
+      return or(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class OrTrigger extends TargetTrigger {
+  const factory OrTrigger(final List<TargetTrigger> children) = _$OrTriggerImpl;
+  const OrTrigger._() : super._();
+
+  List<TargetTrigger> get children;
+  @JsonKey(ignore: true)
+  _$$OrTriggerImplCopyWith<_$OrTriggerImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class _$$HourAngleBetweenTriggerImplCopyWith<$Res> {
+  factory _$$HourAngleBetweenTriggerImplCopyWith(
+          _$HourAngleBetweenTriggerImpl value,
+          $Res Function(_$HourAngleBetweenTriggerImpl) then) =
+      __$$HourAngleBetweenTriggerImplCopyWithImpl<$Res>;
+  @useResult
+  $Res call({double minHa, double maxHa});
+}
+
+/// @nodoc
+class __$$HourAngleBetweenTriggerImplCopyWithImpl<$Res>
+    extends _$TargetTriggerCopyWithImpl<$Res, _$HourAngleBetweenTriggerImpl>
+    implements _$$HourAngleBetweenTriggerImplCopyWith<$Res> {
+  __$$HourAngleBetweenTriggerImplCopyWithImpl(
+      _$HourAngleBetweenTriggerImpl _value,
+      $Res Function(_$HourAngleBetweenTriggerImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? minHa = null,
+    Object? maxHa = null,
+  }) {
+    return _then(_$HourAngleBetweenTriggerImpl(
+      minHa: null == minHa
+          ? _value.minHa
+          : minHa // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxHa: null == maxHa
+          ? _value.maxHa
+          : maxHa // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$HourAngleBetweenTriggerImpl extends HourAngleBetweenTrigger {
+  const _$HourAngleBetweenTriggerImpl(
+      {required this.minHa, required this.maxHa})
+      : super._();
+
+  @override
+  final double minHa;
+  @override
+  final double maxHa;
+
+  @override
+  String toString() {
+    return 'TargetTrigger.hourAngleBetween(minHa: $minHa, maxHa: $maxHa)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$HourAngleBetweenTriggerImpl &&
+            (identical(other.minHa, minHa) || other.minHa == minHa) &&
+            (identical(other.maxHa, maxHa) || other.maxHa == maxHa));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, minHa, maxHa);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$HourAngleBetweenTriggerImplCopyWith<_$HourAngleBetweenTriggerImpl>
+      get copyWith => __$$HourAngleBetweenTriggerImplCopyWithImpl<
+          _$HourAngleBetweenTriggerImpl>(this, _$identity);
+
+  @override
+  @optionalTypeArgs
+  TResult when<TResult extends Object?>({
+    required TResult Function(double altitudeDeg) altitudeAbove,
+    required TResult Function(double altitudeDeg) altitudeBelow,
+    required TResult Function(int unixSeconds) timeAfter,
+    required TResult Function(int unixSeconds) timeBefore,
+    required TResult Function(List<TargetTrigger> children) and,
+    required TResult Function(List<TargetTrigger> children) or,
+    required TResult Function(double minHa, double maxHa) hourAngleBetween,
+  }) {
+    return hourAngleBetween(minHa, maxHa);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? whenOrNull<TResult extends Object?>({
+    TResult? Function(double altitudeDeg)? altitudeAbove,
+    TResult? Function(double altitudeDeg)? altitudeBelow,
+    TResult? Function(int unixSeconds)? timeAfter,
+    TResult? Function(int unixSeconds)? timeBefore,
+    TResult? Function(List<TargetTrigger> children)? and,
+    TResult? Function(List<TargetTrigger> children)? or,
+    TResult? Function(double minHa, double maxHa)? hourAngleBetween,
+  }) {
+    return hourAngleBetween?.call(minHa, maxHa);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeWhen<TResult extends Object?>({
+    TResult Function(double altitudeDeg)? altitudeAbove,
+    TResult Function(double altitudeDeg)? altitudeBelow,
+    TResult Function(int unixSeconds)? timeAfter,
+    TResult Function(int unixSeconds)? timeBefore,
+    TResult Function(List<TargetTrigger> children)? and,
+    TResult Function(List<TargetTrigger> children)? or,
+    TResult Function(double minHa, double maxHa)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (hourAngleBetween != null) {
+      return hourAngleBetween(minHa, maxHa);
+    }
+    return orElse();
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult map<TResult extends Object?>({
+    required TResult Function(AltitudeAboveTrigger value) altitudeAbove,
+    required TResult Function(AltitudeBelowTrigger value) altitudeBelow,
+    required TResult Function(TimeAfterTrigger value) timeAfter,
+    required TResult Function(TimeBeforeTrigger value) timeBefore,
+    required TResult Function(AndTrigger value) and,
+    required TResult Function(OrTrigger value) or,
+    required TResult Function(HourAngleBetweenTrigger value) hourAngleBetween,
+  }) {
+    return hourAngleBetween(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult? mapOrNull<TResult extends Object?>({
+    TResult? Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult? Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult? Function(TimeAfterTrigger value)? timeAfter,
+    TResult? Function(TimeBeforeTrigger value)? timeBefore,
+    TResult? Function(AndTrigger value)? and,
+    TResult? Function(OrTrigger value)? or,
+    TResult? Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+  }) {
+    return hourAngleBetween?.call(this);
+  }
+
+  @override
+  @optionalTypeArgs
+  TResult maybeMap<TResult extends Object?>({
+    TResult Function(AltitudeAboveTrigger value)? altitudeAbove,
+    TResult Function(AltitudeBelowTrigger value)? altitudeBelow,
+    TResult Function(TimeAfterTrigger value)? timeAfter,
+    TResult Function(TimeBeforeTrigger value)? timeBefore,
+    TResult Function(AndTrigger value)? and,
+    TResult Function(OrTrigger value)? or,
+    TResult Function(HourAngleBetweenTrigger value)? hourAngleBetween,
+    required TResult orElse(),
+  }) {
+    if (hourAngleBetween != null) {
+      return hourAngleBetween(this);
+    }
+    return orElse();
+  }
+}
+
+abstract class HourAngleBetweenTrigger extends TargetTrigger {
+  const factory HourAngleBetweenTrigger(
+      {required final double minHa,
+      required final double maxHa}) = _$HourAngleBetweenTriggerImpl;
+  const HourAngleBetweenTrigger._() : super._();
+
+  double get minHa;
+  double get maxHa;
+  @JsonKey(ignore: true)
+  _$$HourAngleBetweenTriggerImplCopyWith<_$HourAngleBetweenTriggerImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
 AdaptiveExposureConfig _$AdaptiveExposureConfigFromJson(
     Map<String, dynamic> json) {
   return _AdaptiveExposureConfig.fromJson(json);
@@ -1682,10 +2967,10 @@ class __$$ConditionsScoreWeightsImplCopyWithImpl<$Res>
 @JsonSerializable(fieldRename: FieldRename.snake)
 class _$ConditionsScoreWeightsImpl extends _ConditionsScoreWeights {
   const _$ConditionsScoreWeightsImpl(
-      {this.transparencyWeight = 0.4,
+      {this.transparencyWeight = 0.40,
       this.seeingWeight = 0.25,
       this.cloudWeight = 0.25,
-      this.windWeight = 0.1})
+      this.windWeight = 0.10})
       : super._();
 
   factory _$ConditionsScoreWeightsImpl.fromJson(Map<String, dynamic> json) =>
