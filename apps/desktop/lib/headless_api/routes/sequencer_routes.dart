@@ -1,0 +1,136 @@
+/// Declarative route table for the sequencer / automation surface.
+///
+/// Counterpart to `handlers/sequencer_handlers.dart`. Includes the
+/// legacy `/api/sequences/*` aliases (kept for pinned mobile builds),
+/// the canonical `/api/sequencer/*` action surface, the Wave 4 recovery
+/// remote-control endpoints, and the Wave 5 cloud-motion / adaptive-
+/// swap endpoints. CRUD on stored sequence definitions lives in
+/// `sequence_management_routes.dart`.
+library;
+
+import '../handlers/sequencer_handlers.dart';
+import 'headless_route.dart';
+
+/// Build the declarative route table for [SequencerHandlers].
+List<HeadlessRoute> buildSequencerRoutes(SequencerHandlers h) =>
+    <HeadlessRoute>[
+      // Sequencing (legacy). These three are direct aliases for the
+      // /api/sequencer/* surface — kept for pinned mobile builds that
+      // pre-date the rename. The router accepts the same handler refs
+      // so there is no double dispatch.
+      HeadlessRoute(
+          HttpMethod.get, '/api/sequences/status', h.handleSequencerStatus),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequences/start', h.handleSequencerStart),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequences/stop', h.handleSequencerStop),
+
+      // Sequencing (extended)
+      HeadlessRoute(
+          HttpMethod.get, '/api/sequencer/status', h.handleSequencerStatus),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/start', h.handleSequencerStart),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/stop', h.handleSequencerStop),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/pause', h.handleSequencerPause),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/resume', h.handleSequencerResume),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/skip', h.handleSequencerSkip),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/skip-to-node',
+          h.handleSequencerSkipToNode),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/plugin-node-finished',
+          h.handleSequencerPluginNodeFinished),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/reset', h.handleSequencerReset),
+      HeadlessRoute(
+          HttpMethod.post, '/api/sequencer/load', h.handleSequencerLoad),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/simulation',
+          h.handleSequencerSetSimulationMode),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/devices',
+          h.handleSequencerSetDevices),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/safety-fail-mode',
+          h.handleSequencerSetSafetyFailMode),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/safety-check-interval',
+          h.handleSequencerSetSafetyCheckInterval),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/save-path',
+          h.handleSequencerSetSavePath),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/active-sequence-run-id',
+          h.handleSequencerSetActiveSequenceRunId),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/decision-logging-enabled',
+          h.handleSequencerSetDecisionLoggingEnabled),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-dither-config',
+          h.handleSequencerUpdateDitherConfig),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-location',
+          h.handleSequencerUpdateLocation),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-filter-offsets',
+          h.handleSequencerUpdateFilterOffsets),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/update-pending-integration-carry-over',
+          h.handleSequencerUpdatePendingIntegrationCarryOver),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/update-autofocus-interval',
+          h.handleSequencerUpdateAutofocusInterval),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/update-default-quality-check',
+          h.handleSequencerUpdateDefaultQualityCheck),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/update-reject-folder-path',
+          h.handleSequencerUpdateRejectFolderPath),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-observer-profile',
+          h.handleSequencerUpdateObserverProfile),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-sky-brightness',
+          h.handleSequencerUpdateSkyBrightness),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/update-default-adaptive-exposure',
+          h.handleSequencerUpdateDefaultAdaptiveExposure),
+      HeadlessRoute(
+          HttpMethod.post,
+          '/api/sequencer/clear-default-adaptive-exposure',
+          h.handleSequencerClearDefaultAdaptiveExposure),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/checkpoint/dir',
+          h.handleSequencerSetCheckpointDir),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/checkpoint/has',
+          h.handleSequencerHasCheckpoint),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/checkpoint/info',
+          h.handleSequencerGetCheckpointInfo),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/checkpoint/resume',
+          h.handleSequencerResumeFromCheckpoint),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/checkpoint/discard',
+          h.handleSequencerDiscardCheckpoint),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/checkpoint/save',
+          h.handleSequencerSaveCheckpoint),
+
+      // Wave 4 Recovery Mode — remote-control endpoints used by the
+      // mobile companion / web dashboard. Wire shape matches
+      // NetworkBackend's recovery POSTs/GETs (see
+      // packages/nightshade_core/.../network_backend.dart).
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/recovery/try-now',
+          h.handleSequencerRecoveryTryNow),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/recovery/abort',
+          h.handleSequencerRecoveryAbort),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/recovery/update-config',
+          h.handleSequencerUpdateRecoveryConfig),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/recovery/current',
+          h.handleSequencerGetCurrentRecovery),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/recovery/history',
+          h.handleSequencerGetRecoveryHistory),
+
+      // Wave 5 Agent 4 — cloud-motion forwarding from a remote controller.
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-cloud-motion',
+          h.handleSequencerUpdateCloudMotion),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/cloud-motion',
+          h.handleSequencerGetCloudMotion),
+      HeadlessRoute(HttpMethod.post, '/api/sequencer/update-conditions-score',
+          h.handleSequencerUpdateConditionsScore),
+      HeadlessRoute(HttpMethod.get, '/api/sequencer/adaptive-swap',
+          h.handleSequencerGetAdaptiveSwap),
+    ];
