@@ -14,7 +14,7 @@ import 'settings_provider.dart';
 /// Production singleton. Tests can override this provider with a fake to
 /// avoid shelling out.
 final diskSpaceServiceProvider = Provider<DiskSpaceService>((ref) {
-  return HostDiskSpaceService(logger: ref.watch(loggingServiceProvider));
+  return DiskSpaceService(logger: ref.watch(loggingServiceProvider));
 });
 
 /// Combines the disk-space service with projection math and watchdog

@@ -360,83 +360,14 @@ class UpdateFailedEvent extends UpdateEvent {
       };
 }
 
-/// Abstract adapter the headless API depends on. The default
-/// implementation, [DefaultUpdateController], wraps a real [UpdateService].
-/// Tests substitute a fake controller that records calls and drives the
-/// [events] stream directly.
-abstract class UpdateController {
-  /// Lifecycle event stream. Replays nothing on subscribe; clients should
-  /// pair this with [status] to discover the current snapshot.
-  Stream<UpdateEvent> get events;
-
-  /// Current snapshot. Cheap synchronous read; the controller maintains
-  /// this in memory and rebuilds on every state transition.
-  UpdateControllerStatus get status;
-
-  /// The running app's version string (e.g. `2.5.0`).
-  String get currentVersion;
-
-  /// The running app's build number.
-  int get currentBuildNumber;
-
-  /// Configured channel (`stable`, `beta`, ...).
-  String get channel;
-
-  /// Configured update-server URL, or null when the server is not set.
-  String? get updateServerUrl;
-
-  /// Persisted moment of the last successful check, or null when no
-  /// check has run during this process lifetime.
-  DateTime? get lastUpdateCheck;
-
-  /// Persisted moment of the last successfully applied update on this
-  /// host, or null. Surfaced by `GET /api/system/version`.
-  DateTime? get lastUpdateApplied;
-
-  /// Check for updates against the configured server. The implementation
-  /// emits a `UpdateAvailable` event if a newer version exists.
-  /// Honours [channelOverride] for one-off `?channel=` query params.
-  Future<UpdateCheckOutcome> checkForUpdates({String? channelOverride});
-
-  /// Download + stage the most recently checked available update.
-  /// [jobId] is the JobManager id so the controller can stamp progress
-  /// events with the same handle the client polls.
-  Future<void> downloadAndStage({required String jobId});
-
-  /// Apply the staged update. On success the host process restarts (the
-  /// returned future MAY never complete because `exit(0)` is called
-  /// before the future resolves). The implementation MUST emit
-  /// `UpdateApplyStarted` before invoking the underlying applier.
-  Future<void> applyStagedUpdate({required String jobId});
-
-  /// Abort an in-flight check / download. Throws [StateError] when there
-  /// is nothing to abort.
-  void abortInFlight();
-
-  /// Return the current staged update, or null when no staged update is
-  /// present (or the marker was corrupted and discarded).
-  Future<StagedUpdateInfo?> stagedUpdate();
-
-  /// Discard any staged update on disk. No-op when nothing is staged.
-  Future<void> discardStaged();
-
-  /// Whether this controller exposes a rollback path. The default
-  /// implementation returns false because `UpdateService` does not (yet)
-  /// provide one; the handler returns 501 in that case.
-  bool get rollbackSupported;
-
-  /// Roll back the last applied update. Implementations that do not
-  /// support rollback throw [UnsupportedError].
-  Future<void> rollback({required String jobId});
-
-  /// Release any resources held by the controller (HTTP client, sockets).
-  Future<void> dispose();
-}
-
-/// Default implementation backed by a real [UpdateService]. The controller
-/// owns the service lifecycle so the bootstrap does not need to track
-/// disposal of two objects.
-class DefaultUpdateController implements UpdateController {
+/// Adapter the headless API depends on. Wraps a real [UpdateService] and
+/// bridges its state-changing methods onto a broadcast stream of typed
+/// [UpdateEvent]s. Tests substitute a fake controller that records calls
+/// and drives the [events] stream directly.
+///
+/// The controller owns the service lifecycle so the bootstrap does not
+/// need to track disposal of two objects.
+class UpdateController {
   final UpdateService _service;
   final String _currentVersion;
   final int _currentBuildNumber;
@@ -463,7 +394,7 @@ class DefaultUpdateController implements UpdateController {
   /// is only verified once).
   UpdateManifest? _lastManifest;
 
-  DefaultUpdateController({
+  UpdateController({
     required UpdateService service,
     required String currentVersion,
     required int currentBuildNumber,
@@ -498,31 +429,37 @@ class DefaultUpdateController implements UpdateController {
     }
   }
 
-  @override
+  /// Lifecycle event stream. Replays nothing on subscribe; clients should
+  /// pair this with [status] to discover the current snapshot.
   Stream<UpdateEvent> get events => _eventsController.stream;
 
-  @override
+  /// Current snapshot. Cheap synchronous read; the controller maintains
+  /// this in memory and rebuilds on every state transition.
   UpdateControllerStatus get status => _status;
 
-  @override
+  /// The running app's version string (e.g. `2.5.0`).
   String get currentVersion => _currentVersion;
 
-  @override
+  /// The running app's build number.
   int get currentBuildNumber => _currentBuildNumber;
 
-  @override
+  /// Configured channel (`stable`, `beta`, ...).
   String get channel => _channel;
 
-  @override
+  /// Configured update-server URL, or null when the server is not set.
   String? get updateServerUrl => _serverUrl;
 
-  @override
+  /// Persisted moment of the last successful check, or null when no
+  /// check has run during this process lifetime.
   DateTime? get lastUpdateCheck => _lastUpdateCheck;
 
-  @override
+  /// Persisted moment of the last successfully applied update on this
+  /// host, or null. Surfaced by `GET /api/system/version`.
   DateTime? get lastUpdateApplied => _lastUpdateApplied;
 
-  @override
+  /// Check for updates against the configured server. Emits a
+  /// `UpdateAvailable` event if a newer version exists. Honours
+  /// [channelOverride] for one-off `?channel=` query params.
   Future<UpdateCheckOutcome> checkForUpdates({String? channelOverride}) async {
     if (channelOverride != null && channelOverride.isNotEmpty) {
       _service.configure(
@@ -597,7 +534,9 @@ class DefaultUpdateController implements UpdateController {
     }
   }
 
-  @override
+  /// Download + stage the most recently checked available update.
+  /// [jobId] is the JobManager id so the controller can stamp progress
+  /// events with the same handle the client polls.
   Future<void> downloadAndStage({required String jobId}) async {
     final manifest = _lastManifest;
     if (manifest == null) {
@@ -684,7 +623,10 @@ class DefaultUpdateController implements UpdateController {
     }
   }
 
-  @override
+  /// Apply the staged update. On success the host process restarts (the
+  /// returned future MAY never complete because `exit(0)` is called
+  /// before the future resolves). Always emits `UpdateApplyStarted`
+  /// before invoking the underlying applier.
   Future<void> applyStagedUpdate({required String jobId}) async {
     final staged = await _service.getStagedUpdate();
     if (staged == null) {
@@ -732,7 +674,8 @@ class DefaultUpdateController implements UpdateController {
     }
   }
 
-  @override
+  /// Abort an in-flight check / download. Throws [StateError] when there
+  /// is nothing to abort.
   void abortInFlight() {
     final inFlight = _status.state == UpdateLifecycleState.checking ||
         _status.state == UpdateLifecycleState.downloading;
@@ -753,7 +696,8 @@ class DefaultUpdateController implements UpdateController {
     ));
   }
 
-  @override
+  /// Return the current staged update, or null when no staged update is
+  /// present (or the marker was corrupted and discarded).
   Future<StagedUpdateInfo?> stagedUpdate() async {
     final staged = await _service.getStagedUpdate();
     if (staged == null) return null;
@@ -807,7 +751,7 @@ class DefaultUpdateController implements UpdateController {
     );
   }
 
-  @override
+  /// Discard any staged update on disk. No-op when nothing is staged.
   Future<void> discardStaged() async {
     await _service.clearStagedUpdate();
     _updateStatus(const UpdateControllerStatus(
@@ -821,10 +765,13 @@ class DefaultUpdateController implements UpdateController {
   // version fails to boot, but there is no manual revert. We surface
   // this honestly so `POST /api/system/update/rollback` returns 501
   // instead of pretending to succeed.
-  @override
+  /// Whether this controller exposes a rollback path. Returns false
+  /// because `UpdateService` does not (yet) provide one; the handler
+  /// returns 501 in that case.
   bool get rollbackSupported => false;
 
-  @override
+  /// Roll back the last applied update. Currently unsupported (throws
+  /// [UnsupportedError]).
   Future<void> rollback({required String jobId}) async {
     throw UnsupportedError(
       'UpdateService does not expose a manual rollback path. The boot '
@@ -834,7 +781,7 @@ class DefaultUpdateController implements UpdateController {
     );
   }
 
-  @override
+  /// Release any resources held by the controller (HTTP client, sockets).
   Future<void> dispose() async {
     await _eventsController.close();
     _service.dispose();

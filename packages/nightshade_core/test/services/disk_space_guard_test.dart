@@ -2,7 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Fake disk service: returns canned [DiskSpaceInfo] (or throws). Test-only —
-/// production code uses [HostDiskSpaceService].
+/// production code uses [DiskSpaceService].
 class _FakeDiskSpaceService implements DiskSpaceService {
   DiskSpaceInfo? _next;
   Object? _error;

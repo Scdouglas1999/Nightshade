@@ -132,6 +132,12 @@ class _FakeUpdateController implements UpdateController {
   Future<void> dispose() async {
     await _events.close();
   }
+
+  // Handlers under test never call `bootstrap`; the real controller hydrates
+  // state from disk here. The fake is configured directly via [setStatus] /
+  // field assignments, so this is a no-op.
+  @override
+  Future<void> bootstrap() async {}
 }
 
 Future<void> _pumpUntil(
