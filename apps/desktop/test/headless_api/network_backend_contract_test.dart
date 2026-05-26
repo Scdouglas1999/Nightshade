@@ -5,12 +5,17 @@ import 'package:nightshade_desktop/headless_api/route_metadata.dart';
 
 void main() {
   group('headless API route contracts', () {
-    test('advertised endpoints match registered API routes', () {
-      final serverSource =
-          File('lib/headless_api_server.dart').readAsStringSync();
+    // Wave 7 follow-up: A-5b's route-table refactor relocated route
+    // registrations from inline `router.<verb>(...)` calls in
+    // `headless_api_server.dart` into per-domain `routes/*.dart` files,
+    // and moved the advertised-endpoint catalog from
+    // `_getAvailableEndpoints()` in the server class to
+    // `availableHeadlessEndpoints()` in `handlers/system_handlers.dart`.
+    // These scanners follow the new locations.
 
-      final registered = _registeredApiRoutes(serverSource);
-      final advertised = _advertisedApiRoutes(serverSource);
+    test('advertised endpoints match registered API routes', () {
+      final registered = _registeredApiRoutes();
+      final advertised = _advertisedApiRoutes();
 
       expect(
         advertised.difference(registered),
@@ -26,13 +31,11 @@ void main() {
     });
 
     test('NetworkBackend call sites map to registered server routes', () {
-      final serverSource =
-          File('lib/headless_api_server.dart').readAsStringSync();
       final clientSource = File(
         '../../packages/nightshade_core/lib/src/backend/network_backend.dart',
       ).readAsStringSync();
 
-      final registered = _registeredApiRoutes(serverSource)
+      final registered = _registeredApiRoutes()
           .where((route) => !route.startsWith('WS '))
           .toSet();
       final clientRoutes = _networkBackendRoutes(clientSource);
@@ -45,9 +48,7 @@ void main() {
     });
 
     test('OpenAPI spec advertises every HTTP route from the route table', () {
-      final serverSource =
-          File('lib/headless_api_server.dart').readAsStringSync();
-      final advertised = _advertisedApiRoutes(serverSource);
+      final advertised = _advertisedApiRoutes();
       final spec = buildOpenApiSpec(routes: advertised.toList(), port: 8080);
       final paths = spec['paths'] as Map<String, dynamic>;
 
@@ -73,8 +74,45 @@ void main() {
   });
 }
 
-Set<String> _registeredApiRoutes(String source) {
-  return RegExp(r"router\.(get|post|put|delete)\(\s*'([^']+)'")
+/// Scan all per-domain route files under `lib/headless_api/routes/` for
+/// `HeadlessRoute(HttpMethod.<verb>, '<path>', ...)` entries, plus the
+/// remaining inline `router.<verb>(...)` calls in `headless_api_server.dart`
+/// (WebSocket upgrade routes still live there because they take a built
+/// `Handler` closure).
+Set<String> _registeredApiRoutes() {
+  final routeFiles = Directory('lib/headless_api/routes')
+      .listSync()
+      .whereType<File>()
+      .where((f) => f.path.endsWith('.dart') && !f.path.endsWith('headless_route.dart'));
+  final allSource = StringBuffer();
+  for (final f in routeFiles) {
+    allSource.writeln(f.readAsStringSync());
+  }
+  allSource.writeln(File('lib/headless_api_server.dart').readAsStringSync());
+  return _scanRegisteredRoutes(allSource.toString());
+}
+
+Set<String> _scanRegisteredRoutes(String source) {
+  final headlessRoutes = RegExp(
+    r"HeadlessRoute\(\s*HttpMethod\.(get|post|put|delete)\s*,\s*'([^']+)'",
+  ).allMatches(source).map((match) {
+    final path = match.group(2)!;
+    // Same WS-route classification rule as the legacy inline-route scanner:
+    // `/api/ws`, `/events`, and `/ws/*` upgrade routes are advertised as
+    // `WS <path>` in `availableHeadlessEndpoints()`, even though shelf_router
+    // registers them as HTTP GET handlers. websocket_routes.dart does this.
+    final isWsRoute =
+        path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
+    // Static-file routes (`/dashboard`, `/broadcast`, `/run-watch`) are
+    // registered but deliberately NOT advertised in the API catalog —
+    // they're operator-facing pages, not endpoints clients call.
+    if (!path.startsWith('/api/') && !isWsRoute) {
+      return null;
+    }
+    final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
+    return '$method ${_normalizeRoute(path)}';
+  }).whereType<String>();
+  final inlineRoutes = RegExp(r"router\.(get|post|put|delete)\(\s*'([^']+)'")
       .allMatches(source)
       .map((match) {
         final path = match.group(2)!;
@@ -90,17 +128,23 @@ Set<String> _registeredApiRoutes(String source) {
         final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
         return '$method ${_normalizeRoute(path)}';
       })
-      .whereType<String>()
-      .toSet();
+      .whereType<String>();
+  return {...headlessRoutes, ...inlineRoutes};
 }
 
-Set<String> _advertisedApiRoutes(String source) {
+Set<String> _advertisedApiRoutes() {
+  // A-5b moved this catalog from `_getAvailableEndpoints()` in
+  // `headless_api_server.dart` to `availableHeadlessEndpoints()` in
+  // `handlers/system_handlers.dart`.
+  final source = File('lib/headless_api/handlers/system_handlers.dart')
+      .readAsStringSync();
   final match = RegExp(
-    r'List<String> _getAvailableEndpoints\(\) \{\s*return \[(.*?)\];\s*\}',
+    r'List<String> availableHeadlessEndpoints\(\) \{\s*return (?:const )?\[(.*?)\];\s*\}',
     dotAll: true,
   ).firstMatch(source);
 
-  expect(match, isNotNull, reason: 'HeadlessApiServer route table not found.');
+  expect(match, isNotNull,
+      reason: 'availableHeadlessEndpoints() not found in system_handlers.dart.');
 
   return RegExp(r"'([^']+)'").allMatches(match!.group(1)!).map((match) {
     final parts = match.group(1)!.split(' ');

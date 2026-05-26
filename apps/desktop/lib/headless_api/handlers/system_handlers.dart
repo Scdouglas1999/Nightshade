@@ -85,6 +85,13 @@ List<String> availableHeadlessEndpoints() {
     // P2-10 — push-based live-view streaming. Listed alongside the pull
     // endpoint so OpenAPI consumers see both options.
     'WS /ws/live-view',
+    // Wave 7A — WebRTC datachannel live-view signalling. Operator
+    // POSTs an SDP offer, server replies with answer; ICE candidates
+    // trickle via POST and an SSE replay channel; DELETE tears down.
+    'POST /api/webrtc/live-view/offer',
+    'POST /api/webrtc/live-view/ice/<sessionId>',
+    'GET /api/webrtc/live-view/ice/<sessionId>/events',
+    'DELETE /api/webrtc/live-view/<sessionId>',
     'POST /api/camera/cooling',
     'GET /api/camera/cooling',
     'GET /api/camera/readout-modes',
@@ -504,6 +511,12 @@ List<String> availableHeadlessEndpoints() {
 
     // P2-8 — Read-only DB endpoints (paginated)
     'GET /api/sequence-runs',
+    // Wave 7B — session replay scrubber: per-run detail + paginated events
+    // + paginated frames. Order in registration matters (specific paths
+    // before catch-all) but the advertised set is unordered.
+    'GET /api/sequence-runs/<runId>',
+    'GET /api/sequence-runs/<runId>/events',
+    'GET /api/sequence-runs/<runId>/frames',
     'GET /api/notes-journal',
     'GET /api/guide-rms-history',
     'GET /api/polar-alignment-history',
