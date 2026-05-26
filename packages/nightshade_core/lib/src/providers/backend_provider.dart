@@ -2,6 +2,10 @@ import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// nightshade_backend.dart re-exports every role interface
+// (DeviceBackend / GuidingBackend / ImagingBackend / SequencerBackend /
+// ProfileSettingsBackend / DiagnosticsBackend) via its `roles/roles.dart`
+// export, so role-typed providers below resolve without explicit imports.
 import '../backend/nightshade_backend.dart';
 import '../backend/ffi_backend.dart';
 import '../backend/disconnected_backend.dart';
@@ -131,6 +135,49 @@ final backendProvider =
 final isRemoteModeProvider = Provider<bool>((ref) {
   final backend = ref.watch(backendProvider);
   return backend is NetworkBackend;
+});
+
+// ---------------------------------------------------------------------------
+// Role-specific providers
+// ---------------------------------------------------------------------------
+// Each role provider exposes the active backend narrowed to the role
+// interface it owns. New consumers SHOULD depend on the smallest role they
+// need so the migration toward per-role consumers can proceed
+// opportunistically without forcing every existing call site to change at
+// once. All role providers `watch` the same [backendProvider] so swapping
+// the underlying backend (FFI <-> Network <-> Disconnected) cascades to
+// every role-typed dependent through the standard Riverpod graph.
+
+/// Device-control slice of the active backend. See [DeviceBackend].
+final deviceBackendProvider = Provider<DeviceBackend>((ref) {
+  return ref.watch(backendProvider);
+});
+
+/// Guiding slice of the active backend. See [GuidingBackend].
+final guidingBackendProvider = Provider<GuidingBackend>((ref) {
+  return ref.watch(backendProvider);
+});
+
+/// Image-processing slice of the active backend. See [ImagingBackend].
+final imagingBackendProvider = Provider<ImagingBackend>((ref) {
+  return ref.watch(backendProvider);
+});
+
+/// Sequencer slice of the active backend. See [SequencerBackend].
+final sequencerBackendProvider = Provider<SequencerBackend>((ref) {
+  return ref.watch(backendProvider);
+});
+
+/// Profiles + persistent-settings slice of the active backend.
+/// See [ProfileSettingsBackend].
+final profileSettingsBackendProvider = Provider<ProfileSettingsBackend>((ref) {
+  return ref.watch(backendProvider);
+});
+
+/// Cross-cutting diagnostics slice (event streams, dispose, plugin dispatch
+/// flag, internet geolocation). See [DiagnosticsBackend].
+final diagnosticsBackendProvider = Provider<DiagnosticsBackend>((ref) {
+  return ref.watch(backendProvider);
 });
 
 /// P2-13: surface the WebSocket-level connection state of the current
