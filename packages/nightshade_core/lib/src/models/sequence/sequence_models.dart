@@ -1,4 +1,5 @@
 import 'package:equatable/equatable.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:uuid/uuid.dart';
 import '../imaging/imaging_models.dart' show FrameType;
 import '../notification/notification_categories.dart'
@@ -8,7 +9,12 @@ import '../meridian_flip_settings.dart'
 export '../meridian_flip_settings.dart'
     show MeridianTriggerMethod, FlipFailureAction;
 import '../../backend/nightshade_backend.dart' show DeviceType;
+// ignore: unused_import
+import '_json_converters.dart';
 import 'instruction_progress_detail.dart';
+
+part 'sequence_models.freezed.dart';
+part 'sequence_models.g.dart';
 
 /// Sequence execution state
 ///
@@ -370,58 +376,23 @@ enum NodeCategory { instruction, trigger, logic, target }
 // =============================================================================
 
 /// Information about a mosaic panel for multi-panel imaging
-class MosaicPanelInfo extends Equatable {
-  final String mosaicName;
-  final int panelIndex;
-  final int totalPanels;
-  final int row;
-  final int column;
+@Freezed(fromJson: true, toJson: true)
+class MosaicPanelInfo with _$MosaicPanelInfo {
+  const MosaicPanelInfo._();
 
-  const MosaicPanelInfo({
-    required this.mosaicName,
-    required this.panelIndex,
-    required this.totalPanels,
-    required this.row,
-    required this.column,
-  });
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory MosaicPanelInfo({
+    required String mosaicName,
+    required int panelIndex,
+    required int totalPanels,
+    required int row,
+    required int column,
+  }) = _MosaicPanelInfo;
 
   String get displayLabel => 'Panel ${panelIndex + 1}/$totalPanels';
 
-  MosaicPanelInfo copyWith({
-    String? mosaicName,
-    int? panelIndex,
-    int? totalPanels,
-    int? row,
-    int? column,
-  }) {
-    return MosaicPanelInfo(
-      mosaicName: mosaicName ?? this.mosaicName,
-      panelIndex: panelIndex ?? this.panelIndex,
-      totalPanels: totalPanels ?? this.totalPanels,
-      row: row ?? this.row,
-      column: column ?? this.column,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'mosaic_name': mosaicName,
-        'panel_index': panelIndex,
-        'total_panels': totalPanels,
-        'row': row,
-        'column': column,
-      };
-
   factory MosaicPanelInfo.fromJson(Map<String, dynamic> json) =>
-      MosaicPanelInfo(
-        mosaicName: json['mosaic_name'] as String,
-        panelIndex: json['panel_index'] as int,
-        totalPanels: json['total_panels'] as int,
-        row: json['row'] as int,
-        column: json['column'] as int,
-      );
-
-  @override
-  List<Object?> get props => [mosaicName, panelIndex, totalPanels, row, column];
+      _$MosaicPanelInfoFromJson(json);
 }
 
 // =============================================================================
