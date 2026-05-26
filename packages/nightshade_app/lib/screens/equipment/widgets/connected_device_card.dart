@@ -1829,7 +1829,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     );
 
     if (result != null && context.mounted) {
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(deviceBackendProvider);
       final rotatorState = ref.read(rotatorStateProvider);
       if (rotatorState.deviceId != null) {
         try {

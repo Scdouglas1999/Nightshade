@@ -372,7 +372,7 @@ final notificationRoutingMatrixProvider = AsyncNotifierProvider<
 /// are forwarded in-place via `updateConfig` to avoid tearing the
 /// router down for every setting toggle.
 final notificationRouterProvider = Provider<NotificationRouter>((ref) {
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(diagnosticsBackendProvider);
   final uiNotifier = ref.read(uiNotificationProvider.notifier);
   final pushService = ref.read(pushNotificationServiceProvider);
 

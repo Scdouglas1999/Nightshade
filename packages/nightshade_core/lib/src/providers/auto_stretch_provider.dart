@@ -47,7 +47,7 @@ final stretchedImageProvider =
   }
 
   // Check if we have raw data available from the backend
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   final cameraDeviceId = ref.read(connectedCameraIdProvider);
 
   if (cameraDeviceId == null) {

@@ -62,7 +62,7 @@ class PlateSolveService {
   ) async {
     try {
       // Use backend's plateSolve - works for both local (FFI) and remote (Network)
-      final backend = _ref.read(backendProvider);
+      final backend = _ref.read(imagingBackendProvider);
       return await backend.plateSolve(
         imagePath: imagePath,
         ra: config.hintRa,

@@ -204,7 +204,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
     _isPolling = true;
     try {
-      final backend = _ref.read(backendProvider);
+      final backend = _ref.read(deviceBackendProvider);
       final status = await backend.getMountStatus(deviceId);
       if (!mounted) return;
 

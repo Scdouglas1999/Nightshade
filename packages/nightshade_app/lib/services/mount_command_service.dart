@@ -18,7 +18,7 @@ class MountCommandService {
 
   DeviceService get _deviceService => _ref.read(deviceServiceProvider);
   MountState? get _mountState => _ref.read(mountStateProvider);
-  NightshadeBackend get _backend => _ref.read(backendProvider);
+  DeviceBackend get _backend => _ref.read(deviceBackendProvider);
 
   /// Returns true if a mount is currently connected.
   bool get isConnected =>

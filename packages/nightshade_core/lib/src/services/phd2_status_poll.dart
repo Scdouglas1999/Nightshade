@@ -1,4 +1,4 @@
-import '../backend/nightshade_backend.dart';
+import '../backend/roles/guiding_backend.dart';
 import '../models/backend/phd2_status.dart';
 
 /// Status returned when the host has no active PHD2 client.
@@ -65,7 +65,7 @@ String resolvePhd2ConnectHost(String host) {
 /// Transient errors (host still launching PHD2, status endpoint not ready)
 /// are retried instead of failing immediately.
 Future<Phd2Status> pollPhd2Connected(
-  NightshadeBackend backend, {
+  GuidingBackend backend, {
   Duration timeout = kPhd2PollTimeout,
   Duration interval = kPhd2PollInterval,
 }) async {
@@ -110,7 +110,7 @@ Future<Phd2Status> pollPhd2Connected(
 
 /// Best-effort status read; returns disconnected when the host has no client.
 Future<Phd2Status> readPhd2StatusOrDisconnected(
-  NightshadeBackend backend,
+  GuidingBackend backend,
 ) async {
   try {
     return await backend.phd2GetStatus();

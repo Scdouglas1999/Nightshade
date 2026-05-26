@@ -239,7 +239,7 @@ class SlewDropdownButton extends ConsumerWidget {
         final rotatorState = ref.read(rotatorStateProvider);
         if (rotatorState.connectionState == DeviceConnectionState.connected &&
             rotatorState.deviceId != null) {
-          final backend = ref.read(backendProvider);
+          final backend = ref.read(deviceBackendProvider);
           await backend.rotatorMoveTo(rotatorState.deviceId!, targetRotation!);
           if (context.mounted) {
             context.showSuccessSnackBar(
