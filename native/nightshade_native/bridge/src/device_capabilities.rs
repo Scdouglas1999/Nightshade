@@ -1197,8 +1197,8 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 /// connection dialog from ever populating for partially-conforming drivers.
 #[cfg(windows)]
 async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
-    use crate::ascom_wrapper::AscomCameraWrapper;
-    use crate::ascom_wrapper_mount::AscomMountWrapper;
+    use crate::ascom_wrapper::camera::AscomCameraWrapper;
+    use crate::ascom_wrapper::mount::AscomMountWrapper;
 
     let parsed = parse_device_id_cached(device_id)?;
     let prog_id = match &parsed.connection_info {

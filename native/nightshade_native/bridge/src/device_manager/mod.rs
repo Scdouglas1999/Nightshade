@@ -327,57 +327,57 @@ pub struct DeviceManager {
     // wrappers directly during connect / query / health-check paths.
     #[cfg(windows)]
     pub(crate) ascom_cameras:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::AscomCameraWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::camera::AscomCameraWrapper>>>>,
 
     /// Active ASCOM mount wrappers
     #[cfg(windows)]
     pub(crate) ascom_mounts:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_mount::AscomMountWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::mount::AscomMountWrapper>>>>,
 
     /// Active ASCOM focuser wrappers
     #[cfg(windows)]
     pub(crate) ascom_focusers:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_focuser::AscomFocuserWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::focuser::AscomFocuserWrapper>>>>,
 
     /// Active ASCOM filter wheel wrappers
     #[cfg(windows)]
     pub(crate) ascom_filter_wheels: RwLock<
-        HashMap<String, Arc<RwLock<crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper>>>,
+        HashMap<String, Arc<RwLock<crate::ascom_wrapper::filterwheel::AscomFilterWheelWrapper>>>,
     >,
 
     /// Active ASCOM rotator wrappers
     #[cfg(windows)]
     pub(crate) ascom_rotators:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_rotator::AscomRotatorWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::rotator::AscomRotatorWrapper>>>>,
 
     /// Active ASCOM dome wrappers
     #[cfg(windows)]
     pub(crate) ascom_domes:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_dome::AscomDomeWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::dome::AscomDomeWrapper>>>>,
 
     /// Active ASCOM weather wrappers
     #[cfg(windows)]
     pub(crate) ascom_weather: RwLock<
-        HashMap<String, Arc<RwLock<crate::ascom_wrapper_weather::AscomObservingConditionsWrapper>>>,
+        HashMap<String, Arc<RwLock<crate::ascom_wrapper::weather::AscomObservingConditionsWrapper>>>,
     >,
 
     /// Active ASCOM safety monitor wrappers
     #[cfg(windows)]
     pub(crate) ascom_safety_monitors: RwLock<
-        HashMap<String, Arc<RwLock<crate::ascom_wrapper_safetymonitor::AscomSafetyMonitorWrapper>>>,
+        HashMap<String, Arc<RwLock<crate::ascom_wrapper::safetymonitor::AscomSafetyMonitorWrapper>>>,
     >,
 
     /// Active ASCOM switch wrappers
     #[cfg(windows)]
     pub(crate) ascom_switches:
-        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper_switch::AscomSwitchWrapper>>>>,
+        RwLock<HashMap<String, Arc<RwLock<crate::ascom_wrapper::switch::AscomSwitchWrapper>>>>,
 
     /// Active ASCOM cover calibrator wrappers
     #[cfg(windows)]
     pub(crate) ascom_cover_calibrators: RwLock<
         HashMap<
             String,
-            Arc<RwLock<crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper>>,
+            Arc<RwLock<crate::ascom_wrapper::covercalibrator::AscomCoverCalibratorWrapper>>,
         >,
     >,
 
@@ -783,7 +783,7 @@ impl DeviceManager {
 mod tests {
     use super::*;
     #[cfg(windows)]
-    use crate::ascom_wrapper_mount::test_support::{build_test_mount_wrapper, TestMountResponses};
+    use crate::ascom_wrapper::mount::test_support::{build_test_mount_wrapper, TestMountResponses};
     use crate::state::AppState;
     use std::collections::HashMap;
     use std::sync::Arc;

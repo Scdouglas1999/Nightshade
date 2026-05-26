@@ -49,24 +49,6 @@ pub mod adaptive_polling;
 mod api;
 #[cfg(windows)]
 mod ascom_wrapper;
-#[cfg(windows)]
-mod ascom_wrapper_covercalibrator;
-#[cfg(windows)]
-mod ascom_wrapper_dome;
-#[cfg(windows)]
-mod ascom_wrapper_filterwheel;
-#[cfg(windows)]
-mod ascom_wrapper_focuser;
-#[cfg(windows)]
-mod ascom_wrapper_mount;
-#[cfg(windows)]
-mod ascom_wrapper_rotator;
-#[cfg(windows)]
-mod ascom_wrapper_safetymonitor;
-#[cfg(windows)]
-mod ascom_wrapper_switch;
-#[cfg(windows)]
-mod ascom_wrapper_weather;
 mod builtin_guider;
 mod device;
 mod device_capabilities;
