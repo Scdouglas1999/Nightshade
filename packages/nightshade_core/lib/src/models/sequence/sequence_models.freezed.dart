@@ -470,6 +470,272 @@ abstract class _SequenceOverheadConfig implements SequenceOverheadConfig {
       get copyWith => throw _privateConstructorUsedError;
 }
 
+/// @nodoc
+mixin _$SequenceEstimate {
+  /// Estimated total integration time in seconds (pure shutter-open time)
+  double get estimatedSecs => throw _privateConstructorUsedError;
+
+  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
+  double get overheadSecs => throw _privateConstructorUsedError;
+
+  /// Time for a single iteration (useful for unbounded loops)
+  double get singleIterationSecs => throw _privateConstructorUsedError;
+
+  /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
+  bool get isUnbounded => throw _privateConstructorUsedError;
+
+  /// For untilTime loops, the target end time
+  DateTime? get untilTime => throw _privateConstructorUsedError;
+
+  /// For unbounded loops, the condition type
+  LoopConditionType? get conditionType => throw _privateConstructorUsedError;
+
+  @JsonKey(ignore: true)
+  $SequenceEstimateCopyWith<SequenceEstimate> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SequenceEstimateCopyWith<$Res> {
+  factory $SequenceEstimateCopyWith(
+          SequenceEstimate value, $Res Function(SequenceEstimate) then) =
+      _$SequenceEstimateCopyWithImpl<$Res, SequenceEstimate>;
+  @useResult
+  $Res call(
+      {double estimatedSecs,
+      double overheadSecs,
+      double singleIterationSecs,
+      bool isUnbounded,
+      DateTime? untilTime,
+      LoopConditionType? conditionType});
+}
+
+/// @nodoc
+class _$SequenceEstimateCopyWithImpl<$Res, $Val extends SequenceEstimate>
+    implements $SequenceEstimateCopyWith<$Res> {
+  _$SequenceEstimateCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? estimatedSecs = null,
+    Object? overheadSecs = null,
+    Object? singleIterationSecs = null,
+    Object? isUnbounded = null,
+    Object? untilTime = freezed,
+    Object? conditionType = freezed,
+  }) {
+    return _then(_value.copyWith(
+      estimatedSecs: null == estimatedSecs
+          ? _value.estimatedSecs
+          : estimatedSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      overheadSecs: null == overheadSecs
+          ? _value.overheadSecs
+          : overheadSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      singleIterationSecs: null == singleIterationSecs
+          ? _value.singleIterationSecs
+          : singleIterationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      isUnbounded: null == isUnbounded
+          ? _value.isUnbounded
+          : isUnbounded // ignore: cast_nullable_to_non_nullable
+              as bool,
+      untilTime: freezed == untilTime
+          ? _value.untilTime
+          : untilTime // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      conditionType: freezed == conditionType
+          ? _value.conditionType
+          : conditionType // ignore: cast_nullable_to_non_nullable
+              as LoopConditionType?,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$SequenceEstimateImplCopyWith<$Res>
+    implements $SequenceEstimateCopyWith<$Res> {
+  factory _$$SequenceEstimateImplCopyWith(_$SequenceEstimateImpl value,
+          $Res Function(_$SequenceEstimateImpl) then) =
+      __$$SequenceEstimateImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double estimatedSecs,
+      double overheadSecs,
+      double singleIterationSecs,
+      bool isUnbounded,
+      DateTime? untilTime,
+      LoopConditionType? conditionType});
+}
+
+/// @nodoc
+class __$$SequenceEstimateImplCopyWithImpl<$Res>
+    extends _$SequenceEstimateCopyWithImpl<$Res, _$SequenceEstimateImpl>
+    implements _$$SequenceEstimateImplCopyWith<$Res> {
+  __$$SequenceEstimateImplCopyWithImpl(_$SequenceEstimateImpl _value,
+      $Res Function(_$SequenceEstimateImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? estimatedSecs = null,
+    Object? overheadSecs = null,
+    Object? singleIterationSecs = null,
+    Object? isUnbounded = null,
+    Object? untilTime = freezed,
+    Object? conditionType = freezed,
+  }) {
+    return _then(_$SequenceEstimateImpl(
+      estimatedSecs: null == estimatedSecs
+          ? _value.estimatedSecs
+          : estimatedSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      overheadSecs: null == overheadSecs
+          ? _value.overheadSecs
+          : overheadSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      singleIterationSecs: null == singleIterationSecs
+          ? _value.singleIterationSecs
+          : singleIterationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      isUnbounded: null == isUnbounded
+          ? _value.isUnbounded
+          : isUnbounded // ignore: cast_nullable_to_non_nullable
+              as bool,
+      untilTime: freezed == untilTime
+          ? _value.untilTime
+          : untilTime // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      conditionType: freezed == conditionType
+          ? _value.conditionType
+          : conditionType // ignore: cast_nullable_to_non_nullable
+              as LoopConditionType?,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$SequenceEstimateImpl extends _SequenceEstimate {
+  const _$SequenceEstimateImpl(
+      {required this.estimatedSecs,
+      this.overheadSecs = 0.0,
+      required this.singleIterationSecs,
+      required this.isUnbounded,
+      this.untilTime,
+      this.conditionType})
+      : super._();
+
+  /// Estimated total integration time in seconds (pure shutter-open time)
+  @override
+  final double estimatedSecs;
+
+  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
+  @override
+  @JsonKey()
+  final double overheadSecs;
+
+  /// Time for a single iteration (useful for unbounded loops)
+  @override
+  final double singleIterationSecs;
+
+  /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
+  @override
+  final bool isUnbounded;
+
+  /// For untilTime loops, the target end time
+  @override
+  final DateTime? untilTime;
+
+  /// For unbounded loops, the condition type
+  @override
+  final LoopConditionType? conditionType;
+
+  @override
+  String toString() {
+    return 'SequenceEstimate(estimatedSecs: $estimatedSecs, overheadSecs: $overheadSecs, singleIterationSecs: $singleIterationSecs, isUnbounded: $isUnbounded, untilTime: $untilTime, conditionType: $conditionType)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequenceEstimateImpl &&
+            (identical(other.estimatedSecs, estimatedSecs) ||
+                other.estimatedSecs == estimatedSecs) &&
+            (identical(other.overheadSecs, overheadSecs) ||
+                other.overheadSecs == overheadSecs) &&
+            (identical(other.singleIterationSecs, singleIterationSecs) ||
+                other.singleIterationSecs == singleIterationSecs) &&
+            (identical(other.isUnbounded, isUnbounded) ||
+                other.isUnbounded == isUnbounded) &&
+            (identical(other.untilTime, untilTime) ||
+                other.untilTime == untilTime) &&
+            (identical(other.conditionType, conditionType) ||
+                other.conditionType == conditionType));
+  }
+
+  @override
+  int get hashCode => Object.hash(runtimeType, estimatedSecs, overheadSecs,
+      singleIterationSecs, isUnbounded, untilTime, conditionType);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequenceEstimateImplCopyWith<_$SequenceEstimateImpl> get copyWith =>
+      __$$SequenceEstimateImplCopyWithImpl<_$SequenceEstimateImpl>(
+          this, _$identity);
+}
+
+abstract class _SequenceEstimate extends SequenceEstimate {
+  const factory _SequenceEstimate(
+      {required final double estimatedSecs,
+      final double overheadSecs,
+      required final double singleIterationSecs,
+      required final bool isUnbounded,
+      final DateTime? untilTime,
+      final LoopConditionType? conditionType}) = _$SequenceEstimateImpl;
+  const _SequenceEstimate._() : super._();
+
+  @override
+
+  /// Estimated total integration time in seconds (pure shutter-open time)
+  double get estimatedSecs;
+  @override
+
+  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
+  double get overheadSecs;
+  @override
+
+  /// Time for a single iteration (useful for unbounded loops)
+  double get singleIterationSecs;
+  @override
+
+  /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
+  bool get isUnbounded;
+  @override
+
+  /// For untilTime loops, the target end time
+  DateTime? get untilTime;
+  @override
+
+  /// For unbounded loops, the condition type
+  LoopConditionType? get conditionType;
+  @override
+  @JsonKey(ignore: true)
+  _$$SequenceEstimateImplCopyWith<_$SequenceEstimateImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 MosaicPanelInfo _$MosaicPanelInfoFromJson(Map<String, dynamic> json) {
   return _MosaicPanelInfo.fromJson(json);
 }

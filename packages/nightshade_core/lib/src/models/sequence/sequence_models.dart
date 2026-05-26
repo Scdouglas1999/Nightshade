@@ -119,33 +119,29 @@ class SequenceOverheadConfig with _$SequenceOverheadConfig {
 }
 
 /// Result of sequence integration time estimation
-class SequenceEstimate extends Equatable {
-  /// Estimated total integration time in seconds (pure shutter-open time)
-  final double estimatedSecs;
+@freezed
+class SequenceEstimate with _$SequenceEstimate {
+  const SequenceEstimate._();
 
-  /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
-  final double overheadSecs;
+  const factory SequenceEstimate({
+    /// Estimated total integration time in seconds (pure shutter-open time)
+    required double estimatedSecs,
 
-  /// Time for a single iteration (useful for unbounded loops)
-  final double singleIterationSecs;
+    /// Estimated total overhead time in seconds (slews, AF, dithers, etc.)
+    @Default(0.0) double overheadSecs,
 
-  /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
-  final bool isUnbounded;
+    /// Time for a single iteration (useful for unbounded loops)
+    required double singleIterationSecs,
 
-  /// For untilTime loops, the target end time
-  final DateTime? untilTime;
+    /// Whether the sequence contains unbounded loops (forever, whileDark, etc.)
+    required bool isUnbounded,
 
-  /// For unbounded loops, the condition type
-  final LoopConditionType? conditionType;
+    /// For untilTime loops, the target end time
+    DateTime? untilTime,
 
-  const SequenceEstimate({
-    required this.estimatedSecs,
-    this.overheadSecs = 0,
-    required this.singleIterationSecs,
-    required this.isUnbounded,
-    this.untilTime,
-    this.conditionType,
-  });
+    /// For unbounded loops, the condition type
+    LoopConditionType? conditionType,
+  }) = _SequenceEstimate;
 
   /// Total estimated wall-clock time (integration + overhead)
   double get totalEstimatedSecs => estimatedSecs + overheadSecs;
@@ -182,16 +178,6 @@ class SequenceEstimate extends Equatable {
     }
     return 'Integration: $integrationStr | Est. total: $totalStr';
   }
-
-  @override
-  List<Object?> get props => [
-        estimatedSecs,
-        overheadSecs,
-        singleIterationSecs,
-        isUnbounded,
-        untilTime,
-        conditionType,
-      ];
 }
 
 /// Conditional check type
