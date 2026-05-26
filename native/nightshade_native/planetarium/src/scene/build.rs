@@ -1,6 +1,7 @@
 //! Render-thread [`Scene`](crate::renderer::Scene) assembly from catalog + view state.
 
 use crate::animation::AnimationState;
+use crate::astrometry::frames::radec_from_icrs_dir;
 use crate::catalog::healpix::{angular_separation_rad, pixel_center_radec, HealpixError};
 use crate::catalog::CatalogSet;
 use crate::catalog::ParsedDsoCatalog;
@@ -112,14 +113,4 @@ pub fn star_instance_from_record(star: &crate::catalog::StarRecord) -> StarInsta
         bv: star.bv,
         flags: star.flags,
     }
-}
-
-#[inline]
-fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
-    let x = f64::from(dir[0]);
-    let y = f64::from(dir[1]);
-    let z = f64::from(dir[2]);
-    let dec_rad = z.clamp(-1.0, 1.0).asin();
-    let ra_rad = y.atan2(x);
-    (ra_rad, dec_rad)
 }
