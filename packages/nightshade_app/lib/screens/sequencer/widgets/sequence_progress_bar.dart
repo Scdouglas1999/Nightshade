@@ -10,7 +10,7 @@ class SequenceProgressBar extends ConsumerStatefulWidget {
   const SequenceProgressBar({super.key, required this.colors});
 
   @override
-  ConsumerState<SequenceProgressBar> createState() => _SequenceProgressBarState();
+  ConsumerState<SequenceProgressBar> createState() => SequenceProgressBarState();
 }
 
 /// Static alpha value used to tint the progress bar background when the
@@ -19,9 +19,17 @@ class SequenceProgressBar extends ConsumerStatefulWidget {
 /// warning-tinted background instead of a strobing primary-tinted one.
 const double _kPausedBackgroundAlpha = 0.06;
 
-class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
+class SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
+
+  /// Test-only accessor for the background-pulse `AnimationController`.
+  ///
+  /// Exposed so widget tests can assert pause/resume behaviour without
+  /// having to walk the subtree's `AnimatedBuilder`s (which now collide
+  /// with framework-internal AnimatedBuilders backed by `ValueNotifier`).
+  @visibleForTesting
+  AnimationController get debugPulseControllerForTesting => _pulseController;
 
   @override
   void initState() {

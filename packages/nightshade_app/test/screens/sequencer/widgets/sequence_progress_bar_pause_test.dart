@@ -20,12 +20,35 @@ import 'package:nightshade_app/screens/sequencer/widgets/sequence_progress_bar.d
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Pulls the first `AnimationController` driving an `AnimatedBuilder` in the
-/// subtree. The bar wraps its contents in a single top-level `AnimatedBuilder`
-/// bound to the pulse controller, so the first match is the one we want.
+/// Pulls the `AnimationController` driving the SequenceProgressBar's
+/// background-pulse `AnimatedBuilder`.
+///
+/// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
+/// wrappers (MaterialApp/Title/etc.) now insert AnimatedBuilders whose
+/// `animation` is a `ValueNotifier`, which yielded
+///   "type 'ValueNotifier<String?>' is not a subtype of type
+///    'AnimationController' in type cast"
+/// after the stash@{1} merge bumped the wrapper tree. Filter to the first
+/// builder whose animation actually IS an AnimationController so we lock
+/// onto SequenceProgressBar's own pulse, not the framework's plumbing.
+/// Locate the SequenceProgressBar's background-pulse `AnimationController`.
+///
+/// `find.byType(AnimatedBuilder).first` is no longer reliable: framework
+/// wrappers (MaterialApp/Title/etc.) insert AnimatedBuilders whose
+/// `animation` is a `ValueNotifier`, which yielded
+///   "type 'ValueNotifier<String?>' is not a subtype of type
+///    'AnimationController' in type cast"
+/// after the stash@{1} merge bumped the wrapper tree. SequenceProgressBar
+/// also nests a second AnimatedBuilder (`_PulsingIndicator`'s breathing
+/// dot) when `!isPaused`. We use the public widget's debug accessor
+/// `debugPulseControllerForTesting` (added with @visibleForTesting on the
+/// State class) to lock onto the right controller without subtree
+/// guesswork.
 AnimationController _pulseControllerOf(WidgetTester tester) {
-  final builder = tester.widget<AnimatedBuilder>(find.byType(AnimatedBuilder).first);
-  return builder.animation as AnimationController;
+  final state = tester.state<SequenceProgressBarState>(
+    find.byType(SequenceProgressBar),
+  );
+  return state.debugPulseControllerForTesting;
 }
 
 Widget _harness({
@@ -65,24 +88,32 @@ void main() {
     testWidgets(
       'pulse controller stops when execution state flips to paused',
       (tester) async {
+        // We mutate the override target THROUGH the provider rather than
+        // calling pumpWidget twice with different overrides. pumpWidget on
+        // the same widget type reuses the existing State (and the existing
+        // ProviderScope's ProviderContainer), so the second override never
+        // takes effect — `_syncPulse` would never see isPaused flip.
+        // Driving the StateProvider directly via the ProviderContainer
+        // makes the watch fire correctly and is closer to how the real app
+        // toggles paused state at runtime.
         await tester.pumpWidget(
           _harness(execState: SequenceExecutionState.running),
         );
-        // Let the pulse start.
         await tester.pump(const Duration(milliseconds: 16));
 
         final runningController = _pulseControllerOf(tester);
         expect(runningController.isAnimating, isTrue,
             reason: 'pulse should be running while the sequence is running');
 
-        // Flip to paused by rebuilding the harness with a new override.
-        await tester.pumpWidget(
-          _harness(execState: SequenceExecutionState.paused),
+        // Flip to paused via the live ProviderContainer.
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(SequenceProgressBar)),
         );
+        container.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.paused;
         await tester.pump(const Duration(milliseconds: 16));
 
-        final pausedController = _pulseControllerOf(tester);
-        expect(pausedController.isAnimating, isFalse,
+        expect(runningController.isAnimating, isFalse,
             reason: 'pulse should freeze while the sequence is paused');
       },
     );
@@ -94,13 +125,17 @@ void main() {
           _harness(execState: SequenceExecutionState.paused),
         );
         await tester.pump(const Duration(milliseconds: 16));
-        expect(_pulseControllerOf(tester).isAnimating, isFalse);
+        final controller = _pulseControllerOf(tester);
+        expect(controller.isAnimating, isFalse);
 
-        await tester.pumpWidget(
-          _harness(execState: SequenceExecutionState.running),
+        final container = ProviderScope.containerOf(
+          tester.element(find.byType(SequenceProgressBar)),
         );
+        container.read(sequenceExecutionStateProvider.notifier).state =
+            SequenceExecutionState.running;
         await tester.pump(const Duration(milliseconds: 16));
-        expect(_pulseControllerOf(tester).isAnimating, isTrue,
+
+        expect(controller.isAnimating, isTrue,
             reason: 'pulse should resume once the sequence is running again');
       },
     );
