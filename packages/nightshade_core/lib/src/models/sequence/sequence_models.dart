@@ -3856,16 +3856,18 @@ class FilterPlan with _$FilterPlan {
   double get integrationSecs => count * durationSecs;
 }
 
-// Note: the `_sentinel` constant declared earlier in this file (above
-// `LoopNode`) is reused here by `FilterPlan.copyWith` so callers can pass
-// an explicit `null` to clear a nullable field without colliding with the
-// "no-argument" default.
+// PHASE-2-NOTE: After the FilterPlan freezed conversion the `_sentinel`
+// constant declared above `LoopNode` is only consumed by SequenceNode
+// subclasses (TargetHeaderNode, TargetSchedulerNode,
+// SciencePhotometryNode). Those classes are out of scope for Phase 2;
+// the sentinel stays put until the SequenceNode batch lands.
 
 /// Map [BinningMode] to the PascalCase string Rust's serde expects.
-/// Kept private and local because the rest of the file uses sequence
-/// _executor's binning string helper; here we need the same mapping for
-/// `FilterPlan.toJson` without dragging the executor's private helper into
-/// the models layer.
+/// Kept private and local: SciencePhotometryNode and SmartExposureNode
+/// (SequenceNode subclasses — out of scope for Phase 2) still call into
+/// these helpers directly because their freezed conversion is deferred.
+/// New non-SequenceNode classes should use [BinningModeJsonConverter]
+/// from `_json_converters.dart` instead — `FilterPlan` does.
 String _binningModeToRustString(BinningMode mode) {
   switch (mode) {
     case BinningMode.one:
