@@ -117,6 +117,7 @@ mod tests {
     async fn live_stacking_arms_broadcast_session_and_returns_success() {
         // Sanity: a default-configured LiveStacking node arms the
         // broadcast service and returns Success without doing any I/O.
+        let _broadcast_guard = crate::broadcast::test_lock();
         crate::broadcast::deactivate();
         let mut ctx = ExecutionContext::new("ls-1".to_string());
         let cfg = LiveStackingConfig {
@@ -145,6 +146,7 @@ mod tests {
     #[tokio::test]
     async fn live_stacking_replaces_previous_active_session() {
         // Two LiveStacking nodes in one sequence: the second wins.
+        let _broadcast_guard = crate::broadcast::test_lock();
         crate::broadcast::deactivate();
         let mut ctx = ExecutionContext::new("ls-1".to_string());
 

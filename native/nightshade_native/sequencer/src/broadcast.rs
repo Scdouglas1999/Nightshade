@@ -99,12 +99,28 @@ pub fn deactivate() -> Option<BroadcastSession> {
     slot().lock().take()
 }
 
+/// Process-wide serialization for tests that touch the broadcast slot.
+///
+/// The slot is a single global; concurrent tests in `cargo test` interleave
+/// `activate`/`current`/`deactivate` and trip each other's assertions
+/// (e.g. test A's `current()` sees test B's session id). Every broadcast-
+/// touching test in this crate takes this guard at function entry.
+///
+/// Test-only — production callers do not need it because the bridge only
+/// drives broadcast lifecycle from a single sequence executor task.
+#[cfg(test)]
+pub(crate) fn test_lock() -> std::sync::MutexGuard<'static, ()> {
+    static LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    LOCK.lock().unwrap_or_else(|poisoned| poisoned.into_inner())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
     fn activate_then_current_then_deactivate() {
+        let _guard = test_lock();
         deactivate();
         let session = BroadcastSession::from_config(
             "node-1",
@@ -125,6 +141,7 @@ mod tests {
 
     #[test]
     fn activate_returns_previous_session_for_replacement_warning() {
+        let _guard = test_lock();
         deactivate();
         activate(BroadcastSession::from_config(
             "node-A",
