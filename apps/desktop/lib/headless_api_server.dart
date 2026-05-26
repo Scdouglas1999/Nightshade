@@ -298,6 +298,12 @@ class HeadlessApiServer {
   late final LiveViewStreamHandlers _liveViewStreamHandlers;
   late final LiveViewStreamHub _liveViewStreamHub;
 
+  // Wave 7A — WebRTC datachannel fan-out for the same producer. Sessions
+  // attach to [_liveViewStreamHub] via its public attachRaw entry point
+  // so we do NOT duplicate the JPEG-encode pipeline; the WebRTC handler
+  // is just a parallel transport for the existing frames.
+  late final WebRtcLiveViewHandlers _webRtcLiveViewHandlers;
+
   // P1-2 / P1-3 — long-running job model handlers.
   late final JobHandlers _jobHandlers;
 
@@ -594,6 +600,15 @@ class HeadlessApiServer {
       hub: _liveViewStreamHub,
     );
 
+    // Wave 7A — WebRTC live-view fan-out. Each session attaches to the
+    // SAME hub via attachRaw with a custom sink that pushes binary
+    // frames into an outbound RTCDataChannel. No re-encode, no second
+    // producer loop.
+    _webRtcLiveViewHandlers = WebRtcLiveViewHandlers(
+      container: container,
+      hub: _liveViewStreamHub,
+    );
+
     // P1-14 — remote log retrieval/tail for mobile operators on
     // headless deployments (Pi/embedded). The handler is stateless
     // beyond what's in the LoggingService it reads from the container.
@@ -702,6 +717,10 @@ class HeadlessApiServer {
       ..addAll(buildCatalogRoutes(_catalogHandlers))
       ..addAll(buildDbReadRoutes(_dbReadHandlers))
       ..addAll(buildPluginRoutes(_pluginHandlers))
+      // Wave 7A — WebRTC live-view signalling. Must register before
+      // the static-file catch-all so `/api/webrtc/live-view/*` is not
+      // shadowed by the SPA fallback.
+      ..addAll(buildWebRtcLiveViewRoutes(_webRtcLiveViewHandlers))
       ..addAll(buildStaticFileRoutes(_staticFileHandlers));
 
     // WebSocket-upgrade endpoints. Why these are NOT in
@@ -1220,6 +1239,10 @@ class HeadlessApiServer {
     if (ctrl != null && !ctrl.isClosed) {
       await ctrl.close();
     }
+    // Wave 7A: tear down WebRTC sessions BEFORE the hub so any pending
+    // datachannel send during the hub's final detach iteration does
+    // not race with libwebrtc's close path.
+    await _webRtcLiveViewHandlers.dispose();
     // P2-10: tear down the live-view hub before the HTTP server so any
     // in-flight producer tick observes the disposal flag and stops
     // touching the backend.

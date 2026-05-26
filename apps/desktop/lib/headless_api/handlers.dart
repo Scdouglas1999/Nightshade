@@ -45,6 +45,9 @@ export 'handlers/run_watch_handlers.dart';
 // P2-10 — push-based live-view streaming over WebSocket
 export 'handlers/live_view_stream_handlers.dart';
 
+// Wave 7A — WebRTC datachannel fan-out for the same live-view producer
+export 'handlers/webrtc_live_view_handlers.dart';
+
 // Wave 7 Agent 2 — live-stacking broadcast for EAA / outreach
 export 'handlers/broadcast_handlers.dart';
 

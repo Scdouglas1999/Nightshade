@@ -50,4 +50,5 @@ export 'routes/target_routes.dart';
 export 'routes/transient_routes.dart';
 export 'routes/update_routes.dart';
 export 'routes/weather_routes.dart';
+export 'routes/webrtc_live_view_routes.dart';
 export 'routes/websocket_routes.dart';

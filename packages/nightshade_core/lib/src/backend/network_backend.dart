@@ -5,6 +5,7 @@ import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
@@ -5917,6 +5918,48 @@ class NetworkBackend implements NightshadeBackend {
     return RemotePage.fromJson(response, RemoteDbFlatHistoryRow.fromJson);
   }
 
+  // Wave 7B replay scrubber — per-run endpoints.
+  Future<RemoteSequenceRunDetail> fetchSequenceRunById(int runId) async {
+    final response = await _get('sequence-runs/$runId');
+    final run = response['run'];
+    if (run is! Map) {
+      throw StateError(
+          'Malformed /sequence-runs/$runId response: missing run object');
+    }
+    return RemoteSequenceRunDetail.fromJson(run.cast<String, dynamic>());
+  }
+
+  Future<RemoteReplayEventsPage> fetchSequenceRunEvents(
+    int runId, {
+    int? sinceMs,
+    int? untilMs,
+    String? severityMin,
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final response = await _get('sequence-runs/$runId/events', {
+      if (sinceMs != null) 'since': sinceMs.toString(),
+      if (untilMs != null) 'until': untilMs.toString(),
+      if (severityMin != null && severityMin.isNotEmpty)
+        'severityMin': severityMin,
+      'limit': limit.toString(),
+      'offset': offset.toString(),
+    });
+    return RemoteReplayEventsPage.fromJson(response);
+  }
+
+  Future<RemotePage<RemoteReplayFrame>> fetchSequenceRunFrames(
+    int runId, {
+    int limit = 200,
+    int offset = 0,
+  }) async {
+    final response = await _get('sequence-runs/$runId/frames', {
+      'limit': limit.toString(),
+      'offset': offset.toString(),
+    });
+    return RemotePage.fromJson(response, RemoteReplayFrame.fromJson);
+  }
+
   // =========================================================================
   // P2-11 — plugin management. Methods live on NetworkBackend because the
   // FfiBackend manages plugins directly via PluginHost; the network path
@@ -6426,7 +6469,677 @@ class NetworkBackend implements NightshadeBackend {
     };
     return controller.stream;
   }
+
+  // [Wave 7A WebRTC live-view] — parallel transport that publishes the
+  // SAME server-side JPEG frames over an RTCDataChannel. The server-
+  // side fan-out lives in
+  // `apps/desktop/lib/headless_api/handlers/webrtc_live_view_handlers.dart`.
+  //
+  // The signalling channel is plain HTTP (POST offer / POST ICE / GET
+  // SSE answer-ICE / DELETE), so even when the dashboard's main WS is
+  // down the SDP exchange can complete. The data plane is a single
+  // RTCDataChannel labelled `live-view-frames` carrying:
+  //   * String messages: JSON frame_meta envelopes (identical wire
+  //     format to the WS path).
+  //   * Binary messages: the JPEG bytes paired with the most recent
+  //     envelope.
+  //
+  // The returned stream emits one [LiveViewFrame] per server push. On
+  // cancellation we DELETE the session and close the RTCPeerConnection;
+  // on ICE/connection failure we emit an error and tear down — no
+  // silent fallback. Callers wanting graceful degradation should use
+  // [subscribeLiveViewAuto].
+  Stream<LiveViewFrame> subscribeLiveViewWebRtc({
+    required String deviceId,
+    List<Map<String, Object?>>? iceServers,
+  }) {
+    if (deviceId.isEmpty) {
+      return Stream<LiveViewFrame>.error(
+        ArgumentError.value(deviceId, 'deviceId', 'must not be empty'),
+      );
+    }
+    final controller = StreamController<LiveViewFrame>();
+    _WebRtcLiveViewSubscription? sub;
+    var closed = false;
+
+    Future<void> open() async {
+      try {
+        sub = await _WebRtcLiveViewSubscription.start(
+          backend: this,
+          deviceId: deviceId,
+          iceServers: iceServers,
+          onFrame: (frame) {
+            if (closed || controller.isClosed) return;
+            controller.add(frame);
+          },
+          onError: (Object e) {
+            if (closed || controller.isClosed) return;
+            controller.addError(e);
+            controller.close();
+          },
+          onDone: () {
+            if (closed || controller.isClosed) return;
+            controller.close();
+          },
+        );
+      } catch (e) {
+        if (!controller.isClosed) {
+          controller.addError(e);
+          await controller.close();
+        }
+      }
+    }
+
+    controller.onListen = () => unawaited(open());
+    controller.onCancel = () async {
+      closed = true;
+      await sub?.dispose();
+      sub = null;
+    };
+    return controller.stream;
+  }
+
+  /// Wave 7A — caller-friendly auto-select. Tries [subscribeLiveViewWebRtc]
+  /// first; if it errors out before the first frame arrives within
+  /// [webRtcFirstFrameTimeout] (default 10 s), the WebRTC stream is
+  /// torn down and we fall through to [subscribeLiveView] (the legacy
+  /// WS path). Once a WebRTC frame has been delivered, this method never
+  /// silently downgrades — a subsequent failure surfaces as a stream
+  /// error so the UI can tell the difference between "server doesn't
+  /// support WebRTC" and "session crashed mid-stream".
+  ///
+  /// [onFallback] (optional) receives a single-line note when the auto
+  /// path falls back. The note is also written to `dart:developer.log`
+  /// at level 800 so it shows up in flutter logs without requiring the
+  /// caller to plumb a logger.
+  Stream<LiveViewFrame> subscribeLiveViewAuto({
+    required String deviceId,
+    int maxDim = 1024,
+    double maxFps = 2.0,
+    int jpegQuality = 70,
+    LiveViewRegion? region,
+    List<Map<String, Object?>>? iceServers,
+    Duration webRtcFirstFrameTimeout = const Duration(seconds: 10),
+    void Function(String message)? onFallback,
+  }) {
+    if (deviceId.isEmpty) {
+      return Stream<LiveViewFrame>.error(
+        ArgumentError.value(deviceId, 'deviceId', 'must not be empty'),
+      );
+    }
+    final controller = StreamController<LiveViewFrame>();
+    StreamSubscription<LiveViewFrame>? webRtcSub;
+    StreamSubscription<LiveViewFrame>? wsSub;
+    Timer? firstFrameTimer;
+    var receivedFirstFrame = false;
+    var fellBack = false;
+    var closed = false;
+
+    void logFallback(String reason) {
+      final msg = '[NetworkBackend] live-view: falling back from WebRTC to '
+          'WS — $reason';
+      developer.log(msg, name: 'NetworkBackend', level: 800);
+      if (onFallback != null) onFallback(msg);
+    }
+
+    void switchToWs() {
+      if (fellBack || closed) return;
+      fellBack = true;
+      firstFrameTimer?.cancel();
+      firstFrameTimer = null;
+      unawaited(webRtcSub?.cancel());
+      webRtcSub = null;
+      wsSub = subscribeLiveView(
+        deviceId: deviceId,
+        maxDim: maxDim,
+        maxFps: maxFps,
+        jpegQuality: jpegQuality,
+        region: region,
+      ).listen(
+        (frame) {
+          if (closed || controller.isClosed) return;
+          controller.add(frame);
+        },
+        onError: (Object e) {
+          if (closed || controller.isClosed) return;
+          controller.addError(e);
+          controller.close();
+        },
+        onDone: () {
+          if (closed || controller.isClosed) return;
+          controller.close();
+        },
+      );
+    }
+
+    void startWebRtc() {
+      webRtcSub = subscribeLiveViewWebRtc(
+        deviceId: deviceId,
+        iceServers: iceServers,
+      ).listen(
+        (frame) {
+          if (closed || controller.isClosed) return;
+          if (!receivedFirstFrame) {
+            receivedFirstFrame = true;
+            firstFrameTimer?.cancel();
+            firstFrameTimer = null;
+          }
+          controller.add(frame);
+        },
+        onError: (Object e) {
+          if (closed || controller.isClosed) return;
+          if (receivedFirstFrame) {
+            // Mid-stream failure: surface the error rather than
+            // silently swap transports — the WS path would not recover
+            // from a peer-side crash any faster than the caller can
+            // re-subscribe.
+            controller.addError(e);
+            controller.close();
+            return;
+          }
+          logFallback('WebRTC error before first frame: $e');
+          switchToWs();
+        },
+        onDone: () {
+          if (closed || controller.isClosed) return;
+          if (receivedFirstFrame) {
+            controller.close();
+          } else {
+            logFallback('WebRTC stream ended before first frame');
+            switchToWs();
+          }
+        },
+      );
+      firstFrameTimer = Timer(webRtcFirstFrameTimeout, () {
+        if (receivedFirstFrame || fellBack || closed) return;
+        logFallback(
+          'WebRTC did not deliver first frame within '
+          '${webRtcFirstFrameTimeout.inSeconds}s',
+        );
+        switchToWs();
+      });
+    }
+
+    controller.onListen = startWebRtc;
+    controller.onCancel = () async {
+      closed = true;
+      firstFrameTimer?.cancel();
+      firstFrameTimer = null;
+      await webRtcSub?.cancel();
+      webRtcSub = null;
+      await wsSub?.cancel();
+      wsSub = null;
+    };
+    return controller.stream;
+  }
 }
+
+/// Private helper that holds the libwebrtc-side state for a single
+/// [NetworkBackend.subscribeLiveViewWebRtc] subscription.
+///
+/// Lifetime:
+///   1. POST `/api/webrtc/live-view/offer` to obtain `{sessionId, sdp}`.
+///   2. setRemoteDescription(answer); subscribe to the SSE candidate
+///      stream and POST every locally-gathered candidate as a remote
+///      candidate on `/api/webrtc/live-view/ice/{sessionId}`.
+///   3. Wait for the `live-view-frames` data channel; demux text
+///      (frame_meta envelope) and binary (JPEG) messages into
+///      [LiveViewFrame] instances and hand them to `onFrame`.
+///   4. On dispose: DELETE the session, close the RTCPeerConnection.
+class _WebRtcLiveViewSubscription {
+  final NetworkBackend backend;
+  final String deviceId;
+  final String sessionId;
+  final RTCPeerConnection peerConnection;
+  final void Function(LiveViewFrame) onFrame;
+  final void Function(Object) onError;
+  final void Function() onDone;
+  final HttpClient _sseClient;
+
+  RTCDataChannel? _channel;
+  HttpClientResponse? _sseResponse;
+  StreamSubscription<String>? _sseSub;
+  Map<String, Object?>? _pendingMeta;
+  bool _disposed = false;
+
+  _WebRtcLiveViewSubscription._({
+    required this.backend,
+    required this.deviceId,
+    required this.sessionId,
+    required this.peerConnection,
+    required this.onFrame,
+    required this.onError,
+    required this.onDone,
+  }) : _sseClient = HttpClient();
+
+  static Future<_WebRtcLiveViewSubscription> start({
+    required NetworkBackend backend,
+    required String deviceId,
+    required List<Map<String, Object?>>? iceServers,
+    required void Function(LiveViewFrame) onFrame,
+    required void Function(Object) onError,
+    required void Function() onDone,
+  }) async {
+    final pc = await createPeerConnection(<String, dynamic>{
+      'iceServers':
+          iceServers ?? const [{'urls': ['stun:stun.l.google.com:19302']}],
+      'sdpSemantics': 'unified-plan',
+    });
+
+    // The server is the answerer and creates the data channel. We open
+    // a one-shot offer with no audio/video tracks; libwebrtc still
+    // emits an SCTP m=application section for the inbound datachannel.
+    final offer = await pc.createOffer({
+      'offerToReceiveAudio': 0,
+      'offerToReceiveVideo': 0,
+    });
+    await pc.setLocalDescription(offer);
+
+    // POST the offer to the server.
+    final offerUri = Uri.parse(
+      'http://${backend.serverHost}:${backend.serverPort}'
+      '/api/webrtc/live-view/offer',
+    );
+    final headers = backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/offer');
+    headers[HttpHeaders.contentTypeHeader] = 'application/json';
+    final body = <String, Object?>{
+      'deviceId': deviceId,
+      'sdp': {'type': offer.type, 'sdp': offer.sdp},
+      if (iceServers != null) 'iceServers': iceServers,
+    };
+    final response = await backend._http.post(
+      offerUri,
+      headers: headers,
+      body: jsonEncode(body),
+    );
+    if (response.statusCode != 200) {
+      await pc.close();
+      throw backend._parseErrorResponse(
+        response.statusCode,
+        response.body,
+        'POST',
+        'webrtc/live-view/offer',
+      );
+    }
+    final decoded = jsonDecode(response.body);
+    if (decoded is! Map) {
+      await pc.close();
+      throw const FormatException(
+        '/api/webrtc/live-view/offer: response was not a JSON object',
+      );
+    }
+    final sessionId = decoded['sessionId'];
+    final answerSdp = decoded['sdp'];
+    if (sessionId is! String || sessionId.isEmpty) {
+      await pc.close();
+      throw const FormatException(
+        '/api/webrtc/live-view/offer: response missing sessionId',
+      );
+    }
+    if (answerSdp is! Map ||
+        answerSdp['type'] is! String ||
+        answerSdp['sdp'] is! String) {
+      await pc.close();
+      throw const FormatException(
+        '/api/webrtc/live-view/offer: response missing sdp.{type,sdp}',
+      );
+    }
+
+    final sub = _WebRtcLiveViewSubscription._(
+      backend: backend,
+      deviceId: deviceId,
+      sessionId: sessionId,
+      peerConnection: pc,
+      onFrame: onFrame,
+      onError: onError,
+      onDone: onDone,
+    );
+
+    // Hook ICE + data channel BEFORE setRemoteDescription so we don't
+    // miss any candidates the answerer is about to flush.
+    pc.onIceCandidate = sub._onLocalIceCandidate;
+    pc.onDataChannel = sub._bindChannel;
+    pc.onConnectionState = sub._onConnectionState;
+
+    await pc.setRemoteDescription(
+      RTCSessionDescription(
+        answerSdp['sdp'] as String,
+        answerSdp['type'] as String,
+      ),
+    );
+
+    // Subscribe to the server-side SSE candidate stream. This must run
+    // concurrently with our local candidate POSTing, so we fire and
+    // forget — the SSE consumer self-cancels on dispose.
+    unawaited(sub._consumeServerIce());
+
+    return sub;
+  }
+
+  void _bindChannel(RTCDataChannel channel) {
+    if (channel.label != kLiveViewClientDataChannelLabel) {
+      // Unexpected channel — log and ignore. The server only ever
+      // opens `live-view-frames` for this session type.
+      developer.log(
+        '[NetworkBackend] webrtc: unexpected data channel label '
+        '"${channel.label}" on session $sessionId',
+        name: 'NetworkBackend',
+        level: 900,
+      );
+      return;
+    }
+    _channel = channel;
+    channel.onMessage = _onMessage;
+    channel.onDataChannelState = (state) {
+      if (state == RTCDataChannelState.RTCDataChannelClosed) {
+        if (!_disposed) onDone();
+      }
+    };
+  }
+
+  void _onMessage(RTCDataChannelMessage message) {
+    if (_disposed) return;
+    if (message.isBinary) {
+      final meta = _pendingMeta;
+      _pendingMeta = null;
+      if (meta == null) {
+        developer.log(
+          '[NetworkBackend] webrtc: binary frame with no preceding '
+          'meta envelope on session $sessionId; dropping',
+          name: 'NetworkBackend',
+          level: 900,
+        );
+        return;
+      }
+      try {
+        final frame = LiveViewFrame.fromMetadata(meta, message.binary);
+        onFrame(frame);
+      } on FormatException catch (e) {
+        onError(e);
+      }
+      return;
+    }
+    // Text message: JSON envelope.
+    final text = message.text;
+    try {
+      final decoded = jsonDecode(text);
+      if (decoded is! Map) return;
+      final type = decoded['type'];
+      if (type == 'frame_meta') {
+        _pendingMeta =
+            decoded.map((k, v) => MapEntry(k.toString(), v as Object?));
+      } else if (type == 'error') {
+        onError(
+          dart_error.NightshadeError(
+            category: dart_error.BackendErrorCategory.system,
+            message: (decoded['message'] as String?) ??
+                'live-view error: ${decoded['code']}',
+          ),
+        );
+      } else if (type == 'stopped') {
+        if (!_disposed) onDone();
+      }
+      // ready/pong: nothing to surface.
+    } catch (e) {
+      developer.log(
+        '[NetworkBackend] webrtc: text frame decode failed on session '
+        '$sessionId: $e',
+        name: 'NetworkBackend',
+        level: 900,
+      );
+    }
+  }
+
+  Future<void> _onLocalIceCandidate(RTCIceCandidate candidate) async {
+    if (_disposed) return;
+    final uri = Uri.parse(
+      'http://${backend.serverHost}:${backend.serverPort}'
+      '/api/webrtc/live-view/ice/$sessionId',
+    );
+    final headers =
+        backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice');
+    headers[HttpHeaders.contentTypeHeader] = 'application/json';
+    final body = jsonEncode({
+      'candidate': {
+        'candidate': candidate.candidate,
+        'sdpMid': candidate.sdpMid,
+        'sdpMLineIndex': candidate.sdpMLineIndex,
+      },
+    });
+    try {
+      final response =
+          await backend._http.post(uri, headers: headers, body: body);
+      if (response.statusCode >= 400) {
+        developer.log(
+          '[NetworkBackend] webrtc: POST ICE candidate failed '
+          'status=${response.statusCode} body=${response.body}',
+          name: 'NetworkBackend',
+          level: 900,
+        );
+      }
+    } catch (e) {
+      developer.log(
+        '[NetworkBackend] webrtc: POST ICE candidate threw: $e',
+        name: 'NetworkBackend',
+        level: 900,
+      );
+    }
+  }
+
+  Future<void> _consumeServerIce() async {
+    if (_disposed) return;
+    try {
+      final uri = Uri.parse(
+        'http://${backend.serverHost}:${backend.serverPort}'
+        '/api/webrtc/live-view/ice/$sessionId/events',
+      );
+      final request = await _sseClient.getUrl(uri);
+      backend
+          ._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice/events')
+          .forEach((k, v) => request.headers.add(k, v));
+      request.headers.set('accept', 'text/event-stream');
+      final response = await request.close();
+      _sseResponse = response;
+      if (response.statusCode != 200) {
+        onError(
+          dart_error.NightshadeError(
+            category: dart_error.BackendErrorCategory.system,
+            message:
+                'WebRTC ICE SSE returned ${response.statusCode} for '
+                'session $sessionId',
+          ),
+        );
+        return;
+      }
+      // Decode UTF-8 + split into lines. SSE framing is line-oriented:
+      // we buffer `data:` lines until a blank line marks end-of-event,
+      // then dispatch by the most recent `event:` name.
+      final lines =
+          response.transform(utf8.decoder).transform(const LineSplitter());
+      String? currentEvent;
+      final dataBuf = StringBuffer();
+      final completer = Completer<void>();
+      _sseSub = lines.listen(
+        (line) {
+          if (_disposed) return;
+          if (line.isEmpty) {
+            if (dataBuf.isNotEmpty) {
+              final dataStr = dataBuf.toString();
+              dataBuf.clear();
+              final event = currentEvent ?? 'message';
+              currentEvent = null;
+              unawaited(_handleSseEvent(event, dataStr));
+            }
+            return;
+          }
+          if (line.startsWith(':')) return; // keepalive comment
+          if (line.startsWith('event: ')) {
+            currentEvent = line.substring('event: '.length).trim();
+          } else if (line.startsWith('data: ')) {
+            if (dataBuf.isNotEmpty) dataBuf.write('\n');
+            dataBuf.write(line.substring('data: '.length));
+          }
+        },
+        onDone: () {
+          if (!completer.isCompleted) completer.complete();
+        },
+        onError: (Object e, _) {
+          if (!_disposed) {
+            developer.log(
+              '[NetworkBackend] webrtc: ICE SSE stream error on session '
+              '$sessionId: $e',
+              name: 'NetworkBackend',
+              level: 900,
+            );
+          }
+          if (!completer.isCompleted) completer.complete();
+        },
+        cancelOnError: true,
+      );
+      await completer.future;
+    } catch (e) {
+      if (_disposed) return;
+      developer.log(
+        '[NetworkBackend] webrtc: ICE SSE failed for session '
+        '$sessionId: $e',
+        name: 'NetworkBackend',
+        level: 900,
+      );
+    }
+  }
+
+  Future<void> _handleSseEvent(String event, String data) async {
+    if (_disposed) return;
+    if (event == 'ice') {
+      try {
+        final decoded = jsonDecode(data);
+        if (decoded is! Map) return;
+        final cand = decoded['candidate'];
+        if (cand is! Map) return;
+        final candStr = cand['candidate'];
+        final sdpMid = cand['sdpMid'];
+        final sdpMLineIndex = cand['sdpMLineIndex'];
+        if (candStr is! String) return;
+        await peerConnection.addCandidate(
+          RTCIceCandidate(
+            candStr,
+            sdpMid is String ? sdpMid : null,
+            sdpMLineIndex is num ? sdpMLineIndex.toInt() : null,
+          ),
+        );
+      } catch (e) {
+        developer.log(
+          '[NetworkBackend] webrtc: failed to apply server ICE '
+          'candidate on session $sessionId: $e',
+          name: 'NetworkBackend',
+          level: 900,
+        );
+      }
+    } else if (event == 'complete') {
+      // Server done gathering. Send EOC marker to our local PC.
+      try {
+        await peerConnection.addCandidate(RTCIceCandidate('', null, null));
+      } catch (_) {
+        // EOC marker is best-effort.
+      }
+    } else if (event == 'error') {
+      try {
+        final decoded = jsonDecode(data);
+        final msg = decoded is Map ? decoded['message']?.toString() : null;
+        onError(
+          dart_error.NightshadeError(
+            category: dart_error.BackendErrorCategory.system,
+            message: msg ?? 'WebRTC ICE SSE error on session $sessionId',
+          ),
+        );
+      } catch (_) {
+        onError(
+          dart_error.NightshadeError(
+            category: dart_error.BackendErrorCategory.system,
+            message:
+                'WebRTC ICE SSE error (unparseable) on session $sessionId',
+          ),
+        );
+      }
+    }
+  }
+
+  void _onConnectionState(RTCPeerConnectionState state) {
+    if (_disposed) return;
+    switch (state) {
+      case RTCPeerConnectionState.RTCPeerConnectionStateFailed:
+        onError(
+          dart_error.NightshadeError(
+            category: dart_error.BackendErrorCategory.system,
+            message: 'WebRTC peer connection failed on session $sessionId',
+          ),
+        );
+      case RTCPeerConnectionState.RTCPeerConnectionStateClosed:
+      case RTCPeerConnectionState.RTCPeerConnectionStateDisconnected:
+        if (!_disposed) onDone();
+      case RTCPeerConnectionState.RTCPeerConnectionStateNew:
+      case RTCPeerConnectionState.RTCPeerConnectionStateConnecting:
+      case RTCPeerConnectionState.RTCPeerConnectionStateConnected:
+        break;
+    }
+  }
+
+  Future<void> dispose() async {
+    if (_disposed) return;
+    _disposed = true;
+    await _sseSub?.cancel();
+    _sseSub = null;
+    try {
+      unawaited(
+        _sseResponse
+                ?.detachSocket()
+                .then((s) => s.destroy())
+                .catchError((_) {}) ??
+            Future<void>.value(),
+      );
+    } catch (_) {
+      // ignore
+    }
+    _sseResponse = null;
+    try {
+      _sseClient.close(force: true);
+    } catch (_) {
+      // ignore
+    }
+    try {
+      await _channel?.close();
+    } catch (_) {
+      // ignore
+    }
+    _channel = null;
+    try {
+      await peerConnection.close();
+    } catch (_) {
+      // ignore
+    }
+    // Best-effort DELETE so the server reaps the session immediately
+    // rather than waiting for the 30 s startup timer.
+    try {
+      final uri = Uri.parse(
+        'http://${backend.serverHost}:${backend.serverPort}'
+        '/api/webrtc/live-view/$sessionId',
+      );
+      final headers =
+          backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/delete');
+      await backend._http.delete(uri, headers: headers);
+    } catch (_) {
+      // Server might already be unreachable; the startup timer will
+      // clean up server-side.
+    }
+  }
+}
+
+/// Datachannel label expected by the client when accepting the inbound
+/// channel from the server. Must match the server-side constant in
+/// `webrtc_live_view_handlers.dart` (`kLiveViewDataChannelLabel`); kept
+/// here as a separate const so changing one without the other is a
+/// visible diff in code review.
+const String kLiveViewClientDataChannelLabel = 'live-view-frames';
 
 /// Client-side mirror of the headless server's Job model. Tolerates
 /// missing/extra fields so a server that gains additional metadata does
@@ -7183,6 +7896,229 @@ class RemoteDbFlatHistoryRow {
       gain: (json['gain'] as num?)?.toInt() ?? 0,
       binning: (json['binning'] as num?)?.toInt() ?? 1,
       timestamp: DateTime.parse(json['timestamp'] as String),
+    );
+  }
+}
+
+// Wave 7B — wire types for per-run replay endpoints.
+
+class RemoteSequenceRunDetail {
+  final int id;
+  final int? sequenceId;
+  final String? sequenceName;
+  final DateTime startedAt;
+  final DateTime? endedAt;
+  final String status;
+  final String? statsJson;
+  final int frameCount;
+  final String? targetName;
+
+  const RemoteSequenceRunDetail({
+    required this.id,
+    required this.startedAt,
+    required this.status,
+    required this.frameCount,
+    this.sequenceId,
+    this.sequenceName,
+    this.endedAt,
+    this.statsJson,
+    this.targetName,
+  });
+
+  factory RemoteSequenceRunDetail.fromJson(Map<String, dynamic> json) {
+    return RemoteSequenceRunDetail(
+      id: (json['id'] as num).toInt(),
+      sequenceId: (json['sequenceId'] as num?)?.toInt(),
+      sequenceName: json['sequenceName'] as String?,
+      startedAt: DateTime.parse(json['startedAt'] as String),
+      endedAt: _parseDateField(json['endedAt']),
+      status: json['status'] as String? ?? 'unknown',
+      statsJson: json['statsJson'] as String?,
+      frameCount: (json['frameCount'] as num?)?.toInt() ?? 0,
+      targetName: json['targetName'] as String?,
+    );
+  }
+
+  Duration? get duration {
+    final end = endedAt;
+    if (end == null) return null;
+    return end.difference(startedAt);
+  }
+}
+
+class RemoteReplayEvent {
+  final DateTime timestamp;
+  final int timestampMs;
+  final String severity;
+  final String? source;
+  final String message;
+  final Map<String, dynamic>? fields;
+
+  const RemoteReplayEvent({
+    required this.timestamp,
+    required this.timestampMs,
+    required this.severity,
+    required this.message,
+    this.source,
+    this.fields,
+  });
+
+  factory RemoteReplayEvent.fromJson(Map<String, dynamic> json) {
+    final ts = json['timestamp'];
+    final tsMs = json['timestampMs'];
+    final timestamp = ts is String ? DateTime.parse(ts) : DateTime.now();
+    final timestampMs =
+        (tsMs as num?)?.toInt() ?? timestamp.millisecondsSinceEpoch;
+    final rawFields = json['fields'];
+    return RemoteReplayEvent(
+      timestamp: timestamp,
+      timestampMs: timestampMs,
+      severity: json['severity'] as String? ?? 'info',
+      source: json['source'] as String?,
+      message: json['message'] as String? ?? '',
+      fields: rawFields is Map ? rawFields.cast<String, dynamic>() : null,
+    );
+  }
+}
+
+class RemoteReplayEventsPage {
+  final List<RemoteReplayEvent> items;
+  final int total;
+  final bool isPartial;
+  final String? partialReason;
+  final String source;
+
+  const RemoteReplayEventsPage({
+    required this.items,
+    required this.total,
+    required this.isPartial,
+    required this.source,
+    this.partialReason,
+  });
+
+  factory RemoteReplayEventsPage.fromJson(Map<String, dynamic> json) {
+    final rawItems = json['items'];
+    if (rawItems is! List) {
+      throw StateError('Malformed replay-events page: missing items list');
+    }
+    final items = rawItems
+        .whereType<Map>()
+        .map((m) => RemoteReplayEvent.fromJson(m.cast<String, dynamic>()))
+        .toList(growable: false);
+    return RemoteReplayEventsPage(
+      items: items,
+      total: (json['total'] as num?)?.toInt() ?? items.length,
+      isPartial: (json['is_partial'] as bool?) ??
+          (json['isPartial'] as bool?) ??
+          false,
+      partialReason: json['partialReason'] as String?,
+      source: json['source'] as String? ?? 'unknown',
+    );
+  }
+}
+
+class RemoteReplayFrame {
+  final int id;
+  final String fileName;
+  final String filePath;
+  final DateTime capturedAt;
+  final int capturedAtMs;
+  final String frameType;
+  final double exposureDuration;
+  final String? filter;
+  final int? gain;
+  final int? offset;
+  final int binX;
+  final int binY;
+  final double? sensorTemp;
+  final double? hfr;
+  final int? starCount;
+  final double? background;
+  final double? noise;
+  final double? qualityScore;
+  final double? guidingRmsRa;
+  final double? guidingRmsDec;
+  final double? guidingRmsTotal;
+  final double? mountRa;
+  final double? mountDec;
+  final double? mountAltitude;
+  final double? mountAzimuth;
+  final int? focuserPosition;
+  final bool isAccepted;
+  final String? rejectionReason;
+  final int? sessionId;
+  final int? targetId;
+
+  const RemoteReplayFrame({
+    required this.id,
+    required this.fileName,
+    required this.filePath,
+    required this.capturedAt,
+    required this.capturedAtMs,
+    required this.frameType,
+    required this.exposureDuration,
+    required this.binX,
+    required this.binY,
+    required this.isAccepted,
+    this.filter,
+    this.gain,
+    this.offset,
+    this.sensorTemp,
+    this.hfr,
+    this.starCount,
+    this.background,
+    this.noise,
+    this.qualityScore,
+    this.guidingRmsRa,
+    this.guidingRmsDec,
+    this.guidingRmsTotal,
+    this.mountRa,
+    this.mountDec,
+    this.mountAltitude,
+    this.mountAzimuth,
+    this.focuserPosition,
+    this.rejectionReason,
+    this.sessionId,
+    this.targetId,
+  });
+
+  factory RemoteReplayFrame.fromJson(Map<String, dynamic> json) {
+    final ts = json['capturedAt'];
+    final tsMs = json['capturedAtMs'];
+    final capturedAt = ts is String ? DateTime.parse(ts) : DateTime.now();
+    final capturedAtMs =
+        (tsMs as num?)?.toInt() ?? capturedAt.millisecondsSinceEpoch;
+    return RemoteReplayFrame(
+      id: (json['id'] as num).toInt(),
+      fileName: json['fileName'] as String? ?? '',
+      filePath: json['filePath'] as String? ?? '',
+      capturedAt: capturedAt,
+      capturedAtMs: capturedAtMs,
+      frameType: json['frameType'] as String? ?? 'light',
+      exposureDuration: (json['exposureDuration'] as num?)?.toDouble() ?? 0.0,
+      filter: json['filter'] as String?,
+      gain: (json['gain'] as num?)?.toInt(),
+      offset: (json['offset'] as num?)?.toInt(),
+      binX: (json['binX'] as num?)?.toInt() ?? 1,
+      binY: (json['binY'] as num?)?.toInt() ?? 1,
+      sensorTemp: (json['sensorTemp'] as num?)?.toDouble(),
+      hfr: (json['hfr'] as num?)?.toDouble(),
+      starCount: (json['starCount'] as num?)?.toInt(),
+      background: (json['background'] as num?)?.toDouble(),
+      noise: (json['noise'] as num?)?.toDouble(),
+      qualityScore: (json['qualityScore'] as num?)?.toDouble(),
+      guidingRmsRa: (json['guidingRmsRa'] as num?)?.toDouble(),
+      guidingRmsDec: (json['guidingRmsDec'] as num?)?.toDouble(),
+      guidingRmsTotal: (json['guidingRmsTotal'] as num?)?.toDouble(),
+      mountRa: (json['mountRa'] as num?)?.toDouble(),
+      mountDec: (json['mountDec'] as num?)?.toDouble(),
+      mountAltitude: (json['mountAltitude'] as num?)?.toDouble(),
+      mountAzimuth: (json['mountAzimuth'] as num?)?.toDouble(),
+      focuserPosition: (json['focuserPosition'] as num?)?.toInt(),
+      isAccepted: json['isAccepted'] as bool? ?? true,
+      rejectionReason: json['rejectionReason'] as String?,
+      sessionId: (json['sessionId'] as num?)?.toInt(),
+      targetId: (json['targetId'] as num?)?.toInt(),
     );
   }
 }

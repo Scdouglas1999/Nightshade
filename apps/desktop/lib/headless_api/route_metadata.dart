@@ -760,6 +760,17 @@ TokenRouteClass tokenRouteClassFor({
   if (normalizedPath == '/api/camera/live-view/frame') {
     return TokenRouteClass.liveView;
   }
+  // Wave 7A — WebRTC live-view signalling endpoints share the
+  // live-view bucket because the SSE candidate stream + ICE POSTs
+  // burst during session setup (potentially many candidates per
+  // second on a complex network) and we don't want a paired phone
+  // bringing up a fresh peer connection to exhaust its `read`
+  // budget mid-handshake. The actual JPEG datachannel traffic
+  // doesn't pass through this gate (it's WebRTC, not HTTP), so the
+  // bucket only governs the signalling overhead.
+  if (normalizedPath.startsWith('/api/webrtc/live-view/')) {
+    return TokenRouteClass.liveView;
+  }
   // Multi-MB transfers: image download + raw image bytes + binary FITS
   // pull. They live in their own (tightest) bucket.
   if (normalizedPath.startsWith('/api/images/') &&

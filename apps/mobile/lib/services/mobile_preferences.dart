@@ -12,6 +12,15 @@ class MobilePreferences {
 
   static const _kAndroidImmersiveSticky = 'mobile.androidImmersiveSticky';
 
+  // Wave 7A — WebRTC live-view transport toggle. When true (default),
+  // the camera-tab subscribes via `NetworkBackend.subscribeLiveViewAuto`
+  // which tries the WebRTC datachannel first and falls back to the WS
+  // push protocol on explicit (logged) failure. When false, the tab
+  // uses `subscribeLiveView` directly — useful for diagnostics on
+  // networks where libwebrtc misbehaves (rare; bundled libwebrtc on
+  // some Android skins has buggy ICE state machines).
+  static const _kPreferWebRtcLiveView = 'mobile.preferWebRtcLiveView';
+
   // Wave 6D / P2-12 — sticky first-run-setup completion flag. When set, the
   // app skips the first-run wizard even if the server later loses its
   // profiles/catalogs/imageOutputPath (e.g. the operator manually wipes
@@ -47,6 +56,17 @@ class MobilePreferences {
   Future<void> setAndroidImmersiveSticky(bool value) async {
     await _prefs.setBool(_kAndroidImmersiveSticky, value);
   }
+
+  /// Wave 7A — prefer the WebRTC datachannel for the live-view stream.
+  /// Defaults to true; when false the camera tab uses the legacy WS
+  /// push (`subscribeLiveView`) directly. Persisted across launches so
+  /// a user that needs the WS path on a specific network does not have
+  /// to re-toggle on every app start.
+  bool get preferWebRtcLiveView =>
+      _prefs.getBool(_kPreferWebRtcLiveView) ?? true;
+
+  Future<void> setPreferWebRtcLiveView(bool value) =>
+      _prefs.setBool(_kPreferWebRtcLiveView, value);
 
   // ---------------------------------------------------------------------------
   // Notification category toggles

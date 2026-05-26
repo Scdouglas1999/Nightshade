@@ -7,6 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../services/mobile_preferences.dart';
 import '../../../utils/error_snackbar.dart';
 
 /// Camera tab — phone-native imaging controls:
@@ -43,9 +44,18 @@ class CameraTab extends ConsumerWidget {
     // attach to). The pull endpoint at `/api/camera/live-view/frame`
     // remains the supported path for any caller that still wants
     // request/response semantics.
+    //
+    // Wave 7A — the card now consults [MobilePreferences.preferWebRtcLiveView]
+    // to decide between `subscribeLiveViewAuto` (WebRTC with WS
+    // fallback) and the legacy WS-only path. The preference resolves
+    // async; while it's loading we conservatively use the WS path so
+    // the panel never blocks first paint.
     final backend = ref.watch(backendProvider);
     final showLiveViewStream =
         backend is NetworkBackend && cameraState.deviceId != null;
+    final prefsAsync = ref.watch(mobilePreferencesProvider);
+    final preferWebRtc =
+        prefsAsync.valueOrNull?.preferWebRtcLiveView ?? true;
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -56,6 +66,7 @@ class CameraTab extends ConsumerWidget {
           _LiveViewStreamCard(
             backend: backend,
             deviceId: cameraState.deviceId!,
+            preferWebRtc: preferWebRtc,
           ),
           const SizedBox(height: 12),
         ],
@@ -81,9 +92,18 @@ class CameraTab extends ConsumerWidget {
 class _LiveViewStreamCard extends ConsumerStatefulWidget {
   final NetworkBackend backend;
   final String deviceId;
+
+  /// Wave 7A — when true (default), subscribe via [NetworkBackend.
+  /// subscribeLiveViewAuto] which negotiates a WebRTC datachannel
+  /// first and falls back to the WS push protocol on explicit (logged)
+  /// failure. When false, use the legacy [NetworkBackend.subscribeLiveView]
+  /// directly so the WS path is never side-stepped — useful for users
+  /// on networks where libwebrtc misbehaves.
+  final bool preferWebRtc;
   const _LiveViewStreamCard({
     required this.backend,
     required this.deviceId,
+    required this.preferWebRtc,
   });
 
   @override
@@ -106,7 +126,8 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
   void didUpdateWidget(_LiveViewStreamCard oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.deviceId != widget.deviceId ||
-        !identical(oldWidget.backend, widget.backend)) {
+        !identical(oldWidget.backend, widget.backend) ||
+        oldWidget.preferWebRtc != widget.preferWebRtc) {
       _resubscribe();
     }
   }
@@ -118,7 +139,15 @@ class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
       _latest = null;
       _error = null;
     });
-    _sub = widget.backend.subscribeLiveView(deviceId: widget.deviceId).listen(
+    // Wave 7A — `subscribeLiveViewAuto` handles WebRTC negotiation +
+    // graceful WS fallback; `subscribeLiveView` is the WS-only path
+    // for users who explicitly disabled WebRTC. The auto path also
+    // logs a fallback notice via `dart:developer.log` so the WebRTC
+    // path's failure mode is debuggable from devtools.
+    final stream = widget.preferWebRtc
+        ? widget.backend.subscribeLiveViewAuto(deviceId: widget.deviceId)
+        : widget.backend.subscribeLiveView(deviceId: widget.deviceId);
+    _sub = stream.listen(
       (frame) {
         if (!mounted) return;
         setState(() {
