@@ -84,8 +84,10 @@ fn wait_texture_id(planetarium: &Planetarium, since_resize_gen: u64) -> Result<i
             if let Some(err) = planetarium.last_surface_error() {
                 Err(err)
             } else {
-                Err("texture not allocated after resize — use a valid Flutter engine handle"
-                    .to_string())
+                Err(
+                    "texture not allocated after resize — use a valid Flutter engine handle"
+                        .to_string(),
+                )
             }
         }
         Err(err) => Err(err.to_string()),

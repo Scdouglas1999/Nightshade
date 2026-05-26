@@ -10,8 +10,8 @@ use super::moon::{
     angular_separation_rad, moon_ecliptic_j2000_from_jd_tt, moon_equatorial_j2000_from_jd_tt,
 };
 use super::vsop87::{
-    heliocentric_ecliptic, julian_millennia_tt, sun_equatorial_rad, VsopBody, VSOP87_J2000_JD,
-    DAYS_PER_JULIAN_MILLENNIUM,
+    heliocentric_ecliptic, julian_millennia_tt, sun_equatorial_rad, VsopBody,
+    DAYS_PER_JULIAN_MILLENNIUM, VSOP87_J2000_JD,
 };
 
 /// Kilometres per astronomical unit (IAU 2012).
@@ -45,11 +45,8 @@ pub struct BodyLighting {
 pub fn moon_lighting(jd_tt: f64) -> BodyLighting {
     let t = julian_millennia_tt(jd_tt);
     let earth = heliocentric_ecliptic(VsopBody::Earth, t);
-    let earth_au = ecliptic_rectangular_au(
-        earth.longitude_rad,
-        earth.latitude_rad,
-        earth.distance_au,
-    );
+    let earth_au =
+        ecliptic_rectangular_au(earth.longitude_rad, earth.latitude_rad, earth.distance_au);
     let moon_ecl = moon_ecliptic_j2000_from_jd_tt(jd_tt);
     let moon_geo_au = ecliptic_rectangular_au(
         moon_ecl.longitude_deg.to_radians(),
@@ -64,10 +61,10 @@ pub fn moon_lighting(jd_tt: f64) -> BodyLighting {
     let mut lit = lighting_from_heliocentric(moon_helio, earth_au);
     let moon_eq = moon_equatorial_j2000_from_jd_tt(jd_tt);
     let (sun_ra, sun_dec) = sun_equatorial_rad(jd_tt);
-    lit.elongation_rad =
-        angular_separation_rad(moon_eq.ra_rad, moon_eq.dec_rad, sun_ra, sun_dec);
+    lit.elongation_rad = angular_separation_rad(moon_eq.ra_rad, moon_eq.dec_rad, sun_ra, sun_dec);
     // Visual-grade Moon phase: Sun at infinity ⇒ i ≈ π − elongation (matches v1 Dart / almanac).
-    lit.phase_angle_rad = (std::f64::consts::PI - lit.elongation_rad).clamp(0.0, std::f64::consts::PI);
+    lit.phase_angle_rad =
+        (std::f64::consts::PI - lit.elongation_rad).clamp(0.0, std::f64::consts::PI);
     lit.illuminated_fraction = illuminated_fraction_from_phase_angle(lit.phase_angle_rad);
     lit
 }
@@ -76,11 +73,8 @@ pub fn moon_lighting(jd_tt: f64) -> BodyLighting {
 pub fn planet_lighting(body: VsopBody, jd_tt: f64) -> BodyLighting {
     let t = julian_millennia_tt(jd_tt);
     let earth = heliocentric_ecliptic(VsopBody::Earth, t);
-    let earth_au = ecliptic_rectangular_au(
-        earth.longitude_rad,
-        earth.latitude_rad,
-        earth.distance_au,
-    );
+    let earth_au =
+        ecliptic_rectangular_au(earth.longitude_rad, earth.latitude_rad, earth.distance_au);
     let planet = heliocentric_ecliptic(body, t);
     let body_au = ecliptic_rectangular_au(
         planet.longitude_rad,

@@ -37,9 +37,7 @@ pub mod windows;
 mod stub;
 
 /// Create the platform surface for the current OS.
-pub fn create_surface(
-    engine_handle: i64,
-) -> Result<Box<dyn PlatformSurface>, PlanetariumError> {
+pub fn create_surface(engine_handle: i64) -> Result<Box<dyn PlatformSurface>, PlanetariumError> {
     #[cfg(target_os = "windows")]
     {
         Ok(Box::new(windows::WindowsSurface::new(engine_handle)?))

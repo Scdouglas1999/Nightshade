@@ -4,7 +4,7 @@
 //! direction within an angular radius and apparent-magnitude limit.
 
 use std::cmp::Ordering;
-use std::collections::{BinaryHeap, BTreeMap};
+use std::collections::{BTreeMap, BinaryHeap};
 
 use super::healpix::{pixel_for_direction, pixels_in_cone, HealpixError};
 use super::StarRecord;
@@ -146,9 +146,7 @@ impl HitIndex {
                 let replace = match best {
                     None => true,
                     Some((_, _, best_sep)) if sep < best_sep - f64::EPSILON => true,
-                    Some((_, best_idx, best_sep))
-                        if (sep - best_sep).abs() <= f64::EPSILON =>
-                    {
+                    Some((_, best_idx, best_sep)) if (sep - best_sep).abs() <= f64::EPSILON => {
                         let best_star = &cell.stars[best_idx];
                         star.mag < best_star.mag
                             || (star.mag == best_star.mag && star.hip_id < best_star.hip_id)

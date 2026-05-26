@@ -43,8 +43,7 @@ fn visible_tiles_contains_boresight_all_projections() {
 fn visible_tiles_matches_healpix_bounding_pixels() {
     let pose = pose_at(0.4, 0.2, 0.2, SkyProjection::Stereographic);
     let from_scene = visible_tiles(pose, pose.fov_rad, NSIDE).expect("scene");
-    let from_catalog =
-        bounding_pixels_for_fov(pose, pose.fov_rad, NSIDE).expect("catalog");
+    let from_catalog = bounding_pixels_for_fov(pose, pose.fov_rad, NSIDE).expect("catalog");
     assert_eq!(from_scene, from_catalog);
 }
 
@@ -63,7 +62,10 @@ fn larger_fov_is_superset_of_smaller_fov() {
     let small = visible_tiles(pose, 0.15, NSIDE).expect("small");
     let large = visible_tiles(pose, 0.45, NSIDE).expect("large");
     for id in &small {
-        assert!(large.contains(id), "tile {id} visible at 0.15 rad must appear at 0.45 rad");
+        assert!(
+            large.contains(id),
+            "tile {id} visible at 0.15 rad must appear at 0.45 rad"
+        );
     }
 }
 

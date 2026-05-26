@@ -1,8 +1,6 @@
 //! Minor-body catalog: MPCORB parse, binary round-trip, Kepler propagation.
 
-use nightshade_planetarium::astrometry::kepler::{
-    geocentric_equatorial_j2000, OrbitalElements,
-};
+use nightshade_planetarium::astrometry::kepler::{geocentric_equatorial_j2000, OrbitalElements};
 use nightshade_planetarium::catalog::{
     encode_minor_body_catalog, minor_body_catalog_byte_len, parse_minor_body_catalog,
     parse_mpc_orbit_line, parse_mpcorb_dat, unpack_packed_epoch, MappedMinorBodyCatalog,

@@ -37,7 +37,9 @@ pub enum TileParseError {
         actual: usize,
     },
     /// A LOD entry references stars outside `star_count`.
-    #[error("LOD entry {index}: start_offset {start} + count {count} exceeds star_count {star_count}")]
+    #[error(
+        "LOD entry {index}: start_offset {start} + count {count} exceeds star_count {star_count}"
+    )]
     LodRange {
         /// Index of the offending LOD entry.
         index: usize,
@@ -149,7 +151,14 @@ pub struct StarRecord {
 impl StarRecord {
     /// Construct a record from spherical coordinates (radians) and magnitude.
     #[must_use]
-    pub fn from_radec(hip_id: u32, ra_rad: f32, dec_rad: f32, mag: f32, bv: f32, flags: u32) -> Self {
+    pub fn from_radec(
+        hip_id: u32,
+        ra_rad: f32,
+        dec_rad: f32,
+        mag: f32,
+        bv: f32,
+        flags: u32,
+    ) -> Self {
         let (sin_dec, cos_dec) = dec_rad.sin_cos();
         let (sin_ra, cos_ra) = ra_rad.sin_cos();
         Self {
@@ -181,11 +190,7 @@ pub fn tile_byte_len(lod_levels: usize, star_count: usize) -> usize {
 
 /// Serialize header, LOD table, and stars into a single little-endian blob.
 #[must_use]
-pub fn encode_tile(
-    header: &TileHeader,
-    lod_entries: &[LodEntry],
-    stars: &[StarRecord],
-) -> Vec<u8> {
+pub fn encode_tile(header: &TileHeader, lod_entries: &[LodEntry], stars: &[StarRecord]) -> Vec<u8> {
     assert_eq!(
         header.lod_levels as usize,
         lod_entries.len(),
@@ -211,7 +216,9 @@ pub fn encode_tile(
 /// Parse and validate a tile from an in-memory byte slice.
 pub fn parse_tile(bytes: &[u8]) -> Result<ParsedTile<'_>, TileParseError> {
     if bytes.len() < TILE_HEADER_LEN {
-        return Err(TileParseError::TruncatedHeader { actual: bytes.len() });
+        return Err(TileParseError::TruncatedHeader {
+            actual: bytes.len(),
+        });
     }
 
     let header = TileHeader::ref_from_prefix(bytes).ok_or(TileParseError::TruncatedHeader {

@@ -4,7 +4,8 @@ use nightshade_planetarium::catalog::hyg_build::HYG_LOD_MAG_THRESHOLDS;
 use nightshade_planetarium::catalog::LodEntry;
 use nightshade_planetarium::scene::lod::{
     fov_zoom_mag_boost, frame_star_mag_limit, select_lod, tile_star_mag_limit, LodSelection,
-    MagLimitConfig, QualityConfig, FOV_MAG_BOOST_CAP, REF_FOV_DEG, STAR_MAG_CEILING, STAR_MAG_FLOOR,
+    MagLimitConfig, QualityConfig, FOV_MAG_BOOST_CAP, REF_FOV_DEG, STAR_MAG_CEILING,
+    STAR_MAG_FLOOR,
 };
 use nightshade_planetarium::scene::visibility::frustum_cap_radius_rad;
 use nightshade_planetarium::types::{SkyProjection, ViewPose};

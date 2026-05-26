@@ -26,8 +26,7 @@ fn main() -> ExitCode {
             if stats.records_written != OPENNGC_V1_EXPECTED_RECORDS {
                 eprintln!(
                     "self-check FAILED: expected {} records, got {}",
-                    OPENNGC_V1_EXPECTED_RECORDS,
-                    stats.records_written
+                    OPENNGC_V1_EXPECTED_RECORDS, stats.records_written
                 );
                 return ExitCode::from(2);
             }

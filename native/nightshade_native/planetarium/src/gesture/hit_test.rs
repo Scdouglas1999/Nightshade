@@ -57,8 +57,7 @@ pub fn hit_test_screen(
 
 fn selected_from_hit(hit: CatalogHit<'_>, pose: ViewPose) -> SelectedObject {
     let (ra_rad, dec_rad) = radec_from_icrs_dir(hit.star.icrs_dir);
-    let (screen_x, screen_y) =
-        project_icrs(ra_rad, dec_rad, pose).unwrap_or((0.5, 0.5));
+    let (screen_x, screen_y) = project_icrs(ra_rad, dec_rad, pose).unwrap_or((0.5, 0.5));
     SelectedObject {
         object_id: u64::from(hit.star.hip_id),
         screen_x,
@@ -191,6 +190,9 @@ mod tests {
 
         let pose = vega_pose();
         let hit = hit_test_screen(&catalog, 0.1, 0.9, pose, 6.0).expect("query");
-        assert!(hit.is_none(), "off-target tap must not select Vega at boresight");
+        assert!(
+            hit.is_none(),
+            "off-target tap must not select Vega at boresight"
+        );
     }
 }

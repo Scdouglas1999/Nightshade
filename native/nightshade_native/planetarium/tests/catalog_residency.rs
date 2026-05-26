@@ -72,8 +72,7 @@ fn stale_tiles_evicted_before_warmup_neighbors() {
         roll_rad: 0.0,
         projection: SkyProjection::Stereographic,
     };
-    let anchor_fov =
-        bounding_pixels_for_fov(anchor, anchor.fov_rad, NSIDE).expect("anchor fov");
+    let anchor_fov = bounding_pixels_for_fov(anchor, anchor.fov_rad, NSIDE).expect("anchor fov");
     let anchor_ring =
         bounding_pixels_for_fov(anchor, anchor.fov_rad * WARMUP_SCALE, NSIDE).expect("anchor ring");
 

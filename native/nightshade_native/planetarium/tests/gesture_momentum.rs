@@ -45,10 +45,7 @@ fn apply_pan_like_gesture(pose: &mut ViewPose, dx: f32, dy: f32) {
     let d_dec_deg = f64::from(dy) * pan_scale;
     pose.ra_rad += d_ra_hours * (std::f64::consts::PI / 12.0);
     let dec = pose.dec_rad + d_dec_deg.to_radians();
-    pose.dec_rad = dec.clamp(
-        -std::f64::consts::FRAC_PI_2,
-        std::f64::consts::FRAC_PI_2,
-    );
+    pose.dec_rad = dec.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 #[test]
@@ -116,13 +113,22 @@ fn momentum_deltas_shrink_as_progress_advances() {
     let ra_late = sm.pose().ra_rad;
     let late_delta = (ra_late - ra_mid).abs();
 
-    assert!(early_delta > late_delta, "early={early_delta} late={late_delta}");
+    assert!(
+        early_delta > late_delta,
+        "early={early_delta} late={late_delta}"
+    );
 }
 
 #[test]
 fn decelerate_curve_matches_flutter_decelerate_samples() {
     // Flutter Cubic(0,0,0.2,1): y = 3*(1-t)*t^2 + t^3
-    let samples = [(0.0, 0.0), (0.25, 0.15625), (0.5, 0.5), (0.75, 0.84375), (1.0, 1.0)];
+    let samples = [
+        (0.0, 0.0),
+        (0.25, 0.15625),
+        (0.5, 0.5),
+        (0.75, 0.84375),
+        (1.0, 1.0),
+    ];
     for (t, y) in samples {
         let got = decelerate(t);
         assert!(

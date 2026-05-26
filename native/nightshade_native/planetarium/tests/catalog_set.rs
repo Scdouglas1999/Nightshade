@@ -78,15 +78,18 @@ fn register_fake_pack_query_returns_visible_star() {
     let mut set = CatalogSet::new();
     set.register(Box::new(pack));
 
-    assert_eq!(set.active_pack_ids().collect::<Vec<_>>(), vec!["fake-stars"]);
+    assert_eq!(
+        set.active_pack_ids().collect::<Vec<_>>(),
+        vec!["fake-stars"]
+    );
 
-    let hits: Vec<CatalogHit<'_>> = set
-        .query(vega_pose(), 6.0)
-        .expect("query")
-        .collect();
+    let hits: Vec<CatalogHit<'_>> = set.query(vega_pose(), 6.0).expect("query").collect();
 
     let hips: Vec<u32> = hits.iter().map(|h| h.star.hip_id).collect();
-    assert!(hips.contains(&91262), "Vega must be visible at Vega boresight");
+    assert!(
+        hips.contains(&91262),
+        "Vega must be visible at Vega boresight"
+    );
     assert!(!hips.contains(&11767), "Polaris must be outside this FOV");
 }
 
@@ -99,14 +102,14 @@ fn magnitude_limit_filters_faint_stars() {
     let mut set = CatalogSet::new();
     set.register(Box::new(pack));
 
-    let hits: Vec<CatalogHit<'_>> = set
-        .query(vega_pose(), 1.5)
-        .expect("query")
-        .collect();
+    let hits: Vec<CatalogHit<'_>> = set.query(vega_pose(), 1.5).expect("query").collect();
 
     let hips: Vec<u32> = hits.iter().map(|h| h.star.hip_id).collect();
     assert!(hips.contains(&91262));
-    assert!(!hips.contains(&1), "mag 4.5 star must be culled by mag limit 1.5");
+    assert!(
+        !hips.contains(&1),
+        "mag 4.5 star must be culled by mag limit 1.5"
+    );
 }
 
 #[test]

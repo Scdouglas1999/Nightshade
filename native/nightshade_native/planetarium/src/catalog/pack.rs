@@ -127,8 +127,8 @@ impl PackManifest {
     /// Read `pack.json` from `pack_dir` and validate schema only.
     pub fn load(pack_dir: &Path) -> Result<Self, PackError> {
         let path = pack_dir.join(PACK_MANIFEST_NAME);
-        let json = std::fs::read_to_string(&path)
-            .map_err(|e| PackError::io("read pack manifest", e))?;
+        let json =
+            std::fs::read_to_string(&path).map_err(|e| PackError::io("read pack manifest", e))?;
         Self::from_json(&json)
     }
 
@@ -186,7 +186,9 @@ impl PackManifest {
             return Err(PackError::InvalidManifest("version must be non-empty"));
         }
         if self.files.is_empty() {
-            return Err(PackError::InvalidManifest("files must list at least one entry"));
+            return Err(PackError::InvalidManifest(
+                "files must list at least one entry",
+            ));
         }
         for (rel, digest) in &self.files {
             if rel.trim().is_empty() {

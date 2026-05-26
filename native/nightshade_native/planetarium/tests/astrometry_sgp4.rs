@@ -45,10 +45,8 @@ const VANGUARD_STATES: &[VerifState] = &[
 ];
 
 /// ISS (ZARYA) — CelesTrak example TLE (public domain GP data).
-const ISS_LINE1: &str =
-    "1 25544U 98067A   20194.88612269 -.00002218  00000-0 -31515-4 0  9992";
-const ISS_LINE2: &str =
-    "2 25544  51.6461 221.2784 0001413  89.1723 280.4612 15.49507896236008";
+const ISS_LINE1: &str = "1 25544U 98067A   20194.88612269 -.00002218  00000-0 -31515-4 0  9992";
+const ISS_LINE2: &str = "2 25544  51.6461 221.2784 0001413  89.1723 280.4612 15.49507896236008";
 
 fn assert_state_near(
     actual_pos: DVec3,
@@ -74,8 +72,9 @@ fn assert_state_near(
 
 #[test]
 fn vanguard_canonical_verification_states() {
-    let sat = SatellitePropagator::from_tle(Some("VANGUARD 1".into()), VANGUARD_LINE1, VANGUARD_LINE2)
-        .expect("Vanguard TLE must parse");
+    let sat =
+        SatellitePropagator::from_tle(Some("VANGUARD 1".into()), VANGUARD_LINE1, VANGUARD_LINE2)
+            .expect("Vanguard TLE must parse");
 
     for case in VANGUARD_STATES {
         let state = sat
@@ -97,13 +96,9 @@ fn vanguard_canonical_verification_states() {
 
 #[test]
 fn iss_tle_propagates_in_leo() {
-    let state = propagate_tle_minutes_since_epoch(
-        Some("ISS (ZARYA)".into()),
-        ISS_LINE1,
-        ISS_LINE2,
-        0.0,
-    )
-    .expect("ISS TLE must propagate at epoch");
+    let state =
+        propagate_tle_minutes_since_epoch(Some("ISS (ZARYA)".into()), ISS_LINE1, ISS_LINE2, 0.0)
+            .expect("ISS TLE must propagate at epoch");
     let radius_km = state.position_km.length();
     assert!(
         (6_500.0..7_500.0).contains(&radius_km),
@@ -116,7 +111,8 @@ fn iss_tle_propagates_in_leo() {
 fn propagator_reuse_matches_one_shot() {
     let sat = SatellitePropagator::from_tle(None, VANGUARD_LINE1, VANGUARD_LINE2).unwrap();
     let reused = sat.propagate_minutes_since_epoch(720.0).unwrap();
-    let once = propagate_tle_minutes_since_epoch(None, VANGUARD_LINE1, VANGUARD_LINE2, 720.0).unwrap();
+    let once =
+        propagate_tle_minutes_since_epoch(None, VANGUARD_LINE1, VANGUARD_LINE2, 720.0).unwrap();
     assert!(
         position_error_km(reused.position_km, once.position_km) < 1.0e-9,
         "reused propagator position mismatch"

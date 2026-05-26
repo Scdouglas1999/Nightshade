@@ -1,8 +1,8 @@
 //! Constellation line catalog: count and per-constellation vertex totals vs v1.
 
 use nightshade_planetarium::catalog::{
-    find_by_abbreviation, line_vertex_count, ConstellationLines, CONSTELLATION_COUNT,
-    CONSTELLATIONS, LINE_SEGMENT_COUNT, LINE_VERTEX_COUNT,
+    find_by_abbreviation, line_vertex_count, ConstellationLines, CONSTELLATIONS,
+    CONSTELLATION_COUNT, LINE_SEGMENT_COUNT, LINE_VERTEX_COUNT,
 };
 
 /// Per-constellation line segment counts from v1 `constellation_data.dart`.
@@ -110,10 +110,7 @@ fn total_line_vertex_count_matches_v1() {
     assert_eq!(LINE_VERTEX_COUNT, 728);
     assert_eq!(line_vertex_count(), LINE_VERTEX_COUNT);
 
-    let computed_vertices: usize = CONSTELLATIONS
-        .iter()
-        .map(|c| c.segments.len() * 2)
-        .sum();
+    let computed_vertices: usize = CONSTELLATIONS.iter().map(|c| c.segments.len() * 2).sum();
     assert_eq!(computed_vertices, LINE_VERTEX_COUNT);
 }
 
@@ -147,4 +144,3 @@ fn find_by_abbreviation_case_insensitive() {
 fn vertex_count(c: &ConstellationLines) -> usize {
     c.segments.len() * 2
 }
-

@@ -43,9 +43,7 @@ impl AnimationState {
 
     /// True when any timed or continuous effect is driving frames.
     pub fn any_active(self) -> bool {
-        self.selection_pulse > 0.0
-            || self.pop_in < 1.0
-            || self.twinkle_phase != 0.0
+        self.selection_pulse > 0.0 || self.pop_in < 1.0 || self.twinkle_phase != 0.0
     }
 }
 
@@ -244,7 +242,7 @@ impl AnimationSet {
         };
         let t = (now.saturating_duration_since(pop.started).as_secs_f32()
             / POP_IN_DURATION.as_secs_f32())
-            .clamp(0.0, 1.0);
+        .clamp(0.0, 1.0);
         smoothstep(t)
     }
 }

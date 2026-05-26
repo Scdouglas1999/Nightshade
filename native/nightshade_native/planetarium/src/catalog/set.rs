@@ -95,10 +95,7 @@ impl CatalogSet {
         let mut best: Option<(CatalogHit<'_>, f64)> = None;
 
         for entry in &self.packs {
-            let Some(pick) = entry
-                .hit
-                .pick_near(ra_rad, dec_rad, cone_rad, mag_limit)?
-            else {
+            let Some(pick) = entry.hit.pick_near(ra_rad, dec_rad, cone_rad, mag_limit)? else {
                 continue;
             };
             let replace = match &best {
@@ -108,8 +105,7 @@ impl CatalogSet {
                     if (pick.separation_rad - *best_sep).abs() <= f64::EPSILON =>
                 {
                     pick.star.mag < prev.star.mag
-                        || (pick.star.mag == prev.star.mag
-                            && pick.star.hip_id < prev.star.hip_id)
+                        || (pick.star.mag == prev.star.mag && pick.star.hip_id < prev.star.hip_id)
                 }
                 _ => false,
             };

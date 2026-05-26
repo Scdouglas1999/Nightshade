@@ -46,12 +46,22 @@ struct QuadVertex {
 }
 
 const QUAD_VERTICES: &[QuadVertex] = &[
-    QuadVertex { corner: [-1.0, -1.0] },
-    QuadVertex { corner: [1.0, -1.0] },
-    QuadVertex { corner: [-1.0, 1.0] },
-    QuadVertex { corner: [1.0, -1.0] },
+    QuadVertex {
+        corner: [-1.0, -1.0],
+    },
+    QuadVertex {
+        corner: [1.0, -1.0],
+    },
+    QuadVertex {
+        corner: [-1.0, 1.0],
+    },
+    QuadVertex {
+        corner: [1.0, -1.0],
+    },
     QuadVertex { corner: [1.0, 1.0] },
-    QuadVertex { corner: [-1.0, 1.0] },
+    QuadVertex {
+        corner: [-1.0, 1.0],
+    },
 ];
 
 /// WGSL `StarUniforms` (std140); `icrs_to_horizontal` columns are padded to 16 bytes.
@@ -378,12 +388,7 @@ pub fn star_instance_at_offset(
     }
 }
 
-fn offset_radec_deg(
-    ra0: f64,
-    dec0: f64,
-    delta_ra_deg: f64,
-    delta_dec_deg: f64,
-) -> (f64, f64) {
+fn offset_radec_deg(ra0: f64, dec0: f64, delta_ra_deg: f64, delta_dec_deg: f64) -> (f64, f64) {
     let center = icrs_dir_vec3(ra0, dec0);
     let east = icrs_dir_vec3(ra0 + std::f64::consts::FRAC_PI_2, dec0);
     let east = (east - center * east.dot(center)).normalize();
@@ -614,10 +619,7 @@ mod tests {
     #[test]
     fn twinkle_brightness_delta_gated_by_config_and_magnitude() {
         let low_alt = 10.0_f32.to_radians();
-        assert_eq!(
-            twinkle_brightness_delta(0.0, 0.0, 5.0, low_alt, 1.0),
-            0.0
-        );
+        assert_eq!(twinkle_brightness_delta(0.0, 0.0, 5.0, low_alt, 1.0), 0.0);
         assert_eq!(
             twinkle_brightness_delta(0.0, 0.0, 1.0, 45.0_f32.to_radians(), 1.0),
             0.0

@@ -45,7 +45,11 @@ pub fn refraction_scale(pressure_hpa: f64, temperature_c: f64) -> f64 {
 /// Returns zero for true altitudes below [`REFRACTION_CUTOFF_DEG`].
 #[inline]
 pub fn refraction_arcmin_standard(true_altitude_deg: f64) -> Result<f64, RefractionError> {
-    refraction_arcmin(true_altitude_deg, STANDARD_PRESSURE_HPA, STANDARD_TEMPERATURE_C)
+    refraction_arcmin(
+        true_altitude_deg,
+        STANDARD_PRESSURE_HPA,
+        STANDARD_TEMPERATURE_C,
+    )
 }
 
 /// Sæmundsson refraction in arcminutes with pressure and temperature scaling.
@@ -62,7 +66,8 @@ pub fn refraction_arcmin(
     if true_altitude_deg >= ZENITH_CLAMP_DEG {
         return Ok(0.0);
     }
-    let r = saemundsson_arcmin_core(true_altitude_deg) * refraction_scale(pressure_hpa, temperature_c);
+    let r =
+        saemundsson_arcmin_core(true_altitude_deg) * refraction_scale(pressure_hpa, temperature_c);
     Ok(r.max(0.0))
 }
 

@@ -210,7 +210,9 @@ pub fn readback_texture_2d_rgba_f32(
         tx.send(r).expect("channel");
     });
     device.poll(wgpu::Maintain::Wait);
-    rx.recv().expect("recv").map_err(|e| BrunetonPrecomputeError::Gpu(e.to_string()))?;
+    rx.recv()
+        .expect("recv")
+        .map_err(|e| BrunetonPrecomputeError::Gpu(e.to_string()))?;
     let data = slice.get_mapped_range();
     let mut out = Vec::with_capacity((row_bytes * height / 4) as usize);
     for row in 0..height {
@@ -261,8 +263,20 @@ pub(crate) fn split_combined_scattering(
         multi[base + 3] = 1.0;
     }
 
-    let single_tex = upload_texture_3d(device, queue, "planetarium.bruneton.single_scattering", format, &single)?;
-    let multi_tex = upload_texture_3d(device, queue, "planetarium.bruneton.multiple_scattering", format, &multi)?;
+    let single_tex = upload_texture_3d(
+        device,
+        queue,
+        "planetarium.bruneton.single_scattering",
+        format,
+        &single,
+    )?;
+    let multi_tex = upload_texture_3d(
+        device,
+        queue,
+        "planetarium.bruneton.multiple_scattering",
+        format,
+        &multi,
+    )?;
     Ok((single_tex, multi_tex))
 }
 
@@ -364,7 +378,9 @@ fn readback_texture_3d_rgba_f32(
         tx.send(r).expect("readback channel");
     });
     device.poll(wgpu::Maintain::Wait);
-    rx.recv().expect("recv").map_err(|e| BrunetonPrecomputeError::Gpu(e.to_string()))?;
+    rx.recv()
+        .expect("recv")
+        .map_err(|e| BrunetonPrecomputeError::Gpu(e.to_string()))?;
 
     let data = slice.get_mapped_range();
     let mut out = Vec::with_capacity((width * height * depth * 4) as usize);

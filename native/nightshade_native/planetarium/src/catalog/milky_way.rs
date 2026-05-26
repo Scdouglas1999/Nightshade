@@ -30,15 +30,13 @@ pub const MILKY_WAY_PACK_VERSION: u32 = 1;
 pub const MILKY_WAY_FORMAT_R8: u32 = 0;
 
 /// Expected payload bytes (`width * height`).
-pub const MILKY_WAY_PAYLOAD_LEN: usize =
-    (MILKY_WAY_WIDTH as usize) * (MILKY_WAY_HEIGHT as usize);
+pub const MILKY_WAY_PAYLOAD_LEN: usize = (MILKY_WAY_WIDTH as usize) * (MILKY_WAY_HEIGHT as usize);
 
 /// Expected on-disk file size (header + payload).
 pub const MILKY_WAY_FILE_LEN: usize = MILKY_WAY_HEADER_LEN + MILKY_WAY_PAYLOAD_LEN;
 
 /// Relative path from repository root to the bundled desktop asset.
-pub const MILKY_WAY_ASSET_REL_PATH: &str =
-    "apps/desktop/assets/planetarium/mw-intensity-v1.bin";
+pub const MILKY_WAY_ASSET_REL_PATH: &str = "apps/desktop/assets/planetarium/mw-intensity-v1.bin";
 
 /// Galactic north pole (J2000 equatorial), degrees.
 pub const GALACTIC_NORTH_POLE_RA_DEG: f64 = 192.8595;
@@ -254,23 +252,27 @@ pub fn parse_milky_way_map(bytes: &[u8]) -> Result<MilkyWayMap, MilkyWayError> {
 
 /// Memory-map or read a MW asset file and parse it.
 pub fn load_milky_way_map(path: impl AsRef<Path>) -> Result<MilkyWayMap, MilkyWayError> {
-    let bytes =
-        std::fs::read(path.as_ref()).map_err(|e| MilkyWayError::io("read mw-intensity-v1.bin", e))?;
+    let bytes = std::fs::read(path.as_ref())
+        .map_err(|e| MilkyWayError::io("read mw-intensity-v1.bin", e))?;
     parse_milky_way_map(&bytes)
 }
 
 /// Build the map and write `mw-intensity-v1.bin` under `output_path`.
-pub fn build_milky_way_asset(output_path: impl AsRef<Path>) -> Result<MilkyWayBuildResult, MilkyWayError> {
+pub fn build_milky_way_asset(
+    output_path: impl AsRef<Path>,
+) -> Result<MilkyWayBuildResult, MilkyWayError> {
     let output_path = output_path.as_ref().to_path_buf();
     if let Some(parent) = output_path.parent() {
-        fs::create_dir_all(parent).map_err(|e| MilkyWayError::io("create mw asset parent dir", e))?;
+        fs::create_dir_all(parent)
+            .map_err(|e| MilkyWayError::io("create mw asset parent dir", e))?;
     }
 
     let map = build_milky_way_map();
     let bytes = encode_milky_way_map(&map);
     debug_assert_eq!(bytes.len(), MILKY_WAY_FILE_LEN);
 
-    let mut file = File::create(&output_path).map_err(|e| MilkyWayError::io("create mw asset", e))?;
+    let mut file =
+        File::create(&output_path).map_err(|e| MilkyWayError::io("create mw asset", e))?;
     file.write_all(&bytes)
         .map_err(|e| MilkyWayError::io("write mw asset", e))?;
 

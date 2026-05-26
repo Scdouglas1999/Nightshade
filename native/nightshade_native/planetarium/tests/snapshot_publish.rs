@@ -5,9 +5,7 @@ use std::time::{Duration, Instant};
 
 use nightshade_planetarium::bus::PlanetariumCommand;
 use nightshade_planetarium::catalog::CatalogSet;
-use nightshade_planetarium::scene::{
-    build_snapshot, project_icrs, LabelCategory, SnapshotInputs,
-};
+use nightshade_planetarium::scene::{build_snapshot, project_icrs, LabelCategory, SnapshotInputs};
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, ViewPose};
 use nightshade_planetarium::Planetarium;
 
@@ -45,14 +43,17 @@ fn wait_for_frame_after(planetarium: &Planetarium, after: u64) -> u64 {
 #[test]
 fn build_snapshot_includes_visible_dev_stars_at_pole_view() {
     let catalog = CatalogSet::new();
-    let snap = build_snapshot(&catalog, SnapshotInputs {
-        frame_id: 1,
-        view_pose: ViewPose::default(),
-        astro_time: AstroTime::from_jd_utc(2_451_545.0),
-        observer: Observer::default(),
-        render_config: RenderConfig::default(),
-        selected: None,
-    });
+    let snap = build_snapshot(
+        &catalog,
+        SnapshotInputs {
+            frame_id: 1,
+            view_pose: ViewPose::default(),
+            astro_time: AstroTime::from_jd_utc(2_451_545.0),
+            observer: Observer::default(),
+            render_config: RenderConfig::default(),
+            selected: None,
+        },
+    );
 
     assert_eq!(snap.frame_id, 1);
     assert!(
@@ -124,7 +125,10 @@ fn show_stars_disabled_yields_empty_labels_but_increments_frame() {
     let snap = planetarium.snapshot();
     assert!(snap.frame_id > 0);
     assert!(
-        !snap.labels.iter().any(|l| l.category == LabelCategory::Star),
+        !snap
+            .labels
+            .iter()
+            .any(|l| l.category == LabelCategory::Star),
         "star labels should be empty when show_stars is false"
     );
 }
@@ -135,8 +139,7 @@ fn build_snapshot_includes_constellation_and_body_labels_without_dev_only_stars(
 
     let catalog = CatalogSet::new();
     let astro_time = AstroTime::from_jd_utc(2_451_545.0);
-    let (sun_ra, sun_dec) =
-        body_equatorial_rad(BodyId::Sun, astro_time).expect("sun ephemeris");
+    let (sun_ra, sun_dec) = body_equatorial_rad(BodyId::Sun, astro_time).expect("sun ephemeris");
     let view_pose = ViewPose {
         ra_rad: sun_ra,
         dec_rad: sun_dec,
@@ -162,13 +165,15 @@ fn build_snapshot_includes_constellation_and_body_labels_without_dev_only_stars(
     );
 
     assert!(
-        snap.labels.iter().any(|l| l.category == LabelCategory::Constellation),
+        snap.labels
+            .iter()
+            .any(|l| l.category == LabelCategory::Constellation),
         "constellation name labels expected"
     );
     assert!(
-        snap.labels.iter().any(|l| {
-            l.category == LabelCategory::Body && l.text.as_str() == "Sun"
-        }),
+        snap.labels
+            .iter()
+            .any(|l| { l.category == LabelCategory::Body && l.text.as_str() == "Sun" }),
         "solar-system body labels expected"
     );
     assert!(

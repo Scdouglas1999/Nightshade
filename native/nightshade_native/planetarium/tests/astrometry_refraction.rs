@@ -83,7 +83,10 @@ fn true_apparent_roundtrip_standard() {
         let back =
             apparent_to_true_altitude(apparent, STANDARD_PRESSURE_HPA, STANDARD_TEMPERATURE_C)
                 .unwrap();
-        assert!((back - h).abs() < TIGHT_DEG, "h={h} apparent={apparent} back={back}");
+        assert!(
+            (back - h).abs() < TIGHT_DEG,
+            "h={h} apparent={apparent} back={back}"
+        );
     }
 }
 

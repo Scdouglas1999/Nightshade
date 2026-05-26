@@ -5,9 +5,7 @@
 //! the canonical Spacetrack / `sgp4` verification dataset.
 
 use glam::DVec3;
-use sgp4::{
-    Constants, Elements, Error as Sgp4Error, MinutesSinceEpoch, Prediction, TleError,
-};
+use sgp4::{Constants, Elements, Error as Sgp4Error, MinutesSinceEpoch, Prediction, TleError};
 
 /// Maximum allowed position error (km) against the canonical verification suite.
 pub const VERIFICATION_POSITION_TOLERANCE_KM: f64 = 1.0;
@@ -75,7 +73,10 @@ impl SatellitePropagator {
     pub fn from_elements(elements: Elements) -> Result<Self, Sgp4PropError> {
         let constants = Constants::from_elements_afspc_compatibility_mode(&elements)
             .map_err(|err| Sgp4PropError::Init(err.to_string()))?;
-        Ok(Self { elements, constants })
+        Ok(Self {
+            elements,
+            constants,
+        })
     }
 
     /// Orbital elements (epoch, inclination, etc.).

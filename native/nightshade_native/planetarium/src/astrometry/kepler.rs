@@ -115,7 +115,11 @@ pub fn solve_kepler(mean_anomaly_rad: f64, eccentricity: f64) -> f64 {
 
 /// Residual of Kepler's equation: `E − e sin E − M` (radians).
 #[inline]
-pub fn kepler_equation_residual(eccentric_anomaly_rad: f64, mean_anomaly_rad: f64, eccentricity: f64) -> f64 {
+pub fn kepler_equation_residual(
+    eccentric_anomaly_rad: f64,
+    mean_anomaly_rad: f64,
+    eccentricity: f64,
+) -> f64 {
     eccentric_anomaly_rad - eccentricity * eccentric_anomaly_rad.sin() - mean_anomaly_rad
 }
 
@@ -198,7 +202,7 @@ fn initial_eccentric_anomaly_guess(mean_anomaly_rad: f64, eccentricity: f64) -> 
         std::f64::consts::PI
             - (6.0 * (std::f64::consts::TAU - mean_anomaly_rad)
                 / (eccentricity * std::f64::consts::PI))
-            .cbrt()
+                .cbrt()
                 * eccentricity
                 * std::f64::consts::PI
                 / 6.0

@@ -3,12 +3,12 @@
 //! `body_lighting` is path-included until the integrator adds `pub mod body_lighting` to
 //! `astrometry/mod.rs`.
 
-#[path = "../src/astrometry/vsop87.rs"]
-mod vsop87;
-#[path = "../src/astrometry/moon.rs"]
-mod moon;
 #[path = "../src/astrometry/body_lighting.rs"]
 mod body_lighting;
+#[path = "../src/astrometry/moon.rs"]
+mod moon;
+#[path = "../src/astrometry/vsop87.rs"]
+mod vsop87;
 
 use body_lighting::{
     body_lighting, illuminated_fraction_from_phase_angle, moon_lighting, planet_lighting,

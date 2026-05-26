@@ -5,7 +5,7 @@ use std::io::Write;
 
 use memmap2::Mmap;
 use nightshade_planetarium::catalog::{
-    LodEntry, StarRecord, TileHeader, encode_tile, parse_tile, tile_byte_len,
+    encode_tile, parse_tile, tile_byte_len, LodEntry, StarRecord, TileHeader,
 };
 
 fn sample_tile() -> (TileHeader, Vec<LodEntry>, Vec<StarRecord>) {
@@ -74,5 +74,8 @@ fn rejects_bad_magic() {
     header.magic = *b"BADMAGIC";
     let bytes = encode_tile(&header, &lods, &stars);
     let err = parse_tile(&bytes).expect_err("bad magic");
-    assert!(matches!(err, nightshade_planetarium::catalog::TileParseError::BadMagic));
+    assert!(matches!(
+        err,
+        nightshade_planetarium::catalog::TileParseError::BadMagic
+    ));
 }

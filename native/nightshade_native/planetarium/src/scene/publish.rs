@@ -7,10 +7,10 @@ use crate::catalog::CatalogSet;
 use crate::scene::dev_catalog::DEV_STARS;
 use crate::scene::pose::{body_equatorial_rad, BodyId};
 use crate::scene::projection::project_icrs;
+use crate::scene::snapshot::ConstellationArtPlacement;
 use crate::scene::{
     publish, LabelCategory, LabelHint, SceneSnapshot, SelectedObject, SmallString, SnapshotSlot,
 };
-use crate::scene::snapshot::ConstellationArtPlacement;
 use crate::types::{RenderConfig, ViewPose};
 
 /// Inputs required to build and publish one frame snapshot.
@@ -56,7 +56,11 @@ pub fn publish_snapshot(slot: &SnapshotSlot, catalog: &CatalogSet, inputs: Snaps
 
 fn collect_all_labels(catalog: &CatalogSet, inputs: &SnapshotInputs) -> Vec<LabelHint> {
     let mut labels = Vec::new();
-    labels.extend(collect_star_labels(catalog, &inputs.view_pose, &inputs.render_config));
+    labels.extend(collect_star_labels(
+        catalog,
+        &inputs.view_pose,
+        &inputs.render_config,
+    ));
     labels.extend(collect_constellation_name_labels(
         &inputs.view_pose,
         &inputs.render_config,
@@ -114,8 +118,7 @@ fn collect_dev_star_labels(view_pose: &ViewPose, config: &RenderConfig) -> Vec<L
         if star.mag > config.magnitude_limit {
             continue;
         }
-        let Some((screen_x, screen_y)) = project_icrs(star.ra_rad, star.dec_rad, *view_pose)
-        else {
+        let Some((screen_x, screen_y)) = project_icrs(star.ra_rad, star.dec_rad, *view_pose) else {
             continue;
         };
         labels.push(LabelHint {

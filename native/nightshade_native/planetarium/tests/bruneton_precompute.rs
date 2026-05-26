@@ -14,8 +14,7 @@ const PRECOMPUTE_BUDGET_MS: u128 = 2000;
 const TRANSMITTANCE_EPS: f32 = 0.02;
 
 fn fixture_transmittance_path() -> PathBuf {
-    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("tests/fixtures/bruneton/transmittance.dat")
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/bruneton/transmittance.dat")
 }
 
 #[test]
@@ -60,10 +59,12 @@ fn bruneton_transmittance_matches_reference_at_known_angles() {
         let cases: [(f64, f64); 4] = [
             (config.bottom_radius_m / config.length_unit_in_meters, 1.0),
             (config.bottom_radius_m / config.length_unit_in_meters, 0.0),
-            (config.top_radius_m / config.length_unit_in_meters - 0.01, 0.5),
             (
-                (config.bottom_radius_m + config.top_radius_m) * 0.5
-                    / config.length_unit_in_meters,
+                config.top_radius_m / config.length_unit_in_meters - 0.01,
+                0.5,
+            ),
+            (
+                (config.bottom_radius_m + config.top_radius_m) * 0.5 / config.length_unit_in_meters,
                 -0.2,
             ),
         ];

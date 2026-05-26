@@ -54,7 +54,8 @@ fn earth_heliocentric_speed_near_perihelion() {
         speed > 0.0170 && speed < 0.0180,
         "Earth heliocentric speed {speed} AU/day"
     );
-    let beta_arcsec = (speed / SPEED_OF_LIGHT_AU_PER_DAY) * (180.0 * 3_600.0 / std::f64::consts::PI);
+    let beta_arcsec =
+        (speed / SPEED_OF_LIGHT_AU_PER_DAY) * (180.0 * 3_600.0 / std::f64::consts::PI);
     assert!(
         (beta_arcsec - 20.83).abs() < 0.15,
         "β magnitude {beta_arcsec:.3}″"

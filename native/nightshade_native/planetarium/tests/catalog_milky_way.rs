@@ -23,7 +23,10 @@ fn procedural_map_dimensions_and_file_len() {
     let map = build_milky_way_map();
     assert_eq!(map.header.width, MILKY_WAY_WIDTH);
     assert_eq!(map.header.height, MILKY_WAY_HEIGHT);
-    assert_eq!(map.pixels.len(), (MILKY_WAY_WIDTH as usize) * (MILKY_WAY_HEIGHT as usize));
+    assert_eq!(
+        map.pixels.len(),
+        (MILKY_WAY_WIDTH as usize) * (MILKY_WAY_HEIGHT as usize)
+    );
 
     let bytes = encode_milky_way_map(&map);
     assert_eq!(bytes.len(), MILKY_WAY_FILE_LEN);
@@ -54,7 +57,10 @@ fn galactic_equatorial_roundtrip_at_plane_center() {
     assert!(galactic_intensity(l, b) > 0.5);
 
     let (l_sgr, b_sgr) = equatorial_to_galactic_deg(266.4168, -29.0078);
-    assert!(galactic_intensity(l_sgr, b_sgr) > 0.5, "Sagittarius A* region is bright");
+    assert!(
+        galactic_intensity(l_sgr, b_sgr) > 0.5,
+        "Sagittarius A* region is bright"
+    );
 }
 
 #[test]

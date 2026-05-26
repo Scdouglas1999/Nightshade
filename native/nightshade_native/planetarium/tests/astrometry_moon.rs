@@ -55,7 +55,11 @@ const ELP_MAIN_PROBLEM_REFS: &[ElpMainProblemRef] = &[
 ];
 
 /// J2000.0: DE421 geocentric ecliptic (Skyfield); ≈ almanac-grade at the epoch.
-const J2000_DE421_ECLIPTIC: (f64, f64, f64) = (223.318_025_949_222_1, 5.171_309_927_234_373, 402_414.600_155_946_5);
+const J2000_DE421_ECLIPTIC: (f64, f64, f64) = (
+    223.318_025_949_222_1,
+    5.171_309_927_234_373,
+    402_414.600_155_946_5,
+);
 
 #[test]
 fn truncated_term_count_is_fifty() {
@@ -94,10 +98,7 @@ fn within_one_arcmin_of_elp_main_problem_at_four_epochs() {
 #[test]
 fn j2000_within_one_arcmin_of_de421_ecliptic() {
     let got = moon_ecliptic_j2000_from_jd_tt(2_451_545.0);
-    let sep = ecliptic_separation_arcmin(
-        got,
-        (J2000_DE421_ECLIPTIC.0, J2000_DE421_ECLIPTIC.1),
-    );
+    let sep = ecliptic_separation_arcmin(got, (J2000_DE421_ECLIPTIC.0, J2000_DE421_ECLIPTIC.1));
     assert!(
         sep < MAX_ARCMIN,
         "J2000 vs DE421 ecliptic separation {sep:.4}′"

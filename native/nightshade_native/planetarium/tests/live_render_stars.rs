@@ -6,9 +6,9 @@ use std::collections::HashMap;
 use nightshade_planetarium::animation::AnimationState;
 use nightshade_planetarium::catalog::{pixel_for_direction, CatalogSet, StarPack, StarRecord};
 use nightshade_planetarium::renderer::{Renderer, FRAME_CLEAR};
+use nightshade_planetarium::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use nightshade_planetarium::scene::{build_render_scene, BuildSceneInputs};
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, SkyProjection, ViewPose};
-use nightshade_planetarium::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 
 struct FakePack {
     id: &'static str,
@@ -90,8 +90,8 @@ fn catalog_pack_yields_non_empty_star_scene() {
         astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
     };
 
-    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE, None)
-        .expect("scene");
+    let scene =
+        build_render_scene(&catalog, inputs, &AnimationState::INACTIVE, None).expect("scene");
     assert!(
         !scene.stars.is_empty(),
         "registered pack must populate Scene.stars"
@@ -120,19 +120,14 @@ fn catalog_stars_render_non_black_pixels_offscreen() {
         observer: Observer::default(),
         astro_time: AstroTime::from_jd_utc(DEFAULT_ASTRO_TIME_JD_UTC),
     };
-    let scene = build_render_scene(&catalog, inputs, &AnimationState::INACTIVE, None)
-        .expect("scene");
+    let scene =
+        build_render_scene(&catalog, inputs, &AnimationState::INACTIVE, None).expect("scene");
     assert!(!scene.stars.is_empty());
 
     let pixels = pollster::block_on(async {
         let (device, queue) = nightshade_planetarium::renderer::offscreen_device().await;
-        let mut renderer = Renderer::new(
-            device,
-            queue,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            256,
-            256,
-        );
+        let mut renderer =
+            Renderer::new(device, queue, wgpu::TextureFormat::Rgba8UnormSrgb, 256, 256);
         renderer.render(&scene);
         renderer.readback_rgba()
     });

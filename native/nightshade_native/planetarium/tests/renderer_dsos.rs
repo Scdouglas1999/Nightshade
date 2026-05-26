@@ -3,12 +3,12 @@
 use std::path::PathBuf;
 
 use nightshade_planetarium::catalog::{build_opengnc_catalog, parse_catalog};
+use nightshade_planetarium::renderer::Scene;
 use nightshade_planetarium::renderer::{
     collect_dso_instances_from_records, dso_surface_brightness, DsoInstance, Renderer,
 };
 use nightshade_planetarium::scene::build::BuildSceneInputs;
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, SkyProjection, ViewPose};
-use nightshade_planetarium::renderer::Scene;
 
 const RENDER_SIZE: u32 = 256;
 

@@ -1,8 +1,6 @@
 //! CPU sampling helpers for LUT validation (mirrors Bruneton texture coordinate mapping).
 
-use super::constants::{
-    TRANSMITTANCE_TEXTURE_HEIGHT, TRANSMITTANCE_TEXTURE_WIDTH,
-};
+use super::constants::{TRANSMITTANCE_TEXTURE_HEIGHT, TRANSMITTANCE_TEXTURE_WIDTH};
 use super::params::PrecomputeConfig;
 
 /// Map atmosphere `(r, mu)` to transmittance LUT normalized UV (Bruneton `GetTransmittanceTextureUvFromRMu`).

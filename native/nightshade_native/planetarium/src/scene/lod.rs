@@ -5,8 +5,8 @@
 //! optionally soften at the frustum edge; [`select_lod`] maps a limit onto a tile's
 //! [`LodEntry`](crate::catalog::tile::LodEntry) table.
 
-use crate::catalog::LodEntry;
 use crate::catalog::hyg_build::HYG_MAG_LIMIT;
+use crate::catalog::LodEntry;
 
 /// Reference wide-field FOV (degrees) used for zoom scaling (v1 default 120°).
 pub const REF_FOV_DEG: f32 = 120.0;

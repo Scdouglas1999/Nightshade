@@ -7,7 +7,10 @@ use nightshade_planetarium::types::{AstroTime, Observer};
 fn pole_ra_at_epoch(time: AstroTime) -> f64 {
     let chain = FrameChain::r#for(time, Observer::default());
     let dir_cirs = (chain.precession_nutation * POLE_DIR_ICRS).normalize();
-    dir_cirs.y.atan2(dir_cirs.x).rem_euclid(std::f64::consts::TAU)
+    dir_cirs
+        .y
+        .atan2(dir_cirs.x)
+        .rem_euclid(std::f64::consts::TAU)
 }
 
 const POLE_DIR_ICRS: DVec3 = DVec3::new(0.0, 0.0, 1.0);

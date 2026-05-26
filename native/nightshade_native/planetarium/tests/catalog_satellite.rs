@@ -5,7 +5,7 @@ use nightshade_planetarium::astrometry::sgp4_prop::{
     position_error_km, VERIFICATION_POSITION_TOLERANCE_KM,
 };
 use nightshade_planetarium::catalog::{
-    encode_satellite_tle_catalog, encode_catalog_from_text, parse_satellite_tle_catalog,
+    encode_catalog_from_text, encode_satellite_tle_catalog, parse_satellite_tle_catalog,
     parse_tle_text, MappedSatelliteTleCatalog, SatelliteTleCatalog, SATELLITE_TLE_CATALOG_ID,
 };
 

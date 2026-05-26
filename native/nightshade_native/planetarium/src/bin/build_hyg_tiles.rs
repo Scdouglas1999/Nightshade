@@ -69,14 +69,13 @@ fn resolve_repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 {
         let root = PathBuf::from(&args[1]);
-        if root.join(nightshade_planetarium::catalog::HYG_CSV_REL_PATH).is_file() {
+        if root
+            .join(nightshade_planetarium::catalog::HYG_CSV_REL_PATH)
+            .is_file()
+        {
             return Ok(root);
         }
-        return Err(format!(
-            "no HYG CSV under {}",
-            default_hyg_csv_path(&root).display()
-        )
-        .into());
+        return Err(format!("no HYG CSV under {}", default_hyg_csv_path(&root).display()).into());
     }
 
     let cwd = env::current_dir()?;

@@ -868,9 +868,7 @@ pub fn combine_master_frames(
             ));
         }
         if iterations == 0 {
-            return Err(
-                "combine_master_frames: sigma-clip iterations must be >= 1".to_string()
-            );
+            return Err("combine_master_frames: sigma-clip iterations must be >= 1".to_string());
         }
     }
 
@@ -1006,8 +1004,11 @@ fn sigma_clip_in_place(samples: &mut [f64], kappa: f64, iterations: u32) -> f64 
         }
         let n = working.len() as f64;
         let mean: f64 = working.iter().sum::<f64>() / n;
-        let var: f64 =
-            working.iter().map(|&v| (v - mean) * (v - mean)).sum::<f64>() / (n - 1.0);
+        let var: f64 = working
+            .iter()
+            .map(|&v| (v - mean) * (v - mean))
+            .sum::<f64>()
+            / (n - 1.0);
         let sigma = var.max(0.0).sqrt();
         if sigma == 0.0 {
             // Population is degenerate (all equal); no clipping possible.
@@ -1326,7 +1327,10 @@ mod tests {
         let pixels = master.image.as_u16().expect("u16 master should return u16");
         assert_eq!(pixels.len(), 16);
         for &p in &pixels {
-            assert_eq!(p, 1234, "every pixel of the bias master should be the constant input value");
+            assert_eq!(
+                p, 1234,
+                "every pixel of the bias master should be the constant input value"
+            );
         }
         assert!((master.input_mean - 1234.0).abs() < 1e-9);
         assert!((master.output_mean - 1234.0).abs() < 1e-9);
@@ -1393,8 +1397,8 @@ mod tests {
             ramp_pixels.push(v.round() as u16);
         }
         // Sanity: confirm the test fixture mean really is 10000.
-        let raw_mean = ramp_pixels.iter().map(|&p| p as f64).sum::<f64>()
-            / ramp_pixels.len() as f64;
+        let raw_mean =
+            ramp_pixels.iter().map(|&p| p as f64).sum::<f64>() / ramp_pixels.len() as f64;
         assert!(
             (raw_mean - 10000.0).abs() < 1.0,
             "test fixture ramp mean should be ~10000, got {}",
@@ -1441,9 +1445,7 @@ mod tests {
         // calibration code can still divide without saturation.
         let w: u32 = 4;
         let h: u32 = 4;
-        let frames: Vec<ImageData> = (0..5)
-            .map(|_| constant_u16_image(w, h, 10000))
-            .collect();
+        let frames: Vec<ImageData> = (0..5).map(|_| constant_u16_image(w, h, 10000)).collect();
 
         let master = combine_master_frames(
             &frames,
@@ -1473,7 +1475,10 @@ mod tests {
             CombineMethod::Median,
             MasterOutputType::U16,
         );
-        assert!(result.is_err(), "empty input must return Err, not silently produce a master");
+        assert!(
+            result.is_err(),
+            "empty input must return Err, not silently produce a master"
+        );
         let err = result.unwrap_err();
         assert!(
             err.contains("zero frames") || err.contains("empty"),
@@ -1587,12 +1592,11 @@ mod tests {
     fn step_stats(stats: &mut StackingStats, matches_len: usize, residual: f64) {
         stats.stacked_frame_count += 1;
         let aligned_count = stats.stacked_frame_count.saturating_sub(1).max(1) as f64;
-        stats.avg_matched_pairs =
-            stats.avg_matched_pairs * ((aligned_count - 1.0) / aligned_count)
-                + matches_len as f64 / aligned_count;
-        stats.avg_alignment_residual =
-            stats.avg_alignment_residual * ((aligned_count - 1.0) / aligned_count)
-                + residual / aligned_count;
+        stats.avg_matched_pairs = stats.avg_matched_pairs * ((aligned_count - 1.0) / aligned_count)
+            + matches_len as f64 / aligned_count;
+        stats.avg_alignment_residual = stats.avg_alignment_residual
+            * ((aligned_count - 1.0) / aligned_count)
+            + residual / aligned_count;
     }
 
     #[test]

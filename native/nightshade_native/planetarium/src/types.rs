@@ -31,7 +31,7 @@ impl Default for ViewPose {
         Self {
             ra_rad: 0.0,
             dec_rad: std::f64::consts::FRAC_PI_2, // celestial pole
-            fov_rad: std::f32::consts::FRAC_PI_2,  // 90°
+            fov_rad: std::f32::consts::FRAC_PI_2, // 90°
             roll_rad: 0.0,
             projection: SkyProjection::Stereographic,
         }
@@ -90,7 +90,7 @@ pub struct RenderConfig {
     pub show_minor_planets: bool,
     pub show_variable_stars: bool,
     pub magnitude_limit: f32,
-    pub quality: u32, // 0=low, 1=medium, 2=high
+    pub quality: u32,      // 0=low, 1=medium, 2=high
     pub bortle_class: u32, // 1..9, 0 = no LP dome
     pub twinkle: bool,
 }

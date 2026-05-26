@@ -3,8 +3,8 @@
 //! Tile packs store [`super::tile::TileHeader::healpix_id`] at a given [`nside`](super::tile::TileHeader::nside);
 //! these functions map sky directions and view cones to the same pixel indices.
 
-use cdshealpix::{self, nested};
 use cdshealpix::NSIDE_MAX;
+use cdshealpix::{self, nested};
 
 use crate::types::{SkyProjection, ViewPose};
 

@@ -6,20 +6,21 @@
 use crate::PlanetariumError;
 use d3d12::{Device as D3d12Device, Resource as D3d12Resource};
 use std::sync::Arc;
+use wgpu::hal::dx12::Device as HalDx12Device;
 use winapi::{
     shared::{dxgiformat, dxgitype, winerror::SUCCEEDED},
     um::{
         d3d12::{
-            D3D12_HEAP_FLAG_SHARED, D3D12_HEAP_PROPERTIES, D3D12_HEAP_TYPE_CUSTOM, D3D12_MEMORY_POOL_L0,
-            D3D12_RESOURCE_DIMENSION_TEXTURE2D, D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET,
-            D3D12_RESOURCE_STATE_COMMON, D3D12_TEXTURE_LAYOUT_UNKNOWN,
+            D3D12_HEAP_FLAG_SHARED, D3D12_HEAP_PROPERTIES, D3D12_HEAP_TYPE_CUSTOM,
+            D3D12_MEMORY_POOL_L0, D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON,
+            D3D12_TEXTURE_LAYOUT_UNKNOWN,
         },
         handleapi::CloseHandle,
         winnt::GENERIC_ALL,
     },
     Interface,
 };
-use wgpu::hal::dx12::Device as HalDx12Device;
 
 /// Shareable wgpu render target plus the NT handle Flutter imports.
 pub struct SharedTexture {
@@ -81,14 +82,13 @@ pub fn allocate_shared(
             )),
         })
     };
-    let (hal_texture, shared_handle) = hal_result
-        .ok_or(PlanetariumError::UnsupportedPlatform(
+    let (hal_texture, shared_handle) =
+        hal_result.ok_or(PlanetariumError::UnsupportedPlatform(
             "wgpu device has no DX12 backing — wrong backend selected",
         ))??;
 
-    let wgpu_texture = unsafe {
-        device.create_texture_from_hal::<wgpu::hal::api::Dx12>(hal_texture, &desc)
-    };
+    let wgpu_texture =
+        unsafe { device.create_texture_from_hal::<wgpu::hal::api::Dx12>(hal_texture, &desc) };
 
     Ok(SharedTexture {
         wgpu: Arc::new(wgpu_texture),

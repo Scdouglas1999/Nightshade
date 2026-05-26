@@ -168,8 +168,7 @@ fn hadec_to_horizontal(hour_angle_rad: f64, dec_rad: f64, latitude_rad: f64) -> 
     let (sin_dec, cos_dec) = dec_rad.sin_cos();
     let (sin_lat, cos_lat) = latitude_rad.sin_cos();
 
-    let sin_alt =
-        sin_dec * sin_lat + cos_dec * cos_lat * cos_ha;
+    let sin_alt = sin_dec * sin_lat + cos_dec * cos_lat * cos_ha;
     let altitude_rad = sin_alt.clamp(-1.0, 1.0).asin();
 
     let y = -sin_ha * cos_dec;

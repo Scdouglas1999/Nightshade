@@ -6,8 +6,8 @@
 use glam::DVec3;
 use nightshade_planetarium::astrometry::kepler::{
     geocentric_equatorial_j2000, heliocentric_ecliptic_j2000, kepler_equation_residual,
-    solve_kepler, GeocentricEquatorial, HeliocentricState, OrbitalElements,
-    NEAR_PARABOLIC_ECCENTRICITY, KEPLER_TOLERANCE_RAD,
+    solve_kepler, GeocentricEquatorial, HeliocentricState, OrbitalElements, KEPLER_TOLERANCE_RAD,
+    NEAR_PARABOLIC_ECCENTRICITY,
 };
 
 /// 1 Ceres — MPC osculating elements, epoch 2024 Jan 1.0 TT (JD 2460310.5).

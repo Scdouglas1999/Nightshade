@@ -74,7 +74,9 @@ fn by_kind_and_constellation() {
 
     let ori = by_constellation("Ori");
     assert!(!ori.is_empty());
-    assert!(ori.iter().all(|s| s.constellation.eq_ignore_ascii_case("Ori")));
+    assert!(ori
+        .iter()
+        .all(|s| s.constellation.eq_ignore_ascii_case("Ori")));
 }
 
 #[test]

@@ -108,8 +108,16 @@ pub fn opengnc_row_to_record(fields: &[&str]) -> Option<DsoRecord> {
     let minor_axis = parse_f32_or_zero(fields[6].trim());
     let pa_deg = fields[7].trim().parse::<f32>().unwrap_or(f32::NAN);
 
-    let b_mag = fields[8].trim().parse::<f32>().ok().filter(|m| m.is_finite());
-    let v_mag = fields[9].trim().parse::<f32>().ok().filter(|m| m.is_finite());
+    let b_mag = fields[8]
+        .trim()
+        .parse::<f32>()
+        .ok()
+        .filter(|m| m.is_finite());
+    let v_mag = fields[9]
+        .trim()
+        .parse::<f32>()
+        .ok()
+        .filter(|m| m.is_finite());
     let surface_mag = v_mag.or(b_mag).unwrap_or(f32::NAN);
 
     if surface_mag.is_finite() && surface_mag > OPENNGC_MAG_LIMIT {

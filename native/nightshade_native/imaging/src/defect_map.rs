@@ -720,10 +720,12 @@ pub fn correct_u16_slice(
     let sigma = (half as f64).max(0.5);
     let two_sigma_sq = 2.0 * sigma * sigma;
 
-    let mut neighbour_scratch: Vec<u16> = Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
+    let mut neighbour_scratch: Vec<u16> =
+        Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
     // Separate scratch for Gaussian weights so we don't pay an alloc per
     // pixel. Same capacity as `neighbour_scratch`.
-    let mut weight_scratch: Vec<f64> = Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
+    let mut weight_scratch: Vec<f64> =
+        Vec::with_capacity(((2 * half + 1) * (2 * half + 1)) as usize);
 
     let mut corrected: u32 = 0;
     let mut skipped_due_to_no_neighbours: u32 = 0;
@@ -807,8 +809,7 @@ pub fn correct_u16_slice(
                             );
                             neighbour_scratch.push(value);
                             if matches!(method, CorrectionMethod::Gaussian) {
-                                let r_sq =
-                                    (dx as f64) * (dx as f64) + (dy as f64) * (dy as f64);
+                                let r_sq = (dx as f64) * (dx as f64) + (dy as f64) * (dy as f64);
                                 weight_scratch.push((-r_sq / two_sigma_sq).exp());
                             }
                         }
@@ -828,8 +829,7 @@ pub fn correct_u16_slice(
                         neighbour_scratch.sort_unstable();
                         let mid = neighbour_scratch.len() / 2;
                         if neighbour_scratch.len().is_multiple_of(2) {
-                            ((neighbour_scratch[mid - 1] as u32
-                                + neighbour_scratch[mid] as u32)
+                            ((neighbour_scratch[mid - 1] as u32 + neighbour_scratch[mid] as u32)
                                 / 2) as u16
                         } else {
                             neighbour_scratch[mid]
@@ -1303,16 +1303,9 @@ mod tests {
             }
         }
         let kernel = KernelSize::from_diameter(7).expect("7 is valid");
-        let corrected = correct_u16_slice(
-            &mut pixels,
-            w,
-            h,
-            1,
-            &map,
-            CorrectionMethod::Median,
-            kernel,
-        )
-        .unwrap();
+        let corrected =
+            correct_u16_slice(&mut pixels, w, h, 1, &map, CorrectionMethod::Median, kernel)
+                .unwrap();
         assert_eq!(corrected, 9);
         // Centre pixel must be repaired back to the healthy value.
         assert_eq!(pixels[3 * w as usize + 3], 1234);
@@ -1423,12 +1416,7 @@ mod tests {
             "wizard should detect all 7 synthetic hot pixels"
         );
         for (x, y, _) in &hot_pixels {
-            assert!(
-                map.is_defective(*x, *y),
-                "({}, {}) should be flagged",
-                x,
-                y
-            );
+            assert!(map.is_defective(*x, *y), "({}, {}) should be flagged", x, y);
         }
         // Healthy pixels untouched.
         assert!(!map.is_defective(0, 0));

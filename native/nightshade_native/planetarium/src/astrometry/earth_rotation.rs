@@ -64,8 +64,7 @@ pub fn gmst_from_jd_ut1_tt(jd_ut1: f64, jd_tt: f64) -> f64 {
     let poly_arcsec = 0.014_506
         + t * (4_612.156_534
             + t * (1.391_581_7
-                + t * (-0.000_000_44
-                    + t * (-0.000_029_956 + t * (-0.000_000_036_8)))));
+                + t * (-0.000_000_44 + t * (-0.000_029_956 + t * (-0.000_000_036_8)))));
     normalize_angle(era + poly_arcsec * ARCSEC_TO_RAD)
 }
 

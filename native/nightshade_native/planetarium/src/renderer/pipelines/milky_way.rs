@@ -183,7 +183,13 @@ impl MilkyWayPipeline {
     }
 
     /// Draw the MW layer into an active render pass (pass 2).
-    pub fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>, scene: &Scene, width: u32, height: u32) {
+    pub fn draw<'a>(
+        &'a self,
+        pass: &mut wgpu::RenderPass<'a>,
+        scene: &Scene,
+        width: u32,
+        height: u32,
+    ) {
         if !scene.config.show_milky_way {
             return;
         }
@@ -243,13 +249,8 @@ pub fn render_mw_golden_rgba() -> Vec<u8> {
     pollster::block_on(async {
         let (device, queue) = crate::renderer::offscreen_device().await;
         let format = wgpu::TextureFormat::Rgba8UnormSrgb;
-        let mut renderer = crate::renderer::Renderer::new(
-            device,
-            queue,
-            format,
-            MW_GOLDEN_SIZE,
-            MW_GOLDEN_SIZE,
-        );
+        let mut renderer =
+            crate::renderer::Renderer::new(device, queue, format, MW_GOLDEN_SIZE, MW_GOLDEN_SIZE);
         renderer.render(&mw_galactic_center_scene());
         renderer.readback_rgba()
     })
@@ -300,7 +301,11 @@ fn build_uniforms(scene: &Scene, width: u32, height: u32) -> MwUniforms {
         viewport_pixels: [width as f32, height as f32],
         sky_brightness: mw_sky_brightness_factor(&scene.config),
         lp_factor: mw_lp_factor(scene.config.bortle_class),
-        mw_enabled: if scene.config.show_milky_way { 1.0 } else { 0.0 },
+        mw_enabled: if scene.config.show_milky_way {
+            1.0
+        } else {
+            0.0
+        },
         _pad: 0.0,
     }
 }
@@ -368,10 +373,7 @@ mod tests {
     #[test]
     fn mw_golden_frame_has_visible_band_pixels() {
         let rgba = render_mw_golden_rgba();
-        assert_eq!(
-            rgba.len(),
-            (MW_GOLDEN_SIZE * MW_GOLDEN_SIZE * 4) as usize
-        );
+        assert_eq!(rgba.len(), (MW_GOLDEN_SIZE * MW_GOLDEN_SIZE * 4) as usize);
         let visible = count_mw_visible_pixels(&rgba, 8);
         assert!(
             visible > 500,

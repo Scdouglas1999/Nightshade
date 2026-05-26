@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 use thiserror::Error;
 
 use super::healpix::pixel_for_direction;
-use super::tile::{LodEntry, StarRecord, TileHeader, encode_tile};
+use super::tile::{encode_tile, LodEntry, StarRecord, TileHeader};
 
 /// Catalog id for HYG tiles (`TileHeader::catalog_id`).
 pub const HYG_CATALOG_ID: u32 = 1;
@@ -168,7 +168,9 @@ pub enum HygSkipReason {
 /// `BeyondMagnitudeLimit`) are still tolerated by [`build_hyg_tiles`].
 pub fn hyg_row_to_star(fields: &[String]) -> Result<HygParsedRow, HygSkipReason> {
     if fields.len() < 25 {
-        return Err(HygSkipReason::TooFewFields { actual: fields.len() });
+        return Err(HygSkipReason::TooFewFields {
+            actual: fields.len(),
+        });
     }
 
     // HYG `hip` column is integer-or-empty; empty means "no Hipparcos cross-id"
@@ -239,14 +241,7 @@ pub fn hyg_row_to_star(fields: &[String]) -> Result<HygParsedRow, HygSkipReason>
     }
 
     Ok(HygParsedRow {
-        star: StarRecord::from_radec(
-            hip_id,
-            ra_rad as f32,
-            dec_rad as f32,
-            mag,
-            bv,
-            flags,
-        ),
+        star: StarRecord::from_radec(hip_id, ra_rad as f32, dec_rad as f32, mag, bv, flags),
         ra_rad,
         dec_rad,
     })
@@ -287,7 +282,10 @@ pub fn build_lod_entries(stars: &[StarRecord], thresholds: &[f32]) -> Vec<LodEnt
 }
 
 /// Read HYG CSV, bucket stars by HEALPix pixel, and write `tiles/{healpix_id:012x}.bin` files.
-pub fn build_hyg_tiles(csv_path: &Path, output_dir: &Path) -> Result<HygBuildResult, HygBuildError> {
+pub fn build_hyg_tiles(
+    csv_path: &Path,
+    output_dir: &Path,
+) -> Result<HygBuildResult, HygBuildError> {
     let tiles_dir = output_dir.join("tiles");
     if tiles_dir.exists() {
         fs::remove_dir_all(&tiles_dir).map_err(|e| HygBuildError::io("remove old tiles dir", e))?;
@@ -309,8 +307,7 @@ pub fn build_hyg_tiles(csv_path: &Path, output_dir: &Path) -> Result<HygBuildRes
         let fields = parse_csv_line(&line);
         match hyg_row_to_star(&fields) {
             Ok(parsed) => {
-                let pixel =
-                    pixel_for_direction(parsed.ra_rad, parsed.dec_rad, HYG_NSIDE)?;
+                let pixel = pixel_for_direction(parsed.ra_rad, parsed.dec_rad, HYG_NSIDE)?;
                 buckets.entry(pixel).or_default().push(parsed.star);
             }
             Err(reason) if is_by_design_skip(&reason) => {

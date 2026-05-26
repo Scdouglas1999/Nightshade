@@ -2,8 +2,7 @@
 
 use cdshealpix::nested;
 use nightshade_planetarium::catalog::healpix::{
-    bounding_pixels_for_fov, depth_for_nside, pixel_for_direction, pixels_in_cone,
-    HealpixError,
+    bounding_pixels_for_fov, depth_for_nside, pixel_for_direction, pixels_in_cone, HealpixError,
 };
 use nightshade_planetarium::types::{SkyProjection, ViewPose};
 

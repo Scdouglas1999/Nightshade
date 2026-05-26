@@ -10,9 +10,7 @@ use glam::{Mat4, Quat, Vec3};
 
 use crate::astrometry::precession::mean_obliquity_from_julian_centuries_tt;
 use crate::astrometry::vsop87::ecliptic_to_equatorial_rad;
-use crate::catalog::constellation_lines::{
-    icrs_dir_from_j2000, CONSTELLATIONS, LINE_VERTEX_COUNT,
-};
+use crate::catalog::constellation_lines::{icrs_dir_from_j2000, CONSTELLATIONS, LINE_VERTEX_COUNT};
 use crate::renderer::Scene;
 use crate::types::{SkyProjection, ViewPose};
 
@@ -163,8 +161,12 @@ impl LinesPipeline {
             cache: None,
         });
 
-        let constellation_vbuf =
-            create_buffer_init(&device, &queue, "lines.constellation_vbuf", &constellation_verts);
+        let constellation_vbuf = create_buffer_init(
+            &device,
+            &queue,
+            "lines.constellation_vbuf",
+            &constellation_verts,
+        );
 
         let dynamic_vbuf = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("lines.dynamic_vbuf"),
@@ -275,13 +277,7 @@ pub fn build_constellation_line_vertices() -> Vec<LineVertex> {
         for segment in constellation.segments {
             let start = icrs_dir_from_j2000(segment.start_ra_hours, segment.start_dec_deg);
             let end = icrs_dir_from_j2000(segment.end_ra_hours, segment.end_dec_deg);
-            push_segment(
-                &mut out,
-                start,
-                end,
-                COLOR_CONSTELLATION,
-                0,
-            );
+            push_segment(&mut out, start, end, COLOR_CONSTELLATION, 0);
         }
     }
     out
@@ -386,7 +382,8 @@ fn equatorial_grid_spacing(fov_deg: f32) -> (f32, f32, f32) {
 }
 
 fn append_alt_az_grid(out: &mut Vec<LineVertex>, scene: &Scene) {
-    let lst_hours = scene.astro_time.lmst(scene.observer.longitude_rad) * 12.0 / std::f64::consts::PI;
+    let lst_hours =
+        scene.astro_time.lmst(scene.observer.longitude_rad) * 12.0 / std::f64::consts::PI;
     let lat_deg = scene.observer.latitude_rad.to_degrees();
 
     for alt in [0_i32, 30, 60, 90] {
@@ -394,12 +391,8 @@ fn append_alt_az_grid(out: &mut Vec<LineVertex>, scene: &Scene) {
             out,
             (0.0..=360.0).step_by_float(5.0),
             |az| {
-                let (ra_deg, dec_deg) = horizontal_to_equatorial_deg(
-                    f64::from(alt),
-                    f64::from(az),
-                    lat_deg,
-                    lst_hours,
-                );
+                let (ra_deg, dec_deg) =
+                    horizontal_to_equatorial_deg(f64::from(alt), f64::from(az), lat_deg, lst_hours);
                 icrs_dir_from_equatorial((ra_deg / 15.0) as f32, dec_deg as f32)
             },
             COLOR_ALT_AZ_GRID,
@@ -414,11 +407,8 @@ fn append_ecliptic(out: &mut Vec<LineVertex>, julian_centuries_tt: f64) {
         out,
         (0.0..=360.0).step_by_float(2.0),
         |lon| {
-            let (ra_rad, dec_rad) = ecliptic_to_equatorial_rad(
-                f64::from(lon).to_radians(),
-                0.0,
-                obliquity_rad,
-            );
+            let (ra_rad, dec_rad) =
+                ecliptic_to_equatorial_rad(f64::from(lon).to_radians(), 0.0, obliquity_rad);
             icrs_dir_from_radec_rad(ra_rad, dec_rad)
         },
         COLOR_ECLIPTIC,
@@ -439,8 +429,13 @@ fn append_galactic_equator(out: &mut Vec<LineVertex>) {
     );
 }
 
-fn append_polyline<F>(out: &mut Vec<LineVertex>, steps: StepF32, mut sample: F, color: u32, style: u32)
-where
+fn append_polyline<F>(
+    out: &mut Vec<LineVertex>,
+    steps: StepF32,
+    mut sample: F,
+    color: u32,
+    style: u32,
+) where
     F: FnMut(f32) -> [f32; 3],
 {
     let mut prev: Option<[f32; 3]> = None;
@@ -633,10 +628,7 @@ mod tests {
         assert_eq!(COLOR_CONSTELLATION, 0x40FFFFFF);
         assert_eq!(COLOR_ECLIPTIC, 0x40FFEB3B);
         assert_eq!(COLOR_GRID, 0x33FFFFFF);
-        assert_eq!(
-            pack_line_rgba(255, 255, 255, 0x40),
-            COLOR_CONSTELLATION
-        );
+        assert_eq!(pack_line_rgba(255, 255, 255, 0x40), COLOR_CONSTELLATION);
     }
 
     #[test]

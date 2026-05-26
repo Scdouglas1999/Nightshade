@@ -63,7 +63,11 @@ fn corrupted_file_fails_integrity_check() {
 
     let err = load_and_verify_pack(&dir).expect_err("corrupt digest must fail");
     match err {
-        PackError::HashMismatch { path, expected, actual } => {
+        PackError::HashMismatch {
+            path,
+            expected,
+            actual,
+        } => {
             assert_eq!(path, "data/hello.bin");
             assert_eq!(
                 expected,

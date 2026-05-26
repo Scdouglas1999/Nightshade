@@ -425,4 +425,3 @@ impl IndiSafetyMonitor {
             .unwrap_or(false)
     }
 }
-

@@ -58,13 +58,8 @@ fn smoke_scene(stars: Vec<StarInstance>) -> Scene {
 fn stars_smoke_50k_instances_complete() {
     pollster::block_on(async {
         let (device, queue) = nightshade_planetarium::renderer::offscreen_device().await;
-        let mut renderer = Renderer::new(
-            device,
-            queue,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            256,
-            256,
-        );
+        let mut renderer =
+            Renderer::new(device, queue, wgpu::TextureFormat::Rgba8UnormSrgb, 256, 256);
         renderer.render(&smoke_scene(synthetic_instances(SMOKE_INSTANCES)));
     });
 }
@@ -76,13 +71,8 @@ fn stars_5m_draw_within_budget() {
     let scene = smoke_scene(synthetic_instances(TARGET_5M));
     let elapsed = pollster::block_on(async {
         let (device, queue) = nightshade_planetarium::renderer::offscreen_device().await;
-        let mut renderer = Renderer::new(
-            device,
-            queue,
-            wgpu::TextureFormat::Rgba8UnormSrgb,
-            256,
-            256,
-        );
+        let mut renderer =
+            Renderer::new(device, queue, wgpu::TextureFormat::Rgba8UnormSrgb, 256, 256);
         let start = Instant::now();
         renderer.render(&scene);
         let _ = renderer.readback_rgba();

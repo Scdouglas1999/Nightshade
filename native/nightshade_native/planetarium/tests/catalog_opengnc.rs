@@ -4,9 +4,9 @@ use std::fs;
 use std::path::PathBuf;
 
 use nightshade_planetarium::catalog::{
-    build_opengnc_catalog, default_opengnc_csv_path, find_repo_root, parse_catalog,
-    MappedDsoCatalog, OPENNGC_CATALOG_ID, OPENNGC_PACK_VERSION, OPENNGC_V1_EXPECTED_RECORDS,
-    dso_type, DSO_FLAG_HAS_MAG, DSO_FLAG_MESSIER,
+    build_opengnc_catalog, default_opengnc_csv_path, dso_type, find_repo_root, parse_catalog,
+    MappedDsoCatalog, DSO_FLAG_HAS_MAG, DSO_FLAG_MESSIER, OPENNGC_CATALOG_ID, OPENNGC_PACK_VERSION,
+    OPENNGC_V1_EXPECTED_RECORDS,
 };
 
 fn repo_root() -> PathBuf {
@@ -63,8 +63,7 @@ fn opengnc_v1_golden_record_count() {
 
     let result = build_opengnc_catalog(&csv, &out).expect("build opengnc v1");
     assert_eq!(
-        result.stats.records_written,
-        OPENNGC_V1_EXPECTED_RECORDS,
+        result.stats.records_written, OPENNGC_V1_EXPECTED_RECORDS,
         "record count mismatch for NGC.csv at mag <= 20"
     );
 

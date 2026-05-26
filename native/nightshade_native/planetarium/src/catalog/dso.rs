@@ -255,12 +255,15 @@ pub fn encode_catalog(header: &DsoCatalogHeader, records: &[DsoRecord]) -> Vec<u
 /// Parse and validate a DSO catalog from an in-memory byte slice.
 pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedDsoCatalog<'_>, DsoParseError> {
     if bytes.len() < DSO_HEADER_LEN {
-        return Err(DsoParseError::TruncatedHeader { actual: bytes.len() });
+        return Err(DsoParseError::TruncatedHeader {
+            actual: bytes.len(),
+        });
     }
 
-    let header = DsoCatalogHeader::ref_from_prefix(bytes).ok_or(DsoParseError::TruncatedHeader {
-        actual: bytes.len(),
-    })?;
+    let header =
+        DsoCatalogHeader::ref_from_prefix(bytes).ok_or(DsoParseError::TruncatedHeader {
+            actual: bytes.len(),
+        })?;
     if !header.magic_valid() {
         return Err(DsoParseError::BadMagic);
     }
@@ -300,7 +303,8 @@ impl MappedDsoCatalog {
     /// Open and validate `path`, then mmap the file.
     pub fn open(path: &Path) -> Result<Self, DsoParseError> {
         let file = File::open(path).map_err(|e| DsoParseError::io("open DSO catalog", e))?;
-        let mmap = unsafe { Mmap::map(&file) }.map_err(|e| DsoParseError::io("mmap DSO catalog", e))?;
+        let mmap =
+            unsafe { Mmap::map(&file) }.map_err(|e| DsoParseError::io("mmap DSO catalog", e))?;
         parse_catalog(&mmap)?;
         Ok(Self { mmap })
     }

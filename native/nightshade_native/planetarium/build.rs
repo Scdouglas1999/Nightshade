@@ -55,7 +55,10 @@ fn main() {
     );
 
     let fragments = [
-        ("bruneton_precompute_transmittance", "precompute_transmittance.frag"),
+        (
+            "bruneton_precompute_transmittance",
+            "precompute_transmittance.frag",
+        ),
         (
             "bruneton_precompute_direct_irradiance",
             "precompute_direct_irradiance.frag",

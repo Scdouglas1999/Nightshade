@@ -4,11 +4,11 @@ use std::sync::Arc;
 use std::thread;
 use std::time::Duration;
 
+use nightshade_planetarium::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use nightshade_planetarium::scene::{
     load, new_snapshot_slot, publish, LabelCategory, LabelHint, SceneSnapshot, SelectedObject,
     SmallString,
 };
-use nightshade_planetarium::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
 use nightshade_planetarium::types::{AstroTime, Observer, ViewPose};
 
 const FINAL_FRAME: u64 = 32;
@@ -80,7 +80,10 @@ fn reader_sees_latest_published_snapshot() {
     assert!((latest.view_pose.ra_rad - (FINAL_FRAME as f64 * 0.01)).abs() < 1e-9);
     assert_eq!(latest.labels.len(), 1);
     assert_eq!(latest.labels[0].object_id, FINAL_FRAME);
-    assert_eq!(latest.labels[0].text.as_str(), format!("star-{FINAL_FRAME}"));
+    assert_eq!(
+        latest.labels[0].text.as_str(),
+        format!("star-{FINAL_FRAME}")
+    );
     let selected = latest.selected.as_ref().expect("expected selection");
     assert_eq!(selected.object_id, FINAL_FRAME);
     assert_eq!(selected.display_name.as_str(), "Vega");

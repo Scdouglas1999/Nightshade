@@ -169,10 +169,7 @@ pub fn julian_date_from_utc(
     let a = (14 - month_i) / 12;
     let y = f64::from(year + 4800 - a);
     let m = f64::from(month_i + 12 * a - 3);
-    d + ((153.0 * m + 2.0) / 5.0).floor()
-        + 365.0 * y
-        + (y / 4.0).floor()
-        - (y / 100.0).floor()
+    d + ((153.0 * m + 2.0) / 5.0).floor() + 365.0 * y + (y / 4.0).floor() - (y / 100.0).floor()
         + (y / 400.0).floor()
         - 32_045.0
         - 0.5
@@ -236,10 +233,7 @@ pub fn find_by_name(name: &str) -> Option<&'static VariableStar> {
 /// Stars at or brighter than `mag_limit` at maximum light (`mag_max <= mag_limit`).
 #[must_use]
 pub fn brighter_than(mag_limit: f32) -> Vec<&'static VariableStar> {
-    STARS
-        .iter()
-        .filter(|s| s.mag_max <= mag_limit)
-        .collect()
+    STARS.iter().filter(|s| s.mag_max <= mag_limit).collect()
 }
 
 /// Stars of a given classification.

@@ -26,12 +26,12 @@ mod handle;
 
 pub use handle::Planetarium;
 
-pub mod astrometry;
-pub mod catalog;
 pub mod animation;
+pub mod astrometry;
 pub mod bus;
+pub mod catalog;
 pub mod gesture;
-pub mod scene;
 pub mod renderer;
+pub mod scene;
 pub mod surface;
 pub mod types;

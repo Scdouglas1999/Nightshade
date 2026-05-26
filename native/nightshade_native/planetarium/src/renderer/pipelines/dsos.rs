@@ -8,8 +8,8 @@ use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
-use crate::catalog::{DsoRecord, DSO_FLAG_HAS_MAG};
 use crate::catalog::ParsedDsoCatalog;
+use crate::catalog::{DsoRecord, DSO_FLAG_HAS_MAG};
 use crate::renderer::Scene;
 use crate::scene::build::BuildSceneInputs;
 use crate::scene::projection::project_icrs;
@@ -49,12 +49,22 @@ struct QuadVertex {
 }
 
 const QUAD_VERTICES: &[QuadVertex] = &[
-    QuadVertex { corner: [-1.0, -1.0] },
-    QuadVertex { corner: [1.0, -1.0] },
-    QuadVertex { corner: [-1.0, 1.0] },
-    QuadVertex { corner: [1.0, -1.0] },
+    QuadVertex {
+        corner: [-1.0, -1.0],
+    },
+    QuadVertex {
+        corner: [1.0, -1.0],
+    },
+    QuadVertex {
+        corner: [-1.0, 1.0],
+    },
+    QuadVertex {
+        corner: [1.0, -1.0],
+    },
     QuadVertex { corner: [1.0, 1.0] },
-    QuadVertex { corner: [-1.0, 1.0] },
+    QuadVertex {
+        corner: [-1.0, 1.0],
+    },
 ];
 
 /// WGSL `DsoUniforms` (std140).
@@ -118,14 +128,18 @@ pub fn dso_surface_brightness_opacity(sb: Option<f32>) -> f32 {
 
 /// Screen diameter in pixels before clamp (v1 DSO size + magnitude bonus).
 #[must_use]
-pub fn dso_display_diameter_px(
-    major_arcmin: f32,
-    magnitude: f32,
-    pixels_per_deg: f32,
-) -> f32 {
-    let major = if major_arcmin > 0.0 { major_arcmin } else { 5.0 };
+pub fn dso_display_diameter_px(major_arcmin: f32, magnitude: f32, pixels_per_deg: f32) -> f32 {
+    let major = if major_arcmin > 0.0 {
+        major_arcmin
+    } else {
+        5.0
+    };
     let dso_px = (major / 60.0) * pixels_per_deg;
-    let mag = if magnitude.is_finite() { magnitude } else { 14.0 };
+    let mag = if magnitude.is_finite() {
+        magnitude
+    } else {
+        14.0
+    };
     let mag_bonus = ((14.0 - mag) / 14.0 * 14.0).clamp(0.0, 14.0);
     dso_px.clamp(6.0 + mag_bonus, 40.0)
 }
@@ -518,12 +532,7 @@ mod tests {
             0,
             31,
         )];
-        let header = DsoCatalogHeader::new(
-            OPENNGC_CATALOG_ID,
-            OPENNGC_PACK_VERSION,
-            1,
-            20.0,
-        );
+        let header = DsoCatalogHeader::new(OPENNGC_CATALOG_ID, OPENNGC_PACK_VERSION, 1, 20.0);
         let bytes = encode_catalog(&header, &records);
         let parsed = crate::catalog::parse_catalog(&bytes).expect("parse");
         let pose = ViewPose {

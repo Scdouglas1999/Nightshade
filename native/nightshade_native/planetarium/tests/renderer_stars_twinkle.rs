@@ -50,7 +50,10 @@ fn twinkle_phase_changes_frame_when_altitude_gate_active() {
 
     let frame_a = render_scene_rgba(&three_stars_twinkle_scene(0.0));
     let frame_b = render_scene_rgba(&three_stars_twinkle_scene(std::f32::consts::FRAC_PI_2));
-    assert_eq!(frame_a.len(), (THREE_STARS_SIZE * THREE_STARS_SIZE * 4) as usize);
+    assert_eq!(
+        frame_a.len(),
+        (THREE_STARS_SIZE * THREE_STARS_SIZE * 4) as usize
+    );
     assert!(
         max_channel_delta(&frame_a, &frame_b) >= 2,
         "twinkle phase π/2 should change star brightness"

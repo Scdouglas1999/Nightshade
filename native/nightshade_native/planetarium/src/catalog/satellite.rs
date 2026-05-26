@@ -15,9 +15,7 @@ use memmap2::Mmap;
 use thiserror::Error;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-use crate::astrometry::sgp4_prop::{
-    SatellitePropagator, Sgp4PropError, TemeState,
-};
+use crate::astrometry::sgp4_prop::{SatellitePropagator, Sgp4PropError, TemeState};
 
 /// Magic bytes identifying a planetarium TLE catalog (`"NSPLNT04"`).
 pub const SATELLITE_TLE_CATALOG_MAGIC: &[u8; 8] = b"NSPLNT04";
@@ -173,9 +171,11 @@ impl SatelliteTleRecord {
             line2: pad_tle_line(line2, 1)?,
             name: pad_name(name)?,
             norad_id,
-            name_len: u8::try_from(name.len()).map_err(|_| SatelliteTleParseError::InvalidTleLine {
-                index: 0,
-                detail: "name longer than 14 bytes".into(),
+            name_len: u8::try_from(name.len()).map_err(|_| {
+                SatelliteTleParseError::InvalidTleLine {
+                    index: 0,
+                    detail: "name longer than 14 bytes".into(),
+                }
             })?,
             reserved: [0; 3],
         })
@@ -184,11 +184,10 @@ impl SatelliteTleRecord {
     /// Object name as UTF-8.
     pub fn object_name(&self) -> Result<&str, SatelliteTleParseError> {
         let len = self.name_len as usize;
-        std::str::from_utf8(&self.name[..len])
-            .map_err(|_| SatelliteTleParseError::InvalidTleLine {
-                index: 0,
-                detail: "invalid UTF-8 name".into(),
-            })
+        std::str::from_utf8(&self.name[..len]).map_err(|_| SatelliteTleParseError::InvalidTleLine {
+            index: 0,
+            detail: "invalid UTF-8 name".into(),
+        })
     }
 
     /// TLE line 1 (trimmed, for SGP4).
@@ -216,7 +215,8 @@ impl SatelliteTleRecord {
         &self,
         minutes_since_epoch: f64,
     ) -> Result<TemeState, Sgp4PropError> {
-        self.propagator()?.propagate_minutes_since_epoch(minutes_since_epoch)
+        self.propagator()?
+            .propagate_minutes_since_epoch(minutes_since_epoch)
     }
 }
 
@@ -269,10 +269,12 @@ impl SatelliteTleCatalog {
                 name: entry.name.clone(),
                 detail: e.to_string(),
             })?;
-            let propagator = record.propagator().map_err(|e| TleTextParseError::Element {
-                name: entry.name,
-                detail: e.to_string(),
-            })?;
+            let propagator = record
+                .propagator()
+                .map_err(|e| TleTextParseError::Element {
+                    name: entry.name,
+                    detail: e.to_string(),
+                })?;
             records.push(record);
             propagators.push(propagator);
             let _ = index;
@@ -333,7 +335,9 @@ impl SatelliteTleCatalog {
     ) -> Result<TemeState, Sgp4PropError> {
         self.propagators
             .get(index)
-            .ok_or_else(|| Sgp4PropError::Propagate(format!("satellite index {index} out of range")))?
+            .ok_or_else(|| {
+                Sgp4PropError::Propagate(format!("satellite index {index} out of range"))
+            })?
             .propagate_minutes_since_epoch(minutes_since_epoch)
     }
 }
@@ -357,7 +361,9 @@ pub fn encode_catalog(records: &[SatelliteTleRecord]) -> Vec<u8> {
 }
 
 /// Parse and validate a satellite TLE catalog from an in-memory byte slice.
-pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedSatelliteTleCatalog<'_>, SatelliteTleParseError> {
+pub fn parse_catalog(
+    bytes: &[u8],
+) -> Result<ParsedSatelliteTleCatalog<'_>, SatelliteTleParseError> {
     if bytes.len() < SATELLITE_TLE_HEADER_LEN {
         return Err(SatelliteTleParseError::TruncatedHeader {
             actual: bytes.len(),
@@ -382,15 +388,13 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedSatelliteTleCatalog<'_>, Sate
         });
     }
 
-    let records = SatelliteTleRecord::slice_from_prefix(
-        &bytes[SATELLITE_TLE_HEADER_LEN..],
-        record_count,
-    )
-    .map(|(s, _)| s)
-    .ok_or(SatelliteTleParseError::SizeMismatch {
-        expected,
-        actual: bytes.len(),
-    })?;
+    let records =
+        SatelliteTleRecord::slice_from_prefix(&bytes[SATELLITE_TLE_HEADER_LEN..], record_count)
+            .map(|(s, _)| s)
+            .ok_or(SatelliteTleParseError::SizeMismatch {
+                expected,
+                actual: bytes.len(),
+            })?;
 
     if records.len() != record_count {
         return Err(SatelliteTleParseError::RecordCountMismatch {
@@ -400,14 +404,18 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedSatelliteTleCatalog<'_>, Sate
     }
 
     for (index, record) in records.iter().enumerate() {
-        record.tle_line1().map_err(|e| SatelliteTleParseError::InvalidTleLine {
-            index,
-            detail: e.to_string(),
-        })?;
-        record.tle_line2().map_err(|e| SatelliteTleParseError::InvalidTleLine {
-            index,
-            detail: e.to_string(),
-        })?;
+        record
+            .tle_line1()
+            .map_err(|e| SatelliteTleParseError::InvalidTleLine {
+                index,
+                detail: e.to_string(),
+            })?;
+        record
+            .tle_line2()
+            .map_err(|e| SatelliteTleParseError::InvalidTleLine {
+                index,
+                detail: e.to_string(),
+            })?;
     }
 
     Ok(ParsedSatelliteTleCatalog { header, records })
@@ -422,8 +430,8 @@ pub struct MappedSatelliteTleCatalog {
 impl MappedSatelliteTleCatalog {
     /// Open and validate `path`, then mmap the file.
     pub fn open(path: &Path) -> Result<Self, SatelliteTleParseError> {
-        let file =
-            File::open(path).map_err(|e| SatelliteTleParseError::io("open satellite TLE catalog", e))?;
+        let file = File::open(path)
+            .map_err(|e| SatelliteTleParseError::io("open satellite TLE catalog", e))?;
         let mmap = unsafe { Mmap::map(&file) }
             .map_err(|e| SatelliteTleParseError::io("mmap satellite TLE catalog", e))?;
         parse_catalog(&mmap)?;
@@ -497,12 +505,10 @@ fn is_tle_line2(line: &str) -> bool {
 
 fn norad_id_from_line1(line1: &str) -> Result<u32, TleTextParseError> {
     let id_str = line1[2..7].trim();
-    id_str
-        .parse()
-        .map_err(|e| TleTextParseError::Element {
-            name: line1.to_string(),
-            detail: format!("NORAD id: {e}"),
-        })
+    id_str.parse().map_err(|e| TleTextParseError::Element {
+        name: line1.to_string(),
+        detail: format!("NORAD id: {e}"),
+    })
 }
 
 fn normalize_tle_line(line: &str) -> Result<String, TleTextParseError> {
@@ -516,10 +522,11 @@ fn normalize_tle_line(line: &str) -> Result<String, TleTextParseError> {
 }
 
 fn pad_tle_line(line: &str, index: usize) -> Result<[u8; TLE_LINE_WIDTH], SatelliteTleParseError> {
-    let normalized = normalize_tle_line(line).map_err(|e| SatelliteTleParseError::InvalidTleLine {
-        index,
-        detail: e.to_string(),
-    })?;
+    let normalized =
+        normalize_tle_line(line).map_err(|e| SatelliteTleParseError::InvalidTleLine {
+            index,
+            detail: e.to_string(),
+        })?;
     let mut buf = [b' '; TLE_LINE_WIDTH];
     buf[..normalized.len()].copy_from_slice(normalized.as_bytes());
     Ok(buf)
@@ -574,7 +581,10 @@ mod tests {
             core::mem::size_of::<SatelliteTleHeader>(),
             SATELLITE_TLE_HEADER_LEN
         );
-        assert_eq!(core::mem::size_of::<SatelliteTleRecord>(), SATELLITE_TLE_RECORD_LEN);
+        assert_eq!(
+            core::mem::size_of::<SatelliteTleRecord>(),
+            SATELLITE_TLE_RECORD_LEN
+        );
     }
 
     #[test]

@@ -26,8 +26,7 @@ fn main() -> ExitCode {
             if result.byte_len != MILKY_WAY_FILE_LEN {
                 eprintln!(
                     "self-check FAILED: expected {} bytes, got {}",
-                    MILKY_WAY_FILE_LEN,
-                    result.byte_len
+                    MILKY_WAY_FILE_LEN, result.byte_len
                 );
                 return ExitCode::from(2);
             }
@@ -55,7 +54,8 @@ fn resolve_repo_root() -> Result<PathBuf, Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
     if args.len() > 1 {
         let root = PathBuf::from(&args[1]);
-        if root.join("melos.yaml").is_file() || root.join("native/nightshade_native/Cargo.toml").is_file()
+        if root.join("melos.yaml").is_file()
+            || root.join("native/nightshade_native/Cargo.toml").is_file()
         {
             return Ok(root);
         }

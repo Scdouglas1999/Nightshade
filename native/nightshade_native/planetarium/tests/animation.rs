@@ -3,8 +3,7 @@
 use std::time::{Duration, Instant};
 
 use nightshade_planetarium::animation::{
-    AnimationSet, AnimationState, POP_IN_DURATION, SELECTION_PULSE_DURATION,
-    TWINKLE_FRAME_INTERVAL,
+    AnimationSet, AnimationState, POP_IN_DURATION, SELECTION_PULSE_DURATION, TWINKLE_FRAME_INTERVAL,
 };
 use nightshade_planetarium::bus::PlanetariumCommand;
 use nightshade_planetarium::scene::{LabelCategory, SelectedObject, SmallString};
@@ -51,10 +50,7 @@ fn pop_in_eases_from_zero_to_one() {
 fn selection_pulse_expires_after_duration() {
     let mut set = AnimationSet::new(idle_config());
     let t0 = Instant::now();
-    set.on_command(
-        &PlanetariumCommand::SetSelection(Some(selected())),
-        t0,
-    );
+    set.on_command(&PlanetariumCommand::SetSelection(Some(selected())), t0);
     assert!(set.needs_wake_at(t0));
     let after = t0 + SELECTION_PULSE_DURATION + Duration::from_millis(1);
     assert!(!set.needs_wake_at(after));
@@ -65,10 +61,7 @@ fn selection_pulse_expires_after_duration() {
 fn clearing_selection_stops_pulse_wake() {
     let mut set = AnimationSet::new(idle_config());
     let t0 = Instant::now();
-    set.on_command(
-        &PlanetariumCommand::SetSelection(Some(selected())),
-        t0,
-    );
+    set.on_command(&PlanetariumCommand::SetSelection(Some(selected())), t0);
     set.on_command(&PlanetariumCommand::SetSelection(None), t0);
     assert!(!set.needs_wake_at(t0));
 }

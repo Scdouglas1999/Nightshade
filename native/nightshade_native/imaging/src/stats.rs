@@ -1405,9 +1405,7 @@ mod tests {
 
         // Each expected centre should have a detection within ~2 px.
         for &(cx, cy) in &centers {
-            let matched = stars
-                .iter()
-                .any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
+            let matched = stars.iter().any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
             assert!(
                 matched,
                 "no detection within 2 px of expected centre ({cx}, {cy}); detections = {:?}",
@@ -1435,9 +1433,7 @@ mod tests {
         );
 
         for &(cx, cy) in &centers {
-            let matched = stars
-                .iter()
-                .any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
+            let matched = stars.iter().any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
             assert!(
                 matched,
                 "no detection within 2 px of expected centre ({cx}, {cy})"

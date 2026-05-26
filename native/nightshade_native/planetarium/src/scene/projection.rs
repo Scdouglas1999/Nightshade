@@ -117,7 +117,9 @@ pub fn unproject_icrs(screen_x: f32, screen_y: f32, pose: ViewPose) -> Option<(f
             let c = 2.0 * (rho / 2.0).atan();
             let sinc = c.sin();
             let cosc = c.cos();
-            let dec = (cosc * dec1.sin() + y * sinc * dec1.cos() / rho).clamp(-1.0, 1.0).asin();
+            let dec = (cosc * dec1.sin() + y * sinc * dec1.cos() / rho)
+                .clamp(-1.0, 1.0)
+                .asin();
             let ra = ra1 + (x * sinc).atan2(rho * dec1.cos() * cosc - y * dec1.sin() * sinc);
             (ra, dec)
         }
@@ -137,7 +139,9 @@ pub fn unproject_icrs(screen_x: f32, screen_y: f32, pose: ViewPose) -> Option<(f
             }
             let sinc = c.sin();
             let cosc = c.cos();
-            let dec = (cosc * dec1.sin() + y * sinc * dec1.cos() / rho).clamp(-1.0, 1.0).asin();
+            let dec = (cosc * dec1.sin() + y * sinc * dec1.cos() / rho)
+                .clamp(-1.0, 1.0)
+                .asin();
             let ra = ra1 + (x * sinc).atan2(rho * dec1.cos() * cosc - y * dec1.sin() * sinc);
             (ra, dec)
         }
@@ -147,7 +151,10 @@ pub fn unproject_icrs(screen_x: f32, screen_y: f32, pose: ViewPose) -> Option<(f
         return None;
     }
 
-    Some((wrap_ra_rad(ra2), dec2.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2)))
+    Some((
+        wrap_ra_rad(ra2),
+        dec2.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2),
+    ))
 }
 
 fn wrap_ra_rad(ra: f64) -> f64 {

@@ -185,10 +185,8 @@ mod tests {
     #[test]
     fn galactic_center_pixel_is_bright() {
         let map = build_milky_way_map();
-        let intensity = map.intensity_at_equatorial_deg(
-            GALACTIC_CENTER_RA_DEG,
-            GALACTIC_CENTER_DEC_DEG,
-        );
+        let intensity =
+            map.intensity_at_equatorial_deg(GALACTIC_CENTER_RA_DEG, GALACTIC_CENTER_DEC_DEG);
         assert!(
             intensity > 0.5,
             "galactic center intensity {intensity} should be bright"

@@ -912,10 +912,20 @@ mod tests {
         observed.insert(new_key.clone(), new_dev.clone());
 
         let (arrivals, removals) = diff_for_test(&mut cache, observed);
-        assert_eq!(arrivals.len(), 1, "expected one arrival, got {:?}", arrivals);
+        assert_eq!(
+            arrivals.len(),
+            1,
+            "expected one arrival, got {:?}",
+            arrivals
+        );
         assert_eq!(arrivals[0].1, "native:test:new");
         assert_eq!(arrivals[0].2.device_type, DeviceType::Mount);
-        assert_eq!(removals.len(), 1, "expected one removal, got {:?}", removals);
+        assert_eq!(
+            removals.len(),
+            1,
+            "expected one removal, got {:?}",
+            removals
+        );
         assert_eq!(removals[0].1, "native:test:baseline");
 
         // Re-running with the same observed set must produce no arrivals

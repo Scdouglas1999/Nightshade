@@ -67,7 +67,9 @@ impl MinorBodyKind {
 #[derive(Debug, Error)]
 pub enum MinorBodyParseError {
     /// Buffer shorter than the fixed header.
-    #[error("minor-body catalog truncated: need at least {MINOR_BODY_HEADER_LEN} bytes, got {actual}")]
+    #[error(
+        "minor-body catalog truncated: need at least {MINOR_BODY_HEADER_LEN} bytes, got {actual}"
+    )]
     TruncatedHeader {
         /// Bytes available.
         actual: usize,
@@ -363,11 +365,8 @@ pub fn encode_catalog(entries: &[MpcOrbitEntry]) -> Vec<u8> {
         u32::try_from(MINOR_BODY_HEADER_LEN + records.len() * MINOR_BODY_RECORD_LEN)
             .expect("catalog offset fits u32");
     let string_table_len = u32::try_from(strings.len()).expect("string table len fits u32");
-    let header = MinorBodyCatalogHeader::new(
-        records.len() as u32,
-        string_table_offset,
-        string_table_len,
-    );
+    let header =
+        MinorBodyCatalogHeader::new(records.len() as u32, string_table_offset, string_table_len);
 
     let mut out = Vec::with_capacity(catalog_byte_len(records.len(), strings.len()));
     out.extend_from_slice(header.as_bytes());
@@ -405,12 +404,15 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedMinorBodyCatalog<'_>, MinorBo
         });
     }
 
-    let records = MinorBodyRecord::slice_from_prefix(&bytes[MINOR_BODY_HEADER_LEN..records_end], record_count)
-        .map(|(s, _)| s)
-        .ok_or(MinorBodyParseError::SizeMismatch {
-            expected,
-            actual: bytes.len(),
-        })?;
+    let records = MinorBodyRecord::slice_from_prefix(
+        &bytes[MINOR_BODY_HEADER_LEN..records_end],
+        record_count,
+    )
+    .map(|(s, _)| s)
+    .ok_or(MinorBodyParseError::SizeMismatch {
+        expected,
+        actual: bytes.len(),
+    })?;
     if records.len() != record_count {
         return Err(MinorBodyParseError::RecordCountMismatch {
             declared: header.record_count,
@@ -424,9 +426,7 @@ pub fn parse_catalog(bytes: &[u8]) -> Result<ParsedMinorBodyCatalog<'_>, MinorBo
     // overlap. A maliciously-crafted blob with `st_off < records_end` could
     // otherwise alias bytes that belong to a record, and one with `st_off >
     // records_end` would leave a gap that hides garbage. Fail-loud per CLAUDE.md.
-    if st_off != records_end
-        || st_off.checked_add(st_len) != Some(bytes.len())
-    {
+    if st_off != records_end || st_off.checked_add(st_len) != Some(bytes.len()) {
         return Err(MinorBodyParseError::StringTableRange {
             offset: header.string_table_offset,
             len: header.string_table_len,
@@ -457,9 +457,10 @@ pub struct MappedMinorBodyCatalog {
 impl MappedMinorBodyCatalog {
     /// Open and validate `path`, then mmap the file.
     pub fn open(path: &Path) -> Result<Self, MinorBodyParseError> {
-        let file = File::open(path).map_err(|e| MinorBodyParseError::io("open minor-body catalog", e))?;
-        let mmap =
-            unsafe { Mmap::map(&file) }.map_err(|e| MinorBodyParseError::io("mmap minor-body catalog", e))?;
+        let file =
+            File::open(path).map_err(|e| MinorBodyParseError::io("open minor-body catalog", e))?;
+        let mmap = unsafe { Mmap::map(&file) }
+            .map_err(|e| MinorBodyParseError::io("mmap minor-body catalog", e))?;
         parse_catalog(&mmap)?;
         Ok(Self { mmap })
     }
@@ -629,10 +630,7 @@ fn julian_date_utc(year: u32, month: u32, day: u32) -> f64 {
     let a = (14 - month_i) / 12;
     let y = year_i + 4800 - a;
     let m = month_i + 12 * a - 3;
-    f64::from(day_i)
-        + ((153 * m + 2) / 5) as f64
-        + 365.0 * f64::from(y)
-        + (y / 4) as f64
+    f64::from(day_i) + ((153 * m + 2) / 5) as f64 + 365.0 * f64::from(y) + (y / 4) as f64
         - (y / 100) as f64
         + (y / 400) as f64
         - 32_045.0
@@ -681,11 +679,7 @@ fn parse_field_f64(
         })
 }
 
-fn string_at<'a>(
-    table: &'a [u8],
-    offset: u32,
-    len: u16,
-) -> Result<&'a str, MinorBodyParseError> {
+fn string_at<'a>(table: &'a [u8], offset: u32, len: u16) -> Result<&'a str, MinorBodyParseError> {
     let start = offset as usize;
     let end = start
         .checked_add(len as usize)
@@ -732,7 +726,10 @@ mod tests {
             core::mem::size_of::<MinorBodyCatalogHeader>(),
             MINOR_BODY_HEADER_LEN
         );
-        assert_eq!(core::mem::size_of::<MinorBodyRecord>(), MINOR_BODY_RECORD_LEN);
+        assert_eq!(
+            core::mem::size_of::<MinorBodyRecord>(),
+            MINOR_BODY_RECORD_LEN
+        );
     }
 
     #[test]

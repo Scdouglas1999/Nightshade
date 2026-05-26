@@ -65,9 +65,27 @@ const OBP: usize = 4;
 
 /// Polynomial coefficients for ELP arguments (arcseconds); CDS VI/79 p. 10.
 const ELP_ARGUMENT_COEFFS: [[f64; 5]; 5] = [
-    [785_939.955_71, 1_732_559_343.736_04, -5.888_3, 0.006_604, -3.169e-5],
-    [300_071.674_75, 14_643_420.263_2, -38.277_6, -0.045_047, 2.130_1e-4],
-    [450_160.398_16, -6_967_919.362_2, 6.362_2, 0.007_625, -3.586e-5],
+    [
+        785_939.955_71,
+        1_732_559_343.736_04,
+        -5.888_3,
+        0.006_604,
+        -3.169e-5,
+    ],
+    [
+        300_071.674_75,
+        14_643_420.263_2,
+        -38.277_6,
+        -0.045_047,
+        2.130_1e-4,
+    ],
+    [
+        450_160.398_16,
+        -6_967_919.362_2,
+        6.362_2,
+        0.007_625,
+        -3.586e-5,
+    ],
     [361_679.220_59, 129_597_742.275_8, -0.020_2, 9.0e-6, 1.5e-7],
     [370_574.427_53, 1_161.228_3, 0.532_7, -1.38e-4, 0.0],
 ];
@@ -202,7 +220,11 @@ fn sum_series(terms: &[TruncatedTerm], delaunay: &[f64; 4]) -> f64 {
             + f64::from(term.i_f) * delaunay[F])
             * ARCSEC_TO_RAD;
         sum += term.amplitude_arcsec
-            * if term.use_cosine { arg.cos() } else { arg.sin() };
+            * if term.use_cosine {
+                arg.cos()
+            } else {
+                arg.sin()
+            };
     }
     sum
 }
@@ -220,10 +242,7 @@ pub fn normalize_longitude_arcsec(lon: f64) -> f64 {
 /// Mean obliquity of the J2000 ecliptic (radians) for equatorial conversion.
 #[inline]
 fn mean_obliquity_j2000_rad(t: f64) -> f64 {
-    let arcsec = 84_381.406
-        - 46.836_769 * t
-        - 0.000_183_1 * t * t
-        + 0.002_003_40 * t * t * t
+    let arcsec = 84_381.406 - 46.836_769 * t - 0.000_183_1 * t * t + 0.002_003_40 * t * t * t
         - 0.000_000_576 * t * t * t * t
         - 0.000_000_043_4 * t * t * t * t * t;
     arcsec * ARCSEC_TO_RAD

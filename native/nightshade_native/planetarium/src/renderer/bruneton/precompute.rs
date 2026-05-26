@@ -215,7 +215,10 @@ struct PrecomputeContext {
 }
 
 impl PrecomputeContext {
-    fn new(device: Arc<wgpu::Device>, queue: Arc<wgpu::Queue>) -> Result<Self, BrunetonPrecomputeError> {
+    fn new(
+        device: Arc<wgpu::Device>,
+        queue: Arc<wgpu::Queue>,
+    ) -> Result<Self, BrunetonPrecomputeError> {
         let quad = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("planetarium.bruneton.quad"),
             contents: bytemuck::cast_slice(&QUAD_VERTICES),
@@ -311,8 +314,7 @@ impl PrecomputeContext {
         for row in 0..3 {
             for col in 0..3 {
                 let v = lfr[row][col];
-                bytes[row * 16 + col * 4..row * 16 + col * 4 + 4]
-                    .copy_from_slice(&v.to_le_bytes());
+                bytes[row * 16 + col * 4..row * 16 + col * 4 + 4].copy_from_slice(&v.to_le_bytes());
             }
         }
         bytes[48..52].copy_from_slice(&layer.to_le_bytes());
@@ -456,13 +458,11 @@ impl PrecomputeContext {
                 resource: wgpu::BindingResource::TextureView(view),
             });
         }
-        Ok(self
-            .device
-            .create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("planetarium.bruneton.precompute.bind_group"),
-                layout,
-                entries: &entries,
-            }))
+        Ok(self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("planetarium.bruneton.precompute.bind_group"),
+            layout,
+            entries: &entries,
+        }))
     }
 
     fn render_pass(
@@ -555,22 +555,25 @@ fn pipeline_2d(
         fragment: Some(wgpu::FragmentState {
             module: fragment,
             entry_point: "main",
-            targets: &vec![Some(wgpu::ColorTargetState {
-                format: color_format,
-                blend: Some(wgpu::BlendState {
-                    color: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                    alpha: wgpu::BlendComponent {
-                        src_factor: wgpu::BlendFactor::One,
-                        dst_factor: wgpu::BlendFactor::One,
-                        operation: wgpu::BlendOperation::Add,
-                    },
-                }),
-                write_mask: wgpu::ColorWrites::ALL,
-            }); color_count],
+            targets: &vec![
+                Some(wgpu::ColorTargetState {
+                    format: color_format,
+                    blend: Some(wgpu::BlendState {
+                        color: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                        alpha: wgpu::BlendComponent {
+                            src_factor: wgpu::BlendFactor::One,
+                            dst_factor: wgpu::BlendFactor::One,
+                            operation: wgpu::BlendOperation::Add,
+                        },
+                    }),
+                    write_mask: wgpu::ColorWrites::ALL,
+                });
+                color_count
+            ],
             compilation_options: Default::default(),
         }),
         primitive: wgpu::PrimitiveState::default(),

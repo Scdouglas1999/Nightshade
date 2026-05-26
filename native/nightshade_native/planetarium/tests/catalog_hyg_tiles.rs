@@ -45,7 +45,10 @@ fn fixture_build_writes_one_tile_with_one_star() {
 fn hyg_v42_golden_tile_and_star_counts() {
     let csv = default_hyg_csv_path(repo_root());
     if !csv.is_file() {
-        eprintln!("skip hyg_v42_golden_tile_and_star_counts: missing {}", csv.display());
+        eprintln!(
+            "skip hyg_v42_golden_tile_and_star_counts: missing {}",
+            csv.display()
+        );
         return;
     }
 
@@ -56,13 +59,11 @@ fn hyg_v42_golden_tile_and_star_counts() {
 
     let result = build_hyg_tiles(&csv, &out).expect("build hyg_v42 tiles");
     assert_eq!(
-        result.stats.tiles_written,
-        HYG_V42_EXPECTED_TILES,
+        result.stats.tiles_written, HYG_V42_EXPECTED_TILES,
         "tile count mismatch for hyg_v42 at nside=8"
     );
     assert_eq!(
-        result.stats.stars_written,
-        HYG_V42_EXPECTED_STARS,
+        result.stats.stars_written, HYG_V42_EXPECTED_STARS,
         "star count mismatch for hyg_v42 (mag <= 15)"
     );
 

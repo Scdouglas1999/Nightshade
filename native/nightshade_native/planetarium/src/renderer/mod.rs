@@ -13,17 +13,17 @@ pub mod pipelines;
 use std::sync::Arc;
 
 pub use graph::{FrameGraph, RenderPassId};
-pub use pipelines::milky_way::{
-    count_mw_visible_pixels, mw_galactic_center_scene, mw_galactic_center_view_pose,
-    render_mw_golden_rgba, MilkyWayPipeline, MW_GOLDEN_SIZE,
-};
 pub use pipelines::dsos::{
-    collect_dso_instances, collect_dso_instances_from_records, dso_surface_brightness,
-    DsoInstance, DsosPipeline,
+    collect_dso_instances, collect_dso_instances_from_records, dso_surface_brightness, DsoInstance,
+    DsosPipeline,
 };
 pub use pipelines::lines::{
     any_lines_visible, build_constellation_line_vertices, build_overlay_line_vertices,
     constellation_line_vertex_count, LineVertex, LinesPipeline,
+};
+pub use pipelines::milky_way::{
+    count_mw_visible_pixels, mw_galactic_center_scene, mw_galactic_center_view_pose,
+    render_mw_golden_rgba, MilkyWayPipeline, MW_GOLDEN_SIZE,
 };
 pub use pipelines::stars::{
     magnitude_to_tone, psf_radius_px, psf_zoom_factor_from_fov_rad, render_scene_rgba,
@@ -188,9 +188,11 @@ impl Renderer {
         // creating a new `TextureView` per frame.
         self.upload_star_instances(scene);
         self.upload_dso_instances(scene);
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("planetarium.renderer.encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("planetarium.renderer.encoder"),
+            });
         FrameGraph::render(
             &mut encoder,
             &self.target_view,
@@ -218,9 +220,11 @@ impl Renderer {
         self.upload_star_instances(scene);
         self.upload_dso_instances(scene);
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("planetarium.renderer.encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("planetarium.renderer.encoder"),
+            });
         FrameGraph::render(
             &mut encoder,
             target_view,
@@ -247,9 +251,11 @@ impl Renderer {
         self.upload_star_instances(scene);
         self.upload_dso_instances(scene);
 
-        let mut encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
-            label: Some("planetarium.renderer.encoder"),
-        });
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("planetarium.renderer.encoder"),
+            });
         FrameGraph::render(
             &mut encoder,
             target_view,
@@ -283,8 +289,11 @@ impl Renderer {
                 mapped_at_creation: false,
             });
         }
-        self.queue
-            .write_buffer(&self.star_instance_buf, 0, bytemuck::cast_slice(&scene.stars));
+        self.queue.write_buffer(
+            &self.star_instance_buf,
+            0,
+            bytemuck::cast_slice(&scene.stars),
+        );
         self.star_instance_count = count as u32;
     }
 
@@ -370,7 +379,9 @@ pub fn readback_rgba(
         tx.send(r).expect("readback channel closed");
     });
     device.poll(wgpu::Maintain::Wait);
-    rx.recv().expect("readback recv").expect("readback map failed");
+    rx.recv()
+        .expect("readback recv")
+        .expect("readback map failed");
 
     let data = readback.slice(..).get_mapped_range();
     let mut out = Vec::with_capacity((unpadded_bpr * height) as usize);

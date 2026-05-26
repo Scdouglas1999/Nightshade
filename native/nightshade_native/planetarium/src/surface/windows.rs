@@ -133,12 +133,10 @@ impl PlatformSurface for WindowsSurface {
             ));
         }
         let shared = Arc::new(allocate_shared(&self.device, width, height)?);
-        let shared_view = shared
-            .wgpu
-            .create_view(&wgpu::TextureViewDescriptor {
-                label: Some("planetarium.windows.shared_view"),
-                ..Default::default()
-            });
+        let shared_view = shared.wgpu.create_view(&wgpu::TextureViewDescriptor {
+            label: Some("planetarium.windows.shared_view"),
+            ..Default::default()
+        });
         let provider: Arc<dyn PayloadProvider<BoxedTextureDescriptor<DxgiSharedHandle>>> =
             Arc::new(SharedHandleProvider::new(shared.clone()));
         let texture =
