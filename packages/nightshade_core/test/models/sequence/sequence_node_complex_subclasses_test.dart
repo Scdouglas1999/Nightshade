@@ -3,7 +3,8 @@
 // special-case behaviour.
 //
 // Covered here:
-//   * TargetHeaderNode (sentinel-based nullable copyWith for 4 fields)
+//   * TargetHeaderNode (Phase 5: sentinels removed — 4 nullable fields
+//     use plain keep-or-replace; clearing is rebuild-explicit)
 //   * LoopNode
 //   * ConditionalNode (Phase 5: sentinel removed — safetyMonitorId
 //     uses plain keep-or-replace)
@@ -65,17 +66,10 @@ void main() {
       expect(n.requiredDevices, equals({DeviceType.mount}));
     });
 
-    test('copyWith_no_args_preserves_all_nullable_sentinel_fields', () {
-      // PHASE-2-NOTE: TargetHeaderNode.copyWith uses the `_sentinel`
-      // marker for `integrationBudget`, `startWhen`, `endWhen`, and
-      // `brightnessTierHint`. The default value of these arguments IS
-      // the sentinel (an Object), and the copyWith uses `identical(x,
-      // _sentinel)` to detect "argument omitted". Phase 2's freezed
-      // generated copyWith handles nullable-clear naturally with
-      // `Object?` defaults — but the Phase 2 conversion must preserve
-      // the contract that omitting the argument keeps the existing
-      // value (this is the default freezed behaviour, so it survives
-      // the migration).
+    test('copyWith_no_args_preserves_all_nullable_fields', () {
+      // PHASE-5: copyWith is now plain `?? this.X` for every nullable
+      // field. Omitting the arg keeps the existing value — identical
+      // to the previous sentinel-omitted behaviour.
       final n = makeM31();
       final copy = n.copyWith();
       expect(copy.integrationBudget, equals(n.integrationBudget));
@@ -84,18 +78,49 @@ void main() {
       expect(copy.brightnessTierHint, equals(n.brightnessTierHint));
     });
 
-    test('copyWith_explicit_null_clears_sentinel_fields', () {
-      // PHASE-2-NOTE: passing `null` explicitly to one of the sentinel
-      // fields clears it. This is the key reason for the sentinel
-      // pattern — `?? this.X` cannot distinguish "omitted" from
-      // "explicitly null". Phase 2 freezed copyWith handles this
-      // correctly out of the box.
+    test('copyWith_explicit_null_now_keeps_under_plain_semantics', () {
+      // PHASE-5: with the sentinels gone, passing `null` is
+      // indistinguishable from omitting the arg — both keep the
+      // current value. The previous "explicit-null clears" semantic
+      // moved to the rebuild-explicit recipe pinned below.
       final n = makeM31();
-      final cleared = n.copyWith(
+      final keep = n.copyWith(
         integrationBudget: null,
         startWhen: null,
         endWhen: null,
         brightnessTierHint: null,
+      );
+      expect(keep.integrationBudget, equals(n.integrationBudget));
+      expect(keep.startWhen, equals(n.startWhen));
+      expect(keep.endWhen, equals(n.endWhen));
+      expect(keep.brightnessTierHint, equals(n.brightnessTierHint));
+    });
+
+    test('nullable_fields_cleared_via_rebuild_explicit', () {
+      // PHASE-5: the four previously-sentinel fields are cleared by
+      // constructing a fresh TargetHeaderNode without them. Pin the
+      // recipe so editor authors can copy it directly.
+      final n = makeM31();
+      final cleared = TargetHeaderNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        targetName: n.targetName,
+        raHours: n.raHours,
+        decDegrees: n.decDegrees,
+        rotation: n.rotation,
+        priority: n.priority,
+        minAltitude: n.minAltitude,
+        maxAltitude: n.maxAltitude,
+        startAfter: n.startAfter,
+        endBefore: n.endBefore,
+        mosaicPanel: n.mosaicPanel,
+        triggerPollIntervalSecs: n.triggerPollIntervalSecs,
+        // omit integrationBudget / startWhen / endWhen / brightnessTierHint
       );
       expect(cleared.integrationBudget, isNull);
       expect(cleared.startWhen, isNull);

@@ -835,11 +835,16 @@ class TargetHeaderNode extends SequenceNode {
     DateTime? startAfter,
     DateTime? endBefore,
     MosaicPanelInfo? mosaicPanel,
-    Object? integrationBudget = _sentinel,
-    Object? startWhen = _sentinel,
-    Object? endWhen = _sentinel,
+    // PHASE-5: plain `?? this.X` keep-or-replace semantics for all four
+    // previously-sentinel fields. Omitted or null = keep; non-null =
+    // replace. Clearing any of these back to null is rebuild-explicit
+    // at the editor — see _target_node_properties.dart's
+    // integration-budget toggle for the canonical recipe.
+    IntegrationBudget? integrationBudget,
+    TargetTrigger? startWhen,
+    TargetTrigger? endWhen,
     int? triggerPollIntervalSecs,
-    Object? brightnessTierHint = _sentinel,
+    BrightnessTier? brightnessTierHint,
   }) {
     return TargetHeaderNode(
       id: id ?? this.id,
@@ -859,23 +864,12 @@ class TargetHeaderNode extends SequenceNode {
       startAfter: startAfter ?? this.startAfter,
       endBefore: endBefore ?? this.endBefore,
       mosaicPanel: mosaicPanel ?? this.mosaicPanel,
-      // sentinel-based copyWith so the caller can explicitly clear the
-      // budget by passing `null` (`integrationBudget: null` => null,
-      // omitted => keep this.integrationBudget).
-      integrationBudget: identical(integrationBudget, _sentinel)
-          ? this.integrationBudget
-          : integrationBudget as IntegrationBudget?,
-      startWhen: identical(startWhen, _sentinel)
-          ? this.startWhen
-          : startWhen as TargetTrigger?,
-      endWhen: identical(endWhen, _sentinel)
-          ? this.endWhen
-          : endWhen as TargetTrigger?,
+      integrationBudget: integrationBudget ?? this.integrationBudget,
+      startWhen: startWhen ?? this.startWhen,
+      endWhen: endWhen ?? this.endWhen,
       triggerPollIntervalSecs:
           triggerPollIntervalSecs ?? this.triggerPollIntervalSecs,
-      brightnessTierHint: identical(brightnessTierHint, _sentinel)
-          ? this.brightnessTierHint
-          : brightnessTierHint as BrightnessTier?,
+      brightnessTierHint: brightnessTierHint ?? this.brightnessTierHint,
     );
   }
 

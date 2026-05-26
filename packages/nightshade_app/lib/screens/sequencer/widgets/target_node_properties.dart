@@ -868,8 +868,34 @@ class _IntegrationBudgetSection extends ConsumerWidget {
                               integrationBudget: const IntegrationBudget()),
                         );
                   } else {
+                    // PHASE-5: TargetHeaderNode.copyWith uses plain
+                    // `?? this.integrationBudget` now; clearing back to
+                    // null is rebuild-explicit.
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(integrationBudget: null),
+                          TargetHeaderNode(
+                            id: node.id,
+                            name: node.name,
+                            isEnabled: node.isEnabled,
+                            childIds: node.childIds,
+                            parentId: node.parentId,
+                            orderIndex: node.orderIndex,
+                            comment: node.comment,
+                            targetName: node.targetName,
+                            raHours: node.raHours,
+                            decDegrees: node.decDegrees,
+                            rotation: node.rotation,
+                            priority: node.priority,
+                            minAltitude: node.minAltitude,
+                            maxAltitude: node.maxAltitude,
+                            startAfter: node.startAfter,
+                            endBefore: node.endBefore,
+                            mosaicPanel: node.mosaicPanel,
+                            startWhen: node.startWhen,
+                            endWhen: node.endWhen,
+                            triggerPollIntervalSecs:
+                                node.triggerPollIntervalSecs,
+                            brightnessTierHint: node.brightnessTierHint,
+                          ),
                         );
                   }
                 },
