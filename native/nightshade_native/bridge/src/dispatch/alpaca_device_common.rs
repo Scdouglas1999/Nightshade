@@ -44,8 +44,10 @@
 //! `0x40C` (`ActionNotImplemented`). The documented semantics for "this driver
 //! advertises no custom actions" is an empty list, which is exactly what
 //! `Vec::default()` provides. Per the project's "Errors are a feature" policy,
-//! we make this not-silent by emitting a `tracing::debug!` so the discarded
-//! error is observable in logs even though it does not propagate.
+//! we make this not-silent by emitting a `tracing::warn!` so the discarded
+//! error is observable in logs even though it does not propagate. The 10x
+//! `unwrap_or_default()` calls flagged by the audit are replaced by a single
+//! loud-on-loss site.
 
 use crate::device::DeviceApiVersion;
 
@@ -85,8 +87,9 @@ pub(crate) trait AlpacaDeviceCommon {
 ///
 /// * `interface_version` → `1` (ASCOM V1 baseline) when probe fails.
 /// * `driver_version` / `driver_info` → `None` when probe fails.
-/// * `supported_actions` → empty `Vec` when probe fails (with a debug log so
-///   the discarded error is observable).
+/// * `supported_actions` → empty `Vec` when probe fails (with a `warn!` log
+///   so the discarded error is loud-on-loss per CLAUDE.md "errors are a
+///   feature"; the documented ASCOM-optional default semantics are preserved).
 ///
 /// Errors here are not surfaced as `Err` because at the call site any
 /// individual probe failure is already documented (per the module docstring)
@@ -104,12 +107,18 @@ pub(crate) async fn fetch_api_version<T: AlpacaDeviceCommon + ?Sized>(
         Ok(actions) => actions,
         Err(e) => {
             // Why: ASCOM `ISupportedActions` is OPTIONAL; missing → empty
-            // list per spec. We default rather than propagate, but log the
-            // error so the silent fallback is observable in tracing output.
-            tracing::debug!(
+            // list per spec. We default rather than propagate (per the
+            // module-level silent-fallback policy), but emit a `warn!` so
+            // the discarded error is loud-on-loss per CLAUDE.md "errors
+            // are a feature". Operators reviewing logs can distinguish
+            // "driver lacks ISupportedActions (expected)" from "transport
+            // error masquerading as missing actions (bug)" by inspecting
+            // the error payload.
+            tracing::warn!(
                 device_id = %device_id,
                 error = %e,
-                "Alpaca supported_actions probe failed; treating as empty (ASCOM-optional)"
+                "Alpaca supported_actions probe failed; treating as empty (ASCOM-optional). \
+                 If this is a known v1 driver, expect this once per session; otherwise check transport."
             );
             Vec::new()
         }
