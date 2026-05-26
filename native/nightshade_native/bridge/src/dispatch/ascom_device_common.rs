@@ -52,7 +52,9 @@ use crate::dispatch::device_common_metadata::DeviceCommonMetadata;
 
 impl DeviceCommonMetadata for AscomCameraWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
-        Self::interface_version(self).await.map_err(|e| e.to_string())
+        Self::interface_version(self)
+            .await
+            .map_err(|e| e.to_string())
     }
     async fn driver_version(&self) -> Result<String, String> {
         Self::driver_version(self).await.map_err(|e| e.to_string())
@@ -61,13 +63,17 @@ impl DeviceCommonMetadata for AscomCameraWrapper {
         Self::driver_info(self).await.map_err(|e| e.to_string())
     }
     async fn supported_actions(&self) -> Result<Vec<String>, String> {
-        Self::supported_actions(self).await.map_err(|e| e.to_string())
+        Self::supported_actions(self)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
 impl DeviceCommonMetadata for AscomMountWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
-        Self::interface_version(self).await.map_err(|e| e.to_string())
+        Self::interface_version(self)
+            .await
+            .map_err(|e| e.to_string())
     }
     async fn driver_version(&self) -> Result<String, String> {
         Self::driver_version(self).await.map_err(|e| e.to_string())
@@ -76,13 +82,17 @@ impl DeviceCommonMetadata for AscomMountWrapper {
         Self::driver_info(self).await.map_err(|e| e.to_string())
     }
     async fn supported_actions(&self) -> Result<Vec<String>, String> {
-        Self::supported_actions(self).await.map_err(|e| e.to_string())
+        Self::supported_actions(self)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
 impl DeviceCommonMetadata for AscomFocuserWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
-        Self::interface_version(self).await.map_err(|e| e.to_string())
+        Self::interface_version(self)
+            .await
+            .map_err(|e| e.to_string())
     }
     async fn driver_version(&self) -> Result<String, String> {
         Self::driver_version(self).await.map_err(|e| e.to_string())
@@ -91,13 +101,17 @@ impl DeviceCommonMetadata for AscomFocuserWrapper {
         Self::driver_info(self).await.map_err(|e| e.to_string())
     }
     async fn supported_actions(&self) -> Result<Vec<String>, String> {
-        Self::supported_actions(self).await.map_err(|e| e.to_string())
+        Self::supported_actions(self)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 
 impl DeviceCommonMetadata for AscomFilterWheelWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
-        Self::interface_version(self).await.map_err(|e| e.to_string())
+        Self::interface_version(self)
+            .await
+            .map_err(|e| e.to_string())
     }
     async fn driver_version(&self) -> Result<String, String> {
         Self::driver_version(self).await.map_err(|e| e.to_string())
@@ -106,7 +120,9 @@ impl DeviceCommonMetadata for AscomFilterWheelWrapper {
         Self::driver_info(self).await.map_err(|e| e.to_string())
     }
     async fn supported_actions(&self) -> Result<Vec<String>, String> {
-        Self::supported_actions(self).await.map_err(|e| e.to_string())
+        Self::supported_actions(self)
+            .await
+            .map_err(|e| e.to_string())
     }
 }
 

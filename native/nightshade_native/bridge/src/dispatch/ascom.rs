@@ -50,12 +50,8 @@ where
         let map_guard = map.read().await;
         map_guard.get(device_id).cloned()
     };
-    let wrapper_arc = wrapper_arc.ok_or_else(|| {
-        format!(
-            "ASCOM {} {} not connected",
-            not_found_label, device_id
-        )
-    })?;
+    let wrapper_arc = wrapper_arc
+        .ok_or_else(|| format!("ASCOM {} {} not connected", not_found_label, device_id))?;
 
     let guard = wrapper_arc.read().await;
     Ok(fetch_api_version(&*guard, device_id, DeviceApiVersion::from_ascom).await)
@@ -278,19 +274,13 @@ impl DeviceManager {
             DeviceType::FilterWheel => {
                 probe_ascom_metadata(&self.ascom_filter_wheels, device_id, "filter wheel").await?
             }
-            DeviceType::Dome => {
-                probe_ascom_metadata(&self.ascom_domes, device_id, "dome").await?
-            }
+            DeviceType::Dome => probe_ascom_metadata(&self.ascom_domes, device_id, "dome").await?,
             DeviceType::Switch => {
                 probe_ascom_metadata(&self.ascom_switches, device_id, "switch").await?
             }
             DeviceType::CoverCalibrator => {
-                probe_ascom_metadata(
-                    &self.ascom_cover_calibrators,
-                    device_id,
-                    "cover calibrator",
-                )
-                .await?
+                probe_ascom_metadata(&self.ascom_cover_calibrators, device_id, "cover calibrator")
+                    .await?
             }
             _ => {
                 return Err(format!(
