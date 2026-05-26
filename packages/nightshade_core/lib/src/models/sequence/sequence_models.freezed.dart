@@ -4301,6 +4301,882 @@ abstract class _FilterPlan extends FilterPlan {
       throw _privateConstructorUsedError;
 }
 
+/// @nodoc
+mixin _$Sequence {
+  String get id => throw _privateConstructorUsedError;
+  int? get databaseId => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  String get description => throw _privateConstructorUsedError;
+  Map<String, SequenceNode> get nodes => throw _privateConstructorUsedError;
+  String? get rootNodeId => throw _privateConstructorUsedError;
+  DateTime get createdAt => throw _privateConstructorUsedError;
+  DateTime get modifiedAt => throw _privateConstructorUsedError;
+  bool get isTemplate => throw _privateConstructorUsedError;
+  int? get estimatedDurationMins => throw _privateConstructorUsedError;
+
+  @JsonKey(ignore: true)
+  $SequenceCopyWith<Sequence> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SequenceCopyWith<$Res> {
+  factory $SequenceCopyWith(Sequence value, $Res Function(Sequence) then) =
+      _$SequenceCopyWithImpl<$Res, Sequence>;
+  @useResult
+  $Res call(
+      {String id,
+      int? databaseId,
+      String name,
+      String description,
+      Map<String, SequenceNode> nodes,
+      String? rootNodeId,
+      DateTime createdAt,
+      DateTime modifiedAt,
+      bool isTemplate,
+      int? estimatedDurationMins});
+}
+
+/// @nodoc
+class _$SequenceCopyWithImpl<$Res, $Val extends Sequence>
+    implements $SequenceCopyWith<$Res> {
+  _$SequenceCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? databaseId = freezed,
+    Object? name = null,
+    Object? description = null,
+    Object? nodes = null,
+    Object? rootNodeId = freezed,
+    Object? createdAt = null,
+    Object? modifiedAt = null,
+    Object? isTemplate = null,
+    Object? estimatedDurationMins = freezed,
+  }) {
+    return _then(_value.copyWith(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      databaseId: freezed == databaseId
+          ? _value.databaseId
+          : databaseId // ignore: cast_nullable_to_non_nullable
+              as int?,
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      description: null == description
+          ? _value.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String,
+      nodes: null == nodes
+          ? _value.nodes
+          : nodes // ignore: cast_nullable_to_non_nullable
+              as Map<String, SequenceNode>,
+      rootNodeId: freezed == rootNodeId
+          ? _value.rootNodeId
+          : rootNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      createdAt: null == createdAt
+          ? _value.createdAt
+          : createdAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      modifiedAt: null == modifiedAt
+          ? _value.modifiedAt
+          : modifiedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      isTemplate: null == isTemplate
+          ? _value.isTemplate
+          : isTemplate // ignore: cast_nullable_to_non_nullable
+              as bool,
+      estimatedDurationMins: freezed == estimatedDurationMins
+          ? _value.estimatedDurationMins
+          : estimatedDurationMins // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$SequenceImplCopyWith<$Res>
+    implements $SequenceCopyWith<$Res> {
+  factory _$$SequenceImplCopyWith(
+          _$SequenceImpl value, $Res Function(_$SequenceImpl) then) =
+      __$$SequenceImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String id,
+      int? databaseId,
+      String name,
+      String description,
+      Map<String, SequenceNode> nodes,
+      String? rootNodeId,
+      DateTime createdAt,
+      DateTime modifiedAt,
+      bool isTemplate,
+      int? estimatedDurationMins});
+}
+
+/// @nodoc
+class __$$SequenceImplCopyWithImpl<$Res>
+    extends _$SequenceCopyWithImpl<$Res, _$SequenceImpl>
+    implements _$$SequenceImplCopyWith<$Res> {
+  __$$SequenceImplCopyWithImpl(
+      _$SequenceImpl _value, $Res Function(_$SequenceImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? databaseId = freezed,
+    Object? name = null,
+    Object? description = null,
+    Object? nodes = null,
+    Object? rootNodeId = freezed,
+    Object? createdAt = null,
+    Object? modifiedAt = null,
+    Object? isTemplate = null,
+    Object? estimatedDurationMins = freezed,
+  }) {
+    return _then(_$SequenceImpl(
+      id: null == id
+          ? _value.id
+          : id // ignore: cast_nullable_to_non_nullable
+              as String,
+      databaseId: freezed == databaseId
+          ? _value.databaseId
+          : databaseId // ignore: cast_nullable_to_non_nullable
+              as int?,
+      name: null == name
+          ? _value.name
+          : name // ignore: cast_nullable_to_non_nullable
+              as String,
+      description: null == description
+          ? _value.description
+          : description // ignore: cast_nullable_to_non_nullable
+              as String,
+      nodes: null == nodes
+          ? _value._nodes
+          : nodes // ignore: cast_nullable_to_non_nullable
+              as Map<String, SequenceNode>,
+      rootNodeId: freezed == rootNodeId
+          ? _value.rootNodeId
+          : rootNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      createdAt: null == createdAt
+          ? _value.createdAt
+          : createdAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      modifiedAt: null == modifiedAt
+          ? _value.modifiedAt
+          : modifiedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+      isTemplate: null == isTemplate
+          ? _value.isTemplate
+          : isTemplate // ignore: cast_nullable_to_non_nullable
+              as bool,
+      estimatedDurationMins: freezed == estimatedDurationMins
+          ? _value.estimatedDurationMins
+          : estimatedDurationMins // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$SequenceImpl extends _Sequence {
+  const _$SequenceImpl(
+      {required this.id,
+      this.databaseId,
+      required this.name,
+      this.description = '',
+      final Map<String, SequenceNode> nodes = const <String, SequenceNode>{},
+      this.rootNodeId,
+      required this.createdAt,
+      required this.modifiedAt,
+      this.isTemplate = false,
+      this.estimatedDurationMins})
+      : _nodes = nodes,
+        super._();
+
+  @override
+  final String id;
+  @override
+  final int? databaseId;
+  @override
+  final String name;
+  @override
+  @JsonKey()
+  final String description;
+  final Map<String, SequenceNode> _nodes;
+  @override
+  @JsonKey()
+  Map<String, SequenceNode> get nodes {
+    if (_nodes is EqualUnmodifiableMapView) return _nodes;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_nodes);
+  }
+
+  @override
+  final String? rootNodeId;
+  @override
+  final DateTime createdAt;
+  @override
+  final DateTime modifiedAt;
+  @override
+  @JsonKey()
+  final bool isTemplate;
+  @override
+  final int? estimatedDurationMins;
+
+  @override
+  String toString() {
+    return 'Sequence(id: $id, databaseId: $databaseId, name: $name, description: $description, nodes: $nodes, rootNodeId: $rootNodeId, createdAt: $createdAt, modifiedAt: $modifiedAt, isTemplate: $isTemplate, estimatedDurationMins: $estimatedDurationMins)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequenceImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.databaseId, databaseId) ||
+                other.databaseId == databaseId) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.description, description) ||
+                other.description == description) &&
+            const DeepCollectionEquality().equals(other._nodes, _nodes) &&
+            (identical(other.rootNodeId, rootNodeId) ||
+                other.rootNodeId == rootNodeId) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt) &&
+            (identical(other.modifiedAt, modifiedAt) ||
+                other.modifiedAt == modifiedAt) &&
+            (identical(other.isTemplate, isTemplate) ||
+                other.isTemplate == isTemplate) &&
+            (identical(other.estimatedDurationMins, estimatedDurationMins) ||
+                other.estimatedDurationMins == estimatedDurationMins));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      id,
+      databaseId,
+      name,
+      description,
+      const DeepCollectionEquality().hash(_nodes),
+      rootNodeId,
+      createdAt,
+      modifiedAt,
+      isTemplate,
+      estimatedDurationMins);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequenceImplCopyWith<_$SequenceImpl> get copyWith =>
+      __$$SequenceImplCopyWithImpl<_$SequenceImpl>(this, _$identity);
+}
+
+abstract class _Sequence extends Sequence {
+  const factory _Sequence(
+      {required final String id,
+      final int? databaseId,
+      required final String name,
+      final String description,
+      final Map<String, SequenceNode> nodes,
+      final String? rootNodeId,
+      required final DateTime createdAt,
+      required final DateTime modifiedAt,
+      final bool isTemplate,
+      final int? estimatedDurationMins}) = _$SequenceImpl;
+  const _Sequence._() : super._();
+
+  @override
+  String get id;
+  @override
+  int? get databaseId;
+  @override
+  String get name;
+  @override
+  String get description;
+  @override
+  Map<String, SequenceNode> get nodes;
+  @override
+  String? get rootNodeId;
+  @override
+  DateTime get createdAt;
+  @override
+  DateTime get modifiedAt;
+  @override
+  bool get isTemplate;
+  @override
+  int? get estimatedDurationMins;
+  @override
+  @JsonKey(ignore: true)
+  _$$SequenceImplCopyWith<_$SequenceImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+mixin _$SequenceProgress {
+  SequenceExecutionState get state => throw _privateConstructorUsedError;
+  String? get currentNodeId => throw _privateConstructorUsedError;
+  String? get currentNodeName => throw _privateConstructorUsedError;
+  NodeStatus? get currentNodeStatus => throw _privateConstructorUsedError;
+  int get totalExposures => throw _privateConstructorUsedError;
+  int get completedExposures => throw _privateConstructorUsedError;
+  double get totalIntegrationSecs => throw _privateConstructorUsedError;
+  double get completedIntegrationSecs => throw _privateConstructorUsedError;
+  double get elapsedSecs => throw _privateConstructorUsedError;
+  double? get estimatedRemainingSecs => throw _privateConstructorUsedError;
+  String? get currentTarget => throw _privateConstructorUsedError;
+  String? get currentFilter => throw _privateConstructorUsedError;
+  String? get message => throw _privateConstructorUsedError;
+  Map<String, NodeStatus> get nodeStatuses =>
+      throw _privateConstructorUsedError;
+
+  /// Per-node instruction progress (0-100 percent)
+  Map<String, double> get nodeProgressPercent =>
+      throw _privateConstructorUsedError;
+
+  /// Per-node instruction progress detail message
+  Map<String, String> get nodeProgressDetail =>
+      throw _privateConstructorUsedError;
+
+  /// Per-node structured instruction progress detail.
+  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail =>
+      throw _privateConstructorUsedError;
+
+  @JsonKey(ignore: true)
+  $SequenceProgressCopyWith<SequenceProgress> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SequenceProgressCopyWith<$Res> {
+  factory $SequenceProgressCopyWith(
+          SequenceProgress value, $Res Function(SequenceProgress) then) =
+      _$SequenceProgressCopyWithImpl<$Res, SequenceProgress>;
+  @useResult
+  $Res call(
+      {SequenceExecutionState state,
+      String? currentNodeId,
+      String? currentNodeName,
+      NodeStatus? currentNodeStatus,
+      int totalExposures,
+      int completedExposures,
+      double totalIntegrationSecs,
+      double completedIntegrationSecs,
+      double elapsedSecs,
+      double? estimatedRemainingSecs,
+      String? currentTarget,
+      String? currentFilter,
+      String? message,
+      Map<String, NodeStatus> nodeStatuses,
+      Map<String, double> nodeProgressPercent,
+      Map<String, String> nodeProgressDetail,
+      Map<String, InstructionProgressDetail> nodeProgressStructuredDetail});
+}
+
+/// @nodoc
+class _$SequenceProgressCopyWithImpl<$Res, $Val extends SequenceProgress>
+    implements $SequenceProgressCopyWith<$Res> {
+  _$SequenceProgressCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? state = null,
+    Object? currentNodeId = freezed,
+    Object? currentNodeName = freezed,
+    Object? currentNodeStatus = freezed,
+    Object? totalExposures = null,
+    Object? completedExposures = null,
+    Object? totalIntegrationSecs = null,
+    Object? completedIntegrationSecs = null,
+    Object? elapsedSecs = null,
+    Object? estimatedRemainingSecs = freezed,
+    Object? currentTarget = freezed,
+    Object? currentFilter = freezed,
+    Object? message = freezed,
+    Object? nodeStatuses = null,
+    Object? nodeProgressPercent = null,
+    Object? nodeProgressDetail = null,
+    Object? nodeProgressStructuredDetail = null,
+  }) {
+    return _then(_value.copyWith(
+      state: null == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as SequenceExecutionState,
+      currentNodeId: freezed == currentNodeId
+          ? _value.currentNodeId
+          : currentNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeName: freezed == currentNodeName
+          ? _value.currentNodeName
+          : currentNodeName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeStatus: freezed == currentNodeStatus
+          ? _value.currentNodeStatus
+          : currentNodeStatus // ignore: cast_nullable_to_non_nullable
+              as NodeStatus?,
+      totalExposures: null == totalExposures
+          ? _value.totalExposures
+          : totalExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      completedExposures: null == completedExposures
+          ? _value.completedExposures
+          : completedExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      totalIntegrationSecs: null == totalIntegrationSecs
+          ? _value.totalIntegrationSecs
+          : totalIntegrationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      completedIntegrationSecs: null == completedIntegrationSecs
+          ? _value.completedIntegrationSecs
+          : completedIntegrationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      elapsedSecs: null == elapsedSecs
+          ? _value.elapsedSecs
+          : elapsedSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      estimatedRemainingSecs: freezed == estimatedRemainingSecs
+          ? _value.estimatedRemainingSecs
+          : estimatedRemainingSecs // ignore: cast_nullable_to_non_nullable
+              as double?,
+      currentTarget: freezed == currentTarget
+          ? _value.currentTarget
+          : currentTarget // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentFilter: freezed == currentFilter
+          ? _value.currentFilter
+          : currentFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      message: freezed == message
+          ? _value.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String?,
+      nodeStatuses: null == nodeStatuses
+          ? _value.nodeStatuses
+          : nodeStatuses // ignore: cast_nullable_to_non_nullable
+              as Map<String, NodeStatus>,
+      nodeProgressPercent: null == nodeProgressPercent
+          ? _value.nodeProgressPercent
+          : nodeProgressPercent // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      nodeProgressDetail: null == nodeProgressDetail
+          ? _value.nodeProgressDetail
+          : nodeProgressDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, String>,
+      nodeProgressStructuredDetail: null == nodeProgressStructuredDetail
+          ? _value.nodeProgressStructuredDetail
+          : nodeProgressStructuredDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, InstructionProgressDetail>,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$SequenceProgressImplCopyWith<$Res>
+    implements $SequenceProgressCopyWith<$Res> {
+  factory _$$SequenceProgressImplCopyWith(_$SequenceProgressImpl value,
+          $Res Function(_$SequenceProgressImpl) then) =
+      __$$SequenceProgressImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {SequenceExecutionState state,
+      String? currentNodeId,
+      String? currentNodeName,
+      NodeStatus? currentNodeStatus,
+      int totalExposures,
+      int completedExposures,
+      double totalIntegrationSecs,
+      double completedIntegrationSecs,
+      double elapsedSecs,
+      double? estimatedRemainingSecs,
+      String? currentTarget,
+      String? currentFilter,
+      String? message,
+      Map<String, NodeStatus> nodeStatuses,
+      Map<String, double> nodeProgressPercent,
+      Map<String, String> nodeProgressDetail,
+      Map<String, InstructionProgressDetail> nodeProgressStructuredDetail});
+}
+
+/// @nodoc
+class __$$SequenceProgressImplCopyWithImpl<$Res>
+    extends _$SequenceProgressCopyWithImpl<$Res, _$SequenceProgressImpl>
+    implements _$$SequenceProgressImplCopyWith<$Res> {
+  __$$SequenceProgressImplCopyWithImpl(_$SequenceProgressImpl _value,
+      $Res Function(_$SequenceProgressImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? state = null,
+    Object? currentNodeId = freezed,
+    Object? currentNodeName = freezed,
+    Object? currentNodeStatus = freezed,
+    Object? totalExposures = null,
+    Object? completedExposures = null,
+    Object? totalIntegrationSecs = null,
+    Object? completedIntegrationSecs = null,
+    Object? elapsedSecs = null,
+    Object? estimatedRemainingSecs = freezed,
+    Object? currentTarget = freezed,
+    Object? currentFilter = freezed,
+    Object? message = freezed,
+    Object? nodeStatuses = null,
+    Object? nodeProgressPercent = null,
+    Object? nodeProgressDetail = null,
+    Object? nodeProgressStructuredDetail = null,
+  }) {
+    return _then(_$SequenceProgressImpl(
+      state: null == state
+          ? _value.state
+          : state // ignore: cast_nullable_to_non_nullable
+              as SequenceExecutionState,
+      currentNodeId: freezed == currentNodeId
+          ? _value.currentNodeId
+          : currentNodeId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeName: freezed == currentNodeName
+          ? _value.currentNodeName
+          : currentNodeName // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentNodeStatus: freezed == currentNodeStatus
+          ? _value.currentNodeStatus
+          : currentNodeStatus // ignore: cast_nullable_to_non_nullable
+              as NodeStatus?,
+      totalExposures: null == totalExposures
+          ? _value.totalExposures
+          : totalExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      completedExposures: null == completedExposures
+          ? _value.completedExposures
+          : completedExposures // ignore: cast_nullable_to_non_nullable
+              as int,
+      totalIntegrationSecs: null == totalIntegrationSecs
+          ? _value.totalIntegrationSecs
+          : totalIntegrationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      completedIntegrationSecs: null == completedIntegrationSecs
+          ? _value.completedIntegrationSecs
+          : completedIntegrationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      elapsedSecs: null == elapsedSecs
+          ? _value.elapsedSecs
+          : elapsedSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      estimatedRemainingSecs: freezed == estimatedRemainingSecs
+          ? _value.estimatedRemainingSecs
+          : estimatedRemainingSecs // ignore: cast_nullable_to_non_nullable
+              as double?,
+      currentTarget: freezed == currentTarget
+          ? _value.currentTarget
+          : currentTarget // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentFilter: freezed == currentFilter
+          ? _value.currentFilter
+          : currentFilter // ignore: cast_nullable_to_non_nullable
+              as String?,
+      message: freezed == message
+          ? _value.message
+          : message // ignore: cast_nullable_to_non_nullable
+              as String?,
+      nodeStatuses: null == nodeStatuses
+          ? _value._nodeStatuses
+          : nodeStatuses // ignore: cast_nullable_to_non_nullable
+              as Map<String, NodeStatus>,
+      nodeProgressPercent: null == nodeProgressPercent
+          ? _value._nodeProgressPercent
+          : nodeProgressPercent // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      nodeProgressDetail: null == nodeProgressDetail
+          ? _value._nodeProgressDetail
+          : nodeProgressDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, String>,
+      nodeProgressStructuredDetail: null == nodeProgressStructuredDetail
+          ? _value._nodeProgressStructuredDetail
+          : nodeProgressStructuredDetail // ignore: cast_nullable_to_non_nullable
+              as Map<String, InstructionProgressDetail>,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$SequenceProgressImpl extends _SequenceProgress {
+  const _$SequenceProgressImpl(
+      {this.state = SequenceExecutionState.idle,
+      this.currentNodeId,
+      this.currentNodeName,
+      this.currentNodeStatus,
+      this.totalExposures = 0,
+      this.completedExposures = 0,
+      this.totalIntegrationSecs = 0.0,
+      this.completedIntegrationSecs = 0.0,
+      this.elapsedSecs = 0.0,
+      this.estimatedRemainingSecs,
+      this.currentTarget,
+      this.currentFilter,
+      this.message,
+      final Map<String, NodeStatus> nodeStatuses = const <String, NodeStatus>{},
+      final Map<String, double> nodeProgressPercent = const <String, double>{},
+      final Map<String, String> nodeProgressDetail = const <String, String>{},
+      final Map<String, InstructionProgressDetail> nodeProgressStructuredDetail =
+          const <String, InstructionProgressDetail>{}})
+      : _nodeStatuses = nodeStatuses,
+        _nodeProgressPercent = nodeProgressPercent,
+        _nodeProgressDetail = nodeProgressDetail,
+        _nodeProgressStructuredDetail = nodeProgressStructuredDetail,
+        super._();
+
+  @override
+  @JsonKey()
+  final SequenceExecutionState state;
+  @override
+  final String? currentNodeId;
+  @override
+  final String? currentNodeName;
+  @override
+  final NodeStatus? currentNodeStatus;
+  @override
+  @JsonKey()
+  final int totalExposures;
+  @override
+  @JsonKey()
+  final int completedExposures;
+  @override
+  @JsonKey()
+  final double totalIntegrationSecs;
+  @override
+  @JsonKey()
+  final double completedIntegrationSecs;
+  @override
+  @JsonKey()
+  final double elapsedSecs;
+  @override
+  final double? estimatedRemainingSecs;
+  @override
+  final String? currentTarget;
+  @override
+  final String? currentFilter;
+  @override
+  final String? message;
+  final Map<String, NodeStatus> _nodeStatuses;
+  @override
+  @JsonKey()
+  Map<String, NodeStatus> get nodeStatuses {
+    if (_nodeStatuses is EqualUnmodifiableMapView) return _nodeStatuses;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_nodeStatuses);
+  }
+
+  /// Per-node instruction progress (0-100 percent)
+  final Map<String, double> _nodeProgressPercent;
+
+  /// Per-node instruction progress (0-100 percent)
+  @override
+  @JsonKey()
+  Map<String, double> get nodeProgressPercent {
+    if (_nodeProgressPercent is EqualUnmodifiableMapView)
+      return _nodeProgressPercent;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_nodeProgressPercent);
+  }
+
+  /// Per-node instruction progress detail message
+  final Map<String, String> _nodeProgressDetail;
+
+  /// Per-node instruction progress detail message
+  @override
+  @JsonKey()
+  Map<String, String> get nodeProgressDetail {
+    if (_nodeProgressDetail is EqualUnmodifiableMapView)
+      return _nodeProgressDetail;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_nodeProgressDetail);
+  }
+
+  /// Per-node structured instruction progress detail.
+  final Map<String, InstructionProgressDetail> _nodeProgressStructuredDetail;
+
+  /// Per-node structured instruction progress detail.
+  @override
+  @JsonKey()
+  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail {
+    if (_nodeProgressStructuredDetail is EqualUnmodifiableMapView)
+      return _nodeProgressStructuredDetail;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_nodeProgressStructuredDetail);
+  }
+
+  @override
+  String toString() {
+    return 'SequenceProgress(state: $state, currentNodeId: $currentNodeId, currentNodeName: $currentNodeName, currentNodeStatus: $currentNodeStatus, totalExposures: $totalExposures, completedExposures: $completedExposures, totalIntegrationSecs: $totalIntegrationSecs, completedIntegrationSecs: $completedIntegrationSecs, elapsedSecs: $elapsedSecs, estimatedRemainingSecs: $estimatedRemainingSecs, currentTarget: $currentTarget, currentFilter: $currentFilter, message: $message, nodeStatuses: $nodeStatuses, nodeProgressPercent: $nodeProgressPercent, nodeProgressDetail: $nodeProgressDetail, nodeProgressStructuredDetail: $nodeProgressStructuredDetail)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequenceProgressImpl &&
+            (identical(other.state, state) || other.state == state) &&
+            (identical(other.currentNodeId, currentNodeId) ||
+                other.currentNodeId == currentNodeId) &&
+            (identical(other.currentNodeName, currentNodeName) ||
+                other.currentNodeName == currentNodeName) &&
+            (identical(other.currentNodeStatus, currentNodeStatus) ||
+                other.currentNodeStatus == currentNodeStatus) &&
+            (identical(other.totalExposures, totalExposures) ||
+                other.totalExposures == totalExposures) &&
+            (identical(other.completedExposures, completedExposures) ||
+                other.completedExposures == completedExposures) &&
+            (identical(other.totalIntegrationSecs, totalIntegrationSecs) ||
+                other.totalIntegrationSecs == totalIntegrationSecs) &&
+            (identical(
+                    other.completedIntegrationSecs, completedIntegrationSecs) ||
+                other.completedIntegrationSecs == completedIntegrationSecs) &&
+            (identical(other.elapsedSecs, elapsedSecs) ||
+                other.elapsedSecs == elapsedSecs) &&
+            (identical(other.estimatedRemainingSecs, estimatedRemainingSecs) ||
+                other.estimatedRemainingSecs == estimatedRemainingSecs) &&
+            (identical(other.currentTarget, currentTarget) ||
+                other.currentTarget == currentTarget) &&
+            (identical(other.currentFilter, currentFilter) ||
+                other.currentFilter == currentFilter) &&
+            (identical(other.message, message) || other.message == message) &&
+            const DeepCollectionEquality()
+                .equals(other._nodeStatuses, _nodeStatuses) &&
+            const DeepCollectionEquality()
+                .equals(other._nodeProgressPercent, _nodeProgressPercent) &&
+            const DeepCollectionEquality()
+                .equals(other._nodeProgressDetail, _nodeProgressDetail) &&
+            const DeepCollectionEquality().equals(
+                other._nodeProgressStructuredDetail,
+                _nodeProgressStructuredDetail));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      state,
+      currentNodeId,
+      currentNodeName,
+      currentNodeStatus,
+      totalExposures,
+      completedExposures,
+      totalIntegrationSecs,
+      completedIntegrationSecs,
+      elapsedSecs,
+      estimatedRemainingSecs,
+      currentTarget,
+      currentFilter,
+      message,
+      const DeepCollectionEquality().hash(_nodeStatuses),
+      const DeepCollectionEquality().hash(_nodeProgressPercent),
+      const DeepCollectionEquality().hash(_nodeProgressDetail),
+      const DeepCollectionEquality().hash(_nodeProgressStructuredDetail));
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequenceProgressImplCopyWith<_$SequenceProgressImpl> get copyWith =>
+      __$$SequenceProgressImplCopyWithImpl<_$SequenceProgressImpl>(
+          this, _$identity);
+}
+
+abstract class _SequenceProgress extends SequenceProgress {
+  const factory _SequenceProgress(
+      {final SequenceExecutionState state,
+      final String? currentNodeId,
+      final String? currentNodeName,
+      final NodeStatus? currentNodeStatus,
+      final int totalExposures,
+      final int completedExposures,
+      final double totalIntegrationSecs,
+      final double completedIntegrationSecs,
+      final double elapsedSecs,
+      final double? estimatedRemainingSecs,
+      final String? currentTarget,
+      final String? currentFilter,
+      final String? message,
+      final Map<String, NodeStatus> nodeStatuses,
+      final Map<String, double> nodeProgressPercent,
+      final Map<String, String> nodeProgressDetail,
+      final Map<String, InstructionProgressDetail>
+          nodeProgressStructuredDetail}) = _$SequenceProgressImpl;
+  const _SequenceProgress._() : super._();
+
+  @override
+  SequenceExecutionState get state;
+  @override
+  String? get currentNodeId;
+  @override
+  String? get currentNodeName;
+  @override
+  NodeStatus? get currentNodeStatus;
+  @override
+  int get totalExposures;
+  @override
+  int get completedExposures;
+  @override
+  double get totalIntegrationSecs;
+  @override
+  double get completedIntegrationSecs;
+  @override
+  double get elapsedSecs;
+  @override
+  double? get estimatedRemainingSecs;
+  @override
+  String? get currentTarget;
+  @override
+  String? get currentFilter;
+  @override
+  String? get message;
+  @override
+  Map<String, NodeStatus> get nodeStatuses;
+  @override
+
+  /// Per-node instruction progress (0-100 percent)
+  Map<String, double> get nodeProgressPercent;
+  @override
+
+  /// Per-node instruction progress detail message
+  Map<String, String> get nodeProgressDetail;
+  @override
+
+  /// Per-node structured instruction progress detail.
+  Map<String, InstructionProgressDetail> get nodeProgressStructuredDetail;
+  @override
+  @JsonKey(ignore: true)
+  _$$SequenceProgressImplCopyWith<_$SequenceProgressImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 PhotometryQualityGates _$PhotometryQualityGatesFromJson(
     Map<String, dynamic> json) {
   return _PhotometryQualityGates.fromJson(json);

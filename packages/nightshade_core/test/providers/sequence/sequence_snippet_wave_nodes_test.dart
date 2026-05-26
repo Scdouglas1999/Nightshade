@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/models/sequence/template_snippet.dart';
@@ -63,7 +63,7 @@ void main() {
       name: 'Sequence',
       childIds: const ['scheduler'],
     );
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Snippet Source',
       rootNodeId: 'root',
       nodes: {

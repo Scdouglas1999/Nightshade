@@ -1,4 +1,4 @@
-// Wave 7 Agent 2 — tests for the live-stacking broadcast service.
+﻿// Wave 7 Agent 2 — tests for the live-stacking broadcast service.
 //
 // Covers the three failure modes the brief calls out:
 //   * Frame published → broadcast endpoint serves a JPEG.
@@ -248,7 +248,7 @@ void main() {
         childIds: [ls.id],
       );
       final patchedLs = ls.copyWith(parentId: root.id);
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 'Test',
         nodes: {root.id: root, patchedLs.id: patchedLs},
@@ -272,7 +272,7 @@ void main() {
       );
       final patchedLs = ls.copyWith(parentId: root.id);
       final patchedEx = ex.copyWith(parentId: root.id);
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 'Test',
         nodes: {
@@ -295,7 +295,7 @@ void main() {
         childIds: [ls.id],
       );
       final patched = ls.copyWith(parentId: root.id);
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 'Test',
         nodes: {root.id: root, patched.id: patched},
@@ -316,7 +316,7 @@ void main() {
         childIds: [ls.id],
       );
       final patched = ls.copyWith(parentId: root.id);
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 'Test',
         nodes: {root.id: root, patched.id: patched},
@@ -335,7 +335,7 @@ void main() {
         childIds: [ls.id],
       );
       final patched = ls.copyWith(parentId: root.id);
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 'Test',
         nodes: {root.id: root, patched.id: patched},

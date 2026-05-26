@@ -1,11 +1,11 @@
-// Wave 7 Science — SciencePhotometry validation + serialization tests.
+﻿// Wave 7 Science — SciencePhotometry validation + serialization tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/science_photometry_rules.dart';
 
 Sequence _sequenceWith(SciencePhotometryNode node) {
-  return Sequence(
+  return Sequence.create(
     id: 'seq',
     name: 'test',
     nodes: {node.id: node},

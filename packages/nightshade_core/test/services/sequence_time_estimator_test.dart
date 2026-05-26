@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
@@ -14,7 +14,7 @@ void main() {
       String? rootNodeId,
       Map<String, SequenceNode>? nodes,
     }) {
-      return Sequence(
+      return Sequence.create(
         name: 'Test Sequence',
         rootNodeId: rootNodeId,
         nodes: nodes ?? {},

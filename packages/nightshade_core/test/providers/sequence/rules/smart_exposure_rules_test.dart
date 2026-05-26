@@ -1,4 +1,4 @@
-// Audit C6 — SmartExposure per-row filter-name validation tests.
+﻿// Audit C6 — SmartExposure per-row filter-name validation tests.
 //
 // Covers SmartExposureFilterUnknownRule: each enabled SmartExposure row
 // whose `filterName` is non-empty must reference a filter present in the
@@ -15,7 +15,7 @@ import 'package:nightshade_core/src/providers/sequence/sequence_validation.dart'
 
 /// Build a single-node sequence wrapping the given SmartExposure node.
 Sequence _sequenceWith(SmartExposureNode node) {
-  return Sequence(
+  return Sequence.create(
     id: 'seq',
     name: 'test',
     nodes: {node.id: node},

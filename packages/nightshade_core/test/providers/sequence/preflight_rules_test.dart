@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show QueryExecutor, Value;
+﻿import 'package:drift/drift.dart' show QueryExecutor, Value;
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -105,7 +105,7 @@ Sequence _sequenceWith(List<SequenceNode> children) {
     ids.add(placed.id);
   }
   nodes[root.id] = root.copyWith(childIds: ids);
-  return Sequence(name: 'T', nodes: nodes, rootNodeId: root.id);
+  return Sequence.create(name: 'T', nodes: nodes, rootNodeId: root.id);
 }
 
 Future<ProviderContainer> _buildContainer({
@@ -436,7 +436,7 @@ void main() {
         decDegrees: 47.2,
         childIds: const ['exp-l'],
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'T',
         nodes: {
           target.id: target,
@@ -488,7 +488,7 @@ void main() {
         decDegrees: 47.2,
         childIds: const ['exp-l'],
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'T',
         nodes: {
           target.id: target,
@@ -545,7 +545,7 @@ void main() {
         decDegrees: 44.3,
         childIds: const ['exp-ha'],
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'T',
         nodes: {
           target.id: target,
@@ -602,7 +602,7 @@ void main() {
         decDegrees: 41.3,
         childIds: const ['exp-l'],
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'T',
         nodes: {
           target.id: target,

@@ -571,7 +571,7 @@ void main() {
       );
 
       await repository.saveSequence(
-        seq_models.Sequence(
+        seq_models.Sequence.create(
           databaseId: sequenceId,
           name: 'Legacy Recovery Sequence',
           rootNodeId: 'root',

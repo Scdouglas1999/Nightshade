@@ -1,4 +1,4 @@
-// Wave 5 Agent 2 — sky-brightness adaptive exposure validation tests.
+﻿// Wave 5 Agent 2 — sky-brightness adaptive exposure validation tests.
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -8,7 +8,7 @@ Sequence _sequenceWith(ExposureNode node) {
   // Minimal sequence shell wrapping one exposure node. The validators
   // we test here only read the nodes map, not the relationships, so the
   // shell can be empty otherwise.
-  return Sequence(
+  return Sequence.create(
     id: 'seq',
     name: 'test',
     nodes: {node.id: node},

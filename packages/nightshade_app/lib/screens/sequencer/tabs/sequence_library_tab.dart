@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -704,7 +704,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         ? idMapping[widget.sequence.rootNodeId]
         : null;
 
-    final loadedSequence = Sequence(
+    final loadedSequence = Sequence.create(
       name: widget.sequence.name,
       description: widget.sequence.description,
       nodes: newNodes,
@@ -985,7 +985,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
     try {
       final repository = ref.read(sequenceRepositoryProvider);
 
-      final sequenceToSave = Sequence(
+      final sequenceToSave = Sequence.create(
         databaseId: widget.sequence.databaseId,
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),

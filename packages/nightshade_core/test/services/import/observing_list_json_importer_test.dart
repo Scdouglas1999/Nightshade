@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -133,7 +133,7 @@ void main() {
         decDegrees: 47.1953,
         priority: 2,
       );
-      final seq = Sequence(
+      final seq = Sequence.create(
         id: 's1',
         name: 'Test Export',
         description: 'export test',
@@ -189,7 +189,7 @@ void main() {
           column: 0,
         ),
       );
-      final seq = Sequence(
+      final seq = Sequence.create(
         id: 's1',
         name: 'Mosaic Round Trip',
         nodes: {'t1': panel},

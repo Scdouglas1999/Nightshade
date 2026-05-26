@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/services/sequence_diff_service.dart';
 
@@ -12,7 +12,7 @@ void main() {
     required String name,
     required List<SequenceNode> nodes,
   }) {
-    return Sequence(
+    return Sequence.create(
       name: name,
       nodes: {for (final n in nodes) n.id: n},
       rootNodeId: nodes.isEmpty ? null : nodes.first.id,

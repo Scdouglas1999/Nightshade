@@ -1,4 +1,4 @@
-// Phase 1 freezed-migration safety net for the non-SequenceNode
+﻿// Phase 1 freezed-migration safety net for the non-SequenceNode
 // data classes declared in `lib/src/models/sequence/sequence_models.dart`.
 //
 // Covers: MosaicPanelInfo, SequenceOverheadConfig, SequenceEstimate,
@@ -991,7 +991,7 @@ void main() {
         durationSecs: 60.0,
         count: 10,
       );
-      return Sequence(
+      return Sequence.create(
         id: 'seq1',
         name: 'Test sequence',
         nodes: {
@@ -1051,7 +1051,7 @@ void main() {
         decDegrees: 20.0,
         orderIndex: 1,
       );
-      final seq = Sequence(
+      final seq = Sequence.create(
         id: 's',
         name: 'n',
         nodes: {enabled.id: enabled, disabled.id: disabled},

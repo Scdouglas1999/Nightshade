@@ -1,4 +1,4 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
+﻿// Part of ../templates_tab.dart -- extracted for maintainability.
 //
 // The per-template card with its hover state, instantiate/duplicate/edit/delete actions, body chips, and the _SmallIconButton primitive used for the card's icon-only secondary actions.
 part of '../templates_tab.dart';
@@ -452,7 +452,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         ? idMapping[widget.template.rootNodeId]
         : null;
 
-    final newSequence = Sequence(
+    final newSequence = Sequence.create(
       name: '${widget.template.name} - Copy',
       description: widget.template.description,
       nodes: newNodes,
@@ -502,7 +502,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
         ? idMapping[widget.template.rootNodeId]
         : null;
 
-    final editableSequence = Sequence(
+    final editableSequence = Sequence.create(
       name: widget.template.name,
       description: widget.template.description,
       nodes: newNodes,
@@ -552,7 +552,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
       // Built-in template - save a copy to database
       try {
         final repository = ref.read(sequenceRepositoryProvider);
-        final newTemplate = Sequence(
+        final newTemplate = Sequence.create(
           name: '${widget.template.name} (Copy)',
           description: widget.template.description,
           nodes: widget.template.nodes,

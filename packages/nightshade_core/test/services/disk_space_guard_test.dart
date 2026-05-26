@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 /// Fake disk service: returns canned [DiskSpaceInfo] (or throws). Test-only —
@@ -44,7 +44,7 @@ Sequence _seqWithExposures(int count, {BinningMode binning = BinningMode.one}) {
     count: count,
     binning: binning,
   );
-  return Sequence(
+  return Sequence.create(
     id: 'seq1',
     name: 'test',
     nodes: {exposureId: exposure},
@@ -180,7 +180,7 @@ void main() {
         count: 9999,
         isEnabled: false,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 'seq',
         name: 't',
         nodes: {

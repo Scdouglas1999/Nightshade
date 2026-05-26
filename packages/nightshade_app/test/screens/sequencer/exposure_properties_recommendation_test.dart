@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,7 +123,7 @@ void main() {
       filter: 'L',
     );
     final root = InstructionSetNode(id: 'root', childIds: [exposure.id]);
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Exposure Recommendation Test',
       rootNodeId: root.id,
       nodes: {
@@ -158,7 +158,7 @@ void main() {
       plans: const [],
     );
     final root = InstructionSetNode(id: 'root', childIds: [smart.id]);
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Smart Exposure Recommendation Test',
       rootNodeId: root.id,
       nodes: {
@@ -193,7 +193,7 @@ void main() {
       binning: BinningMode.two,
     );
     final root = InstructionSetNode(id: 'root', childIds: [exposure.id]);
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Test Exposure Sequence',
       rootNodeId: root.id,
       nodes: {

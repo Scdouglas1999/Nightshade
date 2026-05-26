@@ -4322,82 +4322,103 @@ String formatHumanDurationSecs(double secs) {
 ///     its own `childIds: List<String>` and `parentId: String?`. The on-the-
 ///     wire JSON (executor payload + `.nseq.json` export) is unchanged.
 ///
-///   * `_childrenByParent` and `_parentById` are **derived** runtime indexes
-///     built lazily from `nodes` on first access. They make `childrenOf(p)`,
-///     `parentOf(c)`, and descendant walks O(1) per hop without scanning the
-///     full node map.
+///   * The parent/child indexes are **derived** from `nodes` and live in
+///     [SequenceTreeIndex] (sibling class, cached per-instance via an
+///     [Expando]). They make `childrenOf(p)`, `parentOf(c)`, and descendant
+///     walks O(1) per hop without scanning the full node map.
 ///
-///   * The runtime invariant is: `_childrenByParent[parentId]` is the
-///     authoritative ordering of children under `parentId`, and `parentId`
-///     in each node's `parentId` field matches `_parentById[node.id]`. The
-///     index is built FROM `nodes[*].childIds` + `nodes[*].parentId`, so the
-///     two representations are kept consistent by construction — every
-///     mutation goes through `CurrentSequenceNotifier`, which produces a
-///     fresh `Sequence` via `copyWith(nodes: ...)`; the new instance rebuilds
-///     its indexes from the new `nodes` map.
+///   * The runtime invariant is: `treeIndex.childrenOf(parentId)` is the
+///     authoritative ordering of children under `parentId`, and the
+///     `parentId` field on each node matches `treeIndex.parentOf(node.id)`.
+///     The index is built FROM `nodes[*].childIds` + `nodes[*].parentId`,
+///     so the two representations are kept consistent by construction —
+///     every mutation goes through `CurrentSequenceNotifier`, which
+///     produces a fresh `Sequence` via `copyWith(nodes: ...)`; the new
+///     instance rebuilds its index from the new `nodes` map on first
+///     access.
 ///
 ///   * `orderIndex` on each node is preserved as a load-bearing persistence
 ///     field (Drift uses it for `ORDER BY` on load). The editor renumbers
 ///     `orderIndex` only within the affected parent's children list — never
 ///     a tree-wide rewrite — so reorder/insert/remove cost is bounded by the
 ///     parent's sibling count, not by the total tree size.
-// PHASE-2-NOTE: NOT converted to freezed during the Phase 2 standalones
-// batch. Three structural blockers:
-//   1. `createdAt` / `modifiedAt` default to `DateTime.now()` in the
-//      constructor — freezed's `@Default(...)` requires a const
-//      expression. The conversion would force every call site that
-//      currently omits these fields to pass them explicitly.
-//   2. `id` defaults to `const Uuid().v4()` — not a const expression
-//      either. Same downstream impact.
-//   3. The `_childrenByParent` and `_parentById` lazy `late final`
-//      tree indexes are O(N) to rebuild and are deliberately excluded
-//      from Equatable's `props`. Freezed's generated `==` / `hashCode`
-//      would either need to include them (breaking the contract test
-//      `equality_via_props_uses_nodes_map_and_excludes_derived_indexes`)
-//      OR the indexes need to be hoisted out of the class (a much
-//      larger refactor that touches sequence_editor.dart, validators,
-//      and the executor).
-// Conversion deferred to Phase 3+ where the broader Sequence-tree
-// refactor lands.
-class Sequence extends Equatable {
-  final String id;
-  final int? databaseId; // Database primary key (null if not persisted)
-  final String name;
-  final String description;
-  final Map<String, SequenceNode> nodes;
-  final String? rootNodeId;
-  final DateTime createdAt;
-  final DateTime modifiedAt;
-  final bool isTemplate;
-  final int? estimatedDurationMins;
+///
+/// Phase 3 conversion (Step 3): the lazy index fields that previously
+/// lived on this class were hoisted to [SequenceTreeIndex] in Step 1, and
+/// `SequenceProgressNotifier.updateProgress` was rewritten in Step 2 to
+/// stop depending on the pre-freezed `?? this.X` quirk. With both blockers
+/// cleared, this class is now freezed-backed — `copyWith`, `==`, and
+/// `hashCode` are generated.
+///
+/// Construction: use [Sequence.create] when you want the legacy "auto-fill
+/// id + createdAt + modifiedAt" ergonomics. The bare freezed factory
+/// requires every load-bearing field explicitly — useful for code paths
+/// (deserialization, database load, file import) that already have the
+/// authoritative values.
+@freezed
+class Sequence with _$Sequence {
+  const Sequence._();
 
-  Sequence({
+  /// Raw freezed-generated constructor. Every field is explicit — no
+  /// auto-generated UUID, no `DateTime.now()` defaults. Use this from
+  /// code paths that already have the authoritative `id` / timestamps
+  /// (deserialization, database load, etc.); use [Sequence.create] from
+  /// app / UI code that wants the historical defaulting behaviour.
+  const factory Sequence({
+    required String id,
+    int? databaseId,
+    required String name,
+    @Default('') String description,
+    @Default(<String, SequenceNode>{}) Map<String, SequenceNode> nodes,
+    String? rootNodeId,
+    required DateTime createdAt,
+    required DateTime modifiedAt,
+    @Default(false) bool isTemplate,
+    int? estimatedDurationMins,
+  }) = _Sequence;
+
+  /// Friendly factory matching the pre-freezed `Sequence(...)` signature:
+  /// `id`, `createdAt`, and `modifiedAt` are auto-generated when omitted,
+  /// `nodes` defaults to an empty map. Used by editor / template / planner
+  /// code that just wants a fresh sequence.
+  factory Sequence.create({
     String? id,
-    this.databaseId,
-    required this.name,
-    this.description = '',
+    int? databaseId,
+    required String name,
+    String description = '',
     Map<String, SequenceNode>? nodes,
-    this.rootNodeId,
+    String? rootNodeId,
     DateTime? createdAt,
     DateTime? modifiedAt,
-    this.isTemplate = false,
-    this.estimatedDurationMins,
-  })  : id = id ?? const Uuid().v4(),
-        nodes = nodes ?? {},
-        createdAt = createdAt ?? DateTime.now(),
-        modifiedAt = modifiedAt ?? DateTime.now();
+    bool isTemplate = false,
+    int? estimatedDurationMins,
+  }) {
+    final now = DateTime.now();
+    return Sequence(
+      id: id ?? const Uuid().v4(),
+      databaseId: databaseId,
+      name: name,
+      description: description,
+      nodes: nodes ?? const <String, SequenceNode>{},
+      rootNodeId: rootNodeId,
+      createdAt: createdAt ?? now,
+      modifiedAt: modifiedAt ?? now,
+      isTemplate: isTemplate,
+      estimatedDurationMins: estimatedDurationMins,
+    );
+  }
 
   // ---------------------------------------------------------------------
   // Derived tree-index API (delegates to [SequenceTreeIndex]).
   //
   // The lazy `late final` index fields that previously lived on this class
   // were hoisted to the sibling [SequenceTreeIndex] in Phase 3 Step 1 so
-  // freezed-generated equality / hashCode (Phase 3 Step 3) does not see
-  // them. The per-instance cache lives in `sequenceTreeIndexCache`
-  // ([Expando]) and is keyed by instance identity — which preserves the
-  // previous "compute once on first access, then reuse" semantic exactly:
-  // a fresh `Sequence` built from the same `nodes` map starts with an
-  // empty cache and re-derives the index on first access.
+  // freezed-generated equality / hashCode do not see them. The per-instance
+  // cache lives in `sequenceTreeIndexCache` ([Expando]) and is keyed by
+  // instance identity — which preserves the previous "compute once on first
+  // access, then reuse" semantic exactly: a fresh `Sequence` built from the
+  // same `nodes` map starts with an empty cache and re-derives the index
+  // on first access.
   // ---------------------------------------------------------------------
 
   /// Materialized [SequenceTreeIndex] for this sequence, lazily built on
@@ -4712,170 +4733,51 @@ class Sequence extends Equatable {
   /// preserved as defense-in-depth against malformed import data, even
   /// though [invariants] would have rejected it.
   int countDescendants(String nodeId) => treeIndex.countDescendants(nodeId);
-
-  Sequence copyWith({
-    String? id,
-    int? databaseId,
-    String? name,
-    String? description,
-    Map<String, SequenceNode>? nodes,
-    String? rootNodeId,
-    DateTime? createdAt,
-    DateTime? modifiedAt,
-    bool? isTemplate,
-    int? estimatedDurationMins,
-  }) {
-    return Sequence(
-      id: id ?? this.id,
-      databaseId: databaseId ?? this.databaseId,
-      name: name ?? this.name,
-      description: description ?? this.description,
-      nodes: nodes ?? this.nodes,
-      rootNodeId: rootNodeId ?? this.rootNodeId,
-      createdAt: createdAt ?? this.createdAt,
-      modifiedAt: modifiedAt ?? this.modifiedAt,
-      isTemplate: isTemplate ?? this.isTemplate,
-      estimatedDurationMins:
-          estimatedDurationMins ?? this.estimatedDurationMins,
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        id,
-        databaseId,
-        name,
-        description,
-        nodes,
-        rootNodeId,
-        createdAt,
-        modifiedAt,
-        isTemplate,
-        estimatedDurationMins,
-      ];
 }
 
-/// Progress of sequence execution
-//
-// Phase 3 Step 2 resolved the freezed-incompatibility blocker on this
-// class by rewriting `SequenceProgressNotifier.updateProgress` to build
-// the next `SequenceProgress` explicitly (no reliance on the pre-freezed
-// `copyWith(x: x ?? this.x)` quirk). Phase 3 Step 3 then converts this
-// class to freezed; the rewritten `updateProgress` continues to work
-// against the freezed-generated `copyWith` because it does not call it.
-class SequenceProgress extends Equatable {
-  final SequenceExecutionState state;
-  final String? currentNodeId;
-  final String? currentNodeName;
-  final NodeStatus? currentNodeStatus;
-  final int totalExposures;
-  final int completedExposures;
-  final double totalIntegrationSecs;
-  final double completedIntegrationSecs;
-  final double elapsedSecs;
-  final double? estimatedRemainingSecs;
-  final String? currentTarget;
-  final String? currentFilter;
-  final String? message;
-  final Map<String, NodeStatus> nodeStatuses;
+/// Progress of sequence execution.
+///
+/// Phase 3 Step 2 resolved the freezed-incompatibility blocker on this
+/// class by rewriting `SequenceProgressNotifier.updateProgress` to build
+/// the next `SequenceProgress` explicitly (no reliance on the pre-freezed
+/// `copyWith(x: x ?? this.x)` quirk). Step 3 then converted this class to
+/// freezed; the rewritten `updateProgress` continues to work because it
+/// constructs a fresh `SequenceProgress` rather than calling `copyWith`.
+@freezed
+class SequenceProgress with _$SequenceProgress {
+  const SequenceProgress._();
 
-  /// Per-node instruction progress (0-100 percent)
-  final Map<String, double> nodeProgressPercent;
+  const factory SequenceProgress({
+    @Default(SequenceExecutionState.idle) SequenceExecutionState state,
+    String? currentNodeId,
+    String? currentNodeName,
+    NodeStatus? currentNodeStatus,
+    @Default(0) int totalExposures,
+    @Default(0) int completedExposures,
+    @Default(0.0) double totalIntegrationSecs,
+    @Default(0.0) double completedIntegrationSecs,
+    @Default(0.0) double elapsedSecs,
+    double? estimatedRemainingSecs,
+    String? currentTarget,
+    String? currentFilter,
+    String? message,
+    @Default(<String, NodeStatus>{}) Map<String, NodeStatus> nodeStatuses,
 
-  /// Per-node instruction progress detail message
-  final Map<String, String> nodeProgressDetail;
+    /// Per-node instruction progress (0-100 percent)
+    @Default(<String, double>{}) Map<String, double> nodeProgressPercent,
 
-  /// Per-node structured instruction progress detail.
-  final Map<String, InstructionProgressDetail> nodeProgressStructuredDetail;
+    /// Per-node instruction progress detail message
+    @Default(<String, String>{}) Map<String, String> nodeProgressDetail,
 
-  const SequenceProgress({
-    this.state = SequenceExecutionState.idle,
-    this.currentNodeId,
-    this.currentNodeName,
-    this.currentNodeStatus,
-    this.totalExposures = 0,
-    this.completedExposures = 0,
-    this.totalIntegrationSecs = 0,
-    this.completedIntegrationSecs = 0,
-    this.elapsedSecs = 0,
-    this.estimatedRemainingSecs,
-    this.currentTarget,
-    this.currentFilter,
-    this.message,
-    this.nodeStatuses = const {},
-    this.nodeProgressPercent = const {},
-    this.nodeProgressDetail = const {},
-    this.nodeProgressStructuredDetail = const {},
-  });
+    /// Per-node structured instruction progress detail.
+    @Default(<String, InstructionProgressDetail>{})
+    Map<String, InstructionProgressDetail> nodeProgressStructuredDetail,
+  }) = _SequenceProgress;
 
   double get progressPercent {
     if (totalExposures == 0) return 0;
     return completedExposures / totalExposures;
   }
-
-  SequenceProgress copyWith({
-    SequenceExecutionState? state,
-    String? currentNodeId,
-    String? currentNodeName,
-    NodeStatus? currentNodeStatus,
-    int? totalExposures,
-    int? completedExposures,
-    double? totalIntegrationSecs,
-    double? completedIntegrationSecs,
-    double? elapsedSecs,
-    double? estimatedRemainingSecs,
-    String? currentTarget,
-    String? currentFilter,
-    String? message,
-    Map<String, NodeStatus>? nodeStatuses,
-    Map<String, double>? nodeProgressPercent,
-    Map<String, String>? nodeProgressDetail,
-    Map<String, InstructionProgressDetail>? nodeProgressStructuredDetail,
-  }) {
-    return SequenceProgress(
-      state: state ?? this.state,
-      currentNodeId: currentNodeId ?? this.currentNodeId,
-      currentNodeName: currentNodeName ?? this.currentNodeName,
-      currentNodeStatus: currentNodeStatus ?? this.currentNodeStatus,
-      totalExposures: totalExposures ?? this.totalExposures,
-      completedExposures: completedExposures ?? this.completedExposures,
-      totalIntegrationSecs: totalIntegrationSecs ?? this.totalIntegrationSecs,
-      completedIntegrationSecs:
-          completedIntegrationSecs ?? this.completedIntegrationSecs,
-      elapsedSecs: elapsedSecs ?? this.elapsedSecs,
-      estimatedRemainingSecs:
-          estimatedRemainingSecs ?? this.estimatedRemainingSecs,
-      currentTarget: currentTarget ?? this.currentTarget,
-      currentFilter: currentFilter ?? this.currentFilter,
-      message: message ?? this.message,
-      nodeStatuses: nodeStatuses ?? this.nodeStatuses,
-      nodeProgressPercent: nodeProgressPercent ?? this.nodeProgressPercent,
-      nodeProgressDetail: nodeProgressDetail ?? this.nodeProgressDetail,
-      nodeProgressStructuredDetail:
-          nodeProgressStructuredDetail ?? this.nodeProgressStructuredDetail,
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        state,
-        currentNodeId,
-        currentNodeName,
-        currentNodeStatus,
-        totalExposures,
-        completedExposures,
-        totalIntegrationSecs,
-        completedIntegrationSecs,
-        elapsedSecs,
-        estimatedRemainingSecs,
-        currentTarget,
-        currentFilter,
-        message,
-        nodeStatuses,
-        nodeProgressPercent,
-        nodeProgressDetail,
-        nodeProgressStructuredDetail,
-      ];
 }
 
 // =============================================================================

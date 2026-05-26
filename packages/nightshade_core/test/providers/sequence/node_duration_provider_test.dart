@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence/node_duration_provider.dart';
@@ -29,7 +29,7 @@ ProviderContainer _containerWith(Sequence sequence) {
 }
 
 Sequence _seq(SequenceNode root, Map<String, SequenceNode> nodes) {
-  return Sequence(
+  return Sequence.create(
     name: 'test',
     nodes: nodes,
     rootNodeId: root.id,

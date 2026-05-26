@@ -16,7 +16,7 @@ void main() {
   setUpAll(() {
     registerFallbackValue(const Stream<NightshadeEvent>.empty());
     registerFallbackValue(
-      Sequence(
+      Sequence.create(
         name: 'fallback',
         nodes: const {},
       ),
@@ -51,7 +51,7 @@ void main() {
 
         const rootId = 'root-remote-sync';
         editor.loadSequence(
-          Sequence(
+          Sequence.create(
             name: 'Draft',
             nodes: {
               rootId: InstructionSetNode(id: rootId, name: 'Sequence'),
@@ -112,7 +112,7 @@ void main() {
 
         const rootId = 'root-clean-load';
         editor.loadSequence(
-          Sequence(
+          Sequence.create(
             name: 'Loaded',
             databaseId: 5,
             nodes: {

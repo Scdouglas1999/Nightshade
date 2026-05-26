@@ -1,4 +1,4 @@
-// Tests for the secondary-tap / long-press context menu wired around
+﻿// Tests for the secondary-tap / long-press context menu wired around
 // tree nodes. We mount only the wrapper widget itself with a known
 // sequence so the test stays focused on the menu's lifecycle (open ->
 // pick item -> mutate sequence).
@@ -22,7 +22,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
     root.id: root.copyWith(childIds: [container.id]),
   };
   return (
-    sequence: Sequence(name: 'T', nodes: tree, rootNodeId: root.id),
+    sequence: Sequence.create(name: 'T', nodes: tree, rootNodeId: root.id),
     containerId: container.id,
     childId: child.id,
   );

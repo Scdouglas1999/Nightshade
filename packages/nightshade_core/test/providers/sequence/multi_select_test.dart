@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
@@ -38,7 +38,7 @@ Sequence _abcdTree() {
   final b2 = DelayNode(id: 'B2', parentId: 'B');
   final c = InstructionSetNode(id: 'C', name: 'C', parentId: 'root');
 
-  return Sequence(
+  return Sequence.create(
     name: 'T',
     rootNodeId: 'root',
     nodes: {

@@ -1,4 +1,4 @@
-import 'package:drift/native.dart';
+﻿import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -121,7 +121,7 @@ SmartNightPlan _plan(String targetName) {
   final start = DateTime.now();
   final end = start.add(const Duration(hours: 5));
   return SmartNightPlan(
-    sequence: Sequence(
+    sequence: Sequence.create(
       name: 'Smart Night $targetName',
       rootNodeId: 'root',
       nodes: {

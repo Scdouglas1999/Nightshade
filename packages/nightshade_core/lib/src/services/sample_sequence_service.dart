@@ -217,7 +217,7 @@ class SampleSequenceService {
     final newRootId =
         template.rootNodeId != null ? idMapping[template.rootNodeId] : null;
 
-    return Sequence(
+    return Sequence.create(
       name: nameOverride ?? template.name,
       description: template.description,
       nodes: newNodes,

@@ -66,7 +66,7 @@ class CanonicalNodeMapper {
       forceUnsupported: forceUnsupported,
     );
 
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: _uuid.v4(),
       name: sequenceName,
       description: 'Imported from ${root.sourceType}',

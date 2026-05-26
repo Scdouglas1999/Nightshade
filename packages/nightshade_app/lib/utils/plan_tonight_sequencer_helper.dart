@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
@@ -517,7 +517,7 @@ Future<bool> _loadMosaicNodesIntoEditor({
 
   Future<bool> loadReplacing() async {
     try {
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: mosaicName,
         nodes: nodes,
         rootNodeId: rootNode.id,

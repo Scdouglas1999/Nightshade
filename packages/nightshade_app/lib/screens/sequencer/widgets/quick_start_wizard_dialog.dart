@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -752,7 +752,7 @@ class _QuickStartWizardDialogState
     }
 
     // Build the Sequence object
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: '$targetName Sequence',
       description: _buildDescription(enabledFilters),
       nodes: nodes,

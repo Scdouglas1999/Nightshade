@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 void main() {
@@ -17,7 +17,7 @@ void main() {
           child.id: child.copyWith(parentId: target.id),
       };
 
-      return Sequence(
+      return Sequence.create(
         name: 'Simulation Test',
         nodes: nodes,
       );

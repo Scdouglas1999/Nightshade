@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' hide isNull;
+﻿import 'package:drift/drift.dart' hide isNull;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/nightshade_core.dart' hide CapturedImage;
@@ -117,7 +117,7 @@ void main() {
     }
 
     test('returns empty when sequence has no target headers', () async {
-      final sequence = Sequence(name: 'empty', nodes: const {});
+      final sequence = Sequence.create(name: 'empty', nodes: const {});
       final out = await service.detectCarryOver(sequence: sequence);
       expect(out, isEmpty);
     });
@@ -141,7 +141,7 @@ void main() {
         raHours: 0.7,
         decDegrees: 41.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'tonight',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -179,7 +179,7 @@ void main() {
         raHours: 0.7,
         decDegrees: 41.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'tonight',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -199,7 +199,7 @@ void main() {
         raHours: 0.7,
         decDegrees: 41.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'tonight',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -266,7 +266,7 @@ void main() {
         raHours: 0.7,
         decDegrees: 41.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'tonight',
         nodes: {header.id: header},
         rootNodeId: header.id,

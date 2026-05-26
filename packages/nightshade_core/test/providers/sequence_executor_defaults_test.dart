@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -86,7 +86,7 @@ Sequence _filterThenExposureSequence() {
     durationSecs: 60,
     count: 5,
   );
-  return Sequence(
+  return Sequence.create(
     id: 'seq',
     name: 'unit-test',
     rootNodeId: 'root',
@@ -208,7 +208,7 @@ void main() {
         count: 5,
         ditherEvery: 7,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 't',
         rootNodeId: 'root',
@@ -253,7 +253,7 @@ void main() {
         count: 5,
         ditherEvery: null,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         id: 's',
         name: 't',
         rootNodeId: 'root',

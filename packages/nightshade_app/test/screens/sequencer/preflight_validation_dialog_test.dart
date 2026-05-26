@@ -1,4 +1,4 @@
-// Smoke tests for the Wave 5 Agent 3 pre-flight validation dialog
+﻿// Smoke tests for the Wave 5 Agent 3 pre-flight validation dialog
 // extensions. We don't drive the unified validator end-to-end here
 // (that's covered by the rule unit tests in `nightshade_core`); instead
 // we override `sequenceValidatorProvider` with a fake that returns a
@@ -31,7 +31,7 @@ Sequence _sequence() {
   final root = InstructionSetNode(name: 'root');
   final expo = ExposureNode().copyWith(parentId: root.id);
   final placedRoot = root.copyWith(childIds: [expo.id]);
-  return Sequence(
+  return Sequence.create(
     name: 'Test',
     nodes: {placedRoot.id: placedRoot, expo.id: expo},
     rootNodeId: placedRoot.id,
@@ -143,7 +143,7 @@ void main() {
       decDegrees: 41.3,
       childIds: const ['exp-l'],
     );
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Simulation',
       nodes: {
         target.id: target,

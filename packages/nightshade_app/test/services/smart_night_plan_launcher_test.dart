@@ -1,4 +1,4 @@
-import 'package:drift/native.dart';
+﻿import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -105,7 +105,7 @@ SmartNightPlan _plan(String targetName) {
     decDegrees: 47.2,
     parentId: 'root',
   );
-  final sequence = Sequence(
+  final sequence = Sequence.create(
     id: 'smart-night-$targetName',
     name: 'Smart Night $targetName',
     rootNodeId: root.id,

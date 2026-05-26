@@ -1,4 +1,4 @@
-// Wave 6 Pack O — pre-flight dialog surfaces a "View changes" link when
+﻿// Wave 6 Pack O — pre-flight dialog surfaces a "View changes" link when
 // the in-editor sequence has diverged structurally from the last
 // COMPLETED run. The link opens the SequenceDiffDialog (which is
 // covered by separate tests in notes_panel_test.dart for the
@@ -51,7 +51,7 @@ Sequence _sequence({int? databaseId}) {
   final root = InstructionSetNode(name: 'root');
   final expo = ExposureNode().copyWith(parentId: root.id);
   final placedRoot = root.copyWith(childIds: [expo.id]);
-  return Sequence(
+  return Sequence.create(
     name: 'Test',
     nodes: {placedRoot.id: placedRoot, expo.id: expo},
     rootNodeId: placedRoot.id,

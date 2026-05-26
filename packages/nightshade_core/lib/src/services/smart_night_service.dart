@@ -2069,7 +2069,7 @@ class SmartNightService {
     );
     nodes[rootId] = root;
 
-    return Sequence(
+    return Sequence.create(
       name: '${planned.suggestion.targetName} Plan',
       description: _composeSequenceDescription([planned], strategy, settings),
       nodes: nodes,
@@ -2484,7 +2484,7 @@ class SmartNightService {
     );
     nodes[rootId] = root;
 
-    return Sequence(
+    return Sequence.create(
       name: _composeSequenceName(planned, strategy),
       description: _composeSequenceDescription(planned, strategy, settings),
       nodes: nodes,

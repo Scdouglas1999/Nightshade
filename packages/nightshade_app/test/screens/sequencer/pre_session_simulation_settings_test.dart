@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/preflight_validation_dialog.dart';
@@ -56,7 +56,7 @@ Sequence _sequence() {
     raHours: 12,
     decDegrees: 0,
   );
-  return Sequence(
+  return Sequence.create(
     name: 'High Horizon Test',
     nodes: {target.id: target},
     rootNodeId: target.id,
@@ -78,7 +78,7 @@ Sequence _longSequence() {
     durationSecs: 300,
     count: 10,
   );
-  return Sequence(
+  return Sequence.create(
     name: 'Dark Window Test',
     nodes: {
       target.id: target.copyWith(childIds: [exposure.id]),

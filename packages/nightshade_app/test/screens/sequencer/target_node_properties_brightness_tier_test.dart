@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/widgets/target_node_properties.dart';
@@ -50,7 +50,7 @@ void main() {
       decDegrees: 41.27,
     );
     final root = InstructionSetNode(id: 'root', childIds: [target.id]);
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Brightness Tier Test',
       rootNodeId: root.id,
       nodes: {

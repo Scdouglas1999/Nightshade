@@ -201,7 +201,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
       name: 'Sequence',
     );
 
-    state = Sequence(
+    state = Sequence.create(
       name: name,
       nodes: {rootId: rootNode},
       rootNodeId: rootId,

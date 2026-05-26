@@ -1,4 +1,4 @@
-import 'package:flutter_test/flutter_test.dart';
+﻿import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/exposure_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/logic_node_rules.dart';
@@ -24,7 +24,7 @@ Sequence _sequenceWith(List<SequenceNode> children, {String name = 'Test'}) {
   }
   final rootWithChildren = root.copyWith(childIds: childIds);
   nodes[root.id] = rootWithChildren;
-  return Sequence(
+  return Sequence.create(
     name: name,
     nodes: nodes,
     rootNodeId: root.id,
@@ -43,7 +43,7 @@ void main() {
     final rule = EmptySequenceRule();
 
     test('fires on empty sequence', () {
-      final s = Sequence(name: 'Empty');
+      final s = Sequence.create(name: 'Empty');
       final issues = rule.validate(s);
       expect(issues, hasLength(1));
       expect(issues.single.severity, ValidationSeverity.error);
@@ -62,7 +62,7 @@ void main() {
 
     test('fires when nodes exist but no root', () {
       final exp = ExposureNode();
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'NoRoot',
         nodes: {exp.id: exp},
       );
@@ -77,7 +77,7 @@ void main() {
     });
 
     test('does not double-fire on empty sequence', () {
-      final s = Sequence(name: 'Empty');
+      final s = Sequence.create(name: 'Empty');
       expect(rule.validate(s), isEmpty);
     });
   });
@@ -88,7 +88,7 @@ void main() {
     test('fires when an unreachable node exists', () {
       final root = InstructionSetNode(name: 'Root');
       final orphan = ExposureNode();
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'Test',
         nodes: {root.id: root, orphan.id: orphan},
         rootNodeId: root.id,
@@ -130,7 +130,7 @@ void main() {
       final exp = ExposureNode();
       final loop = LoopNode(name: 'Loop', childIds: [exp.id]);
       // Manually build to keep linkage tidy
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {loop.id: loop, exp.id: exp.copyWith(parentId: loop.id)},
         rootNodeId: loop.id,
@@ -276,7 +276,7 @@ void main() {
         decDegrees: 0,
         childIds: [exp.id],
       );
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {t.id: t, exp.id: exp.copyWith(parentId: t.id)},
         rootNodeId: t.id,
@@ -408,7 +408,7 @@ void main() {
     });
 
     test('does not fire on empty sequence (EmptySequenceRule covers it)', () {
-      final s = Sequence(name: 'E');
+      final s = Sequence.create(name: 'E');
       expect(rule.validate(s), isEmpty);
     });
   });
@@ -526,7 +526,7 @@ void main() {
         recoveryAction: RecoveryActionType.customBranch,
         childIds: [child.id],
       );
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {
           r.id: r,
@@ -554,7 +554,7 @@ void main() {
         requiredSuccesses: 5,
         childIds: [c1.id, c2.id],
       );
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {
           p.id: p,
@@ -577,7 +577,7 @@ void main() {
         requiredSuccesses: 2,
         childIds: [c1.id, c2.id],
       );
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {
           p.id: p,
@@ -592,7 +592,7 @@ void main() {
     test('clean when requiredSuccesses is null', () {
       final c1 = ExposureNode();
       final p = ParallelNode(name: 'P', childIds: [c1.id]);
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {
           p.id: p,
@@ -619,7 +619,7 @@ void main() {
     test('clean when conditional has children', () {
       final child = ExposureNode();
       final c = ConditionalNode(name: 'If', childIds: [child.id]);
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'T',
         nodes: {
           c.id: c,
@@ -683,7 +683,7 @@ void main() {
   group('Public API: validateSequence (top-level)', () {
     test('runs all default structural rules', () {
       // Sequence with two issues: empty + no root.
-      final s = Sequence(name: 'X');
+      final s = Sequence.create(name: 'X');
       final issues = validateSequence(s);
       // EmptySequence + (NoRootNode is suppressed because EmptySequence fires
       // first, by design)

@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
@@ -50,7 +50,7 @@ void main() {
     );
     addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
 
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: 'seq-1',
       name: 'Test Sequence',
       rootNodeId: 'target-1',
@@ -97,7 +97,7 @@ void main() {
     );
     addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
 
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: 'seq-dither',
       name: 'Dither pattern roundtrip',
       rootNodeId: 'target-1',
@@ -218,7 +218,7 @@ void main() {
 
     // An empty sequence is the simplest pre-built validation failure
     // (EmptySequenceRule fires).
-    final bad = Sequence(id: 'bad', name: 'Empty');
+    final bad = Sequence.create(id: 'bad', name: 'Empty');
 
     final service = SequenceFileService();
 
@@ -274,7 +274,7 @@ void main() {
       childIds: const ['recov-1'],
     );
 
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: 'seq-recov',
       name: 'Round trip recovery',
       rootNodeId: 'root',
@@ -338,7 +338,7 @@ void main() {
       id: 'root',
       childIds: const ['recov-h'],
     );
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: 'seq-humid',
       name: 'Humidity trigger round trip',
       rootNodeId: 'root',
@@ -408,7 +408,7 @@ void main() {
         ),
       ],
     );
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       id: 'seq-scheduler',
       name: 'Scheduler',
       rootNodeId: root.id,
@@ -447,7 +447,7 @@ void main() {
     );
     addTearDown(() => FileSelectorPlatform.instance = originalPlatform);
 
-    final bad = Sequence(id: 'bad', name: 'Empty');
+    final bad = Sequence.create(id: 'bad', name: 'Empty');
     final service = SequenceFileService();
 
     await service.exportSequence(bad, forceExport: true);

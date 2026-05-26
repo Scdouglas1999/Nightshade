@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -41,7 +41,7 @@ Sequence _smallTree() {
   final a2 = DelayNode(id: 'A2', parentId: 'A');
   final b = InstructionSetNode(id: 'B', name: 'B', parentId: 'root');
   final b1 = DelayNode(id: 'B1', parentId: 'B');
-  return Sequence(
+  return Sequence.create(
     name: 'small',
     rootNodeId: 'root',
     nodes: {
@@ -145,7 +145,7 @@ void main() {
     });
 
     test('returns empty list for an empty sequence', () {
-      final s = Sequence(name: 'empty');
+      final s = Sequence.create(name: 'empty');
       expect(s.invariants(), isEmpty);
     });
 
@@ -156,7 +156,7 @@ void main() {
       // both in sync), but a corrupt JSON import could produce it.
       final root = InstructionSetNode(id: 'root', name: 'R');
       final b = InstructionSetNode(id: 'B', name: 'B', parentId: 'A');
-      final corrupted = Sequence(
+      final corrupted = Sequence.create(
         name: 'corrupt',
         rootNodeId: 'root',
         nodes: {
@@ -176,7 +176,7 @@ void main() {
           id: 'A', name: 'A', parentId: 'B', childIds: const ['B']);
       final b = InstructionSetNode(
           id: 'B', name: 'B', parentId: 'A', childIds: const ['A']);
-      final corrupted = Sequence(
+      final corrupted = Sequence.create(
         name: 'cycle',
         rootNodeId: 'A',
         nodes: {'A': a, 'B': b},
@@ -188,7 +188,7 @@ void main() {
     test('catches a child id that does not resolve in nodes map', () {
       final root = InstructionSetNode(
           id: 'root', name: 'R', childIds: const ['missing']);
-      final corrupted = Sequence(
+      final corrupted = Sequence.create(
         name: 'dangling',
         rootNodeId: 'root',
         nodes: {'root': root},
@@ -346,7 +346,7 @@ void main() {
 
       // Now mutate the rootNodeId/createdAt to match the original (parseFromMap
       // assigns a fresh id by design — see sequence_file_service.dart).
-      final normalized = Sequence(
+      final normalized = Sequence.create(
         id: s.id,
         name: reparsed.name,
         description: reparsed.description,

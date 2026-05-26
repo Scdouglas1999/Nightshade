@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -145,7 +145,7 @@ Sequence _sequenceWith(List<SequenceNode> children) {
     ids.add(placed.id);
   }
   nodes[root.id] = root.copyWith(childIds: ids);
-  return Sequence(
+  return Sequence.create(
     name: 'T',
     nodes: nodes,
     rootNodeId: root.id,
@@ -353,7 +353,7 @@ void main() {
       final container = _container();
       await container.read(appSettingsProvider.future);
       final rule = DefaultSequenceNameRule();
-      final s = Sequence(name: 'Untitled Sequence');
+      final s = Sequence.create(name: 'Untitled Sequence');
       final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
       expect(issues.single.title, 'Default Sequence Name');
       expect(issues.single.severity, ValidationSeverity.info);
@@ -363,7 +363,7 @@ void main() {
       final container = _container();
       await container.read(appSettingsProvider.future);
       final rule = DefaultSequenceNameRule();
-      final s = Sequence(name: 'My Run');
+      final s = Sequence.create(name: 'My Run');
       expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
     });
   });
@@ -373,7 +373,7 @@ void main() {
       final container = _container();
       await container.read(appSettingsProvider.future);
       final rule = LongEstimatedDurationRule();
-      final s = Sequence(name: 'X', estimatedDurationMins: 700);
+      final s = Sequence.create(name: 'X', estimatedDurationMins: 700);
       final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
       expect(issues.single.title, 'Long Sequence');
     });
@@ -382,7 +382,7 @@ void main() {
       final container = _container();
       await container.read(appSettingsProvider.future);
       final rule = LongEstimatedDurationRule();
-      final s = Sequence(name: 'X');
+      final s = Sequence.create(name: 'X');
       expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
     });
   });
@@ -400,7 +400,7 @@ void main() {
       );
       // 4 hour run (240 minutes well over the 120 minute threshold)
       final exposure = ExposureNode(durationSecs: 600, count: 24);
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'X',
         nodes: {
           target.id: target.copyWith(childIds: [exposure.id]),
@@ -423,7 +423,7 @@ void main() {
         decDegrees: 0,
       );
       final exposure = ExposureNode(durationSecs: 600, count: 24);
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'X',
         nodes: {
           target.id: target.copyWith(childIds: [exposure.id]),
@@ -446,7 +446,7 @@ void main() {
       );
       // 30 minute run — below threshold
       final exposure = ExposureNode(durationSecs: 60, count: 30);
-      final s = Sequence(
+      final s = Sequence.create(
         name: 'X',
         nodes: {
           target.id: target.copyWith(childIds: [exposure.id]),

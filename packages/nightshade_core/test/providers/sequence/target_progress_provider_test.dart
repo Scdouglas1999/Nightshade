@@ -49,7 +49,7 @@ ProviderContainer _container({
     root.id: root.copyWith(childIds: [target.id]),
   };
   return (
-    sequence: Sequence(name: 'Test', nodes: tree, rootNodeId: root.id),
+    sequence: Sequence.create(name: 'Test', nodes: tree, rootNodeId: root.id),
     targetId: target.id,
     firstExpoId: expo1.id,
     secondExpoId: expo2.id,

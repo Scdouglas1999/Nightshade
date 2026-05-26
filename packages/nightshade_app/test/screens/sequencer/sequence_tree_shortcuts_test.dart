@@ -1,4 +1,4 @@
-// Tests for the sequencer tree keyboard navigation actions.
+﻿// Tests for the sequencer tree keyboard navigation actions.
 //
 // We exercise the [Intent] -> [Action] surface directly (without
 // spinning up the real tree) by building a ProviderContainer, seeding
@@ -24,7 +24,7 @@ import 'package:nightshade_core/nightshade_core.dart';
     root.id: root.copyWith(childIds: [a.id, b.id, c.id]),
   };
   return (
-    sequence: Sequence(name: 'T', nodes: tree, rootNodeId: root.id),
+    sequence: Sequence.create(name: 'T', nodes: tree, rootNodeId: root.id),
     visibleIds: [a.id, b.id, c.id],
   );
 }

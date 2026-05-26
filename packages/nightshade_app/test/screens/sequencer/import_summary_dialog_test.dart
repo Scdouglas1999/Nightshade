@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/sequencer/dialogs/import_summary_dialog.dart';
 import 'package:nightshade_core/src/models/import/canonical_sequence_node.dart';
@@ -35,7 +35,7 @@ ImportResult _fakeResult({
     durationSecs: 60,
     count: 5,
   );
-  final sequence = Sequence(
+  final sequence = Sequence.create(
     name: 'Imported NINA run',
     nodes: {exposure.id: exposure},
     rootNodeId: exposure.id,

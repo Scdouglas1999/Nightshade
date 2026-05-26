@@ -1,4 +1,4 @@
-// Wave 7.5 — verifies that SequenceExecutor consumes
+﻿// Wave 7.5 — verifies that SequenceExecutor consumes
 // `sessionHandoffDecisionProvider(family)` at start() and pushes the
 // resolved per-target carry-over map into the Rust backend via
 // `sequencerUpdatePendingIntegrationCarryOver`.
@@ -131,7 +131,7 @@ void main() {
         raHours: 0.7,
         decDegrees: 41.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'tonight',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -190,7 +190,7 @@ void main() {
         raHours: 5.6,
         decDegrees: -5.4,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'orion',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -242,7 +242,7 @@ void main() {
         raHours: 20.97,
         decDegrees: 44.3,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'na',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -289,7 +289,7 @@ void main() {
         raHours: 21.65,
         decDegrees: 57.5,
       );
-      final sequence = Sequence(
+      final sequence = Sequence.create(
         name: 'elephant',
         nodes: {header.id: header},
         rootNodeId: header.id,
@@ -314,7 +314,7 @@ void main() {
       // A sequence with no TargetHeaderNodes (e.g. raw exposure-only
       // session) cannot have any handoff decisions; the seeder bails
       // before reading the carry-over provider.
-      final sequence = Sequence(name: 'unscoped', nodes: const {});
+      final sequence = Sequence.create(name: 'unscoped', nodes: const {});
       final executor = container.read(sequenceExecutorProvider);
       await executor.seedIntegrationCarryOverFromHandoffForTest(
         backend,

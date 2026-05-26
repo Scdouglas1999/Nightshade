@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -32,7 +32,7 @@ void main() {
     await logging.ensureInitialized();
     logging.info('boot ok', source: 'TestDriver');
 
-    final sequence = Sequence(
+    final sequence = Sequence.create(
       name: 'Andromeda',
       description: 'M31 stack',
       rootNodeId: null,

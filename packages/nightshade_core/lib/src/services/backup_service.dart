@@ -699,7 +699,7 @@ class BackupService {
         }
       }
 
-      return Sequence(
+      return Sequence.create(
         name: json['name'] as String,
         description: json['description'] as String? ?? '',
         nodes: nodes,

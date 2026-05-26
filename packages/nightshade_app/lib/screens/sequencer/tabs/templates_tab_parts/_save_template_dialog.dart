@@ -1,4 +1,4 @@
-// Part of ../templates_tab.dart -- extracted for maintainability.
+﻿// Part of ../templates_tab.dart -- extracted for maintainability.
 //
 // Dialog used to save the current sequence as a template, including the target-selection option chips.
 part of '../templates_tab.dart';
@@ -49,7 +49,7 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       final repository = ref.read(sequenceRepositoryProvider);
 
       // Create a new sequence with the template name and description
-      final templateSequence = Sequence(
+      final templateSequence = Sequence.create(
         name: _nameController.text.trim(),
         description: _descriptionController.text.trim(),
         nodes: widget.sequence.nodes,
