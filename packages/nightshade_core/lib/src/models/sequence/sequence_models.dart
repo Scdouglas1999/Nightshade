@@ -9,7 +9,6 @@ import '../meridian_flip_settings.dart'
 export '../meridian_flip_settings.dart'
     show MeridianTriggerMethod, FlipFailureAction;
 import '../../backend/nightshade_backend.dart' show DeviceType;
-// ignore: unused_import
 import '_json_converters.dart';
 import 'instruction_progress_detail.dart';
 
@@ -3556,24 +3555,38 @@ class ConditionsScoreWeights with _$ConditionsScoreWeights {
 
 /// Wave 8 — composite sky-conditions score (0..=100) pushed from Dart
 /// to the Rust executor. Mirrors `ConditionsScore`.
-class ConditionsScore extends Equatable {
-  final double score;
-  final double? transparencyScore;
-  final double? seeingScore;
-  final double? cloudScore;
-  final double? windScore;
-  final ConditionsScoreWeights weights;
-  final DateTime generatedAt;
+@Freezed(fromJson: true, toJson: true)
+class ConditionsScore with _$ConditionsScore {
+  const ConditionsScore._();
 
-  const ConditionsScore({
-    required this.score,
-    this.transparencyScore,
-    this.seeingScore,
-    this.cloudScore,
-    this.windScore,
-    this.weights = const ConditionsScoreWeights(),
-    required this.generatedAt,
-  });
+  // `explicitToJson: true` so the nested `weights` field is materialised
+  // as a `Map<String, dynamic>` (via `ConditionsScoreWeights.toJson`)
+  // rather than left as a raw `ConditionsScoreWeights` instance in the
+  // emitted Map. Phase 1's `to_json_uses_snake_case_and_unix_secs...`
+  // contract test asserts `json['weights'] is Map<String, dynamic>`.
+  @JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+  const factory ConditionsScore({
+    required double score,
+    double? transparencyScore,
+    double? seeingScore,
+    double? cloudScore,
+    double? windScore,
+    @Default(ConditionsScoreWeights()) ConditionsScoreWeights weights,
+    // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+    // `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+    // fromJson fell back to `0` (epoch) on missing field; the freezed
+    // form makes the field required, which is strictly stricter (errors
+    // are a feature). The Rust producer always emits this field, so
+    // production traffic is unaffected; only synthetic JSON missing the
+    // key will now throw — matching CLAUDE.md's "silent fallback hides
+    // bugs" policy. Phase 1's contract tests always provide the key.
+    @JsonKey(name: 'generated_unix_secs')
+    @UnixSecsDateTimeConverter()
+    required DateTime generatedAt,
+  }) = _ConditionsScore;
+
+  factory ConditionsScore.fromJson(Map<String, dynamic> json) =>
+      _$ConditionsScoreFromJson(json);
 
   /// Convenience: classify the score band.
   String get qualityLabel {
@@ -3582,45 +3595,6 @@ class ConditionsScore extends Equatable {
     if (score >= 50) return 'Degraded';
     return 'Bad';
   }
-
-  Map<String, dynamic> toJson() => {
-        'score': score,
-        'transparency_score': transparencyScore,
-        'seeing_score': seeingScore,
-        'cloud_score': cloudScore,
-        'wind_score': windScore,
-        'weights': weights.toJson(),
-        'generated_unix_secs': generatedAt.millisecondsSinceEpoch ~/ 1000,
-      };
-
-  factory ConditionsScore.fromJson(Map<String, dynamic> json) =>
-      ConditionsScore(
-        score: (json['score'] as num).toDouble(),
-        transparencyScore: (json['transparency_score'] as num?)?.toDouble(),
-        seeingScore: (json['seeing_score'] as num?)?.toDouble(),
-        cloudScore: (json['cloud_score'] as num?)?.toDouble(),
-        windScore: (json['wind_score'] as num?)?.toDouble(),
-        weights: json['weights'] is Map<String, dynamic>
-            ? ConditionsScoreWeights.fromJson(
-                json['weights'] as Map<String, dynamic>,
-              )
-            : const ConditionsScoreWeights(),
-        generatedAt: DateTime.fromMillisecondsSinceEpoch(
-          ((json['generated_unix_secs'] as num?)?.toInt() ?? 0) * 1000,
-          isUtc: true,
-        ),
-      );
-
-  @override
-  List<Object?> get props => [
-        score,
-        transparencyScore,
-        seeingScore,
-        cloudScore,
-        windScore,
-        weights,
-        generatedAt,
-      ];
 }
 
 /// Wave 8 — runtime adaptive-swap state pushed from Rust to the dashboard.

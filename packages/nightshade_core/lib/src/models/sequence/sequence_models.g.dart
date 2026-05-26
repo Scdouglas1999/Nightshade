@@ -99,3 +99,32 @@ Map<String, dynamic> _$$ConditionsScoreWeightsImplToJson(
       'cloud_weight': instance.cloudWeight,
       'wind_weight': instance.windWeight,
     };
+
+_$ConditionsScoreImpl _$$ConditionsScoreImplFromJson(
+        Map<String, dynamic> json) =>
+    _$ConditionsScoreImpl(
+      score: (json['score'] as num).toDouble(),
+      transparencyScore: (json['transparency_score'] as num?)?.toDouble(),
+      seeingScore: (json['seeing_score'] as num?)?.toDouble(),
+      cloudScore: (json['cloud_score'] as num?)?.toDouble(),
+      windScore: (json['wind_score'] as num?)?.toDouble(),
+      weights: json['weights'] == null
+          ? const ConditionsScoreWeights()
+          : ConditionsScoreWeights.fromJson(
+              json['weights'] as Map<String, dynamic>),
+      generatedAt: const UnixSecsDateTimeConverter()
+          .fromJson((json['generated_unix_secs'] as num).toInt()),
+    );
+
+Map<String, dynamic> _$$ConditionsScoreImplToJson(
+        _$ConditionsScoreImpl instance) =>
+    <String, dynamic>{
+      'score': instance.score,
+      'transparency_score': instance.transparencyScore,
+      'seeing_score': instance.seeingScore,
+      'cloud_score': instance.cloudScore,
+      'wind_score': instance.windScore,
+      'weights': instance.weights.toJson(),
+      'generated_unix_secs':
+          const UnixSecsDateTimeConverter().toJson(instance.generatedAt),
+    };

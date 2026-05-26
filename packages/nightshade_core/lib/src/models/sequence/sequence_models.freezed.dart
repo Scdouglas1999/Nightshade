@@ -1768,3 +1768,324 @@ abstract class _ConditionsScoreWeights extends ConditionsScoreWeights {
   _$$ConditionsScoreWeightsImplCopyWith<_$ConditionsScoreWeightsImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
+
+ConditionsScore _$ConditionsScoreFromJson(Map<String, dynamic> json) {
+  return _ConditionsScore.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ConditionsScore {
+  double get score => throw _privateConstructorUsedError;
+  double? get transparencyScore => throw _privateConstructorUsedError;
+  double? get seeingScore => throw _privateConstructorUsedError;
+  double? get cloudScore => throw _privateConstructorUsedError;
+  double? get windScore => throw _privateConstructorUsedError;
+  ConditionsScoreWeights get weights =>
+      throw _privateConstructorUsedError; // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+// fromJson fell back to `0` (epoch) on missing field; the freezed
+// form makes the field required, which is strictly stricter (errors
+// are a feature). The Rust producer always emits this field, so
+// production traffic is unaffected; only synthetic JSON missing the
+// key will now throw — matching CLAUDE.md's "silent fallback hides
+// bugs" policy. Phase 1's contract tests always provide the key.
+  @JsonKey(name: 'generated_unix_secs')
+  @UnixSecsDateTimeConverter()
+  DateTime get generatedAt => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $ConditionsScoreCopyWith<ConditionsScore> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ConditionsScoreCopyWith<$Res> {
+  factory $ConditionsScoreCopyWith(
+          ConditionsScore value, $Res Function(ConditionsScore) then) =
+      _$ConditionsScoreCopyWithImpl<$Res, ConditionsScore>;
+  @useResult
+  $Res call(
+      {double score,
+      double? transparencyScore,
+      double? seeingScore,
+      double? cloudScore,
+      double? windScore,
+      ConditionsScoreWeights weights,
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      DateTime generatedAt});
+
+  $ConditionsScoreWeightsCopyWith<$Res> get weights;
+}
+
+/// @nodoc
+class _$ConditionsScoreCopyWithImpl<$Res, $Val extends ConditionsScore>
+    implements $ConditionsScoreCopyWith<$Res> {
+  _$ConditionsScoreCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? score = null,
+    Object? transparencyScore = freezed,
+    Object? seeingScore = freezed,
+    Object? cloudScore = freezed,
+    Object? windScore = freezed,
+    Object? weights = null,
+    Object? generatedAt = null,
+  }) {
+    return _then(_value.copyWith(
+      score: null == score
+          ? _value.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as double,
+      transparencyScore: freezed == transparencyScore
+          ? _value.transparencyScore
+          : transparencyScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      seeingScore: freezed == seeingScore
+          ? _value.seeingScore
+          : seeingScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      cloudScore: freezed == cloudScore
+          ? _value.cloudScore
+          : cloudScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      windScore: freezed == windScore
+          ? _value.windScore
+          : windScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      weights: null == weights
+          ? _value.weights
+          : weights // ignore: cast_nullable_to_non_nullable
+              as ConditionsScoreWeights,
+      generatedAt: null == generatedAt
+          ? _value.generatedAt
+          : generatedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ) as $Val);
+  }
+
+  @override
+  @pragma('vm:prefer-inline')
+  $ConditionsScoreWeightsCopyWith<$Res> get weights {
+    return $ConditionsScoreWeightsCopyWith<$Res>(_value.weights, (value) {
+      return _then(_value.copyWith(weights: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$ConditionsScoreImplCopyWith<$Res>
+    implements $ConditionsScoreCopyWith<$Res> {
+  factory _$$ConditionsScoreImplCopyWith(_$ConditionsScoreImpl value,
+          $Res Function(_$ConditionsScoreImpl) then) =
+      __$$ConditionsScoreImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double score,
+      double? transparencyScore,
+      double? seeingScore,
+      double? cloudScore,
+      double? windScore,
+      ConditionsScoreWeights weights,
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      DateTime generatedAt});
+
+  @override
+  $ConditionsScoreWeightsCopyWith<$Res> get weights;
+}
+
+/// @nodoc
+class __$$ConditionsScoreImplCopyWithImpl<$Res>
+    extends _$ConditionsScoreCopyWithImpl<$Res, _$ConditionsScoreImpl>
+    implements _$$ConditionsScoreImplCopyWith<$Res> {
+  __$$ConditionsScoreImplCopyWithImpl(
+      _$ConditionsScoreImpl _value, $Res Function(_$ConditionsScoreImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? score = null,
+    Object? transparencyScore = freezed,
+    Object? seeingScore = freezed,
+    Object? cloudScore = freezed,
+    Object? windScore = freezed,
+    Object? weights = null,
+    Object? generatedAt = null,
+  }) {
+    return _then(_$ConditionsScoreImpl(
+      score: null == score
+          ? _value.score
+          : score // ignore: cast_nullable_to_non_nullable
+              as double,
+      transparencyScore: freezed == transparencyScore
+          ? _value.transparencyScore
+          : transparencyScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      seeingScore: freezed == seeingScore
+          ? _value.seeingScore
+          : seeingScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      cloudScore: freezed == cloudScore
+          ? _value.cloudScore
+          : cloudScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      windScore: freezed == windScore
+          ? _value.windScore
+          : windScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      weights: null == weights
+          ? _value.weights
+          : weights // ignore: cast_nullable_to_non_nullable
+              as ConditionsScoreWeights,
+      generatedAt: null == generatedAt
+          ? _value.generatedAt
+          : generatedAt // ignore: cast_nullable_to_non_nullable
+              as DateTime,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, explicitToJson: true)
+class _$ConditionsScoreImpl extends _ConditionsScore {
+  const _$ConditionsScoreImpl(
+      {required this.score,
+      this.transparencyScore,
+      this.seeingScore,
+      this.cloudScore,
+      this.windScore,
+      this.weights = const ConditionsScoreWeights(),
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      required this.generatedAt})
+      : super._();
+
+  factory _$ConditionsScoreImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ConditionsScoreImplFromJson(json);
+
+  @override
+  final double score;
+  @override
+  final double? transparencyScore;
+  @override
+  final double? seeingScore;
+  @override
+  final double? cloudScore;
+  @override
+  final double? windScore;
+  @override
+  @JsonKey()
+  final ConditionsScoreWeights weights;
+// `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+// fromJson fell back to `0` (epoch) on missing field; the freezed
+// form makes the field required, which is strictly stricter (errors
+// are a feature). The Rust producer always emits this field, so
+// production traffic is unaffected; only synthetic JSON missing the
+// key will now throw — matching CLAUDE.md's "silent fallback hides
+// bugs" policy. Phase 1's contract tests always provide the key.
+  @override
+  @JsonKey(name: 'generated_unix_secs')
+  @UnixSecsDateTimeConverter()
+  final DateTime generatedAt;
+
+  @override
+  String toString() {
+    return 'ConditionsScore(score: $score, transparencyScore: $transparencyScore, seeingScore: $seeingScore, cloudScore: $cloudScore, windScore: $windScore, weights: $weights, generatedAt: $generatedAt)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ConditionsScoreImpl &&
+            (identical(other.score, score) || other.score == score) &&
+            (identical(other.transparencyScore, transparencyScore) ||
+                other.transparencyScore == transparencyScore) &&
+            (identical(other.seeingScore, seeingScore) ||
+                other.seeingScore == seeingScore) &&
+            (identical(other.cloudScore, cloudScore) ||
+                other.cloudScore == cloudScore) &&
+            (identical(other.windScore, windScore) ||
+                other.windScore == windScore) &&
+            (identical(other.weights, weights) || other.weights == weights) &&
+            (identical(other.generatedAt, generatedAt) ||
+                other.generatedAt == generatedAt));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(runtimeType, score, transparencyScore,
+      seeingScore, cloudScore, windScore, weights, generatedAt);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ConditionsScoreImplCopyWith<_$ConditionsScoreImpl> get copyWith =>
+      __$$ConditionsScoreImplCopyWithImpl<_$ConditionsScoreImpl>(
+          this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ConditionsScoreImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _ConditionsScore extends ConditionsScore {
+  const factory _ConditionsScore(
+      {required final double score,
+      final double? transparencyScore,
+      final double? seeingScore,
+      final double? cloudScore,
+      final double? windScore,
+      final ConditionsScoreWeights weights,
+      @JsonKey(name: 'generated_unix_secs')
+      @UnixSecsDateTimeConverter()
+      required final DateTime generatedAt}) = _$ConditionsScoreImpl;
+  const _ConditionsScore._() : super._();
+
+  factory _ConditionsScore.fromJson(Map<String, dynamic> json) =
+      _$ConditionsScoreImpl.fromJson;
+
+  @override
+  double get score;
+  @override
+  double? get transparencyScore;
+  @override
+  double? get seeingScore;
+  @override
+  double? get cloudScore;
+  @override
+  double? get windScore;
+  @override
+  ConditionsScoreWeights get weights;
+  @override // `generated_unix_secs` (int seconds) on the wire. The Rust side uses
+// `serde_with::TimestampSeconds<i64>`. PHASE-2-NOTE: The pre-freezed
+// fromJson fell back to `0` (epoch) on missing field; the freezed
+// form makes the field required, which is strictly stricter (errors
+// are a feature). The Rust producer always emits this field, so
+// production traffic is unaffected; only synthetic JSON missing the
+// key will now throw — matching CLAUDE.md's "silent fallback hides
+// bugs" policy. Phase 1's contract tests always provide the key.
+  @JsonKey(name: 'generated_unix_secs')
+  @UnixSecsDateTimeConverter()
+  DateTime get generatedAt;
+  @override
+  @JsonKey(ignore: true)
+  _$$ConditionsScoreImplCopyWith<_$ConditionsScoreImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
