@@ -1741,99 +1741,42 @@ class CenterNode extends SequenceNode {
 /// the Rust `AdaptiveExposureConfig`. Plain immutable value class with
 /// hand-rolled equality so we stay consistent with the rest of the
 /// sequence-models package (no freezed annotations here).
-class AdaptiveExposureConfig {
-  /// Target SNR (informational; the current adapter scales by sky-
-  /// background flux ratio rather than aiming at a numeric target).
-  final double targetSnr;
+@Freezed(fromJson: true, toJson: true)
+class AdaptiveExposureConfig with _$AdaptiveExposureConfig {
+  const AdaptiveExposureConfig._();
 
-  /// Sky brightness in mag/arcsec² that the node's configured nominal
-  /// exposure is calibrated for.
-  final double referenceSkyBrightnessMag;
+  @JsonSerializable(fieldRename: FieldRename.snake)
+  const factory AdaptiveExposureConfig({
+    /// Target SNR (informational; the current adapter scales by sky-
+    /// background flux ratio rather than aiming at a numeric target).
+    @Default(30.0) double targetSnr,
 
-  /// Global minimum exposure clamp (seconds).
-  final double minExposureSecs;
+    /// Sky brightness in mag/arcsec² that the node's configured nominal
+    /// exposure is calibrated for.
+    @Default(21.5) double referenceSkyBrightnessMag,
 
-  /// Global maximum exposure clamp (seconds).
-  final double maxExposureSecs;
+    /// Global minimum exposure clamp (seconds).
+    @Default(5.0) double minExposureSecs,
 
-  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
-  final Map<String, bool> perFilterEnabled;
+    /// Global maximum exposure clamp (seconds).
+    @Default(600.0) double maxExposureSecs,
 
-  /// Per-filter minimum exposure overrides (seconds).
-  final Map<String, double> perFilterMinSecs;
+    /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+    @Default(<String, bool>{}) Map<String, bool> perFilterEnabled,
 
-  /// Per-filter maximum exposure overrides (seconds).
-  final Map<String, double> perFilterMaxSecs;
+    /// Per-filter minimum exposure overrides (seconds).
+    @Default(<String, double>{}) Map<String, double> perFilterMinSecs,
 
-  /// Global enable toggle. When false the whole config is a no-op
-  /// regardless of per-filter map content.
-  final bool enabled;
+    /// Per-filter maximum exposure overrides (seconds).
+    @Default(<String, double>{}) Map<String, double> perFilterMaxSecs,
 
-  const AdaptiveExposureConfig({
-    this.targetSnr = 30.0,
-    this.referenceSkyBrightnessMag = 21.5,
-    this.minExposureSecs = 5.0,
-    this.maxExposureSecs = 600.0,
-    this.perFilterEnabled = const {},
-    this.perFilterMinSecs = const {},
-    this.perFilterMaxSecs = const {},
-    this.enabled = true,
-  });
+    /// Global enable toggle. When false the whole config is a no-op
+    /// regardless of per-filter map content.
+    @Default(true) bool enabled,
+  }) = _AdaptiveExposureConfig;
 
-  AdaptiveExposureConfig copyWith({
-    double? targetSnr,
-    double? referenceSkyBrightnessMag,
-    double? minExposureSecs,
-    double? maxExposureSecs,
-    Map<String, bool>? perFilterEnabled,
-    Map<String, double>? perFilterMinSecs,
-    Map<String, double>? perFilterMaxSecs,
-    bool? enabled,
-  }) =>
-      AdaptiveExposureConfig(
-        targetSnr: targetSnr ?? this.targetSnr,
-        referenceSkyBrightnessMag:
-            referenceSkyBrightnessMag ?? this.referenceSkyBrightnessMag,
-        minExposureSecs: minExposureSecs ?? this.minExposureSecs,
-        maxExposureSecs: maxExposureSecs ?? this.maxExposureSecs,
-        perFilterEnabled: perFilterEnabled ?? this.perFilterEnabled,
-        perFilterMinSecs: perFilterMinSecs ?? this.perFilterMinSecs,
-        perFilterMaxSecs: perFilterMaxSecs ?? this.perFilterMaxSecs,
-        enabled: enabled ?? this.enabled,
-      );
-
-  Map<String, dynamic> toJson() => {
-        'target_snr': targetSnr,
-        'reference_sky_brightness_mag': referenceSkyBrightnessMag,
-        'min_exposure_secs': minExposureSecs,
-        'max_exposure_secs': maxExposureSecs,
-        'per_filter_enabled': perFilterEnabled,
-        'per_filter_min_secs': perFilterMinSecs,
-        'per_filter_max_secs': perFilterMaxSecs,
-        'enabled': enabled,
-      };
-
-  static AdaptiveExposureConfig fromJson(Map<String, dynamic> json) =>
-      AdaptiveExposureConfig(
-        targetSnr: (json['target_snr'] as num?)?.toDouble() ?? 30.0,
-        referenceSkyBrightnessMag:
-            (json['reference_sky_brightness_mag'] as num?)?.toDouble() ?? 21.5,
-        minExposureSecs: (json['min_exposure_secs'] as num?)?.toDouble() ?? 5.0,
-        maxExposureSecs:
-            (json['max_exposure_secs'] as num?)?.toDouble() ?? 600.0,
-        perFilterEnabled: (json['per_filter_enabled'] as Map?)
-                ?.map((k, v) => MapEntry(k.toString(), v == true)) ??
-            const {},
-        perFilterMinSecs: (json['per_filter_min_secs'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            const {},
-        perFilterMaxSecs: (json['per_filter_max_secs'] as Map?)?.map(
-              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
-            ) ??
-            const {},
-        enabled: json['enabled'] as bool? ?? true,
-      );
+  factory AdaptiveExposureConfig.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveExposureConfigFromJson(json);
 
   /// Whether the adapter wants to act on the given filter. Mirrors the
   /// Rust `is_enabled_for_filter`.
@@ -1861,51 +1804,6 @@ class AdaptiveExposureConfig {
       if (per != null) return per;
     }
     return maxExposureSecs;
-  }
-
-  @override
-  bool operator ==(Object other) {
-    if (identical(this, other)) return true;
-    if (other is! AdaptiveExposureConfig) return false;
-    return targetSnr == other.targetSnr &&
-        referenceSkyBrightnessMag == other.referenceSkyBrightnessMag &&
-        minExposureSecs == other.minExposureSecs &&
-        maxExposureSecs == other.maxExposureSecs &&
-        enabled == other.enabled &&
-        _mapEq(perFilterEnabled, other.perFilterEnabled) &&
-        _mapEq(perFilterMinSecs, other.perFilterMinSecs) &&
-        _mapEq(perFilterMaxSecs, other.perFilterMaxSecs);
-  }
-
-  @override
-  int get hashCode => Object.hash(
-        targetSnr,
-        referenceSkyBrightnessMag,
-        minExposureSecs,
-        maxExposureSecs,
-        enabled,
-        // Maps not directly hashable, so hash the sorted key/value pairs.
-        _mapHash(perFilterEnabled),
-        _mapHash(perFilterMinSecs),
-        _mapHash(perFilterMaxSecs),
-      );
-
-  static bool _mapEq<K, V>(Map<K, V> a, Map<K, V> b) {
-    if (a.length != b.length) return false;
-    for (final entry in a.entries) {
-      if (!b.containsKey(entry.key)) return false;
-      if (b[entry.key] != entry.value) return false;
-    }
-    return true;
-  }
-
-  static int _mapHash<K, V>(Map<K, V> m) {
-    var h = 0;
-    final keys = m.keys.map((k) => k.toString()).toList()..sort();
-    for (final k in keys) {
-      h = Object.hash(h, k, m[k]);
-    }
-    return h;
   }
 }
 

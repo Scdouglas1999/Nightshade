@@ -963,3 +963,398 @@ abstract class _MosaicPanelInfo extends MosaicPanelInfo {
   _$$MosaicPanelInfoImplCopyWith<_$MosaicPanelInfoImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+AdaptiveExposureConfig _$AdaptiveExposureConfigFromJson(
+    Map<String, dynamic> json) {
+  return _AdaptiveExposureConfig.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AdaptiveExposureConfig {
+  /// Target SNR (informational; the current adapter scales by sky-
+  /// background flux ratio rather than aiming at a numeric target).
+  double get targetSnr => throw _privateConstructorUsedError;
+
+  /// Sky brightness in mag/arcsec² that the node's configured nominal
+  /// exposure is calibrated for.
+  double get referenceSkyBrightnessMag => throw _privateConstructorUsedError;
+
+  /// Global minimum exposure clamp (seconds).
+  double get minExposureSecs => throw _privateConstructorUsedError;
+
+  /// Global maximum exposure clamp (seconds).
+  double get maxExposureSecs => throw _privateConstructorUsedError;
+
+  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+  Map<String, bool> get perFilterEnabled => throw _privateConstructorUsedError;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  Map<String, double> get perFilterMinSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  Map<String, double> get perFilterMaxSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Global enable toggle. When false the whole config is a no-op
+  /// regardless of per-filter map content.
+  bool get enabled => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $AdaptiveExposureConfigCopyWith<AdaptiveExposureConfig> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AdaptiveExposureConfigCopyWith<$Res> {
+  factory $AdaptiveExposureConfigCopyWith(AdaptiveExposureConfig value,
+          $Res Function(AdaptiveExposureConfig) then) =
+      _$AdaptiveExposureConfigCopyWithImpl<$Res, AdaptiveExposureConfig>;
+  @useResult
+  $Res call(
+      {double targetSnr,
+      double referenceSkyBrightnessMag,
+      double minExposureSecs,
+      double maxExposureSecs,
+      Map<String, bool> perFilterEnabled,
+      Map<String, double> perFilterMinSecs,
+      Map<String, double> perFilterMaxSecs,
+      bool enabled});
+}
+
+/// @nodoc
+class _$AdaptiveExposureConfigCopyWithImpl<$Res,
+        $Val extends AdaptiveExposureConfig>
+    implements $AdaptiveExposureConfigCopyWith<$Res> {
+  _$AdaptiveExposureConfigCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? targetSnr = null,
+    Object? referenceSkyBrightnessMag = null,
+    Object? minExposureSecs = null,
+    Object? maxExposureSecs = null,
+    Object? perFilterEnabled = null,
+    Object? perFilterMinSecs = null,
+    Object? perFilterMaxSecs = null,
+    Object? enabled = null,
+  }) {
+    return _then(_value.copyWith(
+      targetSnr: null == targetSnr
+          ? _value.targetSnr
+          : targetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      referenceSkyBrightnessMag: null == referenceSkyBrightnessMag
+          ? _value.referenceSkyBrightnessMag
+          : referenceSkyBrightnessMag // ignore: cast_nullable_to_non_nullable
+              as double,
+      minExposureSecs: null == minExposureSecs
+          ? _value.minExposureSecs
+          : minExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxExposureSecs: null == maxExposureSecs
+          ? _value.maxExposureSecs
+          : maxExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      perFilterEnabled: null == perFilterEnabled
+          ? _value.perFilterEnabled
+          : perFilterEnabled // ignore: cast_nullable_to_non_nullable
+              as Map<String, bool>,
+      perFilterMinSecs: null == perFilterMinSecs
+          ? _value.perFilterMinSecs
+          : perFilterMinSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      perFilterMaxSecs: null == perFilterMaxSecs
+          ? _value.perFilterMaxSecs
+          : perFilterMaxSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      enabled: null == enabled
+          ? _value.enabled
+          : enabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$AdaptiveExposureConfigImplCopyWith<$Res>
+    implements $AdaptiveExposureConfigCopyWith<$Res> {
+  factory _$$AdaptiveExposureConfigImplCopyWith(
+          _$AdaptiveExposureConfigImpl value,
+          $Res Function(_$AdaptiveExposureConfigImpl) then) =
+      __$$AdaptiveExposureConfigImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double targetSnr,
+      double referenceSkyBrightnessMag,
+      double minExposureSecs,
+      double maxExposureSecs,
+      Map<String, bool> perFilterEnabled,
+      Map<String, double> perFilterMinSecs,
+      Map<String, double> perFilterMaxSecs,
+      bool enabled});
+}
+
+/// @nodoc
+class __$$AdaptiveExposureConfigImplCopyWithImpl<$Res>
+    extends _$AdaptiveExposureConfigCopyWithImpl<$Res,
+        _$AdaptiveExposureConfigImpl>
+    implements _$$AdaptiveExposureConfigImplCopyWith<$Res> {
+  __$$AdaptiveExposureConfigImplCopyWithImpl(
+      _$AdaptiveExposureConfigImpl _value,
+      $Res Function(_$AdaptiveExposureConfigImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? targetSnr = null,
+    Object? referenceSkyBrightnessMag = null,
+    Object? minExposureSecs = null,
+    Object? maxExposureSecs = null,
+    Object? perFilterEnabled = null,
+    Object? perFilterMinSecs = null,
+    Object? perFilterMaxSecs = null,
+    Object? enabled = null,
+  }) {
+    return _then(_$AdaptiveExposureConfigImpl(
+      targetSnr: null == targetSnr
+          ? _value.targetSnr
+          : targetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      referenceSkyBrightnessMag: null == referenceSkyBrightnessMag
+          ? _value.referenceSkyBrightnessMag
+          : referenceSkyBrightnessMag // ignore: cast_nullable_to_non_nullable
+              as double,
+      minExposureSecs: null == minExposureSecs
+          ? _value.minExposureSecs
+          : minExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      maxExposureSecs: null == maxExposureSecs
+          ? _value.maxExposureSecs
+          : maxExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      perFilterEnabled: null == perFilterEnabled
+          ? _value._perFilterEnabled
+          : perFilterEnabled // ignore: cast_nullable_to_non_nullable
+              as Map<String, bool>,
+      perFilterMinSecs: null == perFilterMinSecs
+          ? _value._perFilterMinSecs
+          : perFilterMinSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      perFilterMaxSecs: null == perFilterMaxSecs
+          ? _value._perFilterMaxSecs
+          : perFilterMaxSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      enabled: null == enabled
+          ? _value.enabled
+          : enabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake)
+class _$AdaptiveExposureConfigImpl extends _AdaptiveExposureConfig {
+  const _$AdaptiveExposureConfigImpl(
+      {this.targetSnr = 30.0,
+      this.referenceSkyBrightnessMag = 21.5,
+      this.minExposureSecs = 5.0,
+      this.maxExposureSecs = 600.0,
+      final Map<String, bool> perFilterEnabled = const <String, bool>{},
+      final Map<String, double> perFilterMinSecs = const <String, double>{},
+      final Map<String, double> perFilterMaxSecs = const <String, double>{},
+      this.enabled = true})
+      : _perFilterEnabled = perFilterEnabled,
+        _perFilterMinSecs = perFilterMinSecs,
+        _perFilterMaxSecs = perFilterMaxSecs,
+        super._();
+
+  factory _$AdaptiveExposureConfigImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AdaptiveExposureConfigImplFromJson(json);
+
+  /// Target SNR (informational; the current adapter scales by sky-
+  /// background flux ratio rather than aiming at a numeric target).
+  @override
+  @JsonKey()
+  final double targetSnr;
+
+  /// Sky brightness in mag/arcsec² that the node's configured nominal
+  /// exposure is calibrated for.
+  @override
+  @JsonKey()
+  final double referenceSkyBrightnessMag;
+
+  /// Global minimum exposure clamp (seconds).
+  @override
+  @JsonKey()
+  final double minExposureSecs;
+
+  /// Global maximum exposure clamp (seconds).
+  @override
+  @JsonKey()
+  final double maxExposureSecs;
+
+  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+  final Map<String, bool> _perFilterEnabled;
+
+  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+  @override
+  @JsonKey()
+  Map<String, bool> get perFilterEnabled {
+    if (_perFilterEnabled is EqualUnmodifiableMapView) return _perFilterEnabled;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_perFilterEnabled);
+  }
+
+  /// Per-filter minimum exposure overrides (seconds).
+  final Map<String, double> _perFilterMinSecs;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  @override
+  @JsonKey()
+  Map<String, double> get perFilterMinSecs {
+    if (_perFilterMinSecs is EqualUnmodifiableMapView) return _perFilterMinSecs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_perFilterMinSecs);
+  }
+
+  /// Per-filter maximum exposure overrides (seconds).
+  final Map<String, double> _perFilterMaxSecs;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  @override
+  @JsonKey()
+  Map<String, double> get perFilterMaxSecs {
+    if (_perFilterMaxSecs is EqualUnmodifiableMapView) return _perFilterMaxSecs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_perFilterMaxSecs);
+  }
+
+  /// Global enable toggle. When false the whole config is a no-op
+  /// regardless of per-filter map content.
+  @override
+  @JsonKey()
+  final bool enabled;
+
+  @override
+  String toString() {
+    return 'AdaptiveExposureConfig(targetSnr: $targetSnr, referenceSkyBrightnessMag: $referenceSkyBrightnessMag, minExposureSecs: $minExposureSecs, maxExposureSecs: $maxExposureSecs, perFilterEnabled: $perFilterEnabled, perFilterMinSecs: $perFilterMinSecs, perFilterMaxSecs: $perFilterMaxSecs, enabled: $enabled)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AdaptiveExposureConfigImpl &&
+            (identical(other.targetSnr, targetSnr) ||
+                other.targetSnr == targetSnr) &&
+            (identical(other.referenceSkyBrightnessMag,
+                    referenceSkyBrightnessMag) ||
+                other.referenceSkyBrightnessMag == referenceSkyBrightnessMag) &&
+            (identical(other.minExposureSecs, minExposureSecs) ||
+                other.minExposureSecs == minExposureSecs) &&
+            (identical(other.maxExposureSecs, maxExposureSecs) ||
+                other.maxExposureSecs == maxExposureSecs) &&
+            const DeepCollectionEquality()
+                .equals(other._perFilterEnabled, _perFilterEnabled) &&
+            const DeepCollectionEquality()
+                .equals(other._perFilterMinSecs, _perFilterMinSecs) &&
+            const DeepCollectionEquality()
+                .equals(other._perFilterMaxSecs, _perFilterMaxSecs) &&
+            (identical(other.enabled, enabled) || other.enabled == enabled));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      targetSnr,
+      referenceSkyBrightnessMag,
+      minExposureSecs,
+      maxExposureSecs,
+      const DeepCollectionEquality().hash(_perFilterEnabled),
+      const DeepCollectionEquality().hash(_perFilterMinSecs),
+      const DeepCollectionEquality().hash(_perFilterMaxSecs),
+      enabled);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AdaptiveExposureConfigImplCopyWith<_$AdaptiveExposureConfigImpl>
+      get copyWith => __$$AdaptiveExposureConfigImplCopyWithImpl<
+          _$AdaptiveExposureConfigImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AdaptiveExposureConfigImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _AdaptiveExposureConfig extends AdaptiveExposureConfig {
+  const factory _AdaptiveExposureConfig(
+      {final double targetSnr,
+      final double referenceSkyBrightnessMag,
+      final double minExposureSecs,
+      final double maxExposureSecs,
+      final Map<String, bool> perFilterEnabled,
+      final Map<String, double> perFilterMinSecs,
+      final Map<String, double> perFilterMaxSecs,
+      final bool enabled}) = _$AdaptiveExposureConfigImpl;
+  const _AdaptiveExposureConfig._() : super._();
+
+  factory _AdaptiveExposureConfig.fromJson(Map<String, dynamic> json) =
+      _$AdaptiveExposureConfigImpl.fromJson;
+
+  @override
+
+  /// Target SNR (informational; the current adapter scales by sky-
+  /// background flux ratio rather than aiming at a numeric target).
+  double get targetSnr;
+  @override
+
+  /// Sky brightness in mag/arcsec² that the node's configured nominal
+  /// exposure is calibrated for.
+  double get referenceSkyBrightnessMag;
+  @override
+
+  /// Global minimum exposure clamp (seconds).
+  double get minExposureSecs;
+  @override
+
+  /// Global maximum exposure clamp (seconds).
+  double get maxExposureSecs;
+  @override
+
+  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+  Map<String, bool> get perFilterEnabled;
+  @override
+
+  /// Per-filter minimum exposure overrides (seconds).
+  Map<String, double> get perFilterMinSecs;
+  @override
+
+  /// Per-filter maximum exposure overrides (seconds).
+  Map<String, double> get perFilterMaxSecs;
+  @override
+
+  /// Global enable toggle. When false the whole config is a no-op
+  /// regardless of per-filter map content.
+  bool get enabled;
+  @override
+  @JsonKey(ignore: true)
+  _$$AdaptiveExposureConfigImplCopyWith<_$AdaptiveExposureConfigImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
