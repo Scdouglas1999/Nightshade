@@ -328,6 +328,12 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
   }
 
   @override
+  bool get isAutofocusRunning => (super.noSuchMethod(
+        Invocation.getter(#isAutofocusRunning),
+        returnValue: false,
+      ) as bool);
+
+  @override
   _i5.Future<void> quiesce({Duration? timeout}) => (super.noSuchMethod(
         Invocation.method(
           #quiesce,
