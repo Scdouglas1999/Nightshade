@@ -52,8 +52,17 @@
       <button id="btn-apply-token" class="btn btn-sm" aria-label="Apply token and connect">Apply</button>
     </div>
 
-    <!-- Quick navigation to major remote surfaces -->
+    <!-- Quick navigation to major remote surfaces.
+         §W7E hash routes: each data-route value below maps to a hash
+         (#/run, #/gallery, #/logs, #/devices, #/sequences) so the
+         dashboard URL is sharable / bookmarkable. The legacy scroll-to-
+         panel buttons stay (panel-* targets) because they remain useful
+         for in-page navigation that doesn't change the route. -->
     <nav class="capability-nav" aria-label="Dashboard sections">
+      <button type="button" class="cap-nav-btn" data-route="run" data-scroll-panel="panel-sequencer">Run</button>
+      <button type="button" class="cap-nav-btn" data-route="devices" data-scroll-panel="panel-devices">Devices</button>
+      <button type="button" class="cap-nav-btn" data-route="gallery" data-scroll-panel="panel-gallery">Gallery</button>
+      <button type="button" class="cap-nav-btn" data-route="logs" data-scroll-panel="panel-logs">Logs</button>
       <button type="button" class="cap-nav-btn" data-scroll-panel="panel-guiding">Guiding</button>
       <button type="button" class="cap-nav-btn" data-scroll-panel="panel-planetarium">Planetarium</button>
       <button type="button" class="cap-nav-btn" data-scroll-panel="ops-profile-panel">Analytics</button>
@@ -914,7 +923,126 @@
         </div>
       </div>
 
+      <!-- =====================================================================
+           §W7E — Image gallery panel.
+           Driven by GET /api/images?limit=24 plus
+           GET /api/images/<id>/thumbnail. Click a thumbnail to open a
+           modal with the larger preview. Reload comes via WS
+           camera/imaging ExposureCompleted events that flip the gallery
+           into "refresh available" so the operator knows a new frame
+           landed without auto-scrolling them past what they were
+           looking at.
+           ===================================================================== -->
+      <div class="panel" id="panel-gallery" data-panel="gallery">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#128247;</span>
+            Image Gallery
+          </span>
+          <div class="panel-actions">
+            <span id="gallery-fresh-badge" class="badge badge-running hidden-inline" role="status">NEW</span>
+            <button id="btn-gallery-refresh" class="btn btn-sm" aria-label="Refresh image gallery">Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <p class="panel-hint">Recent captures from this server. Click a thumbnail for the larger preview.</p>
+          <div id="gallery-grid" class="gallery-grid" role="list" aria-label="Recent captured images">
+            <div class="empty-state">Press Refresh to load the recent images list.</div>
+          </div>
+          <div id="gallery-status" class="status-row status-row-spaced" aria-live="polite"></div>
+        </div>
+      </div>
+
+      <!-- =====================================================================
+           §W7E — Server log tail panel.
+           Subscribes to GET /api/logs/tail (SSE). The handler emits an
+           initial ring-buffer replay then live entries; we cap the in-
+           page list at 500 rows to keep memory bounded. Server-side log
+           levels (info/warn/error) drive the row colour.
+           ===================================================================== -->
+      <div class="panel" id="panel-logs" data-panel="logs">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#128221;</span>
+            Server Logs
+          </span>
+          <div class="panel-actions">
+            <button id="btn-logs-pause" class="btn btn-sm" aria-label="Pause or resume the live log tail">Pause</button>
+            <button id="btn-logs-clear" class="btn btn-sm" aria-label="Clear the log tail view">Clear</button>
+            <span id="logs-stream-state" class="badge badge-idle" role="status">offline</span>
+          </div>
+        </div>
+        <div class="panel-body panel-body-compact">
+          <div class="control-row">
+            <label for="logs-min-severity">Min severity</label>
+            <select id="logs-min-severity" aria-label="Minimum severity to display">
+              <option value="trace">Trace</option>
+              <option value="debug">Debug</option>
+              <option value="info" selected>Info</option>
+              <option value="warn">Warn</option>
+              <option value="error">Error</option>
+            </select>
+          </div>
+          <div class="log-container" id="logs-container" role="log" aria-live="polite" aria-relevant="additions">
+            <div class="empty-state">Waiting for log entries…</div>
+          </div>
+        </div>
+      </div>
+
     </div><!-- /dashboard-grid -->
+
+    <!-- =====================================================================
+         §W7E — Gallery preview modal. A larger view of the selected
+         thumbnail. Image source is /api/images/<id>/thumbnail with a
+         maxWidth query param so the backend resizes before sending.
+         ===================================================================== -->
+    <div class="modal-backdrop" id="gallery-modal" role="dialog" aria-modal="true" aria-labelledby="gallery-modal-title" hidden>
+      <div class="modal modal-wide">
+        <h2 class="modal-title" id="gallery-modal-title">Image preview</h2>
+        <div class="modal-body" id="gallery-modal-meta">--</div>
+        <div class="gallery-modal-image-wrap">
+          <img id="gallery-modal-image" class="gallery-modal-image" alt="Selected capture preview">
+        </div>
+        <div class="modal-actions">
+          <a id="gallery-modal-download" class="btn btn-sm" href="#" target="_blank" rel="noopener" aria-label="Download original image">Download original</a>
+          <button class="btn btn-sm" id="btn-gallery-modal-close" aria-label="Close preview">Close</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- =====================================================================
+         §W7E — Login overlay. Shown on first visit when no bearer token
+         and no HttpOnly session cookie are present. The dashboard
+         normally renders behind it; we keep both visible so the user
+         can see the server is alive even when they haven't authenticated.
+         The overlay defers the dashboard's auto-connect until the user
+         either pastes a token or clicks Pair to launch the existing
+         pairing flow.
+         ===================================================================== -->
+    <div class="login-overlay hidden" id="login-overlay" role="dialog" aria-modal="true" aria-labelledby="login-overlay-title">
+      <div class="login-card">
+        <h2 class="login-title" id="login-overlay-title">Sign in to Nightshade</h2>
+        <p class="login-help">
+          The dashboard needs a paired bearer token before it can talk to
+          your Nightshade server. Click "Pair this browser" to mint a new
+          one from the desktop's console code, or paste an existing
+          token below.
+        </p>
+        <label for="login-server-url" class="login-label">Server URL</label>
+        <input id="login-server-url" class="login-input" type="text" placeholder="http://host:port" autocomplete="off" spellcheck="false">
+        <label for="login-token" class="login-label">Bearer token</label>
+        <input id="login-token" class="login-input" type="password" placeholder="Paste paired token..." autocomplete="off" spellcheck="false">
+        <label for="login-remember" class="checkbox-label">
+          <input id="login-remember" type="checkbox" checked>
+          Remember on this device for 30 days
+        </label>
+        <div class="login-actions">
+          <button id="btn-login-pair" class="btn btn-sm" aria-label="Open the pairing flow to mint a fresh token">Pair this browser</button>
+          <button id="btn-login-submit" class="btn btn-primary btn-sm" aria-label="Sign in with the entered token">Sign in</button>
+        </div>
+        <p id="login-status" class="login-status" role="status" aria-live="polite"></p>
+      </div>
+    </div>
 
     <!-- Phone bottom-tab navigation (only visible when .layout--phone is on body) -->
     <nav class="phone-tabs" role="tablist" aria-label="Dashboard sections">

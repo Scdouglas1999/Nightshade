@@ -7,3 +7,5 @@ export 'mobile_preferences.dart';
 export 'notification_service.dart';
 export 'power_service.dart';
 export 'mobile_sequence_hooks.dart';
+export 'voice_control_service.dart';
+export 'voice_control_lifecycle_provider.dart';

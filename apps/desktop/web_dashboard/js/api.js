@@ -874,6 +874,97 @@ class NightshadeApi {
     return this._get('/api/images/recent?limit=' + encodeURIComponent(limit || 1));
   }
 
+  // =========================================================================
+  // §W7E — Image gallery + log tail
+  //
+  // The gallery panel uses /api/images?limit=N (full listing) plus
+  // /api/images/{id}/thumbnail for the per-row image. The log panel
+  // uses /api/logs/tail (SSE) — EventSource doesn't accept custom
+  // headers so the bearer goes through ?access_token= (the server
+  // already accepts that fallback for SSE endpoints, see
+  // headless_api_server.dart §2.4 SSE auth fallback).
+  // =========================================================================
+
+  /// Paginated list of captured images, newest first. The query mirrors
+  /// the desktop's image-history panel so the JSON shape is reused
+  /// without a new wire type. Defaults limit to 24 — enough rows to
+  /// fill a typical 6-wide gallery on a laptop without paginating.
+  async imagesGetAll(opts) {
+    const o = opts || {};
+    const q = [];
+    q.push('limit=' + encodeURIComponent(o.limit != null ? o.limit : 24));
+    if (o.offset != null) q.push('offset=' + encodeURIComponent(o.offset));
+    if (o.sessionId != null) {
+      q.push('sessionId=' + encodeURIComponent(o.sessionId));
+    }
+    if (o.targetId != null) {
+      q.push('targetId=' + encodeURIComponent(o.targetId));
+    }
+    const path = '/api/images' + (q.length ? '?' + q.join('&') : '');
+    return this._get(path);
+  }
+
+  /// Build the URL for the per-image thumbnail. We do NOT fetch the
+  /// blob here — `<img src>` lets the browser cache it across re-
+  /// renders, which is much friendlier on slow LAN links than blob
+  /// URL juggling.
+  imageThumbnailUrl(imageId, opts) {
+    const o = opts || {};
+    const q = [];
+    if (o.maxWidth != null) q.push('maxWidth=' + encodeURIComponent(o.maxWidth));
+    if (o.quality != null) q.push('quality=' + encodeURIComponent(o.quality));
+    const qs = q.length ? '?' + q.join('&') : '';
+    return this._baseUrl + '/api/images/' + encodeURIComponent(imageId) +
+        '/thumbnail' + qs;
+  }
+
+  /// Build the download URL for the original. Used by the gallery
+  /// modal's "Download original" link. The server's auth middleware
+  /// accepts `access_token` query param for download routes too.
+  imageDownloadUrl(imageId) {
+    const url = this._baseUrl + '/api/images/' + encodeURIComponent(imageId) +
+        '/download';
+    if (this._authToken) {
+      return url + '?access_token=' + encodeURIComponent(this._authToken);
+    }
+    return url;
+  }
+
+  /// Subscribe to /api/logs/tail (SSE). Returns the [EventSource] so
+  /// the caller can `.close()` it on teardown. `minSeverity` is one of
+  /// trace|debug|info|warn|error. The callback fires with the parsed
+  /// JSON payload per `data:` line; non-JSON `data:` lines (server
+  /// heartbeat comments) are dropped.
+  ///
+  /// Why we send the bearer via ?access_token: EventSource has no
+  /// header API, so the server's SSE handler accepts the token as a
+  /// query parameter for this endpoint specifically (same convention
+  /// as run-watch SSE).
+  subscribeLogTail(minSeverity, onEntry, onError) {
+    const q = [];
+    if (minSeverity) {
+      q.push('minSeverity=' + encodeURIComponent(minSeverity));
+    }
+    if (this._authToken) {
+      q.push('access_token=' + encodeURIComponent(this._authToken));
+    }
+    const path = '/api/logs/tail' + (q.length ? '?' + q.join('&') : '');
+    const source = new EventSource(this._baseUrl + path);
+    source.onmessage = (msg) => {
+      if (!msg || !msg.data) return;
+      try {
+        const payload = JSON.parse(msg.data);
+        onEntry(payload);
+      } catch (_) {
+        // Non-JSON SSE comments (heartbeats) are intentionally ignored.
+      }
+    };
+    if (typeof onError === 'function') {
+      source.onerror = (err) => onError(err);
+    }
+    return source;
+  }
+
   // Save the camera's last in-memory capture to disk as FITS so the plate
   // solver can read it. The server already exposes this endpoint for the
   // desktop's auto-save fallback; the web client reuses it for "plate-solve

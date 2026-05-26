@@ -1935,3 +1935,221 @@ input[type="range"] {
 .layout--phone .wizard-actions .btn {
   min-height: 44px;
 }
+
+/* ==========================================================================
+   §W7E — Wave 7E SPA additions
+   --------------------------------------------------------------------------
+   Hash-routing highlight, gallery grid + modal, log tail panel, and the
+   login overlay shown before the user authenticates. All rules are
+   appended at the end so the cascade order matches the SPA's render
+   sequence (the login overlay sits on top of every panel, the gallery
+   modal sits on top of the gallery panel, etc.).
+   ========================================================================== */
+
+/* Capability nav: active route gets a brighter underline so the user
+   can confirm at a glance which surface the URL currently maps to. */
+.cap-nav-btn.cap-nav-active {
+  border-bottom: 2px solid var(--accent, #5fb0ff);
+  color: var(--text-primary, #eaeaea);
+}
+
+/* Highlight the routed panel for ~2 s after the route activates so the
+   eye lands in the right place. We don't auto-clear via JS — the user's
+   next click on a different cap-nav button removes the class. */
+.panel.route-active {
+  box-shadow: 0 0 0 2px rgba(95, 176, 255, 0.45);
+}
+
+/* ----- Gallery panel ---------------------------------------------------- */
+.gallery-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 8px;
+  padding-top: 4px;
+}
+
+.gallery-card {
+  display: flex;
+  flex-direction: column;
+  background: var(--surface-alt, #1a1d22);
+  border: 1px solid var(--border, #2a2e34);
+  border-radius: 6px;
+  padding: 0;
+  cursor: pointer;
+  overflow: hidden;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  transition: transform 80ms ease-out, border-color 80ms ease-out;
+}
+
+.gallery-card:hover,
+.gallery-card:focus-visible {
+  border-color: var(--accent, #5fb0ff);
+  transform: translateY(-1px);
+}
+
+.gallery-thumb {
+  display: block;
+  width: 100%;
+  height: 100px;
+  object-fit: cover;
+  background: #0c0e12;
+}
+
+.gallery-caption {
+  font-size: 11px;
+  line-height: 1.3;
+  color: var(--text-secondary, #9aa3ad);
+  padding: 6px 8px;
+  word-break: break-word;
+}
+
+/* ----- Gallery modal ---------------------------------------------------- */
+.gallery-modal-image-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  max-height: 70vh;
+  overflow: auto;
+  background: #08090c;
+  border-radius: 6px;
+  margin: 8px 0;
+}
+
+.gallery-modal-image {
+  max-width: 100%;
+  max-height: 68vh;
+  display: block;
+}
+
+/* ----- Logs panel ------------------------------------------------------- */
+.log-entry {
+  display: grid;
+  grid-template-columns: auto auto auto 1fr;
+  gap: 8px;
+  padding: 2px 4px;
+  font-family: var(--mono-font, 'JetBrains Mono', monospace);
+  font-size: 12px;
+  line-height: 1.35;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.log-entry .log-time {
+  color: var(--text-muted, #6f7780);
+}
+
+.log-entry .log-sev {
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-align: center;
+  min-width: 48px;
+}
+
+.log-entry.log-trace .log-sev,
+.log-entry.log-debug .log-sev { color: #8a9099; }
+.log-entry.log-info  .log-sev { color: #5fb0ff; }
+.log-entry.log-warn  .log-sev { color: #f5b942; }
+.log-entry.log-error .log-sev { color: #ef6464; }
+
+.log-entry .log-target {
+  color: var(--text-secondary, #9aa3ad);
+  min-width: 88px;
+}
+
+.log-entry .log-message {
+  color: var(--text-primary, #eaeaea);
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+
+/* ----- Login overlay ---------------------------------------------------- */
+.login-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(8, 9, 12, 0.85);
+  backdrop-filter: blur(2px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 200;
+  padding: 16px;
+}
+
+.login-overlay.hidden {
+  display: none;
+}
+
+.login-card {
+  background: var(--surface, #14161a);
+  border: 1px solid var(--border, #2a2e34);
+  border-radius: 10px;
+  padding: 24px;
+  width: 100%;
+  max-width: 420px;
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+}
+
+.login-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 8px 0;
+  color: var(--text-primary, #eaeaea);
+}
+
+.login-help {
+  color: var(--text-secondary, #9aa3ad);
+  font-size: 13px;
+  line-height: 1.5;
+  margin: 0 0 16px 0;
+}
+
+.login-label {
+  display: block;
+  font-size: 12px;
+  color: var(--text-secondary, #9aa3ad);
+  margin: 12px 0 4px 0;
+}
+
+.login-input {
+  width: 100%;
+  background: var(--surface-alt, #1a1d22);
+  color: var(--text-primary, #eaeaea);
+  border: 1px solid var(--border, #2a2e34);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 13px;
+  box-sizing: border-box;
+}
+
+.login-input:focus {
+  outline: none;
+  border-color: var(--accent, #5fb0ff);
+}
+
+.login-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.login-actions .btn {
+  flex: 1;
+  min-height: 36px;
+}
+
+.login-status {
+  font-size: 12px;
+  color: var(--text-secondary, #9aa3ad);
+  margin: 12px 0 0 0;
+  min-height: 18px;
+}
+
+.login-status.error {
+  color: #ef6464;
+}
+
+.login-status.success {
+  color: #5fc99a;
+}

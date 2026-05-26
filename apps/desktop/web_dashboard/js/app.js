@@ -389,9 +389,23 @@
     // devices (§2.12).
     refreshPanelEnablement();
 
+    // §W7E — Wave 7E SPA additions: hash routing + gallery + logs +
+    // login overlay. setupHashRouting() is idempotent and survives a
+    // reload because the URL is the source of truth; the gallery and
+    // logs surfaces are set up unconditionally because they react to
+    // the route hash too (e.g. "logs" auto-subscribes on first visit).
+    setupGalleryPanel();
+    setupLogsPanel();
+    setupHashRouting();
+    setupLoginOverlay();
+
     // Auto-connect on load when served from the same origin (§2.4 + §2.16).
+    // §W7E: the login overlay decides whether to gate the auto-connect.
+    // shouldAutoConnect is now a hint, not a command — the overlay
+    // hides itself and dispatches the connect once credentials are
+    // present (token, cookie session, or no-auth host).
     if (shouldAutoConnect) {
-      handleConnect();
+      bootstrapAuthFlow();
     }
   }
 
@@ -5316,5 +5330,570 @@
       addLogEntry('error', 'Settings fetch failed: ' + e.message);
     }
   }
+
+  // ===========================================================================
+  // §W7E — SPA additions
+  //
+  // Hash routing: #/run, #/devices, #/gallery, #/logs map to "active
+  // panel" focus on a single-page grid. We do NOT hide the off-route
+  // panels (the dashboard is intentionally scrollable on a laptop) —
+  // the route just scrolls the matching panel into view + adds a
+  // highlight class so the operator's eye lands in the right place.
+  //
+  // Image gallery: paginated thumbnail grid backed by /api/images.
+  // Clicking a thumb opens a modal preview (no separate route — the
+  // modal is dismissed by Escape / close button).
+  //
+  // Log tail: subscribes to /api/logs/tail (SSE). The panel can be
+  // paused so a long burst of debug noise doesn't push the line the
+  // operator was reading off-screen.
+  //
+  // Login overlay: shown on first visit when the SPA can't auto-
+  // connect. The overlay is a strict gate — the dashboard's auto-
+  // connect path only fires once `bootstrapAuthFlow()` resolves the
+  // credentials question.
+  // ===========================================================================
+
+  const HASH_ROUTES = {
+    'run': 'panel-sequencer',
+    'devices': 'panel-devices',
+    'gallery': 'panel-gallery',
+    'logs': 'panel-logs',
+    'mount': 'panel-mount',
+    'camera': 'panel-camera',
+    'guiding': 'panel-guiding',
+    'sequences': 'ops-seq-load-panel',
+    'analytics': 'ops-profile-panel',
+    'planetarium': 'panel-planetarium',
+    'settings': 'panel-settings',
+  };
+
+  /** Parse a hash like `#/logs` or `#/run/42` into {route, param}. */
+  function parseHashRoute() {
+    const raw = (window.location.hash || '').replace(/^#\/?/, '').trim();
+    if (!raw) return { route: '', param: '' };
+    const parts = raw.split('/');
+    return { route: (parts[0] || '').toLowerCase(), param: parts[1] || '' };
+  }
+
+  function setupHashRouting() {
+    // Capability nav buttons (.cap-nav-btn[data-route]) update the hash
+    // when clicked. The hashchange listener below drives the actual
+    // highlight; clicks just push the new hash.
+    for (const btn of document.querySelectorAll('.cap-nav-btn[data-route]')) {
+      btn.addEventListener('click', (e) => {
+        const route = btn.dataset.route;
+        if (!route) return;
+        e.preventDefault();
+        const next = '#/' + route;
+        if (window.location.hash !== next) {
+          window.location.hash = next;
+        } else {
+          applyHashRoute();
+        }
+      });
+    }
+    // Direct hash bookmarks must work on first load too.
+    window.addEventListener('hashchange', applyHashRoute);
+    applyHashRoute();
+  }
+
+  function applyHashRoute() {
+    const { route, param } = parseHashRoute();
+    if (!route) return;
+    const panelId = HASH_ROUTES[route];
+    if (!panelId) return;
+    const panel = document.getElementById(panelId);
+    if (!panel) return;
+    // Clear any previous highlight.
+    for (const p of document.querySelectorAll('.panel.route-active')) {
+      p.classList.remove('route-active');
+    }
+    panel.classList.add('route-active');
+    panel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+    // Mark the matching capability-nav button as the active one so the
+    // breadcrumb hint matches the URL on a reload.
+    for (const btn of document.querySelectorAll('.cap-nav-btn[data-route]')) {
+      btn.classList.toggle('cap-nav-active', btn.dataset.route === route);
+    }
+
+    // Route-specific side effects:
+    // * #/gallery — fetch the latest gallery page so the operator
+    //   doesn't have to click Refresh after deep-linking.
+    // * #/logs — make sure the SSE stream is running; the panel may
+    //   have been paused on a previous visit.
+    if (route === 'gallery') {
+      refreshGalleryFromServer();
+    } else if (route === 'logs') {
+      ensureLogTailRunning();
+    } else if (route === 'run' && param) {
+      // #/run/<runId> reserved for the replay scrubber (W7B). The
+      // dashboard surface it lands on is the sequencer panel — the
+      // deeper replay UI is desktop-only. Surface a hint instead of
+      // failing silently.
+      addLogEntry('system', 'Run replay #' + param +
+          ' is available on the desktop client.');
+    }
+  }
+
+  // =========================================================================
+  // §W7E — Image gallery
+  // =========================================================================
+
+  const gallery = {
+    items: [],
+    loading: false,
+    freshSinceLastView: 0,
+  };
+
+  function setupGalleryPanel() {
+    const refresh = document.getElementById('btn-gallery-refresh');
+    if (refresh) {
+      refresh.addEventListener('click', () => refreshGalleryFromServer());
+    }
+    const closeBtn = document.getElementById('btn-gallery-modal-close');
+    if (closeBtn) {
+      closeBtn.addEventListener('click', closeGalleryModal);
+    }
+    const modal = document.getElementById('gallery-modal');
+    if (modal) {
+      modal.addEventListener('click', (e) => {
+        if (e.target === modal) closeGalleryModal();
+      });
+    }
+    // Listen for ExposureComplete events to surface the "NEW" badge.
+    api.on('event', (data) => {
+      const cat = data.category || data.event_category || '';
+      if (cat !== 'camera' && cat !== 'imaging') return;
+      const type = data.eventType || data.event || '';
+      if (!isExposureCompleteEvent(type)) return;
+      gallery.freshSinceLastView += 1;
+      const badge = document.getElementById('gallery-fresh-badge');
+      if (badge) {
+        badge.textContent = 'NEW';
+        badge.classList.remove('hidden-inline');
+      }
+    });
+  }
+
+  async function refreshGalleryFromServer() {
+    if (gallery.loading) return;
+    const grid = document.getElementById('gallery-grid');
+    const status = document.getElementById('gallery-status');
+    gallery.loading = true;
+    if (status) status.textContent = 'Loading recent images...';
+    try {
+      const resp = await api.imagesGetAll({ limit: 24 });
+      const items = (resp && (resp.images || resp.items)) || [];
+      gallery.items = Array.isArray(items) ? items : [];
+      renderGallery();
+      if (status) {
+        status.textContent = gallery.items.length === 0
+          ? 'No images captured yet.'
+          : gallery.items.length + ' image' +
+            (gallery.items.length === 1 ? '' : 's') + ' shown.';
+      }
+      gallery.freshSinceLastView = 0;
+      const badge = document.getElementById('gallery-fresh-badge');
+      if (badge) badge.classList.add('hidden-inline');
+    } catch (e) {
+      if (status) status.textContent = 'Gallery fetch failed: ' + e.message;
+      addLogEntry('error', 'Gallery fetch failed: ' + e.message);
+    } finally {
+      gallery.loading = false;
+    }
+  }
+
+  function renderGallery() {
+    const grid = document.getElementById('gallery-grid');
+    if (!grid) return;
+    if (gallery.items.length === 0) {
+      grid.innerHTML = '<div class="empty-state">No captured images yet.</div>';
+      return;
+    }
+    grid.innerHTML = '';
+    for (const item of gallery.items) {
+      const card = document.createElement('button');
+      card.type = 'button';
+      card.className = 'gallery-card';
+      card.setAttribute('role', 'listitem');
+      const meta = formatGalleryMeta(item);
+      card.setAttribute('aria-label', meta);
+      const id = String(item.id ?? item.imageId ?? '');
+      if (id) {
+        const img = document.createElement('img');
+        img.className = 'gallery-thumb';
+        img.loading = 'lazy';
+        img.alt = meta;
+        img.src = api.imageThumbnailUrl(id, { maxWidth: 280, quality: 70 });
+        img.onerror = () => {
+          // Fall back to placeholder if the backend can't render a
+          // thumbnail (e.g. corrupted FITS). Don't hide the card —
+          // the metadata still belongs in the gallery.
+          img.style.display = 'none';
+        };
+        card.appendChild(img);
+      }
+      const label = document.createElement('div');
+      label.className = 'gallery-caption';
+      label.textContent = meta;
+      card.appendChild(label);
+      card.addEventListener('click', () => openGalleryModal(item));
+      grid.appendChild(card);
+    }
+  }
+
+  function formatGalleryMeta(item) {
+    if (!item) return 'Image';
+    const target = item.targetName || item.target || '';
+    const filter = item.filter || item.filterName || '';
+    const exp = item.exposureTime != null ? item.exposureTime : item.exposure;
+    const created = item.createdAt || item.timestamp || item.capturedAt;
+    const parts = [];
+    if (target) parts.push(target);
+    if (filter) parts.push(filter);
+    if (exp != null && !isNaN(Number(exp))) parts.push(Number(exp) + 's');
+    if (created) {
+      const ts = typeof created === 'number'
+        ? new Date(created)
+        : new Date(String(created));
+      if (!isNaN(ts.getTime())) {
+        parts.push(ts.toLocaleString());
+      }
+    }
+    return parts.length ? parts.join(' · ') : ('Image #' + (item.id ?? ''));
+  }
+
+  function openGalleryModal(item) {
+    const modal = document.getElementById('gallery-modal');
+    if (!modal) return;
+    const id = String(item.id ?? item.imageId ?? '');
+    if (!id) return;
+    const meta = document.getElementById('gallery-modal-meta');
+    if (meta) meta.textContent = formatGalleryMeta(item);
+    const img = document.getElementById('gallery-modal-image');
+    if (img) {
+      img.src = api.imageThumbnailUrl(id, { maxWidth: 1600, quality: 85 });
+      img.alt = 'Preview of ' + formatGalleryMeta(item);
+    }
+    const dl = document.getElementById('gallery-modal-download');
+    if (dl) dl.href = api.imageDownloadUrl(id);
+    modal.removeAttribute('hidden');
+    modal.classList.add('visible');
+  }
+
+  function closeGalleryModal() {
+    const modal = document.getElementById('gallery-modal');
+    if (!modal) return;
+    modal.classList.remove('visible');
+    modal.setAttribute('hidden', '');
+  }
+
+  // =========================================================================
+  // §W7E — Server log tail (SSE)
+  // =========================================================================
+
+  const logTail = {
+    eventSource: null,
+    paused: false,
+    minSeverity: 'info',
+    entries: [],
+    maxEntries: 500,
+  };
+
+  function setupLogsPanel() {
+    const pause = document.getElementById('btn-logs-pause');
+    if (pause) {
+      pause.addEventListener('click', () => {
+        logTail.paused = !logTail.paused;
+        pause.textContent = logTail.paused ? 'Resume' : 'Pause';
+        if (!logTail.paused) ensureLogTailRunning();
+        else stopLogTail();
+      });
+    }
+    const clear = document.getElementById('btn-logs-clear');
+    if (clear) {
+      clear.addEventListener('click', () => {
+        logTail.entries = [];
+        renderLogsPanel();
+      });
+    }
+    const sev = document.getElementById('logs-min-severity');
+    if (sev) {
+      sev.addEventListener('change', () => {
+        logTail.minSeverity = sev.value;
+        // Re-subscribe so the server-side filter changes too — local
+        // filtering would still pay the bandwidth of trace lines.
+        stopLogTail();
+        if (!logTail.paused) ensureLogTailRunning();
+      });
+    }
+  }
+
+  function ensureLogTailRunning() {
+    if (logTail.eventSource) return;
+    if (logTail.paused) return;
+    if (!api.isConnected) {
+      // The dashboard's connect path will re-call ensureLogTailRunning
+      // through applyHashRoute or the user clicking the Logs nav after
+      // we have authentication, so silently no-op rather than spinning
+      // up an SSE that the server will immediately reject.
+      setLogStreamState('offline');
+      return;
+    }
+    try {
+      setLogStreamState('connecting');
+      logTail.eventSource = api.subscribeLogTail(
+        logTail.minSeverity,
+        handleLogEntry,
+        (err) => {
+          addLogEntry('error', 'Log tail error: ' +
+              (err && err.message ? err.message : 'stream closed'));
+          setLogStreamState('error');
+          stopLogTail();
+        },
+      );
+      logTail.eventSource.onopen = () => setLogStreamState('live');
+    } catch (e) {
+      addLogEntry('error', 'Log tail subscribe failed: ' + e.message);
+      setLogStreamState('error');
+    }
+  }
+
+  function stopLogTail() {
+    if (logTail.eventSource) {
+      try { logTail.eventSource.close(); } catch (_) { /* ignore */ }
+      logTail.eventSource = null;
+    }
+    setLogStreamState('offline');
+  }
+
+  function setLogStreamState(state) {
+    const badge = document.getElementById('logs-stream-state');
+    if (!badge) return;
+    badge.textContent = state;
+    badge.className = 'badge ' + (
+      state === 'live' ? 'badge-running'
+        : state === 'connecting' ? 'badge-paused'
+        : state === 'error' ? 'badge-error'
+        : 'badge-idle');
+  }
+
+  function handleLogEntry(payload) {
+    if (!payload) return;
+    logTail.entries.push(payload);
+    if (logTail.entries.length > logTail.maxEntries) {
+      logTail.entries.splice(0, logTail.entries.length - logTail.maxEntries);
+    }
+    appendLogRow(payload);
+  }
+
+  function appendLogRow(payload) {
+    const container = document.getElementById('logs-container');
+    if (!container) return;
+    const empty = container.querySelector('.empty-state');
+    if (empty) empty.remove();
+    const row = document.createElement('div');
+    const severity = String(payload.level || payload.severity || 'info').toLowerCase();
+    row.className = 'log-entry log-' + severity;
+    const ts = payload.timestamp || payload.timestampMs || payload.time;
+    const tsLabel = ts ? new Date(typeof ts === 'number' ? ts : String(ts))
+        .toLocaleTimeString() : '';
+    const target = payload.target || payload.module || payload.category || '';
+    const message = payload.message || payload.msg || JSON.stringify(payload);
+    row.innerHTML = '';
+    const tsEl = document.createElement('span');
+    tsEl.className = 'log-time';
+    tsEl.textContent = tsLabel;
+    const sevEl = document.createElement('span');
+    sevEl.className = 'log-sev';
+    sevEl.textContent = severity.toUpperCase();
+    const tgtEl = document.createElement('span');
+    tgtEl.className = 'log-target';
+    tgtEl.textContent = target;
+    const msgEl = document.createElement('span');
+    msgEl.className = 'log-message';
+    msgEl.textContent = message;
+    row.appendChild(tsEl);
+    row.appendChild(sevEl);
+    if (target) row.appendChild(tgtEl);
+    row.appendChild(msgEl);
+    container.appendChild(row);
+    // Keep the DOM bounded — if we've gone over the limit, drop the
+    // oldest rows. Reflows are cheap because the container has fixed
+    // height + overflow-y: auto.
+    while (container.childElementCount > logTail.maxEntries) {
+      container.removeChild(container.firstElementChild);
+    }
+    // Auto-scroll only when the user is already at the bottom — don't
+    // yank them off whatever they were reading.
+    const atBottom = container.scrollTop + container.clientHeight + 50 >=
+        container.scrollHeight;
+    if (atBottom) container.scrollTop = container.scrollHeight;
+  }
+
+  function renderLogsPanel() {
+    const container = document.getElementById('logs-container');
+    if (!container) return;
+    container.innerHTML = '';
+    if (logTail.entries.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state';
+      empty.textContent = 'Waiting for log entries…';
+      container.appendChild(empty);
+      return;
+    }
+    for (const e of logTail.entries) appendLogRow(e);
+  }
+
+  // =========================================================================
+  // §W7E — Login overlay + bootstrap
+  // =========================================================================
+
+  function setupLoginOverlay() {
+    const submit = document.getElementById('btn-login-submit');
+    const pair = document.getElementById('btn-login-pair');
+    if (submit) submit.addEventListener('click', handleLoginSubmit);
+    if (pair) {
+      pair.addEventListener('click', () => {
+        hideLoginOverlay();
+        openPairModal();
+      });
+    }
+    const tokenInput = document.getElementById('login-token');
+    if (tokenInput) {
+      tokenInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') handleLoginSubmit();
+      });
+    }
+  }
+
+  /**
+   * Decide whether to show the login overlay and (when not shown) kick
+   * off the auto-connect. We trust three signals:
+   *   1. A sessionStorage bearer token (the existing dashboard path).
+   *   2. An HttpOnly session cookie (validated via /api/auth/csrf).
+   *   3. A reachable /api/info that reports `authRequired: false`.
+   * If none of the above resolves to "authenticated", surface the
+   * overlay so the user can pair or paste a token.
+   */
+  async function bootstrapAuthFlow() {
+    const overlay = document.getElementById('login-overlay');
+    const tokenInput = document.getElementById('login-token');
+    const urlInput = document.getElementById('login-server-url');
+    if (urlInput) {
+      const current = normalizeServerUrl(
+          document.getElementById('server-url').value);
+      urlInput.value = current;
+    }
+
+    // If a token is already present (sessionStorage), just connect.
+    const existingToken = readStoredToken();
+    if (existingToken) {
+      hideLoginOverlay();
+      await handleConnect();
+      // After connect, drive any route-specific side effects (e.g.
+      // if the user landed on #/logs, start the SSE now that we
+      // have credentials).
+      applyHashRoute();
+      return;
+    }
+
+    // Probe the server for an existing cookie session or an auth-off
+    // host. The api singleton has already been configured by the
+    // outer init() with the current URL + empty token; we issue a
+    // minimal /api/info call to test reachability, then call
+    // tryResumeCookieSession (cheap when no cookie).
+    try {
+      api.configure(
+        normalizeServerUrl(document.getElementById('server-url').value),
+        '',
+        localStorage.getItem('nightshade_device_id') || generateDeviceId(),
+      );
+      const info = await api.testConnection();
+      if (info && info.authRequired === false) {
+        // No auth needed — auto-connect runs the rest of the
+        // bootstrap. The overlay is hidden so the dashboard renders.
+        hideLoginOverlay();
+        await handleConnect();
+        applyHashRoute();
+        return;
+      }
+      const resumed = await api.tryResumeCookieSession();
+      if (resumed) {
+        hideLoginOverlay();
+        await handleConnect();
+        applyHashRoute();
+        return;
+      }
+    } catch (_) {
+      // Reachability failed — fall through to the overlay so the
+      // operator can paste a token or fix the URL.
+    }
+    if (tokenInput) tokenInput.value = '';
+    showLoginOverlay();
+  }
+
+  async function handleLoginSubmit() {
+    const urlEl = document.getElementById('login-server-url');
+    const tokenEl = document.getElementById('login-token');
+    const rememberEl = document.getElementById('login-remember');
+    const statusEl = document.getElementById('login-status');
+    const url = urlEl ? normalizeServerUrl(urlEl.value) : '';
+    const token = tokenEl ? tokenEl.value.trim() : '';
+    if (!url) {
+      if (statusEl) {
+        statusEl.textContent = 'Enter a valid http:// or https:// URL.';
+        statusEl.className = 'login-status error';
+      }
+      return;
+    }
+    if (!token) {
+      if (statusEl) {
+        statusEl.textContent = 'Paste a bearer token, or click "Pair this browser".';
+        statusEl.className = 'login-status error';
+      }
+      return;
+    }
+    document.getElementById('server-url').value = url;
+    document.getElementById('auth-token').value = token;
+    const remember = rememberEl ? rememberEl.checked : true;
+    document.getElementById('remember-token').checked = remember;
+    writeStoredToken(token, remember);
+    if (statusEl) {
+      statusEl.textContent = 'Signing in...';
+      statusEl.className = 'login-status';
+    }
+    hideLoginOverlay();
+    await handleConnect();
+    applyHashRoute();
+  }
+
+  function showLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    if (!overlay) return;
+    overlay.classList.remove('hidden');
+    overlay.removeAttribute('hidden');
+  }
+
+  function hideLoginOverlay() {
+    const overlay = document.getElementById('login-overlay');
+    if (!overlay) return;
+    overlay.classList.add('hidden');
+    overlay.setAttribute('hidden', '');
+  }
+
+  // After a connect succeeds, surface any side effects the route
+  // requested before credentials were available (e.g. start the log
+  // tail subscription). We hook into api ws:connected as a proxy for
+  // "the dashboard is authenticated and live."
+  api.on('ws:connected', () => {
+    // Re-run the hash route handler so #/logs auto-starts the SSE
+    // subscription now that we have a bearer.
+    const { route } = parseHashRoute();
+    if (route === 'logs') ensureLogTailRunning();
+    if (route === 'gallery') refreshGalleryFromServer();
+  });
 
 })();

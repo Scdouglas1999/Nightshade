@@ -8,6 +8,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../widgets/network_status_indicator.dart';
 import '../../widgets/phone_battery_indicator.dart';
+import '../replay/session_picker_screen.dart';
+import '../servers/saved_servers_screen.dart';
 import '../setup/first_run_setup_screen.dart';
 import 'tabs/camera_tab.dart';
 import 'tabs/devices_tab.dart';
@@ -126,12 +128,12 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
             ),
           ],
         ),
-        actions: const [
+        actions: [
           // Wave 6D / P2-14 — phone battery + power-saving badge.
           // Sits left of the network indicator so the operator sees
           // {battery, network} as a single status cluster. Hidden until
           // the OS delivers the first sample so the layout doesn't flash.
-          Padding(
+          const Padding(
             padding: EdgeInsets.only(right: 4),
             child: PhoneBatteryIndicator(compact: true),
           ),
@@ -139,9 +141,59 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
           // Renders compact in the AppBar action slot so it stays visible
           // across all 7 dashboard tabs without eating title space. Tap
           // opens the details sheet with the "Reconnect now" button.
-          Padding(
+          const Padding(
             padding: EdgeInsets.only(right: 8),
             child: NetworkStatusIndicator(compact: true),
+          ),
+          // Wave 7E — multi-server roaming entry point. Single overflow
+          // item rather than a bottom-tab slot because the saved-servers
+          // screen is a modal task (open it, switch rig, get back to the
+          // dashboard) — not a parallel surface like Devices/Mount.
+          PopupMenuButton<_OverflowAction>(
+            icon: Icon(LucideIcons.moreVertical, color: colors.textPrimary),
+            tooltip: 'More',
+            onSelected: (action) {
+              switch (action) {
+                case _OverflowAction.savedServers:
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SavedServersScreen(),
+                    ),
+                  );
+                  break;
+                case _OverflowAction.sessionHistory:
+                  // Wave 7B — open the replay picker. Lives behind the
+                  // overflow menu because replay is an audit / forensic
+                  // action operators reach for occasionally, not a hot
+                  // path that deserves a dedicated bottom-tab slot.
+                  Navigator.of(context).push(
+                    MaterialPageRoute<void>(
+                      builder: (_) => const SessionPickerScreen(),
+                    ),
+                  );
+                  break;
+              }
+            },
+            itemBuilder: (_) => const [
+              PopupMenuItem(
+                value: _OverflowAction.savedServers,
+                child: ListTile(
+                  leading: Icon(LucideIcons.server),
+                  title: Text('Saved servers'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+              PopupMenuItem(
+                value: _OverflowAction.sessionHistory,
+                child: ListTile(
+                  leading: Icon(LucideIcons.history),
+                  title: Text('Session history / replay'),
+                  dense: true,
+                  contentPadding: EdgeInsets.zero,
+                ),
+              ),
+            ],
           ),
         ],
         bottom: PreferredSize(
@@ -185,6 +237,11 @@ class _DashboardTab {
     required this.child,
   });
 }
+
+/// Overflow menu actions surfaced from the dashboard AppBar. Wave 7E
+/// added `savedServers` so the operator can roam between paired rigs.
+/// Wave 7B added `sessionHistory` for replay scrubber access.
+enum _OverflowAction { savedServers, sessionHistory }
 
 /// Bottom navigation bar tuned for the phone HIG: 48 dp minimum tap height
 /// per slot, persistent icon + label, single accent for the active item.

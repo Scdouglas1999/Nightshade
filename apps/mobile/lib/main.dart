@@ -19,6 +19,7 @@ import 'screens/qr_scanner_screen.dart';
 import 'services/foreground_service.dart';
 import 'services/live_activity_lifecycle_provider.dart';
 import 'services/mobile_pairing_service.dart';
+import 'services/watch_complication_lifecycle_provider.dart';
 import 'services/mobile_preferences.dart';
 import 'services/mobile_sequence_hooks.dart';
 import 'services/battery_service.dart';
@@ -992,6 +993,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           // controller installs its own ref.listen() bindings on construction;
           // on non-iOS platforms it is a no-op so the watch is cheap.
           ref.watch(liveActivityLifecycleProvider);
+
+          // Wave 7D — wire the Apple Watch complication lifecycle
+          // controller. Same shape as the Live Activity one: on iOS it
+          // installs listeners that throttle sequence + weather state
+          // changes into App Group writes + `WidgetCenter` reloads at
+          // most once per 30 s; on non-iOS platforms the provider is a
+          // no-op so this watch costs nothing on Android/desktop.
+          ref.watch(watchComplicationLifecycleProvider);
 
           // Wire notification taps into go_router (audit §3.8). The router
           // is created lazily by `appRouterProvider`; reading it here also
