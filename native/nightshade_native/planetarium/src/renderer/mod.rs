@@ -423,20 +423,54 @@ pub fn render_empty_scene_rgba(width: u32, height: u32) -> Vec<u8> {
 
 /// Headless offscreen wgpu device for tests (Vulkan/DX12/Metal via default instance).
 pub async fn offscreen_device() -> (Arc<wgpu::Device>, Arc<wgpu::Queue>) {
-    let instance = wgpu::Instance::default();
-    let adapter = instance
-        .request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: wgpu::PowerPreference::HighPerformance,
-            compatible_surface: None,
-            force_fallback_adapter: false,
-        })
+    offscreen_device_with_features(wgpu::Features::empty()).await
+}
+
+/// Headless offscreen wgpu device with additional required features.
+pub async fn offscreen_device_with_features(
+    required_features: wgpu::Features,
+) -> (Arc<wgpu::Device>, Arc<wgpu::Queue>) {
+    offscreen_device_with_features_if_supported(required_features)
         .await
-        .expect("no GPU adapter available — wgpu cannot proceed");
+        .unwrap_or_else(|| {
+            panic!("no GPU adapter supports required features: {required_features:?}")
+        })
+}
+
+/// Headless offscreen wgpu device when an adapter supports the requested features.
+pub async fn offscreen_device_with_features_if_supported(
+    required_features: wgpu::Features,
+) -> Option<(Arc<wgpu::Device>, Arc<wgpu::Queue>)> {
+    let instance = wgpu::Instance::default();
+    let adapter = select_offscreen_adapter(&instance, required_features)?;
 
     let (device, queue) = adapter
-        .request_device(&wgpu::DeviceDescriptor::default(), None)
+        .request_device(
+            &wgpu::DeviceDescriptor {
+                required_features,
+                ..Default::default()
+            },
+            None,
+        )
         .await
         .expect("device request failed");
 
-    (Arc::new(device), Arc::new(queue))
+    Some((Arc::new(device), Arc::new(queue)))
+}
+
+fn select_offscreen_adapter(
+    instance: &wgpu::Instance,
+    required_features: wgpu::Features,
+) -> Option<wgpu::Adapter> {
+    instance
+        .enumerate_adapters(wgpu::Backends::all())
+        .into_iter()
+        .filter(|adapter| adapter.features().contains(required_features))
+        .max_by_key(|adapter| match adapter.get_info().device_type {
+            wgpu::DeviceType::DiscreteGpu => 4,
+            wgpu::DeviceType::IntegratedGpu => 3,
+            wgpu::DeviceType::VirtualGpu => 2,
+            wgpu::DeviceType::Cpu => 1,
+            wgpu::DeviceType::Other => 0,
+        })
 }

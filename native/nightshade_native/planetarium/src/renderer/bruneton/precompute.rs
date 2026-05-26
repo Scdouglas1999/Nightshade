@@ -89,7 +89,7 @@ pub fn precompute_bruneton_luts_with_config(
         format,
     );
 
-    let ctx = PrecomputeContext::new(device.clone(), queue.clone())?;
+    let ctx = PrecomputeContext::new(device.clone(), queue.clone(), format)?;
     let lfr = luminance_from_radiance_identity();
 
     // Transmittance
@@ -111,7 +111,7 @@ pub fn precompute_bruneton_luts_with_config(
         &[Some(&transmittance)],
         &ctx.direct_irradiance_pipeline,
         &ctx.direct_irradiance_bgl,
-        TRANSMITTANCE_TEXTURE_WIDTH,
+        IRRADIANCE_TEXTURE_WIDTH,
         IRRADIANCE_TEXTURE_HEIGHT,
         0,
         0,
@@ -212,12 +212,14 @@ struct PrecomputeContext {
     indirect_irradiance_bgl: wgpu::BindGroupLayout,
     multiple_scattering_pipeline: wgpu::RenderPipeline,
     multiple_scattering_bgl: wgpu::BindGroupLayout,
+    scattering_format: wgpu::TextureFormat,
 }
 
 impl PrecomputeContext {
     fn new(
         device: Arc<wgpu::Device>,
         queue: Arc<wgpu::Queue>,
+        scattering_format: wgpu::TextureFormat,
     ) -> Result<Self, BrunetonPrecomputeError> {
         let quad = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("planetarium.bruneton.quad"),
@@ -306,6 +308,7 @@ impl PrecomputeContext {
             indirect_irradiance_bgl,
             multiple_scattering_pipeline,
             multiple_scattering_bgl,
+            scattering_format,
         })
     }
 
@@ -370,27 +373,8 @@ impl PrecomputeContext {
         blend: bool,
     ) -> Result<(), BrunetonPrecomputeError> {
         self.write_uniforms(lfr, layer as i32, 0);
-        let views: Vec<_> = targets
-            .iter()
-            .map(|t| {
-                t.create_view(&wgpu::TextureViewDescriptor {
-                    dimension: Some(wgpu::TextureViewDimension::D2),
-                    base_array_layer: layer,
-                    array_layer_count: Some(1),
-                    ..Default::default()
-                })
-            })
-            .collect();
-        let view_refs: Vec<_> = views.iter().collect();
         let bind_group = self.make_bind_group(bgl, textures)?;
-        self.render_pass(
-            &view_refs,
-            pipeline,
-            &bind_group,
-            SCATTERING_TEXTURE_WIDTH,
-            SCATTERING_TEXTURE_HEIGHT,
-            blend,
-        )
+        self.render_3d_layer_to_scratch(targets, pipeline, &bind_group, layer, blend)
     }
 
     fn draw_3d_layer_with_order(
@@ -403,27 +387,8 @@ impl PrecomputeContext {
         order: i32,
     ) -> Result<(), BrunetonPrecomputeError> {
         self.write_uniforms(&luminance_from_radiance_identity(), layer as i32, order);
-        let views: Vec<_> = targets
-            .iter()
-            .map(|t| {
-                t.create_view(&wgpu::TextureViewDescriptor {
-                    dimension: Some(wgpu::TextureViewDimension::D2),
-                    base_array_layer: layer,
-                    array_layer_count: Some(1),
-                    ..Default::default()
-                })
-            })
-            .collect();
-        let view_refs: Vec<_> = views.iter().collect();
         let bind_group = self.make_bind_group(bgl, textures)?;
-        self.render_pass(
-            &view_refs,
-            pipeline,
-            &bind_group,
-            SCATTERING_TEXTURE_WIDTH,
-            SCATTERING_TEXTURE_HEIGHT,
-            false,
-        )
+        self.render_3d_layer_to_scratch(targets, pipeline, &bind_group, layer, false)
     }
 
     fn draw_3d_layer_multi(
@@ -513,6 +478,130 @@ impl PrecomputeContext {
         self.device.poll(wgpu::Maintain::Wait);
         Ok(())
     }
+
+    fn render_3d_layer_to_scratch(
+        &self,
+        targets: &[&wgpu::Texture],
+        pipeline: &wgpu::RenderPipeline,
+        bind_group: &wgpu::BindGroup,
+        layer: u32,
+        blend: bool,
+    ) -> Result<(), BrunetonPrecomputeError> {
+        let scratch: Vec<_> = targets
+            .iter()
+            .enumerate()
+            .map(|(i, _)| {
+                let label = format!("planetarium.bruneton.layer_scratch.{i}");
+                create_texture_2d(
+                    &self.device,
+                    &label,
+                    SCATTERING_TEXTURE_WIDTH,
+                    SCATTERING_TEXTURE_HEIGHT,
+                    self.scattering_format,
+                )
+            })
+            .collect();
+        let views: Vec<_> = scratch.iter().map(view_2d).collect();
+        let view_refs: Vec<_> = views.iter().collect();
+
+        let mut encoder = self
+            .device
+            .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                label: Some("planetarium.bruneton.precompute.3d_layer.encoder"),
+            });
+        if blend {
+            for (target, scratch) in targets.iter().zip(scratch.iter()) {
+                encoder.copy_texture_to_texture(
+                    wgpu::ImageCopyTexture {
+                        texture: target,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d {
+                            x: 0,
+                            y: 0,
+                            z: layer,
+                        },
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::ImageCopyTexture {
+                        texture: scratch,
+                        mip_level: 0,
+                        origin: wgpu::Origin3d::ZERO,
+                        aspect: wgpu::TextureAspect::All,
+                    },
+                    wgpu::Extent3d {
+                        width: SCATTERING_TEXTURE_WIDTH,
+                        height: SCATTERING_TEXTURE_HEIGHT,
+                        depth_or_array_layers: 1,
+                    },
+                );
+            }
+        }
+        {
+            let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                label: Some("planetarium.bruneton.precompute.3d_layer.pass"),
+                color_attachments: &view_refs
+                    .iter()
+                    .map(|view| {
+                        Some(wgpu::RenderPassColorAttachment {
+                            view,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: if blend {
+                                    wgpu::LoadOp::Load
+                                } else {
+                                    wgpu::LoadOp::Clear(wgpu::Color::BLACK)
+                                },
+                                store: wgpu::StoreOp::Store,
+                            },
+                        })
+                    })
+                    .collect::<Vec<_>>(),
+                depth_stencil_attachment: None,
+                timestamp_writes: None,
+                occlusion_query_set: None,
+            });
+            pass.set_pipeline(pipeline);
+            pass.set_bind_group(0, bind_group, &[]);
+            pass.set_vertex_buffer(0, self.quad.slice(..));
+            pass.set_viewport(
+                0.0,
+                0.0,
+                SCATTERING_TEXTURE_WIDTH as f32,
+                SCATTERING_TEXTURE_HEIGHT as f32,
+                0.0,
+                1.0,
+            );
+            pass.draw(0..4, 0..1);
+        }
+        for (scratch, target) in scratch.iter().zip(targets.iter()) {
+            encoder.copy_texture_to_texture(
+                wgpu::ImageCopyTexture {
+                    texture: scratch,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d::ZERO,
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::ImageCopyTexture {
+                    texture: target,
+                    mip_level: 0,
+                    origin: wgpu::Origin3d {
+                        x: 0,
+                        y: 0,
+                        z: layer,
+                    },
+                    aspect: wgpu::TextureAspect::All,
+                },
+                wgpu::Extent3d {
+                    width: SCATTERING_TEXTURE_WIDTH,
+                    height: SCATTERING_TEXTURE_HEIGHT,
+                    depth_or_array_layers: 1,
+                },
+            );
+        }
+        self.queue.submit(std::iter::once(encoder.finish()));
+        self.device.poll(wgpu::Maintain::Wait);
+        Ok(())
+    }
 }
 
 fn pipeline_2d(
@@ -558,18 +647,7 @@ fn pipeline_2d(
             targets: &vec![
                 Some(wgpu::ColorTargetState {
                     format: color_format,
-                    blend: Some(wgpu::BlendState {
-                        color: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                        alpha: wgpu::BlendComponent {
-                            src_factor: wgpu::BlendFactor::One,
-                            dst_factor: wgpu::BlendFactor::One,
-                            operation: wgpu::BlendOperation::Add,
-                        },
-                    }),
+                    blend: blend_state_for_format(color_format),
                     write_mask: wgpu::ColorWrites::ALL,
                 });
                 color_count
@@ -583,6 +661,24 @@ fn pipeline_2d(
         cache: None,
     });
     Ok((pipeline, bgl))
+}
+
+fn blend_state_for_format(format: wgpu::TextureFormat) -> Option<wgpu::BlendState> {
+    if matches!(format, wgpu::TextureFormat::Rgba32Float) {
+        return None;
+    }
+    Some(wgpu::BlendState {
+        color: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Add,
+        },
+        alpha: wgpu::BlendComponent {
+            src_factor: wgpu::BlendFactor::One,
+            dst_factor: wgpu::BlendFactor::One,
+            operation: wgpu::BlendOperation::Add,
+        },
+    })
 }
 
 fn pipeline_3d(
@@ -638,10 +734,16 @@ fn tex3d(binding: u32) -> wgpu::BindGroupLayoutEntry {
 fn load_spirv(device: &wgpu::Device, file: &str) -> wgpu::ShaderModule {
     let path = format!("{}/{}", env!("OUT_DIR"), file);
     let data = std::fs::read(&path).unwrap_or_else(|e| panic!("read SPIR-V {path}: {e}"));
-    device.create_shader_module(wgpu::ShaderModuleDescriptor {
-        label: Some(file),
-        source: wgpu::ShaderSource::SpirV(wgpu::util::make_spirv_raw(&data)),
-    })
+    // SAFETY: these SPIR-V modules are generated by build.rs from checked-in
+    // Bruneton GLSL using shaderc. Naga rejects some valid glslang output from
+    // this shader family, so the native-only precompute path passes it directly
+    // to the backend instead of reparsing it through Naga.
+    unsafe {
+        device.create_shader_module_spirv(&wgpu::ShaderModuleDescriptorSpirV {
+            label: Some(file),
+            source: wgpu::util::make_spirv_raw(&data),
+        })
+    }
 }
 
 fn view_for_sample(texture: &wgpu::Texture) -> wgpu::TextureView {
