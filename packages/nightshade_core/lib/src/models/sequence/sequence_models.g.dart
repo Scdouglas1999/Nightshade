@@ -180,3 +180,30 @@ Map<String, dynamic> _$$AdaptiveSwapSnapshotImplToJson(
       'score': instance.score?.toJson(),
       'state': instance.state.toJson(),
     };
+
+_$FilterPlanImpl _$$FilterPlanImplFromJson(Map<String, dynamic> json) =>
+    _$FilterPlanImpl(
+      filterName: json['filter_name'] as String? ?? '',
+      filterIndex: (json['filter_index'] as num?)?.toInt(),
+      count: (json['count'] as num?)?.toInt() ?? 10,
+      durationSecs: (json['duration_secs'] as num?)?.toDouble() ?? 60.0,
+      gain: (json['gain'] as num?)?.toInt(),
+      offset: (json['offset'] as num?)?.toInt(),
+      binning: json['binning'] == null
+          ? BinningMode.one
+          : const BinningModeJsonConverter()
+              .fromJson(json['binning'] as String?),
+      ditherEvery: (json['dither_every'] as num?)?.toInt(),
+    );
+
+Map<String, dynamic> _$$FilterPlanImplToJson(_$FilterPlanImpl instance) =>
+    <String, dynamic>{
+      'filter_name': instance.filterName,
+      'filter_index': instance.filterIndex,
+      'count': instance.count,
+      'duration_secs': instance.durationSecs,
+      'gain': instance.gain,
+      'offset': instance.offset,
+      'binning': const BinningModeJsonConverter().toJson(instance.binning),
+      'dither_every': instance.ditherEvery,
+    };

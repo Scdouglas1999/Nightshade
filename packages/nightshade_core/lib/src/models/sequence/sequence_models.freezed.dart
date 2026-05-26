@@ -2659,3 +2659,359 @@ abstract class _AdaptiveSwapSnapshot implements AdaptiveSwapSnapshot {
   _$$AdaptiveSwapSnapshotImplCopyWith<_$AdaptiveSwapSnapshotImpl>
       get copyWith => throw _privateConstructorUsedError;
 }
+
+FilterPlan _$FilterPlanFromJson(Map<String, dynamic> json) {
+  return _FilterPlan.fromJson(json);
+}
+
+/// @nodoc
+mixin _$FilterPlan {
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  String get filterName => throw _privateConstructorUsedError;
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  int? get filterIndex => throw _privateConstructorUsedError;
+
+  /// Total number of exposures to take for this filter.
+  int get count => throw _privateConstructorUsedError;
+
+  /// Sub-exposure duration in seconds.
+  double get durationSecs => throw _privateConstructorUsedError;
+
+  /// Optional gain override. null means "use camera/profile default".
+  int? get gain => throw _privateConstructorUsedError;
+
+  /// Optional offset override.
+  int? get offset => throw _privateConstructorUsedError;
+
+  /// Binning for this filter. Defaults to 1x1.
+  @BinningModeJsonConverter()
+  BinningMode get binning => throw _privateConstructorUsedError;
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  int? get ditherEvery => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $FilterPlanCopyWith<FilterPlan> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $FilterPlanCopyWith<$Res> {
+  factory $FilterPlanCopyWith(
+          FilterPlan value, $Res Function(FilterPlan) then) =
+      _$FilterPlanCopyWithImpl<$Res, FilterPlan>;
+  @useResult
+  $Res call(
+      {String filterName,
+      int? filterIndex,
+      int count,
+      double durationSecs,
+      int? gain,
+      int? offset,
+      @BinningModeJsonConverter() BinningMode binning,
+      int? ditherEvery});
+}
+
+/// @nodoc
+class _$FilterPlanCopyWithImpl<$Res, $Val extends FilterPlan>
+    implements $FilterPlanCopyWith<$Res> {
+  _$FilterPlanCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? filterName = null,
+    Object? filterIndex = freezed,
+    Object? count = null,
+    Object? durationSecs = null,
+    Object? gain = freezed,
+    Object? offset = freezed,
+    Object? binning = null,
+    Object? ditherEvery = freezed,
+  }) {
+    return _then(_value.copyWith(
+      filterName: null == filterName
+          ? _value.filterName
+          : filterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      filterIndex: freezed == filterIndex
+          ? _value.filterIndex
+          : filterIndex // ignore: cast_nullable_to_non_nullable
+              as int?,
+      count: null == count
+          ? _value.count
+          : count // ignore: cast_nullable_to_non_nullable
+              as int,
+      durationSecs: null == durationSecs
+          ? _value.durationSecs
+          : durationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      gain: freezed == gain
+          ? _value.gain
+          : gain // ignore: cast_nullable_to_non_nullable
+              as int?,
+      offset: freezed == offset
+          ? _value.offset
+          : offset // ignore: cast_nullable_to_non_nullable
+              as int?,
+      binning: null == binning
+          ? _value.binning
+          : binning // ignore: cast_nullable_to_non_nullable
+              as BinningMode,
+      ditherEvery: freezed == ditherEvery
+          ? _value.ditherEvery
+          : ditherEvery // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$FilterPlanImplCopyWith<$Res>
+    implements $FilterPlanCopyWith<$Res> {
+  factory _$$FilterPlanImplCopyWith(
+          _$FilterPlanImpl value, $Res Function(_$FilterPlanImpl) then) =
+      __$$FilterPlanImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String filterName,
+      int? filterIndex,
+      int count,
+      double durationSecs,
+      int? gain,
+      int? offset,
+      @BinningModeJsonConverter() BinningMode binning,
+      int? ditherEvery});
+}
+
+/// @nodoc
+class __$$FilterPlanImplCopyWithImpl<$Res>
+    extends _$FilterPlanCopyWithImpl<$Res, _$FilterPlanImpl>
+    implements _$$FilterPlanImplCopyWith<$Res> {
+  __$$FilterPlanImplCopyWithImpl(
+      _$FilterPlanImpl _value, $Res Function(_$FilterPlanImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? filterName = null,
+    Object? filterIndex = freezed,
+    Object? count = null,
+    Object? durationSecs = null,
+    Object? gain = freezed,
+    Object? offset = freezed,
+    Object? binning = null,
+    Object? ditherEvery = freezed,
+  }) {
+    return _then(_$FilterPlanImpl(
+      filterName: null == filterName
+          ? _value.filterName
+          : filterName // ignore: cast_nullable_to_non_nullable
+              as String,
+      filterIndex: freezed == filterIndex
+          ? _value.filterIndex
+          : filterIndex // ignore: cast_nullable_to_non_nullable
+              as int?,
+      count: null == count
+          ? _value.count
+          : count // ignore: cast_nullable_to_non_nullable
+              as int,
+      durationSecs: null == durationSecs
+          ? _value.durationSecs
+          : durationSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      gain: freezed == gain
+          ? _value.gain
+          : gain // ignore: cast_nullable_to_non_nullable
+              as int?,
+      offset: freezed == offset
+          ? _value.offset
+          : offset // ignore: cast_nullable_to_non_nullable
+              as int?,
+      binning: null == binning
+          ? _value.binning
+          : binning // ignore: cast_nullable_to_non_nullable
+              as BinningMode,
+      ditherEvery: freezed == ditherEvery
+          ? _value.ditherEvery
+          : ditherEvery // ignore: cast_nullable_to_non_nullable
+              as int?,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+class _$FilterPlanImpl extends _FilterPlan {
+  const _$FilterPlanImpl(
+      {this.filterName = '',
+      this.filterIndex,
+      this.count = 10,
+      this.durationSecs = 60.0,
+      this.gain,
+      this.offset,
+      @BinningModeJsonConverter() this.binning = BinningMode.one,
+      this.ditherEvery})
+      : super._();
+
+  factory _$FilterPlanImpl.fromJson(Map<String, dynamic> json) =>
+      _$$FilterPlanImplFromJson(json);
+
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  @override
+  @JsonKey()
+  final String filterName;
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  @override
+  final int? filterIndex;
+
+  /// Total number of exposures to take for this filter.
+  @override
+  @JsonKey()
+  final int count;
+
+  /// Sub-exposure duration in seconds.
+  @override
+  @JsonKey()
+  final double durationSecs;
+
+  /// Optional gain override. null means "use camera/profile default".
+  @override
+  final int? gain;
+
+  /// Optional offset override.
+  @override
+  final int? offset;
+
+  /// Binning for this filter. Defaults to 1x1.
+  @override
+  @JsonKey()
+  @BinningModeJsonConverter()
+  final BinningMode binning;
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  @override
+  final int? ditherEvery;
+
+  @override
+  String toString() {
+    return 'FilterPlan(filterName: $filterName, filterIndex: $filterIndex, count: $count, durationSecs: $durationSecs, gain: $gain, offset: $offset, binning: $binning, ditherEvery: $ditherEvery)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$FilterPlanImpl &&
+            (identical(other.filterName, filterName) ||
+                other.filterName == filterName) &&
+            (identical(other.filterIndex, filterIndex) ||
+                other.filterIndex == filterIndex) &&
+            (identical(other.count, count) || other.count == count) &&
+            (identical(other.durationSecs, durationSecs) ||
+                other.durationSecs == durationSecs) &&
+            (identical(other.gain, gain) || other.gain == gain) &&
+            (identical(other.offset, offset) || other.offset == offset) &&
+            (identical(other.binning, binning) || other.binning == binning) &&
+            (identical(other.ditherEvery, ditherEvery) ||
+                other.ditherEvery == ditherEvery));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(runtimeType, filterName, filterIndex, count,
+      durationSecs, gain, offset, binning, ditherEvery);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$FilterPlanImplCopyWith<_$FilterPlanImpl> get copyWith =>
+      __$$FilterPlanImplCopyWithImpl<_$FilterPlanImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$FilterPlanImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _FilterPlan extends FilterPlan {
+  const factory _FilterPlan(
+      {final String filterName,
+      final int? filterIndex,
+      final int count,
+      final double durationSecs,
+      final int? gain,
+      final int? offset,
+      @BinningModeJsonConverter() final BinningMode binning,
+      final int? ditherEvery}) = _$FilterPlanImpl;
+  const _FilterPlan._() : super._();
+
+  factory _FilterPlan.fromJson(Map<String, dynamic> json) =
+      _$FilterPlanImpl.fromJson;
+
+  @override
+
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  String get filterName;
+  @override
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  int? get filterIndex;
+  @override
+
+  /// Total number of exposures to take for this filter.
+  int get count;
+  @override
+
+  /// Sub-exposure duration in seconds.
+  double get durationSecs;
+  @override
+
+  /// Optional gain override. null means "use camera/profile default".
+  int? get gain;
+  @override
+
+  /// Optional offset override.
+  int? get offset;
+  @override
+
+  /// Binning for this filter. Defaults to 1x1.
+  @BinningModeJsonConverter()
+  BinningMode get binning;
+  @override
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  int? get ditherEvery;
+  @override
+  @JsonKey(ignore: true)
+  _$$FilterPlanImplCopyWith<_$FilterPlanImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}

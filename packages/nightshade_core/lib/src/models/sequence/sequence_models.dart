@@ -3881,111 +3881,49 @@ class TargetSchedulerNode extends SequenceNode {
 /// minimal "what to take per filter": filter name (+ optional index), how
 /// many subs, sub-length, gain/offset/binning, and a per-plan dither
 /// cadence override.
-class FilterPlan extends Equatable {
-  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
-  /// connected filter wheel's name list when [filterIndex] is null.
-  final String filterName;
+@Freezed(fromJson: true, toJson: true)
+class FilterPlan with _$FilterPlan {
+  const FilterPlan._();
 
-  /// 0-based filter wheel index. Preferred over [filterName] for
-  /// reliability — matches `ExposureNode.filterIndex` / Rust
-  /// `FilterConfig::filter_index`.
-  final int? filterIndex;
+  @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+  const factory FilterPlan({
+    /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+    /// connected filter wheel's name list when [filterIndex] is null.
+    @Default('') String filterName,
 
-  /// Total number of exposures to take for this filter.
-  final int count;
+    /// 0-based filter wheel index. Preferred over [filterName] for
+    /// reliability — matches `ExposureNode.filterIndex` / Rust
+    /// `FilterConfig::filter_index`.
+    int? filterIndex,
 
-  /// Sub-exposure duration in seconds.
-  final double durationSecs;
+    /// Total number of exposures to take for this filter.
+    @Default(10) int count,
 
-  /// Optional gain override. null means "use camera/profile default".
-  final int? gain;
+    /// Sub-exposure duration in seconds.
+    @Default(60.0) double durationSecs,
 
-  /// Optional offset override.
-  final int? offset;
+    /// Optional gain override. null means "use camera/profile default".
+    int? gain,
 
-  /// Binning for this filter. Defaults to 1x1.
-  final BinningMode binning;
+    /// Optional offset override.
+    int? offset,
 
-  /// Per-plan dither cadence (every N frames). null disables dithering for
-  /// this filter regardless of any global default. 0 is treated as "no
-  /// dither" — matches `ExposureNode.ditherEvery`.
-  final int? ditherEvery;
+    /// Binning for this filter. Defaults to 1x1.
+    @Default(BinningMode.one) @BinningModeJsonConverter() BinningMode binning,
 
-  const FilterPlan({
-    required this.filterName,
-    this.filterIndex,
-    this.count = 10,
-    this.durationSecs = 60.0,
-    this.gain,
-    this.offset,
-    this.binning = BinningMode.one,
-    this.ditherEvery,
-  });
+    /// Per-plan dither cadence (every N frames). null disables dithering for
+    /// this filter regardless of any global default. 0 is treated as "no
+    /// dither" — matches `ExposureNode.ditherEvery`.
+    int? ditherEvery,
+  }) = _FilterPlan;
 
-  FilterPlan copyWith({
-    String? filterName,
-    Object? filterIndex = _sentinel,
-    int? count,
-    double? durationSecs,
-    Object? gain = _sentinel,
-    Object? offset = _sentinel,
-    BinningMode? binning,
-    Object? ditherEvery = _sentinel,
-  }) {
-    return FilterPlan(
-      filterName: filterName ?? this.filterName,
-      filterIndex: identical(filterIndex, _sentinel)
-          ? this.filterIndex
-          : filterIndex as int?,
-      count: count ?? this.count,
-      durationSecs: durationSecs ?? this.durationSecs,
-      gain: identical(gain, _sentinel) ? this.gain : gain as int?,
-      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
-      binning: binning ?? this.binning,
-      ditherEvery: identical(ditherEvery, _sentinel)
-          ? this.ditherEvery
-          : ditherEvery as int?,
-    );
-  }
+  factory FilterPlan.fromJson(Map<String, dynamic> json) =>
+      _$FilterPlanFromJson(json);
 
   /// Estimated integration time for this row, in seconds (count * duration).
   /// Does NOT include filter change or dither overhead — that's added by
   /// `SmartExposureNode.estimateTotalSecs`.
   double get integrationSecs => count * durationSecs;
-
-  Map<String, dynamic> toJson() => {
-        'filter_name': filterName,
-        'filter_index': filterIndex,
-        'count': count,
-        'duration_secs': durationSecs,
-        'gain': gain,
-        'offset': offset,
-        'binning': _binningModeToRustString(binning),
-        'dither_every': ditherEvery,
-      };
-
-  factory FilterPlan.fromJson(Map<String, dynamic> json) => FilterPlan(
-        filterName: (json['filter_name'] as String?) ?? '',
-        filterIndex: (json['filter_index'] as num?)?.toInt(),
-        count: (json['count'] as num?)?.toInt() ?? 10,
-        durationSecs: (json['duration_secs'] as num?)?.toDouble() ?? 60.0,
-        gain: (json['gain'] as num?)?.toInt(),
-        offset: (json['offset'] as num?)?.toInt(),
-        binning: _rustStringToBinningMode(json['binning'] as String?),
-        ditherEvery: (json['dither_every'] as num?)?.toInt(),
-      );
-
-  @override
-  List<Object?> get props => [
-        filterName,
-        filterIndex,
-        count,
-        durationSecs,
-        gain,
-        offset,
-        binning,
-        ditherEvery,
-      ];
 }
 
 // Note: the `_sentinel` constant declared earlier in this file (above
