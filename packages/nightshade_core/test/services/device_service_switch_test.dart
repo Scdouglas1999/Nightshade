@@ -19,8 +19,12 @@
 // The FFI branch in connectSwitch / refreshSwitchChannels /
 // setSwitchChannel is normally guarded by `_backend is FfiBackend`,
 // which MockBackend can't satisfy. We use
-// `DeviceService.switchBridgeBypassBackendCheck = true` to let the
-// bridge function-pointer hooks (also overridden) stand in.
+// `SwitchChannelService.switchBridgeBypassBackendCheck = true` to let
+// the bridge function-pointer hooks (also overridden) stand in. The
+// A-10 god-class split moved those hooks from `DeviceService` to
+// `SwitchChannelService`; the public `DeviceService.refreshSwitchChannels`
+// and `DeviceService.setSwitchChannel` methods are now thin delegators
+// (see `services/switch_channel_service.dart`).
 
 import 'dart:async';
 
@@ -34,6 +38,7 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
+import 'package:nightshade_core/src/services/switch_channel_service.dart';
 
 import '../mocks/mock_backend.dart';
 
@@ -43,7 +48,7 @@ class _TestBackendNotifier extends BackendNotifier {
   }
 }
 
-/// Fakes wired into [DeviceService.switchBridge*] for tests. Each list
+/// Fakes wired into [SwitchChannelService.switchBridge*] for tests. Each list
 /// is captured so individual cases can assert "called exactly once".
 class _BridgeRecorder {
   final List<String> getMaxCalls = [];
@@ -66,20 +71,21 @@ class _BridgeRecorder {
   Object? setStateError;
 
   void install() {
-    DeviceService.switchBridgeBypassBackendCheck = true;
-    DeviceService.switchBridgeGetMax = (deviceId) async {
+    SwitchChannelService.switchBridgeBypassBackendCheck = true;
+    SwitchChannelService.switchBridgeGetMax = (deviceId) async {
       getMaxCalls.add(deviceId);
       return channelCount;
     };
-    DeviceService.switchBridgeGetName = (deviceId, switchId) async {
+    SwitchChannelService.switchBridgeGetName = (deviceId, switchId) async {
       getNameCalls.add((deviceId, switchId));
       return switchId < labels.length ? labels[switchId] : '';
     };
-    DeviceService.switchBridgeGetState = (deviceId, switchId) async {
+    SwitchChannelService.switchBridgeGetState = (deviceId, switchId) async {
       getStateCalls.add((deviceId, switchId));
       return switchId < states.length ? states[switchId] : false;
     };
-    DeviceService.switchBridgeSetState = (deviceId, switchId, state) async {
+    SwitchChannelService.switchBridgeSetState =
+        (deviceId, switchId, state) async {
       setStateCalls.add((deviceId, switchId, state));
       if (setStateError != null) {
         throw setStateError!;
@@ -125,7 +131,7 @@ void main() {
   tearDown(() {
     eventStreamController.close();
     container.dispose();
-    DeviceService.resetSwitchBridgeHooks();
+    SwitchChannelService.resetHooks();
   });
 
   group('connectSwitch / disconnectSwitch', () {
@@ -381,7 +387,7 @@ void main() {
       notifier.setConnected();
 
       bridge.channelCount = 2;
-      DeviceService.switchBridgeGetName = (deviceId, switchId) async {
+      SwitchChannelService.switchBridgeGetName = (deviceId, switchId) async {
         if (switchId == 0) throw StateError('driver lied');
         return 'Real Name';
       };
