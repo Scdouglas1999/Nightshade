@@ -14,6 +14,462 @@ T _$identity<T>(T value) => value;
 final _privateConstructorUsedError = UnsupportedError(
     'It seems like you constructed your class using `MyClass._()`. This constructor is only meant to be used by freezed and you are not supposed to need it nor use it.\nPlease check the documentation here for more information: https://github.com/rrousselGit/freezed#adding-getters-and-methods-to-our-models');
 
+/// @nodoc
+mixin _$SequenceOverheadConfig {
+  /// Time for a slew operation (seconds)
+  double get slewSecs => throw _privateConstructorUsedError;
+
+  /// Time for an autofocus run (seconds)
+  double get autofocusSecs => throw _privateConstructorUsedError;
+
+  /// Time for a filter wheel change (seconds)
+  double get filterChangeSecs => throw _privateConstructorUsedError;
+
+  /// Time for a dither + settle cycle (seconds)
+  double get ditherSecs => throw _privateConstructorUsedError;
+
+  /// Time for a meridian flip including re-centering (seconds)
+  double get meridianFlipSecs => throw _privateConstructorUsedError;
+
+  /// Time for guide acquisition and settle (seconds)
+  double get guideAcquireSecs => throw _privateConstructorUsedError;
+
+  /// Time for a plate solve (seconds)
+  double get plateSolveSecs => throw _privateConstructorUsedError;
+
+  /// Time for camera cool-down (seconds)
+  double get coolingSecs => throw _privateConstructorUsedError;
+
+  /// Time for camera warm-up (seconds)
+  double get warmingSecs => throw _privateConstructorUsedError;
+
+  /// Per-exposure download overhead (seconds)
+  double get downloadOverheadPerExposureSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Time for cover calibrator open/close (seconds)
+  double get coverMoveSecs => throw _privateConstructorUsedError;
+
+  /// Time for center target operation (plate solve + slew iterations) (seconds)
+  double get centerTargetSecs => throw _privateConstructorUsedError;
+
+  @JsonKey(ignore: true)
+  $SequenceOverheadConfigCopyWith<SequenceOverheadConfig> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $SequenceOverheadConfigCopyWith<$Res> {
+  factory $SequenceOverheadConfigCopyWith(SequenceOverheadConfig value,
+          $Res Function(SequenceOverheadConfig) then) =
+      _$SequenceOverheadConfigCopyWithImpl<$Res, SequenceOverheadConfig>;
+  @useResult
+  $Res call(
+      {double slewSecs,
+      double autofocusSecs,
+      double filterChangeSecs,
+      double ditherSecs,
+      double meridianFlipSecs,
+      double guideAcquireSecs,
+      double plateSolveSecs,
+      double coolingSecs,
+      double warmingSecs,
+      double downloadOverheadPerExposureSecs,
+      double coverMoveSecs,
+      double centerTargetSecs});
+}
+
+/// @nodoc
+class _$SequenceOverheadConfigCopyWithImpl<$Res,
+        $Val extends SequenceOverheadConfig>
+    implements $SequenceOverheadConfigCopyWith<$Res> {
+  _$SequenceOverheadConfigCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? slewSecs = null,
+    Object? autofocusSecs = null,
+    Object? filterChangeSecs = null,
+    Object? ditherSecs = null,
+    Object? meridianFlipSecs = null,
+    Object? guideAcquireSecs = null,
+    Object? plateSolveSecs = null,
+    Object? coolingSecs = null,
+    Object? warmingSecs = null,
+    Object? downloadOverheadPerExposureSecs = null,
+    Object? coverMoveSecs = null,
+    Object? centerTargetSecs = null,
+  }) {
+    return _then(_value.copyWith(
+      slewSecs: null == slewSecs
+          ? _value.slewSecs
+          : slewSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      autofocusSecs: null == autofocusSecs
+          ? _value.autofocusSecs
+          : autofocusSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      filterChangeSecs: null == filterChangeSecs
+          ? _value.filterChangeSecs
+          : filterChangeSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      ditherSecs: null == ditherSecs
+          ? _value.ditherSecs
+          : ditherSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      meridianFlipSecs: null == meridianFlipSecs
+          ? _value.meridianFlipSecs
+          : meridianFlipSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      guideAcquireSecs: null == guideAcquireSecs
+          ? _value.guideAcquireSecs
+          : guideAcquireSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      plateSolveSecs: null == plateSolveSecs
+          ? _value.plateSolveSecs
+          : plateSolveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coolingSecs: null == coolingSecs
+          ? _value.coolingSecs
+          : coolingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      warmingSecs: null == warmingSecs
+          ? _value.warmingSecs
+          : warmingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      downloadOverheadPerExposureSecs: null == downloadOverheadPerExposureSecs
+          ? _value.downloadOverheadPerExposureSecs
+          : downloadOverheadPerExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coverMoveSecs: null == coverMoveSecs
+          ? _value.coverMoveSecs
+          : coverMoveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      centerTargetSecs: null == centerTargetSecs
+          ? _value.centerTargetSecs
+          : centerTargetSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$SequenceOverheadConfigImplCopyWith<$Res>
+    implements $SequenceOverheadConfigCopyWith<$Res> {
+  factory _$$SequenceOverheadConfigImplCopyWith(
+          _$SequenceOverheadConfigImpl value,
+          $Res Function(_$SequenceOverheadConfigImpl) then) =
+      __$$SequenceOverheadConfigImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {double slewSecs,
+      double autofocusSecs,
+      double filterChangeSecs,
+      double ditherSecs,
+      double meridianFlipSecs,
+      double guideAcquireSecs,
+      double plateSolveSecs,
+      double coolingSecs,
+      double warmingSecs,
+      double downloadOverheadPerExposureSecs,
+      double coverMoveSecs,
+      double centerTargetSecs});
+}
+
+/// @nodoc
+class __$$SequenceOverheadConfigImplCopyWithImpl<$Res>
+    extends _$SequenceOverheadConfigCopyWithImpl<$Res,
+        _$SequenceOverheadConfigImpl>
+    implements _$$SequenceOverheadConfigImplCopyWith<$Res> {
+  __$$SequenceOverheadConfigImplCopyWithImpl(
+      _$SequenceOverheadConfigImpl _value,
+      $Res Function(_$SequenceOverheadConfigImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? slewSecs = null,
+    Object? autofocusSecs = null,
+    Object? filterChangeSecs = null,
+    Object? ditherSecs = null,
+    Object? meridianFlipSecs = null,
+    Object? guideAcquireSecs = null,
+    Object? plateSolveSecs = null,
+    Object? coolingSecs = null,
+    Object? warmingSecs = null,
+    Object? downloadOverheadPerExposureSecs = null,
+    Object? coverMoveSecs = null,
+    Object? centerTargetSecs = null,
+  }) {
+    return _then(_$SequenceOverheadConfigImpl(
+      slewSecs: null == slewSecs
+          ? _value.slewSecs
+          : slewSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      autofocusSecs: null == autofocusSecs
+          ? _value.autofocusSecs
+          : autofocusSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      filterChangeSecs: null == filterChangeSecs
+          ? _value.filterChangeSecs
+          : filterChangeSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      ditherSecs: null == ditherSecs
+          ? _value.ditherSecs
+          : ditherSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      meridianFlipSecs: null == meridianFlipSecs
+          ? _value.meridianFlipSecs
+          : meridianFlipSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      guideAcquireSecs: null == guideAcquireSecs
+          ? _value.guideAcquireSecs
+          : guideAcquireSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      plateSolveSecs: null == plateSolveSecs
+          ? _value.plateSolveSecs
+          : plateSolveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coolingSecs: null == coolingSecs
+          ? _value.coolingSecs
+          : coolingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      warmingSecs: null == warmingSecs
+          ? _value.warmingSecs
+          : warmingSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      downloadOverheadPerExposureSecs: null == downloadOverheadPerExposureSecs
+          ? _value.downloadOverheadPerExposureSecs
+          : downloadOverheadPerExposureSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      coverMoveSecs: null == coverMoveSecs
+          ? _value.coverMoveSecs
+          : coverMoveSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      centerTargetSecs: null == centerTargetSecs
+          ? _value.centerTargetSecs
+          : centerTargetSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+class _$SequenceOverheadConfigImpl implements _SequenceOverheadConfig {
+  const _$SequenceOverheadConfigImpl(
+      {this.slewSecs = 30.0,
+      this.autofocusSecs = 180.0,
+      this.filterChangeSecs = 10.0,
+      this.ditherSecs = 15.0,
+      this.meridianFlipSecs = 300.0,
+      this.guideAcquireSecs = 30.0,
+      this.plateSolveSecs = 15.0,
+      this.coolingSecs = 600.0,
+      this.warmingSecs = 300.0,
+      this.downloadOverheadPerExposureSecs = 3.0,
+      this.coverMoveSecs = 30.0,
+      this.centerTargetSecs = 45.0});
+
+  /// Time for a slew operation (seconds)
+  @override
+  @JsonKey()
+  final double slewSecs;
+
+  /// Time for an autofocus run (seconds)
+  @override
+  @JsonKey()
+  final double autofocusSecs;
+
+  /// Time for a filter wheel change (seconds)
+  @override
+  @JsonKey()
+  final double filterChangeSecs;
+
+  /// Time for a dither + settle cycle (seconds)
+  @override
+  @JsonKey()
+  final double ditherSecs;
+
+  /// Time for a meridian flip including re-centering (seconds)
+  @override
+  @JsonKey()
+  final double meridianFlipSecs;
+
+  /// Time for guide acquisition and settle (seconds)
+  @override
+  @JsonKey()
+  final double guideAcquireSecs;
+
+  /// Time for a plate solve (seconds)
+  @override
+  @JsonKey()
+  final double plateSolveSecs;
+
+  /// Time for camera cool-down (seconds)
+  @override
+  @JsonKey()
+  final double coolingSecs;
+
+  /// Time for camera warm-up (seconds)
+  @override
+  @JsonKey()
+  final double warmingSecs;
+
+  /// Per-exposure download overhead (seconds)
+  @override
+  @JsonKey()
+  final double downloadOverheadPerExposureSecs;
+
+  /// Time for cover calibrator open/close (seconds)
+  @override
+  @JsonKey()
+  final double coverMoveSecs;
+
+  /// Time for center target operation (plate solve + slew iterations) (seconds)
+  @override
+  @JsonKey()
+  final double centerTargetSecs;
+
+  @override
+  String toString() {
+    return 'SequenceOverheadConfig(slewSecs: $slewSecs, autofocusSecs: $autofocusSecs, filterChangeSecs: $filterChangeSecs, ditherSecs: $ditherSecs, meridianFlipSecs: $meridianFlipSecs, guideAcquireSecs: $guideAcquireSecs, plateSolveSecs: $plateSolveSecs, coolingSecs: $coolingSecs, warmingSecs: $warmingSecs, downloadOverheadPerExposureSecs: $downloadOverheadPerExposureSecs, coverMoveSecs: $coverMoveSecs, centerTargetSecs: $centerTargetSecs)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$SequenceOverheadConfigImpl &&
+            (identical(other.slewSecs, slewSecs) ||
+                other.slewSecs == slewSecs) &&
+            (identical(other.autofocusSecs, autofocusSecs) ||
+                other.autofocusSecs == autofocusSecs) &&
+            (identical(other.filterChangeSecs, filterChangeSecs) ||
+                other.filterChangeSecs == filterChangeSecs) &&
+            (identical(other.ditherSecs, ditherSecs) ||
+                other.ditherSecs == ditherSecs) &&
+            (identical(other.meridianFlipSecs, meridianFlipSecs) ||
+                other.meridianFlipSecs == meridianFlipSecs) &&
+            (identical(other.guideAcquireSecs, guideAcquireSecs) ||
+                other.guideAcquireSecs == guideAcquireSecs) &&
+            (identical(other.plateSolveSecs, plateSolveSecs) ||
+                other.plateSolveSecs == plateSolveSecs) &&
+            (identical(other.coolingSecs, coolingSecs) ||
+                other.coolingSecs == coolingSecs) &&
+            (identical(other.warmingSecs, warmingSecs) ||
+                other.warmingSecs == warmingSecs) &&
+            (identical(other.downloadOverheadPerExposureSecs,
+                    downloadOverheadPerExposureSecs) ||
+                other.downloadOverheadPerExposureSecs ==
+                    downloadOverheadPerExposureSecs) &&
+            (identical(other.coverMoveSecs, coverMoveSecs) ||
+                other.coverMoveSecs == coverMoveSecs) &&
+            (identical(other.centerTargetSecs, centerTargetSecs) ||
+                other.centerTargetSecs == centerTargetSecs));
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      slewSecs,
+      autofocusSecs,
+      filterChangeSecs,
+      ditherSecs,
+      meridianFlipSecs,
+      guideAcquireSecs,
+      plateSolveSecs,
+      coolingSecs,
+      warmingSecs,
+      downloadOverheadPerExposureSecs,
+      coverMoveSecs,
+      centerTargetSecs);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$SequenceOverheadConfigImplCopyWith<_$SequenceOverheadConfigImpl>
+      get copyWith => __$$SequenceOverheadConfigImplCopyWithImpl<
+          _$SequenceOverheadConfigImpl>(this, _$identity);
+}
+
+abstract class _SequenceOverheadConfig implements SequenceOverheadConfig {
+  const factory _SequenceOverheadConfig(
+      {final double slewSecs,
+      final double autofocusSecs,
+      final double filterChangeSecs,
+      final double ditherSecs,
+      final double meridianFlipSecs,
+      final double guideAcquireSecs,
+      final double plateSolveSecs,
+      final double coolingSecs,
+      final double warmingSecs,
+      final double downloadOverheadPerExposureSecs,
+      final double coverMoveSecs,
+      final double centerTargetSecs}) = _$SequenceOverheadConfigImpl;
+
+  @override
+
+  /// Time for a slew operation (seconds)
+  double get slewSecs;
+  @override
+
+  /// Time for an autofocus run (seconds)
+  double get autofocusSecs;
+  @override
+
+  /// Time for a filter wheel change (seconds)
+  double get filterChangeSecs;
+  @override
+
+  /// Time for a dither + settle cycle (seconds)
+  double get ditherSecs;
+  @override
+
+  /// Time for a meridian flip including re-centering (seconds)
+  double get meridianFlipSecs;
+  @override
+
+  /// Time for guide acquisition and settle (seconds)
+  double get guideAcquireSecs;
+  @override
+
+  /// Time for a plate solve (seconds)
+  double get plateSolveSecs;
+  @override
+
+  /// Time for camera cool-down (seconds)
+  double get coolingSecs;
+  @override
+
+  /// Time for camera warm-up (seconds)
+  double get warmingSecs;
+  @override
+
+  /// Per-exposure download overhead (seconds)
+  double get downloadOverheadPerExposureSecs;
+  @override
+
+  /// Time for cover calibrator open/close (seconds)
+  double get coverMoveSecs;
+  @override
+
+  /// Time for center target operation (plate solve + slew iterations) (seconds)
+  double get centerTargetSecs;
+  @override
+  @JsonKey(ignore: true)
+  _$$SequenceOverheadConfigImplCopyWith<_$SequenceOverheadConfigImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
+
 MosaicPanelInfo _$MosaicPanelInfoFromJson(Map<String, dynamic> json) {
   return _MosaicPanelInfo.fromJson(json);
 }

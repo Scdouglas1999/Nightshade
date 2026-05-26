@@ -77,73 +77,45 @@ enum LoopConditionType {
 /// Configurable per-operation overhead estimates for realistic time estimation.
 /// These values represent typical real-world durations for each operation
 /// beyond the raw integration time.
-class SequenceOverheadConfig extends Equatable {
-  /// Time for a slew operation (seconds)
-  final double slewSecs;
+@freezed
+class SequenceOverheadConfig with _$SequenceOverheadConfig {
+  const factory SequenceOverheadConfig({
+    /// Time for a slew operation (seconds)
+    @Default(30.0) double slewSecs,
 
-  /// Time for an autofocus run (seconds)
-  final double autofocusSecs;
+    /// Time for an autofocus run (seconds)
+    @Default(180.0) double autofocusSecs,
 
-  /// Time for a filter wheel change (seconds)
-  final double filterChangeSecs;
+    /// Time for a filter wheel change (seconds)
+    @Default(10.0) double filterChangeSecs,
 
-  /// Time for a dither + settle cycle (seconds)
-  final double ditherSecs;
+    /// Time for a dither + settle cycle (seconds)
+    @Default(15.0) double ditherSecs,
 
-  /// Time for a meridian flip including re-centering (seconds)
-  final double meridianFlipSecs;
+    /// Time for a meridian flip including re-centering (seconds)
+    @Default(300.0) double meridianFlipSecs,
 
-  /// Time for guide acquisition and settle (seconds)
-  final double guideAcquireSecs;
+    /// Time for guide acquisition and settle (seconds)
+    @Default(30.0) double guideAcquireSecs,
 
-  /// Time for a plate solve (seconds)
-  final double plateSolveSecs;
+    /// Time for a plate solve (seconds)
+    @Default(15.0) double plateSolveSecs,
 
-  /// Time for camera cool-down (seconds)
-  final double coolingSecs;
+    /// Time for camera cool-down (seconds)
+    @Default(600.0) double coolingSecs,
 
-  /// Time for camera warm-up (seconds)
-  final double warmingSecs;
+    /// Time for camera warm-up (seconds)
+    @Default(300.0) double warmingSecs,
 
-  /// Per-exposure download overhead (seconds)
-  final double downloadOverheadPerExposureSecs;
+    /// Per-exposure download overhead (seconds)
+    @Default(3.0) double downloadOverheadPerExposureSecs,
 
-  /// Time for cover calibrator open/close (seconds)
-  final double coverMoveSecs;
+    /// Time for cover calibrator open/close (seconds)
+    @Default(30.0) double coverMoveSecs,
 
-  /// Time for center target operation (plate solve + slew iterations) (seconds)
-  final double centerTargetSecs;
-
-  const SequenceOverheadConfig({
-    this.slewSecs = 30.0,
-    this.autofocusSecs = 180.0,
-    this.filterChangeSecs = 10.0,
-    this.ditherSecs = 15.0,
-    this.meridianFlipSecs = 300.0,
-    this.guideAcquireSecs = 30.0,
-    this.plateSolveSecs = 15.0,
-    this.coolingSecs = 600.0,
-    this.warmingSecs = 300.0,
-    this.downloadOverheadPerExposureSecs = 3.0,
-    this.coverMoveSecs = 30.0,
-    this.centerTargetSecs = 45.0,
-  });
-
-  @override
-  List<Object?> get props => [
-        slewSecs,
-        autofocusSecs,
-        filterChangeSecs,
-        ditherSecs,
-        meridianFlipSecs,
-        guideAcquireSecs,
-        plateSolveSecs,
-        coolingSecs,
-        warmingSecs,
-        downloadOverheadPerExposureSecs,
-        coverMoveSecs,
-        centerTargetSecs,
-      ];
+    /// Time for center target operation (plate solve + slew iterations) (seconds)
+    @Default(45.0) double centerTargetSecs,
+  }) = _SequenceOverheadConfig;
 }
 
 /// Result of sequence integration time estimation
