@@ -202,6 +202,8 @@ class NetworkBackend implements NightshadeBackend {
   Timer? _reconnectTimer;
   DateTime? _lastWebSocketMessageAt;
   bool _disposed = false;
+  bool _disconnecting = false;
+  bool _webSocketHeartbeatPausedForLifecycle = false;
   int _requestCounter = 0;
   static const int _maxReconnectDelay = 30; // Max 30 seconds
 
@@ -457,7 +459,8 @@ class NetworkBackend implements NightshadeBackend {
   /// Initialize the WebSocket connection for real-time events
   Future<void> connect() async {
     _reconnectTimer?.cancel();
-    if (_disposed) {
+    _reconnectTimer = null;
+    if (_disposed || _disconnecting) {
       return;
     }
 
@@ -588,7 +591,8 @@ class NetworkBackend implements NightshadeBackend {
                   'message': 'Server requested resync',
                   'reason': reason,
                   if (currentSeq != null) 'currentSeq': currentSeq,
-                  if (currentInstance != null) 'currentInstance': currentInstance,
+                  if (currentInstance != null)
+                    'currentInstance': currentInstance,
                 },
               ));
               return;
@@ -659,7 +663,7 @@ class NetworkBackend implements NightshadeBackend {
 
   /// Handle connection failures with exponential backoff
   void _handleConnectionFailure() {
-    if (_disposed) {
+    if (_disposed || _disconnecting) {
       return;
     }
     _stopWebSocketHeartbeat();
@@ -688,6 +692,9 @@ class NetworkBackend implements NightshadeBackend {
         level: 800);
 
     _reconnectTimer = Timer(delay, () {
+      if (_disposed || _disconnecting) {
+        return;
+      }
       if (_connectionState != BackendConnectionState.connected) {
         developer.log('[NetworkBackend] Attempting reconnection...',
             name: 'NetworkBackend', level: 800);
@@ -698,6 +705,9 @@ class NetworkBackend implements NightshadeBackend {
 
   void _startWebSocketHeartbeat() {
     _stopWebSocketHeartbeat();
+    if (_webSocketHeartbeatPausedForLifecycle) {
+      return;
+    }
     if (webSocketHeartbeatInterval <= Duration.zero) {
       return;
     }
@@ -741,6 +751,32 @@ class NetworkBackend implements NightshadeBackend {
     });
   }
 
+  /// Pause client-initiated WebSocket heartbeat pings while the mobile app is
+  /// backgrounded. The socket is left open so foreground resume can continue
+  /// without a full reconnect when the OS has kept the connection alive.
+  void pauseWebSocketHeartbeatForAppLifecycle() {
+    if (_disposed) {
+      return;
+    }
+    _webSocketHeartbeatPausedForLifecycle = true;
+    _stopWebSocketHeartbeat();
+  }
+
+  /// Resume WebSocket heartbeat pings after the mobile app returns foreground.
+  void resumeWebSocketHeartbeatForAppLifecycle() {
+    if (_disposed) {
+      return;
+    }
+    if (!_webSocketHeartbeatPausedForLifecycle) {
+      return;
+    }
+    _webSocketHeartbeatPausedForLifecycle = false;
+    if (_connectionState == BackendConnectionState.connected &&
+        _wsChannel != null) {
+      _startWebSocketHeartbeat();
+    }
+  }
+
   void _stopWebSocketHeartbeat() {
     _webSocketHeartbeatTimer?.cancel();
     _webSocketHeartbeatTimer = null;
@@ -762,15 +798,23 @@ class NetworkBackend implements NightshadeBackend {
   /// dropped) the send throws and we proceed with teardown — the
   /// server-side `onDone` handler is the backstop.
   Future<void> disconnect() async {
-    _reconnectTimer?.cancel();
-    _reconnectTimer = null;
-    _sendCollaborationLeave();
-    _stopWebSocketHeartbeat();
-    await _wsSubscription?.cancel();
-    _wsSubscription = null;
-    await _wsChannel?.sink.close();
-    _wsChannel = null;
-    _updateConnectionState(BackendConnectionState.disconnected);
+    if (_disposed || _disconnecting) {
+      return;
+    }
+    _disconnecting = true;
+    try {
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _sendCollaborationLeave();
+      _stopWebSocketHeartbeat();
+      await _wsSubscription?.cancel();
+      _wsSubscription = null;
+      await _wsChannel?.sink.close();
+      _wsChannel = null;
+      _updateConnectionState(BackendConnectionState.disconnected);
+    } finally {
+      _disconnecting = false;
+    }
   }
 
   /// P2-2: send a `collaboration.join` frame on the open WebSocket.
@@ -813,7 +857,8 @@ class NetworkBackend implements NightshadeBackend {
       channel.sink.add(jsonEncode({
         'type': 'collaboration.join',
         if (viewerId != null && viewerId.isNotEmpty) 'viewerId': viewerId,
-        if (deviceName != null && deviceName.isNotEmpty) 'deviceName': deviceName,
+        if (deviceName != null && deviceName.isNotEmpty)
+          'deviceName': deviceName,
         'name': displayName,
       }));
     } catch (e) {
@@ -855,6 +900,7 @@ class NetworkBackend implements NightshadeBackend {
   @override
   void dispose() {
     _disposed = true;
+    _disconnecting = true;
     _reconnectTimer?.cancel();
     _stopWebSocketHeartbeat();
     _wsSubscription?.cancel();
@@ -1388,6 +1434,7 @@ class NetworkBackend implements NightshadeBackend {
 
   // Cache for device discovery to prevent redundant API calls
   List<Map<String, dynamic>>? _cachedDevices;
+  Map<DeviceType, List<DeviceInfo>>? _cachedDevicesByType;
   DateTime? _cacheTimestamp;
   static const _cacheDuration = Duration(seconds: 30);
   Future<List<Map<String, dynamic>>>? _ongoingDiscovery;
@@ -1402,11 +1449,13 @@ class NetworkBackend implements NightshadeBackend {
           '[NetworkBackend] Using cached device list (${_cachedDevices!.length} devices)',
           name: 'NetworkBackend',
           level: 800);
+      _cachedDevicesByType ??= _indexCachedDevicesByType(_cachedDevices!);
     } else if (_ongoingDiscovery != null) {
       // Another discovery is in progress, wait for it
       developer.log('[NetworkBackend] Waiting for ongoing discovery...',
           name: 'NetworkBackend', level: 800);
       _cachedDevices = await _ongoingDiscovery!;
+      _cachedDevicesByType = _indexCachedDevicesByType(_cachedDevices!);
     } else {
       // Start new discovery
       developer.log('[NetworkBackend] Starting new device discovery...',
@@ -1414,6 +1463,7 @@ class NetworkBackend implements NightshadeBackend {
       _ongoingDiscovery = _fetchDevicesFromServer();
       try {
         _cachedDevices = await _ongoingDiscovery!;
+        _cachedDevicesByType = _indexCachedDevicesByType(_cachedDevices!);
         _cacheTimestamp = DateTime.now();
         developer.log(
             '[NetworkBackend] Cached ${_cachedDevices!.length} devices',
@@ -1424,33 +1474,54 @@ class NetworkBackend implements NightshadeBackend {
       }
     }
 
-    final deviceList = _cachedDevices ?? [];
-
-    // Filter by requested type and convert
-    final filtered = deviceList
-        .where((d) {
-          final typeValue = d['deviceType'] ?? d['type'];
-          if (typeValue is! String) {
-            return false;
-          }
-          return _normalizeDeviceType(typeValue) ==
-              _normalizeDeviceType(deviceType.name);
-        })
-        .map((d) => DeviceInfo(
-              id: d['id'] as String,
-              name: d['name'] as String,
-              deviceType: deviceType,
-              driverType: _parseDriverType(d['driverType'] as String),
-              description: d['description'] as String? ?? '',
-              driverVersion: d['driverVersion'] as String? ?? '',
-            ))
-        .toList();
+    final filtered = List<DeviceInfo>.from(
+      _cachedDevicesByType?[deviceType] ?? const <DeviceInfo>[],
+    );
 
     developer.log(
         '[NetworkBackend] Returning ${filtered.length} ${deviceType.name} devices',
         name: 'NetworkBackend',
         level: 800);
     return filtered;
+  }
+
+  Map<DeviceType, List<DeviceInfo>> _indexCachedDevicesByType(
+    List<Map<String, dynamic>> devices,
+  ) {
+    final byType = <DeviceType, List<DeviceInfo>>{
+      for (final type in DeviceType.values) type: <DeviceInfo>[],
+    };
+
+    for (final device in devices) {
+      final typeValue = device['deviceType'] ?? device['type'];
+      if (typeValue is! String) {
+        continue;
+      }
+      final deviceType = _tryParseCachedDeviceType(typeValue);
+      if (deviceType == null) {
+        continue;
+      }
+      byType[deviceType]!.add(DeviceInfo(
+        id: device['id'] as String,
+        name: device['name'] as String,
+        deviceType: deviceType,
+        driverType: _parseDriverType(device['driverType'] as String),
+        description: device['description'] as String? ?? '',
+        driverVersion: device['driverVersion'] as String? ?? '',
+      ));
+    }
+
+    return byType;
+  }
+
+  DeviceType? _tryParseCachedDeviceType(String value) {
+    final normalized = _normalizeDeviceType(value);
+    for (final type in DeviceType.values) {
+      if (_normalizeDeviceType(type.name) == normalized) {
+        return type;
+      }
+    }
+    return null;
   }
 
   String _normalizeDeviceType(String value) {
@@ -1470,6 +1541,7 @@ class NetworkBackend implements NightshadeBackend {
     developer.log('[NetworkBackend] Cache invalidated',
         name: 'NetworkBackend', level: 800);
     _cachedDevices = null;
+    _cachedDevicesByType = null;
     _cacheTimestamp = null;
   }
 
@@ -1950,6 +2022,14 @@ class NetworkBackend implements NightshadeBackend {
   Future<List<String>> filterWheelGetNames(String deviceId) async {
     final response = await _get('filter-wheel/names', {'deviceId': deviceId});
     return (response['names'] as List).cast<String>();
+  }
+
+  @override
+  Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
+    await _post('filter-wheel/names', {
+      'deviceId': deviceId,
+      'names': names,
+    });
   }
 
   @override
@@ -5017,8 +5097,8 @@ class NetworkBackend implements NightshadeBackend {
   /// re-subscribe after `connectionStateStream` emits `connected`.
   Stream<RemoteJob> watchJob(String jobId) {
     return eventStream
-        .where((e) =>
-            e.category == EventCategory.job && e.data['jobId'] == jobId)
+        .where(
+            (e) => e.category == EventCategory.job && e.data['jobId'] == jobId)
         .map((e) => RemoteJob.fromEventData(e.data));
   }
 
@@ -5098,8 +5178,7 @@ class NetworkBackend implements NightshadeBackend {
   /// POST /api/session/claim — returns true on success, false when the
   /// slot is already taken.
   Future<bool> claimSession({String? clientName, String? clientId}) async {
-    final uri = Uri.parse(
-        'http://$serverHost:$serverPort/api/session/claim');
+    final uri = Uri.parse('http://$serverHost:$serverPort/api/session/claim');
     final headers = _addAuthHeaders({}, endpoint: 'session/claim');
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
     final response = await _http.post(
@@ -5616,8 +5695,7 @@ class NetworkBackend implements NightshadeBackend {
     }
     return verified.map((key, value) {
       if (value is! Map) {
-        throw StateError(
-            'Malformed verify result for `$key`: expected object');
+        throw StateError('Malformed verify result for `$key`: expected object');
       }
       return MapEntry(
         key.toString(),
@@ -5747,8 +5825,7 @@ class NetworkBackend implements NightshadeBackend {
     int offset = 0,
   }) async {
     final response = await _get('db/flat-history', {
-      if (filterName != null && filterName.isNotEmpty)
-        'filterName': filterName,
+      if (filterName != null && filterName.isNotEmpty) 'filterName': filterName,
       if (panelKey != null) 'panelKey': panelKey.toString(),
       'limit': limit.toString(),
       'offset': offset.toString(),
@@ -5866,8 +5943,7 @@ class NetworkBackend implements NightshadeBackend {
       // make a broken server look like a quiet one.
       throw dart_error.NightshadeError(
         category: dart_error.BackendErrorCategory.system,
-        message:
-            'GET /api/logs/recent: missing or non-list `entries` field in '
+        message: 'GET /api/logs/recent: missing or non-list `entries` field in '
             'response body',
       );
     }
@@ -5977,8 +6053,7 @@ class NetworkBackend implements NightshadeBackend {
         if (response!.statusCode != 200) {
           throw dart_error.NightshadeError(
             category: dart_error.BackendErrorCategory.connection,
-            message:
-                'GET /api/logs/tail returned HTTP ${response!.statusCode}',
+            message: 'GET /api/logs/tail returned HTTP ${response!.statusCode}',
           );
         }
         reconnectAttempts = 0;
@@ -6593,8 +6668,8 @@ class RemoteCatalogStatusResponse {
     if (rawCatalogs is List) {
       for (final entry in rawCatalogs) {
         if (entry is Map) {
-          catalogs.add(
-              RemoteCatalogStatus.fromJson(entry.cast<String, dynamic>()));
+          catalogs
+              .add(RemoteCatalogStatus.fromJson(entry.cast<String, dynamic>()));
         }
       }
     }
@@ -6638,8 +6713,7 @@ class RemoteAvailableCatalog {
       downloadUrl: json['downloadUrl'] as String?,
       sizeBytes: (json['sizeBytes'] as num?)?.toInt() ?? 0,
       sha256: json['sha256'] as String?,
-      requiredForPlateSolve:
-          json['requiredForPlateSolve'] as bool? ?? false,
+      requiredForPlateSolve: json['requiredForPlateSolve'] as bool? ?? false,
     );
   }
 }
@@ -6903,15 +6977,12 @@ class RemotePolarAlignmentHistoryEntry {
     this.configJson,
   });
 
-  factory RemotePolarAlignmentHistoryEntry.fromJson(
-      Map<String, dynamic> json) {
+  factory RemotePolarAlignmentHistoryEntry.fromJson(Map<String, dynamic> json) {
     return RemotePolarAlignmentHistoryEntry(
       id: (json['id'] as num).toInt(),
       equipmentProfileId: (json['equipmentProfileId'] as num?)?.toInt(),
-      initialAzimuthError:
-          (json['initialAzimuthError'] as num?)?.toDouble(),
-      initialAltitudeError:
-          (json['initialAltitudeError'] as num?)?.toDouble(),
+      initialAzimuthError: (json['initialAzimuthError'] as num?)?.toDouble(),
+      initialAltitudeError: (json['initialAltitudeError'] as num?)?.toDouble(),
       initialTotalError: (json['initialTotalError'] as num?)?.toDouble(),
       finalAzimuthError: (json['finalAzimuthError'] as num?)?.toDouble(),
       finalAltitudeError: (json['finalAltitudeError'] as num?)?.toDouble(),

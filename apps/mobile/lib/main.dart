@@ -37,7 +37,7 @@ void main() async {
   if (Platform.isAndroid) {
     final prefs = await SharedPreferences.getInstance();
     final immersiveSticky = MobilePreferences(prefs).androidImmersiveSticky;
-    SystemChrome.setEnabledSystemUIMode(
+    await SystemChrome.setEnabledSystemUIMode(
       immersiveSticky ? SystemUiMode.immersiveSticky : SystemUiMode.leanBack,
       overlays: immersiveSticky ? const [] : SystemUiOverlay.values,
     );
@@ -197,9 +197,8 @@ Future<_CollaborationIdentityBundle> _buildCollaborationIdentity(
   // Short tail (the suffix bytes are random; the prefix is the constant
   // `mobile:` discriminator) keeps the display readable in the host's
   // viewer slot list without exposing the full id.
-  final shortId = deviceId.length > 14
-      ? deviceId.substring(deviceId.length - 6)
-      : deviceId;
+  final shortId =
+      deviceId.length > 14 ? deviceId.substring(deviceId.length - 6) : deviceId;
   final platformLabel = Platform.isIOS
       ? 'iPhone'
       : Platform.isAndroid
@@ -229,7 +228,8 @@ class NightshadeMobileApp extends ConsumerStatefulWidget {
       _NightshadeMobileAppState();
 }
 
-class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
+class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
+    with WidgetsBindingObserver {
   /// Navigator for the connection-screen [MaterialApp]. Dialogs and the QR
   /// scanner must use this context — [State.context] sits *above* that
   /// [MaterialApp], so [Navigator.of] on it returns null in release builds.
@@ -288,8 +288,36 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Automatically discover and connect on startup
     _autoConnect();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    if (state == AppLifecycleState.resumed) {
+      _setNetworkHeartbeatPaused(false);
+      return;
+    }
+    if (state == AppLifecycleState.inactive ||
+        state == AppLifecycleState.hidden ||
+        state == AppLifecycleState.paused ||
+        state == AppLifecycleState.detached) {
+      _setNetworkHeartbeatPaused(true);
+    }
+  }
+
+  void _setNetworkHeartbeatPaused(bool paused) {
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      return;
+    }
+    if (paused) {
+      backend.pauseWebSocketHeartbeatForAppLifecycle();
+    } else {
+      backend.resumeWebSocketHeartbeatForAppLifecycle();
+    }
   }
 
   void _startConnectionMonitor() {
@@ -885,6 +913,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _stopConnectionMonitor();
     _ipController.dispose();
     _accessTokenController.dispose();

@@ -15,7 +15,8 @@ import '../validation.dart';
 /// center-on-target / polar-alignment. New clients should not send this;
 /// the audit's spec keeps the legacy path so pinned mobile builds stay
 /// functional during the rollout.
-const String legacyBlockingAcceptType = 'application/x.nightshade.legacy-blocking';
+const String legacyBlockingAcceptType =
+    'application/x.nightshade.legacy-blocking';
 
 /// True when the request's `Accept` header explicitly opts into the
 /// legacy synchronous response shape.
@@ -565,8 +566,7 @@ class DeviceHandlers {
         'x-image-meta': encoded.metaHeaderValue,
         'x-frame-timestamp': image.timestamp,
         'x-frame-exposure-secs': image.exposureTime.toString(),
-        if (image.stats.hfr != null)
-          'x-frame-hfr': image.stats.hfr!.toString(),
+        if (image.stats.hfr != null) 'x-frame-hfr': image.stats.hfr!.toString(),
         'x-frame-star-count': image.stats.starCount.toString(),
       },
     );
@@ -643,8 +643,7 @@ class DeviceHandlers {
         'error': 'live_view_unavailable',
         'message': message,
         'deviceId': deviceId,
-        'hint':
-            'Use GET /api/run-watch/frame-thumbnail for the last captured frame, '
+        'hint': 'Use GET /api/run-watch/frame-thumbnail for the last captured frame, '
             'or connect a camera with native preview support (gPhoto2 / Fujifilm).',
       });
     } catch (e) {
@@ -1165,6 +1164,18 @@ class DeviceHandlers {
     final names = await backend.filterWheelGetNames(deviceId);
 
     return jsonOk({'names': names});
+  }
+
+  Future<Response> handleFilterWheelSetNames(Request request) async {
+    _logInfo('[API] POST /api/filter-wheel/names');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final names = requireList<String>(payload, 'names');
+
+    final backend = container.read(backendProvider);
+    await backend.filterWheelSetNames(deviceId, names);
+
+    return jsonOk({'status': 'ok'});
   }
 
   /// P2-7 — remote GET for the current filter-wheel position/state.

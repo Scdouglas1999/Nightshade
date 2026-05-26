@@ -385,8 +385,7 @@ class FfiBackend implements NightshadeBackend {
           'device_id': equipmentEvent.deviceId,
         }
       );
-    } else if (equipmentEvent
-        is bridge.EquipmentEvent_HeartbeatStatusChanged) {
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStatusChanged) {
       // `status` is the FRB-generated HeartbeatStatus enum; the handler
       // matches on its `.name` (`healthy`, `degraded`, `disconnected`,
       // `reconnecting`, `reconnected`) so we don't leak the FRB type
@@ -402,8 +401,7 @@ class FfiBackend implements NightshadeBackend {
             'last_rtt_ms': equipmentEvent.lastRttMs,
         }
       );
-    } else if (equipmentEvent
-        is bridge.EquipmentEvent_HeartbeatReconnecting) {
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnecting) {
       return (
         'HeartbeatReconnecting',
         {
@@ -1347,6 +1345,14 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<String>> filterWheelGetNames(String deviceId) async {
     return await bridge.NativeBridge.apiFilterwheelGetNames(deviceId: deviceId);
+  }
+
+  @override
+  Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
+    await bridge_api.apiFilterwheelSetFilterNames(
+      deviceId: deviceId,
+      names: names,
+    );
   }
 
   @override

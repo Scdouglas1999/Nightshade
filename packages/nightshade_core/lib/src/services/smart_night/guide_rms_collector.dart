@@ -65,7 +65,7 @@ class GuideRmsCollector {
             targetIds.length == 1 ? Value(targetIds.single) : const Value.absent(),
         totalRmsArcsec: rmsTotal / samples.length,
         sampleCount: samples.length,
-        exposureSeconds: exposureTotal / samples.length,
+        exposureSeconds: Value(exposureTotal / samples.length),
         recordedAt: recordedAt ?? DateTime.now(),
       ),
     );

@@ -168,10 +168,13 @@ class DeviceService {
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
 
-  /// Tracks the last applied filter focus offset so that filter changes apply
-  /// delta adjustments (remove old offset, apply new offset) rather than
-  /// cumulative offsets.
-  int _lastAppliedFilterOffset = 0;
+  int _focuserVerifyGeneration = 0;
+  int _rotatorVerifyGeneration = 0;
+  int _filterWheelVerifyGeneration = 0;
+
+  /// Tracks the last applied filter focus offset per filter wheel so that
+  /// multiple wheels do not clobber each other's delta calculations.
+  final Map<String, int> _lastAppliedFilterOffsetByWheel = {};
 
   /// In-flight guarded operations — backend swap waits for zero (DV-P0-2).
   int _inFlightOperations = 0;
@@ -193,6 +196,8 @@ class DeviceService {
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
   /// since the focuser and camera are shared hardware resources.
   bool _isAutofocusRunning = false;
+
+  bool get isAutofocusRunning => _isAutofocusRunning;
 
   DeviceService(this._ref, this._backend) {
     DeviceServiceLifecycle.register(this);
@@ -394,7 +399,10 @@ class DeviceService {
     _userDisconnectDebounceTimer = null;
     cancelWarmCamera();
     _stopTemperaturePolling();
-    _lastAppliedFilterOffset = 0;
+    _focuserVerifyGeneration++;
+    _rotatorVerifyGeneration++;
+    _filterWheelVerifyGeneration++;
+    _lastAppliedFilterOffsetByWheel.clear();
     await quiesce();
   }
 
@@ -421,9 +429,15 @@ class DeviceService {
       return;
     }
     _userInitiatedDisconnects.add(deviceId);
-    _reconnectionTimers[deviceId]?.cancel();
-    _reconnectionTimers.remove(deviceId);
-    _reconnectionAttempts.remove(deviceId);
+    final reconnectKeys = _reconnectionTimers.keys
+        .followedBy(_reconnectionAttempts.keys)
+        .where((key) => key.endsWith(':$deviceId'))
+        .toSet();
+    for (final key in reconnectKeys) {
+      _reconnectionTimers[key]?.cancel();
+      _reconnectionTimers.remove(key);
+      _reconnectionAttempts.remove(key);
+    }
     _userDisconnectDebounceTimer?.cancel();
     _userDisconnectDebounceTimer = Timer(_userDisconnectSuppressDuration, () {
       _userInitiatedDisconnects.clear();
@@ -1069,49 +1083,53 @@ class DeviceService {
         }
         _ref.read(cameraStateProvider.notifier).setDisconnected();
         // Attempt auto-reconnection for camera
-        _attemptReconnect(DeviceType.camera, deviceId);
+        unawaited(_attemptReconnect(DeviceType.camera, deviceId));
         break;
 
       case 'mount':
         _ref.read(mountStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.mount, deviceId);
+        unawaited(_attemptReconnect(DeviceType.mount, deviceId));
         break;
 
       case 'focuser':
+        _focuserVerifyGeneration++;
         _ref.read(focuserStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.focuser, deviceId);
+        unawaited(_attemptReconnect(DeviceType.focuser, deviceId));
         break;
 
       case 'filterwheel':
       case 'filter wheel':
+        _filterWheelVerifyGeneration++;
+        _lastAppliedFilterOffsetByWheel.remove(deviceId);
         _ref.read(filterWheelStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.filterWheel, deviceId);
+        unawaited(_attemptReconnect(DeviceType.filterWheel, deviceId));
         break;
 
       case 'guider':
         _ref.read(guiderStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.guider, deviceId);
+        unawaited(_attemptReconnect(DeviceType.guider, deviceId));
         break;
 
       case 'rotator':
+        _rotatorVerifyGeneration++;
         _ref.read(rotatorStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.rotator, deviceId);
+        unawaited(_attemptReconnect(DeviceType.rotator, deviceId));
         break;
 
       case 'dome':
         _ref.read(domeStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.dome, deviceId);
+        unawaited(_attemptReconnect(DeviceType.dome, deviceId));
         break;
 
       case 'weather':
         _ref.read(weatherStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.weather, deviceId);
+        unawaited(_attemptReconnect(DeviceType.weather, deviceId));
         break;
 
       case 'safetymonitor':
       case 'safety monitor':
         _ref.read(safetyMonitorStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.safetyMonitor, deviceId);
+        unawaited(_attemptReconnect(DeviceType.safetyMonitor, deviceId));
         break;
 
       // DEV-P0-1: cover calibrator + switch cases. Previously these
@@ -1123,7 +1141,7 @@ class DeviceService {
       case 'covercalibrator':
       case 'cover calibrator':
         _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.coverCalibrator, deviceId);
+        unawaited(_attemptReconnect(DeviceType.coverCalibrator, deviceId));
         break;
 
       case 'switch':
@@ -1132,7 +1150,7 @@ class DeviceService {
         // so disconnects route through `setDisconnected` and the
         // standard auto-reconnect path — same shape as safety monitor.
         _ref.read(switchStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.switch_, deviceId);
+        unawaited(_attemptReconnect(DeviceType.switch_, deviceId));
         break;
     }
   }
@@ -1294,6 +1312,9 @@ class DeviceService {
   /// Timers for reconnection delays
   final Map<String, Timer> _reconnectionTimers = {};
 
+  String _reconnectKey(DeviceType type, String deviceId) =>
+      '${type.name}:$deviceId';
+
   /// Maximum number of reconnection attempts
   static const int _maxReconnectAttempts = 3;
 
@@ -1369,8 +1390,10 @@ class DeviceService {
       return;
     }
 
+    final reconnectKey = _reconnectKey(type, deviceId);
+
     // Get current attempt count
-    final attemptCount = _reconnectionAttempts[deviceId] ?? 0;
+    final attemptCount = _reconnectionAttempts[reconnectKey] ?? 0;
 
     if (attemptCount >= _maxReconnectAttempts) {
       // Max attempts reached - notify user
@@ -1384,12 +1407,12 @@ class DeviceService {
         // Logging service not available
       }
       _showReconnectionFailedNotification(type, deviceId);
-      _reconnectionAttempts.remove(deviceId);
+      _reconnectionAttempts.remove(reconnectKey);
       return;
     }
 
     // Increment attempt count
-    _reconnectionAttempts[deviceId] = attemptCount + 1;
+    _reconnectionAttempts[reconnectKey] = attemptCount + 1;
 
     // Get delay for this attempt
     final delay = attemptCount < _reconnectDelays.length
@@ -1408,10 +1431,10 @@ class DeviceService {
     }
 
     // Cancel any existing reconnection timer for this device
-    _reconnectionTimers[deviceId]?.cancel();
+    _reconnectionTimers[reconnectKey]?.cancel();
 
     // Schedule reconnection attempt
-    _reconnectionTimers[deviceId] = Timer(delay, () async {
+    _reconnectionTimers[reconnectKey] = Timer(delay, () async {
       try {
         // Log the actual attempt
         try {
@@ -1427,8 +1450,8 @@ class DeviceService {
         await _performReconnection(type, deviceId);
 
         // Success - reset attempt count
-        _reconnectionAttempts.remove(deviceId);
-        _reconnectionTimers.remove(deviceId);
+        _reconnectionAttempts.remove(reconnectKey);
+        _reconnectionTimers.remove(reconnectKey);
 
         // Log success
         try {
@@ -1459,7 +1482,7 @@ class DeviceService {
         }
 
         // Reconnection failed - try again
-        await _attemptReconnect(type, deviceId);
+        unawaited(_attemptReconnect(type, deviceId));
       }
     });
   }
@@ -1565,7 +1588,8 @@ class DeviceService {
         break;
 
       case DeviceType.coverCalibrator:
-        // Cover calibrator devices not yet supported for reconnection
+        final notifier = _ref.read(coverCalibratorStateProvider.notifier);
+        await notifier.connect(deviceId, maxRetries: 1);
         break;
     }
   }
@@ -1696,110 +1720,7 @@ class DeviceService {
   }
 
   void _handleSequencerEvent(NightshadeEvent event) {
-    final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
-    final data = event.data;
-
-    switch (event.eventType) {
-      case 'SequenceStarted':
-        final sequenceName = data['sequence_name'] as String? ?? 'Unknown';
-        progressNotifier.updateState(SequenceExecutionState.running);
-        progressNotifier.updateProgress(
-            message: 'Started sequence: $sequenceName');
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.running;
-        break;
-
-      case 'SequencePaused':
-        progressNotifier.updateState(SequenceExecutionState.paused);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.paused;
-        break;
-
-      case 'SequenceResumed':
-        progressNotifier.updateState(SequenceExecutionState.running);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.running;
-        break;
-
-      case 'SequenceStopped':
-        progressNotifier.updateState(SequenceExecutionState.idle);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.idle;
-        break;
-
-      case 'SequenceCompleted':
-        progressNotifier.updateState(SequenceExecutionState.completed);
-        _ref.read(sequenceExecutionStateProvider.notifier).state =
-            SequenceExecutionState.completed;
-        break;
-
-      case 'NodeStarted':
-        final nodeId = data['node_id'] as String? ?? '';
-        final nodeType = data['node_type'] as String? ?? '';
-        progressNotifier.updateProgress(
-          currentNodeId: nodeId,
-          currentNodeName: nodeType,
-          currentNodeStatus: NodeStatus.running,
-        );
-        progressNotifier.updateNodeStatus(nodeId, NodeStatus.running);
-        break;
-
-      case 'NodeCompleted':
-        final nodeId = data['node_id'] as String? ?? '';
-        final success = data['success'] as bool? ?? false;
-        progressNotifier.updateNodeStatus(
-          nodeId,
-          success ? NodeStatus.success : NodeStatus.failure,
-        );
-        break;
-
-      case 'Progress':
-        final current = (data['current'] as num?)?.toInt() ?? 0;
-        final total = (data['total'] as num?)?.toInt() ?? 0;
-        progressNotifier.updateProgress(completedExposures: current);
-        progressNotifier.setTotals(total, 0);
-        break;
-
-      case 'TargetChanged':
-        final targetName = data['target_name'] as String? ?? '';
-        progressNotifier.updateProgress(currentTarget: targetName);
-        break;
-
-      case 'TargetCompleted':
-        final targetName = data['target_name'] as String? ?? '';
-        progressNotifier.updateProgress(
-            message: 'Completed target: $targetName');
-        break;
-
-      case 'ExposureStarted':
-        final frame = (data['frame'] as num?)?.toInt() ?? 0;
-        final total = (data['total'] as num?)?.toInt() ?? 0;
-        final filter = data['filter'] as String?;
-        final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-        progressNotifier.updateProgress(
-          currentFilter: filter,
-          message:
-              'Exposure $frame/$total - ${durationSecs}s${filter != null ? " ($filter)" : ""}',
-        );
-        break;
-
-      case 'ExposureCompleted':
-        final durationSecs = (data['duration_secs'] as num?)?.toDouble() ?? 0.0;
-        final currentCompleted =
-            _ref.read(sequenceProgressProvider).completedExposures;
-        final currentIntegration =
-            _ref.read(sequenceProgressProvider).completedIntegrationSecs;
-        progressNotifier.updateProgress(
-          completedExposures: currentCompleted + 1,
-          completedIntegrationSecs: currentIntegration + durationSecs,
-        );
-        break;
-
-      case 'Error':
-        final message = data['message'] as String? ?? 'Unknown error';
-        progressNotifier.updateProgress(message: 'Error: $message');
-        break;
-    }
+    applySequencerEventToSequenceProviders(_ref.read, event);
   }
 
   void dispose() {
@@ -2304,6 +2225,7 @@ class DeviceService {
       }
 
       _markUserInitiatedDisconnect(deviceId);
+      _rotatorVerifyGeneration++;
 
       try {
         // Stop heartbeat monitoring
@@ -2525,6 +2447,7 @@ class DeviceService {
       }
 
       _markUserInitiatedDisconnect(deviceId);
+      _focuserVerifyGeneration++;
 
       try {
         await _backend.disconnectDevice(
@@ -2760,7 +2683,8 @@ class DeviceService {
       }
 
       _markUserInitiatedDisconnect(deviceId);
-      _lastAppliedFilterOffset = 0;
+      _filterWheelVerifyGeneration++;
+      _lastAppliedFilterOffsetByWheel.remove(deviceId);
 
       try {
         await _backend.disconnectDevice(
@@ -3904,9 +3828,11 @@ class DeviceService {
 
     try {
       await _backend.focuserMoveTo(deviceId, position);
+      final verifyGeneration = ++_focuserVerifyGeneration;
       await _verifyFocuserPosition(
         deviceId: deviceId,
         targetPosition: position,
+        generation: verifyGeneration,
       );
     } finally {
       focuserNotifier.setMoving(false);
@@ -3939,9 +3865,11 @@ class DeviceService {
 
       // Use backend's native relative move which queries actual device position
       await _backend.focuserMoveRelative(deviceId, delta);
+      final verifyGeneration = ++_focuserVerifyGeneration;
       await _verifyFocuserPosition(
         deviceId: deviceId,
         targetPosition: targetPosition,
+        generation: verifyGeneration,
       );
     } finally {
       focuserNotifier.setMoving(false);
@@ -3957,6 +3885,7 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
+    _focuserVerifyGeneration++;
 
     try {
       await _backend.focuserHalt(deviceId);
@@ -3975,12 +3904,20 @@ class DeviceService {
   Future<void> _verifyFocuserPosition({
     required String deviceId,
     required int targetPosition,
+    required int generation,
   }) async {
     final deadline = DateTime.now().add(_focuserMoveTimeout);
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _focuserVerifyGeneration) {
+        throw StateError('Focuser verification was cancelled.');
+      }
+
       final status = await _backend.getFocuserStatus(deviceId);
+      if (_disposed || generation != _focuserVerifyGeneration) {
+        throw StateError('Focuser verification was cancelled.');
+      }
       focuserNotifier.updatePosition(status.position);
       focuserNotifier.setMoving(status.moving);
       if (status.temperature != null) {
@@ -4049,7 +3986,12 @@ class DeviceService {
     try {
       await _backend.rotatorMoveTo(deviceId, angle);
       // Poll until movement completes
-      await _verifyRotatorPosition(deviceId: deviceId, targetAngle: angle);
+      final verifyGeneration = ++_rotatorVerifyGeneration;
+      await _verifyRotatorPosition(
+        deviceId: deviceId,
+        targetAngle: angle,
+        generation: verifyGeneration,
+      );
     } finally {
       rotatorNotifier.setMoving(false);
       operationsNotifier.completeOperation(OperationType.rotatorMove);
@@ -4079,8 +4021,12 @@ class DeviceService {
       final targetAngle = (currentAngle + delta) % 360.0;
 
       await _backend.rotatorMoveRelative(deviceId, delta);
+      final verifyGeneration = ++_rotatorVerifyGeneration;
       await _verifyRotatorPosition(
-          deviceId: deviceId, targetAngle: targetAngle);
+        deviceId: deviceId,
+        targetAngle: targetAngle,
+        generation: verifyGeneration,
+      );
     } finally {
       rotatorNotifier.setMoving(false);
       operationsNotifier.completeOperation(OperationType.rotatorMove);
@@ -4095,6 +4041,7 @@ class DeviceService {
     }
 
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
+    _rotatorVerifyGeneration++;
 
     try {
       await _backend.rotatorHalt(deviceId);
@@ -4116,12 +4063,20 @@ class DeviceService {
   Future<void> _verifyRotatorPosition({
     required String deviceId,
     required double targetAngle,
+    required int generation,
   }) async {
     final deadline = DateTime.now().add(_rotatorMoveTimeout);
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _rotatorVerifyGeneration) {
+        throw StateError('Rotator verification was cancelled.');
+      }
+
       final status = await _backend.getRotatorStatus(deviceId);
+      if (_disposed || generation != _rotatorVerifyGeneration) {
+        throw StateError('Rotator verification was cancelled.');
+      }
       rotatorNotifier.updatePosition(status.position,
           mechanicalPosition: status.mechanicalPosition);
       rotatorNotifier.setMoving(status.moving);
@@ -4402,10 +4357,12 @@ class DeviceService {
           );
       await _backend.filterWheelSetPosition(deviceId, position);
 
+      final verifyGeneration = ++_filterWheelVerifyGeneration;
       await _verifyFilterWheelPosition(
         deviceId: deviceId,
         expectedPosition: position,
         filterNames: filterNames,
+        generation: verifyGeneration,
       );
 
       // Apply focus offset only after position is verified (DV-P0-6).
@@ -4452,12 +4409,20 @@ class DeviceService {
     required String deviceId,
     required int expectedPosition,
     required List<String> filterNames,
+    required int generation,
   }) async {
     final deadline = DateTime.now().add(_filterWheelVerifyTimeout);
     final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
 
     while (true) {
+      if (_disposed || generation != _filterWheelVerifyGeneration) {
+        throw StateError('Filter wheel verification was cancelled.');
+      }
+
       final status = await _backend.getFilterWheelStatus(deviceId);
+      if (_disposed || generation != _filterWheelVerifyGeneration) {
+        throw StateError('Filter wheel verification was cancelled.');
+      }
       final isMoving = status.moving || status.position < 0;
 
       filterWheelNotifier.updatePosition(status.position);
@@ -4550,8 +4515,14 @@ class DeviceService {
         newOffset = filterOffsetState.offsets[filterName] ?? 0;
       }
 
-      // Calculate delta from last applied offset
-      final delta = newOffset - _lastAppliedFilterOffset;
+      final filterWheelDeviceId = _ref.read(filterWheelStateProvider).deviceId;
+      final offsetKey = filterWheelDeviceId?.isNotEmpty == true
+          ? filterWheelDeviceId!
+          : '__default_filter_wheel__';
+      final lastAppliedOffset = _lastAppliedFilterOffsetByWheel[offsetKey] ?? 0;
+
+      // Calculate delta from last applied offset for this wheel.
+      final delta = newOffset - lastAppliedOffset;
 
       if (delta == 0) {
         // No movement needed
@@ -4573,7 +4544,7 @@ class DeviceService {
       try {
         await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
         focuserNotifier.updatePosition(targetPosition);
-        _lastAppliedFilterOffset = newOffset;
+        _lastAppliedFilterOffsetByWheel[offsetKey] = newOffset;
 
         final loggingService = _ref.read(loggingServiceProvider);
         loggingService.info(

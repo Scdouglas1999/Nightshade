@@ -127,7 +127,6 @@ class AppearanceSettings extends ConsumerWidget {
           ),
           SettingsSection(
             title: 'Experimental',
-            colors: colors,
             isMobile: isMobile,
             children: [
               SettingRow(
@@ -143,10 +142,8 @@ class AppearanceSettings extends ConsumerWidget {
                           value ? RenderingPlatform.v2 : RenderingPlatform.v1,
                         );
                   },
-                  colors: colors,
                 ),
                 isLast: true,
-                colors: colors,
                 isMobile: isMobile,
               ),
             ],

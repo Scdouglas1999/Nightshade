@@ -262,6 +262,9 @@ abstract class NightshadeBackend implements AdaptiveSwapBackend {
   /// Get filter names
   Future<List<String>> filterWheelGetNames(String deviceId);
 
+  /// Set filter names
+  Future<void> filterWheelSetNames(String deviceId, List<String> names);
+
   /// Set filter by name
   Future<void> filterWheelSetByName(String deviceId, String name);
 
