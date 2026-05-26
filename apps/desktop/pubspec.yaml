@@ -83,6 +83,13 @@ dependencies:
   pointycastle: ^3.9.1
   irondash_engine_context: 0.5.0
 
+  # Wave 7A — WebRTC datachannel transport for the live-view fan-out.
+  # The headless server holds the answerer-side RTCPeerConnection per
+  # session and ships each JPEG frame as a binary datachannel message.
+  # On Windows desktop, flutter_webrtc bundles libwebrtc as a native DLL;
+  # no UI surface is required because we only use the data-channel path.
+  flutter_webrtc: ^1.4.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

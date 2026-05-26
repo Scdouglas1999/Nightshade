@@ -60,6 +60,13 @@ dependencies:
   # are migrated on first launch via SecretsStore.migrateFromPlaintext().
   flutter_secure_storage: ^9.2.2
 
+  # Wave 7A — WebRTC client used by NetworkBackend.subscribeLiveViewWebRtc.
+  # Required here (not only in apps/mobile) because the network backend
+  # lives in nightshade_core and is shared between desktop GUI clients,
+  # the mobile companion, and the in-process test harness that exercises
+  # the SDP/ICE plumbing without a real camera.
+  flutter_webrtc: ^1.4.1
+
   # Native bridge
   nightshade_bridge:
     path: ../nightshade_bridge

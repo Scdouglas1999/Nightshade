@@ -78,6 +78,13 @@ dependencies:
   # The desktop AppSettings model is mobile-irrelevant for these UI choices.
   shared_preferences: ^2.2.2
 
+  # Wave 7A — WebRTC datachannel transport for the live-view fan-out.
+  # The mobile companion holds the offerer-side RTCPeerConnection and
+  # decodes binary JPEG frames straight out of the datachannel. The
+  # WebSocket path remains the fallback when the SDP/ICE exchange fails.
+  flutter_webrtc: ^1.4.1
+  http: ^1.2.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
