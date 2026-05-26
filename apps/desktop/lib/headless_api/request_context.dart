@@ -69,3 +69,15 @@ route_metadata.TokenRouteClass? authRouteClassFrom(Request request) {
   final value = request.context[authRouteClassContextKey];
   return value is route_metadata.TokenRouteClass ? value : null;
 }
+
+/// Redact a bearer or auth-identity token for structured-log output.
+///
+/// Shows the first 4 + last 4 characters and masks the middle, so log
+/// readers can correlate a token across log lines without exposing the
+/// secret in plaintext. Tokens shorter than 9 characters are fully
+/// masked because the prefix/suffix overlap would otherwise reveal the
+/// whole value.
+String redactBearer(String token) {
+  if (token.length <= 8) return '*' * token.length;
+  return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
+}

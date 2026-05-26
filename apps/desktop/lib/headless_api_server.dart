@@ -243,6 +243,7 @@ class HeadlessApiServer {
   // Handler instances
   late final DeviceHandlers _deviceHandlers;
   late final DeviceDiscoveryHandlers _deviceDiscoveryHandlers;
+  late final CollaborationHandlers _collaborationHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -472,6 +473,10 @@ class HeadlessApiServer {
       jobManager: _jobManager,
     );
     _deviceDiscoveryHandlers = DeviceDiscoveryHandlers(container);
+    _collaborationHandlers = CollaborationHandlers(
+      manager: _collaborationManager,
+      logger: container.read(loggingServiceProvider),
+    );
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
@@ -610,16 +615,24 @@ class HeadlessApiServer {
     router.post('/api/auth/cookie', _handleAuthCookieIssue);
     router.get('/api/auth/csrf', _handleAuthCsrfFetch);
     router.post('/api/auth/logout', _handleAuthLogout);
-    router.get('/api/collaboration/state', _handleCollaborationState);
-    router.post('/api/collaboration/viewers/join', _handleCollaborationJoin);
-    router.post('/api/collaboration/viewers/leave', _handleCollaborationLeave);
-    router.post('/api/collaboration/preview', _handleCollaborationPreview);
-    router.post('/api/collaboration/chat', _handleCollaborationChat);
-    router.post(
-        '/api/collaboration/annotations', _handleCollaborationAnnotation);
-    router.get('/api/session-handoff', _handleGetSessionHandoff);
-    router.post('/api/session-handoff', _handleSetSessionHandoff);
-    router.delete('/api/session-handoff', _handleClearSessionHandoff);
+    router.get('/api/collaboration/state',
+        _collaborationHandlers.handleCollaborationState);
+    router.post('/api/collaboration/viewers/join',
+        _collaborationHandlers.handleCollaborationJoin);
+    router.post('/api/collaboration/viewers/leave',
+        _collaborationHandlers.handleCollaborationLeave);
+    router.post('/api/collaboration/preview',
+        _collaborationHandlers.handleCollaborationPreview);
+    router.post('/api/collaboration/chat',
+        _collaborationHandlers.handleCollaborationChat);
+    router.post('/api/collaboration/annotations',
+        _collaborationHandlers.handleCollaborationAnnotation);
+    router.get('/api/session-handoff',
+        _collaborationHandlers.handleGetSessionHandoff);
+    router.post('/api/session-handoff',
+        _collaborationHandlers.handleSetSessionHandoff);
+    router.delete('/api/session-handoff',
+        _collaborationHandlers.handleClearSessionHandoff);
 
     // Device management
     router.get('/api/devices', _deviceDiscoveryHandlers.handleGetDevices);
@@ -3103,160 +3116,11 @@ class HeadlessApiServer {
     }
   }
 
-  Future<Response> _handleCollaborationState(Request request) async {
-    return jsonOk(_collaborationManager.state.toJson());
-  }
-
-  Future<Response> _handleCollaborationJoin(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final clientViewerId = payload['viewerId'] as String?;
-      final name = payload['name'] as String?;
-      if (name == null || name.isEmpty) {
-        return jsonBadRequest({'error': 'Missing name'});
-      }
-      // P2-15: the authenticated identity wins over any client-supplied
-      // viewerId, mirroring the WebSocket-path semantics. When auth is
-      // disabled (no tokens configured), fall back to the payload value
-      // so existing clients keep working.
-      final authIdentity = _authIdentityFrom(request);
-      final effectiveViewerId = authIdentity ?? clientViewerId;
-      if (effectiveViewerId == null || effectiveViewerId.isEmpty) {
-        return jsonBadRequest({
-          'error': 'Missing viewerId',
-          'message':
-              'viewerId required when authentication is disabled.',
-        });
-      }
-      if (authIdentity != null &&
-          clientViewerId != null &&
-          clientViewerId.isNotEmpty &&
-          clientViewerId != authIdentity) {
-        _logWarning(
-          '[COLLAB] HTTP join impersonation attempt '
-          '(claimed=$clientViewerId actual=${_redactBearer(authIdentity)}); '
-          'substituting authenticated identity.',
-        );
-      }
-      _collaborationManager.upsertViewer(effectiveViewerId, name);
-      return jsonOk(_collaborationManager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleCollaborationLeave(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final clientViewerId = payload['viewerId'] as String?;
-      // P2-15: a client cannot remove an arbitrary viewer slot — it can
-      // only release its own. The authenticated identity overrides the
-      // payload value. When auth is disabled (test fixtures), we fall
-      // back to the payload value.
-      final authIdentity = _authIdentityFrom(request);
-      final viewerId = authIdentity ?? clientViewerId;
-      if (viewerId == null || viewerId.isEmpty) {
-        return jsonBadRequest({'error': 'Missing viewerId'});
-      }
-      _collaborationManager.removeViewer(viewerId);
-      return jsonOk(_collaborationManager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleCollaborationPreview(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final preview = payload['preview'];
-      if (preview != null && preview is! Map<String, dynamic>) {
-        return jsonBadRequest({'error': 'preview must be an object'});
-      }
-      _collaborationManager.updatePreview(preview as Map<String, dynamic>?);
-      return jsonOk(_collaborationManager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleCollaborationChat(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final viewerId = payload['viewerId'] as String?;
-      final viewerName = payload['viewerName'] as String?;
-      final message = payload['message'] as String?;
-      if (viewerId == null || viewerName == null || message == null) {
-        return jsonBadRequest(
-            {'error': 'viewerId, viewerName, and message are required'});
-      }
-      _collaborationManager.addChat(
-        viewerId: viewerId,
-        viewerName: viewerName,
-        message: message,
-      );
-      return jsonOk(_collaborationManager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleCollaborationAnnotation(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final annotationId = payload['annotationId'] as String?;
-      final viewerId = payload['viewerId'] as String?;
-      final kind = payload['kind'] as String?;
-      final annotationPayload = payload['payload'];
-      if (annotationId == null ||
-          viewerId == null ||
-          kind == null ||
-          annotationPayload is! Map<String, dynamic>) {
-        return jsonBadRequest({
-          'error': 'annotationId, viewerId, kind, and payload are required'
-        });
-      }
-      _collaborationManager.addAnnotation(
-        annotationId: annotationId,
-        viewerId: viewerId,
-        kind: kind,
-        payload: annotationPayload,
-      );
-      return jsonOk(_collaborationManager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleGetSessionHandoff(Request request) async {
-    return jsonOk(
-        {'sessionHandoff': _collaborationManager.state.sessionHandoff});
-  }
-
-  Future<Response> _handleSetSessionHandoff(Request request) async {
-    try {
-      final payload =
-          jsonDecode(await request.readAsString()) as Map<String, dynamic>;
-      final handoff = payload['handoff'];
-      if (handoff != null && handoff is! Map<String, dynamic>) {
-        return jsonBadRequest({'error': 'handoff must be an object'});
-      }
-      _collaborationManager.setSessionHandoff(handoff as Map<String, dynamic>?);
-      return jsonOk(
-          {'sessionHandoff': _collaborationManager.state.sessionHandoff});
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
-    }
-  }
-
-  Future<Response> _handleClearSessionHandoff(Request request) async {
-    _collaborationManager.setSessionHandoff(null);
-    return jsonOk({'sessionHandoff': null});
-  }
+  // /api/collaboration/* and /api/session-handoff handlers were moved to
+  // [CollaborationHandlers] (handlers/collaboration_handlers.dart). The
+  // shared LiveCollaborationSessionManager is injected so the WS upgrade
+  // path, the desktop GUI, and the HTTP surface still observe the same
+  // in-memory state.
 
   // ===========================================================================
   // Pairing flow (§2.1) — first-run dashboard onboarding.
@@ -5187,10 +5051,10 @@ class HeadlessApiServer {
   /// Redact a bearer/auth token for structured-log output. Shows the first
   /// 4 + last 4 chars and masks the middle, so log readers can correlate
   /// a token across log lines without exposing the secret in plaintext.
-  static String _redactBearer(String token) {
-    if (token.length <= 8) return '*' * token.length;
-    return '${token.substring(0, 4)}...${token.substring(token.length - 4)}';
-  }
+  /// Delegates to [ctx.redactBearer] so the same redaction rule applies
+  /// across the server, every extracted handler class, and the audit
+  /// surfaces.
+  static String _redactBearer(String token) => ctx.redactBearer(token);
 
   /// Get the current authentication token (for logging/debugging).
   /// Returns null if authentication is disabled.
