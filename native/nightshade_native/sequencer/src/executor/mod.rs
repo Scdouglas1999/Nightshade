@@ -12,7 +12,7 @@
 //!   * [`setup`]        — pre-start `set_*` wiring and post-run `reset`.
 //!   * [`loading`]      — sequence load + read-only totals/order walks.
 //!   * [`runtime_config`] — `update_*` mid-flight config mutators.
-//!   * [`checkpoint`]   — crash-recovery save/load surface.
+//!   * [`checkpoint`]   — crash-recovery save/load/resume surface.
 //!   * [`decision`]     — Wave 8 structured-decision logging surface.
 //!
 //! What is deliberately kept here in `mod.rs`:
@@ -24,6 +24,7 @@
 //!     `build_trigger_autofocus_context`, etc.) are owned here because
 //!     the inline `start()` closures are their only callers.
 
+mod checkpoint;
 mod decision;
 mod lifecycle;
 mod loading;
@@ -5356,196 +5357,6 @@ impl SequenceExecutor {
         });
     }
 
-    // =========================================================================
-    // Checkpoint / Crash Recovery
-    // =========================================================================
-
-    /// Set the checkpoint directory for crash recovery
-    pub fn set_checkpoint_dir<P: AsRef<std::path::Path>>(&mut self, path: P) {
-        self.checkpoint_manager = Some(Arc::new(crate::checkpoint::CheckpointManager::new(path)));
-    }
-
-    /// Check if a recoverable checkpoint exists
-    pub fn has_recoverable_checkpoint(&self) -> bool {
-        self.checkpoint_manager
-            .as_ref()
-            .map(|m| m.has_recoverable_checkpoint())
-            // Why (audit-rust §4.3): `checkpoint_manager` is `Option<Arc<CheckpointManager>>`
-            // — None means `set_checkpoint_dir` has not been called, so checkpoint recovery
-            // is disabled for this executor instance. No manager = no recoverable
-            // checkpoint, which is the correct sentinel.
-            .unwrap_or(false)
-    }
-
-    /// Get info about the current checkpoint
-    pub fn get_checkpoint_info(&self) -> Option<crate::checkpoint::CheckpointInfo> {
-        self.checkpoint_manager
-            .as_ref()
-            .and_then(|m| m.get_checkpoint_info().ok().flatten())
-    }
-
-    /// Load and prepare to resume from a checkpoint
-    pub fn load_checkpoint(
-        &mut self,
-    ) -> Result<Option<crate::checkpoint::SessionCheckpoint>, String> {
-        let checkpoint = self
-            .checkpoint_manager
-            .as_ref()
-            .ok_or("No checkpoint manager configured")?
-            .load()?;
-
-        if let Some(ref cp) = checkpoint {
-            self.current_checkpoint = Some(cp.clone());
-
-            self.camera_id = cp.camera_id.clone();
-            self.mount_id = cp.mount_id.clone();
-            self.focuser_id = cp.focuser_id.clone();
-            self.filterwheel_id = cp.filterwheel_id.clone();
-            self.rotator_id = cp.rotator_id.clone();
-
-            self.latitude = cp.latitude;
-            self.longitude = cp.longitude;
-
-            self.save_path = cp.save_path.clone();
-
-            tracing::info!("Loaded checkpoint for sequence: {}", cp.sequence.name);
-        }
-
-        Ok(checkpoint)
-    }
-
-    /// Save current execution state as a checkpoint
-    pub async fn save_checkpoint(&self) -> Result<(), String> {
-        let manager = self
-            .checkpoint_manager
-            .as_ref()
-            .ok_or("No checkpoint manager configured")?;
-
-        let sequence = self.sequence.as_ref().ok_or("No sequence loaded")?;
-
-        let progress = self.progress.read().clone();
-        let state = self.get_state().await;
-
-        let mut checkpoint = crate::checkpoint::SessionCheckpoint::new(sequence.clone());
-        checkpoint.node_statuses = progress.node_statuses.clone();
-        checkpoint.current_node = progress.current_node_id.clone();
-        checkpoint.executor_state = state;
-        checkpoint.completed_exposures = progress.completed_exposures;
-        checkpoint.completed_integration_secs = progress.completed_integration_secs;
-        // Wave 4: recovery is an active in-flight state too — preserve it
-        // through checkpoints so a resumed session knows it crashed mid
-        // recovery and the operator can decide whether to retry.
-        checkpoint.is_active = matches!(
-            state,
-            ExecutorState::Running | ExecutorState::Paused | ExecutorState::Recovering
-        );
-
-        // Track "last completed" by the tree-walk order, not lexical NodeId
-        // ordering — the latter would falsely pick an earlier node whose id
-        // happens to sort after a later one (NodeIds are user-set strings).
-        let execution_order = self.build_execution_order(sequence);
-        checkpoint.last_completed_node = progress
-            .node_statuses
-            .iter()
-            .filter(|(_, status)| matches!(status, NodeStatus::Success))
-            .filter_map(|(id, _)| execution_order.get(id).map(|order| (id, *order)))
-            .max_by_key(|(_, order)| *order)
-            .map(|(id, _)| (*id).clone());
-
-        checkpoint.set_devices(
-            self.camera_id.clone(),
-            self.mount_id.clone(),
-            self.focuser_id.clone(),
-            self.filterwheel_id.clone(),
-            self.rotator_id.clone(),
-        );
-        checkpoint.set_location(self.latitude, self.longitude);
-        checkpoint.set_save_path(self.save_path.clone());
-        let trigger_state = {
-            let manager = self.trigger_manager.read().await;
-            manager.state()
-        };
-        let trigger_state = trigger_state.read().await;
-        checkpoint.set_trigger_state(crate::checkpoint::TriggerStateSnapshot::from_state(
-            &trigger_state,
-            self.safety_fail_mode,
-            self.triggers_enabled,
-            self.filter_focus_offsets.clone(),
-        ));
-
-        manager.save(&checkpoint)?;
-
-        Ok(())
-    }
-
-    /// Clear checkpoint (call when sequence completes normally)
-    pub fn clear_checkpoint(&self) -> Result<(), String> {
-        if let Some(ref manager) = self.checkpoint_manager {
-            manager.clear()?;
-        }
-        Ok(())
-    }
-
-    /// Mark checkpoint as completed (sequence finished gracefully)
-    pub fn mark_checkpoint_completed(&self) -> Result<(), String> {
-        if let Some(ref manager) = self.checkpoint_manager {
-            manager.mark_completed()?;
-        }
-        Ok(())
-    }
-
-    /// Resume sequence from checkpoint
-    ///
-    /// This loads the sequence from checkpoint and prepares it for resumed execution.
-    /// The sequence will skip already-completed nodes.
-    pub async fn resume_from_checkpoint(&mut self) -> Result<(), String> {
-        let checkpoint = self
-            .load_checkpoint()?
-            .ok_or("No checkpoint to resume from")?;
-
-        if !checkpoint.can_resume() {
-            return Err("Checkpoint cannot be resumed".to_string());
-        }
-
-        self.load_sequence(checkpoint.sequence.clone())?;
-
-        {
-            let mut progress = self.progress.write();
-            progress.node_statuses = checkpoint.node_statuses.clone();
-            progress.completed_exposures = checkpoint.completed_exposures;
-            progress.completed_integration_secs = checkpoint.completed_integration_secs;
-        }
-
-        // Marking completed nodes on the freshly built tree is what makes
-        // resume idempotent — the executor still walks the full tree but
-        // short-circuits already-Success nodes.
-        if let Some(ref mut root) = self.root_node {
-            for node_id in checkpoint.get_completed_nodes() {
-                root.mark_completed(&node_id);
-            }
-        }
-
-        if let Some(snapshot) = checkpoint.trigger_state.as_ref() {
-            let trigger_state = {
-                let manager = self.trigger_manager.read().await;
-                manager.state()
-            };
-            let mut trigger_state = trigger_state.write().await;
-            snapshot.restore_into(&mut trigger_state);
-            self.safety_fail_mode = snapshot.safety_fail_mode;
-            self.triggers_enabled = snapshot.triggers_enabled;
-            self.filter_focus_offsets = snapshot.filter_focus_offsets.clone();
-        }
-
-        tracing::info!(
-            "Prepared to resume sequence '{}' from checkpoint ({}  exposures, {:.1} min integration)",
-            checkpoint.sequence.name,
-            checkpoint.completed_exposures,
-            checkpoint.completed_integration_secs / 60.0
-        );
-
-        Ok(())
-    }
 }
 
 impl Default for SequenceExecutor {
