@@ -4173,11 +4173,11 @@ class LiveStackingNode extends SequenceNode {
     bool? broadcastEnabled,
     int? broadcastPort,
     String? broadcastPath,
-    // Use Object? sentinel so callers can clear auth_token to null
-    // (the regular Dart "null means leave alone" copyWith pattern
-    // cannot distinguish "leave alone" from "clear" without this).
-    Object? authToken = _unset,
-    Object? watermarkText = _unset,
+    // PHASE-5: plain `?? this.X` for authToken and watermarkText.
+    // Clearing (e.g. flipping a stream from private to public) is now
+    // rebuild-explicit at the editor — see live_stacking_properties.dart.
+    String? authToken,
+    String? watermarkText,
     int? thumbnailWidth,
     int? thumbnailHeight,
   }) {
@@ -4195,10 +4195,8 @@ class LiveStackingNode extends SequenceNode {
       broadcastEnabled: broadcastEnabled ?? this.broadcastEnabled,
       broadcastPort: broadcastPort ?? this.broadcastPort,
       broadcastPath: broadcastPath ?? this.broadcastPath,
-      authToken: authToken == _unset ? this.authToken : authToken as String?,
-      watermarkText: watermarkText == _unset
-          ? this.watermarkText
-          : watermarkText as String?,
+      authToken: authToken ?? this.authToken,
+      watermarkText: watermarkText ?? this.watermarkText,
       thumbnailWidth: thumbnailWidth ?? this.thumbnailWidth,
       thumbnailHeight: thumbnailHeight ?? this.thumbnailHeight,
     );
@@ -4219,10 +4217,6 @@ class LiveStackingNode extends SequenceNode {
         thumbnailHeight,
       ];
 }
-
-/// Sentinel for [LiveStackingNode.copyWith] so callers can distinguish
-/// "leave unchanged" (default) from "explicitly clear" (`authToken: null`).
-const Object _unset = Object();
 
 /// Parse a duration string of the form "4h 30m", "90m", "3600s", "1.5h"
 /// into seconds. Returns null for unparseable input. Used by the

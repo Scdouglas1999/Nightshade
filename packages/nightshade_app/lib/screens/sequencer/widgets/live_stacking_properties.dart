@@ -71,6 +71,36 @@ class _LiveStackingPropertiesState
     mutator.updateNode(updated);
   }
 
+  /// PHASE-5: LiveStackingNode.copyWith now uses plain
+  /// `?? this.authToken` semantics, so a null arg means "keep current".
+  /// To make the broadcast PUBLIC (clear the token), we have to rebuild
+  /// a fresh node. Same recipe for clearing the watermark.
+  LiveStackingNode _rebuildWithCleared({
+    bool clearAuthToken = false,
+    bool clearWatermark = false,
+  }) {
+    final n = widget.node;
+    return LiveStackingNode(
+      id: n.id,
+      name: n.name,
+      isEnabled: n.isEnabled,
+      childIds: n.childIds,
+      parentId: n.parentId,
+      orderIndex: n.orderIndex,
+      comment: n.comment,
+      mode: n.mode,
+      stackMethod: n.stackMethod,
+      maxFramesToStack: n.maxFramesToStack,
+      broadcastEnabled: n.broadcastEnabled,
+      broadcastPort: n.broadcastPort,
+      broadcastPath: n.broadcastPath,
+      authToken: clearAuthToken ? null : n.authToken,
+      watermarkText: clearWatermark ? null : n.watermarkText,
+      thumbnailWidth: n.thumbnailWidth,
+      thumbnailHeight: n.thumbnailHeight,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
@@ -183,7 +213,13 @@ class _LiveStackingPropertiesState
           obscureText: false,
           onSubmitted: (v) {
             final t = v.trim();
-            _update((n) => n.copyWith(authToken: t.isEmpty ? null : t));
+            if (t.isEmpty) {
+              ref
+                  .read(currentSequenceProvider.notifier)
+                  .updateNode(_rebuildWithCleared(clearAuthToken: true));
+            } else {
+              _update((n) => n.copyWith(authToken: t));
+            }
           },
         ),
         const SizedBox(height: 16),
@@ -200,7 +236,13 @@ class _LiveStackingPropertiesState
           maxLines: 2,
           onSubmitted: (v) {
             final w = v.trim();
-            _update((n) => n.copyWith(watermarkText: w.isEmpty ? null : w));
+            if (w.isEmpty) {
+              ref
+                  .read(currentSequenceProvider.notifier)
+                  .updateNode(_rebuildWithCleared(clearWatermark: true));
+            } else {
+              _update((n) => n.copyWith(watermarkText: w));
+            }
           },
         ),
         const SizedBox(height: 16),

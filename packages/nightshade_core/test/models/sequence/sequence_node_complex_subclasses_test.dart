@@ -23,7 +23,9 @@
 //     swapOnConditionsBelow uses plain keep-or-replace; the
 //     ArgumentError path is gone since the signature is now typed)
 //   * SmartExposureNode
-//   * LiveStackingNode (sentinel for authToken / watermarkText)
+//   * LiveStackingNode (Phase 5: sentinel removed — authToken /
+//     watermarkText use plain keep-or-replace; clearing is
+//     rebuild-explicit at the editor)
 //   * SciencePhotometryNode (sentinel for gain/offset, fromRustConfigJson)
 //
 // The SequenceNode subclasses that are STRUCTURALLY simple (plain `??`
@@ -986,22 +988,50 @@ void main() {
       expect(LiveStackingNode(watermarkText: 'M42').hasWatermark, isTrue);
     });
 
-    test(
-        'copyWith_auth_token_and_watermark_sentinel_allows_explicit_null', () {
-      // PHASE-2-NOTE: LiveStackingNode.copyWith uses the file-local
-      // `_unset` Object sentinel (distinct from the file-wide
-      // `_sentinel` used elsewhere). Phase 2 should consolidate onto a
-      // single sentinel pattern, or — better — onto the freezed
-      // nullable-copyWith default.
+    test('copyWith_auth_token_and_watermark_keep_or_replace', () {
+      // PHASE-5: plain `?? this.X` for both fields. Omitted or null
+      // keeps; non-null replaces. Clearing back to "public + no
+      // watermark" is rebuild-explicit at the editor.
       final n = LiveStackingNode(
         authToken: 'secret',
         watermarkText: 'M42',
       );
       expect(n.copyWith().authToken, equals('secret'));
       expect(n.copyWith().watermarkText, equals('M42'));
-      expect(n.copyWith(authToken: null).authToken, isNull);
-      expect(n.copyWith(watermarkText: null).watermarkText, isNull);
+      // Explicit null keeps under plain semantics.
+      expect(n.copyWith(authToken: null).authToken, equals('secret'));
+      expect(n.copyWith(watermarkText: null).watermarkText, equals('M42'));
+      // Non-null replaces.
       expect(n.copyWith(authToken: 'new').authToken, equals('new'));
+    });
+
+    test('auth_token_and_watermark_cleared_via_rebuild_explicit', () {
+      // PHASE-5: pin the rebuild-explicit recipe used by the editor's
+      // empty-text-submit handlers for both fields.
+      final n = LiveStackingNode(
+        authToken: 'secret',
+        watermarkText: 'M42',
+      );
+      final cleared = LiveStackingNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        mode: n.mode,
+        stackMethod: n.stackMethod,
+        maxFramesToStack: n.maxFramesToStack,
+        broadcastEnabled: n.broadcastEnabled,
+        broadcastPort: n.broadcastPort,
+        broadcastPath: n.broadcastPath,
+        thumbnailWidth: n.thumbnailWidth,
+        thumbnailHeight: n.thumbnailHeight,
+        // omit authToken + watermarkText
+      );
+      expect(cleared.authToken, isNull);
+      expect(cleared.watermarkText, isNull);
     });
 
     test('copyWith_each_field', () {
