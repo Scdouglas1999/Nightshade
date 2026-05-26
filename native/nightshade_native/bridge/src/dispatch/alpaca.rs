@@ -8,6 +8,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::alpaca_device_common::fetch_api_version;
 use std::sync::Arc;
 
 impl DeviceManager {
@@ -115,34 +116,21 @@ impl DeviceManager {
         Ok(())
     }
 
-    /// Query and cache API version for an Alpaca device
+    /// Query and cache API version for an Alpaca device.
     ///
-    /// # Silent-fallback contract (audit-rust §4.3)
-    ///
-    /// This helper is a best-effort version-discovery probe: it queries the
-    /// four ASCOM-common identification properties (`interfaceversion`,
-    /// `driverversion`, `driverinfo`, `supportedactions`) and assembles them
-    /// into a `DeviceApiVersion` record used by the equipment-compatibility
-    /// matrix UI. The function is allowed to succeed with partial data because:
-    ///
-    /// * `interface_version`, `driver_version`, `driver_info` are pre-tagged
-    ///   `.ok()` → `Option<T>`. Drivers are not required to expose every
-    ///   property (older Alpaca v1 conformance lacks `driverinfo`), and the UI
-    ///   already renders "Unknown" for missing values.
-    /// * `supported_actions` returns `Vec<String>` from the alpaca-client
-    ///   helper. Alpaca error 0x40C (`ActionNotImplemented`) and any HTTP/parse
-    ///   failure here means "this driver did not implement the optional
-    ///   ISupportedActions list" — `unwrap_or_default()` yields the correct
-    ///   empty-list semantics consumed by the action-picker UI.
-    /// * `interface_version.unwrap_or(1)` defaults to the ASCOM V1 baseline
-    ///   when the property is absent; every ASCOM-conforming Alpaca driver
-    ///   implements at least the V1 interface, so V1 is the safest assumption
-    ///   for capability gating.
+    /// The per-device-type fan-out below selects the correct typed storage
+    /// map (`alpaca_cameras`, `alpaca_mounts`, …); the actual ASCOM-Common
+    /// metadata probe (`interface_version` / `driver_version` / `driver_info`
+    /// / `supported_actions`) is centralized in
+    /// [`crate::dispatch::alpaca_device_common::fetch_api_version`] via the
+    /// [`AlpacaDeviceCommon`] trait — see that module for the silent-fallback
+    /// contract (audit-rust §4.3) and the `tracing::debug!` instrumentation
+    /// that surfaces discarded `supported_actions` errors.
     ///
     /// Connection failure (the device not being in the appropriate registry)
-    /// is still a hard `Err` via the `else { return Err(...) }` arms below —
-    /// the silent fallbacks only mask *optional-property* failures, not
-    /// device-absence.
+    /// is still a hard `Err` via the `None => return Err(...)` arms below —
+    /// the trait helper only masks *optional-property* failures inside an
+    /// otherwise-connected device, not device-absence.
     pub async fn query_alpaca_api_version(
         &self,
         device_id: &str,
@@ -159,197 +147,126 @@ impl DeviceManager {
             return Err(format!("Device {} is not an Alpaca device", device_id));
         }
 
-        // Query version info based on device type
+        // Query version info based on device type.
+        //
+        // The 10-arm fan-out below differs only in which typed storage map
+        // we read from (`alpaca_cameras`, `alpaca_mounts`, …); the actual
+        // ASCOM-Common probe body is identical across all arms and lives
+        // in `fetch_api_version<T: AlpacaDeviceCommon>` — see
+        // `crate::dispatch::alpaca_device_common`. Each arm holds the read
+        // lock only long enough to clone an `Arc` so the probe RPCs run
+        // without blocking writers.
         let version = match info.device_type {
             DeviceType::Camera => {
-                let cameras = self.alpaca_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    let interface_version = camera.interface_version().await.ok();
-                    let driver_version = camera.driver_version().await.ok();
-                    let driver_info = camera.driver_info().await.ok();
-                    // Why (audit-rust §4.3): see function-header contract.
-                    // `supportedactions` → empty list when driver lacks
-                    // ISupportedActions (ASCOM-optional); `interface_version`
-                    // → V1 (ASCOM baseline) when driver omits the property.
-                    // This pattern repeats for every device-type arm below.
-                    let supported_actions = camera.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca camera {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_cameras.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca camera {} not connected", device_id)),
                 }
             }
             DeviceType::Mount => {
-                let mounts = self.alpaca_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    let interface_version = mount.interface_version().await.ok();
-                    let driver_version = mount.driver_version().await.ok();
-                    let driver_info = mount.driver_info().await.ok();
-                    let supported_actions = mount.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca mount {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_mounts.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca mount {} not connected", device_id)),
                 }
             }
             DeviceType::Focuser => {
-                let focusers = self.alpaca_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    let interface_version = focuser.interface_version().await.ok();
-                    let driver_version = focuser.driver_version().await.ok();
-                    let driver_info = focuser.driver_info().await.ok();
-                    let supported_actions = focuser.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca focuser {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_focusers.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca focuser {} not connected", device_id)),
                 }
             }
             DeviceType::FilterWheel => {
-                let filter_wheels = self.alpaca_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    let interface_version = fw.interface_version().await.ok();
-                    let driver_version = fw.driver_version().await.ok();
-                    let driver_info = fw.driver_info().await.ok();
-                    let supported_actions = fw.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca filter wheel {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_filter_wheels.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca filter wheel {} not connected", device_id)),
                 }
             }
             DeviceType::Rotator => {
-                let rotators = self.alpaca_rotators.read().await;
-                if let Some(rotator) = rotators.get(device_id) {
-                    let interface_version = rotator.interface_version().await.ok();
-                    let driver_version = rotator.driver_version().await.ok();
-                    let driver_info = rotator.driver_info().await.ok();
-                    let supported_actions = rotator.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca rotator {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_rotators.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca rotator {} not connected", device_id)),
                 }
             }
             DeviceType::Dome => {
-                let domes = self.alpaca_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    let interface_version = dome.interface_version().await.ok();
-                    let driver_version = dome.driver_version().await.ok();
-                    let driver_info = dome.driver_info().await.ok();
-                    let supported_actions = dome.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca dome {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_domes.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca dome {} not connected", device_id)),
                 }
             }
             DeviceType::SafetyMonitor => {
-                let monitors = self.alpaca_safety_monitors.read().await;
-                if let Some(monitor) = monitors.get(device_id) {
-                    let interface_version = monitor.interface_version().await.ok();
-                    let driver_version = monitor.driver_version().await.ok();
-                    let driver_info = monitor.driver_info().await.ok();
-                    let supported_actions = monitor.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca safety monitor {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_safety_monitors.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => {
+                        return Err(format!("Alpaca safety monitor {} not connected", device_id))
+                    }
                 }
             }
             DeviceType::Switch => {
-                let switches = self.alpaca_switches.read().await;
-                if let Some(switch) = switches.get(device_id) {
-                    let interface_version = switch.interface_version().await.ok();
-                    let driver_version = switch.driver_version().await.ok();
-                    let driver_info = switch.driver_info().await.ok();
-                    let supported_actions = switch.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("Alpaca switch {} not connected", device_id));
+                let device = {
+                    let map = self.alpaca_switches.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => return Err(format!("Alpaca switch {} not connected", device_id)),
                 }
             }
             DeviceType::CoverCalibrator => {
-                let covers = self.alpaca_cover_calibrators.read().await;
-                if let Some(cover) = covers.get(device_id) {
-                    let interface_version = cover.interface_version().await.ok();
-                    let driver_version = cover.driver_version().await.ok();
-                    let driver_info = cover.driver_info().await.ok();
-                    let supported_actions = cover.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "Alpaca cover calibrator {} not connected",
-                        device_id
-                    ));
+                let device = {
+                    let map = self.alpaca_cover_calibrators.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => {
+                        return Err(format!(
+                            "Alpaca cover calibrator {} not connected",
+                            device_id
+                        ))
+                    }
                 }
             }
             DeviceType::Weather => {
-                let weather = self.alpaca_weather.read().await;
-                if let Some(obs) = weather.get(device_id) {
-                    let interface_version = obs.interface_version().await.ok();
-                    let driver_version = obs.driver_version().await.ok();
-                    let driver_info = obs.driver_info().await.ok();
-                    let supported_actions = obs.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_alpaca(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "Alpaca observing conditions {} not connected",
-                        device_id
-                    ));
+                let device = {
+                    let map = self.alpaca_weather.read().await;
+                    map.get(device_id).cloned()
+                };
+                match device {
+                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    None => {
+                        return Err(format!(
+                            "Alpaca observing conditions {} not connected",
+                            device_id
+                        ))
+                    }
                 }
             }
             _ => {
