@@ -34,16 +34,19 @@ import 'headless_api/command_correlator.dart';
 import 'headless_api/event_replay_buffer.dart';
 import 'headless_api/handlers.dart';
 import 'headless_api/job_manager.dart';
+import 'headless_api/request_context.dart' as ctx;
 import 'headless_api/response_helpers.dart';
 import 'headless_api/route_metadata.dart' as route_metadata;
 import 'headless_api/session_ownership.dart';
-import 'headless_api/utils/device_type_parser.dart';
 import 'headless_api/validation.dart';
 
 /// Headless API server using Shelf router with modular handlers
 class HeadlessApiServer {
-  static const _requestIdContextKey = 'requestId';
-  static const _requestIdHeader = 'x-request-id';
+  // Re-exported from `headless_api/request_context.dart` so handler classes
+  // and route modules outside this file can share the same context keys
+  // without depending on `HeadlessApiServer` directly.
+  static const _requestIdContextKey = ctx.requestIdContextKey;
+  static const _requestIdHeader = ctx.requestIdHeader;
 
   /// P2-6 / P2-15: Shelf request-context key holding the SHA-256 digest of
   /// the authenticated bearer token. Set by [_authMiddleware] once a token
@@ -52,12 +55,12 @@ class HeadlessApiServer {
   /// request context — only the digest — so a misbehaving handler that
   /// dumps `request.context` for diagnostics cannot accidentally leak the
   /// secret to a log file.
-  static const _authIdentityContextKey = 'nightshade.authIdentity';
+  static const _authIdentityContextKey = ctx.authIdentityContextKey;
 
   /// P2-6: shelf request-context key holding the bound [route_metadata.
   /// TokenRouteClass] for this request. Memoised in the auth middleware so
   /// the rate-limit middleware doesn't have to re-classify the path.
-  static const _authRouteClassContextKey = 'nightshade.authRouteClass';
+  static const _authRouteClassContextKey = ctx.authRouteClassContextKey;
 
   final int port;
   final ProviderContainer container;
@@ -239,6 +242,7 @@ class HeadlessApiServer {
 
   // Handler instances
   late final DeviceHandlers _deviceHandlers;
+  late final DeviceDiscoveryHandlers _deviceDiscoveryHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -467,6 +471,7 @@ class HeadlessApiServer {
       container,
       jobManager: _jobManager,
     );
+    _deviceDiscoveryHandlers = DeviceDiscoveryHandlers(container);
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
@@ -617,10 +622,13 @@ class HeadlessApiServer {
     router.delete('/api/session-handoff', _handleClearSessionHandoff);
 
     // Device management
-    router.get('/api/devices', _handleGetDevices);
-    router.get('/api/devices/discover-indi', _handleDiscoverIndiAtAddress);
-    router.get('/api/devices/discover-alpaca', _handleDiscoverAlpacaAtAddress);
-    router.get('/api/devices/connected', _handleGetConnectedDevices);
+    router.get('/api/devices', _deviceDiscoveryHandlers.handleGetDevices);
+    router.get('/api/devices/discover-indi',
+        _deviceDiscoveryHandlers.handleDiscoverIndiAtAddress);
+    router.get('/api/devices/discover-alpaca',
+        _deviceDiscoveryHandlers.handleDiscoverAlpacaAtAddress);
+    router.get('/api/devices/connected',
+        _deviceDiscoveryHandlers.handleGetConnectedDevices);
     router.post('/api/devices/connect', _deviceHandlers.handleConnectDevice);
     router.post(
         '/api/devices/disconnect', _deviceHandlers.handleDisconnectDevice);
@@ -3658,141 +3666,11 @@ class HeadlessApiServer {
     return host == '127.0.0.1' || host == 'localhost' || host == '::1';
   }
 
-  Future<Response> _handleGetDevices(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/devices');
-    try {
-      final deviceTypeStr = request.url.queryParameters['deviceType'];
-      final backend = container.read(backendProvider);
-
-      // If no device type specified, discover all device types.
-      List<DeviceInfo> allDevices = [];
-      // Why surfaced: silent catch_(_) hid persistent driver failures (e.g.
-      // missing TouptekSdk DLL, INDI server unreachable) for months because
-      // the UI saw an empty discovery list and shrugged (§2.26). Per-type
-      // errors now bubble up to the response so the dashboard can render an
-      // actionable warning per category.
-      final discoveryErrors = <String, String>{};
-      if (deviceTypeStr != null) {
-        final deviceType = parseDeviceType(deviceTypeStr);
-        if (deviceType != null) {
-          try {
-            allDevices = await backend.discoverDevices(deviceType);
-          } catch (e, stackTrace) {
-            discoveryErrors[deviceType.name] = e.toString();
-            _logWarning(
-              '[API][$requestId] Discovery failed for ${deviceType.name}: $e',
-              fields: {
-                'requestId': requestId,
-                'deviceType': deviceType.name,
-                'error': e.toString(),
-                'stack': stackTrace.toString(),
-              },
-            );
-          }
-        }
-      } else {
-        for (final dt in DeviceType.values) {
-          try {
-            final devices = await backend.discoverDevices(dt);
-            allDevices.addAll(devices);
-          } catch (e, stackTrace) {
-            discoveryErrors[dt.name] = e.toString();
-            _logWarning(
-              '[API][$requestId] Discovery failed for ${dt.name}: $e',
-              fields: {
-                'requestId': requestId,
-                'deviceType': dt.name,
-                'error': e.toString(),
-                'stack': stackTrace.toString(),
-              },
-            );
-          }
-        }
-      }
-
-      return jsonOk({
-        "devices": allDevices
-            .map((d) => {
-                  'id': d.id,
-                  'name': d.name,
-                  'deviceType': d.deviceType.name,
-                  'driverType': d.driverType.name,
-                  'description': d.description,
-                })
-            .toList(),
-        if (discoveryErrors.isNotEmpty) 'discoveryErrors': discoveryErrors,
-      });
-    } catch (e, stackTrace) {
-      _logError('[API][$requestId] Get devices error: $e\n$stackTrace');
-      return jsonInternalServerError({"error": "Internal server error"});
-    }
-  }
-
-  Future<Response> _handleDiscoverIndiAtAddress(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/devices/discover-indi');
-    try {
-      final host = request.url.queryParameters['host'];
-      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
-      if (host == null || host.isEmpty || port == null) {
-        return jsonBadRequest({'error': 'host and port are required'});
-      }
-
-      final backend = container.read(backendProvider);
-      final devices = await backend.discoverIndiAtAddress(host, port);
-      return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
-    } catch (e, stackTrace) {
-      _logError(
-          '[API][$requestId] INDI address discovery error: $e\n$stackTrace');
-      return jsonInternalServerError({'error': 'Internal server error'});
-    }
-  }
-
-  Future<Response> _handleDiscoverAlpacaAtAddress(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/devices/discover-alpaca');
-    try {
-      final host = request.url.queryParameters['host'];
-      final port = int.tryParse(request.url.queryParameters['port'] ?? '');
-      if (host == null || host.isEmpty || port == null) {
-        return jsonBadRequest({'error': 'host and port are required'});
-      }
-
-      final backend = container.read(backendProvider);
-      final devices = await backend.discoverAlpacaAtAddress(host, port);
-      return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
-    } catch (e, stackTrace) {
-      _logError(
-          '[API][$requestId] Alpaca address discovery error: $e\n$stackTrace');
-      return jsonInternalServerError({'error': 'Internal server error'});
-    }
-  }
-
-  Future<Response> _handleGetConnectedDevices(Request request) async {
-    final requestId = _requestIdFrom(request);
-    _logInfo('[API][$requestId] GET /api/devices/connected');
-    try {
-      final backend = container.read(backendProvider);
-      final devices = await backend.getConnectedDevices();
-      return jsonOk({
-        "devices": devices
-            .map((d) => {
-                  'id': d.id,
-                  'name': d.name,
-                  'deviceType': d.deviceType.name,
-                  'driverType': d.driverType.name,
-                  'description': d.description,
-                })
-            .toList(),
-      });
-    } catch (e, stackTrace) {
-      _logError(
-          '[API][$requestId] Get connected devices error: $e\n$stackTrace');
-      return jsonInternalServerError({"error": "Internal server error"});
-    }
-  }
-
+  // /api/devices/*, /api/devices/discover-indi, /api/devices/discover-alpaca,
+  // and /api/devices/connected were moved to
+  // [DeviceDiscoveryHandlers] (handlers/device_discovery_handlers.dart) so the
+  // headless server class is not the home of read-only discovery logic.
+  //
   // /api/devices/connect and /api/devices/disconnect were moved to
   // [DeviceHandlers.handleConnectDevice] / [DeviceHandlers.handleDisconnectDevice]
   // under audit DEV-P0-2. The previous in-line implementations bypassed
