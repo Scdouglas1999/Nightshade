@@ -907,6 +907,7 @@ pub fn planetarium_dispose(handle: i64) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::sync::mpsc;
     use std::thread;
     use std::time::{Duration, Instant};
 
@@ -1075,14 +1076,13 @@ mod tests {
 
     fn wait_snapshot_with_ra(handle: i64, expected_ra: f64) -> SceneSnapshotDto {
         let deadline = Instant::now() + WAKE_TIMEOUT;
-        let mut last_ra = 0.0_f64;
         loop {
             let snap = planetarium_snapshot(handle).expect("snapshot");
-            last_ra = snap.view_pose.ra_rad;
             if snap.frame_id > 0 && (snap.view_pose.ra_rad - expected_ra).abs() < f64::EPSILON {
                 return snap;
             }
             if Instant::now() >= deadline {
+                let last_ra = snap.view_pose.ra_rad;
                 panic!("timed out waiting for snapshot ra={expected_ra}; last ra={last_ra}");
             }
             thread::sleep(POLL);
@@ -1120,15 +1120,41 @@ mod tests {
         planetarium_dispose(handle).expect("dispose");
     }
 
-    fn wait_snapshot_frame_after(handle: i64, after: u64) -> SceneSnapshotDto {
+    fn wait_snapshot_with_selection(
+        handle: i64,
+        after: u64,
+        expected_object_id: u64,
+    ) -> SceneSnapshotDto {
         let deadline = Instant::now() + WAKE_TIMEOUT;
         loop {
             let snap = planetarium_snapshot(handle).expect("snapshot");
-            if snap.frame_id > after {
+            let last_frame = snap.frame_id;
+            let last_selected = snap.selected.as_ref().map(|s| s.object_id);
+            if snap.frame_id > after && last_selected == Some(expected_object_id) {
                 return snap;
             }
             if Instant::now() >= deadline {
-                panic!("timed out waiting for snapshot frame after {after}");
+                panic!(
+                    "timed out waiting for selected object {expected_object_id}; last frame={last_frame}, selected={last_selected:?}",
+                );
+            }
+            thread::sleep(POLL);
+        }
+    }
+
+    fn wait_snapshot_ra_changed(handle: i64, after: u64, previous_ra: f64) -> SceneSnapshotDto {
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        loop {
+            let snap = planetarium_snapshot(handle).expect("snapshot");
+            let last_frame = snap.frame_id;
+            let last_ra = snap.view_pose.ra_rad;
+            if snap.frame_id > after && (snap.view_pose.ra_rad - previous_ra).abs() > 1e-6 {
+                return snap;
+            }
+            if Instant::now() >= deadline {
+                panic!(
+                    "timed out waiting for RA to change from {previous_ra}; last frame={last_frame}, ra={last_ra}",
+                );
             }
             thread::sleep(POLL);
         }
@@ -1164,7 +1190,7 @@ mod tests {
         )
         .expect("set_selection");
 
-        let snap = wait_snapshot_frame_after(handle, baseline.frame_id);
+        let snap = wait_snapshot_with_selection(handle, baseline.frame_id, 11767);
         let selected = snap.selected.expect("selected object");
         assert_eq!(selected.object_id, 11767);
         assert_eq!(selected.display_name, "Polaris");
@@ -1208,11 +1234,7 @@ mod tests {
         )
         .expect("push_gesture");
 
-        let snap = wait_snapshot_frame_after(handle, baseline.frame_id);
-        assert!(
-            (snap.view_pose.ra_rad - ra_before).abs() > 1e-6,
-            "pan should change RA in published snapshot"
-        );
+        let _ = wait_snapshot_ra_changed(handle, baseline.frame_id, ra_before);
         planetarium_dispose(handle).expect("dispose");
     }
 
@@ -1456,28 +1478,33 @@ mod tests {
 
     #[test]
     fn with_planetarium_does_not_block_concurrent_calls_during_pack_load() {
-        // Stress: 4 worker threads each invoke `with_planetarium` (cheap op,
-        // forwarding a SetPose command) while a 5th holds the planetarium for
-        // a longer simulated operation. With the registry lock released
-        // BEFORE the closure runs, the 4 short calls should each return within
-        // a small bound — regardless of what the 5th thread is doing.
+        // Stress: 4 worker threads each invoke `with_planetarium` while a 5th
+        // is parked inside a long-running closure. If the registry mutex were
+        // held across that closure, the workers could not finish until the slow
+        // call is released. The channel gate makes this a behavioral check
+        // instead of a wall-clock race against CI scheduling jitter.
         let handle = planetarium_create(0).expect("create");
 
-        // Spawn a "slow" thread that simulates pack-load latency by holding
-        // the Planetarium for ~50 ms inside its closure.
+        let (slow_entered_tx, slow_entered_rx) = mpsc::channel();
+        let (release_slow_tx, release_slow_rx) = mpsc::channel();
         let slow = std::thread::spawn(move || {
             with_planetarium(handle, |_p| {
-                std::thread::sleep(Duration::from_millis(50));
+                slow_entered_tx.send(()).expect("signal slow entered");
+                release_slow_rx.recv().expect("release slow closure");
                 Ok(())
             })
             .expect("slow with_planetarium");
         });
+        slow_entered_rx
+            .recv_timeout(Duration::from_secs(1))
+            .expect("slow with_planetarium entered closure");
 
+        let (done_tx, done_rx) = mpsc::channel();
         let mut handles = Vec::with_capacity(4);
-        for _ in 0..4 {
+        for i in 0..4 {
+            let done_tx = done_tx.clone();
             handles.push(std::thread::spawn(move || {
-                let start = Instant::now();
-                let _ = planetarium_set_pose(
+                planetarium_set_pose(
                     handle,
                     ViewPoseDto {
                         ra_rad: 1.0,
@@ -1486,20 +1513,29 @@ mod tests {
                         roll_rad: 0.0,
                         projection: SkyProjectionDto::Stereographic,
                     },
-                );
-                start.elapsed()
+                )
+                .expect("set pose");
+                done_tx.send(i).expect("signal worker done");
             }));
         }
+        drop(done_tx);
 
-        for h in handles {
-            let elapsed = h.join().expect("join");
-            assert!(
-                elapsed < Duration::from_millis(100),
-                "concurrent with_planetarium took {elapsed:?}; expected <100ms",
-            );
+        for _ in 0..4 {
+            if let Err(err) = done_rx.recv_timeout(Duration::from_millis(250)) {
+                let _ = release_slow_tx.send(());
+                slow.join().expect("slow join after timeout");
+                for h in handles {
+                    h.join().expect("worker join after timeout");
+                }
+                panic!("concurrent with_planetarium call blocked behind slow closure: {err}");
+            }
         }
 
+        release_slow_tx.send(()).expect("release slow closure");
         slow.join().expect("slow join");
+        for h in handles {
+            h.join().expect("worker join");
+        }
         planetarium_dispose(handle).expect("dispose");
     }
 }

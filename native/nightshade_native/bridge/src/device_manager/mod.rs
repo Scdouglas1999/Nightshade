@@ -358,13 +358,19 @@ pub struct DeviceManager {
     /// Active ASCOM weather wrappers
     #[cfg(windows)]
     pub(crate) ascom_weather: RwLock<
-        HashMap<String, Arc<RwLock<crate::ascom_wrapper::weather::AscomObservingConditionsWrapper>>>,
+        HashMap<
+            String,
+            Arc<RwLock<crate::ascom_wrapper::weather::AscomObservingConditionsWrapper>>,
+        >,
     >,
 
     /// Active ASCOM safety monitor wrappers
     #[cfg(windows)]
     pub(crate) ascom_safety_monitors: RwLock<
-        HashMap<String, Arc<RwLock<crate::ascom_wrapper::safetymonitor::AscomSafetyMonitorWrapper>>>,
+        HashMap<
+            String,
+            Arc<RwLock<crate::ascom_wrapper::safetymonitor::AscomSafetyMonitorWrapper>>,
+        >,
     >,
 
     /// Active ASCOM switch wrappers
@@ -786,8 +792,13 @@ mod tests {
     use crate::ascom_wrapper::mount::test_support::{build_test_mount_wrapper, TestMountResponses};
     use crate::state::AppState;
     use std::collections::HashMap;
-    use std::sync::Arc;
-    use tokio::sync::RwLock;
+    use std::sync::{Arc, OnceLock};
+    use tokio::sync::{Mutex, RwLock};
+
+    fn simulator_singleton_test_lock() -> &'static Mutex<()> {
+        static LOCK: OnceLock<Mutex<()>> = OnceLock::new();
+        LOCK.get_or_init(|| Mutex::new(()))
+    }
 
     #[test]
     fn test_heartbeat_config_default() {
@@ -1403,6 +1414,7 @@ mod tests {
     async fn connect_simulator_marks_singleton_connected() {
         use crate::api::devices::simulation::get_sim_focuser;
 
+        let _guard = simulator_singleton_test_lock().lock().await;
         let manager = build_device_manager();
         let info = build_sim_info("sim_focuser_1", DeviceType::Focuser);
 
@@ -1465,6 +1477,7 @@ mod tests {
     async fn disconnect_simulator_marks_singleton_disconnected() {
         use crate::api::devices::simulation::get_sim_filterwheel;
 
+        let _guard = simulator_singleton_test_lock().lock().await;
         let manager = build_device_manager();
         let info = build_sim_info("sim_filterwheel_1", DeviceType::FilterWheel);
 
@@ -1510,6 +1523,7 @@ mod tests {
     async fn heartbeat_reflects_simulator_singleton_state() {
         use crate::api::devices::simulation::get_sim_mount;
 
+        let _guard = simulator_singleton_test_lock().lock().await;
         let manager = build_device_manager();
         let device_id = "sim_mount_1";
         let info = build_sim_info(device_id, DeviceType::Mount);
@@ -1737,15 +1751,16 @@ mod tests {
     // representative shapes (read-side + write-side) and one no-singleton
     // device type (switch).
     //
-    // Note: the simulation.rs singletons are process-wide, so each test
-    // explicitly resets them to disconnected at the start AND at the end to
-    // avoid cross-test contamination.
+    // Note: the simulation.rs singletons are process-wide, so these tests
+    // hold `simulator_singleton_test_lock` while they run and explicitly reset
+    // singleton state before returning.
     // -------------------------------------------------------------------------
 
     #[tokio::test]
     async fn camera_ops_simulator_gates_on_singleton_connected() {
         use crate::api::devices::simulation::get_sim_camera;
 
+        let _guard = simulator_singleton_test_lock().lock().await;
         let manager = Arc::new(build_device_manager());
         let device_id = "sim_camera_ops_1";
         let info = build_sim_info(device_id, DeviceType::Camera);
@@ -1815,6 +1830,7 @@ mod tests {
     async fn focuser_ops_simulator_gates_on_singleton_connected() {
         use crate::api::devices::simulation::get_sim_focuser;
 
+        let _guard = simulator_singleton_test_lock().lock().await;
         let manager = Arc::new(build_device_manager());
         let device_id = "sim_focuser_ops_1";
         let info = build_sim_info(device_id, DeviceType::Focuser);
