@@ -127,8 +127,14 @@ use tokio::runtime::Runtime;
 use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
-/// Global Tokio runtime for async operations
-static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+/// Global Tokio runtime for async operations.
+///
+/// Wrapped in `Option` so the `OnceLock` closure can record an init failure
+/// (storing `None`) instead of having to construct the runtime BEFORE calling
+/// `get_or_init` — which would race losing threads into dropping a successfully-
+/// built Runtime, which tokio refuses inside an async context (see
+/// `ensure_runtime` for the full rationale).
+static RUNTIME: OnceLock<Option<Runtime>> = OnceLock::new();
 
 /// Tracks whether runtime initialization has permanently failed.
 /// Once this is set to true, all async operations will return errors instead of attempting
@@ -159,43 +165,41 @@ static TRACING_INITIALIZED: AtomicBool = AtomicBool::new(false);
 /// - `Ok(&'static Runtime)` if the runtime was successfully created or already exists
 /// - `Err(NightshadeError)` if runtime creation failed permanently
 pub(crate) fn ensure_runtime() -> Result<&'static Runtime, NightshadeError> {
-    // Fast path: check if we already have a runtime
-    if let Some(rt) = RUNTIME.get() {
-        return Ok(rt);
-    }
-
-    // Fast path: check if we've already failed permanently
-    if RUNTIME_INIT_FAILED.load(Ordering::Acquire) {
-        let msg = RUNTIME_ERROR_MSG
-            .get()
-            .map(|s| s.as_str())
-            .unwrap_or("Unknown runtime initialization failure");
-        return Err(NightshadeError::RuntimeInitFailed(msg.to_string()));
-    }
-
-    // Try to initialize the runtime with fallbacks
-    // We use get_or_init but wrap the entire creation in Result handling
-    let result = try_create_runtime_with_fallbacks();
-
-    match result {
-        Ok(rt) => {
-            // Successfully created - store it
-            // Note: If another thread beat us to it, get_or_init returns the existing one
-            Ok(RUNTIME.get_or_init(|| rt))
-        }
+    // Construct lazily and atomically. The construction MUST happen inside
+    // `OnceLock::get_or_init` so that losing threads block on the closure
+    // and observe the winner's stored value — never building (and then
+    // having to drop) a parallel Runtime of their own. Dropping a tokio
+    // Runtime inside an async context panics with "Cannot drop a runtime in
+    // a context where blocking is not allowed", which is exactly what
+    // happened to parallel `#[tokio::test]` cases that called
+    // `DeviceManager::new` (which calls `ensure_runtime`) — the loser of
+    // the race dropped its newly-built Runtime in the test's async context.
+    //
+    // The closure stores `None` on failure so we can preserve the original
+    // "never retry forever" semantics (RUNTIME_INIT_FAILED is set on the
+    // first failure path below).
+    let stored = RUNTIME.get_or_init(|| match try_create_runtime_with_fallbacks() {
+        Ok(rt) => Some(rt),
         Err(error_msg) => {
-            // All attempts failed - record the permanent failure
             eprintln!(
                 "FATAL: Runtime initialization failed permanently: {}",
                 error_msg
             );
             tracing::error!("Runtime initialization failed permanently: {}", error_msg);
-
-            // Set the error state (only the first thread to fail sets the message)
-            let _ = RUNTIME_ERROR_MSG.set(error_msg.clone());
+            let _ = RUNTIME_ERROR_MSG.set(error_msg);
             RUNTIME_INIT_FAILED.store(true, Ordering::Release);
+            None
+        }
+    });
 
-            Err(NightshadeError::RuntimeInitFailed(error_msg))
+    match stored {
+        Some(rt) => Ok(rt),
+        None => {
+            let msg = RUNTIME_ERROR_MSG
+                .get()
+                .map(|s| s.as_str())
+                .unwrap_or("Unknown runtime initialization failure");
+            Err(NightshadeError::RuntimeInitFailed(msg.to_string()))
         }
     }
 }

@@ -156,6 +156,15 @@ impl IndiCoverCalibrator {
             return Ok(());
         }
 
+        // Try LIGHTBOX_CONTROL alternative (Pegasus FlatMaster and similar
+        // integrated lightbox-with-shutter devices expose a single switch
+        // vector with OPEN / CLOSE elements).
+        if set_switch_when_defined(&mut client, &self.device_name, "LIGHTBOX_CONTROL", "OPEN")
+            .await?
+        {
+            return Ok(());
+        }
+
         Err("No compatible cover control property found".to_string())
     }
 
@@ -177,6 +186,14 @@ impl IndiCoverCalibrator {
 
         // Try DUSTCAP_CONTROL alternative
         if set_switch_when_defined(&mut client, &self.device_name, "DUSTCAP_CONTROL", "CLOSE")
+            .await?
+        {
+            return Ok(());
+        }
+
+        // Try LIGHTBOX_CONTROL alternative — see open_cover() for the
+        // Pegasus FlatMaster rationale.
+        if set_switch_when_defined(&mut client, &self.device_name, "LIGHTBOX_CONTROL", "CLOSE")
             .await?
         {
             return Ok(());
@@ -341,6 +358,34 @@ impl IndiCoverCalibrator {
             return IndiCoverState::Open;
         }
 
+        // Try LIGHTBOX_CONTROL alternative (Pegasus FlatMaster and similar
+        // integrated lightbox-with-shutter devices). Single switch vector
+        // with OPEN / CLOSE elements.
+        let lb_closed = client
+            .get_switch(&self.device_name, "LIGHTBOX_CONTROL", "CLOSE")
+            .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            .unwrap_or(false);
+        let lb_open = client
+            .get_switch(&self.device_name, "LIGHTBOX_CONTROL", "OPEN")
+            .await
+            // Why: see module-level §4.3 policy — INDI switch absent → try next vocabulary.
+            .unwrap_or(false);
+
+        if client
+            .is_property_busy(&self.device_name, "LIGHTBOX_CONTROL")
+            .await
+        {
+            return IndiCoverState::Moving;
+        }
+
+        if lb_closed && !lb_open {
+            return IndiCoverState::Closed;
+        }
+        if lb_open && !lb_closed {
+            return IndiCoverState::Open;
+        }
+
         // Check if cover properties exist at all
         let properties = client.get_properties(&self.device_name).await;
         let has_cover = properties.iter().any(|p| {
@@ -348,6 +393,7 @@ impl IndiCoverCalibrator {
                 || p.name == "DUST_CAP"
                 || p.name == "DUSTCAP_CONTROL"
                 || p.name == "FLAT_COVER_STATE"
+                || p.name == "LIGHTBOX_CONTROL"
         });
 
         if has_cover {
