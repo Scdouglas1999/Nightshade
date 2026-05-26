@@ -56,10 +56,16 @@ void main() {
     // Per-target tile shows the target name and the campaign total.
     expect(find.text('M31'), findsOneWidget);
 
-    // Decision chips
+    // Decision chips. The bulk row at the top of the dialog uses
+    // "Resume all" / "Restart all" / "Continue new" labels (note the
+    // asymmetry — Continue new has no "all" suffix), and each
+    // per-target row repeats the bare "Resume" / "Restart" /
+    // "Continue new" chip labels. So "Resume" and "Restart" appear
+    // exactly once, but "Continue new" appears twice (once in the bulk
+    // row, once in the per-target chip).
     expect(find.text('Resume'), findsOneWidget);
     expect(find.text('Restart'), findsOneWidget);
-    expect(find.text('Continue new'), findsOneWidget);
+    expect(find.text('Continue new'), findsNWidgets(2));
 
     // Confirm with default selection (Resume).
     await tester.tap(find.text('Confirm'));

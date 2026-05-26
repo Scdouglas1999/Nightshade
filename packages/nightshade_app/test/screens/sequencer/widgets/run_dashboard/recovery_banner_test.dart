@@ -171,7 +171,14 @@ void main() {
 
       // A genuine hold drives the gesture to completion.
       final gesture = await tester.startGesture(tester.getCenter(hold));
-      // Pump well past the default 1500ms confirm duration.
+      // The HoldToConfirmButton wires the action through
+      // GestureDetector.onLongPressStart, which only fires AFTER
+      // Flutter's default long-press recognizer delay (~500ms). Only
+      // then does the 1500ms confirm animation begin. So we need to
+      // pump past 500ms + 1500ms = 2000ms total before the status
+      // listener fires `onConfirmed`. The previous 1600ms pump
+      // stopped mid-animation, leaving abortCalls at 0.
+      await tester.pump(const Duration(milliseconds: 600));
       await tester.pump(const Duration(milliseconds: 1600));
       await gesture.up();
       await tester.pump();

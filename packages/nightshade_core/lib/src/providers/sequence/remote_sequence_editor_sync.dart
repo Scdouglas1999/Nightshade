@@ -24,16 +24,36 @@ const remoteSequenceAutoSaveDebounce = Duration(milliseconds: 1500);
 /// host via [SequenceRepository.saveSequence] (NetworkBackend `save-full`).
 final remoteSequenceEditorSyncProvider = Provider<void>((ref) {
   Timer? debounce;
+  // Tracks whether the provider has been disposed. We cannot call
+  // `ref.read(...)` inside an `onDispose` continuation because the
+  // container is already in tear-down — that throws
+  //   "Tried to read a provider from a ProviderContainer that was
+  //    already disposed"
+  // (see widgets/ui_scale_test.dart failure, where the host
+  // ProviderScope unmounts and bubbles the throw up to the test
+  // runner). The previous "unawaited(flushPending(reason:
+  // 'provider_dispose'))" line tried to do a best-effort final save
+  // during tear-down but in practice that save NEVER completes — by
+  // the time the microtask runs the container is gone and the very
+  // first `ref.read` inside flushPending throws. There is therefore
+  // no behavioural regression in dropping the dispose-time flush;
+  // remote auto-save still happens on every debounce window and on
+  // backend disconnect, which is when an in-flight edit actually
+  // needs to be pushed.
+  var isDisposed = false;
 
   Future<void> flushPending({required String reason}) async {
     debounce?.cancel();
     debounce = null;
+    if (isDisposed) return;
     if (ref.read(currentSequenceProvider) == null) return;
     await _persistRemoteSequence(ref, reason: reason);
   }
 
   ref.onDispose(() {
-    unawaited(flushPending(reason: 'provider_dispose'));
+    isDisposed = true;
+    debounce?.cancel();
+    debounce = null;
   });
 
   ref.listen<NightshadeBackend>(backendProvider, (previous, next) {

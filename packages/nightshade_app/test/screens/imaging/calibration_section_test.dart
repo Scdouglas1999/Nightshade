@@ -87,8 +87,21 @@ void main() {
       );
 
       // The "Apply during capture" toggle is rendered, but disabled.
+      // The widget is `NightshadeSwitch` (not the Material `Switch`) — the
+      // calibration section uses the design-system component, so the test
+      // queries that type. `enabled: false` AND `onChanged == null` both
+      // disable a NightshadeSwitch, and we assert the second since it's
+      // the canonical "this is wired up to a handler" signal the row
+      // toggles when a camera connects.
       expect(find.text('Apply during capture'), findsOneWidget);
-      final applySwitch = tester.widget<Switch>(find.byType(Switch));
+      final applySwitch = tester.widget<NightshadeSwitch>(
+        find.widgetWithText(Row, 'Apply during capture').evaluate().isNotEmpty
+            ? find.descendant(
+                of: find.widgetWithText(Row, 'Apply during capture').first,
+                matching: find.byType(NightshadeSwitch),
+              )
+            : find.byType(NightshadeSwitch).first,
+      );
       expect(applySwitch.onChanged, isNull,
           reason: 'Apply toggle must be disabled when no camera is connected');
       expect(applySwitch.value, isFalse,

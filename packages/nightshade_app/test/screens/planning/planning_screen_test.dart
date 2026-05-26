@@ -228,6 +228,11 @@ Future<void> _pumpPlanner(
         builder: (context, state) => const PlannerScreen(),
       ),
       GoRoute(
+        // The planner uses `context.goNamed('framing')` (added with the
+        // stash@{1} UI), so the test router must register the route under
+        // that name — otherwise go_router throws
+        // "unknown route name: framing".
+        name: 'framing',
         path: '/framing',
         builder: (context, state) {
           onFramingNavigated(state.uri.toString());
@@ -360,8 +365,13 @@ void main() {
     expect(names, isNot(contains('NGC 6960 Veil')));
   });
 
-  testWidgets('Send to Framing navigates with ra/dec/name query params',
+  testWidgets('Send to Framing navigates and seeds the framing target',
       (tester) async {
+    // Post-stash@{1}, the planner no longer encodes the target in URL
+    // query params. It does `ref.read(framingProvider.notifier)
+    // .setTargetSuggestion(target)` and then `context.goNamed('framing')`.
+    // The test therefore asserts BOTH: navigation reaches /framing AND
+    // the framing provider was seeded with the right target.
     String? capturedUrl;
     await _pumpPlanner(
       tester,
@@ -383,9 +393,15 @@ void main() {
     expect(capturedUrl, isNotNull);
     final uri = Uri.parse(capturedUrl!);
     expect(uri.path, '/framing');
-    expect(uri.queryParameters['name'], 'NGC 7000');
-    expect(double.parse(uri.queryParameters['ra']!), closeTo(5.0, 1e-3));
-    expect(double.parse(uri.queryParameters['dec']!), closeTo(-5.0, 1e-3));
+
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(MaterialApp)),
+    );
+    final framing = container.read(framingProvider);
+    expect(framing.sourceSuggestion?.targetName, 'NGC 7000');
+    expect(framing.target?.name, 'NGC 7000');
+    expect(framing.target!.raHours, closeTo(5.0, 1e-3));
+    expect(framing.target!.decDegrees, closeTo(-5.0, 1e-3));
   });
 
   test('size filter narrows the candidate list to the requested range',

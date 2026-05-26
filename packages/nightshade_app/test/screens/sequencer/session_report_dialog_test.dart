@@ -78,13 +78,42 @@ SessionReport _fakeReport({
   );
 }
 
+/// Test-only stand-ins for the auxiliary providers `SessionReportDialog`
+/// watches. The real implementations chain into `databaseProvider` /
+/// `backendProvider`, which spin up Drift query streams and (in the case
+/// of `appSettingsProvider`) recurring backend event subscriptions —
+/// `pumpAndSettle` then never reaches steady state and times out.
+/// Providing inert overrides matches the spirit of the original test
+/// (smoke-test the dialog's rendering, not its provider graph).
+class _FakeAppSettingsNotifierForReport extends AppSettingsNotifier {
+  @override
+  Future<AppSettingsState> build() async => const AppSettingsState();
+}
+
 Future<void> _pump(WidgetTester tester, SessionReport report) async {
+  // Build the override list inside the function so it can include
+  // family-keyed providers that depend on the report's session id /
+  // primary target. Without `notesForTargetProvider` override the
+  // dialog's journal section watches a Drift `Stream` whose underlying
+  // periodic notifier ticks forever, so `pumpAndSettle` never reaches
+  // steady state. Same rationale for the analytics/insights family
+  // providers — give them inert resolved values.
+  final primaryTarget = report.targets.isNotEmpty
+      ? report.targets.first.targetName
+      : report.sessionName;
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         sessionReportProvider(report.sessionId).overrideWith(
           (ref) async => report,
         ),
+        appSettingsProvider
+            .overrideWith(() => _FakeAppSettingsNotifierForReport()),
+        notesForTargetProvider(primaryTarget).overrideWith(
+          (ref) => const Stream<List<JournalNote>>.empty(),
+        ),
+        sessionInsightsProvider(report.sessionId)
+            .overrideWith((ref) async => const <SessionInsight>[]),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -102,7 +131,14 @@ Future<void> _pump(WidgetTester tester, SessionReport report) async {
     ),
   );
   await tester.tap(find.text('Open'));
-  await tester.pumpAndSettle();
+  // Don't `pumpAndSettle` — at least one of the provider chains watched
+  // by SessionReportDialog (likely a Drift query stream) keeps a
+  // periodic timer alive past the dialog open animation, so settling
+  // never completes. A bounded pump + 500ms tick is enough to drive
+  // the dialog past its open transition and resolve the overridden
+  // futures.
+  await tester.pump();
+  await tester.pump(const Duration(milliseconds: 500));
 }
 
 void main() {
@@ -155,7 +191,11 @@ void main() {
     await _pump(tester, _fakeReport());
 
     await tester.tap(find.byTooltip('Copy as Markdown'));
-    await tester.pumpAndSettle();
+    // Same as _pump: avoid pumpAndSettle because a watched Drift stream
+    // keeps a periodic timer alive. A bounded pump is enough to deliver
+    // the synchronous Clipboard.setData call.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
 
     expect(clipboardText, hasLength(1));
     expect(clipboardText.single, contains('# Session Report: M42 night 1'));
