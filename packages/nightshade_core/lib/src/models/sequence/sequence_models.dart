@@ -2772,9 +2772,17 @@ class MeridianFlipNode extends SequenceNode {
   /// nodes (from the palette / quick-start wizard / canonical importers) carry
   /// `useGlobalDefaults: true` so any subsequent change in Sequencer Settings
   /// takes effect without per-node editing. The node's own fields still exist
-  /// to allow explicit per-node overrides; touching any of them via
-  /// [copyWith] flips this flag to `false`, capturing the intent as a sticky
-  /// override.
+  /// to allow explicit per-node overrides.
+  ///
+  /// Sticky-override UX: when an operator edits one of the 11 flip-config
+  /// fields in the properties panel, this flag flips to `false` so the edit
+  /// beats the global setting. That side-effect is owned by
+  /// `applyMeridianFlipEdit(...)` in the editor layer (see
+  /// `packages/nightshade_app/lib/screens/sequencer/widgets/`
+  /// `meridian_flip_edit_helper.dart`) — NOT by [copyWith], which is a plain
+  /// field-replace. Programmatic call sites (JSON load, sequence diff, import
+  /// mappers) must use [copyWith] and decide for themselves whether to touch
+  /// `useGlobalDefaults`.
   final bool useGlobalDefaults;
 
   MeridianFlipNode({
@@ -2811,6 +2819,11 @@ class MeridianFlipNode extends SequenceNode {
   @override
   Set<DeviceType> get requiredDevices => {DeviceType.mount};
 
+  /// Plain field-replace copy. Per-field UX side-effects (specifically the
+  /// "edit clears useGlobalDefaults" sticky override) live in
+  /// `applyMeridianFlipEdit(...)` in `nightshade_app`'s editor layer; this
+  /// method must stay vanilla so the freezed migration (Phase 6) can replace
+  /// it without behavioural drift.
   @override
   MeridianFlipNode copyWith({
     String? id,
@@ -2833,27 +2846,6 @@ class MeridianFlipNode extends SequenceNode {
     FlipFailureAction? failureAction,
     bool? useGlobalDefaults,
   }) {
-    // Why: touching any meridian-specific field is a deliberate per-node
-    // override. Implicitly clear the global-defaults flag so the executor
-    // honors the new value instead of overwriting it from settings on the
-    // next run. Pure structural copies (id/name/parent/etc.) leave the flag
-    // alone. An explicit `useGlobalDefaults:` arg always wins (used by the
-    // properties panel's "Use global defaults" toggle and by JSON load paths
-    // that must preserve the persisted flag verbatim).
-    final touchedConfig = triggerMethod != null ||
-        minutesPastMeridian != null ||
-        minutesBeforeLimit != null ||
-        hourAngleThreshold != null ||
-        pauseGuiding != null ||
-        autoCenter != null ||
-        refocusAfter != null ||
-        settleTime != null ||
-        resumeGuiding != null ||
-        maxRetries != null ||
-        failureAction != null;
-    final resolvedUseGlobalDefaults =
-        useGlobalDefaults ?? (touchedConfig ? false : this.useGlobalDefaults);
-
     return MeridianFlipNode(
       id: id ?? this.id,
       name: name ?? this.name,
@@ -2873,7 +2865,7 @@ class MeridianFlipNode extends SequenceNode {
       resumeGuiding: resumeGuiding ?? this.resumeGuiding,
       maxRetries: maxRetries ?? this.maxRetries,
       failureAction: failureAction ?? this.failureAction,
-      useGlobalDefaults: resolvedUseGlobalDefaults,
+      useGlobalDefaults: useGlobalDefaults ?? this.useGlobalDefaults,
     );
   }
 
