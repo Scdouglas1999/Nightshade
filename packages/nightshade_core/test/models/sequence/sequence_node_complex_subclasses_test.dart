@@ -12,7 +12,9 @@
 //   * ExposureNode (clearAdaptiveExposure flag)
 //   * NotificationNode is already covered by `notification_node_test.dart`
 //     — we add complementary copyWith-per-field tests here.
-//   * MeridianFlipNode (touched-config heuristic toggles useGlobalDefaults)
+//   * MeridianFlipNode (plain copyWith; the sticky-override UX heuristic
+//     moved to `applyMeridianFlipEdit(...)` in the editor layer and is
+//     covered by `nightshade_app`'s widget tests)
 //   * TargetSchedulerNode (sentinel for swapOnConditionsBelow)
 //   * SmartExposureNode
 //   * LiveStackingNode (sentinel for authToken / watermarkText)
@@ -567,6 +569,15 @@ void main() {
   // ============================================================
   // MeridianFlipNode
   // ============================================================
+  //
+  // Sticky-override UX semantics (the "touching any config field implicitly
+  // flips useGlobalDefaults off" heuristic) used to live in
+  // `MeridianFlipNode.copyWith` and was pinned by tests in THIS group. The
+  // heuristic now lives in the editor-layer helper `applyMeridianFlipEdit(...)`
+  // in `nightshade_app/.../widgets/meridian_flip_edit_helper.dart`, where its
+  // tests have moved. The remaining tests here pin the data model itself: a
+  // vanilla `copyWith` with no hidden side effects, ready for the Phase 6
+  // freezed migration.
   group('MeridianFlipNode', () {
     test('node_type_and_required_devices_pin', () {
       final n = MeridianFlipNode();
@@ -580,46 +591,38 @@ void main() {
       expect(n.useGlobalDefaults, isTrue);
     });
 
-    test('touching_a_config_field_implicitly_flips_global_defaults_off', () {
-      // PHASE-2-NOTE: This is a NON-TRIVIAL behaviour — the
-      // copyWith has bespoke logic. Touching any of triggerMethod,
-      // minutesPastMeridian, minutesBeforeLimit, hourAngleThreshold,
-      // pauseGuiding, autoCenter, refocusAfter, settleTime,
-      // resumeGuiding, maxRetries, or failureAction with a non-null
-      // value automatically flips `useGlobalDefaults` to `false`. Phase
-      // 2's freezed copyWith does NOT replicate this — the conversion
-      // MUST keep a hand-written wrapper on top of freezed (or hoist
-      // the heuristic into the editor/properties-panel layer).
+    test('copyWith_is_plain_field_replace_no_implicit_flag_flip', () {
+      // The UX heuristic that flips useGlobalDefaults when a config field is
+      // touched has moved out of copyWith — copyWith is now a vanilla
+      // field-replace. Any per-node override has to come through an explicit
+      // `useGlobalDefaults: false` arg (e.g. via the editor helper).
       final n = MeridianFlipNode();
       expect(n.useGlobalDefaults, isTrue);
-      // Touching triggerMethod => useGlobalDefaults flips off.
+      // Touching config fields leaves the flag alone.
       expect(
         n
             .copyWith(triggerMethod: MeridianTriggerMethod.hourAngleThreshold)
             .useGlobalDefaults,
-        isFalse,
+        isTrue,
       );
-      // Touching any other config field also flips it off.
-      expect(n.copyWith(minutesPastMeridian: 10.0).useGlobalDefaults, isFalse);
-      expect(n.copyWith(minutesBeforeLimit: 15.0).useGlobalDefaults, isFalse);
-      expect(n.copyWith(hourAngleThreshold: 1.0).useGlobalDefaults, isFalse);
-      expect(n.copyWith(pauseGuiding: false).useGlobalDefaults, isFalse);
-      expect(n.copyWith(autoCenter: false).useGlobalDefaults, isFalse);
-      expect(n.copyWith(refocusAfter: true).useGlobalDefaults, isFalse);
-      expect(n.copyWith(settleTime: 5.0).useGlobalDefaults, isFalse);
-      expect(n.copyWith(resumeGuiding: false).useGlobalDefaults, isFalse);
-      expect(n.copyWith(maxRetries: 5).useGlobalDefaults, isFalse);
+      expect(n.copyWith(minutesPastMeridian: 10.0).useGlobalDefaults, isTrue);
+      expect(n.copyWith(minutesBeforeLimit: 15.0).useGlobalDefaults, isTrue);
+      expect(n.copyWith(hourAngleThreshold: 1.0).useGlobalDefaults, isTrue);
+      expect(n.copyWith(pauseGuiding: false).useGlobalDefaults, isTrue);
+      expect(n.copyWith(autoCenter: false).useGlobalDefaults, isTrue);
+      expect(n.copyWith(refocusAfter: true).useGlobalDefaults, isTrue);
+      expect(n.copyWith(settleTime: 5.0).useGlobalDefaults, isTrue);
+      expect(n.copyWith(resumeGuiding: false).useGlobalDefaults, isTrue);
+      expect(n.copyWith(maxRetries: 5).useGlobalDefaults, isTrue);
       expect(
         n
             .copyWith(failureAction: FlipFailureAction.abortAndPark)
             .useGlobalDefaults,
-        isFalse,
+        isTrue,
       );
     });
 
-    test('touching_only_structural_fields_does_not_flip_global_defaults', () {
-      // Pure structural copyWith (id/name/parent/etc.) leaves the flag
-      // alone.
+    test('copyWith_structural_fields_preserve_use_global_defaults', () {
       final n = MeridianFlipNode();
       expect(n.copyWith(name: 'X').useGlobalDefaults, isTrue);
       expect(n.copyWith(parentId: 'p').useGlobalDefaults, isTrue);
@@ -628,21 +631,14 @@ void main() {
       expect(n.copyWith(isEnabled: false).useGlobalDefaults, isTrue);
     });
 
-    test('explicit_use_global_defaults_arg_always_wins', () {
-      // Setting useGlobalDefaults explicitly preserves it even when
-      // touching a config field. This is the "JSON load preserves the
-      // persisted flag verbatim" path.
+    test('explicit_use_global_defaults_arg_replaces_field', () {
+      // The explicit arg path is how the editor's "Use global defaults"
+      // toggle and the JSON-load path drive useGlobalDefaults.
       final n = MeridianFlipNode();
-      // touchedConfig fires but explicit arg wins.
-      final copy = n.copyWith(
-        triggerMethod: MeridianTriggerMethod.hourAngleThreshold,
-        useGlobalDefaults: true,
-      );
-      expect(copy.useGlobalDefaults, isTrue);
-      expect(
-        copy.triggerMethod,
-        equals(MeridianTriggerMethod.hourAngleThreshold),
-      );
+      final off = n.copyWith(useGlobalDefaults: false);
+      expect(off.useGlobalDefaults, isFalse);
+      final back = off.copyWith(useGlobalDefaults: true);
+      expect(back.useGlobalDefaults, isTrue);
     });
 
     test('copyWith_no_args_preserves_all_fields', () {

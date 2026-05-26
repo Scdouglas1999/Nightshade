@@ -2,8 +2,11 @@
 //
 // Covers:
 //   1. Global -> per-node merge in the sequence executor's MeridianFlipConfig
-//      builder (useGlobalDefaults true pulls from settings; copyWith of any
-//      meridian field clears the flag for sticky overrides).
+//      builder (useGlobalDefaults true pulls from settings; explicit
+//      `useGlobalDefaults: false` makes the per-node values sticky). The UX
+//      heuristic that auto-flips the flag when the user edits any meridian
+//      field lives in `applyMeridianFlipEdit(...)` in nightshade_app's editor
+//      layer; see `meridian_flip_edit_helper_test.dart` in nightshade_app.
 //   2. Standalone monitor lifecycle: toggling
 //      `standaloneMonitoringEnabled` starts/stops the watcher and the
 //      evaluator only fires when conditions are met.
@@ -24,17 +27,23 @@ import 'package:nightshade_core/src/providers/sequence_provider.dart'
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  group('MeridianFlipNode useGlobalDefaults', () {
-    test('copyWith of any meridian field clears useGlobalDefaults', () {
+  group('MeridianFlipNode useGlobalDefaults data-model contract', () {
+    // The sticky-override UX heuristic ("user edited a config field → flip
+    // useGlobalDefaults off") used to live in copyWith; it now lives in the
+    // editor-layer helper `applyMeridianFlipEdit(...)`. These tests pin what
+    // the data model itself does: a vanilla field-replace copyWith that
+    // honours an explicit `useGlobalDefaults:` argument and leaves the flag
+    // alone otherwise.
+    test('vanilla copyWith on a meridian field does NOT auto-flip the flag',
+        () {
       final fresh = MeridianFlipNode();
       expect(fresh.useGlobalDefaults, isTrue);
 
-      // Why: touching any meridian field is a sticky user override.
       final edited = fresh.copyWith(maxRetries: 7);
       expect(edited.maxRetries, 7);
-      expect(edited.useGlobalDefaults, isFalse,
+      expect(edited.useGlobalDefaults, isTrue,
           reason:
-              'copyWith on a meridian field must flip useGlobalDefaults to false');
+              'plain copyWith is a field-replace; the auto-flip is in the editor helper');
     });
 
     test('structural copyWith (name/parent) preserves useGlobalDefaults', () {
@@ -45,12 +54,16 @@ void main() {
               'structural changes that do not alter flip behavior must not flip the flag');
     });
 
-    test('explicit useGlobalDefaults: arg wins over auto-detect', () {
+    test('explicit useGlobalDefaults: false makes the per-node values sticky',
+        () {
+      // This is the persisted-override path: a node loaded from JSON with
+      // useGlobalDefaults already false should keep that flag through
+      // structural copies.
       final fresh = MeridianFlipNode();
-      // Even though maxRetries is being touched, the explicit flag wins.
       final pinned =
-          fresh.copyWith(maxRetries: 9, useGlobalDefaults: true);
-      expect(pinned.useGlobalDefaults, isTrue);
+          fresh.copyWith(maxRetries: 9, useGlobalDefaults: false);
+      expect(pinned.useGlobalDefaults, isFalse);
+      expect(pinned.maxRetries, 9);
     });
   });
 
@@ -91,9 +104,13 @@ void main() {
       final freshNode = MeridianFlipNode();
       expect(freshNode.useGlobalDefaults, isTrue);
 
-      // Per-node override path: when a user edits the node, the override
-      // wins over the global setting.
-      final overriddenNode = freshNode.copyWith(maxRetries: 1);
+      // Per-node override path: when a user edits the node, the editor
+      // helper switches useGlobalDefaults off so the override wins over
+      // the global setting. We exercise the data-model contract directly
+      // by passing `useGlobalDefaults: false` — the editor helper does
+      // the same thing internally.
+      final overriddenNode =
+          freshNode.copyWith(maxRetries: 1, useGlobalDefaults: false);
       expect(overriddenNode.useGlobalDefaults, isFalse);
       expect(overriddenNode.maxRetries, 1);
     });
