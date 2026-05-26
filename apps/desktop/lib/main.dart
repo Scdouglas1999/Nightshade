@@ -57,16 +57,18 @@ void main(List<String> args) async {
           buildNumber: appBuildNumber,
         ),
       ),
-      // WIP-PARKED: Plugin-node wiring (Wave 6 Pack P + Audit §11).
-      // pluginNodeDispatcherOverride() and pluginNodePaletteBlueprintsOverride()
-      // live in packages/nightshade_app/lib/services/plugin_node_*_wiring.dart
-      // but reference types/providers (PluginNodeBlueprint, pluginNodeRegistryProvider,
-      // pluginNodeBlueprintsProvider, pluginNodeRegistrationsStreamProvider) that
-      // are not yet defined in nightshade_core or nightshade_plugins. Re-enable
-      // once that work lands. Without the overrides, plugin-contributed sequence
-      // nodes won't appear in the sequencer palette and the Rust executor returns
-      // a structured "dispatcher not wired" failure — both LOUD behaviors per
-      // CLAUDE.md, not silent fallbacks.
+      // Wave 6 Pack P — wire `pluginNodeDispatcherProvider` (defined in
+      // nightshade_core) to the real `PluginNodeExecutor` (defined in
+      // nightshade_plugins). Without this override the Rust executor would
+      // receive a structured "dispatcher not wired" failure for every
+      // PluginNode invocation.
+      pluginNodeDispatcherOverride(),
+      // Audit §11 — surface plugin-contributed sequence nodes in the
+      // sequencer palette. Without this override the palette never shows
+      // plugin nodes even when the dispatcher above is fully wired (the
+      // user could not author a sequence containing a plugin node from
+      // the GUI).
+      pluginNodePaletteBlueprintsOverride(),
     ],
   );
 
