@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -436,92 +434,128 @@ pub async fn api_discover_indi_network() -> Result<Vec<DeviceInfo>, NightshadeEr
     Ok(all_devices)
 }
 
-// =============================================================================
-// Per-backend / per-(device_type) scanners
-//
-// Each scanner returns the bridge's `DeviceInfo` representation for one
-// driver kind. The hot-plug poll watcher calls the native/ASCOM scanners
-// directly because those backends do not signal arrival/removal — every
-// other backend (Alpaca, INDI) either emits its own events or is queried on
-// demand by the unified `api_discover_devices` entry point.
-//
-// Scanners return `Result<_, String>` so a single failing backend is
-// surfaced loudly (`tracing::warn!` plus an entry in the per-pair discovery
-// cache) without poisoning the results of every other backend — the policy
-// laid out on `DiscoveryCacheEntry`.
-// =============================================================================
+/// Returns the list of driver backends that can supply devices of the given
+/// type. Only these (type, driver) pairs will be probed when the user asks for
+/// `device_type` — for example, asking for cameras does not trigger a mount
+/// SDK scan.
+pub(crate) fn drivers_for_device_type(device_type: DeviceType) -> Vec<DriverType> {
+    match device_type {
+        DeviceType::Camera => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Native,
+            DriverType::Indi,
+            DriverType::Simulator,
+        ],
+        DeviceType::Mount => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Native,
+            DriverType::Indi,
+        ],
+        DeviceType::Focuser => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Native,
+            DriverType::Indi,
+        ],
+        DeviceType::FilterWheel => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Native,
+            DriverType::Indi,
+        ],
+        DeviceType::Rotator => vec![
+            DriverType::Ascom,
+            DriverType::Alpaca,
+            DriverType::Native,
+            DriverType::Indi,
+        ],
+        DeviceType::Dome => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
+        DeviceType::Weather => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
+        DeviceType::SafetyMonitor => {
+            vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi]
+        }
+        DeviceType::CoverCalibrator => {
+            vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi]
+        }
+        // The Built-in guider and PHD2 are reported under DriverType::Native;
+        // INDI guiders also fall under (Guider, Indi).
+        DeviceType::Guider => vec![DriverType::Native, DriverType::Indi],
+        // ASCOM exposes a Switch interface; Alpaca and INDI do too (INDI via
+        // generic switch properties). Native vendor SDKs do not ship switches.
+        DeviceType::Switch => vec![DriverType::Ascom, DriverType::Alpaca, DriverType::Indi],
+    }
+}
 
-/// Scan the native vendor SDKs for devices of `device_type`.
-///
-/// Exposed for the hot-plug poll watcher (which runs every few seconds
-/// against local SDKs and diffs the result against its own cache) and for
-/// the unified `api_discover_devices` entry point.
+/// Probe a single (device_type, driver_type) pair. Returns the discovered
+/// devices on success or a backend-specific error string on failure. Each
+/// branch only scans the backend identified by `driver_type`, so e.g. asking
+/// for (Camera, Ascom) never touches the Alpaca network or the INDI clients.
+async fn scan_devices_for_pair(
+    device_type: DeviceType,
+    driver_type: DriverType,
+) -> Result<Vec<DeviceInfo>, String> {
+    match driver_type {
+        DriverType::Ascom => scan_ascom_for_type(device_type).await,
+        DriverType::Alpaca => scan_alpaca_for_type(device_type).await,
+        DriverType::Native => scan_native_for_type(device_type).await,
+        DriverType::Indi => scan_indi_for_type(device_type).await,
+        DriverType::Simulator => Ok(scan_simulator_for_type(device_type)),
+    }
+}
+
+// Wave 6B (P2-1) — public hot-plug entry points. The hot-plug poller in
+// `crate::hotplug` walks the native and (on Windows) ASCOM device lists
+// without the per-(type,driver) cache wrapper so a freshly-plugged USB
+// device shows up on the very next 4 s tick instead of waiting for the
+// 60 s cache TTL to roll over. We keep the inner `scan_*_for_type`
+// helpers private to this module and expose thin re-exports here so the
+// hot-plug module doesn't have to be `super`-private. Marked
+// `frb(ignore)` because they take crate-private error types and aren't
+// meant to be callable from Dart — only from the hot-plug task.
+#[flutter_rust_bridge::frb(ignore)]
 pub async fn scan_native_for_type_public(
     device_type: DeviceType,
 ) -> Result<Vec<DeviceInfo>, String> {
-    use nightshade_native::discover_all_devices as native_discover_all;
-
-    let native_devices = native_discover_all()
-        .await
-        .map_err(|err| format!("native SDK discovery failed: {err}"))?;
-
-    let mut out = Vec::with_capacity(native_devices.len());
-    for native_dev in native_devices {
-        let dev_type = match native_dev.device_type {
-            nightshade_native::DeviceType::Camera => DeviceType::Camera,
-            nightshade_native::DeviceType::Mount => DeviceType::Mount,
-            nightshade_native::DeviceType::Focuser => DeviceType::Focuser,
-            nightshade_native::DeviceType::FilterWheel => DeviceType::FilterWheel,
-            nightshade_native::DeviceType::Rotator => DeviceType::Rotator,
-        };
-        if dev_type != device_type {
-            continue;
-        }
-        out.push(DeviceInfo {
-            id: native_dev.id,
-            name: native_dev.name.clone(),
-            device_type: dev_type,
-            driver_type: DriverType::Native,
-            description: format!("{} native driver", native_dev.vendor.as_str()),
-            driver_version: native_dev
-                .sdk_version
-                .unwrap_or_else(|| "Native".to_string()),
-            serial_number: native_dev.serial_number,
-            unique_id: None,
-            display_name: native_dev.display_name,
-        });
-    }
-    Ok(out)
+    scan_native_for_type(device_type).await
 }
 
-/// Scan ASCOM Profile (Windows only) for devices of `device_type`.
-///
-/// Filters out simulators and ASCOM diagnostic helpers (hub/pipe/POTH) the
-/// same way the legacy unified scan did, so neither user-facing UI nor the
-/// hot-plug poll surfaces them as real devices.
-///
-/// Exposed for the hot-plug poll watcher and `api_discover_devices`.
 #[cfg(windows)]
+#[flutter_rust_bridge::frb(ignore)]
 pub async fn scan_ascom_for_type_public(
     device_type: DeviceType,
 ) -> Result<Vec<DeviceInfo>, String> {
+    scan_ascom_for_type(device_type).await
+}
+
+#[cfg(windows)]
+async fn scan_ascom_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
     use nightshade_ascom::{discover_devices as ascom_discover, AscomDeviceType};
 
-    let Some(ascom_type) = ascom_type_for(device_type) else {
-        return Ok(Vec::new());
+    let ascom_type = match device_type {
+        DeviceType::Camera => AscomDeviceType::Camera,
+        DeviceType::Mount => AscomDeviceType::Telescope,
+        DeviceType::Focuser => AscomDeviceType::Focuser,
+        DeviceType::FilterWheel => AscomDeviceType::FilterWheel,
+        DeviceType::Rotator => AscomDeviceType::Rotator,
+        DeviceType::Dome => AscomDeviceType::Dome,
+        DeviceType::Weather => AscomDeviceType::ObservingConditions,
+        DeviceType::SafetyMonitor => AscomDeviceType::SafetyMonitor,
+        DeviceType::CoverCalibrator => AscomDeviceType::CoverCalibrator,
+        DeviceType::Switch => AscomDeviceType::Switch,
+        // ASCOM does not expose a "Guider" interface; the built-in guider and
+        // PHD2 are surfaced under DriverType::Native instead.
+        DeviceType::Guider => return Ok(Vec::new()),
     };
 
-    // `nightshade_ascom::discover_devices` is synchronous (Windows registry
-    // walk via the COM profile API). Returning a Future keeps the scanner
-    // signature uniform across backends so callers can dispatch them
-    // identically.
     let ascom_devs = ascom_discover(ascom_type);
-
-    let mut out = Vec::with_capacity(ascom_devs.len());
+    let mut out = Vec::new();
     for ascom_dev in ascom_devs {
         let prog_id_lower = ascom_dev.prog_id.to_lowercase();
         let name_lower = ascom_dev.name.to_lowercase();
 
+        // Filter out simulators and diagnostic tools.
         let is_simulator = prog_id_lower.contains("simulator")
             || name_lower.contains("simulator")
             || prog_id_lower.contains("sim.")
@@ -548,7 +582,6 @@ pub async fn scan_ascom_for_type_public(
             );
             continue;
         }
-
         out.push(DeviceInfo {
             id: format!("ascom:{}", ascom_dev.prog_id),
             name: ascom_dev.name.clone(),
@@ -564,34 +597,21 @@ pub async fn scan_ascom_for_type_public(
     Ok(out)
 }
 
-/// Map the bridge `DeviceType` onto the matching `AscomDeviceType`, or
-/// return `None` for device kinds (e.g. `Guider`) that have no native ASCOM
-/// equivalent and therefore cannot produce ASCOM Profile entries.
-#[cfg(windows)]
-fn ascom_type_for(device_type: DeviceType) -> Option<nightshade_ascom::AscomDeviceType> {
-    use nightshade_ascom::AscomDeviceType;
-    Some(match device_type {
-        DeviceType::Camera => AscomDeviceType::Camera,
-        DeviceType::Mount => AscomDeviceType::Telescope,
-        DeviceType::Focuser => AscomDeviceType::Focuser,
-        DeviceType::FilterWheel => AscomDeviceType::FilterWheel,
-        DeviceType::Rotator => AscomDeviceType::Rotator,
-        DeviceType::Dome => AscomDeviceType::Dome,
-        DeviceType::Weather => AscomDeviceType::ObservingConditions,
-        DeviceType::SafetyMonitor => AscomDeviceType::SafetyMonitor,
-        DeviceType::CoverCalibrator => AscomDeviceType::CoverCalibrator,
-        DeviceType::Switch => AscomDeviceType::Switch,
-        DeviceType::Guider => return None,
-    })
+#[cfg(not(windows))]
+async fn scan_ascom_for_type(_device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
+    // ASCOM is Windows-only.
+    Ok(Vec::new())
 }
 
-/// Scan Alpaca discovery for devices of `device_type`.
 async fn scan_alpaca_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
     use nightshade_alpaca::{discover_all_devices, AlpacaDeviceType};
 
+    // Alpaca discovery is broadcast-based and returns devices of every type
+    // at once, but we filter so this pair's cache entry only contains its own
+    // type. The Alpaca crate has no per-type entry point.
     let alpaca_devs = discover_all_devices(Duration::from_secs(2)).await;
 
-    let mut out = Vec::with_capacity(alpaca_devs.len());
+    let mut out = Vec::new();
     for alpaca_dev in alpaca_devs {
         let dev_type = match alpaca_dev.device_type {
             AlpacaDeviceType::Camera => DeviceType::Camera,
@@ -603,8 +623,9 @@ async fn scan_alpaca_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>
             AlpacaDeviceType::SafetyMonitor => DeviceType::SafetyMonitor,
             AlpacaDeviceType::ObservingConditions => DeviceType::Weather,
             AlpacaDeviceType::CoverCalibrator => DeviceType::CoverCalibrator,
-            _ => continue,
+            AlpacaDeviceType::Switch => DeviceType::Switch,
         };
+
         if dev_type != device_type {
             continue;
         }
@@ -636,25 +657,20 @@ async fn scan_alpaca_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>
     Ok(out)
 }
 
-/// Scan INDI servers (already managed by `DeviceManager`) for devices of
-/// `device_type`. INDI is always-listening over TCP and the manager
-/// publishes its own arrival/removal events, so this scan is a simple
-/// filter over the manager's last-known view of the bus.
-async fn scan_indi_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
-    let indi_devices = get_device_manager().get_all_indi_devices().await;
-    Ok(indi_devices
-        .into_iter()
-        .filter(|d| d.device_type == device_type)
-        .collect())
-}
+async fn scan_native_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
+    use nightshade_native::discover_all_devices as native_discover_all;
 
-/// Always-on simulator and built-in helper devices that do not come from
-/// any backend scan — appended to the per-driver `Native` cache entry so
-/// they participate in the same TTL and filtering as scanned devices.
-fn builtin_devices_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
-    let mut out = Vec::new();
+    // The native crate has its own internal cache + serializing mutex (see
+    // native/src/discovery.rs), so calling discover_all_devices() repeatedly
+    // for different device types is cheap: only the first call within the
+    // inner TTL actually probes vendor SDKs.
 
+    // Guider is reported under DriverType::Native but it's the built-in
+    // software guider + PHD2, not a vendor SDK.
     if device_type == DeviceType::Guider {
+        let mut out = Vec::new();
+
+        // Built-in guider (always available).
         out.push(DeviceInfo {
             id: crate::builtin_guider::device_id().to_string(),
             name: "Built-in Multi-Star Guider".to_string(),
@@ -671,6 +687,11 @@ fn builtin_devices_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
         let is_running = nightshade_imaging::is_phd2_running();
         let is_installed = nightshade_imaging::is_phd2_installed();
         if is_running || is_installed {
+            tracing::debug!(
+                "Found PHD2 Guiding (Running: {}, Installed: {})",
+                is_running,
+                is_installed
+            );
             out.push(DeviceInfo {
                 id: "phd2_guider".to_string(),
                 name: "PHD2 Guiding".to_string(),
@@ -688,207 +709,467 @@ fn builtin_devices_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
                 display_name: "PHD2 Guiding".to_string(),
             });
         }
+
+        return Ok(out);
     }
 
-    if device_type == DeviceType::Camera {
+    let native_devices = native_discover_all()
+        .await
+        .map_err(|e| format!("Native SDK discovery failed: {}", e))?;
+
+    let mut out = Vec::new();
+    for native_dev in native_devices {
+        let dev_type = match native_dev.device_type {
+            nightshade_native::DeviceType::Camera => DeviceType::Camera,
+            nightshade_native::DeviceType::Mount => DeviceType::Mount,
+            nightshade_native::DeviceType::Focuser => DeviceType::Focuser,
+            nightshade_native::DeviceType::FilterWheel => DeviceType::FilterWheel,
+            nightshade_native::DeviceType::Rotator => DeviceType::Rotator,
+        };
+        if dev_type != device_type {
+            continue;
+        }
+        tracing::debug!(
+            "Found native device: {} ({})",
+            native_dev.display_name,
+            native_dev.vendor.as_str()
+        );
         out.push(DeviceInfo {
-            id: "sim_camera_1".to_string(),
-            name: "Simulated Camera".to_string(),
-            device_type: DeviceType::Camera,
-            driver_type: DriverType::Simulator,
-            description: "Internal Simulator".to_string(),
-            driver_version: "1.0.0".to_string(),
-            serial_number: Some("SIM-123".to_string()),
-            unique_id: Some("sim_camera_1".to_string()),
-            display_name: "Simulated Camera".to_string(),
+            id: native_dev.id,
+            name: native_dev.name.clone(),
+            device_type: dev_type,
+            driver_type: DriverType::Native,
+            description: format!("{} native driver", native_dev.vendor.as_str()),
+            driver_version: native_dev
+                .sdk_version
+                .unwrap_or_else(|| "Native".to_string()),
+            serial_number: native_dev.serial_number,
+            unique_id: None,
+            display_name: native_dev.display_name,
         });
     }
-
-    out
+    Ok(out)
 }
 
-/// All driver types we run per-(device_type) scans against.
-///
-/// Order is intentional: backends with cheap local enumeration run first
-/// (`Native` reads vendor SDKs, `Ascom` reads the Windows registry) so the
-/// hot path returns quickly when those produce results, and slower network
-/// scans (`Alpaca` UDP discovery, `Indi` socket queries) follow.
-const SCANNED_DRIVERS: &[DriverType] = &[
-    DriverType::Native,
-    #[cfg(windows)]
-    DriverType::Ascom,
-    DriverType::Alpaca,
-    DriverType::Indi,
-];
-
-/// Run one (device_type, driver) scan, returning the devices for that
-/// single backend or an error string explaining why it failed.
-async fn run_scan(
-    device_type: DeviceType,
-    driver: DriverType,
-) -> Result<Vec<DeviceInfo>, String> {
-    match driver {
-        DriverType::Native => {
-            let mut devices = scan_native_for_type_public(device_type).await?;
-            devices.extend(
-                builtin_devices_for_type(device_type)
-                    .into_iter()
-                    .filter(|d| d.driver_type == DriverType::Native),
-            );
-            Ok(devices)
+async fn scan_indi_for_type(device_type: DeviceType) -> Result<Vec<DeviceInfo>, String> {
+    // INDI discovery here only enumerates devices on already-connected INDI
+    // clients owned by the device manager — no network probing happens here.
+    // Filtering by device_type keeps this entry's cache scoped to one type.
+    let indi_devices = get_device_manager().get_all_indi_devices().await;
+    let mut out = Vec::new();
+    for dev in indi_devices {
+        if dev.device_type == device_type {
+            tracing::debug!("Found INDI device: {} ({:?})", dev.name, dev.device_type);
+            out.push(dev);
         }
-        DriverType::Ascom => {
-            #[cfg(windows)]
-            {
-                scan_ascom_for_type_public(device_type).await
-            }
-            #[cfg(not(windows))]
-            {
-                Ok(Vec::new())
-            }
-        }
-        DriverType::Alpaca => scan_alpaca_for_type(device_type).await,
-        DriverType::Indi => scan_indi_for_type(device_type).await,
-        DriverType::Simulator => Ok(builtin_devices_for_type(device_type)
-            .into_iter()
-            .filter(|d| d.driver_type == DriverType::Simulator)
-            .collect()),
     }
+    Ok(out)
+}
+
+fn scan_simulator_for_type(device_type: DeviceType) -> Vec<DeviceInfo> {
+    if device_type != DeviceType::Camera {
+        return Vec::new();
+    }
+    vec![DeviceInfo {
+        id: "sim_camera_1".to_string(),
+        name: "Simulated Camera".to_string(),
+        device_type: DeviceType::Camera,
+        driver_type: DriverType::Simulator,
+        description: "Internal Simulator".to_string(),
+        driver_version: "1.0.0".to_string(),
+        serial_number: Some("SIM-123".to_string()),
+        unique_id: Some("sim_camera_1".to_string()),
+        display_name: "Simulated Camera".to_string(),
+    }]
 }
 
 /// Discover available devices of a specific type.
 ///
-/// Queries every supported backend (Windows ASCOM Profile, Alpaca network
-/// discovery, native vendor SDKs, INDI servers known to the device
-/// manager) and merges the results with the always-on built-in helpers
-/// (multi-star guider, PHD2 if installed, internal simulator).
+/// The discovery cache is keyed by `(DeviceType, DriverType)`. For the
+/// requested `device_type` we look up every driver that can supply it (see
+/// `drivers_for_device_type`) and either reuse the cached entry (when it is
+/// younger than `DISCOVERY_CACHE_TTL`) or run a fresh per-driver scan for that
+/// specific type. This means:
 ///
-/// Results are cached per (`DeviceType`, `DriverType`) for
-/// [`DISCOVERY_CACHE_TTL`] so:
-///
-///   * Asking for cameras does not force a mount-driver scan.
-///   * A failure in one backend (e.g. Alpaca UDP timeout) is cached and
-///     reported back to the caller without preventing the other backends
-///     from succeeding — silent fall-back is forbidden per `CLAUDE.md`.
-///   * Hot-plug events (see [`crate::hotplug`]) invalidate the cache by
-///     clearing every entry so the next call re-runs every backend.
+///   * Asking for cameras never triggers a mount-driver scan.
+///   * An error in one backend (e.g. ASCOM) cannot poison another (e.g.
+///     Alpaca) for the same type — each (type, driver) entry holds its own
+///     `Result`.
+///   * Errors are surfaced to the caller as `NightshadeError`s; the cache
+///     stores the error so retry-after-TTL semantics still apply (avoids
+///     hammering a broken backend), but successful sibling entries remain
+///     valid.
 pub async fn api_discover_devices(
     device_type: DeviceType,
 ) -> Result<Vec<DeviceInfo>, NightshadeError> {
     tracing::debug!("Discovering {} devices", device_type.as_str());
 
-    // -------------------------------------------------------------------
-    // Fast path: every (device_type, driver) entry is present and fresh.
-    // -------------------------------------------------------------------
-    if let Some(cached) = collect_fresh_cache(device_type).await {
-        tracing::debug!(
-            "Using cached discovery results for {} ({} devices)",
-            device_type.as_str(),
-            cached.len()
-        );
-        return Ok(cached);
-    }
+    let drivers = drivers_for_device_type(device_type);
 
-    // -------------------------------------------------------------------
-    // Slow path: take the discovery lock to suppress thundering-herd
-    // concurrent scans for the same device type, then re-check the cache
-    // (another caller may have filled it while we were waiting).
-    // -------------------------------------------------------------------
-    let _guard = get_discovery_lock().lock().await;
+    // Serialize concurrent discovery requests so that two callers asking for
+    // the same device type at the same time do not both run the expensive
+    // backend probes. The second caller will hit the freshly populated cache
+    // entries inside the loop below.
+    let _in_progress = get_discovery_lock().lock().await;
 
-    if let Some(cached) = collect_fresh_cache(device_type).await {
-        return Ok(cached);
-    }
+    let mut aggregated: Vec<DeviceInfo> = Vec::new();
+    let mut errors: Vec<(DriverType, String)> = Vec::new();
 
-    // -------------------------------------------------------------------
-    // Run every backend's scan for this device type, writing each result
-    // (success or failure) into its own per-pair cache entry. Even a
-    // backend that returned an empty list gets cached so the TTL also
-    // applies to "no devices found" — re-scanning every call would defeat
-    // the cache.
-    // -------------------------------------------------------------------
-    let mut merged: Vec<DeviceInfo> = Vec::new();
-    let mut cache = get_discovery_cache().lock().await;
-    let now = Instant::now();
-    for &driver in SCANNED_DRIVERS {
-        let result = run_scan(device_type, driver).await;
+    for driver in drivers {
+        let key = (device_type, driver);
+
+        // Fast path: cache hit within TTL.
+        {
+            let cache = get_discovery_cache().lock().await;
+            if let Some(entry) = cache.get(&key) {
+                if entry.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
+                    match &entry.result {
+                        Ok(devs) => {
+                            tracing::debug!(
+                                "Cache hit for ({:?}, {:?}): {} devices, {:.1}s old",
+                                device_type,
+                                driver,
+                                devs.len(),
+                                entry.timestamp.elapsed().as_secs_f32()
+                            );
+                            aggregated.extend(devs.iter().cloned());
+                        }
+                        Err(err) => {
+                            tracing::debug!(
+                                "Cache hit (error) for ({:?}, {:?}): {} (suppressing rescan for {:.1}s)",
+                                device_type,
+                                driver,
+                                err,
+                                (DISCOVERY_CACHE_TTL - entry.timestamp.elapsed()).as_secs_f32()
+                            );
+                            errors.push((driver, err.clone()));
+                        }
+                    }
+                    continue;
+                }
+            }
+        }
+
+        // Slow path: run the per-driver scan, then write the result back.
+        let result = scan_devices_for_pair(device_type, driver).await;
         match &result {
-            Ok(devices) => {
+            Ok(devs) => {
                 tracing::debug!(
-                    "Discovery {:?}/{:?}: {} devices",
-                    driver,
+                    "Scan complete for ({:?}, {:?}): {} devices",
                     device_type,
-                    devices.len()
+                    driver,
+                    devs.len()
                 );
-                merged.extend(devices.iter().cloned());
+                aggregated.extend(devs.iter().cloned());
             }
             Err(err) => {
-                tracing::warn!(
-                    "Discovery {:?}/{:?} failed: {}",
-                    driver,
-                    device_type,
-                    err
-                );
+                tracing::warn!("Scan failed for ({:?}, {:?}): {}", device_type, driver, err);
+                errors.push((driver, err.clone()));
             }
         }
-        cache.insert(
-            (device_type, driver),
-            DiscoveryCacheEntry {
-                result,
-                timestamp: now,
-            },
-        );
-    }
-    drop(cache);
 
-    // Always-on built-in helpers that do not belong to a scanned backend
-    // (e.g. the `Simulator` camera). They are appended unconditionally so
-    // the UI always sees them, and a separate `Simulator` cache entry is
-    // written so subsequent cache-fast-path calls return them too.
-    let simulators = builtin_devices_for_type(device_type)
-        .into_iter()
-        .filter(|d| d.driver_type == DriverType::Simulator)
-        .collect::<Vec<_>>();
-    if !simulators.is_empty() {
-        merged.extend(simulators.iter().cloned());
         let mut cache = get_discovery_cache().lock().await;
         cache.insert(
-            (device_type, DriverType::Simulator),
+            key,
             DiscoveryCacheEntry {
-                result: Ok(simulators),
-                timestamp: now,
+                result,
+                timestamp: Instant::now(),
             },
         );
     }
 
-    Ok(merged)
+    drop(_in_progress);
+
+    tracing::info!(
+        "Discovery complete for {}: {} devices, {} backend errors",
+        device_type.as_str(),
+        aggregated.len(),
+        errors.len()
+    );
+
+    // Errors are a feature (per CLAUDE.md): if every driver failed and we have
+    // nothing to return, surface a structured error instead of silently
+    // returning an empty list.
+    if aggregated.is_empty() && !errors.is_empty() {
+        let combined = errors
+            .iter()
+            .map(|(d, e)| format!("{:?}: {}", d, e))
+            .collect::<Vec<_>>()
+            .join("; ");
+        return Err(NightshadeError::connection_failed(
+            device_type.as_str(),
+            format!("All discovery backends failed: {}", combined),
+        ));
+    }
+
+    Ok(aggregated)
 }
 
-/// Return the cached device list for `device_type` if every scanned driver
-/// has a fresh entry; otherwise return `None` so the caller re-runs the
-/// scans. A backend that previously errored is still considered "fresh"
-/// for the purposes of cache validity — repeating a broken scan more than
-/// once per [`DISCOVERY_CACHE_TTL`] would just hammer the broken backend
-/// without producing new information.
-async fn collect_fresh_cache(device_type: DeviceType) -> Option<Vec<DeviceInfo>> {
-    let cache = get_discovery_cache().lock().await;
-    let mut out: Vec<DeviceInfo> = Vec::new();
-    for &driver in SCANNED_DRIVERS {
-        let entry = cache.get(&(device_type, driver))?;
-        if entry.timestamp.elapsed() >= DISCOVERY_CACHE_TTL {
-            return None;
-        }
-        if let Ok(ref devices) = entry.result {
-            out.extend(devices.iter().cloned());
+#[cfg(test)]
+mod tests {
+    //! Tests for the per-(DeviceType, DriverType) discovery cache (DEV-P2-3).
+    //!
+    //! These tests exercise the cache machinery directly. They deliberately
+    //! do NOT call `api_discover_devices` end-to-end, because that function
+    //! talks to real backends (ASCOM registry on Windows, Alpaca network
+    //! broadcast, native vendor SDKs, INDI clients) which are not available
+    //! in a unit-test environment. Instead, they pre-populate the cache and
+    //! observe lookup behavior — the exact behavior `api_discover_devices`
+    //! relies on.
+    //!
+    //! Tests share a single process-wide cache (via `OnceLock`), so they each
+    //! seed the entries they need with their own private `DeviceType` /
+    //! `DriverType` combinations to avoid interfering with each other.
+
+    use super::*;
+    use crate::api::{get_discovery_cache, DiscoveryCacheEntry, DISCOVERY_CACHE_TTL};
+
+    fn make_device(id: &str, name: &str, dt: DeviceType, drv: DriverType) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: name.to_string(),
+            device_type: dt,
+            driver_type: drv,
+            description: "test fixture".to_string(),
+            driver_version: "test".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: name.to_string(),
         }
     }
-    // Built-in simulators are tracked separately under `DriverType::Simulator`.
-    if let Some(entry) = cache.get(&(device_type, DriverType::Simulator)) {
-        if entry.timestamp.elapsed() < DISCOVERY_CACHE_TTL {
-            if let Ok(ref devices) = entry.result {
-                out.extend(devices.iter().cloned());
-            }
-        }
+
+    /// drivers_for_device_type must never return a driver list that requests
+    /// scanning *other* device-type-specific backends. Concretely: asking for
+    /// cameras yields {Ascom, Alpaca, Native, Indi, Simulator} — and crucially
+    /// the list does not branch into "scan all mount drivers too". This is the
+    /// invariant that prevents the original bug (one type triggers a full
+    /// ASCOM+Alpaca+Native+INDI scan across every type).
+    #[test]
+    fn cameras_dont_trigger_mount_driver_scan() {
+        let camera_drivers = drivers_for_device_type(DeviceType::Camera);
+        let mount_drivers = drivers_for_device_type(DeviceType::Mount);
+        let guider_drivers = drivers_for_device_type(DeviceType::Guider);
+
+        // Cameras: ASCOM + Alpaca + Native + INDI + Simulator. No more, no less.
+        assert!(camera_drivers.contains(&DriverType::Ascom));
+        assert!(camera_drivers.contains(&DriverType::Alpaca));
+        assert!(camera_drivers.contains(&DriverType::Native));
+        assert!(camera_drivers.contains(&DriverType::Indi));
+        assert!(camera_drivers.contains(&DriverType::Simulator));
+
+        // Cameras must NOT include any pseudo-driver only meaningful to
+        // guiders or any other type. Drive list is purely about which
+        // backends to probe for the requested type.
+        assert_eq!(camera_drivers.len(), 5);
+
+        // Mounts don't trigger the simulator scan (we only ship a camera sim).
+        assert!(!mount_drivers.contains(&DriverType::Simulator));
+
+        // Guider has its own focused driver set (Native covers the built-in
+        // guider + PHD2; INDI covers INDI guiders). It must not request
+        // ASCOM/Alpaca scans.
+        assert!(!guider_drivers.contains(&DriverType::Ascom));
+        assert!(!guider_drivers.contains(&DriverType::Alpaca));
     }
-    Some(out)
+
+    /// A fresh cache entry within TTL must be returned without rescanning the
+    /// backend. We seed an entry with a sentinel device, then read it back
+    /// straight from the cache — the per-pair lookup logic that
+    /// `api_discover_devices` uses.
+    #[tokio::test]
+    async fn cache_hit_within_ttl() {
+        let key = (DeviceType::Camera, DriverType::Ascom);
+        let sentinel = make_device(
+            "ascom:test:cache-hit",
+            "Sentinel Camera",
+            DeviceType::Camera,
+            DriverType::Ascom,
+        );
+
+        {
+            let mut cache = get_discovery_cache().lock().await;
+            cache.insert(
+                key,
+                DiscoveryCacheEntry {
+                    result: Ok(vec![sentinel.clone()]),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+
+        // Read back through the same lookup logic api_discover_devices uses.
+        let cache = get_discovery_cache().lock().await;
+        let entry = cache.get(&key).expect("entry should be present");
+        assert!(
+            entry.timestamp.elapsed() < DISCOVERY_CACHE_TTL,
+            "freshly seeded entry must be within TTL"
+        );
+        let devs = entry.result.as_ref().expect("entry should be Ok");
+        assert_eq!(devs.len(), 1);
+        assert_eq!(devs[0].id, "ascom:test:cache-hit");
+    }
+
+    /// An entry whose timestamp is older than DISCOVERY_CACHE_TTL must be
+    /// treated as stale (cache miss), forcing a rescan.
+    #[tokio::test]
+    async fn cache_miss_after_ttl() {
+        let key = (DeviceType::Focuser, DriverType::Ascom);
+
+        // Insert a stale entry: timestamp is (now - 2*TTL), so .elapsed() will
+        // exceed DISCOVERY_CACHE_TTL.
+        let stale_time = Instant::now()
+            .checked_sub(DISCOVERY_CACHE_TTL * 2)
+            .expect("system uptime should exceed 2*TTL");
+        {
+            let mut cache = get_discovery_cache().lock().await;
+            cache.insert(
+                key,
+                DiscoveryCacheEntry {
+                    result: Ok(vec![make_device(
+                        "ascom:test:stale",
+                        "Stale Focuser",
+                        DeviceType::Focuser,
+                        DriverType::Ascom,
+                    )]),
+                    timestamp: stale_time,
+                },
+            );
+        }
+
+        let cache = get_discovery_cache().lock().await;
+        let entry = cache.get(&key).expect("entry should be present");
+        assert!(
+            entry.timestamp.elapsed() >= DISCOVERY_CACHE_TTL,
+            "stale entry should be older than TTL"
+        );
+        // api_discover_devices's lookup logic checks
+        // `entry.timestamp.elapsed() < DISCOVERY_CACHE_TTL` — when that is
+        // false, it falls through to the per-pair scan. Verified above.
+    }
+
+    /// An error in one driver's entry must not affect another driver's
+    /// entry for the same device type. (The original monolithic cache would
+    /// have invalidated EVERYTHING when any backend errored, because there
+    /// was a single shared `DiscoveryCache`.)
+    #[tokio::test]
+    async fn ascom_error_doesnt_invalidate_alpaca_for_same_type() {
+        let ascom_key = (DeviceType::Rotator, DriverType::Ascom);
+        let alpaca_key = (DeviceType::Rotator, DriverType::Alpaca);
+
+        let alpaca_dev = make_device(
+            "alpaca:test:rotator-isolated",
+            "Alpaca Rotator",
+            DeviceType::Rotator,
+            DriverType::Alpaca,
+        );
+
+        {
+            let mut cache = get_discovery_cache().lock().await;
+            // ASCOM errored.
+            cache.insert(
+                ascom_key,
+                DiscoveryCacheEntry {
+                    result: Err("ASCOM COM init failed".to_string()),
+                    timestamp: Instant::now(),
+                },
+            );
+            // Alpaca succeeded with a real device.
+            cache.insert(
+                alpaca_key,
+                DiscoveryCacheEntry {
+                    result: Ok(vec![alpaca_dev.clone()]),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+
+        let cache = get_discovery_cache().lock().await;
+
+        // ASCOM entry still holds its error — retry-after-TTL semantics.
+        let ascom_entry = cache.get(&ascom_key).expect("ascom entry present");
+        assert!(ascom_entry.result.is_err());
+
+        // Alpaca entry is UNTOUCHED by ASCOM's failure.
+        let alpaca_entry = cache.get(&alpaca_key).expect("alpaca entry present");
+        let alpaca_devs = alpaca_entry
+            .result
+            .as_ref()
+            .expect("alpaca entry should still be Ok");
+        assert_eq!(alpaca_devs.len(), 1);
+        assert_eq!(alpaca_devs[0].id, "alpaca:test:rotator-isolated");
+    }
+
+    /// Verifies that error entries respect the TTL — they are NOT treated as
+    /// missing on next call, so retries don't immediately hammer a broken
+    /// backend. (The caller still gets the error surfaced; we just don't
+    /// rescan inside the TTL window.)
+    #[tokio::test]
+    async fn error_entry_respects_ttl_for_retry_throttling() {
+        let key = (DeviceType::Dome, DriverType::Indi);
+
+        {
+            let mut cache = get_discovery_cache().lock().await;
+            cache.insert(
+                key,
+                DiscoveryCacheEntry {
+                    result: Err("INDI server unreachable".to_string()),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+
+        let cache = get_discovery_cache().lock().await;
+        let entry = cache.get(&key).expect("error entry present");
+        // Still within TTL: api_discover_devices treats this as a cache hit
+        // (returns the error without rescanning).
+        assert!(entry.timestamp.elapsed() < DISCOVERY_CACHE_TTL);
+        assert!(entry.result.is_err());
+    }
+
+    /// Independent (device_type, driver) entries must NOT share storage. A
+    /// camera-Ascom entry must be distinct from a mount-Ascom entry — that's
+    /// the whole point of the per-pair key.
+    #[tokio::test]
+    async fn entries_are_keyed_per_pair() {
+        let cam_key = (DeviceType::Camera, DriverType::Native);
+        let mount_key = (DeviceType::Mount, DriverType::Native);
+
+        {
+            let mut cache = get_discovery_cache().lock().await;
+            cache.insert(
+                cam_key,
+                DiscoveryCacheEntry {
+                    result: Ok(vec![make_device(
+                        "native:cam:1",
+                        "Native Cam",
+                        DeviceType::Camera,
+                        DriverType::Native,
+                    )]),
+                    timestamp: Instant::now(),
+                },
+            );
+            cache.insert(
+                mount_key,
+                DiscoveryCacheEntry {
+                    result: Ok(vec![make_device(
+                        "native:mnt:1",
+                        "Native Mount",
+                        DeviceType::Mount,
+                        DriverType::Native,
+                    )]),
+                    timestamp: Instant::now(),
+                },
+            );
+        }
+
+        let cache = get_discovery_cache().lock().await;
+        let cam = cache.get(&cam_key).unwrap().result.as_ref().unwrap();
+        let mnt = cache.get(&mount_key).unwrap().result.as_ref().unwrap();
+        assert_eq!(cam.len(), 1);
+        assert_eq!(mnt.len(), 1);
+        assert_eq!(cam[0].id, "native:cam:1");
+        assert_eq!(mnt[0].id, "native:mnt:1");
+        // Different keys, different entries — no leakage.
+        assert_ne!(cam[0].id, mnt[0].id);
+    }
 }

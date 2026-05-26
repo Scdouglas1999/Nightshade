@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -55,7 +53,12 @@ pub async fn api_event_stream(
     if let Err(err) = sink.add(create_event_auto_id(
         EventSeverity::Info,
         EventCategory::System,
-        EventPayload::System(SystemEvent::Initialized),
+        EventPayload::System(SystemEvent::Notification {
+            title: "EventStreamReady".to_string(),
+            message: "Event stream subscription is active".to_string(),
+            level: "debug".to_string(),
+            explicit_transports: None,
+        }),
     )) {
         tracing::warn!("[API_EVENT_STREAM] Failed to send ready signal: {}", err);
         return Ok(());

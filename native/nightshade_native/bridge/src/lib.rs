@@ -103,13 +103,12 @@ pub use device_manager::*;
 pub use error::*;
 pub use event::*;
 pub use imaging_ops::*;
-// WIP-PARKED: `nightshade_sequencer::scheduling` is not declared `pub mod` in
-// `sequencer/src/lib.rs` at HEAD, so this re-export does not resolve. The
-// `DefectMapCorrectionRecord` type was previously embedded in FRB-generated
-// FITS writer DTOs, but the current `frb_generated.rs` no longer references
-// it, so dropping the re-export is safe today. Restore once the sequencer
-// vendor-connectivity work lands a public `scheduling` module (see MEMORY:
-// "deferred stash housekeeping").
+// FRB-generated impl SseDecode / IntoIntoDart blocks embed unqualified
+// references to `DefectMapCorrectionRecord` (as an `Option<_>` field on
+// `FitsWriteHeaderRich`), so the type must be reachable at the crate root
+// for the generated code to compile. Sequencer exposes the source at
+// `nightshade_sequencer::scheduling::frame_context::DefectMapCorrectionRecord`.
+pub use nightshade_sequencer::scheduling::frame_context::DefectMapCorrectionRecord;
 pub use real_device_ops::*;
 pub use sequencer_api::*;
 pub use sequencer_ops::*;

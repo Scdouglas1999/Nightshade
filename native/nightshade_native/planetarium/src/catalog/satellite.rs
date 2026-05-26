@@ -15,7 +15,7 @@ use memmap2::Mmap;
 use thiserror::Error;
 use zerocopy::{AsBytes, FromBytes, FromZeroes};
 
-use crate::astrometry::time::sgp4_prop::{
+use crate::astrometry::sgp4_prop::{
     SatellitePropagator, Sgp4PropError, TemeState,
 };
 
@@ -556,7 +556,7 @@ fn tle_line_to_string(line: &[u8; TLE_LINE_WIDTH]) -> Result<String, SatelliteTl
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::astrometry::time::sgp4_prop::VERIFICATION_POSITION_TOLERANCE_KM;
+    use crate::astrometry::sgp4_prop::VERIFICATION_POSITION_TOLERANCE_KM;
 
     const VANGUARD_NAME: &str = "VANGUARD 1";
     const VANGUARD_LINE1: &str =

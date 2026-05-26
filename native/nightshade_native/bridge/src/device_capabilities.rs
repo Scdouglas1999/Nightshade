@@ -4,6 +4,24 @@
 //! Capabilities describe what operations a device supports, allowing the UI
 //! and sequencer to adapt to device limitations.
 //!
+//! # Connect/Disconnect-probe guard (DEV-P1-2)
+//!
+//! Capability probes for Alpaca and ASCOM devices originally followed a
+//! `connect → read properties → disconnect` pattern. That pattern kicks any
+//! existing connection — e.g. when the user has the device open in the UI and
+//! the bridge tries to refresh capabilities, the probe's `disconnect()` drops
+//! the active session.
+//!
+//! The fix: probe `is_connected()` first. If `Ok(true)`, the device is already
+//! up and we MUST NOT issue connect/disconnect — we just read the properties.
+//! If `Ok(false)`, we perform the full connect/probe/disconnect cycle. If
+//! `is_connected()` returns `Err` (driver doesn't implement `Connected` or the
+//! call failed mid-transition), we treat the device as already connected: the
+//! conservative choice. Spuriously skipping disconnect on a probe leaves a
+//! short-lived connection that the UI / device manager will clean up via its
+//! normal lifecycle; spuriously issuing disconnect on a driver that was
+//! mid-operation can corrupt a live exposure or slew.
+//!
 //! # `as`-cast policy (audit-rust §1.4)
 //!
 //! All `as` casts in this file are capability-probe widenings:
@@ -26,9 +44,13 @@
 //! }
 //! ```
 
-use crate::device_id::{parse_device_id_cached, ConnectionInfo};
+use crate::device_id::parse_device_id_cached;
 use crate::error::NightshadeError;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::sync::{Arc, OnceLock};
+use std::time::{Duration, Instant};
+use tokio::sync::{Mutex, RwLock};
 // Re-use enums from device module to avoid FRB conflicts
 use crate::device::{CalibratorState, CoverState, TrackingRate};
 
@@ -163,6 +185,49 @@ pub struct CameraCapabilities {
     pub cooler_power: Option<f64>,
     /// Whether cooler is currently on
     pub cooler_on: Option<bool>,
+}
+
+/// Manufacturer-recommended camera gain/offset values reported by the vendor SDK.
+///
+/// Populated on a best-effort basis on camera connect. Vendors expose these
+/// inconsistently — the field is `None` whenever the SDK does NOT report a
+/// value. Callers MUST treat `None` as "the SDK didn't tell us"; never
+/// fabricate a recommendation.
+///
+/// Sources used by the bridge:
+/// - ZWO: `ASIControlCaps.default_value` for `ASI_GAIN` and `ASI_OFFSET`,
+///   combined with `ASICameraInfo.elec_per_adu` for the notes string.
+/// - QHY: `DefaultGain` (control ID 53) and `DefaultOffset` (control ID 54),
+///   probed via `IsQHYCCDControlAvailable` first.
+/// - SVBony: `SvbControlCaps.default_value` for the Gain and BlackLevel controls.
+/// - All other vendors (Touptek, Player One, Atik, FLI, Moravian, ASCOM,
+///   Alpaca, INDI, gphoto2/Fujifilm): currently no SDK API for unity gain —
+///   honest `None`. The `notes` field will be empty.
+///
+/// `hcg_gain` (HCG transition point) is currently always `None` — no vendor
+/// SDK exposes this programmatically (it's documented in the manual).
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct CameraRecommendedSettings {
+    /// Manufacturer-recommended unity gain (1 e-/ADU), if the SDK exposes it.
+    pub unity_gain: Option<i32>,
+    /// Gain at which HCG (high conversion gain) engages, if the SDK exposes it.
+    pub hcg_gain: Option<i32>,
+    /// Manufacturer-recommended default offset/bias, if the SDK exposes it.
+    pub default_offset: Option<i32>,
+    /// Human-readable explanation of where the values above came from.
+    /// Empty when nothing was queryable.
+    pub notes: String,
+}
+
+impl From<nightshade_native::camera::CameraRecommendedSettings> for CameraRecommendedSettings {
+    fn from(src: nightshade_native::camera::CameraRecommendedSettings) -> Self {
+        Self {
+            unity_gain: src.unity_gain,
+            hcg_gain: src.hcg_gain,
+            default_offset: src.default_offset,
+            notes: src.notes,
+        }
+    }
 }
 
 // =========================================================================
@@ -419,6 +484,183 @@ pub struct SwitchInfo {
 // API Functions
 // =========================================================================
 
+const CAPABILITY_CACHE_TTL: Duration = Duration::from_secs(300);
+
+#[derive(Debug, Clone)]
+struct CapabilityCacheEntry {
+    capabilities: DeviceCapabilities,
+    timestamp: Instant,
+}
+
+static CAPABILITY_CACHE: OnceLock<Mutex<HashMap<String, CapabilityCacheEntry>>> = OnceLock::new();
+
+fn capability_cache() -> &'static Mutex<HashMap<String, CapabilityCacheEntry>> {
+    CAPABILITY_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
+}
+
+#[cfg(windows)]
+fn capability_probe_should_own_connection(connection_state: Result<bool, String>) -> bool {
+    matches!(connection_state, Ok(false))
+}
+
+#[cfg(windows)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum AscomCapabilityDeviceType {
+    Camera,
+    Mount,
+    Focuser,
+    FilterWheel,
+    Rotator,
+    Dome,
+    SafetyMonitor,
+    Weather,
+    Switch,
+    CoverCalibrator,
+}
+
+#[cfg(windows)]
+fn normalize_ascom_capability_device_type(value: &str) -> Option<AscomCapabilityDeviceType> {
+    let normalized = value
+        .trim()
+        .to_ascii_lowercase()
+        .replace([' ', '-', '_'], "");
+    match normalized.as_str() {
+        "camera" | "icamera" | "icamerav2" | "icamerav3" | "icamerav4" => {
+            Some(AscomCapabilityDeviceType::Camera)
+        }
+        "telescope" | "mount" | "itelescope" | "itelescopev2" | "itelescopev3" => {
+            Some(AscomCapabilityDeviceType::Mount)
+        }
+        "focuser" | "ifocuser" | "ifocuserv2" | "ifocuserv3" => {
+            Some(AscomCapabilityDeviceType::Focuser)
+        }
+        "filterwheel" | "ifilterwheel" | "ifilterwheelv2" => {
+            Some(AscomCapabilityDeviceType::FilterWheel)
+        }
+        "rotator" | "irotator" | "irotatorv2" | "irotatorv3" => {
+            Some(AscomCapabilityDeviceType::Rotator)
+        }
+        "dome" | "idome" | "idomev2" => Some(AscomCapabilityDeviceType::Dome),
+        "safetymonitor" | "isafetymonitor" | "isafetymonitorv1" => {
+            Some(AscomCapabilityDeviceType::SafetyMonitor)
+        }
+        "observingconditions" | "weather" | "iobservingconditions" => {
+            Some(AscomCapabilityDeviceType::Weather)
+        }
+        "switch" | "iswitch" | "iswitchv2" => Some(AscomCapabilityDeviceType::Switch),
+        "covercalibrator" | "icovercalibrator" | "icovercalibratorv1" => {
+            Some(AscomCapabilityDeviceType::CoverCalibrator)
+        }
+        _ => None,
+    }
+}
+
+#[cfg(windows)]
+fn ascom_registry_type_for_capabilities(
+    device_type: AscomCapabilityDeviceType,
+) -> nightshade_ascom::AscomDeviceType {
+    match device_type {
+        AscomCapabilityDeviceType::Camera => nightshade_ascom::AscomDeviceType::Camera,
+        AscomCapabilityDeviceType::Mount => nightshade_ascom::AscomDeviceType::Telescope,
+        AscomCapabilityDeviceType::Focuser => nightshade_ascom::AscomDeviceType::Focuser,
+        AscomCapabilityDeviceType::FilterWheel => nightshade_ascom::AscomDeviceType::FilterWheel,
+        AscomCapabilityDeviceType::Rotator => nightshade_ascom::AscomDeviceType::Rotator,
+        AscomCapabilityDeviceType::Dome => nightshade_ascom::AscomDeviceType::Dome,
+        AscomCapabilityDeviceType::SafetyMonitor => {
+            nightshade_ascom::AscomDeviceType::SafetyMonitor
+        }
+        AscomCapabilityDeviceType::Weather => {
+            nightshade_ascom::AscomDeviceType::ObservingConditions
+        }
+        AscomCapabilityDeviceType::Switch => nightshade_ascom::AscomDeviceType::Switch,
+        AscomCapabilityDeviceType::CoverCalibrator => {
+            nightshade_ascom::AscomDeviceType::CoverCalibrator
+        }
+    }
+}
+
+#[cfg(windows)]
+fn ascom_capability_device_types() -> &'static [AscomCapabilityDeviceType] {
+    &[
+        AscomCapabilityDeviceType::Camera,
+        AscomCapabilityDeviceType::Mount,
+        AscomCapabilityDeviceType::Focuser,
+        AscomCapabilityDeviceType::FilterWheel,
+        AscomCapabilityDeviceType::Rotator,
+        AscomCapabilityDeviceType::Dome,
+        AscomCapabilityDeviceType::SafetyMonitor,
+        AscomCapabilityDeviceType::Weather,
+        AscomCapabilityDeviceType::Switch,
+        AscomCapabilityDeviceType::CoverCalibrator,
+    ]
+}
+
+#[cfg(windows)]
+fn classify_ascom_capability_device_type(
+    prog_id: &str,
+) -> Result<AscomCapabilityDeviceType, String> {
+    let _ = nightshade_ascom::init_com();
+    if let Ok(device) = nightshade_ascom::AscomDeviceConnection::new(prog_id) {
+        if let Ok(device_type) = device.get_string_property("DeviceType") {
+            if let Some(device_type) = normalize_ascom_capability_device_type(&device_type) {
+                return Ok(device_type);
+            }
+        }
+    }
+
+    for device_type in ascom_capability_device_types() {
+        let registry_type = ascom_registry_type_for_capabilities(*device_type);
+        if nightshade_ascom::discover_devices(registry_type)
+            .iter()
+            .any(|device| device.prog_id.eq_ignore_ascii_case(prog_id))
+        {
+            return Ok(*device_type);
+        }
+    }
+
+    Err(format!(
+        "Could not determine ASCOM device type for ProgID '{}': DeviceType property was unavailable and the ProgID was not found in ASCOM driver registry",
+        prog_id
+    ))
+}
+
+fn native_cover_state_to_capability(
+    state: nightshade_native::traits::NativeCoverState,
+) -> CoverState {
+    match state {
+        nightshade_native::traits::NativeCoverState::NotPresent => CoverState::NotPresent,
+        nightshade_native::traits::NativeCoverState::Closed => CoverState::Closed,
+        nightshade_native::traits::NativeCoverState::Moving => CoverState::Moving,
+        nightshade_native::traits::NativeCoverState::Open => CoverState::Open,
+        nightshade_native::traits::NativeCoverState::Unknown => CoverState::Unknown,
+        nightshade_native::traits::NativeCoverState::Error => CoverState::Error,
+    }
+}
+
+fn native_calibrator_state_to_capability(
+    state: nightshade_native::traits::NativeCalibratorState,
+) -> CalibratorState {
+    match state {
+        nightshade_native::traits::NativeCalibratorState::NotPresent => CalibratorState::NotPresent,
+        nightshade_native::traits::NativeCalibratorState::Off => CalibratorState::Off,
+        nightshade_native::traits::NativeCalibratorState::NotReady => CalibratorState::NotReady,
+        nightshade_native::traits::NativeCalibratorState::Ready => CalibratorState::Ready,
+        nightshade_native::traits::NativeCalibratorState::Unknown => CalibratorState::Unknown,
+        nightshade_native::traits::NativeCalibratorState::Error => CalibratorState::Error,
+    }
+}
+
+pub(crate) async fn invalidate_capability_cache() {
+    let mut cache = capability_cache().lock().await;
+    cache.clear();
+}
+
+pub(crate) async fn invalidate_capability_cache_for_device(device_id: &str) {
+    if let Some(cache) = CAPABILITY_CACHE.get() {
+        cache.lock().await.remove(device_id);
+    }
+}
+
 /// Get capabilities for any device type
 pub async fn get_device_capabilities(
     device_id: &str,
@@ -426,14 +668,35 @@ pub async fn get_device_capabilities(
     // Use cached parsing for better performance
     let parsed = parse_device_id_cached(device_id)?;
 
+    {
+        let mut cache = capability_cache().lock().await;
+        if let Some(entry) = cache.get(device_id) {
+            if entry.timestamp.elapsed() < CAPABILITY_CACHE_TTL {
+                return Ok(entry.capabilities.clone());
+            }
+            cache.remove(device_id);
+        }
+    }
+
     // Return capability data from the backend-specific capability providers.
-    match parsed.driver_type {
+    let capabilities = match parsed.driver_type {
         crate::device::DriverType::Alpaca => get_alpaca_capabilities(device_id).await,
         crate::device::DriverType::Ascom => get_ascom_capabilities(device_id).await,
         crate::device::DriverType::Indi => get_indi_capabilities(device_id).await,
         crate::device::DriverType::Native => get_native_capabilities(device_id).await,
         crate::device::DriverType::Simulator => Ok(get_simulator_capabilities(device_id)),
-    }
+    }?;
+
+    let mut cache = capability_cache().lock().await;
+    cache.insert(
+        device_id.to_string(),
+        CapabilityCacheEntry {
+            capabilities: capabilities.clone(),
+            timestamp: Instant::now(),
+        },
+    );
+
+    Ok(capabilities)
 }
 
 /// Unified device capabilities enum
@@ -477,10 +740,20 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
     match device_type {
         "telescope" | "mount" => {
             let telescope = nightshade_alpaca::AlpacaTelescope::from_server(base_url, device_num);
-            telescope
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: probe-and-restore. If the driver is already connected
+            // (e.g. the UI has the mount open), reuse the connection rather
+            // than connect/disconnect-ing around the property reads, which
+            // would kick the active session. `is_connected()` Err → assume
+            // connected (fail-safe: never disconnect a session we can't prove
+            // we opened).
+            let was_connected = telescope.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                telescope
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Why: every `CanXxx` flag below maps to an OPTIONAL ASCOM telescope
             // property. Drivers that don't implement a capability return 0x400 /
@@ -507,15 +780,23 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ..Default::default()
             };
 
-            telescope.disconnect().await.ok();
+            if !was_connected {
+                telescope.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Mount(caps))
         }
         "camera" => {
             let camera = nightshade_alpaca::AlpacaCamera::from_server(base_url, device_num);
-            camera
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock. Reuse existing connection if
+            // the driver already has it open.
+            let was_connected = camera.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                camera
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Why: ASCOM ICameraV3 capability struct. `CameraXSize/YSize` and `MaxADU`
             // are MANDATORY for any working camera, but we tolerate failure to keep
@@ -568,15 +849,22 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ..Default::default()
             };
 
-            camera.disconnect().await.ok();
+            if !was_connected {
+                camera.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Camera(caps))
         }
         "focuser" => {
             let focuser = nightshade_alpaca::AlpacaFocuser::from_server(base_url, device_num);
-            focuser
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = focuser.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                focuser
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             let caps = FocuserCapabilities {
                 // Why: ASCOM IFocuserV3.MaxStep is mandatory but tolerating absence
@@ -594,14 +882,21 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ..Default::default()
             };
 
-            focuser.disconnect().await.ok();
+            if !was_connected {
+                focuser.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Focuser(caps))
         }
         "filterwheel" => {
             let fw = nightshade_alpaca::AlpacaFilterWheel::from_server(base_url, device_num);
-            fw.connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = fw.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                fw.connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Why: ASCOM IFilterWheelV2.Names is mandatory but tolerated. If the
             // driver fails the names lookup we surface an empty wheel (0 positions)
@@ -621,15 +916,22 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ..Default::default()
             };
 
-            fw.disconnect().await.ok();
+            if !was_connected {
+                fw.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::FilterWheel(caps))
         }
         "rotator" => {
             let rotator = nightshade_alpaca::AlpacaRotator::from_server(base_url, device_num);
-            rotator
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = rotator.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                rotator
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             let caps = RotatorCapabilities {
                 can_reverse: rotator.can_reverse().await.unwrap_or(false), // Why: ASCOM IRotatorV3.CanReverse (optional; pre-V3 rotators lack reversal)
@@ -643,14 +945,21 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 can_sync: true,          // Most rotators support sync
             };
 
-            rotator.disconnect().await.ok();
+            if !was_connected {
+                rotator.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Rotator(caps))
         }
         "dome" => {
             let dome = nightshade_alpaca::AlpacaDome::from_server(base_url, device_num);
-            dome.connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = dome.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                dome.connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Convert Alpaca ShutterStatus to our ShutterStatus
             let shutter_status = dome.shutter_status().await.ok().map(|s| match s {
@@ -681,14 +990,21 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 can_abort: true,                              // Alpaca domes support abort
             };
 
-            dome.disconnect().await.ok();
+            if !was_connected {
+                dome.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Dome(caps))
         }
         "covercalibrator" => {
             let cc = nightshade_alpaca::AlpacaCoverCalibrator::from_server(base_url, device_num);
-            cc.connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = cc.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                cc.connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Convert Alpaca CoverStatus to our CoverState
             let cover_state = cc.cover_state().await.ok().map(|s| match s {
@@ -724,16 +1040,23 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 brightness: cc.brightness().await.ok(),
             };
 
-            cc.disconnect().await.ok();
+            if !was_connected {
+                cc.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::CoverCalibrator(caps))
         }
         "observingconditions" => {
             let weather =
                 nightshade_alpaca::AlpacaObservingConditions::from_server(base_url, device_num);
-            weather
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = weather.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                weather
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             // Check which sensors are available by trying to read them
             // If a sensor returns an error, it's likely not available
@@ -769,15 +1092,22 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 average_period: weather.average_period().await.ok(),
             };
 
-            weather.disconnect().await.ok();
+            if !was_connected {
+                weather.disconnect().await.ok();
+            }
             Ok(DeviceCapabilities::Weather(caps))
         }
         "safetymonitor" => {
             let safety = nightshade_alpaca::AlpacaSafetyMonitor::from_server(base_url, device_num);
-            safety
-                .connect()
-                .await
-                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+
+            // DEV-P1-2: see top-level docblock.
+            let was_connected = safety.is_connected().await.unwrap_or(true);
+            if !was_connected {
+                safety
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+            }
 
             let caps = SafetyMonitorCapabilities {
                 // Why: ISafetyMonitorV1.IsSafe is the entire raison-d'être of this
@@ -881,10 +1211,10 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         }
     };
 
-    // Determine device type from ProgID (common ASCOM naming conventions)
-    let prog_id_lower = prog_id.to_lowercase();
+    let device_type = classify_ascom_capability_device_type(&prog_id)
+        .map_err(|e| NightshadeError::not_supported(device_id, &e))?;
 
-    if prog_id_lower.contains("camera") {
+    if device_type == AscomCapabilityDeviceType::Camera {
         // Query camera capabilities
         let mut wrapper = AscomCameraWrapper::new(prog_id.clone())
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
@@ -923,7 +1253,7 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             readout_modes: ascom_caps.readout_modes,
             ..Default::default()
         }))
-    } else if prog_id_lower.contains("telescope") || prog_id_lower.contains("mount") {
+    } else if device_type == AscomCapabilityDeviceType::Mount {
         // Query mount capabilities
         let mut wrapper = AscomMountWrapper::new(prog_id.clone())
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
@@ -959,7 +1289,7 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             },
             ..Default::default()
         }))
-    } else if prog_id_lower.contains("focuser") {
+    } else if device_type == AscomCapabilityDeviceType::Focuser {
         // For focuser, use the ASCOM library directly since we don't have a wrapper yet
         use nightshade_ascom::{init_com, AscomFocuser};
 
@@ -969,12 +1299,17 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut focuser = AscomFocuser::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        focuser
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(focuser.is_connected());
+        if should_disconnect {
+            focuser
+                .connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         let caps = focuser.get_capabilities();
-        let _ = focuser.disconnect();
+        if should_disconnect {
+            let _ = focuser.disconnect();
+        }
 
         Ok(DeviceCapabilities::Focuser(FocuserCapabilities {
             // Why: ASCOM IFocuserV3.MaxStep — when wrapper returns None the
@@ -987,7 +1322,7 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             temp_comp_available: caps.temp_comp_available.unwrap_or(false), // Why: IFocuserV3.TempCompAvailable (optional)
             ..Default::default()
         }))
-    } else if prog_id_lower.contains("filterwheel") || prog_id_lower.contains("filter") {
+    } else if device_type == AscomCapabilityDeviceType::FilterWheel {
         // For filter wheel, use the ASCOM library directly
         use nightshade_ascom::{init_com, AscomFilterWheel};
 
@@ -996,25 +1331,32 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut fw = AscomFilterWheel::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        fw.connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(fw.is_connected());
+        if should_disconnect {
+            fw.connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         // Why: ASCOM IFilterWheelV2.Names is mandatory but tolerated. On
         // PropertyNotImplemented we expose an empty filter list — UI shows a
         // 0-position wheel and the user reconfigures the driver. Better than
         // failing the entire equipment-profile load on one bad accessor.
         let names = fw.names().unwrap_or_default();
-        let position = fw.position().ok().map(|p| p as i32);
-        let _ = fw.disconnect();
+        let focus_offsets = fw.focus_offsets().unwrap_or_default();
+        let position = fw.position().ok();
+        if should_disconnect {
+            let _ = fw.disconnect();
+        }
 
         Ok(DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
-            position_count: names.len() as i32,
+            position_count: i32::try_from(names.len()).unwrap_or(i32::MAX),
             current_position: position,
             filter_names: names,
-            focus_offsets: vec![], // ASCOM FocusOffsets not always available
+            focus_offsets,
+            can_set_focus_offsets: false,
             ..Default::default()
         }))
-    } else if prog_id_lower.contains("rotator") {
+    } else if device_type == AscomCapabilityDeviceType::Rotator {
         // Query rotator capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomRotator};
 
@@ -1023,9 +1365,12 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut rotator = AscomRotator::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        rotator
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(rotator.is_connected());
+        if should_disconnect {
+            rotator
+                .connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         let caps = RotatorCapabilities {
             // Why: ASCOM IRotator.InterfaceVersion — if missing, assume the
@@ -1045,9 +1390,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             can_sync: rotator.interface_version().unwrap_or(0) >= 3,
         };
 
-        let _ = rotator.disconnect();
+        if should_disconnect {
+            let _ = rotator.disconnect();
+        }
         Ok(DeviceCapabilities::Rotator(caps))
-    } else if prog_id_lower.contains("dome") {
+    } else if device_type == AscomCapabilityDeviceType::Dome {
         // Query dome capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomDome};
 
@@ -1056,8 +1403,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut dome = AscomDome::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        dome.connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(dome.is_connected());
+        if should_disconnect {
+            dome.connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         // Map ASCOM ShutterStatus integer to our ShutterStatus enum
         let shutter_status = dome.shutter_status().ok().map(|s| match s {
@@ -1093,9 +1443,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             can_abort: true, // All ASCOM domes support AbortSlew
         };
 
-        let _ = dome.disconnect();
+        if should_disconnect {
+            let _ = dome.disconnect();
+        }
         Ok(DeviceCapabilities::Dome(caps))
-    } else if prog_id_lower.contains("safetymonitor") {
+    } else if device_type == AscomCapabilityDeviceType::SafetyMonitor {
         // Query safety monitor capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomSafetyMonitor};
 
@@ -1104,9 +1456,12 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut safety = AscomSafetyMonitor::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        safety
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(safety.is_connected());
+        if should_disconnect {
+            safety
+                .connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         let caps = SafetyMonitorCapabilities {
             // Why: ASCOM ISafetyMonitorV1.IsSafe — the entire purpose of this
@@ -1118,9 +1473,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             safety_description: safety.driver_info().ok(),
         };
 
-        let _ = safety.disconnect();
+        if should_disconnect {
+            let _ = safety.disconnect();
+        }
         Ok(DeviceCapabilities::SafetyMonitor(caps))
-    } else if prog_id_lower.contains("observingconditions") || prog_id_lower.contains("weather") {
+    } else if device_type == AscomCapabilityDeviceType::Weather {
         // Query observing conditions capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomObservingConditions};
 
@@ -1129,9 +1486,12 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut weather = AscomObservingConditions::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        weather
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(weather.is_connected());
+        if should_disconnect {
+            weather
+                .connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         // Probe each sensor -- ASCOM throws PropertyNotImplementedException for unavailable sensors
         let caps = WeatherCapabilities {
@@ -1151,9 +1511,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             average_period: None, // ASCOM ObservingConditions doesn't expose AveragePeriod as a standard property
         };
 
-        let _ = weather.disconnect();
+        if should_disconnect {
+            let _ = weather.disconnect();
+        }
         Ok(DeviceCapabilities::Weather(caps))
-    } else if prog_id_lower.contains("switch") {
+    } else if device_type == AscomCapabilityDeviceType::Switch {
         // Query switch capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomSwitch};
 
@@ -1162,9 +1524,12 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut switch = AscomSwitch::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        switch
-            .connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(switch.is_connected());
+        if should_disconnect {
+            switch
+                .connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         // Why: ASCOM ISwitchV2.MaxSwitch — 0 fallback means "no channels
         // advertised" so the loop produces an empty switches list; user sees
@@ -1205,9 +1570,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             switches,
         };
 
-        let _ = switch.disconnect();
+        if should_disconnect {
+            let _ = switch.disconnect();
+        }
         Ok(DeviceCapabilities::Switch(caps))
-    } else if prog_id_lower.contains("covercalibrator") || prog_id_lower.contains("flatpanel") {
+    } else if device_type == AscomCapabilityDeviceType::CoverCalibrator {
         // Query cover calibrator capabilities via ASCOM COM
         use nightshade_ascom::{init_com, AscomCoverCalibrator};
 
@@ -1216,8 +1583,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
         let mut cc = AscomCoverCalibrator::new(&prog_id)
             .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
 
-        cc.connect()
-            .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        let should_disconnect = capability_probe_should_own_connection(cc.is_connected());
+        if should_disconnect {
+            cc.connect()
+                .map_err(|e| NightshadeError::connection_failed(device_id, e))?;
+        }
 
         // ASCOM CoverState: 0=NotPresent, 1=Closed, 2=Moving, 3=Open, 4=Unknown, 5=Error
         let cover_state = cc.cover_state().ok().map(|s| match s {
@@ -1255,7 +1625,9 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             brightness: cc.brightness().ok(),
         };
 
-        let _ = cc.disconnect();
+        if should_disconnect {
+            let _ = cc.disconnect();
+        }
         Ok(DeviceCapabilities::CoverCalibrator(caps))
     } else {
         Err(NightshadeError::not_supported(
@@ -1273,13 +1645,31 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
     ))
 }
 
+fn indi_sensor_type_is_color(sensor_type: &str) -> bool {
+    let normalized = sensor_type.to_ascii_lowercase();
+    normalized.contains("color")
+        || normalized.contains("colour")
+        || normalized.contains("bayer")
+        || normalized.contains("cfa")
+        || normalized.contains("rgb")
+        || normalized.contains("osc")
+}
+
+fn indi_readout_mode_label(mode: &nightshade_indi::IndiReadoutMode) -> String {
+    if mode.label.is_empty() {
+        mode.element.clone()
+    } else {
+        mode.label.clone()
+    }
+}
+
 /// Get capabilities for an INDI device
 ///
 /// INDI devices report capabilities through their property definitions.
 /// This function queries the INDI server to discover what properties
 /// (and thus capabilities) a device supports.
 async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, NightshadeError> {
-    use nightshade_indi::IndiClient;
+    use nightshade_indi::{IndiCamera, IndiClient, IndiFilterWheel, IndiFocuser, IndiPermission};
 
     let parsed = parse_device_id_cached(device_id)?;
     let (host, port, device_name) = match &parsed.connection_info {
@@ -1296,18 +1686,42 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
         }
     };
 
-    // Create and connect to INDI server
-    let mut client = IndiClient::new(&host, Some(port));
-    client
-        .connect()
-        .await
-        .map_err(|e| NightshadeError::connection_failed(device_id, format!("{:?}", e)))?;
+    let server_key = format!("{}:{}", host, port);
+    let client = {
+        let mgr = crate::api::get_device_manager();
+        if let Some(client) = mgr.indi_clients.read().await.get(&server_key).cloned() {
+            client
+        } else {
+            let mut clients = mgr.indi_clients.write().await;
+            if let Some(client) = clients.get(&server_key).cloned() {
+                client
+            } else {
+                let mut new_client = IndiClient::new(&host, Some(port));
+                new_client
+                    .connect()
+                    .await
+                    .map_err(|e| NightshadeError::connection_failed(device_id, e.to_string()))?;
+                let client = Arc::new(RwLock::new(new_client));
+                clients.insert(server_key.clone(), Arc::clone(&client));
+                client
+            }
+        }
+    };
 
-    // Give the server time to populate properties
-    tokio::time::sleep(std::time::Duration::from_millis(1000)).await;
-
-    // Get all properties for this device
-    let properties = client.get_properties(&device_name).await;
+    // INDI servers publish capability-bearing property definitions
+    // asynchronously after connect; reuse an existing populated client when
+    // present, otherwise wait briefly for the newly pooled client to hydrate.
+    let start = std::time::Instant::now();
+    let properties = loop {
+        let properties = {
+            let locked_client = client.read().await;
+            locked_client.get_properties(&device_name).await
+        };
+        if !properties.is_empty() || start.elapsed() >= std::time::Duration::from_secs(1) {
+            break properties;
+        }
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+    };
 
     // Determine device type based on standard INDI property names
     let has_ccd_props = properties
@@ -1331,50 +1745,192 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
             .iter()
             .any(|p| p.name == "CCD_COOLER" || p.name == "CCD_TEMPERATURE");
         let has_binning = properties.iter().any(|p| p.name == "CCD_BINNING");
+        let has_subframe = properties.iter().any(|p| p.name == "CCD_FRAME");
         let has_gain = properties
             .iter()
             .any(|p| p.name == "CCD_GAIN" || p.name == "CCD_CONTROLS");
+        let has_offset = properties.iter().any(|p| p.name == "CCD_OFFSET");
+
+        let camera = IndiCamera::new(Arc::clone(&client), &device_name);
+        let gain_range = camera.get_gain_range().await;
+        let sensor_type = camera.get_sensor_type().await;
+        let bayer_pattern = camera.get_bayer_pattern().await;
+        let readout_modes = camera.get_readout_modes().await;
+        let max_bin_x = camera.try_get_max_bin_x().await.ok().flatten().unwrap_or(0);
+        let max_bin_y = camera.try_get_max_bin_y().await.ok().flatten().unwrap_or(0);
+        let bit_depth = camera
+            .get_bits_per_pixel()
+            .await
+            .and_then(|v| u32::try_from(v).ok())
+            .unwrap_or(0);
+        let sensor_type_is_color = sensor_type
+            .as_deref()
+            .map(indi_sensor_type_is_color)
+            .unwrap_or(false);
+        let is_color = bayer_pattern.is_some() || sensor_type_is_color;
+        let readout_mode_names: Vec<String> =
+            readout_modes.iter().map(indi_readout_mode_label).collect();
 
         Ok(DeviceCapabilities::Camera(CameraCapabilities {
             can_abort_exposure: can_abort,
             can_set_ccd_temperature: has_cooler,
             can_set_cooler: has_cooler,
             can_bin: has_binning,
+            max_bin_x,
+            max_bin_y,
+            can_asymmetric_bin: max_bin_x != max_bin_y,
             can_set_gain: has_gain,
-            // Other properties default to false/unknown since INDI doesn't always expose min/max
+            gain_min: gain_range.map(|(min, _)| min),
+            gain_max: gain_range.map(|(_, max)| max),
+            can_set_offset: has_offset,
+            can_subframe: has_subframe,
+            max_width: camera
+                .get_sensor_width()
+                .await
+                .and_then(|v| u32::try_from(v).ok())
+                .unwrap_or(0),
+            max_height: camera
+                .get_sensor_height()
+                .await
+                .and_then(|v| u32::try_from(v).ok())
+                .unwrap_or(0),
+            bit_depth,
+            pixel_size_x: camera.get_pixel_size_x().await,
+            pixel_size_y: camera.get_pixel_size_y().await,
+            is_color,
+            bayer_pattern: bayer_pattern.map(|p| p.pattern),
+            sensor_type,
+            has_fast_readout: readout_mode_names.len() > 1,
+            readout_modes: readout_mode_names,
             ..Default::default()
         }))
     } else if has_telescope_props {
+        let has_equatorial = properties.iter().any(|p| p.name.starts_with("EQUATORIAL_"));
+        let supports_alt_az = properties.iter().any(|p| p.name == "HORIZONTAL_COORD");
         let can_park = properties.iter().any(|p| p.name == "TELESCOPE_PARK");
         let can_sync = properties.iter().any(|p| p.name == "ON_COORD_SET");
         let can_guide = properties
             .iter()
             .any(|p| p.name.starts_with("TELESCOPE_TIMED_GUIDE_"));
         let can_track = properties.iter().any(|p| p.name == "TELESCOPE_TRACK_STATE");
+        let can_get_side_of_pier = properties.iter().any(|p| p.name == "TELESCOPE_PIER_SIDE");
+        let can_set_tracking_rate = properties
+            .iter()
+            .any(|p| p.name == "TELESCOPE_TRACK_RATE" || p.name == "TELESCOPE_TRACK_MODE");
+        let mut supported_tracking_rates = Vec::new();
+        if properties.iter().any(|p| p.name == "TELESCOPE_TRACK_MODE") {
+            supported_tracking_rates.extend([
+                TrackingRate::Sidereal,
+                TrackingRate::Lunar,
+                TrackingRate::Solar,
+                TrackingRate::King,
+            ]);
+        }
+        let can_move_ns = properties.iter().any(|p| p.name == "TELESCOPE_MOTION_NS");
+        let can_move_we = properties.iter().any(|p| p.name == "TELESCOPE_MOTION_WE");
+        let max_slew_rate =
+            if let Some(slew_rate) = properties.iter().find(|p| p.name == "TELESCOPE_SLEW_RATE") {
+                let locked_client = client.read().await;
+                let mut max_rate: Option<f64> = None;
+                for element in &slew_rate.elements {
+                    if let Some(max) = locked_client
+                        .get_number_limits(&device_name, "TELESCOPE_SLEW_RATE", element)
+                        .await
+                        .and_then(|limits| limits.max)
+                    {
+                        max_rate = Some(max_rate.map_or(max, |current| current.max(max)));
+                    }
+                }
+                max_rate
+            } else {
+                None
+            };
 
         Ok(DeviceCapabilities::Mount(MountCapabilities {
-            can_slew: true, // Most INDI mounts support slewing
-            can_slew_async: true,
+            can_slew: has_equatorial || supports_alt_az,
+            can_slew_async: has_equatorial || supports_alt_az,
             can_sync,
             can_park,
             can_unpark: can_park,
+            can_set_park: false,
             can_pulse_guide: can_guide,
+            can_get_side_of_pier,
             can_set_tracking: can_track,
-            is_equatorial: properties.iter().any(|p| p.name.starts_with("EQUATORIAL_")),
+            can_set_tracking_rate,
+            supported_tracking_rates,
+            is_equatorial: has_equatorial,
+            supports_alt_az,
+            can_find_home: properties.iter().any(|p| p.name == "TELESCOPE_HOME"),
+            can_abort_slew: properties
+                .iter()
+                .any(|p| p.name == "TELESCOPE_ABORT_MOTION"),
+            max_slew_rate,
+            can_move_axis: can_move_ns || can_move_we,
+            axis_count: u32::from(can_move_ns) + u32::from(can_move_we),
             ..Default::default()
         }))
     } else if has_focuser_props {
         let is_absolute = properties.iter().any(|p| p.name == "ABS_FOCUS_POSITION");
-        let has_temp_comp = properties.iter().any(|p| p.name == "FOCUS_TEMPERATURE");
+        let has_temp_comp = properties
+            .iter()
+            .any(|p| p.name == "FOCUS_TEMPERATURE_COMP" || p.name == "FOCUS_TEMP_COMP");
+        let can_halt = properties.iter().any(|p| p.name == "FOCUS_ABORT_MOTION");
+        let focuser = IndiFocuser::new(Arc::clone(&client), &device_name);
+        let max_position = focuser.get_max_step().await.unwrap_or(0);
 
         Ok(DeviceCapabilities::Focuser(FocuserCapabilities {
+            max_position,
+            max_increment: max_position,
+            step_size: focuser.get_step_size().await,
             absolute: is_absolute,
             temp_comp_available: has_temp_comp,
+            temp_comp: focuser.is_temp_comp_enabled().await.unwrap_or(false),
+            temperature: focuser.get_temperature().await.ok(),
+            is_moving: focuser.is_moving().await,
+            position: focuser.get_position().await.ok(),
+            can_halt,
             ..Default::default()
         }))
     } else if has_filter_props {
+        let filter_wheel = IndiFilterWheel::new(Arc::clone(&client), &device_name);
+        let filter_names = filter_wheel.get_names().await.unwrap_or_default();
+        let slot_limits = {
+            let locked_client = client.read().await;
+            locked_client
+                .get_number_limits(&device_name, "FILTER_SLOT", "FILTER_SLOT_VALUE")
+                .await
+        };
+        let position_count = slot_limits
+            .and_then(|limits| match (limits.min, limits.max) {
+                (Some(min), Some(max)) if max >= min => {
+                    // Why (audit-rust §1.4): INDI filter slots are a small
+                    // physical count; after finite/range validation, f64 to
+                    // i32 conversion is bounded and represents a whole count.
+                    Some((max - min + 1.0).round() as i32)
+                }
+                _ => None,
+            })
+            .or_else(|| i32::try_from(filter_names.len()).ok())
+            .unwrap_or(0);
+        let can_set_filter_names = properties
+            .iter()
+            .find(|p| p.name == "FILTER_NAME")
+            .map(|p| {
+                matches!(
+                    p.perm,
+                    IndiPermission::WriteOnly | IndiPermission::ReadWrite
+                )
+            })
+            .unwrap_or(false);
+
         Ok(DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
-            ..Default::default()
+            position_count,
+            current_position: filter_wheel.get_position().await.ok(),
+            filter_names,
+            focus_offsets: Vec::new(),
+            is_moving: filter_wheel.is_moving().await,
+            can_set_filter_names,
+            can_set_focus_offsets: false,
         }))
     } else {
         // Unknown device type - return minimal capabilities
@@ -1426,6 +1982,7 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 // hard-coded mode.
                 let readout_modes = camera.get_readout_modes().await.unwrap_or_default();
                 let status = camera.get_status().await.ok();
+                let cooler_power = status.as_ref().and_then(|s| s.cooler_power);
 
                 Ok(DeviceCapabilities::Camera(CameraCapabilities {
                     max_width: sensor_info.width,
@@ -1434,7 +1991,7 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     has_shutter: native_caps.has_shutter,
                     can_set_ccd_temperature: native_caps.can_cool,
                     can_set_cooler: native_caps.can_cool,
-                    can_get_cooler_power: native_caps.can_cool,
+                    can_get_cooler_power: cooler_power.is_some(),
                     can_bin: native_caps.can_set_binning,
                     max_bin_x: native_caps.max_bin_x,
                     max_bin_y: native_caps.max_bin_y,
@@ -1453,7 +2010,7 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     readout_modes: readout_modes.into_iter().map(|m| m.name).collect(),
                     ccd_temperature: status.as_ref().and_then(|s| s.sensor_temp),
                     set_ccd_temperature: status.as_ref().and_then(|s| s.target_temp),
-                    cooler_power: status.as_ref().and_then(|s| s.cooler_power),
+                    cooler_power,
                     cooler_on: status.as_ref().map(|s| s.cooler_on),
                     ..Default::default()
                 }))
@@ -1546,8 +2103,30 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
         }
         crate::device::DeviceType::Rotator => {
             let native_rotators = mgr.native_rotators.read().await;
-            if native_rotators.contains_key(device_id) {
-                Ok(DeviceCapabilities::Rotator(RotatorCapabilities::default()))
+            if let Some(rotator) = native_rotators.get(device_id) {
+                let position = rotator.get_position().await.ok();
+                let mechanical_position = rotator.get_mechanical_position().await.ok();
+                let moving_result = rotator.is_moving().await;
+                let can_halt = moving_result.is_ok();
+                let is_moving = moving_result.unwrap_or(false);
+                let can_reverse = rotator.can_reverse();
+                let reverse = if can_reverse {
+                    rotator.get_reverse().await.unwrap_or(false)
+                } else {
+                    false
+                };
+
+                Ok(DeviceCapabilities::Rotator(RotatorCapabilities {
+                    can_reverse,
+                    reverse,
+                    step_size: None,
+                    is_moving,
+                    mechanical_position,
+                    position,
+                    can_move_absolute: true,
+                    can_halt,
+                    can_sync: true,
+                }))
             } else {
                 Err(NightshadeError::hardware_error(
                     device_id,
@@ -1680,10 +2259,73 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 ))
             }
         }
-        crate::device::DeviceType::Switch => Err(NightshadeError::not_supported(
-            device_id,
-            "Native switch capabilities are unavailable in the current native backend",
-        )),
+        crate::device::DeviceType::Switch => {
+            let native_switches = mgr.native_switches.read().await;
+            if let Some(switch) = native_switches.get(device_id) {
+                let switch_count = switch.get_switch_count().await.unwrap_or(0);
+                let switches = switch
+                    .get_switches()
+                    .await
+                    .unwrap_or_default()
+                    .into_iter()
+                    .map(|channel| SwitchInfo {
+                        index: channel.id,
+                        name: channel.name,
+                        description: channel.description,
+                        is_boolean: channel.is_boolean,
+                        min_value: channel.min_value,
+                        max_value: channel.max_value,
+                        step: channel.step,
+                        can_write: channel.can_write,
+                        value: channel.value,
+                    })
+                    .collect();
+
+                Ok(DeviceCapabilities::Switch(SwitchCapabilities {
+                    switch_count,
+                    switches,
+                }))
+            } else {
+                Err(NightshadeError::hardware_error(
+                    device_id,
+                    "Native switch not connected",
+                ))
+            }
+        }
+        crate::device::DeviceType::CoverCalibrator => {
+            let native_covers = mgr.native_cover_calibrators.read().await;
+            if let Some(cover) = native_covers.get(device_id) {
+                let cover_state = cover
+                    .get_cover_state()
+                    .await
+                    .ok()
+                    .map(native_cover_state_to_capability);
+                let calibrator_state = cover
+                    .get_calibrator_state()
+                    .await
+                    .ok()
+                    .map(native_calibrator_state_to_capability);
+                let brightness = cover.get_brightness().await.ok();
+                let max_brightness = cover.get_max_brightness().await.unwrap_or(0);
+
+                Ok(DeviceCapabilities::CoverCalibrator(
+                    CoverCalibratorCapabilities {
+                        max_brightness,
+                        cover_present: cover_state.map_or(false, |s| s != CoverState::NotPresent),
+                        calibrator_present: calibrator_state
+                            .map_or(false, |s| s != CalibratorState::NotPresent),
+                        cover_state,
+                        calibrator_state,
+                        brightness,
+                    },
+                ))
+            } else {
+                Err(NightshadeError::hardware_error(
+                    device_id,
+                    "Native cover calibrator not connected",
+                ))
+            }
+        }
         _ => Err(NightshadeError::not_supported(
             device_id,
             &format!(
@@ -1696,16 +2338,10 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
 
 /// Get capabilities for a simulator device
 fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
-    let simulator_type = parse_device_id_cached(device_id)
-        .ok()
-        .and_then(|parsed| match parsed.connection_info {
-            ConnectionInfo::Simulator { device_type, .. } => Some(device_type),
-            _ => None,
-        })
-        .unwrap_or_else(|| device_id.to_lowercase());
+    let device_id_lower = device_id.to_lowercase();
 
     // Simulator devices have full capabilities
-    if matches!(simulator_type.as_str(), "camera" | "ccd") {
+    if device_id_lower.contains("camera") {
         DeviceCapabilities::Camera(CameraCapabilities {
             max_width: 4096,
             max_height: 4096,
@@ -1734,7 +2370,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             exposure_max: Some(3600.0),
             ..Default::default()
         })
-    } else if matches!(simulator_type.as_str(), "mount" | "telescope") {
+    } else if device_id_lower.contains("mount") || device_id_lower.contains("telescope") {
         DeviceCapabilities::Mount(MountCapabilities {
             can_slew: true,
             can_slew_async: true,
@@ -1749,7 +2385,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             axis_count: 2,
             ..Default::default()
         })
-    } else if matches!(simulator_type.as_str(), "focuser") {
+    } else if device_id_lower.contains("focuser") {
         DeviceCapabilities::Focuser(FocuserCapabilities {
             max_position: 100000,
             max_increment: 50000,
@@ -1760,10 +2396,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_reverse: true,
             ..Default::default()
         })
-    } else if matches!(
-        simulator_type.as_str(),
-        "filterwheel" | "filter_wheel" | "filter-wheel"
-    ) {
+    } else if device_id_lower.contains("filter") {
         DeviceCapabilities::FilterWheel(FilterWheelCapabilities {
             position_count: 7,
             filter_names: vec![
@@ -1780,7 +2413,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_set_focus_offsets: true,
             ..Default::default()
         })
-    } else if matches!(simulator_type.as_str(), "rotator") {
+    } else if device_id_lower.contains("rotator") {
         DeviceCapabilities::Rotator(RotatorCapabilities {
             can_reverse: true,
             reverse: false,
@@ -1792,7 +2425,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_halt: true,
             can_sync: true,
         })
-    } else if matches!(simulator_type.as_str(), "dome") {
+    } else if device_id_lower.contains("dome") {
         DeviceCapabilities::Dome(DomeCapabilities {
             can_set_azimuth: true,
             can_park: true,
@@ -1808,10 +2441,7 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             slaved: false,
             can_abort: true,
         })
-    } else if matches!(
-        simulator_type.as_str(),
-        "covercalibrator" | "cover_calibrator" | "cover-calibrator" | "flatpanel" | "flat_panel"
-    ) {
+    } else if device_id_lower.contains("covercalibrator") || device_id_lower.contains("flatpanel") {
         DeviceCapabilities::CoverCalibrator(CoverCalibratorCapabilities {
             max_brightness: 255,
             cover_present: true,
@@ -1820,10 +2450,8 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             calibrator_state: Some(CalibratorState::Off),
             brightness: Some(0),
         })
-    } else if matches!(
-        simulator_type.as_str(),
-        "weather" | "observingconditions" | "observing_conditions"
-    ) {
+    } else if device_id_lower.contains("weather") || device_id_lower.contains("observingconditions")
+    {
         DeviceCapabilities::Weather(WeatherCapabilities {
             has_cloud_cover: true,
             has_dew_point: true,
@@ -1840,15 +2468,12 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             has_wind_speed: true,
             average_period: Some(60.0),
         })
-    } else if matches!(
-        simulator_type.as_str(),
-        "safetymonitor" | "safety_monitor" | "safety-monitor"
-    ) {
+    } else if device_id_lower.contains("safetymonitor") {
         DeviceCapabilities::SafetyMonitor(SafetyMonitorCapabilities {
             is_safe: true,
             safety_description: Some("Simulator safety monitor - always safe".to_string()),
         })
-    } else if matches!(simulator_type.as_str(), "switch") {
+    } else if device_id_lower.contains("switch") {
         DeviceCapabilities::Switch(SwitchCapabilities {
             switch_count: 4,
             switches: vec![
@@ -1905,26 +2530,590 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
 }
 
 #[cfg(test)]
-mod simulator_capability_tests {
+mod tests {
     use super::*;
 
-    #[test]
-    fn simulator_capabilities_use_parsed_device_type() {
-        assert!(matches!(
-            get_simulator_capabilities("simulator:mount:7"),
-            DeviceCapabilities::Mount(_)
-        ));
-        assert!(matches!(
-            get_simulator_capabilities("simulator:cover_calibrator:0"),
-            DeviceCapabilities::CoverCalibrator(_)
-        ));
+    #[derive(Debug)]
+    struct FakeNativeRotator;
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for FakeNativeRotator {
+        fn id(&self) -> &str {
+            "native:zwo:900001"
+        }
+
+        fn name(&self) -> &str {
+            "Fake Native Rotator"
+        }
+
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Other("Test".to_string())
+        }
+
+        fn is_connected(&self) -> bool {
+            true
+        }
+
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeRotator for FakeNativeRotator {
+        async fn move_to(
+            &mut self,
+            _position: f64,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn get_position(&self) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(12.5)
+        }
+
+        async fn get_mechanical_position(
+            &self,
+        ) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(14.0)
+        }
+
+        async fn is_moving(&self) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+
+        async fn halt(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn sync(
+            &mut self,
+            _position: f64,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        fn can_reverse(&self) -> bool {
+            true
+        }
+
+        async fn set_reverse(
+            &mut self,
+            _reverse: bool,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn get_reverse(&self) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+    }
+
+    #[derive(Debug)]
+    struct FakeNativeSwitch;
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for FakeNativeSwitch {
+        fn id(&self) -> &str {
+            "native:qhy:900002"
+        }
+
+        fn name(&self) -> &str {
+            "Fake Native Switch"
+        }
+
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Other("Test".to_string())
+        }
+
+        fn is_connected(&self) -> bool {
+            true
+        }
+
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeSwitch for FakeNativeSwitch {
+        async fn get_switch_count(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(1)
+        }
+
+        async fn get_switches(
+            &self,
+        ) -> Result<
+            Vec<nightshade_native::traits::NativeSwitchChannel>,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(vec![nightshade_native::traits::NativeSwitchChannel {
+                id: 0,
+                name: "Relay".to_string(),
+                description: "Dew heater".to_string(),
+                state: true,
+                value: 0.75,
+                min_value: 0.0,
+                max_value: 1.0,
+                step: 0.05,
+                can_write: true,
+                is_boolean: false,
+            }])
+        }
+
+        async fn get_switch_state(
+            &self,
+            _switch_id: i32,
+        ) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+
+        async fn set_switch_state(
+            &mut self,
+            _switch_id: i32,
+            _state: bool,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn get_switch_value(
+            &self,
+            _switch_id: i32,
+        ) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(0.75)
+        }
+
+        async fn set_switch_value(
+            &mut self,
+            _switch_id: i32,
+            _value: f64,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn get_switch_name(
+            &self,
+            _switch_id: i32,
+        ) -> Result<String, nightshade_native::traits::NativeError> {
+            Ok("Relay".to_string())
+        }
+
+        async fn get_switch_description(
+            &self,
+            _switch_id: i32,
+        ) -> Result<String, nightshade_native::traits::NativeError> {
+            Ok("Dew heater".to_string())
+        }
+
+        async fn get_switch_min_value(
+            &self,
+            _switch_id: i32,
+        ) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(0.0)
+        }
+
+        async fn get_switch_max_value(
+            &self,
+            _switch_id: i32,
+        ) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(1.0)
+        }
+
+        async fn get_switch_step(
+            &self,
+            _switch_id: i32,
+        ) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(0.05)
+        }
+
+        async fn can_write(
+            &self,
+            _switch_id: i32,
+        ) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+    }
+
+    #[derive(Debug)]
+    struct FakeNativeCoverCalibrator;
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for FakeNativeCoverCalibrator {
+        fn id(&self) -> &str {
+            "native:player_one:900003"
+        }
+
+        fn name(&self) -> &str {
+            "Fake Native Cover"
+        }
+
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Other("Test".to_string())
+        }
+
+        fn is_connected(&self) -> bool {
+            true
+        }
+
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeCoverCalibrator for FakeNativeCoverCalibrator {
+        async fn open_cover(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn close_cover(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn halt_cover(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn calibrator_on(
+            &mut self,
+            _brightness: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn calibrator_off(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+
+        async fn get_cover_state(
+            &self,
+        ) -> Result<
+            nightshade_native::traits::NativeCoverState,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(nightshade_native::traits::NativeCoverState::Open)
+        }
+
+        async fn get_calibrator_state(
+            &self,
+        ) -> Result<
+            nightshade_native::traits::NativeCalibratorState,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(nightshade_native::traits::NativeCalibratorState::Ready)
+        }
+
+        async fn get_brightness(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(42)
+        }
+
+        async fn get_max_brightness(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(255)
+        }
+    }
+
+    fn native_test_info(
+        id: &str,
+        device_type: crate::device::DeviceType,
+    ) -> crate::device::DeviceInfo {
+        crate::device::DeviceInfo {
+            id: id.to_string(),
+            name: id.to_string(),
+            device_type,
+            driver_type: crate::device::DriverType::Native,
+            description: "Fake native test device".to_string(),
+            driver_version: "test".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: id.to_string(),
+        }
+    }
+
+    async fn register_native_test_device(id: &str, device_type: crate::device::DeviceType) {
+        let manager = crate::api::get_device_manager();
+        manager.devices.write().await.insert(
+            id.to_string(),
+            crate::device_manager::ManagedDevice {
+                info: native_test_info(id, device_type),
+                connection_state: crate::device::ConnectionState::Connected,
+                last_error: None,
+                reconnect_attempts: 0,
+                auto_reconnect: false,
+                last_successful_comm: None,
+                heartbeat_active: false,
+                api_version: None,
+            },
+        );
+        invalidate_capability_cache_for_device(id).await;
     }
 
     #[test]
-    fn simulator_capabilities_do_not_classify_from_instance_suffix() {
-        assert!(matches!(
-            get_simulator_capabilities("simulator:switch:camera"),
-            DeviceCapabilities::Switch(_)
-        ));
+    fn indi_sensor_type_color_detection_is_conservative() {
+        assert!(indi_sensor_type_is_color("COLOR"));
+        assert!(indi_sensor_type_is_color("Bayer RGGB"));
+        assert!(indi_sensor_type_is_color("OSC"));
+        assert!(!indi_sensor_type_is_color("MONOCHROME"));
+        assert!(!indi_sensor_type_is_color("CCD_SENSOR_MONO"));
+    }
+
+    #[test]
+    fn indi_readout_mode_label_falls_back_to_element_name() {
+        let labeled = nightshade_indi::IndiReadoutMode {
+            element: "MODE_0".to_string(),
+            label: "High Gain".to_string(),
+        };
+        let unlabeled = nightshade_indi::IndiReadoutMode {
+            element: "MODE_1".to_string(),
+            label: String::new(),
+        };
+
+        assert_eq!(indi_readout_mode_label(&labeled), "High Gain");
+        assert_eq!(indi_readout_mode_label(&unlabeled), "MODE_1");
+    }
+
+    #[tokio::test]
+    async fn capability_cache_stores_and_invalidates_by_device() {
+        let device_id = "simulator:camera:0";
+        invalidate_capability_cache().await;
+
+        let caps = get_device_capabilities(device_id)
+            .await
+            .expect("simulator capabilities should resolve");
+        assert!(matches!(caps, DeviceCapabilities::Camera(_)));
+        assert_eq!(capability_cache().lock().await.len(), 1);
+
+        invalidate_capability_cache_for_device(device_id).await;
+        assert_eq!(capability_cache().lock().await.len(), 0);
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn capability_probe_only_owns_known_disconnected_session() {
+        assert!(capability_probe_should_own_connection(Ok(false)));
+        assert!(!capability_probe_should_own_connection(Ok(true)));
+        assert!(!capability_probe_should_own_connection(Err(
+            "Connected property unavailable".to_string(),
+        )));
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn ascom_device_type_normalization_requires_exact_device_type() {
+        assert_eq!(
+            normalize_ascom_capability_device_type("Camera"),
+            Some(AscomCapabilityDeviceType::Camera)
+        );
+        assert_eq!(
+            normalize_ascom_capability_device_type("Telescope"),
+            Some(AscomCapabilityDeviceType::Mount)
+        );
+        assert_eq!(
+            normalize_ascom_capability_device_type("CoverCalibrator"),
+            Some(AscomCapabilityDeviceType::CoverCalibrator)
+        );
+        assert_eq!(normalize_ascom_capability_device_type("CameraGuard"), None);
+    }
+
+    #[tokio::test]
+    async fn native_rotator_capabilities_use_connected_trait_object() {
+        let device_id = "native:zwo:900001";
+        register_native_test_device(device_id, crate::device::DeviceType::Rotator).await;
+        crate::api::get_device_manager()
+            .native_rotators
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(FakeNativeRotator));
+
+        let caps = get_device_capabilities(device_id)
+            .await
+            .expect("native rotator capabilities should resolve");
+
+        match caps {
+            DeviceCapabilities::Rotator(caps) => {
+                assert_eq!(caps.position, Some(12.5));
+                assert_eq!(caps.mechanical_position, Some(14.0));
+                assert!(caps.is_moving);
+                assert!(caps.can_reverse);
+                assert!(caps.reverse);
+                assert!(caps.can_move_absolute);
+                assert!(caps.can_halt);
+                assert!(caps.can_sync);
+            }
+            other => panic!("expected rotator capabilities, got {other:?}"),
+        }
+
+        crate::api::get_device_manager()
+            .native_rotators
+            .write()
+            .await
+            .remove(device_id);
+        crate::api::get_device_manager()
+            .devices
+            .write()
+            .await
+            .remove(device_id);
+        invalidate_capability_cache_for_device(device_id).await;
+    }
+
+    #[tokio::test]
+    async fn native_switch_capabilities_use_connected_trait_object() {
+        let device_id = "native:qhy:900002";
+        register_native_test_device(device_id, crate::device::DeviceType::Switch).await;
+        crate::api::get_device_manager()
+            .native_switches
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(FakeNativeSwitch));
+
+        let caps = get_device_capabilities(device_id)
+            .await
+            .expect("native switch capabilities should resolve");
+
+        match caps {
+            DeviceCapabilities::Switch(caps) => {
+                assert_eq!(caps.switch_count, 1);
+                assert_eq!(caps.switches.len(), 1);
+                assert_eq!(caps.switches[0].name, "Relay");
+                assert_eq!(caps.switches[0].description, "Dew heater");
+                assert_eq!(caps.switches[0].value, 0.75);
+                assert!(caps.switches[0].can_write);
+            }
+            other => panic!("expected switch capabilities, got {other:?}"),
+        }
+
+        crate::api::get_device_manager()
+            .native_switches
+            .write()
+            .await
+            .remove(device_id);
+        crate::api::get_device_manager()
+            .devices
+            .write()
+            .await
+            .remove(device_id);
+        invalidate_capability_cache_for_device(device_id).await;
+    }
+
+    #[tokio::test]
+    async fn native_cover_capabilities_use_connected_trait_object() {
+        let device_id = "native:player_one:900003";
+        register_native_test_device(device_id, crate::device::DeviceType::CoverCalibrator).await;
+        crate::api::get_device_manager()
+            .native_cover_calibrators
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(FakeNativeCoverCalibrator));
+
+        let caps = get_device_capabilities(device_id)
+            .await
+            .expect("native cover capabilities should resolve");
+
+        match caps {
+            DeviceCapabilities::CoverCalibrator(caps) => {
+                assert_eq!(caps.max_brightness, 255);
+                assert_eq!(caps.brightness, Some(42));
+                assert_eq!(caps.cover_state, Some(CoverState::Open));
+                assert_eq!(caps.calibrator_state, Some(CalibratorState::Ready));
+                assert!(caps.cover_present);
+                assert!(caps.calibrator_present);
+            }
+            other => panic!("expected cover calibrator capabilities, got {other:?}"),
+        }
+
+        crate::api::get_device_manager()
+            .native_cover_calibrators
+            .write()
+            .await
+            .remove(device_id);
+        crate::api::get_device_manager()
+            .devices
+            .write()
+            .await
+            .remove(device_id);
+        invalidate_capability_cache_for_device(device_id).await;
+    }
+
+    #[tokio::test]
+    async fn native_cover_switch_rotator_operations_dispatch_to_trait_objects() {
+        let manager = crate::api::get_device_manager();
+        let rotator_id = "native:zwo:900011";
+        let switch_id = "native:qhy:900012";
+        let cover_id = "native:player_one:900013";
+
+        register_native_test_device(rotator_id, crate::device::DeviceType::Rotator).await;
+        register_native_test_device(switch_id, crate::device::DeviceType::Switch).await;
+        register_native_test_device(cover_id, crate::device::DeviceType::CoverCalibrator).await;
+
+        manager
+            .native_rotators
+            .write()
+            .await
+            .insert(rotator_id.to_string(), Box::new(FakeNativeRotator));
+        manager
+            .native_switches
+            .write()
+            .await
+            .insert(switch_id.to_string(), Box::new(FakeNativeSwitch));
+        manager
+            .native_cover_calibrators
+            .write()
+            .await
+            .insert(cover_id.to_string(), Box::new(FakeNativeCoverCalibrator));
+
+        assert_eq!(
+            manager.rotator_get_position(rotator_id).await.unwrap(),
+            12.5
+        );
+        manager
+            .rotator_move_absolute(rotator_id, 45.0)
+            .await
+            .unwrap();
+        manager.rotator_halt(rotator_id).await.unwrap();
+
+        assert_eq!(manager.switch_get_max(switch_id).await.unwrap(), 1);
+        assert!(manager.switch_get_state(switch_id, 0).await.unwrap());
+        assert_eq!(manager.switch_get_value(switch_id, 0).await.unwrap(), 0.75);
+        assert!(manager.switch_can_write(switch_id, 0).await.unwrap());
+        manager.switch_set_state(switch_id, 0, false).await.unwrap();
+        manager.switch_set_value(switch_id, 0, 0.25).await.unwrap();
+
+        manager.cover_calibrator_open_cover(cover_id).await.unwrap();
+        manager
+            .cover_calibrator_calibrator_on(cover_id, 42)
+            .await
+            .unwrap();
+        let status = manager.cover_calibrator_get_status(cover_id).await.unwrap();
+        assert_eq!(status.cover_state, CoverState::Open);
+        assert_eq!(status.calibrator_state, CalibratorState::Ready);
+        assert_eq!(status.brightness, 42);
+        assert_eq!(status.max_brightness, 255);
+
+        manager.native_rotators.write().await.remove(rotator_id);
+        manager.native_switches.write().await.remove(switch_id);
+        manager
+            .native_cover_calibrators
+            .write()
+            .await
+            .remove(cover_id);
+        let mut devices = manager.devices.write().await;
+        devices.remove(rotator_id);
+        devices.remove(switch_id);
+        devices.remove(cover_id);
+        drop(devices);
+        invalidate_capability_cache_for_device(rotator_id).await;
+        invalidate_capability_cache_for_device(switch_id).await;
+        invalidate_capability_cache_for_device(cover_id).await;
     }
 }

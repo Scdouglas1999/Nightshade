@@ -3,10 +3,11 @@
 //! This module provides functionality to save and restore sequence execution state
 //! for recovery after unexpected crashes or restarts.
 
+use crate::scheduling::BudgetRegistrySnapshot;
 use crate::triggers::TriggerState;
 use crate::{
     ExecutorState, MeridianTriggerMethod, NodeId, NodeStatus, PierSide, SafetyFailMode,
-    SequenceDefinition,
+    SequenceDefinition, SmartExposureCheckpoint,
 };
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
@@ -16,16 +17,55 @@ use std::sync::Mutex;
 use std::time::SystemTime;
 
 /// Current checkpoint schema version.
+///
+/// Version history:
+/// * v1: original; node-level resume only.
+/// * v2: adds `trigger_state` for trigger-state resume.
+/// * v3: adds `wizard_states` for wizard-internal step-level resume (e.g.
+///   flat-wizard binary-search trial number, mosaic panel index). Old
+///   checkpoints without `wizard_states` deserialize with `default` and
+///   resume from step 0 of each wizard, which matches pre-v3 behavior.
 pub const CHECKPOINT_VERSION: u32 = 3;
 
-/// Per-wizard resume state stored inside [`SessionCheckpoint::wizard_states`].
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+/// Step-level resume record for a wizard. Stored inside
+/// [`SessionCheckpoint::wizard_states`] keyed by
+/// [`crate::wizard::Wizard::checkpoint_key`]. On resume the
+/// `WizardExecutor` reads this and skips the first `completed_steps`
+/// planned steps.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct WizardCheckpoint {
-    /// Stable key identifying the wizard (e.g. `"mosaic"`, `"flat_wizard"`).
+    /// Stable identifier of the wizard kind, e.g. `"flat_wizard"`.
     pub checkpoint_key: String,
-    /// Number of plan steps completed before the interruption.
+    /// Number of plan steps already finished. The executor resumes at
+    /// step index `completed_steps`.
     pub completed_steps: u32,
-    /// When this wizard checkpoint was last written.
+    /// When the checkpoint was written.
+    pub timestamp: DateTime<Utc>,
+}
+
+/// Wave 3 Agent 1: Per-scheduler resume state.
+///
+/// Stored inside [`SessionCheckpoint::scheduler_states`] keyed by the
+/// scheduler node's id (sequences may contain more than one TargetScheduler).
+/// `current_target_id` is the last-picked target's child node id;
+/// `exposures_in_current_target` lets the in-target recompute cadence resume
+/// where it left off. Old checkpoints lacking this field deserialize to an
+/// empty map and resume with a fresh decision — backwards-compatible.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SchedulerCheckpoint {
+    /// Scheduler node id (matches `NodeDefinition::id` of the
+    /// `TargetScheduler` variant). Stored for cross-validation on resume.
+    pub scheduler_node_id: String,
+    /// Last picked target's child node id, or `None` if the last decision
+    /// produced no runnable target.
+    pub current_target_id: Option<String>,
+    /// Exposures completed inside the current target subtree since the last
+    /// decision; surfaces the `recompute_every_n_exposures` cadence on resume.
+    pub exposures_in_current_target: u32,
+    /// 1-based decision counter. Resumes from `decision_counter + 1` so the
+    /// Run Dashboard's row indices stay monotonic across resume.
+    pub decision_counter: u32,
+    /// When the checkpoint was written.
     pub timestamp: DateTime<Utc>,
 }
 
@@ -218,9 +258,41 @@ pub struct SessionCheckpoint {
     /// Trigger state and runtime trigger settings for crash-safe resume.
     #[serde(default)]
     pub trigger_state: Option<TriggerStateSnapshot>,
-    /// Wizard-internal step checkpoints keyed by wizard name.
+    /// Per-wizard step-level resume state. Keyed by
+    /// [`crate::wizard::Wizard::checkpoint_key`]. Empty for sequences
+    /// that don't contain wizard nodes (or for v1/v2 checkpoints loaded
+    /// from disk — `#[serde(default)]` produces an empty map).
     #[serde(default)]
     pub wizard_states: HashMap<String, WizardCheckpoint>,
+    /// Wave 3 Agent 1: per-`TargetScheduler` resume state keyed by the
+    /// scheduler node's id. `#[serde(default)]` keeps v1/v2/v3 checkpoints
+    /// loading: old data sees an empty map and resumes with a fresh
+    /// decision, which is the documented backwards-compat behaviour.
+    #[serde(default)]
+    pub scheduler_states: HashMap<String, SchedulerCheckpoint>,
+    /// Wave 3 Agent 3: per-target integration budget accounting snapshot.
+    /// `#[serde(default)]` keeps older checkpoints loading: missing
+    /// field deserializes to an empty snapshot, which the registry
+    /// treats as "no targets tracked yet" — exactly equivalent to a
+    /// fresh run, which is the documented backwards-compat behaviour.
+    #[serde(default)]
+    pub budget_states: BudgetRegistrySnapshot,
+    /// Wave 3.5 Pack F: per-`SmartExposure` resume state keyed by the
+    /// SmartExposure node's id. Mirrors the `scheduler_states` pattern.
+    /// `#[serde(default)]` keeps every older checkpoint loading: missing
+    /// field deserializes to an empty map and the next run starts each
+    /// SmartExposure from a fresh state (plan index 0, no per-filter
+    /// completed counts) — the documented backwards-compat behaviour.
+    ///
+    /// Why a dedicated map instead of stuffing into `wizard_states`:
+    /// SmartExposure is not a wizard (it has no plan tree, no step
+    /// counter), and the checkpoint values differ in shape — a single
+    /// `WizardCheckpoint::completed_steps` cannot represent the
+    /// per-filter HashMap. Keeping them separate also lets the typed
+    /// helpers below return the concrete struct without a string-based
+    /// key namespace collision risk.
+    #[serde(default)]
+    pub smart_exposure_states: HashMap<String, SmartExposureCheckpoint>,
 }
 
 impl SessionCheckpoint {
@@ -247,20 +319,79 @@ impl SessionCheckpoint {
             is_active: false,
             trigger_state: None,
             wizard_states: HashMap::new(),
+            // Wave 3 Agent 1: empty by default; populated only when a
+            // TargetScheduler node writes a decision through
+            // `set_scheduler_state`.
+            scheduler_states: HashMap::new(),
+            // Wave 3 Agent 3: empty by default; populated only when a
+            // TargetHeader's budget registry has produced state.
+            budget_states: BudgetRegistrySnapshot::default(),
+            // Wave 3.5 Pack F: empty by default; populated only when a
+            // SmartExposure node writes state through
+            // `set_smart_exposure_state`.
+            smart_exposure_states: HashMap::new(),
         }
     }
 
-    /// Store or replace a wizard checkpoint slot.
-    pub fn set_wizard_state(&mut self, checkpoint: WizardCheckpoint) {
+    /// Insert or replace a wizard checkpoint slot.
+    pub fn set_wizard_state(&mut self, state: WizardCheckpoint) {
         self.wizard_states
-            .insert(checkpoint.checkpoint_key.clone(), checkpoint);
+            .insert(state.checkpoint_key.clone(), state);
         self.timestamp = Utc::now();
     }
 
-    /// Load a wizard checkpoint by key.
-    #[must_use]
-    pub fn wizard_state(&self, key: &str) -> Option<&WizardCheckpoint> {
-        self.wizard_states.get(key)
+    /// Look up a wizard checkpoint slot.
+    pub fn wizard_state(&self, checkpoint_key: &str) -> Option<&WizardCheckpoint> {
+        self.wizard_states.get(checkpoint_key)
+    }
+
+    /// Clear a wizard checkpoint slot (call when a wizard completes
+    /// successfully so a future run starts fresh).
+    pub fn clear_wizard_state(&mut self, checkpoint_key: &str) {
+        self.wizard_states.remove(checkpoint_key);
+        self.timestamp = Utc::now();
+    }
+
+    /// Wave 3 Agent 1: insert or replace a scheduler checkpoint slot.
+    /// Keyed by `state.scheduler_node_id` so a sequence may contain multiple
+    /// TargetScheduler nodes without collisions.
+    pub fn set_scheduler_state(&mut self, state: SchedulerCheckpoint) {
+        self.scheduler_states
+            .insert(state.scheduler_node_id.clone(), state);
+        self.timestamp = Utc::now();
+    }
+
+    /// Wave 3 Agent 1: look up a scheduler checkpoint slot by node id.
+    pub fn scheduler_state(&self, scheduler_node_id: &str) -> Option<&SchedulerCheckpoint> {
+        self.scheduler_states.get(scheduler_node_id)
+    }
+
+    /// Wave 3 Agent 1: clear a scheduler checkpoint slot (call when the
+    /// scheduler exhausts its child list so the next run starts fresh).
+    pub fn clear_scheduler_state(&mut self, scheduler_node_id: &str) {
+        self.scheduler_states.remove(scheduler_node_id);
+        self.timestamp = Utc::now();
+    }
+
+    /// Wave 3.5 Pack F: insert or replace a SmartExposure checkpoint slot.
+    /// Keyed by the SmartExposure node id so a sequence with multiple
+    /// SmartExposure nodes resumes each one to its own per-filter counts.
+    pub fn set_smart_exposure_state(&mut self, node_id: &str, state: SmartExposureCheckpoint) {
+        self.smart_exposure_states
+            .insert(node_id.to_string(), state);
+        self.timestamp = Utc::now();
+    }
+
+    /// Wave 3.5 Pack F: look up a SmartExposure checkpoint slot by node id.
+    pub fn smart_exposure_state(&self, node_id: &str) -> Option<&SmartExposureCheckpoint> {
+        self.smart_exposure_states.get(node_id)
+    }
+
+    /// Wave 3.5 Pack F: clear a SmartExposure checkpoint slot (call when
+    /// the node finishes all plans so the next run starts fresh).
+    pub fn clear_smart_exposure_state(&mut self, node_id: &str) {
+        self.smart_exposure_states.remove(node_id);
+        self.timestamp = Utc::now();
     }
 
     /// Update the checkpoint with current progress
@@ -347,58 +478,6 @@ impl SessionCheckpoint {
         Utc::now()
             .signed_duration_since(self.timestamp)
             .num_seconds()
-    }
-}
-
-/// Bridges [`crate::wizard::WizardCheckpointSink`] to on-disk [`SessionCheckpoint`] state.
-pub struct SessionWizardCheckpointSink<'a> {
-    manager: &'a CheckpointManager,
-}
-
-impl<'a> SessionWizardCheckpointSink<'a> {
-    /// Wrap a checkpoint manager for wizard resume persistence.
-    pub fn new(manager: &'a CheckpointManager) -> Self {
-        Self { manager }
-    }
-
-    fn mutate<F>(&self, f: F)
-    where
-        F: FnOnce(&mut SessionCheckpoint),
-    {
-        let mut cp = match self.manager.load() {
-            Ok(Some(existing)) => existing,
-            Ok(None) => SessionCheckpoint::new(SequenceDefinition::new(String::new())),
-            Err(err) => {
-                tracing::warn!("wizard checkpoint load failed: {err}");
-                return;
-            }
-        };
-        f(&mut cp);
-        if let Err(err) = self.manager.save(&cp) {
-            tracing::warn!("wizard checkpoint save failed: {err}");
-        }
-    }
-}
-
-impl crate::wizard::WizardCheckpointSink for SessionWizardCheckpointSink<'_> {
-    fn save(&self, checkpoint: &WizardCheckpoint) {
-        self.mutate(|cp| {
-            cp.set_wizard_state(checkpoint.clone());
-        });
-    }
-
-    fn load(&self, checkpoint_key: &str) -> Option<WizardCheckpoint> {
-        self.manager
-            .load()
-            .ok()
-            .flatten()
-            .and_then(|cp| cp.wizard_state(checkpoint_key).cloned())
-    }
-
-    fn clear(&self, checkpoint_key: &str) {
-        self.mutate(|cp| {
-            cp.wizard_states.remove(checkpoint_key);
-        });
     }
 }
 
@@ -679,6 +758,137 @@ impl CheckpointManager {
     pub fn get_checkpoint_info(&self) -> Result<Option<CheckpointInfo>, String> {
         self.cached_checkpoint_info()
     }
+
+    /// Save a single wizard checkpoint slot into the session checkpoint
+    /// on disk, leaving every other field untouched. Used by the
+    /// [`crate::wizard::WizardCheckpointSink`] adapter. If no session
+    /// checkpoint exists this is a no-op — a wizard running outside an
+    /// active session has nothing to persist its state into, and that's
+    /// fine.
+    pub fn save_wizard_state(&self, state: &WizardCheckpoint) {
+        let mut checkpoint = match self.load() {
+            Ok(Some(cp)) => cp,
+            // No session checkpoint to attach to — wizard is running
+            // standalone (no surrounding sequence). The next run will
+            // start fresh, which is the documented behavior.
+            Ok(None) => return,
+            Err(e) => {
+                tracing::warn!(
+                    "save_wizard_state: failed to load existing checkpoint: {}",
+                    e
+                );
+                return;
+            }
+        };
+        checkpoint.set_wizard_state(state.clone());
+        if let Err(e) = self.save(&checkpoint) {
+            tracing::warn!("save_wizard_state: failed to write checkpoint: {}", e);
+        }
+    }
+
+    /// Load a single wizard checkpoint slot. Returns None when no
+    /// session checkpoint exists or when no slot matches `key`.
+    pub fn load_wizard_state(&self, key: &str) -> Option<WizardCheckpoint> {
+        self.load()
+            .ok()
+            .flatten()
+            .and_then(|cp| cp.wizard_states.get(key).cloned())
+    }
+
+    /// Clear a single wizard checkpoint slot.
+    pub fn clear_wizard_state(&self, key: &str) {
+        let mut checkpoint = match self.load() {
+            Ok(Some(cp)) => cp,
+            _ => return,
+        };
+        checkpoint.clear_wizard_state(key);
+        if let Err(e) = self.save(&checkpoint) {
+            tracing::warn!("clear_wizard_state: failed to write checkpoint: {}", e);
+        }
+    }
+
+    /// Wave 3.5 Pack F: save a single SmartExposure checkpoint slot into
+    /// the session checkpoint on disk, leaving every other field
+    /// untouched. Mirrors `save_wizard_state` / `save_scheduler_state` so
+    /// crashed runs resume mid-rotation on the right filter at the right
+    /// frame index.
+    ///
+    /// If no session checkpoint exists this is a no-op — a SmartExposure
+    /// running outside an active session (rare; tests / standalone tools)
+    /// has nothing to persist its state into, and the next run will
+    /// start from a fresh state, which is documented behaviour.
+    pub fn save_smart_exposure_state(&self, node_id: &str, state: &SmartExposureCheckpoint) {
+        let mut checkpoint = match self.load() {
+            Ok(Some(cp)) => cp,
+            Ok(None) => return,
+            Err(e) => {
+                tracing::warn!(
+                    "save_smart_exposure_state: failed to load existing checkpoint: {}",
+                    e
+                );
+                return;
+            }
+        };
+        checkpoint.set_smart_exposure_state(node_id, state.clone());
+        if let Err(e) = self.save(&checkpoint) {
+            tracing::warn!(
+                "save_smart_exposure_state: failed to write checkpoint: {}",
+                e
+            );
+        }
+    }
+
+    /// Wave 3.5 Pack F: load a single SmartExposure checkpoint slot.
+    /// Returns None when no session checkpoint exists or when no slot
+    /// matches `node_id`.
+    pub fn load_smart_exposure_state(&self, node_id: &str) -> Option<SmartExposureCheckpoint> {
+        self.load()
+            .ok()
+            .flatten()
+            .and_then(|cp| cp.smart_exposure_states.get(node_id).cloned())
+    }
+
+    /// Wave 3.5 Pack F: clear a single SmartExposure checkpoint slot.
+    /// Called when the SmartExposure node completes all plans so the next
+    /// run starts fresh.
+    pub fn clear_smart_exposure_state(&self, node_id: &str) {
+        let mut checkpoint = match self.load() {
+            Ok(Some(cp)) => cp,
+            _ => return,
+        };
+        checkpoint.clear_smart_exposure_state(node_id);
+        if let Err(e) = self.save(&checkpoint) {
+            tracing::warn!(
+                "clear_smart_exposure_state: failed to write checkpoint: {}",
+                e
+            );
+        }
+    }
+}
+
+/// Adapts a `CheckpointManager` to the wizard module's `WizardCheckpointSink`.
+/// Wizards running inside an active session use this to persist
+/// step-level resume state alongside the session-level checkpoint.
+pub struct SessionWizardCheckpointSink<'a> {
+    pub manager: &'a CheckpointManager,
+}
+
+impl<'a> SessionWizardCheckpointSink<'a> {
+    pub fn new(manager: &'a CheckpointManager) -> Self {
+        Self { manager }
+    }
+}
+
+impl<'a> crate::wizard::WizardCheckpointSink for SessionWizardCheckpointSink<'a> {
+    fn save(&self, checkpoint: &WizardCheckpoint) {
+        self.manager.save_wizard_state(checkpoint);
+    }
+    fn load(&self, checkpoint_key: &str) -> Option<WizardCheckpoint> {
+        self.manager.load_wizard_state(checkpoint_key)
+    }
+    fn clear(&self, checkpoint_key: &str) {
+        self.manager.clear_wizard_state(checkpoint_key);
+    }
 }
 
 /// Summary info about a checkpoint
@@ -935,6 +1145,191 @@ mod tests {
     }
 
     #[test]
+    fn wizard_state_round_trips_through_session_checkpoint_serde() {
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("ws".to_string()));
+        checkpoint.set_wizard_state(WizardCheckpoint {
+            checkpoint_key: "flat_wizard".to_string(),
+            completed_steps: 5,
+            timestamp: Utc::now(),
+        });
+        checkpoint.set_wizard_state(WizardCheckpoint {
+            checkpoint_key: "mosaic".to_string(),
+            completed_steps: 4,
+            timestamp: Utc::now(),
+        });
+
+        let json = serde_json::to_string(&checkpoint).expect("serialize");
+        let loaded: SessionCheckpoint = serde_json::from_str(&json).expect("deserialize");
+
+        assert_eq!(loaded.wizard_states.len(), 2);
+        assert_eq!(
+            loaded.wizard_state("flat_wizard").unwrap().completed_steps,
+            5
+        );
+        assert_eq!(loaded.wizard_state("mosaic").unwrap().completed_steps, 4);
+    }
+
+    #[test]
+    fn wizard_state_persists_through_manager_save_load() {
+        let dir = test_dir("wizard_state_persist");
+        let manager = CheckpointManager::new(&dir);
+
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("WS Test".to_string()));
+        checkpoint.is_active = true;
+        checkpoint.executor_state = ExecutorState::Running;
+        checkpoint.set_wizard_state(WizardCheckpoint {
+            checkpoint_key: "flat_wizard".to_string(),
+            completed_steps: 7,
+            timestamp: Utc::now(),
+        });
+
+        manager.save(&checkpoint).expect("save");
+
+        let loaded = manager.load().expect("load").expect("checkpoint exists");
+        let slot = loaded
+            .wizard_state("flat_wizard")
+            .expect("wizard_state slot");
+        assert_eq!(slot.completed_steps, 7);
+        assert_eq!(loaded.version, CHECKPOINT_VERSION);
+
+        // Sink adapter should also see the slot.
+        let sink = SessionWizardCheckpointSink::new(&manager);
+        let via_sink = crate::wizard::WizardCheckpointSink::load(&sink, "flat_wizard")
+            .expect("sink load slot");
+        assert_eq!(via_sink.completed_steps, 7);
+
+        // Clear via sink and confirm it's gone.
+        crate::wizard::WizardCheckpointSink::clear(&sink, "flat_wizard");
+        let after_clear = manager
+            .load()
+            .expect("load after clear")
+            .expect("checkpoint still present");
+        assert!(after_clear.wizard_state("flat_wizard").is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn scheduler_state_round_trips_through_session_checkpoint_serde() {
+        // Wave 3 Agent 1: scheduler_states map must round-trip + be keyed by
+        // scheduler node id (a sequence may contain multiple schedulers).
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("sch".to_string()));
+        checkpoint.set_scheduler_state(SchedulerCheckpoint {
+            scheduler_node_id: "sched_a".to_string(),
+            current_target_id: Some("m42".to_string()),
+            exposures_in_current_target: 3,
+            decision_counter: 1,
+            timestamp: Utc::now(),
+        });
+        checkpoint.set_scheduler_state(SchedulerCheckpoint {
+            scheduler_node_id: "sched_b".to_string(),
+            current_target_id: None,
+            exposures_in_current_target: 0,
+            decision_counter: 7,
+            timestamp: Utc::now(),
+        });
+        let json = serde_json::to_string(&checkpoint).expect("serialize");
+        let loaded: SessionCheckpoint = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(loaded.scheduler_states.len(), 2);
+        assert_eq!(
+            loaded
+                .scheduler_state("sched_a")
+                .unwrap()
+                .current_target_id
+                .as_deref(),
+            Some("m42")
+        );
+        assert_eq!(
+            loaded.scheduler_state("sched_b").unwrap().decision_counter,
+            7
+        );
+    }
+
+    #[test]
+    fn legacy_v3_checkpoint_without_scheduler_states_loads_with_empty_map() {
+        // Wave 3 Agent 1: backwards-compat — checkpoints written before the
+        // scheduler_states field existed must still load (serde(default)).
+        let dir = test_dir("legacy_v3_no_scheduler");
+        let manager = CheckpointManager::new(&dir);
+
+        let pre_scheduler_json = serde_json::json!({
+            "version": 3,
+            "timestamp": Utc::now(),
+            "sequence": SequenceDefinition::new("v3pre".to_string()),
+            "node_statuses": {},
+            "last_completed_node": null,
+            "current_node": null,
+            "executor_state": "Running",
+            "camera_id": null,
+            "mount_id": null,
+            "focuser_id": null,
+            "filterwheel_id": null,
+            "rotator_id": null,
+            "save_path": null,
+            "latitude": null,
+            "longitude": null,
+            "completed_exposures": 0,
+            "completed_integration_secs": 0.0,
+            "is_active": true,
+            "trigger_state": null,
+            "wizard_states": {},
+        });
+        let primary = manager.checkpoint_path();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(&primary, pre_scheduler_json.to_string()).unwrap();
+
+        let loaded = manager
+            .load()
+            .expect("legacy v3 must load")
+            .expect("checkpoint exists");
+        assert!(loaded.scheduler_states.is_empty());
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn legacy_v2_checkpoint_without_wizard_states_loads_with_empty_map() {
+        let dir = test_dir("legacy_v2_no_wizard_states");
+        let manager = CheckpointManager::new(&dir);
+
+        let v2_json = serde_json::json!({
+            "version": 2,
+            "timestamp": Utc::now(),
+            "sequence": SequenceDefinition::new("v2".to_string()),
+            "node_statuses": {},
+            "last_completed_node": null,
+            "current_node": null,
+            "executor_state": "Running",
+            "camera_id": null,
+            "mount_id": null,
+            "focuser_id": null,
+            "filterwheel_id": null,
+            "rotator_id": null,
+            "save_path": null,
+            "latitude": null,
+            "longitude": null,
+            "completed_exposures": 3,
+            "completed_integration_secs": 120.0,
+            "is_active": true,
+            "trigger_state": null
+        });
+        let primary = manager.checkpoint_path();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(&primary, v2_json.to_string()).unwrap();
+
+        let loaded = manager
+            .load()
+            .expect("v2 checkpoint must load")
+            .expect("checkpoint exists");
+        assert_eq!(loaded.version, 2);
+        assert!(
+            loaded.wizard_states.is_empty(),
+            "missing wizard_states field defaults to empty map (resume from step 0)"
+        );
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
     fn test_legacy_v1_checkpoint_loads_with_no_trigger_state() {
         let dir = test_dir("legacy_v1_no_trigger_state");
         let manager = CheckpointManager::new(&dir);
@@ -969,6 +1364,150 @@ mod tests {
             .expect("checkpoint should be present");
         assert_eq!(loaded.version, 1);
         assert!(loaded.trigger_state.is_none());
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    // ---------------------------------------------------------------
+    // Wave 3.5 Pack F: SmartExposure cross-process resume.
+    // ---------------------------------------------------------------
+
+    #[test]
+    fn smart_exposure_state_round_trips_through_session_checkpoint_serde() {
+        // Two SmartExposure nodes must round-trip independently — the map is
+        // keyed by node id so the same checkpoint file can carry per-node
+        // state without collisions.
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("se".to_string()));
+        let mut state_a = SmartExposureCheckpoint::default();
+        state_a.per_filter_completed.insert("L".to_string(), 3);
+        state_a.per_filter_completed.insert("R".to_string(), 1);
+        state_a.current_plan_index = 2;
+        state_a.completed_integration_secs = 240.0;
+
+        let mut state_b = SmartExposureCheckpoint::default();
+        state_b.per_filter_completed.insert("Ha".to_string(), 6);
+        state_b.current_plan_index = 0;
+        state_b.completed_integration_secs = 1800.0;
+
+        checkpoint.set_smart_exposure_state("node_a", state_a);
+        checkpoint.set_smart_exposure_state("node_b", state_b);
+
+        let json = serde_json::to_string(&checkpoint).expect("serialize");
+        let loaded: SessionCheckpoint = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(loaded.smart_exposure_states.len(), 2);
+
+        let restored_a = loaded
+            .smart_exposure_state("node_a")
+            .expect("node_a slot exists");
+        assert_eq!(restored_a.per_filter_completed.get("L"), Some(&3));
+        assert_eq!(restored_a.per_filter_completed.get("R"), Some(&1));
+        assert_eq!(restored_a.current_plan_index, 2);
+        assert!((restored_a.completed_integration_secs - 240.0).abs() < f64::EPSILON);
+
+        let restored_b = loaded
+            .smart_exposure_state("node_b")
+            .expect("node_b slot exists");
+        assert_eq!(restored_b.per_filter_completed.get("Ha"), Some(&6));
+        assert_eq!(restored_b.current_plan_index, 0);
+        assert!((restored_b.completed_integration_secs - 1800.0).abs() < f64::EPSILON);
+    }
+
+    #[test]
+    fn smart_exposure_save_load_clear_through_checkpoint_manager() {
+        // Wave 3.5 Pack F: the manager helpers must preserve other fields
+        // when writing a smart-exposure slot, and must round-trip the
+        // value end-to-end through the on-disk checkpoint file.
+        let dir = test_dir("smart_exposure_save_load_clear");
+        let manager = CheckpointManager::new(&dir);
+
+        // Seed a full session checkpoint so other fields exist to be
+        // preserved.
+        let mut checkpoint = SessionCheckpoint::new(SequenceDefinition::new("SE".to_string()));
+        checkpoint.is_active = true;
+        checkpoint.executor_state = ExecutorState::Running;
+        checkpoint.completed_exposures = 12;
+        manager.save(&checkpoint).expect("seed save");
+
+        let mut state = SmartExposureCheckpoint::default();
+        state.per_filter_completed.insert("L".to_string(), 3);
+        state.per_filter_completed.insert("R".to_string(), 4);
+        state.current_plan_index = 1;
+        state.completed_integration_secs = 540.0;
+
+        manager.save_smart_exposure_state("se_node", &state);
+
+        // Load through the dedicated helper.
+        let loaded_state = manager
+            .load_smart_exposure_state("se_node")
+            .expect("smart-exposure slot present");
+        assert_eq!(loaded_state.per_filter_completed.get("L"), Some(&3));
+        assert_eq!(loaded_state.per_filter_completed.get("R"), Some(&4));
+        assert_eq!(loaded_state.current_plan_index, 1);
+        assert!((loaded_state.completed_integration_secs - 540.0).abs() < f64::EPSILON);
+
+        // Make sure the other session fields survived the partial write.
+        let full = manager
+            .load()
+            .expect("load full checkpoint")
+            .expect("checkpoint exists");
+        assert_eq!(full.completed_exposures, 12);
+        assert!(full.is_active);
+        assert_eq!(full.executor_state, ExecutorState::Running);
+
+        // Clearing removes only the smart-exposure slot, not the others.
+        manager.clear_smart_exposure_state("se_node");
+        assert!(manager.load_smart_exposure_state("se_node").is_none());
+        let after_clear = manager
+            .load()
+            .expect("load after clear")
+            .expect("checkpoint still present");
+        assert!(after_clear.smart_exposure_states.is_empty());
+        assert_eq!(after_clear.completed_exposures, 12);
+
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn legacy_v3_checkpoint_without_smart_exposure_states_loads_with_empty_map() {
+        // A checkpoint written before Pack F added `smart_exposure_states`
+        // must still deserialize (serde(default)) and the map is empty.
+        let dir = test_dir("legacy_no_smart_exposure");
+        let manager = CheckpointManager::new(&dir);
+
+        let pre_se_json = serde_json::json!({
+            "version": 3,
+            "timestamp": Utc::now(),
+            "sequence": SequenceDefinition::new("legacy".to_string()),
+            "node_statuses": {},
+            "last_completed_node": null,
+            "current_node": null,
+            "executor_state": "Running",
+            "camera_id": null,
+            "mount_id": null,
+            "focuser_id": null,
+            "filterwheel_id": null,
+            "rotator_id": null,
+            "save_path": null,
+            "latitude": null,
+            "longitude": null,
+            "completed_exposures": 0,
+            "completed_integration_secs": 0.0,
+            "is_active": true,
+            "wizard_states": {},
+            "scheduler_states": {}
+        });
+        let primary = manager.checkpoint_path();
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(&primary, pre_se_json.to_string()).unwrap();
+
+        let loaded = manager
+            .load()
+            .expect("legacy load must succeed")
+            .expect("checkpoint should be present");
+        assert!(
+            loaded.smart_exposure_states.is_empty(),
+            "missing smart_exposure_states field defaults to empty map"
+        );
 
         let _ = fs::remove_dir_all(&dir);
     }
