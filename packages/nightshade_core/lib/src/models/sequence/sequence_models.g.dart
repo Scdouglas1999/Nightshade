@@ -128,3 +128,36 @@ Map<String, dynamic> _$$ConditionsScoreImplToJson(
       'generated_unix_secs':
           const UnixSecsDateTimeConverter().toJson(instance.generatedAt),
     };
+
+_$AdaptiveSwapRuntimeStateImpl _$$AdaptiveSwapRuntimeStateImplFromJson(
+        Map<String, dynamic> json) =>
+    _$AdaptiveSwapRuntimeStateImpl(
+      currentTargetId: json['current_target_id'] as String?,
+      currentTier: json['current_tier'] as String?,
+      lastDecisionKind: json['last_decision_kind'] as String?,
+      lastDecisionReason: json['last_decision_reason'] as String?,
+      lastSwapAt: const NullableUnixSecsDateTimeConverter()
+          .fromJson((json['last_swap_unix_secs'] as num?)?.toInt()),
+      lastSwapFromTargetId: json['last_swap_from_target_id'] as String?,
+      lastSwapToTargetId: json['last_swap_to_target_id'] as String?,
+      lastObservedScore: (json['last_observed_score'] as num?)?.toDouble(),
+      configuredThreshold: (json['configured_threshold'] as num?)?.toDouble(),
+      configuredHysteresisSecs:
+          (json['configured_hysteresis_secs'] as num?)?.toDouble() ?? 180.0,
+    );
+
+Map<String, dynamic> _$$AdaptiveSwapRuntimeStateImplToJson(
+        _$AdaptiveSwapRuntimeStateImpl instance) =>
+    <String, dynamic>{
+      'current_target_id': instance.currentTargetId,
+      'current_tier': instance.currentTier,
+      'last_decision_kind': instance.lastDecisionKind,
+      'last_decision_reason': instance.lastDecisionReason,
+      'last_swap_unix_secs':
+          const NullableUnixSecsDateTimeConverter().toJson(instance.lastSwapAt),
+      'last_swap_from_target_id': instance.lastSwapFromTargetId,
+      'last_swap_to_target_id': instance.lastSwapToTargetId,
+      'last_observed_score': instance.lastObservedScore,
+      'configured_threshold': instance.configuredThreshold,
+      'configured_hysteresis_secs': instance.configuredHysteresisSecs,
+    };

@@ -3599,30 +3599,31 @@ class ConditionsScore with _$ConditionsScore {
 
 /// Wave 8 — runtime adaptive-swap state pushed from Rust to the dashboard.
 /// Mirrors the Rust `AdaptiveSwapRuntimeState` struct.
-class AdaptiveSwapRuntimeState extends Equatable {
-  final String? currentTargetId;
-  final String? currentTier;
-  final String? lastDecisionKind;
-  final String? lastDecisionReason;
-  final DateTime? lastSwapAt;
-  final String? lastSwapFromTargetId;
-  final String? lastSwapToTargetId;
-  final double? lastObservedScore;
-  final double? configuredThreshold;
-  final double configuredHysteresisSecs;
+@Freezed(fromJson: true, toJson: true)
+class AdaptiveSwapRuntimeState with _$AdaptiveSwapRuntimeState {
+  const AdaptiveSwapRuntimeState._();
 
-  const AdaptiveSwapRuntimeState({
-    this.currentTargetId,
-    this.currentTier,
-    this.lastDecisionKind,
-    this.lastDecisionReason,
-    this.lastSwapAt,
-    this.lastSwapFromTargetId,
-    this.lastSwapToTargetId,
-    this.lastObservedScore,
-    this.configuredThreshold,
-    this.configuredHysteresisSecs = 180.0,
-  });
+  @JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+  const factory AdaptiveSwapRuntimeState({
+    String? currentTargetId,
+    String? currentTier,
+    String? lastDecisionKind,
+    String? lastDecisionReason,
+    // `last_swap_unix_secs` (nullable int seconds). When `null`, the
+    // JSON field is present-with-null (not omitted) — Phase 1's
+    // `null_last_swap_serialises_as_null_field` contract test pins this.
+    @JsonKey(name: 'last_swap_unix_secs')
+    @NullableUnixSecsDateTimeConverter()
+    DateTime? lastSwapAt,
+    String? lastSwapFromTargetId,
+    String? lastSwapToTargetId,
+    double? lastObservedScore,
+    double? configuredThreshold,
+    @Default(180.0) double configuredHysteresisSecs,
+  }) = _AdaptiveSwapRuntimeState;
+
+  factory AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) =>
+      _$AdaptiveSwapRuntimeStateFromJson(json);
 
   /// Seconds until the next swap is allowed by hysteresis. Returns `null`
   /// when no swap has fired yet or the cooldown has elapsed.
@@ -3633,57 +3634,6 @@ class AdaptiveSwapRuntimeState extends Equatable {
     final remaining = configuredHysteresisSecs - elapsed;
     return remaining > 0 ? remaining : null;
   }
-
-  factory AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) {
-    final lastSwapUnix = json['last_swap_unix_secs'] as int?;
-    return AdaptiveSwapRuntimeState(
-      currentTargetId: json['current_target_id'] as String?,
-      currentTier: json['current_tier'] as String?,
-      lastDecisionKind: json['last_decision_kind'] as String?,
-      lastDecisionReason: json['last_decision_reason'] as String?,
-      lastSwapAt: lastSwapUnix == null
-          ? null
-          : DateTime.fromMillisecondsSinceEpoch(
-              lastSwapUnix * 1000,
-              isUtc: true,
-            ),
-      lastSwapFromTargetId: json['last_swap_from_target_id'] as String?,
-      lastSwapToTargetId: json['last_swap_to_target_id'] as String?,
-      lastObservedScore: (json['last_observed_score'] as num?)?.toDouble(),
-      configuredThreshold: (json['configured_threshold'] as num?)?.toDouble(),
-      configuredHysteresisSecs:
-          (json['configured_hysteresis_secs'] as num?)?.toDouble() ?? 180.0,
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'current_target_id': currentTargetId,
-        'current_tier': currentTier,
-        'last_decision_kind': lastDecisionKind,
-        'last_decision_reason': lastDecisionReason,
-        'last_swap_unix_secs': lastSwapAt?.millisecondsSinceEpoch == null
-            ? null
-            : lastSwapAt!.toUtc().millisecondsSinceEpoch ~/ 1000,
-        'last_swap_from_target_id': lastSwapFromTargetId,
-        'last_swap_to_target_id': lastSwapToTargetId,
-        'last_observed_score': lastObservedScore,
-        'configured_threshold': configuredThreshold,
-        'configured_hysteresis_secs': configuredHysteresisSecs,
-      };
-
-  @override
-  List<Object?> get props => [
-        currentTargetId,
-        currentTier,
-        lastDecisionKind,
-        lastDecisionReason,
-        lastSwapAt,
-        lastSwapFromTargetId,
-        lastSwapToTargetId,
-        lastObservedScore,
-        configuredThreshold,
-        configuredHysteresisSecs,
-      ];
 }
 
 /// Wave 8 — paired snapshot returned by

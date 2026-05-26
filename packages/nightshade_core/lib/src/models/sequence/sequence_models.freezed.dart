@@ -2089,3 +2089,377 @@ abstract class _ConditionsScore extends ConditionsScore {
   _$$ConditionsScoreImplCopyWith<_$ConditionsScoreImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+AdaptiveSwapRuntimeState _$AdaptiveSwapRuntimeStateFromJson(
+    Map<String, dynamic> json) {
+  return _AdaptiveSwapRuntimeState.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AdaptiveSwapRuntimeState {
+  String? get currentTargetId => throw _privateConstructorUsedError;
+  String? get currentTier => throw _privateConstructorUsedError;
+  String? get lastDecisionKind => throw _privateConstructorUsedError;
+  String? get lastDecisionReason =>
+      throw _privateConstructorUsedError; // `last_swap_unix_secs` (nullable int seconds). When `null`, the
+// JSON field is present-with-null (not omitted) — Phase 1's
+// `null_last_swap_serialises_as_null_field` contract test pins this.
+  @JsonKey(name: 'last_swap_unix_secs')
+  @NullableUnixSecsDateTimeConverter()
+  DateTime? get lastSwapAt => throw _privateConstructorUsedError;
+  String? get lastSwapFromTargetId => throw _privateConstructorUsedError;
+  String? get lastSwapToTargetId => throw _privateConstructorUsedError;
+  double? get lastObservedScore => throw _privateConstructorUsedError;
+  double? get configuredThreshold => throw _privateConstructorUsedError;
+  double get configuredHysteresisSecs => throw _privateConstructorUsedError;
+
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+  @JsonKey(ignore: true)
+  $AdaptiveSwapRuntimeStateCopyWith<AdaptiveSwapRuntimeState> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  factory $AdaptiveSwapRuntimeStateCopyWith(AdaptiveSwapRuntimeState value,
+          $Res Function(AdaptiveSwapRuntimeState) then) =
+      _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res, AdaptiveSwapRuntimeState>;
+  @useResult
+  $Res call(
+      {String? currentTargetId,
+      String? currentTier,
+      String? lastDecisionKind,
+      String? lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      DateTime? lastSwapAt,
+      String? lastSwapFromTargetId,
+      String? lastSwapToTargetId,
+      double? lastObservedScore,
+      double? configuredThreshold,
+      double configuredHysteresisSecs});
+}
+
+/// @nodoc
+class _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res,
+        $Val extends AdaptiveSwapRuntimeState>
+    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  _$AdaptiveSwapRuntimeStateCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? currentTargetId = freezed,
+    Object? currentTier = freezed,
+    Object? lastDecisionKind = freezed,
+    Object? lastDecisionReason = freezed,
+    Object? lastSwapAt = freezed,
+    Object? lastSwapFromTargetId = freezed,
+    Object? lastSwapToTargetId = freezed,
+    Object? lastObservedScore = freezed,
+    Object? configuredThreshold = freezed,
+    Object? configuredHysteresisSecs = null,
+  }) {
+    return _then(_value.copyWith(
+      currentTargetId: freezed == currentTargetId
+          ? _value.currentTargetId
+          : currentTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentTier: freezed == currentTier
+          ? _value.currentTier
+          : currentTier // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionKind: freezed == lastDecisionKind
+          ? _value.lastDecisionKind
+          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionReason: freezed == lastDecisionReason
+          ? _value.lastDecisionReason
+          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapAt: freezed == lastSwapAt
+          ? _value.lastSwapAt
+          : lastSwapAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      lastSwapFromTargetId: freezed == lastSwapFromTargetId
+          ? _value.lastSwapFromTargetId
+          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapToTargetId: freezed == lastSwapToTargetId
+          ? _value.lastSwapToTargetId
+          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastObservedScore: freezed == lastObservedScore
+          ? _value.lastObservedScore
+          : lastObservedScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredThreshold: freezed == configuredThreshold
+          ? _value.configuredThreshold
+          : configuredThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredHysteresisSecs: null == configuredHysteresisSecs
+          ? _value.configuredHysteresisSecs
+          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ) as $Val);
+  }
+}
+
+/// @nodoc
+abstract class _$$AdaptiveSwapRuntimeStateImplCopyWith<$Res>
+    implements $AdaptiveSwapRuntimeStateCopyWith<$Res> {
+  factory _$$AdaptiveSwapRuntimeStateImplCopyWith(
+          _$AdaptiveSwapRuntimeStateImpl value,
+          $Res Function(_$AdaptiveSwapRuntimeStateImpl) then) =
+      __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call(
+      {String? currentTargetId,
+      String? currentTier,
+      String? lastDecisionKind,
+      String? lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      DateTime? lastSwapAt,
+      String? lastSwapFromTargetId,
+      String? lastSwapToTargetId,
+      double? lastObservedScore,
+      double? configuredThreshold,
+      double configuredHysteresisSecs});
+}
+
+/// @nodoc
+class __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<$Res>
+    extends _$AdaptiveSwapRuntimeStateCopyWithImpl<$Res,
+        _$AdaptiveSwapRuntimeStateImpl>
+    implements _$$AdaptiveSwapRuntimeStateImplCopyWith<$Res> {
+  __$$AdaptiveSwapRuntimeStateImplCopyWithImpl(
+      _$AdaptiveSwapRuntimeStateImpl _value,
+      $Res Function(_$AdaptiveSwapRuntimeStateImpl) _then)
+      : super(_value, _then);
+
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? currentTargetId = freezed,
+    Object? currentTier = freezed,
+    Object? lastDecisionKind = freezed,
+    Object? lastDecisionReason = freezed,
+    Object? lastSwapAt = freezed,
+    Object? lastSwapFromTargetId = freezed,
+    Object? lastSwapToTargetId = freezed,
+    Object? lastObservedScore = freezed,
+    Object? configuredThreshold = freezed,
+    Object? configuredHysteresisSecs = null,
+  }) {
+    return _then(_$AdaptiveSwapRuntimeStateImpl(
+      currentTargetId: freezed == currentTargetId
+          ? _value.currentTargetId
+          : currentTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      currentTier: freezed == currentTier
+          ? _value.currentTier
+          : currentTier // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionKind: freezed == lastDecisionKind
+          ? _value.lastDecisionKind
+          : lastDecisionKind // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastDecisionReason: freezed == lastDecisionReason
+          ? _value.lastDecisionReason
+          : lastDecisionReason // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapAt: freezed == lastSwapAt
+          ? _value.lastSwapAt
+          : lastSwapAt // ignore: cast_nullable_to_non_nullable
+              as DateTime?,
+      lastSwapFromTargetId: freezed == lastSwapFromTargetId
+          ? _value.lastSwapFromTargetId
+          : lastSwapFromTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastSwapToTargetId: freezed == lastSwapToTargetId
+          ? _value.lastSwapToTargetId
+          : lastSwapToTargetId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      lastObservedScore: freezed == lastObservedScore
+          ? _value.lastObservedScore
+          : lastObservedScore // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredThreshold: freezed == configuredThreshold
+          ? _value.configuredThreshold
+          : configuredThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      configuredHysteresisSecs: null == configuredHysteresisSecs
+          ? _value.configuredHysteresisSecs
+          : configuredHysteresisSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+    ));
+  }
+}
+
+/// @nodoc
+
+@JsonSerializable(fieldRename: FieldRename.snake, includeIfNull: true)
+class _$AdaptiveSwapRuntimeStateImpl extends _AdaptiveSwapRuntimeState {
+  const _$AdaptiveSwapRuntimeStateImpl(
+      {this.currentTargetId,
+      this.currentTier,
+      this.lastDecisionKind,
+      this.lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      this.lastSwapAt,
+      this.lastSwapFromTargetId,
+      this.lastSwapToTargetId,
+      this.lastObservedScore,
+      this.configuredThreshold,
+      this.configuredHysteresisSecs = 180.0})
+      : super._();
+
+  factory _$AdaptiveSwapRuntimeStateImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AdaptiveSwapRuntimeStateImplFromJson(json);
+
+  @override
+  final String? currentTargetId;
+  @override
+  final String? currentTier;
+  @override
+  final String? lastDecisionKind;
+  @override
+  final String? lastDecisionReason;
+// `last_swap_unix_secs` (nullable int seconds). When `null`, the
+// JSON field is present-with-null (not omitted) — Phase 1's
+// `null_last_swap_serialises_as_null_field` contract test pins this.
+  @override
+  @JsonKey(name: 'last_swap_unix_secs')
+  @NullableUnixSecsDateTimeConverter()
+  final DateTime? lastSwapAt;
+  @override
+  final String? lastSwapFromTargetId;
+  @override
+  final String? lastSwapToTargetId;
+  @override
+  final double? lastObservedScore;
+  @override
+  final double? configuredThreshold;
+  @override
+  @JsonKey()
+  final double configuredHysteresisSecs;
+
+  @override
+  String toString() {
+    return 'AdaptiveSwapRuntimeState(currentTargetId: $currentTargetId, currentTier: $currentTier, lastDecisionKind: $lastDecisionKind, lastDecisionReason: $lastDecisionReason, lastSwapAt: $lastSwapAt, lastSwapFromTargetId: $lastSwapFromTargetId, lastSwapToTargetId: $lastSwapToTargetId, lastObservedScore: $lastObservedScore, configuredThreshold: $configuredThreshold, configuredHysteresisSecs: $configuredHysteresisSecs)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AdaptiveSwapRuntimeStateImpl &&
+            (identical(other.currentTargetId, currentTargetId) ||
+                other.currentTargetId == currentTargetId) &&
+            (identical(other.currentTier, currentTier) ||
+                other.currentTier == currentTier) &&
+            (identical(other.lastDecisionKind, lastDecisionKind) ||
+                other.lastDecisionKind == lastDecisionKind) &&
+            (identical(other.lastDecisionReason, lastDecisionReason) ||
+                other.lastDecisionReason == lastDecisionReason) &&
+            (identical(other.lastSwapAt, lastSwapAt) ||
+                other.lastSwapAt == lastSwapAt) &&
+            (identical(other.lastSwapFromTargetId, lastSwapFromTargetId) ||
+                other.lastSwapFromTargetId == lastSwapFromTargetId) &&
+            (identical(other.lastSwapToTargetId, lastSwapToTargetId) ||
+                other.lastSwapToTargetId == lastSwapToTargetId) &&
+            (identical(other.lastObservedScore, lastObservedScore) ||
+                other.lastObservedScore == lastObservedScore) &&
+            (identical(other.configuredThreshold, configuredThreshold) ||
+                other.configuredThreshold == configuredThreshold) &&
+            (identical(
+                    other.configuredHysteresisSecs, configuredHysteresisSecs) ||
+                other.configuredHysteresisSecs == configuredHysteresisSecs));
+  }
+
+  @JsonKey(ignore: true)
+  @override
+  int get hashCode => Object.hash(
+      runtimeType,
+      currentTargetId,
+      currentTier,
+      lastDecisionKind,
+      lastDecisionReason,
+      lastSwapAt,
+      lastSwapFromTargetId,
+      lastSwapToTargetId,
+      lastObservedScore,
+      configuredThreshold,
+      configuredHysteresisSecs);
+
+  @JsonKey(ignore: true)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AdaptiveSwapRuntimeStateImplCopyWith<_$AdaptiveSwapRuntimeStateImpl>
+      get copyWith => __$$AdaptiveSwapRuntimeStateImplCopyWithImpl<
+          _$AdaptiveSwapRuntimeStateImpl>(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AdaptiveSwapRuntimeStateImplToJson(
+      this,
+    );
+  }
+}
+
+abstract class _AdaptiveSwapRuntimeState extends AdaptiveSwapRuntimeState {
+  const factory _AdaptiveSwapRuntimeState(
+      {final String? currentTargetId,
+      final String? currentTier,
+      final String? lastDecisionKind,
+      final String? lastDecisionReason,
+      @JsonKey(name: 'last_swap_unix_secs')
+      @NullableUnixSecsDateTimeConverter()
+      final DateTime? lastSwapAt,
+      final String? lastSwapFromTargetId,
+      final String? lastSwapToTargetId,
+      final double? lastObservedScore,
+      final double? configuredThreshold,
+      final double configuredHysteresisSecs}) = _$AdaptiveSwapRuntimeStateImpl;
+  const _AdaptiveSwapRuntimeState._() : super._();
+
+  factory _AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) =
+      _$AdaptiveSwapRuntimeStateImpl.fromJson;
+
+  @override
+  String? get currentTargetId;
+  @override
+  String? get currentTier;
+  @override
+  String? get lastDecisionKind;
+  @override
+  String? get lastDecisionReason;
+  @override // `last_swap_unix_secs` (nullable int seconds). When `null`, the
+// JSON field is present-with-null (not omitted) — Phase 1's
+// `null_last_swap_serialises_as_null_field` contract test pins this.
+  @JsonKey(name: 'last_swap_unix_secs')
+  @NullableUnixSecsDateTimeConverter()
+  DateTime? get lastSwapAt;
+  @override
+  String? get lastSwapFromTargetId;
+  @override
+  String? get lastSwapToTargetId;
+  @override
+  double? get lastObservedScore;
+  @override
+  double? get configuredThreshold;
+  @override
+  double get configuredHysteresisSecs;
+  @override
+  @JsonKey(ignore: true)
+  _$$AdaptiveSwapRuntimeStateImplCopyWith<_$AdaptiveSwapRuntimeStateImpl>
+      get copyWith => throw _privateConstructorUsedError;
+}
