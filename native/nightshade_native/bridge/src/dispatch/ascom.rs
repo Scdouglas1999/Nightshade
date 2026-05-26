@@ -8,12 +8,58 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::device_common_metadata::{fetch_api_version, DeviceCommonMetadata};
 // NativeDevice / NativeMount required so the trait methods `connect`,
 // `disconnect`, `get_tracking` — which the ASCOM wrappers implement via the
 // trait — are resolvable here.
 use nightshade_native::traits::{NativeDevice, NativeMount};
+use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
+
+/// Probe an ASCOM typed wrapper for its four ASCOM-Common identification
+/// properties, releasing the per-type map lock before acquiring the
+/// per-wrapper lock so other ops can interleave.
+///
+/// `not_found_label` is the human-readable role (e.g. `"camera"`) used in
+/// the "not connected" error message; the per-arm strings in the original
+/// `query_ascom_api_version` differed only in this label so it's the only
+/// per-arm parameter required.
+///
+/// Returns `Err` only when the device is absent from the typed storage map
+/// (hard "not connected" signal). Optional-property failures inside the
+/// connected wrapper are masked per the silent-fallback contract documented
+/// in [`crate::dispatch::device_common_metadata`].
+///
+/// This helper is `#[cfg(windows)]`-gated because its only caller —
+/// [`DeviceManager::query_ascom_api_version`] — is Windows-only.
+#[cfg(windows)]
+async fn probe_ascom_metadata<W>(
+    map: &RwLock<HashMap<String, Arc<RwLock<W>>>>,
+    device_id: &str,
+    not_found_label: &str,
+) -> Result<DeviceApiVersion, String>
+where
+    W: DeviceCommonMetadata + Send + Sync + 'static,
+{
+    // Clone the wrapper Arc out of the storage map so the map's RwLock is
+    // released before the per-wrapper probe (which holds its own RwLock for
+    // the duration of the four awaits). Mirrors the Alpaca pattern in
+    // dispatch/alpaca.rs::query_alpaca_api_version.
+    let wrapper_arc = {
+        let map_guard = map.read().await;
+        map_guard.get(device_id).cloned()
+    };
+    let wrapper_arc = wrapper_arc.ok_or_else(|| {
+        format!(
+            "ASCOM {} {} not connected",
+            not_found_label, device_id
+        )
+    })?;
+
+    let guard = wrapper_arc.read().await;
+    Ok(fetch_api_version(&*guard, device_id, DeviceApiVersion::from_ascom).await)
+}
 
 impl DeviceManager {
     /// Connect to an ASCOM device
@@ -171,30 +217,32 @@ impl DeviceManager {
         Err("ASCOM is only available on Windows".to_string())
     }
 
-    /// Query API version for an ASCOM device (Windows only)
+    /// Query API version for an ASCOM device (Windows only).
+    ///
+    /// The per-device-type fan-out below selects the correct typed storage
+    /// map (`ascom_cameras`, `ascom_mounts`, …); the actual ASCOM-Common
+    /// metadata probe (`InterfaceVersion` / `DriverVersion` / `DriverInfo` /
+    /// `SupportedActions`) is centralized in
+    /// [`crate::dispatch::device_common_metadata::fetch_api_version`] via the
+    /// [`DeviceCommonMetadata`] trait — see that module for the silent-fallback
+    /// contract (audit-rust §4.3) and the `tracing::warn!` instrumentation
+    /// that surfaces discarded `supported_actions` errors. The closure
+    /// argument `DeviceApiVersion::from_ascom` is the only thing that
+    /// distinguishes this from the Alpaca-side query.
     ///
     /// # Silent-fallback contract (audit-rust §4.3)
     ///
-    /// Mirror of the Alpaca-side `query_alpaca_api_version` contract: this is
-    /// a best-effort discovery probe of the four ASCOM-common identification
-    /// properties (`InterfaceVersion`, `DriverVersion`, `DriverInfo`,
-    /// `SupportedActions`) backing the equipment-compatibility matrix.
-    ///
-    /// * `interface_version`, `driver_version`, `driver_info` are pre-tagged
-    ///   `.ok()` → `Option<T>` because a legacy ASCOM driver that does not
-    ///   implement a property raises `PropertyNotImplementedException`
-    ///   (HRESULT `0x80040400`); the UI renders missing values as "Unknown".
-    /// * `supported_actions` returns `Vec<String>`; ASCOM's `ISupportedActions`
-    ///   is an optional V2+ interface, so a `NotImplementedException` here is
-    ///   the spec-mandated signal for "this driver has no custom actions" and
-    ///   `unwrap_or_default()` yields the correct empty-list semantics.
-    /// * `interface_version.unwrap_or(1)` defaults to the ASCOM V1 baseline
-    ///   when the property is absent; every conforming ASCOM driver implements
-    ///   at least the V1 interface for its device type.
+    /// * Legacy ASCOM drivers raise `PropertyNotImplementedException`
+    ///   (HRESULT `0x80040400`) for optional properties; the helper maps
+    ///   `interface_version` failure to `1` (ASCOM V1 baseline) and the two
+    ///   description strings to `None` (UI renders as "Unknown").
+    /// * `supported_actions` is documented as ASCOM V2+ optional; the helper
+    ///   defaults to an empty `Vec` and emits a `tracing::warn!` so the
+    ///   discarded error is observable in logs.
     ///
     /// Device-absence (registry miss) remains a hard `Err` via the per-arm
-    /// `else { return Err(...) }`; silent fallbacks only mask optional-property
-    /// failures, never the device-not-connected signal.
+    /// `probe_ascom_metadata` call; silent fallbacks only mask
+    /// optional-property failures, never the device-not-connected signal.
     #[cfg(windows)]
     pub async fn query_ascom_api_version(
         &self,
@@ -212,155 +260,37 @@ impl DeviceManager {
             return Err(format!("Device {} is not an ASCOM device", device_id));
         }
 
-        // Query version info based on device type
+        // The 7-arm fan-out below differs only in (a) which typed storage map
+        // we read from and (b) the human-readable role label embedded in the
+        // "not connected" error message. The four-property probe body is
+        // identical and lives in `fetch_api_version<T: DeviceCommonMetadata>`
+        // — see `crate::dispatch::device_common_metadata`.
         let version = match info.device_type {
             DeviceType::Camera => {
-                let cameras = self.ascom_cameras.read().await;
-                if let Some(camera) = cameras.get(device_id) {
-                    let camera_guard = camera.read().await;
-                    let interface_version = camera_guard.interface_version().await.ok();
-                    let driver_version = camera_guard.driver_version().await.ok();
-                    let driver_info = camera_guard.driver_info().await.ok();
-                    // Why (audit-rust §4.3): see function-header contract.
-                    // `SupportedActions` → empty Vec when ASCOM driver throws
-                    // PropertyNotImplementedException for the V2+ optional
-                    // ISupportedActions interface; `interface_version` → V1
-                    // baseline when the property itself is unimplemented.
-                    // This pattern repeats for every device-type arm below.
-                    let supported_actions =
-                        camera_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM camera {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_cameras, device_id, "camera").await?
             }
             DeviceType::Mount => {
-                let mounts = self.ascom_mounts.read().await;
-                if let Some(mount) = mounts.get(device_id) {
-                    let mount_guard = mount.read().await;
-                    let interface_version = mount_guard.interface_version().await.ok();
-                    let driver_version = mount_guard.driver_version().await.ok();
-                    let driver_info = mount_guard.driver_info().await.ok();
-                    let supported_actions =
-                        mount_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM mount {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_mounts, device_id, "mount").await?
             }
             DeviceType::Focuser => {
-                let focusers = self.ascom_focusers.read().await;
-                if let Some(focuser) = focusers.get(device_id) {
-                    let focuser_guard = focuser.read().await;
-                    let interface_version = focuser_guard.interface_version().await.ok();
-                    let driver_version = focuser_guard.driver_version().await.ok();
-                    let driver_info = focuser_guard.driver_info().await.ok();
-                    let supported_actions =
-                        focuser_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM focuser {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_focusers, device_id, "focuser").await?
             }
             DeviceType::FilterWheel => {
-                let filter_wheels = self.ascom_filter_wheels.read().await;
-                if let Some(fw) = filter_wheels.get(device_id) {
-                    let fw_guard = fw.read().await;
-                    let interface_version = fw_guard.interface_version().await.ok();
-                    let driver_version = fw_guard.driver_version().await.ok();
-                    let driver_info = fw_guard.driver_info().await.ok();
-                    let supported_actions = fw_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM filter wheel {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_filter_wheels, device_id, "filter wheel").await?
             }
             DeviceType::Dome => {
-                let domes = self.ascom_domes.read().await;
-                if let Some(dome) = domes.get(device_id) {
-                    let dome_guard = dome.read().await;
-                    let interface_version = dome_guard.interface_version().await.ok();
-                    let driver_version = dome_guard.driver_version().await.ok();
-                    let driver_info = dome_guard.driver_info().await.ok();
-                    let supported_actions =
-                        dome_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM dome {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_domes, device_id, "dome").await?
             }
             DeviceType::Switch => {
-                let switches = self.ascom_switches.read().await;
-                if let Some(switch) = switches.get(device_id) {
-                    let switch_guard = switch.read().await;
-                    let interface_version = switch_guard.interface_version().await.ok();
-                    let driver_version = switch_guard.driver_version().await.ok();
-                    let driver_info = switch_guard.driver_info().await.ok();
-                    let supported_actions =
-                        switch_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!("ASCOM switch {} not connected", device_id));
-                }
+                probe_ascom_metadata(&self.ascom_switches, device_id, "switch").await?
             }
             DeviceType::CoverCalibrator => {
-                let covers = self.ascom_cover_calibrators.read().await;
-                if let Some(cover) = covers.get(device_id) {
-                    let cover_guard = cover.read().await;
-                    let interface_version = cover_guard.interface_version().await.ok();
-                    let driver_version = cover_guard.driver_version().await.ok();
-                    let driver_info = cover_guard.driver_info().await.ok();
-                    let supported_actions =
-                        cover_guard.supported_actions().await.unwrap_or_default();
-                    DeviceApiVersion::from_ascom(
-                        device_id.to_string(),
-                        interface_version.unwrap_or(1),
-                        driver_version,
-                        driver_info,
-                        supported_actions,
-                    )
-                } else {
-                    return Err(format!(
-                        "ASCOM cover calibrator {} not connected",
-                        device_id
-                    ));
-                }
+                probe_ascom_metadata(
+                    &self.ascom_cover_calibrators,
+                    device_id,
+                    "cover calibrator",
+                )
+                .await?
             }
             _ => {
                 return Err(format!(
