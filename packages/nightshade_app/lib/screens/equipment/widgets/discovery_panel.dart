@@ -4,6 +4,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
@@ -48,6 +49,11 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         WidgetsBindingObserver {
   bool _isExpanded = false;
   bool _isScanning = false;
+  // True while the Rust-side manual hot-plug rescan is running. Kept
+  // separate from `_isScanning` (the full Dart-side unified discovery)
+  // because the two actions have different latencies and we don't want
+  // the "Rescanning..." spinner blocking the much longer "Scan All".
+  bool _isRescanning = false;
   late AnimationController _expandController;
   late Animation<double> _expandAnimation;
   // 30s tick refreshes the "Last scan: N seconds ago" label. Suspended when
@@ -121,6 +127,38 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     } finally {
       if (mounted) {
         setState(() => _isScanning = false);
+      }
+    }
+  }
+
+  /// Trigger the Rust-side hot-plug diff pass.
+  ///
+  /// This is the lightweight cousin of `_scanForDevices`. The Rust bridge
+  /// has a hybrid hot-plug architecture (`bridge/src/hotplug.rs`):
+  ///   * Kernel-event listener (WM_DEVICECHANGE / libusb hotplug) for
+  ///     sub-second USB arrival latency.
+  ///   * 30 s slow poll catching ASCOM-registry / serial-port changes.
+  /// Pressing Rescan forces an off-cadence diff cycle for users who plug
+  /// in a device the kernel didn't surface (quirky hub, ASCOM driver
+  /// install, etc.). Arrival / removal events flow over the equipment
+  /// event stream and trigger the unified discovery provider to refresh
+  /// without a full backend scan.
+  Future<void> _rescanEquipment() async {
+    setState(() => _isRescanning = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      await bridge_api.apiRescanDevices();
+      if (mounted) {
+        context.showSuccessSnackBar('Equipment rescan complete');
+      }
+    } catch (e) {
+      // Surface failures loudly — `CLAUDE.md` rule "errors are a feature".
+      messenger?.showSnackBar(
+        SnackBar(content: Text('Rescan failed: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRescanning = false);
       }
     }
   }
@@ -222,6 +260,39 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                     onPressed: isDiscovering ? null : _scanForDevices,
                   );
 
+                  // "Rescan equipment" — triggers the Rust hot-plug diff
+                  // pass for USB/native/ASCOM devices. Distinct from
+                  // "Scan All" (which runs the full Dart-side unified
+                  // discovery including Alpaca broadcast and INDI polls).
+                  // Lives next to Scan All as an icon-only button so the
+                  // header stays compact on phone widths.
+                  final rescanButton = IconButton(
+                    onPressed: _isRescanning ? null : _rescanEquipment,
+                    icon: _isRescanning
+                        ? SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(
+                              strokeWidth: 1.5,
+                              color: colors.textSecondary,
+                            ),
+                          )
+                        : Icon(
+                            LucideIcons.refreshCw,
+                            size: 14,
+                            color: colors.textSecondary,
+                          ),
+                    tooltip: _isRescanning
+                        ? 'Rescanning equipment...'
+                        : 'Rescan equipment (USB / native / ASCOM)',
+                    style: IconButton.styleFrom(
+                      foregroundColor: colors.textSecondary,
+                      padding: const EdgeInsets.all(8),
+                      minimumSize: const Size(32, 32),
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  );
+
                   final expandControl = InkWell(
                     onTap: _toggleExpanded,
                     borderRadius: BorderRadius.circular(6),
@@ -285,6 +356,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                               ),
                             ),
                             const Spacer(),
+                            rescanButton,
+                            const SizedBox(width: 4),
                             scanButton,
                             const SizedBox(width: 8),
                             expandControl,
@@ -316,6 +389,8 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
                       const SizedBox(width: 16),
                       Expanded(child: summary),
                       const SizedBox(width: 12),
+                      rescanButton,
+                      const SizedBox(width: 4),
                       scanButton,
                       const SizedBox(width: 8),
                       expandControl,
