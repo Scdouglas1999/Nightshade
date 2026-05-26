@@ -1124,6 +1124,10 @@ mod tests {
                     title: "test".to_string(),
                     message: format!("event {}", index),
                     level: "info".to_string(),
+                    // Wave 5.5 Pack M added an opt-in transport override; this
+                    // test exercises the broadcast-eviction path and doesn't
+                    // care about routing, so opt out by passing None.
+                    explicit_transports: None,
                 }),
                 None,
             );
