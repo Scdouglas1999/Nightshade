@@ -1,25 +1,74 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:drift/native.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_desktop/headless_api/handlers/device_handlers.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
 
 void main() {
+  // Why these overrides:
+  //   1. Every handler calls `_logInfo()`, which reads
+  //      `loggingServiceProvider`. The production provider kicks off
+  //      `unawaited(LoggingService.ensureInitialized())`, which invokes
+  //      `getApplicationSupportDirectory()` (platform channel) and
+  //      `bridge_api.apiInitWithLogging` (FFI cdylib). Both fail in a unit
+  //      test. The async failure surfaces as an unhandled-error and the
+  //      test runner attributes it to whichever test happens to still be
+  //      in scope, producing a flaky `+N -1`.
+  //   2. `handleFilterWheelGetPosition` reads `filterWheelStateProvider`,
+  //      whose `FilterWheelStateNotifier` constructor calls
+  //      `_ref.listen(activeEquipmentProfileProvider, ...)`. That chain
+  //      mounts `equipmentProfilesNotifier` -> `databaseProvider`, and
+  //      the default Drift `LazyDatabase` opens via
+  //      `getApplicationDocumentsDirectory()` — another path_provider
+  //      channel call that throws MissingPluginException in unit tests.
+  //
+  // Fix: install a TestWidgetsFlutterBinding (so plumbing exists), then
+  // wire hermetic substitutes for both providers (in-memory DB +
+  // no-FFI LoggingService). Together these eliminate every cross-test
+  // microtask source identified above.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('DeviceHandlers', () {
+    late Directory loggerTempDir;
+    late LoggingService logger;
+    late NightshadeDatabase db;
     late ProviderContainer container;
     late DeviceHandlers handlers;
 
-    setUp(() {
-      container = ProviderContainer();
+    setUp(() async {
+      loggerTempDir =
+          await Directory.systemTemp.createTemp('ns_device_handlers_test_');
+      logger = LoggingService(
+        applicationSupportDirectoryProvider: () async => loggerTempDir,
+        nativeInitWithLogging: ({logDirectory}) {},
+        nativeInit: () {},
+        currentLogFileProvider: () => null,
+      );
+      await logger.ensureInitialized();
+      db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+
+      container = ProviderContainer(
+        overrides: [
+          loggingServiceProvider.overrideWithValue(logger),
+          databaseProvider.overrideWithValue(db),
+        ],
+      );
       handlers = DeviceHandlers(container);
     });
 
-    tearDown(() {
+    tearDown(() async {
       container.dispose();
+      await logger.dispose();
+      await db.close();
+      if (await loggerTempDir.exists()) {
+        await loggerTempDir.delete(recursive: true);
+      }
     });
 
     test('camera expose malformed payload returns JSON internal error',
