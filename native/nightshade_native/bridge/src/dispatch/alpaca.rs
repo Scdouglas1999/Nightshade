@@ -8,7 +8,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
-use crate::dispatch::alpaca_device_common::fetch_api_version;
+use crate::dispatch::device_common_metadata::fetch_api_version;
 use std::sync::Arc;
 
 impl DeviceManager {
@@ -122,10 +122,14 @@ impl DeviceManager {
     /// map (`alpaca_cameras`, `alpaca_mounts`, …); the actual ASCOM-Common
     /// metadata probe (`interface_version` / `driver_version` / `driver_info`
     /// / `supported_actions`) is centralized in
-    /// [`crate::dispatch::alpaca_device_common::fetch_api_version`] via the
-    /// [`AlpacaDeviceCommon`] trait — see that module for the silent-fallback
-    /// contract (audit-rust §4.3) and the `tracing::debug!` instrumentation
-    /// that surfaces discarded `supported_actions` errors.
+    /// [`crate::dispatch::device_common_metadata::fetch_api_version`] via the
+    /// [`DeviceCommonMetadata`] trait — see that module for the silent-fallback
+    /// contract (audit-rust §4.3) and the `tracing::warn!` instrumentation
+    /// that surfaces discarded `supported_actions` errors. The closure
+    /// argument `DeviceApiVersion::from_alpaca` is the only thing that
+    /// distinguishes this from the ASCOM-side query.
+    ///
+    /// [`DeviceCommonMetadata`]: crate::dispatch::device_common_metadata::DeviceCommonMetadata
     ///
     /// Connection failure (the device not being in the appropriate registry)
     /// is still a hard `Err` via the `None => return Err(...)` arms below —
@@ -163,7 +167,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca camera {} not connected", device_id)),
                 }
             }
@@ -173,7 +180,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca mount {} not connected", device_id)),
                 }
             }
@@ -183,7 +193,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca focuser {} not connected", device_id)),
                 }
             }
@@ -193,7 +206,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca filter wheel {} not connected", device_id)),
                 }
             }
@@ -203,7 +219,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca rotator {} not connected", device_id)),
                 }
             }
@@ -213,7 +232,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca dome {} not connected", device_id)),
                 }
             }
@@ -223,7 +245,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => {
                         return Err(format!("Alpaca safety monitor {} not connected", device_id))
                     }
@@ -235,7 +260,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => return Err(format!("Alpaca switch {} not connected", device_id)),
                 }
             }
@@ -245,7 +273,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => {
                         return Err(format!(
                             "Alpaca cover calibrator {} not connected",
@@ -260,7 +291,10 @@ impl DeviceManager {
                     map.get(device_id).cloned()
                 };
                 match device {
-                    Some(d) => fetch_api_version(d.as_ref(), device_id).await,
+                    Some(d) => {
+                        fetch_api_version(d.as_ref(), device_id, DeviceApiVersion::from_alpaca)
+                            .await
+                    }
                     None => {
                         return Err(format!(
                             "Alpaca observing conditions {} not connected",
