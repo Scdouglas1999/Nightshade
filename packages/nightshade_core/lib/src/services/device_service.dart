@@ -22,6 +22,7 @@ import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../models/sequence/sequence_models.dart';
 import '../utils/device_id_utils.dart';
 import 'camera_temperature_poller.dart';
+import 'camera_warmup_controller.dart';
 import 'device_exceptions.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
@@ -156,8 +157,7 @@ class DeviceService {
 
   StreamSubscription? _eventSubscription;
   late final CameraTemperaturePoller _temperaturePoller;
-  Timer? _warmingTimer;
-  bool _warmingCancelled = false;
+  late final CameraWarmupController _warmupController;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -199,6 +199,10 @@ class DeviceService {
 
   DeviceService(this._ref, this._backend) {
     _temperaturePoller = CameraTemperaturePoller(
+      ref: _ref,
+      backend: _backend,
+    );
+    _warmupController = CameraWarmupController(
       ref: _ref,
       backend: _backend,
     );
@@ -1640,7 +1644,7 @@ class DeviceService {
     DeviceServiceLifecycle.unregister(this);
     _eventSubscription?.cancel();
     _temperaturePoller.dispose();
-    _warmingTimer?.cancel();
+    _warmupController.dispose();
     _userDisconnectDebounceTimer?.cancel();
     _cancelAllReconnections();
   }
@@ -1950,171 +1954,16 @@ class DeviceService {
   }
 
   /// Gradually warm the camera by stepping the target temperature up
-  /// until the cooler power drops to 0%, then disabling the cooler.
+  /// until the cooler power drops near 0%, then disabling the cooler.
   ///
-  /// This is deliberately NOT temperature-aware. We don't care what
-  /// the sensor reads - we just keep raising the setpoint so the cooler
-  /// has less and less work to do. On a cold night (e.g. -10°C ambient)
-  /// the cooler power will hit 0% well before the sensor reaches 0°C,
-  /// which is exactly what we want. A temperature-based stopping
-  /// condition would stall or fail in cold ambient conditions.
-  ///
-  /// The mechanism: ASCOM/INDI cameras accept a target temperature and
-  /// the cooler's PID loop adjusts power to reach it. By steadily
-  /// raising the target, the cooler reduces power. We watch the
-  /// reported cooler power and disable the cooler once it hits 0%.
-  Future<void> warmCamera({double ratePerMin = 2.0}) async {
-    final cameraState = _ref.read(cameraStateProvider);
-    if (cameraState.connectionState != DeviceConnectionState.connected) {
-      throw Exception('Camera not connected');
-    }
-
-    final deviceId = cameraState.deviceId;
-    if (deviceId == null || deviceId.isEmpty) {
-      throw Exception('No camera device ID available');
-    }
-
-    // Cancel any previous warming in progress
-    cancelWarmCamera();
-
-    final notifier = _ref.read(cameraStateProvider.notifier);
-    notifier.setWarming(true);
-    _warmingCancelled = false;
-
-    // Determine the starting setpoint from current sensor temperature.
-    // If sensor temp is unavailable, start from the current target temp.
-    final currentTemp = cameraState.temperature ?? cameraState.targetTemp;
-
-    // We ramp in steps. Tick every 10 seconds, adjusting the target by
-    // ratePerMin / 6 each tick (since 60s / 10s = 6 ticks per minute).
-    const tickInterval = Duration(seconds: 10);
-    final stepPerTick = ratePerMin / 6.0;
-    var currentSetpoint = currentTemp;
-
-    // Safety timeout: if warming hasn't finished after 30 minutes,
-    // just disable the cooler. Something is wrong.
-    const maxWarmingDuration = Duration(minutes: 30);
-    final warmingStartTime = DateTime.now();
-
-    _safeLog(
-      (l) => l.info(
-        'Starting gradual warm-up from ${currentTemp.toStringAsFixed(1)}°C at ${ratePerMin.toStringAsFixed(1)}°C/min (power-based stopping)',
-        source: 'DeviceService',
-      ),
-      'warm-up-start',
-    );
-
-    // Set initial target to current temp (keeps cooler tracking but doesn't shock)
-    await _backend.cameraSetCooling(
-      deviceId: deviceId,
-      enabled: true,
-      targetTemp: currentSetpoint,
-    );
-
-    _warmingTimer = Timer.periodic(tickInterval, (timer) async {
-      if (_warmingCancelled) {
-        timer.cancel();
-        notifier.setWarming(false);
-        return;
-      }
-
-      // Check camera is still connected
-      final state = _ref.read(cameraStateProvider);
-      if (state.connectionState != DeviceConnectionState.connected) {
-        timer.cancel();
-        notifier.setWarming(false);
-        return;
-      }
-
-      // Check if cooler power has dropped to 0% - we're done
-      final coolerPower = state.coolerPower ?? 0.0;
-      if (coolerPower <= 2.0) {
-        timer.cancel();
-        try {
-          await _backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: false,
-          );
-          _safeLog(
-            (l) => l.info(
-              'Warm-up complete. Cooler power reached ${coolerPower.toStringAsFixed(0)}%, cooler disabled. Sensor: ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
-              source: 'DeviceService',
-            ),
-            'warm-up-complete',
-          );
-        } catch (e) {
-          _safeLog(
-            (l) => l.error(
-              'Failed to disable cooler at end of warm-up: $e',
-              source: 'DeviceService',
-            ),
-            'warm-up-disable-fail',
-          );
-        }
-        notifier.setWarming(false);
-        return;
-      }
-
-      // Safety timeout
-      if (DateTime.now().difference(warmingStartTime) > maxWarmingDuration) {
-        timer.cancel();
-        try {
-          await _backend.cameraSetCooling(
-            deviceId: deviceId,
-            enabled: false,
-          );
-          _safeLog(
-            (l) => l.warning(
-              'Warm-up safety timeout (30 min). Cooler disabled at power ${coolerPower.toStringAsFixed(0)}%, sensor ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
-              source: 'DeviceService',
-            ),
-            'warm-up-safety-timeout',
-          );
-        } catch (e) {
-          _safeLog(
-            (l) => l.error(
-              'Failed to disable cooler after warm-up timeout: $e',
-              source: 'DeviceService',
-            ),
-            'warm-up-timeout-disable-fail',
-          );
-        }
-        notifier.setWarming(false);
-        return;
-      }
-
-      // Step the target temperature up
-      currentSetpoint += stepPerTick;
-      try {
-        await _backend.cameraSetCooling(
-          deviceId: deviceId,
-          enabled: true,
-          targetTemp: currentSetpoint,
-        );
-        // Update the UI target temp so the user sees it climbing
-        notifier.setTargetTemp(currentSetpoint);
-      } catch (e) {
-        _safeLog(
-          (l) => l.error(
-            'Error during warm-up step (setpoint ${currentSetpoint.toStringAsFixed(1)}°C): $e',
-            source: 'DeviceService',
-          ),
-          'warm-up-step-fail',
-        );
-        // Don't cancel on transient errors - try again next tick
-      }
-    });
-  }
+  /// Delegates to [CameraWarmupController] — see that class for the full
+  /// algorithm and rationale.
+  Future<void> warmCamera({double ratePerMin = 2.0}) =>
+      _warmupController.start(ratePerMin: ratePerMin);
 
   /// Cancel an in-progress gradual warm-up.
   /// The cooler remains in whatever state it was in at the time of cancellation.
-  void cancelWarmCamera() {
-    _warmingCancelled = true;
-    _warmingTimer?.cancel();
-    _warmingTimer = null;
-    final notifier = _ref.read(cameraStateProvider.notifier);
-    notifier.setWarming(false);
-  }
+  void cancelWarmCamera() => _warmupController.cancel();
 
   /// Disconnect camera
   Future<void> disconnectCamera() {
