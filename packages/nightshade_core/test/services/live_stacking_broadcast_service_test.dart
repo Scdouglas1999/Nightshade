@@ -353,9 +353,39 @@ void main() {
       expect(LiveStackingNode(authToken: 'x').isPublic, isFalse);
     });
 
-    test('copyWith clears authToken via explicit null sentinel', () {
+    test('copyWith explicit null KEEPS authToken (Phase 5 plain semantics)', () {
+      // PHASE-5: LiveStackingNode.copyWith dropped the `_unset` sentinel.
+      // Null and omitted are now indistinguishable — both keep. The
+      // editor clears via rebuild-explicit (see live_stacking_properties
+      // .dart::_rebuildWithCleared).
       final n = LiveStackingNode(authToken: 'secret');
-      final cleared = n.copyWith(authToken: null);
+      final stillSecret = n.copyWith(authToken: null);
+      expect(stillSecret.authToken, 'secret');
+      expect(stillSecret.isPublic, isFalse);
+    });
+
+    test('authToken cleared via rebuild-explicit makes broadcast public', () {
+      // PHASE-5: pin the rebuild-explicit recipe used by the editor.
+      final n = LiveStackingNode(authToken: 'secret');
+      final cleared = LiveStackingNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        mode: n.mode,
+        stackMethod: n.stackMethod,
+        maxFramesToStack: n.maxFramesToStack,
+        broadcastEnabled: n.broadcastEnabled,
+        broadcastPort: n.broadcastPort,
+        broadcastPath: n.broadcastPath,
+        watermarkText: n.watermarkText,
+        thumbnailWidth: n.thumbnailWidth,
+        thumbnailHeight: n.thumbnailHeight,
+        // omit authToken
+      );
       expect(cleared.authToken, isNull);
       expect(cleared.isPublic, isTrue);
     });

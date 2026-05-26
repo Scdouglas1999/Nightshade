@@ -227,13 +227,15 @@ void main() {
       );
       expect(mediumNode.brightnessTierHint, BrightnessTier.medium);
 
-      // copyWith with sentinel preserves prior value.
+      // No-arg copyWith preserves prior value.
       final unchanged = node.copyWith();
       expect(unchanged.brightnessTierHint, BrightnessTier.faint);
 
-      // copyWith with explicit null clears the hint.
-      final cleared = node.copyWith(brightnessTierHint: null);
-      expect(cleared.brightnessTierHint, isNull);
+      // PHASE-5: explicit null now KEEPS prior value (plain `?? this.X`).
+      // The Phase 5 commit dropped the sentinel; clearing
+      // brightnessTierHint is rebuild-explicit at the editor.
+      final stillFaint = node.copyWith(brightnessTierHint: null);
+      expect(stillFaint.brightnessTierHint, BrightnessTier.faint);
     });
   });
 

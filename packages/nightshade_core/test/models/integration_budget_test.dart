@@ -141,7 +141,7 @@ void main() {
     });
   });
 
-  group('TargetHeaderNode copyWith respects integrationBudget sentinel', () {
+  group('TargetHeaderNode copyWith integrationBudget keep-or-replace', () {
     test('omitting integrationBudget preserves the existing value', () {
       const original = IntegrationBudget(totalSecs: 3600.0);
       final node = TargetHeaderNode(
@@ -154,7 +154,12 @@ void main() {
       expect(copy.integrationBudget, equals(original));
     });
 
-    test('explicit null clears the budget', () {
+    test('explicit null now KEEPS the budget (plain `?? this.X` semantics)', () {
+      // PHASE-5: TargetHeaderNode.copyWith dropped the sentinel; null
+      // and omitted are indistinguishable now. Clearing the budget is
+      // rebuild-explicit at the editor — see
+      // sequence_node_complex_subclasses_test.dart::
+      // nullable_fields_cleared_via_rebuild_explicit for the recipe.
       const original = IntegrationBudget(totalSecs: 3600.0);
       final node = TargetHeaderNode(
         targetName: 'M31',
@@ -163,7 +168,7 @@ void main() {
         integrationBudget: original,
       );
       final copy = node.copyWith(integrationBudget: null);
-      expect(copy.integrationBudget, isNull);
+      expect(copy.integrationBudget, equals(original));
     });
 
     test('explicit value replaces the budget', () {
