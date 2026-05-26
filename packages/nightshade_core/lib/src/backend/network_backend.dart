@@ -1632,22 +1632,54 @@ class NetworkBackend implements NightshadeBackend {
     });
 
     final devices = (response['devices'] as List?) ?? const [];
-    return devices
-        .map((d) => DeviceInfo(
-              id: d['id'] as String? ?? '',
-              name: d['name'] as String? ?? '',
-              deviceType: DeviceType.values.firstWhere(
-                (t) => t.name == (d['deviceType'] as String?),
-                orElse: () => DeviceType.camera,
-              ),
-              driverType: DriverType.values.firstWhere(
-                (t) => t.name == (d['driverType'] as String?),
-                orElse: () => fallbackDriverType,
-              ),
-              description: d['description'] as String? ?? '',
-              driverVersion: d['driverVersion'] as String? ?? '',
-            ))
-        .toList();
+    final results = <DeviceInfo>[];
+    for (final d in devices) {
+      final id = d['id'] as String? ?? '';
+      final name = d['name'] as String? ?? '';
+      final deviceTypeName = d['deviceType'] as String?;
+      // Server-side schema drift would otherwise silently turn an
+      // unknown device class into a Camera. Skip and log loudly per
+      // CLAUDE.md "errors are a feature" — a wrong default here means
+      // the equipment screen claims a focuser is a camera.
+      final deviceType = DeviceType.values
+          .where((t) => t.name == deviceTypeName)
+          .firstOrNull;
+      if (deviceType == null) {
+        developer.log(
+          'discoverAtAddress: dropping device id="$id" name="$name" '
+          'with unknown deviceType="$deviceTypeName" from $endpoint',
+          name: 'NetworkBackend',
+          level: 900, // warning
+        );
+        continue;
+      }
+      final driverTypeName = d['driverType'] as String?;
+      // Driver type is more tolerant: unknown driver-type means the
+      // remote server is a newer version; fall back to the caller's
+      // hint (`fallbackDriverType`) which encodes whether this came
+      // from the INDI or Alpaca discovery endpoint.
+      final driverType = DriverType.values
+              .where((t) => t.name == driverTypeName)
+              .firstOrNull ??
+          fallbackDriverType;
+      if (driverTypeName != null && driverTypeName != driverType.name) {
+        developer.log(
+          'discoverAtAddress: device id="$id" reported unknown driverType='
+          '"$driverTypeName"; using fallback ${fallbackDriverType.name}',
+          name: 'NetworkBackend',
+          level: 900,
+        );
+      }
+      results.add(DeviceInfo(
+        id: id,
+        name: name,
+        deviceType: deviceType,
+        driverType: driverType,
+        description: d['description'] as String? ?? '',
+        driverVersion: d['driverVersion'] as String? ?? '',
+      ));
+    }
+    return results;
   }
 
   @override
