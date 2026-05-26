@@ -894,8 +894,6 @@ class TargetHeaderNode extends SequenceNode {
       ];
 }
 
-const Object _sentinel = Object();
-
 /// Loop node - repeats children based on condition
 class LoopNode extends SequenceNode {
   final LoopConditionType conditionType;
@@ -3833,11 +3831,10 @@ class FilterPlan with _$FilterPlan {
   double get integrationSecs => count * durationSecs;
 }
 
-// PHASE-2-NOTE: After the FilterPlan freezed conversion the `_sentinel`
-// constant declared above `LoopNode` is only consumed by SequenceNode
-// subclasses (TargetHeaderNode, TargetSchedulerNode,
-// SciencePhotometryNode). Those classes are out of scope for Phase 2;
-// the sentinel stays put until the SequenceNode batch lands.
+// PHASE-5: the `_sentinel` const used by TargetHeaderNode,
+// TargetSchedulerNode, and SciencePhotometryNode is removed — all
+// three classes now use plain `?? this.X` copyWith semantics. See the
+// Phase-5 commits for the migration log.
 
 /// Map [BinningMode] to the PascalCase string Rust's serde expects.
 /// Kept private and local: SciencePhotometryNode and SmartExposureNode
@@ -4916,8 +4913,11 @@ class SciencePhotometryNode extends SequenceNode {
     bool? reduceLive,
     bool? applyDifferential,
     PhotometryQualityGates? quality,
-    Object? gain = _sentinel,
-    Object? offset = _sentinel,
+    // PHASE-5: plain `?? this.X` for gain and offset. Clearing back
+    // to null (e.g. "no per-node gain override") is rebuild-explicit
+    // at science_photometry_properties.dart.
+    int? gain,
+    int? offset,
     BinningMode? binning,
   }) {
     return SciencePhotometryNode(
@@ -4937,8 +4937,8 @@ class SciencePhotometryNode extends SequenceNode {
       reduceLive: reduceLive ?? this.reduceLive,
       applyDifferential: applyDifferential ?? this.applyDifferential,
       quality: quality ?? this.quality,
-      gain: identical(gain, _sentinel) ? this.gain : gain as int?,
-      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
+      gain: gain ?? this.gain,
+      offset: offset ?? this.offset,
       binning: binning ?? this.binning,
     );
   }

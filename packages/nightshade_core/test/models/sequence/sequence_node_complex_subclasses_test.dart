@@ -26,7 +26,9 @@
 //   * LiveStackingNode (Phase 5: sentinel removed — authToken /
 //     watermarkText use plain keep-or-replace; clearing is
 //     rebuild-explicit at the editor)
-//   * SciencePhotometryNode (sentinel for gain/offset, fromRustConfigJson)
+//   * SciencePhotometryNode (Phase 5: gain/offset sentinels removed —
+//     plain keep-or-replace; clearing is rebuild-explicit at the
+//     editor; fromRustConfigJson defaults still pinned)
 //
 // The SequenceNode subclasses that are STRUCTURALLY simple (plain `??`
 // copyWith for every field) live in
@@ -1249,15 +1251,47 @@ void main() {
           equals(BinningMode.four));
     });
 
-    test('copyWith_gain_and_offset_sentinel_allows_explicit_null', () {
-      // PHASE-2-NOTE: gain / offset use the file-wide `_sentinel`
-      // marker so callers can explicitly clear. Phase 2 freezed
-      // nullable-copyWith preserves this.
+    test('copyWith_gain_and_offset_keep_or_replace', () {
+      // PHASE-5: plain `?? this.X` for gain and offset. Omitted or
+      // null keeps; non-null replaces. Clearing is rebuild-explicit
+      // at science_photometry_properties.dart's empty-text-input
+      // handler.
       final n = sample();
       expect(n.copyWith().gain, equals(100));
       expect(n.copyWith().offset, equals(30));
-      expect(n.copyWith(gain: null).gain, isNull);
-      expect(n.copyWith(offset: null).offset, isNull);
+      // Explicit null keeps.
+      expect(n.copyWith(gain: null).gain, equals(100));
+      expect(n.copyWith(offset: null).offset, equals(30));
+      // Non-null replaces.
+      expect(n.copyWith(gain: 200).gain, equals(200));
+      expect(n.copyWith(offset: 60).offset, equals(60));
+    });
+
+    test('gain_and_offset_cleared_via_rebuild_explicit', () {
+      // PHASE-5: rebuild-explicit recipe pinned for the editor.
+      final n = sample();
+      final cleared = SciencePhotometryNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        targetDesignation: n.targetDesignation,
+        referenceStars: n.referenceStars,
+        maxCadenceGapSecs: n.maxCadenceGapSecs,
+        filter: n.filter,
+        exposureSecs: n.exposureSecs,
+        count: n.count,
+        reduceLive: n.reduceLive,
+        applyDifferential: n.applyDifferential,
+        quality: n.quality,
+        binning: n.binning,
+        // gain / offset omitted
+      );
+      expect(cleared.gain, isNull);
+      expect(cleared.offset, isNull);
     });
 
     test('equality_via_props_includes_reference_stars_order', () {

@@ -91,6 +91,37 @@ class _SciencePhotometryPropertiesState
     notifier.updateNode(mutate(widget.node));
   }
 
+  /// PHASE-5: SciencePhotometryNode.copyWith now uses plain
+  /// `?? this.gain` / `?? this.offset` semantics, so a null arg no
+  /// longer clears. Clearing back to "use device default" requires
+  /// rebuilding a fresh node.
+  void _clearGainOrOffset({bool clearGain = false, bool clearOffset = false}) {
+    final n = widget.node;
+    ref.read(currentSequenceProvider.notifier).updateNode(
+          SciencePhotometryNode(
+            id: n.id,
+            name: n.name,
+            isEnabled: n.isEnabled,
+            childIds: n.childIds,
+            parentId: n.parentId,
+            orderIndex: n.orderIndex,
+            comment: n.comment,
+            targetDesignation: n.targetDesignation,
+            referenceStars: n.referenceStars,
+            maxCadenceGapSecs: n.maxCadenceGapSecs,
+            filter: n.filter,
+            exposureSecs: n.exposureSecs,
+            count: n.count,
+            reduceLive: n.reduceLive,
+            applyDifferential: n.applyDifferential,
+            quality: n.quality,
+            gain: clearGain ? null : n.gain,
+            offset: clearOffset ? null : n.offset,
+            binning: n.binning,
+          ),
+        );
+  }
+
   void _addReferenceStar(String raw) {
     final id = raw.trim();
     if (id.isEmpty) return;
@@ -322,7 +353,7 @@ class _SciencePhotometryPropertiesState
                 ),
                 onChanged: (v) {
                   if (v.isEmpty) {
-                    _update((n) => n.copyWith(gain: null));
+                    _clearGainOrOffset(clearGain: true);
                     return;
                   }
                   final parsed = int.tryParse(v);
@@ -343,7 +374,7 @@ class _SciencePhotometryPropertiesState
                 ),
                 onChanged: (v) {
                   if (v.isEmpty) {
-                    _update((n) => n.copyWith(offset: null));
+                    _clearGainOrOffset(clearOffset: true);
                     return;
                   }
                   final parsed = int.tryParse(v);
