@@ -1092,7 +1092,7 @@ impl DeviceManager {
                                     "Failed to query ASCOM mount capabilities for {}: {}. Marking capabilities unavailable.",
                                     device_id, err
                                 );
-                                crate::ascom_wrapper_mount::AscomMountCapabilities::default()
+                                crate::ascom_wrapper::mount::AscomMountCapabilities::default()
                             }
                         };
 

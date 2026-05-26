@@ -1,9 +1,8 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' show apiEventStream;
-import 'package:nightshade_bridge/src/event.dart'
-    show NightshadeEvent, EventCategory, EventSeverity;
+import 'package:nightshade_bridge/nightshade_bridge.dart'
+    show apiEventStream, NightshadeEvent, EventCategory, EventSeverity;
 import '../backend/bridge_event_mapper.dart';
 import '../backend/ffi_backend.dart';
 import '../backend/network_backend.dart';

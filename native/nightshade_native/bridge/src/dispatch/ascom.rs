@@ -55,7 +55,7 @@ impl DeviceManager {
 
         match info.device_type {
             DeviceType::Camera => {
-                use crate::ascom_wrapper::AscomCameraWrapper;
+                use crate::ascom_wrapper::camera::AscomCameraWrapper;
                 disconnect_existing_ascom!(self.ascom_cameras, "camera");
                 let mut camera = AscomCameraWrapper::new(prog_id.to_string())?;
                 // Let user select the specific camera/config via ASCOM SetupDialog before connecting
@@ -67,7 +67,7 @@ impl DeviceManager {
                 ascom_cameras.insert(info.id.clone(), Arc::new(RwLock::new(camera)));
             }
             DeviceType::Mount => {
-                use crate::ascom_wrapper_mount::AscomMountWrapper;
+                use crate::ascom_wrapper::mount::AscomMountWrapper;
                 disconnect_existing_ascom!(self.ascom_mounts, "mount");
                 let mut mount = AscomMountWrapper::new(prog_id.to_string())?;
                 mount.connect().await.map_err(|e| e.to_string())?;
@@ -76,7 +76,7 @@ impl DeviceManager {
                 ascom_mounts.insert(info.id.clone(), Arc::new(RwLock::new(mount)));
             }
             DeviceType::Focuser => {
-                use crate::ascom_wrapper_focuser::AscomFocuserWrapper;
+                use crate::ascom_wrapper::focuser::AscomFocuserWrapper;
                 disconnect_existing_ascom!(self.ascom_focusers, "focuser");
                 let mut focuser = AscomFocuserWrapper::new(prog_id.to_string())?;
                 focuser.connect().await.map_err(|e| e.to_string())?;
@@ -85,7 +85,7 @@ impl DeviceManager {
                 ascom_focusers.insert(info.id.clone(), Arc::new(RwLock::new(focuser)));
             }
             DeviceType::FilterWheel => {
-                use crate::ascom_wrapper_filterwheel::AscomFilterWheelWrapper;
+                use crate::ascom_wrapper::filterwheel::AscomFilterWheelWrapper;
 
                 disconnect_existing_ascom!(self.ascom_filter_wheels, "filter wheel");
 
@@ -96,7 +96,7 @@ impl DeviceManager {
                 ascom_filter_wheels.insert(info.id.clone(), Arc::new(RwLock::new(fw)));
             }
             DeviceType::Rotator => {
-                use crate::ascom_wrapper_rotator::AscomRotatorWrapper;
+                use crate::ascom_wrapper::rotator::AscomRotatorWrapper;
 
                 disconnect_existing_ascom!(self.ascom_rotators, "rotator");
 
@@ -107,7 +107,7 @@ impl DeviceManager {
                 ascom_rotators.insert(info.id.clone(), Arc::new(RwLock::new(rotator)));
             }
             DeviceType::Dome => {
-                use crate::ascom_wrapper_dome::AscomDomeWrapper;
+                use crate::ascom_wrapper::dome::AscomDomeWrapper;
                 disconnect_existing_ascom!(self.ascom_domes, "dome");
                 let mut dome = AscomDomeWrapper::new(prog_id.to_string())?;
                 dome.connect().await?;
@@ -116,7 +116,7 @@ impl DeviceManager {
                 ascom_domes.insert(info.id.clone(), Arc::new(RwLock::new(dome)));
             }
             DeviceType::Switch => {
-                use crate::ascom_wrapper_switch::AscomSwitchWrapper;
+                use crate::ascom_wrapper::switch::AscomSwitchWrapper;
                 disconnect_existing_ascom!(self.ascom_switches, "switch");
                 let mut sw = AscomSwitchWrapper::new(prog_id.to_string())?;
                 sw.connect().await.map_err(|e| e.to_string())?;
@@ -125,7 +125,7 @@ impl DeviceManager {
                 ascom_switches.insert(info.id.clone(), Arc::new(RwLock::new(sw)));
             }
             DeviceType::Weather => {
-                use crate::ascom_wrapper_weather::AscomObservingConditionsWrapper;
+                use crate::ascom_wrapper::weather::AscomObservingConditionsWrapper;
 
                 disconnect_existing_ascom!(self.ascom_weather, "weather");
 
@@ -136,7 +136,7 @@ impl DeviceManager {
                 ascom_weather.insert(info.id.clone(), Arc::new(RwLock::new(weather)));
             }
             DeviceType::SafetyMonitor => {
-                use crate::ascom_wrapper_safetymonitor::AscomSafetyMonitorWrapper;
+                use crate::ascom_wrapper::safetymonitor::AscomSafetyMonitorWrapper;
 
                 disconnect_existing_ascom!(self.ascom_safety_monitors, "safety monitor");
 
@@ -147,7 +147,7 @@ impl DeviceManager {
                 ascom_safety_monitors.insert(info.id.clone(), Arc::new(RwLock::new(safety)));
             }
             DeviceType::CoverCalibrator => {
-                use crate::ascom_wrapper_covercalibrator::AscomCoverCalibratorWrapper;
+                use crate::ascom_wrapper::covercalibrator::AscomCoverCalibratorWrapper;
                 disconnect_existing_ascom!(self.ascom_cover_calibrators, "cover calibrator");
                 let mut cover_cal = AscomCoverCalibratorWrapper::new(prog_id.to_string())?;
                 cover_cal.connect().await?;
@@ -398,8 +398,8 @@ impl DeviceManager {
                         Ok(health) => {
                             let is_healthy = matches!(
                                 health,
-                                crate::ascom_wrapper::CameraConnectionHealth::Healthy
-                                    | crate::ascom_wrapper::CameraConnectionHealth::Unknown
+                                crate::ascom_wrapper::camera::CameraConnectionHealth::Healthy
+                                    | crate::ascom_wrapper::camera::CameraConnectionHealth::Unknown
                             );
                             tracing::trace!("ASCOM camera {} heartbeat: {:?}", device_id, health);
                             Ok(is_healthy)

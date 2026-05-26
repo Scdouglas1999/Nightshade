@@ -79,7 +79,7 @@ Future<UpdateStack?> provisionUpdateStack({
     service.configure(serverUrl: resolvedUrl, channel: resolvedChannel);
   }
 
-  final controller = DefaultUpdateController(
+  final controller = UpdateController(
     service: service,
     currentVersion: currentVersion,
     currentBuildNumber: currentBuildNumber,

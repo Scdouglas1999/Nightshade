@@ -193,6 +193,20 @@ fn enu_to_horizontal(enu: DVec3) -> HorizontalCoords {
     }
 }
 
+/// ICRS unit direction (f32 packed XYZ) → (right ascension, declination) in radians.
+///
+/// Right ascension is returned in `(-π, π]` (i.e. `atan2(y, x)`); callers that need
+/// the canonical `[0, 2π)` range should apply `rem_euclid(TAU)` themselves.
+#[inline]
+pub fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
+    let x = f64::from(dir[0]);
+    let y = f64::from(dir[1]);
+    let z = f64::from(dir[2]);
+    let dec_rad = z.clamp(-1.0, 1.0).asin();
+    let ra_rad = y.atan2(x);
+    (ra_rad, dec_rad)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

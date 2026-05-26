@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api/plate_solve.dart'
+import 'package:nightshade_bridge/nightshade_bridge.dart'
     show PlateSolveResult;
 import 'plate_solve_service.dart';
 import 'imaging_service.dart';

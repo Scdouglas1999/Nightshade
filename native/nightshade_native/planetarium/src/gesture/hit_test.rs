@@ -1,5 +1,6 @@
 //! Screen-space tap picking via projection inverse and catalog hit indexes.
 
+use crate::astrometry::frames::radec_from_icrs_dir;
 use crate::catalog::healpix::HealpixError;
 use crate::catalog::{CatalogHit, CatalogSet};
 use crate::scene::dev_catalog::DEV_STARS;
@@ -75,16 +76,6 @@ fn star_display_name(hip_id: u32) -> SmallString {
         .find(|s| s.hip == u64::from(hip_id))
         .map(|s| SmallString::new(s.name))
         .unwrap_or_else(|| SmallString::new(format!("HIP {hip_id}")))
-}
-
-#[inline]
-fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
-    let x = f64::from(dir[0]);
-    let y = f64::from(dir[1]);
-    let z = f64::from(dir[2]);
-    let dec_rad = z.clamp(-1.0, 1.0).asin();
-    let ra_rad = y.atan2(x);
-    (ra_rad, dec_rad)
 }
 
 #[cfg(test)]

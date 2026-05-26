@@ -6,6 +6,8 @@
 use std::cmp::Ordering;
 use std::collections::{BTreeMap, BinaryHeap};
 
+use crate::astrometry::frames::radec_from_icrs_dir;
+
 use super::healpix::{pixel_for_direction, pixels_in_cone, HealpixError};
 use super::StarRecord;
 
@@ -185,16 +187,6 @@ impl CellIndex {
             self.stars.push(star);
         }
     }
-}
-
-#[inline]
-fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
-    let x = f64::from(dir[0]);
-    let y = f64::from(dir[1]);
-    let z = f64::from(dir[2]);
-    let dec_rad = z.clamp(-1.0, 1.0).asin();
-    let ra_rad = y.atan2(x);
-    (ra_rad, dec_rad)
 }
 
 #[inline]

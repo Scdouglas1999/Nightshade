@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/error.dart' as bridge_error;
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 

@@ -1,5 +1,6 @@
 //! Per-frame snapshot assembly and ArcSwap publish hook.
 
+use crate::astrometry::frames::radec_from_icrs_dir;
 use crate::astrometry::time::AstroTime;
 use crate::catalog::constellation_lines::{icrs_dir_from_j2000, CONSTELLATIONS};
 use crate::catalog::variable_stars::{brighter_than, icrs_dir, VariableStar};
@@ -312,14 +313,4 @@ fn variable_star_object_id(name: &str) -> u64 {
         hash = hash.wrapping_mul(31).wrapping_add(u64::from(b));
     }
     hash
-}
-
-#[inline]
-fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
-    let x = f64::from(dir[0]);
-    let y = f64::from(dir[1]);
-    let z = f64::from(dir[2]);
-    let dec_rad = z.clamp(-1.0, 1.0).asin();
-    let ra_rad = y.atan2(x);
-    (ra_rad, dec_rad)
 }

@@ -1,5 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:nightshade_core/src/models/backend/device_types.dart';
+import 'backend/device_types.dart';
 
 part 'meridian_flip_event.freezed.dart';
 part 'meridian_flip_event.g.dart';

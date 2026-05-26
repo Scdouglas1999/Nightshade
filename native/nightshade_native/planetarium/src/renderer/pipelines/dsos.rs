@@ -8,8 +8,8 @@ use std::sync::Arc;
 use bytemuck::{Pod, Zeroable};
 use glam::{Mat4, Quat, Vec3};
 
-use crate::catalog::ParsedDsoCatalog;
-use crate::catalog::{DsoRecord, DSO_FLAG_HAS_MAG};
+use crate::astrometry::frames::radec_from_icrs_dir;
+use crate::catalog::{DsoRecord, ParsedDsoCatalog, DSO_FLAG_HAS_MAG};
 use crate::renderer::Scene;
 use crate::scene::build::BuildSceneInputs;
 use crate::scene::projection::project_icrs;
@@ -216,16 +216,6 @@ fn effective_dso_magnitude(record: &DsoRecord) -> f32 {
     } else {
         99.0
     }
-}
-
-#[inline]
-fn radec_from_icrs_dir(dir: [f32; 3]) -> (f64, f64) {
-    let x = f64::from(dir[0]);
-    let y = f64::from(dir[1]);
-    let z = f64::from(dir[2]);
-    let dec_rad = z.clamp(-1.0, 1.0).asin();
-    let ra_rad = y.atan2(x);
-    (ra_rad, dec_rad)
 }
 
 /// wgpu pipeline for instanced DSO sprites.

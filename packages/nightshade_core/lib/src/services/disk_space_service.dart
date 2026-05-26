@@ -56,23 +56,17 @@ class DiskSpaceException implements Exception {
 ///   `Get-PSDrive` over `wmic` because `wmic` is deprecated since Windows 11
 ///   and missing on newer Server SKUs.
 /// - macOS/Linux: `df -Pk` (POSIX, 1024-byte blocks).
-abstract class DiskSpaceService {
-  Future<DiskSpaceInfo> query(String path);
-}
-
-/// Default implementation that shells out to the host OS.
 ///
 /// Failure modes that propagate as [DiskSpaceException]:
 /// - path is empty
 /// - path does not exist
 /// - subprocess exits non-zero
 /// - subprocess output cannot be parsed
-class HostDiskSpaceService implements DiskSpaceService {
+class DiskSpaceService {
   final LoggingService? _logger;
 
-  HostDiskSpaceService({LoggingService? logger}) : _logger = logger;
+  DiskSpaceService({LoggingService? logger}) : _logger = logger;
 
-  @override
   Future<DiskSpaceInfo> query(String path) async {
     if (path.isEmpty) {
       throw const DiskSpaceException(

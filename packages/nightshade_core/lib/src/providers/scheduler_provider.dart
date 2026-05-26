@@ -25,7 +25,7 @@ import 'settings_provider.dart' hide HorizonProfile;
 // Pull in NightshadeEvent + EventPayload tagged-union subtypes (freezed
 // generates EventPayload_Guiding / EventPayload_Equipment as part-of-library
 // classes, so a plain import surfaces them here).
-import 'package:nightshade_bridge/src/event.dart';
+import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 /// Stream that pushes engine trigger events derived from the native bridge.
 /// Hooks weather / guiding / mount events into the engine without
