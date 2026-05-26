@@ -596,16 +596,36 @@ void main() {
       expect(n.copyWith(), equals(n));
     });
 
-    test('copyWith_explicit_transports_uses_clear_flag', () {
-      // PHASE-2-NOTE: NotificationNode follows the same
-      // `clearExplicitTransports: true` flag pattern as ExposureNode's
-      // clearAdaptiveExposure. See ExposureNode group note above —
-      // Phase 2 should normalise both onto sentinel/null-clear.
+    test('copyWith_explicit_transports_keep_or_replace', () {
+      // PHASE-5: NotificationNode.copyWith dropped the
+      // `clearExplicitTransports` flag. copyWith now uses plain
+      // `?? this.explicitTransports` semantics (omitted / null keep;
+      // non-null replaces). Clearing back to the matrix default is
+      // rebuild-explicit — covered by
+      // notification_node_test.dart::"clears explicitTransports
+      // via rebuild-explicit".
       final n = NotificationNode(
         explicitTransports: const [NotificationTransportKind.discord],
       );
+      // Omitted keeps.
       expect(
-          n.copyWith(clearExplicitTransports: true).explicitTransports, isNull);
+        n.copyWith().explicitTransports,
+        equals(const [NotificationTransportKind.discord]),
+      );
+      // Explicit null keeps too (plain `?? this.X` rule).
+      expect(
+        n.copyWith(explicitTransports: null).explicitTransports,
+        equals(const [NotificationTransportKind.discord]),
+      );
+      // Non-null replaces.
+      expect(
+        n
+            .copyWith(explicitTransports: const [
+              NotificationTransportKind.telegram,
+            ])
+            .explicitTransports,
+        equals(const [NotificationTransportKind.telegram]),
+      );
     });
   });
 

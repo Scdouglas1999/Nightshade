@@ -2643,11 +2643,14 @@ class NotificationNode extends SequenceNode {
   @override
   NodeCategory get category => NodeCategory.instruction;
 
-  /// `copyWith` for `explicitTransports`. We need a three-state semantics
-  /// here:
-  ///   * leave alone     → pass nothing
+  /// `copyWith` for `explicitTransports` uses plain keep-or-replace
+  /// semantics:
+  ///   * leave alone     → pass nothing (or `null`)
   ///   * set to a value  → pass the new list
-  ///   * clear (back to matrix-default) → set `clearExplicitTransports: true`
+  ///
+  /// To CLEAR (back to matrix-default), build a fresh NotificationNode
+  /// directly without the `explicitTransports` arg — see the editor's
+  /// `_TransportsRow` for the canonical rebuild-explicit recipe.
   @override
   NotificationNode copyWith({
     String? id,
@@ -2661,7 +2664,6 @@ class NotificationNode extends SequenceNode {
     String? message,
     NotificationLevel? level,
     List<NotificationTransportKind>? explicitTransports,
-    bool clearExplicitTransports = false,
   }) {
     return NotificationNode(
       id: id ?? this.id,
@@ -2674,9 +2676,7 @@ class NotificationNode extends SequenceNode {
       title: title ?? this.title,
       message: message ?? this.message,
       level: level ?? this.level,
-      explicitTransports: clearExplicitTransports
-          ? null
-          : (explicitTransports ?? this.explicitTransports),
+      explicitTransports: explicitTransports ?? this.explicitTransports,
     );
   }
 

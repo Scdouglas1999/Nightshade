@@ -23,11 +23,27 @@ void main() {
     expect(updated.explicitTransports, [NotificationTransportKind.discord]);
   });
 
-  test('NotificationNode copyWith clears explicitTransports', () {
+  test('NotificationNode clears explicitTransports via rebuild-explicit', () {
+    // PHASE-5: `clearExplicitTransports: true` is gone; copyWith now uses
+    // plain `?? this.explicitTransports` semantics. To reset back to
+    // the matrix default, callers construct a fresh node without the
+    // `explicitTransports` arg.
     final n = NotificationNode(
+      id: 'n1',
       explicitTransports: const [NotificationTransportKind.discord],
     );
-    final updated = n.copyWith(clearExplicitTransports: true);
+    final updated = NotificationNode(
+      id: n.id,
+      name: n.name,
+      isEnabled: n.isEnabled,
+      childIds: n.childIds,
+      parentId: n.parentId,
+      orderIndex: n.orderIndex,
+      comment: n.comment,
+      title: n.title,
+      message: n.message,
+      level: n.level,
+    );
     expect(updated.explicitTransports, isNull);
   });
 
