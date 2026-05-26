@@ -15,6 +15,7 @@
 pub(crate) mod alpaca;
 pub(crate) mod alpaca_device_common;
 pub(crate) mod ascom;
+pub(crate) mod ascom_device_common;
 pub(crate) mod device_common_metadata;
 pub(crate) mod indi;
 pub(crate) mod native;
