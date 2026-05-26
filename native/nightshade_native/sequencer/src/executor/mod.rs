@@ -24,6 +24,7 @@
 
 mod decision;
 mod lifecycle;
+mod recovery;
 
 use crate::device_ops::SharedDeviceOps;
 use crate::node::{
@@ -5381,51 +5382,6 @@ impl SequenceExecutor {
                 clear_sky,
             );
         }
-    }
-
-    /// Push updated recovery defaults (retry interval, max duration,
-    /// stop-tracking flag, …) into the executor's runtime config. The next
-    /// recovery entry honours the new values.
-    pub async fn update_recovery_config(&mut self, config: crate::recovery::RecoveryRuntimeConfig) {
-        tracing::info!(
-            "Updating recovery defaults: interval={:.0}s, max_duration={:.0}s, stop_tracking={}, audible={}",
-            config.retry_interval_secs,
-            config.max_duration_secs,
-            config.stop_tracking_during_recovery,
-            config.audible_alert_when_entered,
-        );
-        {
-            let mut rc = self.runtime_config.write();
-            rc.recovery = config.clone();
-        }
-        if let Some(tx) = &self.command_tx {
-            let _ = tx
-                .send(ExecutorCommand::UpdateRecoveryConfig { config })
-                .await;
-        }
-        let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
-            what: "recovery_config".to_string(),
-        });
-    }
-
-    /// Snapshot of the current in-flight recovery context. `None` when the
-    /// executor is not in `Recovering`. Returned by-value so callers can
-    /// inspect without holding the lock.
-    pub fn current_recovery(&self) -> Option<crate::recovery::RecoveryContext> {
-        self.current_recovery.read().clone()
-    }
-
-    /// Cloned recovery history. Every completed recovery loop is appended
-    /// here; the post-session report pulls from this Vec.
-    pub fn recovery_history(&self) -> Vec<crate::recovery::RecoveryHistoryEntry> {
-        self.recovery_history.read().clone()
-    }
-
-    /// Shared handle to the recovery signals atomic. Exposed for tests that
-    /// need to inject `request_try_now()` / `request_abort()` without
-    /// going through the command channel.
-    pub fn recovery_signals_handle(&self) -> Arc<crate::recovery::RecoverySignals> {
-        self.recovery_signals.clone()
     }
 
     /// Update dither configuration at runtime.
