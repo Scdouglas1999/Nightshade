@@ -31,6 +31,7 @@ import 'headless_api/auth_policy.dart';
 import 'headless_api/command_correlator.dart';
 import 'headless_api/event_replay_buffer.dart';
 import 'headless_api/handlers.dart';
+import 'headless_api/routes.dart';
 import 'headless_api/job_manager.dart';
 import 'headless_api/request_context.dart' as ctx;
 import 'headless_api/response_helpers.dart';
@@ -634,779 +635,93 @@ class HeadlessApiServer {
   Future<void> start() async {
     final router = Router();
 
-    // Core endpoints
-    router.get('/api/info', _systemHandlers.handleInfo);
-    router.get('/api/status', _systemHandlers.handleStatus);
-    router.get('/api/self-test', _systemHandlers.handleSelfTest);
-    router.get('/api/openapi.json', _systemHandlers.handleOpenApiSpec);
+    // Route table — per-domain declarative lists live under
+    // `headless_api/routes/`. Each handler class has a sibling
+    // `routes/<name>_routes.dart` exporting a top-level
+    // `build<Name>Routes(handler)`. The order below MIRRORS the
+    // legacy inline-`router.<verb>(...)` block exactly; shelf_router
+    // matches by registration order so any reordering across domain
+    // boundaries (e.g. moving `/api/sessions/*` (analytics) before
+    // `/api/sessions/<sessionId>/images` (sessions)) would change
+    // first-hit semantics. See `routes/headless_route.dart` for the
+    // typed primitives.
+    final allRoutes = <HeadlessRoute>[
+      ...buildSystemRoutes(_systemHandlers),
+      ...buildPairingRoutes(_pairingHandlers),
+      ...buildAuthRoutes(_authHandlers),
+      ...buildCollaborationRoutes(_collaborationHandlers),
+      ...buildDeviceDiscoveryRoutes(_deviceDiscoveryHandlers),
+      ...buildDeviceRoutes(_deviceHandlers),
+      ...buildGuidingRoutes(_guidingHandlers),
+      ...buildImagingRoutes(_imagingHandlers),
+      ...buildSequencerRoutes(_sequencerHandlers),
+      ...buildEquipmentRoutes(_equipmentHandlers),
+      ...buildProfileRoutes(_profileHandlers),
+      ...buildSessionRoutes(_sessionHandlers),
+      ...buildTargetRoutes(_targetHandlers),
+      ...buildSequenceManagementRoutes(_sequenceManagementHandlers),
+      ...buildFlatWizardRoutes(_flatWizardHandlers),
+      ...buildMosaicRoutes(_mosaicHandlers),
+      ...buildAnalyticsRoutes(_analyticsHandlers),
+      ...buildWeatherRoutes(_weatherHandlers),
+      ...buildFileSystemRoutes(_fileSystemHandlers),
+      ...buildScienceRoutes(_scienceHandlers),
+      ...buildSuggestionRoutes(_suggestionHandlers),
+      ...buildTransientRoutes(_transientHandlers),
+      ...buildBackupRoutes(_backupHandlers),
+      ...buildFramingRoutes(_framingHandlers),
+      ...buildPlanetariumRoutes(_planetariumHandlers),
+      ...buildDomeRoutes(_domeHandlers),
+      ...buildSafetyMonitorRoutes(_safetyMonitorHandlers),
+      ...buildAuxiliaryRoutes(_auxiliaryHandlers),
+      ...buildSchedulerRoutes(_schedulerHandlers),
+      ...buildFocusModelRoutes(_focusModelHandlers),
+      ...buildJobRoutes(_jobHandlers),
+      ...buildSessionOwnershipRoutes(_sessionOwnershipHandlers),
+    ];
 
-    // Pairing flow (web dashboard first-run UX). See §2.1 in
-    // 2026-05-09-v250-audit-fixes.md.
-    router.post('/api/pairing/start', _pairingHandlers.handlePairingStart);
-    router.post('/api/pairing/verify', _pairingHandlers.handlePairingVerify);
-    // P0-3: admin-only view of currently-valid pairing sessions. Behind the
-    // auth middleware (the path is NOT in `publicPaths`) and gated to admin
-    // scope via `_adminOnlyPaths`. Lets headless operators on a paired admin
-    // client retrieve the active code without watching stdout.
-    router.get(
-        '/api/pairing/active', _pairingHandlers.handlePairingActiveList);
-
-    // WebSocket auth ticket (§2.28). Issues a one-shot ticket so browsers
-    // don't have to leak the bearer token via WS query parameters.
-    router.post('/api/ws/ticket', _authHandlers.handleWsTicketIssue);
-
-    // HttpOnly cookie + CSRF token for the dashboard "remember me" path
-    // (§2.5 long-form). The dashboard exchanges a freshly-paired bearer
-    // token for a cookie that JS cannot read, plus a CSRF token it must
-    // echo on every write. Logout invalidates both.
-    router.post('/api/auth/cookie', _authHandlers.handleAuthCookieIssue);
-    router.get('/api/auth/csrf', _authHandlers.handleAuthCsrfFetch);
-    router.post('/api/auth/logout', _authHandlers.handleAuthLogout);
-    router.get('/api/collaboration/state',
-        _collaborationHandlers.handleCollaborationState);
-    router.post('/api/collaboration/viewers/join',
-        _collaborationHandlers.handleCollaborationJoin);
-    router.post('/api/collaboration/viewers/leave',
-        _collaborationHandlers.handleCollaborationLeave);
-    router.post('/api/collaboration/preview',
-        _collaborationHandlers.handleCollaborationPreview);
-    router.post('/api/collaboration/chat',
-        _collaborationHandlers.handleCollaborationChat);
-    router.post('/api/collaboration/annotations',
-        _collaborationHandlers.handleCollaborationAnnotation);
-    router.get('/api/session-handoff',
-        _collaborationHandlers.handleGetSessionHandoff);
-    router.post('/api/session-handoff',
-        _collaborationHandlers.handleSetSessionHandoff);
-    router.delete('/api/session-handoff',
-        _collaborationHandlers.handleClearSessionHandoff);
-
-    // Device management
-    router.get('/api/devices', _deviceDiscoveryHandlers.handleGetDevices);
-    router.get('/api/devices/discover-indi',
-        _deviceDiscoveryHandlers.handleDiscoverIndiAtAddress);
-    router.get('/api/devices/discover-alpaca',
-        _deviceDiscoveryHandlers.handleDiscoverAlpacaAtAddress);
-    router.get('/api/devices/connected',
-        _deviceDiscoveryHandlers.handleGetConnectedDevices);
-    router.post('/api/devices/connect', _deviceHandlers.handleConnectDevice);
-    router.post(
-        '/api/devices/disconnect', _deviceHandlers.handleDisconnectDevice);
-
-    // Camera Control
-    router.post('/api/camera/expose', _deviceHandlers.handleCameraExpose);
-    router.post('/api/camera/abort', _deviceHandlers.handleCameraAbort);
-    router.get(
-        '/api/camera/last-image', _deviceHandlers.handleCameraGetLastImage);
-    router.get('/api/camera/last-image/jpeg',
-        _deviceHandlers.handleCameraGetLastImageJpeg);
-    router.get('/api/camera/live-view/frame',
-        _deviceHandlers.handleCameraLiveViewFrame);
-    router.post('/api/camera/cooling', _deviceHandlers.handleCameraSetCooling);
-    router.get('/api/camera/cooling', _deviceHandlers.handleCameraGetCooling);
-    router.get('/api/camera/readout-modes',
-        _deviceHandlers.handleCameraGetReadoutModes);
-    router.post(
-        '/api/camera/readoutMode', _deviceHandlers.handleCameraSetReadoutMode);
-    router.post('/api/camera/gain', _deviceHandlers.handleCameraSetGain);
-    router.post('/api/camera/offset', _deviceHandlers.handleCameraSetOffset);
-    router.get('/api/camera/recommended-settings',
-        _deviceHandlers.handleCameraGetRecommendedSettings);
-
-    // Mount Control
-    router.post('/api/mount/slew', _deviceHandlers.handleMountSlew);
-    router.post('/api/mount/sync', _deviceHandlers.handleMountSync);
-    router.post('/api/mount/park', _deviceHandlers.handleMountPark);
-    router.post('/api/mount/unpark', _deviceHandlers.handleMountUnpark);
-    router.post('/api/mount/tracking', _deviceHandlers.handleMountSetTracking);
-    router.post(
-        '/api/mount/pulse-guide', _deviceHandlers.handleMountPulseGuide);
-    router.post('/api/mount/abort', _deviceHandlers.handleMountAbort);
-    router.get('/api/mount/status', _deviceHandlers.handleMountGetStatus);
-    router.post('/api/mount/set-tracking-rate',
-        _deviceHandlers.handleMountSetTrackingRate);
-    router.post('/api/mount/move-axis', _deviceHandlers.handleMountMoveAxis);
-    router.post('/api/mount/slew-alt-az', _deviceHandlers.handleMountSlewAltAz);
-    router.post('/api/mount/find-home', _deviceHandlers.handleMountFindHome);
-
-    // Focuser Control
-    router.post('/api/focuser/move-to', _deviceHandlers.handleFocuserMoveTo);
-    router.post('/api/focuser/move-relative',
-        _deviceHandlers.handleFocuserMoveRelative);
-    router.post('/api/focuser/halt', _deviceHandlers.handleFocuserHalt);
-    router.post(
-        '/api/focuser/autofocus/start', _deviceHandlers.handleAutofocusStart);
-    router.post(
-        '/api/focuser/autofocus/cancel', _deviceHandlers.handleAutofocusCancel);
-
-    // Filter Wheel Control
-    router.post('/api/filter-wheel/position',
-        _deviceHandlers.handleFilterWheelSetPosition);
-    // P2-7 — GET sibling of POST /api/filter-wheel/position so mobile
-    // can render the current slot, name, and "is moving" flag.
-    router.get('/api/filter-wheel/position',
-        _deviceHandlers.handleFilterWheelGetPosition);
-    router.get(
-        '/api/filter-wheel/names', _deviceHandlers.handleFilterWheelGetNames);
-    router.post(
-        '/api/filter-wheel/names', _deviceHandlers.handleFilterWheelSetNames);
-    router.post('/api/filter-wheel/set-by-name',
-        _deviceHandlers.handleFilterWheelSetByName);
-
-    // Rotator Control
-    router.post('/api/rotator/move-to', _deviceHandlers.handleRotatorMoveTo);
-    router.post('/api/rotator/move-relative',
-        _deviceHandlers.handleRotatorMoveRelative);
-    router.get('/api/rotator/status', _deviceHandlers.handleRotatorGetStatus);
-    router.post('/api/rotator/halt', _deviceHandlers.handleRotatorHalt);
-    router.post('/api/rotator/sync', _deviceHandlers.handleRotatorSync);
-
-    // PHD2 Guiding
-    router.post('/api/phd2/connect', _guidingHandlers.handlePhd2Connect);
-    router.post('/api/phd2/disconnect', _guidingHandlers.handlePhd2Disconnect);
-    router.post(
-        '/api/phd2/start-guiding', _guidingHandlers.handlePhd2StartGuiding);
-    router.post(
-        '/api/phd2/stop-guiding', _guidingHandlers.handlePhd2StopGuiding);
-    router.post('/api/phd2/dither', _guidingHandlers.handlePhd2Dither);
-    router.get('/api/phd2/status', _guidingHandlers.handlePhd2GetStatus);
-    router.post('/api/phd2/pause', _guidingHandlers.handlePhd2SetPaused);
-    router.post('/api/phd2/clear-calibration',
-        _guidingHandlers.handlePhd2ClearCalibration);
-    router.post('/api/phd2/flip-calibration',
-        _guidingHandlers.handlePhd2FlipCalibration);
-    router.post('/api/phd2/get-calibration-data',
-        _guidingHandlers.handlePhd2GetCalibrationData);
-    router.post('/api/phd2/find-star', _guidingHandlers.handlePhd2FindStar);
-    router.post('/api/phd2/set-lock-position',
-        _guidingHandlers.handlePhd2SetLockPosition);
-    router.get(
-        '/api/phd2/lock-position', _guidingHandlers.handlePhd2GetLockPosition);
-    router.post('/api/phd2/loop', _guidingHandlers.handlePhd2Loop);
-    router.post(
-        '/api/phd2/deselect-star', _guidingHandlers.handlePhd2DeselectStar);
-    router.get('/api/phd2/star-image', _guidingHandlers.handlePhd2GetStarImage);
-    router.get(
-        '/api/phd2/algo-params', _guidingHandlers.handlePhd2GetAlgoParamNames);
-    router.get('/api/phd2/algo-param', _guidingHandlers.handlePhd2GetAlgoParam);
-    router.post(
-        '/api/phd2/algo-param', _guidingHandlers.handlePhd2SetAlgoParam);
-
-    // Generic guider control
-    router.post(
-        '/api/guider/start-guiding', _guidingHandlers.handleGuiderStartGuiding);
-    router.post(
-        '/api/guider/stop-guiding', _guidingHandlers.handleGuiderStopGuiding);
-    router.post('/api/guider/dither', _guidingHandlers.handleGuiderDither);
-    router.post('/api/guider/loop', _guidingHandlers.handleGuiderLoop);
-    router.post('/api/guider/find-star', _guidingHandlers.handleGuiderFindStar);
-    router.post('/api/guider/set-lock-position',
-        _guidingHandlers.handleGuiderSetLockPosition);
-    router.get('/api/guider/lock-position',
-        _guidingHandlers.handleGuiderGetLockPosition);
-    router.post(
-        '/api/guider/deselect-star', _guidingHandlers.handleGuiderDeselectStar);
-    router.get(
-        '/api/guider/star-image', _guidingHandlers.handleGuiderGetStarImage);
-    router.get('/api/builtin-guider/config',
-        _guidingHandlers.handleBuiltinGuiderGetConfig);
-    router.post('/api/builtin-guider/config',
-        _guidingHandlers.handleBuiltinGuiderSetConfig);
-
-    // Plate Solving
-    router.post('/api/plate-solve', _imagingHandlers.handlePlateSolve);
-
-    // Sequencing (legacy). These three are direct aliases for the
-    // /api/sequencer/* surface — kept for pinned mobile builds that
-    // pre-date the rename. The router accepts the same handler refs so
-    // there is no double dispatch.
-    router.get(
-        '/api/sequences/status', _sequencerHandlers.handleSequencerStatus);
-    router.post(
-        '/api/sequences/start', _sequencerHandlers.handleSequencerStart);
-    router.post(
-        '/api/sequences/stop', _sequencerHandlers.handleSequencerStop);
-
-    // Sequencing (extended)
-    router.get(
-        '/api/sequencer/status', _sequencerHandlers.handleSequencerStatus);
-    router.post(
-        '/api/sequencer/start', _sequencerHandlers.handleSequencerStart);
-    router.post('/api/sequencer/stop', _sequencerHandlers.handleSequencerStop);
-    router.post(
-        '/api/sequencer/pause', _sequencerHandlers.handleSequencerPause);
-    router.post(
-        '/api/sequencer/resume', _sequencerHandlers.handleSequencerResume);
-    router.post('/api/sequencer/skip', _sequencerHandlers.handleSequencerSkip);
-    router.post('/api/sequencer/skip-to-node',
-        _sequencerHandlers.handleSequencerSkipToNode);
-    router.post('/api/sequencer/plugin-node-finished',
-        _sequencerHandlers.handleSequencerPluginNodeFinished);
-    router.post(
-        '/api/sequencer/reset', _sequencerHandlers.handleSequencerReset);
-    router.post('/api/sequencer/load', _sequencerHandlers.handleSequencerLoad);
-    router.post('/api/sequencer/simulation',
-        _sequencerHandlers.handleSequencerSetSimulationMode);
-    router.post(
-        '/api/sequencer/devices', _sequencerHandlers.handleSequencerSetDevices);
-    router.post('/api/sequencer/safety-fail-mode',
-        _sequencerHandlers.handleSequencerSetSafetyFailMode);
-    router.post('/api/sequencer/safety-check-interval',
-        _sequencerHandlers.handleSequencerSetSafetyCheckInterval);
-    router.post('/api/sequencer/save-path',
-        _sequencerHandlers.handleSequencerSetSavePath);
-    router.post('/api/sequencer/active-sequence-run-id',
-        _sequencerHandlers.handleSequencerSetActiveSequenceRunId);
-    router.post('/api/sequencer/decision-logging-enabled',
-        _sequencerHandlers.handleSequencerSetDecisionLoggingEnabled);
-    router.post('/api/sequencer/update-dither-config',
-        _sequencerHandlers.handleSequencerUpdateDitherConfig);
-    router.post('/api/sequencer/update-location',
-        _sequencerHandlers.handleSequencerUpdateLocation);
-    router.post('/api/sequencer/update-filter-offsets',
-        _sequencerHandlers.handleSequencerUpdateFilterOffsets);
-    router.post('/api/sequencer/update-pending-integration-carry-over',
-        _sequencerHandlers.handleSequencerUpdatePendingIntegrationCarryOver);
-    router.post('/api/sequencer/update-autofocus-interval',
-        _sequencerHandlers.handleSequencerUpdateAutofocusInterval);
-    router.post('/api/sequencer/update-default-quality-check',
-        _sequencerHandlers.handleSequencerUpdateDefaultQualityCheck);
-    router.post('/api/sequencer/update-reject-folder-path',
-        _sequencerHandlers.handleSequencerUpdateRejectFolderPath);
-    router.post('/api/sequencer/update-observer-profile',
-        _sequencerHandlers.handleSequencerUpdateObserverProfile);
-    router.post('/api/sequencer/update-sky-brightness',
-        _sequencerHandlers.handleSequencerUpdateSkyBrightness);
-    router.post('/api/sequencer/update-default-adaptive-exposure',
-        _sequencerHandlers.handleSequencerUpdateDefaultAdaptiveExposure);
-    router.post('/api/sequencer/clear-default-adaptive-exposure',
-        _sequencerHandlers.handleSequencerClearDefaultAdaptiveExposure);
-    router.post('/api/sequencer/checkpoint/dir',
-        _sequencerHandlers.handleSequencerSetCheckpointDir);
-    router.get('/api/sequencer/checkpoint/has',
-        _sequencerHandlers.handleSequencerHasCheckpoint);
-    router.get('/api/sequencer/checkpoint/info',
-        _sequencerHandlers.handleSequencerGetCheckpointInfo);
-    router.post('/api/sequencer/checkpoint/resume',
-        _sequencerHandlers.handleSequencerResumeFromCheckpoint);
-    router.post('/api/sequencer/checkpoint/discard',
-        _sequencerHandlers.handleSequencerDiscardCheckpoint);
-    router.post('/api/sequencer/checkpoint/save',
-        _sequencerHandlers.handleSequencerSaveCheckpoint);
-
-    // Wave 4 Recovery Mode — remote-control endpoints used by the mobile
-    // companion / web dashboard. Wire shape matches NetworkBackend's
-    // recovery POSTs/GETs (see packages/nightshade_core/.../network_backend.dart).
-    router.post('/api/sequencer/recovery/try-now',
-        _sequencerHandlers.handleSequencerRecoveryTryNow);
-    router.post('/api/sequencer/recovery/abort',
-        _sequencerHandlers.handleSequencerRecoveryAbort);
-    router.post('/api/sequencer/recovery/update-config',
-        _sequencerHandlers.handleSequencerUpdateRecoveryConfig);
-    router.get('/api/sequencer/recovery/current',
-        _sequencerHandlers.handleSequencerGetCurrentRecovery);
-    router.get('/api/sequencer/recovery/history',
-        _sequencerHandlers.handleSequencerGetRecoveryHistory);
-
-    // Wave 5 Agent 4 — cloud-motion forwarding from a remote controller.
-    router.post('/api/sequencer/update-cloud-motion',
-        _sequencerHandlers.handleSequencerUpdateCloudMotion);
-    router.get('/api/sequencer/cloud-motion',
-        _sequencerHandlers.handleSequencerGetCloudMotion);
-    router.post('/api/sequencer/update-conditions-score',
-        _sequencerHandlers.handleSequencerUpdateConditionsScore);
-    router.get('/api/sequencer/adaptive-swap',
-        _sequencerHandlers.handleSequencerGetAdaptiveSwap);
-
-    // Equipment Status
-    router.get(
-        '/api/equipment/camera/status', _equipmentHandlers.handleCameraStatus);
-    router.get(
-        '/api/equipment/mount/status', _equipmentHandlers.handleMountStatus);
-    router.get('/api/equipment/focuser/status',
-        _equipmentHandlers.handleFocuserStatus);
-    router.get('/api/equipment/filter-wheel/status',
-        _equipmentHandlers.handleFilterWheelStatus);
-    router.get('/api/equipment/rotator/status',
-        _equipmentHandlers.handleRotatorStatus);
-
-    // Equipment Capabilities
-    router.get('/api/equipment/camera/capabilities',
-        _equipmentHandlers.handleCameraCapabilities);
-    router.get('/api/equipment/mount/capabilities',
-        _equipmentHandlers.handleMountCapabilities);
-    router.get('/api/equipment/focuser/capabilities',
-        _equipmentHandlers.handleFocuserCapabilities);
-    router.get('/api/equipment/filter-wheel/capabilities',
-        _equipmentHandlers.handleFilterWheelCapabilities);
-    router.get('/api/equipment/rotator/capabilities',
-        _equipmentHandlers.handleRotatorCapabilities);
-
-    // Device Health
-    router.post('/api/device/heartbeat/start',
-        _equipmentHandlers.handleStartDeviceHeartbeat);
-    router.post('/api/device/heartbeat/stop',
-        _equipmentHandlers.handleStopDeviceHeartbeat);
-    router.get('/api/device/health/<deviceId>',
-        _equipmentHandlers.handleGetDeviceHealth);
-
-    // Profiles
-    router.get('/api/profiles', _profileHandlers.handleGetProfiles);
-    router.post('/api/profiles', _profileHandlers.handleSaveProfile);
-    router.delete(
-        '/api/profiles/<profileId>', _profileHandlers.handleDeleteProfile);
-    router.post(
-        '/api/profiles/<profileId>/load', _profileHandlers.handleLoadProfile);
-    router.get('/api/profiles/active', _profileHandlers.handleGetActiveProfile);
-
-    // Settings
-    router.get('/api/settings', _profileHandlers.handleGetSettings);
-    router.post('/api/settings', _profileHandlers.handleUpdateSettings);
-    router.get('/api/settings/location', _profileHandlers.handleGetLocation);
-    router.post('/api/settings/location', _profileHandlers.handleSetLocation);
-    router.get('/api/location', _profileHandlers.handleGetLocationFromInternet);
-
-    // Imaging
-    router.post('/api/imaging/stats', _imagingHandlers.handleGetImageStats);
-    router.post(
-        '/api/imaging/stretch', _imagingHandlers.handleAutoStretchImage);
-    router.get('/api/imaging/star-crops', _imagingHandlers.handleGetStarCrops);
-    router.post('/api/imaging/debayer', _imagingHandlers.handleDebayerImage);
-    router.get(
-        '/api/imaging/raw-data', _imagingHandlers.handleGetLastRawImageData);
-    router.post('/api/imaging/save-fits', _imagingHandlers.handleSaveFitsFile);
-    router.post('/api/imaging/save-fits-from-capture',
-        _imagingHandlers.handleSaveFitsFromLastCapture);
-    router.post('/api/imaging/calibrate-file',
-        _imagingHandlers.handleCalibrateImageFile);
-    router.delete('/api/imaging/device-image/<deviceId>',
-        _imagingHandlers.handleClearDeviceImage);
-
-    // Polar Alignment
-    router.post('/api/polar-alignment/start',
-        _sessionHandlers.handleStartPolarAlignment);
-    router.post('/api/polar-alignment/all-sky/start',
-        _sessionHandlers.handleStartAllSkyPolarAlignment);
-    router.post(
-        '/api/polar-alignment/stop', _sessionHandlers.handleStopPolarAlignment);
-
-    // Session Images
-    router.get('/api/sessions/<sessionId>/images',
-        _sessionHandlers.handleGetSessionImages);
-    router.get('/api/images', _sessionHandlers.handleGetAllImages);
-    // Legacy alias for mobile clients that pre-date /api/images. Why kept:
-    // §2.2 of the audit consolidates the two servers into HeadlessApiServer;
-    // dropping the legacy path would break pinned mobile builds in the field.
-    router.get('/api/images/recent', _sessionHandlers.handleGetRecentImages);
-    router.get(
-        '/api/images/standalone', _sessionHandlers.handleGetStandaloneImages);
-    // P1-13: registered BEFORE the `<imageId>` patterns so the literal
-    // `backfill-thumbnails` segment isn't matched as a path param.
-    router.post('/api/images/backfill-thumbnails',
-        _sessionHandlers.handleBackfillThumbnails);
-    router.post('/api/images', _sessionHandlers.handleCreateImage);
-    router.get('/api/images/<imageId>', _sessionHandlers.handleGetImageById);
-    router.put('/api/images/<imageId>', _sessionHandlers.handleUpdateImage);
-    router.get('/api/images/<imageId>/thumbnail',
-        _sessionHandlers.handleGetImageThumbnail);
-    router.post('/api/images/<imageId>/regenerate-thumbnail',
-        _sessionHandlers.handleRegenerateImageThumbnail);
-    router.get(
-        '/api/images/<imageId>/download', _sessionHandlers.handleDownloadImage);
-    router.get('/api/sessions/<sessionId>/export/json',
-        _sessionHandlers.handleExportSessionJson);
-    router.get('/api/sessions/<sessionId>/export/csv',
-        _sessionHandlers.handleExportSessionCsv);
-    router.get('/api/sessions/<sessionId>/export/html',
-        _sessionHandlers.handleExportSessionHtml);
-    router.get('/api/sessions/<sessionId>/export/<format>',
-        _sessionHandlers.handleExportSession);
-
-    // ===========================================================================
-    // Target Management
-    // ===========================================================================
-    router.get('/api/targets', _targetHandlers.handleGetAllTargets);
-    router.get(
-        '/api/targets/favorites', _targetHandlers.handleGetFavoriteTargets);
-    router.get('/api/targets/search', _targetHandlers.handleSearchTargets);
-    router.get('/api/targets/by-type', _targetHandlers.handleGetTargetsByType);
-    router.get(
-        '/api/targets/by-priority', _targetHandlers.handleGetTargetsByPriority);
-    router.get('/api/targets/<id>', _targetHandlers.handleGetTargetById);
-    router.post('/api/targets', _targetHandlers.handleCreateTarget);
-    router.put('/api/targets/<id>', _targetHandlers.handleUpdateTarget);
-    router.delete('/api/targets/<id>', _targetHandlers.handleDeleteTarget);
-    router.post(
-        '/api/targets/<id>/favorite', _targetHandlers.handleToggleFavorite);
-    router.put(
-        '/api/targets/<id>/progress', _targetHandlers.handleUpdateProgress);
-
-    // ===========================================================================
-    // Sequence Management (CRUD - separate from sequencer execution)
-    // ===========================================================================
-    router.get('/api/sequence-management/list',
-        _sequenceManagementHandlers.handleGetAllSequences);
-    router.get('/api/sequence-management/list-full',
-        _sequenceManagementHandlers.handleListFullSequences);
-    router.get('/api/sequence-management/templates-full',
-        _sequenceManagementHandlers.handleListFullTemplates);
-    router.post('/api/sequence-management/save-full',
-        _sequenceManagementHandlers.handleSaveFullSequence);
-    router.get('/api/sequence-management/templates',
-        _sequenceManagementHandlers.handleGetAllTemplates);
-    router.get('/api/sequence-management/<id>',
-        _sequenceManagementHandlers.handleGetSequenceById);
-    router.get('/api/sequence-management/<id>/nodes',
-        _sequenceManagementHandlers.handleGetNodesForSequence);
-    router.get('/api/sequence-management/<id>/children',
-        _sequenceManagementHandlers.handleGetChildNodes);
-    router.post('/api/sequence-management',
-        _sequenceManagementHandlers.handleCreateSequence);
-    router.put('/api/sequence-management/<id>',
-        _sequenceManagementHandlers.handleUpdateSequence);
-    router.delete('/api/sequence-management/<id>',
-        _sequenceManagementHandlers.handleDeleteSequence);
-    router.post('/api/sequence-management/<id>/duplicate',
-        _sequenceManagementHandlers.handleDuplicateSequence);
-    router.post('/api/sequence-management/<id>/nodes',
-        _sequenceManagementHandlers.handleCreateNode);
-    router.put('/api/sequence-management/nodes/<nodeId>',
-        _sequenceManagementHandlers.handleUpdateNode);
-    router.delete('/api/sequence-management/nodes/<nodeId>',
-        _sequenceManagementHandlers.handleDeleteNode);
-    router.post('/api/sequence-management/<id>/reorder',
-        _sequenceManagementHandlers.handleReorderNodes);
-    router.post('/api/sequence-management/nodes/<nodeId>/enabled',
-        _sequenceManagementHandlers.handleSetNodeEnabled);
-
-    // ===========================================================================
-    // Flat Wizard
-    // ===========================================================================
-    router.post('/api/flat-wizard/calibrate',
-        _flatWizardHandlers.handleCalibrateFilter);
-    router.post('/api/flat-wizard/calibrate-multi',
-        _flatWizardHandlers.handleCalibrateMultipleFilters);
-    router.post('/api/flat-wizard/generate-sequence',
-        _flatWizardHandlers.handleGenerateSequence);
-    router.post('/api/flat-wizard/quick-calibrate',
-        _flatWizardHandlers.handleQuickCalibrate);
-
-    // ===========================================================================
-    // Mosaic Planning
-    // ===========================================================================
-    router.post(
-        '/api/mosaic/generate-panels', _mosaicHandlers.handleGeneratePanels);
-    router.post('/api/mosaic/generate-sequence',
-        _mosaicHandlers.handleGenerateSequence);
-    router.post(
-        '/api/mosaic/calculate-area', _mosaicHandlers.handleCalculateArea);
-    router.post('/api/mosaic/validate', _mosaicHandlers.handleValidateMosaic);
-    router.post(
-        '/api/mosaic/estimate-time', _mosaicHandlers.handleEstimateTime);
-    router.get('/api/mosaic/recommended-exposure',
-        _mosaicHandlers.handleRecommendExposure);
-
-    // ===========================================================================
-    // Sessions & Analytics
-    // ===========================================================================
-    router.get('/api/sessions', _analyticsHandlers.handleGetAllSessions);
-    router.get(
-        '/api/sessions/active', _analyticsHandlers.handleGetActiveSession);
-    router.get(
-        '/api/sessions/recent', _analyticsHandlers.handleGetRecentSessions);
-    router.get('/api/sessions/<id>', _analyticsHandlers.handleGetSessionById);
-    router.get(
-        '/api/sessions/<id>/stats', _analyticsHandlers.handleGetSessionStats);
-    router.get('/api/sessions/<id>/psf-tiles',
-        _analyticsHandlers.handleGetSessionPsfTiles);
-    router.get('/api/sessions/<id>/residuals',
-        _analyticsHandlers.handleGetSessionResiduals);
-    router.get('/api/sessions/target/<targetId>',
-        _analyticsHandlers.handleGetSessionsForTarget);
-    router.post('/api/sessions', _analyticsHandlers.handleCreateSession);
-    router.put('/api/sessions/<id>', _analyticsHandlers.handleUpdateSession);
-    router.post('/api/sessions/<id>/end', _analyticsHandlers.handleEndSession);
-    router.delete('/api/sessions/<id>', _analyticsHandlers.handleDeleteSession);
-    router.get(
-        '/api/analytics/summary', _analyticsHandlers.handleGetAnalyticsSummary);
-    router.get('/api/analytics/integration-time',
-        _analyticsHandlers.handleGetTotalIntegrationTime);
-    router.get('/api/analytics/target-statistics',
-        _analyticsHandlers.handleGetTargetStatistics);
-
-    // ===========================================================================
-    // Weather & Radar
-    // ===========================================================================
-    router.get('/api/weather/radar', _weatherHandlers.handleGetRadarData);
-    router.get('/api/weather/forecast', _weatherHandlers.handleGetForecast);
-    router.get('/api/weather/alerts', _weatherHandlers.handleGetAlerts);
-    router.get(
-        '/api/weather/cloud-cover', _weatherHandlers.handleGetCloudCover);
-    router.get('/api/weather/settings', _weatherHandlers.handleGetSettings);
-    router.post('/api/weather/settings', _weatherHandlers.handleUpdateSettings);
-    router.get(
-        '/api/weather/safe-imaging', _weatherHandlers.handleCheckSafeImaging);
-    router.get('/api/weather/current', _weatherHandlers.handleGetCurrent);
-    router.post('/api/weather/clear-cache', _weatherHandlers.handleClearCache);
-
-    // ===========================================================================
-    // Remote Filesystem
-    // ===========================================================================
-    router.get(
-        '/api/files/browse', _fileSystemHandlers.handleBrowseDirectories);
-    router.post(
-        '/api/files/validate', _fileSystemHandlers.handleValidateDirectory);
-
-    // Science parity
-    router.get('/api/science/session/<sessionId>/bundle',
-        _scienceHandlers.handleGetSessionBundle);
-    router.get('/api/science/sessionless/recent',
-        _scienceHandlers.handleGetSessionlessBundle);
-    router.get(
-        '/api/science/settings', _scienceHandlers.handleGetScienceSettings);
-    router.post(
-        '/api/science/settings', _scienceHandlers.handleUpdateScienceSettings);
-    router.get('/api/science/session/<sessionId>/config',
-        _scienceHandlers.handleGetSessionConfig);
-    router.post('/api/science/session/<sessionId>/config',
-        _scienceHandlers.handleUpdateSessionConfig);
-    router.get('/api/science/transforms',
-        _scienceHandlers.handleGetPhotometricTransforms);
-    router.post('/api/science/calibration/image/<imageId>/match-stars',
-        _scienceHandlers.handleMatchPhotometricCalibrationStars);
-    router.post('/api/science/calibration/compute-transform',
-        _scienceHandlers.handleComputePhotometricTransform);
-    router.post('/api/science/calibration/save-transform',
-        _scienceHandlers.handleSavePhotometricTransform);
-    router.post('/api/science/session/<sessionId>/generate-line-ratios',
-        _scienceHandlers.handleGenerateLineRatios);
-    router.post('/api/science/session/<sessionId>/export/aavso',
-        _scienceHandlers.handleExportAavso);
-    router.get('/api/science/session/<sessionId>/report/pdf',
-        _scienceHandlers.handleGenerateObservationReport);
-
-    // ===========================================================================
-    // Target Suggestions
-    // ===========================================================================
-    router.get('/api/suggestions/tonight',
-        _suggestionHandlers.handleGetSuggestionsForTonight);
-    router.get('/api/suggestions/config', _suggestionHandlers.handleGetConfig);
-    router.get('/api/suggestions/score/<targetId>',
-        _suggestionHandlers.handleGetTargetScore);
-
-    // ===========================================================================
-    // Transient Alerts
-    // ===========================================================================
-    router.get('/api/transients', _transientHandlers.handleGetActiveTransients);
-    router.get(
-        '/api/transients/settings', _transientHandlers.handleGetSettings);
-    router.post(
-        '/api/transients/settings', _transientHandlers.handleUpdateSettings);
-    router.get('/api/transients/queued', _transientHandlers.handleGetQueued);
-    router.post(
-        '/api/transients/<id>/queue', _transientHandlers.handleQueueTransient);
-    router.post('/api/transients/<id>/dismiss',
-        _transientHandlers.handleDismissTransient);
-    router.post(
-        '/api/transients/refresh', _transientHandlers.handleRefreshAlerts);
-
-    // ===========================================================================
-    // Backup & Restore
-    // ===========================================================================
-    router.get('/api/backup/list', _backupHandlers.handleListBackups);
-    router.post('/api/backup/create', _backupHandlers.handleCreateBackup);
-    router.post('/api/backup/restore', _backupHandlers.handleRestoreBackup);
-    router.post('/api/backup/auto-save', _backupHandlers.handleAutoSaveBackup);
-    router.post('/api/backup/upload-restore',
-        _backupHandlers.handleUploadRestoreBackup);
-    router.get(
-        '/api/backup/<id>/metadata', _backupHandlers.handleGetBackupMetadata);
-    router.get(
-        '/api/backup/<id>/download', _backupHandlers.handleDownloadBackup);
-    router.delete('/api/backup/<id>', _backupHandlers.handleDeleteBackup);
-
-    // ===========================================================================
-    // Framing & Centering
-    // ===========================================================================
-    router.post(
-        '/api/framing/slew-to-target', _framingHandlers.handleSlewToTarget);
-    router.post(
-        '/api/framing/center-on-target', _framingHandlers.handleCenterOnTarget);
-    router.post('/api/framing/sync', _framingHandlers.handleSyncMount);
-    router.get('/api/framing/current-position',
-        _framingHandlers.handleGetCurrentPosition);
-    router.post('/api/framing/rotate-to', _framingHandlers.handleRotateTo);
-    router.post('/api/framing/abort-slew', _framingHandlers.handleAbortSlew);
-    router.post('/api/framing/park', _framingHandlers.handleParkMount);
-    router.post('/api/framing/unpark', _framingHandlers.handleUnparkMount);
-    router.post('/api/framing/set-target', _framingHandlers.handleSetTarget);
-    router.post('/api/framing/save', _framingHandlers.handleSaveFraming);
-
-    // ===========================================================================
-    // Planetarium (remote client support)
-    // ===========================================================================
-    router.get('/api/planetarium/mount-position',
-        _planetariumHandlers.handleGetMountPosition);
-    router.get(
-        '/api/planetarium/fov-config', _planetariumHandlers.handleGetFovConfig);
-    router.post('/api/planetarium/slew-to', _planetariumHandlers.handleSlewTo);
-    router.post(
-        '/api/planetarium/center-on', _planetariumHandlers.handleCenterOn);
-    router.post('/api/planetarium/sync-to', _planetariumHandlers.handleSyncTo);
-    router.get('/api/planetarium/catalog/search',
-        _planetariumHandlers.handleCatalogSearch);
-    router.get('/api/planetarium/catalog/region',
-        _planetariumHandlers.handleCatalogRegion);
-    router.get('/api/planetarium/catalog/object/<objectId>',
-        _planetariumHandlers.handleGetCatalogObject);
-    router.get('/api/planetarium/subscribe-info',
-        _planetariumHandlers.handleGetSubscribeInfo);
-    router.get(
-        '/api/planetarium/location', _planetariumHandlers.handleGetLocation);
-
-    // ===========================================================================
-    // Dome Control
-    // ===========================================================================
-    router.post('/api/dome/open', _domeHandlers.handleDomeOpen);
-    router.post('/api/dome/close', _domeHandlers.handleDomeClose);
-    router.post('/api/dome/slew', _domeHandlers.handleDomeSlew);
-    router.post('/api/dome/sync', _domeHandlers.handleDomeSync);
-    router.post('/api/dome/park', _domeHandlers.handleDomePark);
-    router.post('/api/dome/home', _domeHandlers.handleDomeHome);
-    router.post('/api/dome/halt', _domeHandlers.handleDomeHalt);
-    router.get('/api/dome/status', _domeHandlers.handleDomeStatus);
-    router.get('/api/dome/capabilities', _domeHandlers.handleDomeCapabilities);
-
-    // ===========================================================================
-    // Safety Monitor
-    // ===========================================================================
-    router.get('/api/safety/status', _safetyMonitorHandlers.handleSafetyStatus);
-    router.get(
-        '/api/safety/settings', _safetyMonitorHandlers.handleGetSafetySettings);
-    router.post('/api/safety/settings',
-        _safetyMonitorHandlers.handleUpdateSafetySettings);
-    router.post('/api/safety/acknowledge',
-        _safetyMonitorHandlers.handleAcknowledgeUnsafe);
-
-    // ===========================================================================
-    // Auxiliary Devices (Switch & Cover Calibrator)
-    // ===========================================================================
-    router.get('/api/switch/status', _auxiliaryHandlers.handleSwitchStatus);
-    router.post('/api/switch/set', _auxiliaryHandlers.handleSwitchSet);
-    router.get('/api/cover/status', _auxiliaryHandlers.handleCoverStatus);
-    router.post('/api/cover/open', _auxiliaryHandlers.handleCoverOpen);
-    router.post('/api/cover/close', _auxiliaryHandlers.handleCoverClose);
-    router.post(
-        '/api/cover/brightness', _auxiliaryHandlers.handleCoverBrightness);
-    router.post(
-        '/api/cover/calibrator-on', _auxiliaryHandlers.handleCalibratorOn);
-    router.post(
-        '/api/cover/calibrator-off', _auxiliaryHandlers.handleCalibratorOff);
-
-    // ===========================================================================
-    // Intelligent Scheduler
-    // ===========================================================================
-    router.get(
-        '/api/scheduler/altitude', _schedulerHandlers.handleCalculateAltitude);
-    router.get('/api/scheduler/transit-time',
-        _schedulerHandlers.handleCalculateTransitTime);
-    router.get(
-        '/api/scheduler/rise-set', _schedulerHandlers.handleCalculateRiseSet);
-    router.get('/api/scheduler/hours-above-horizon',
-        _schedulerHandlers.handleCalculateHoursAbove);
-    router.post('/api/scheduler/optimize-targets',
-        _schedulerHandlers.handleOptimizeTargets);
-    router.get('/api/scheduler/twilight-times',
-        _schedulerHandlers.handleGetTwilightTimes);
-    router.get(
-        '/api/scheduler/moon-info', _schedulerHandlers.handleGetMoonInfo);
-
-    // ===========================================================================
-    // Focus Model
-    // ===========================================================================
-    router.get('/api/focus-model/data', _focusModelHandlers.handleGetFocusData);
-    router.post(
-        '/api/focus-model/add-point', _focusModelHandlers.handleAddFocusPoint);
-    router.delete(
-        '/api/focus-model/clear', _focusModelHandlers.handleClearFocusData);
-    router.get(
-        '/api/focus-model/model', _focusModelHandlers.handleGetFocusModel);
-    router.get(
-        '/api/focus-model/predict', _focusModelHandlers.handlePredictFocus);
-    router.get('/api/focus-model/filter-offsets',
-        _focusModelHandlers.handleGetFilterOffsets);
-    router.post('/api/focus-model/filter-offsets',
-        _focusModelHandlers.handleSetFilterOffsets);
-    router.get('/api/focus-model/should-refocus',
-        _focusModelHandlers.handleShouldRefocus);
-    router.get(
-        '/api/focus-model/export', _focusModelHandlers.handleExportFocusData);
-    router.post(
-        '/api/focus-model/import', _focusModelHandlers.handleImportFocusData);
-
-    // ===========================================================================
-    // P1-2 / P1-3 — Long-running operation jobs
-    // ===========================================================================
-    router.get('/api/jobs', _jobHandlers.handleListJobs);
-    router.get('/api/jobs/<jobId>',
-        (Request req, String jobId) => _jobHandlers.handleGetJob(req, jobId));
-    router.post(
-        '/api/jobs/<jobId>/cancel',
-        (Request req, String jobId) =>
-            _jobHandlers.handleCancelJob(req, jobId));
-    router.delete('/api/jobs/<jobId>',
-        (Request req, String jobId) => _jobHandlers.handlePurgeJob(req, jobId));
-
-    // ===========================================================================
-    // P1-5 — Session ownership
-    // ===========================================================================
-    router.get('/api/session/owner', _sessionOwnershipHandlers.handleGetOwner);
-    router.get(
-        '/api/session/status', _sessionOwnershipHandlers.handleGetStatus);
-    router.post('/api/session/claim', _sessionOwnershipHandlers.handleClaim);
-    router.post(
-        '/api/session/take-over', _sessionOwnershipHandlers.handleTakeOver);
-    router.post(
-        '/api/session/release', _sessionOwnershipHandlers.handleRelease);
-
-    // ===========================================================================
-    // P1-11 — System / OTA update endpoints. Only registered when an
-    // UpdateController was wired via [setUpdateController]; tests and
+    // P1-11 — OTA update routes are only registered when the host has
+    // wired an UpdateController via [setUpdateController]. Tests and
     // headless deployments that opt out of OTA leave the controller
-    // unset, in which case the routes return 404 from the router itself.
-    // ===========================================================================
+    // unset, in which case these routes return 404 from the router
+    // itself — matching the legacy behaviour exactly.
     final updateHandlers = _updateHandlers;
     if (updateHandlers != null) {
-      router.get('/api/system/version', updateHandlers.handleGetVersion);
-      router.post(
-          '/api/system/update/check', updateHandlers.handleCheckForUpdate);
-      router.get(
-          '/api/system/update/status', updateHandlers.handleGetStatus);
-      router.post(
-          '/api/system/update/download', updateHandlers.handleDownload);
-      router.post('/api/system/update/apply', updateHandlers.handleApply);
-      router.post('/api/system/update/abort', updateHandlers.handleAbort);
-      router.post(
-          '/api/system/update/rollback', updateHandlers.handleRollback);
-      router.get(
-          '/api/system/update/staged', updateHandlers.handleGetStaged);
-      router.delete(
-          '/api/system/update/staged', updateHandlers.handleDiscardStaged);
+      allRoutes.addAll(buildUpdateRoutes(updateHandlers));
     }
 
-    // WebSocket - support both paths for NetworkBackend compatibility.
-    // Why per-route wrappers: shelf_web_socket's `webSocketHandler` strips
-    // the original Request, so we capture it in an outer closure so the
-    // P1-1 replay handler can read `?since=` and `?instance=` query
-    // parameters off the upgrade URL.
+    // Continue appending the remaining per-domain route lists. These
+    // come AFTER the OTA block above so the relative declaration order
+    // of OTA routes vs. log / calibration / catalog routes is preserved
+    // exactly — shelf_router matches on registration order.
+    allRoutes
+      ..addAll(buildRunWatchRoutes(_runWatchHandlers))
+      ..addAll(buildBroadcastRoutes(_broadcastHandlers))
+      ..addAll(buildLogRoutes(_logHandlers))
+      ..addAll(buildCalibrationRoutes(_calibrationHandlers))
+      ..addAll(buildCatalogRoutes(_catalogHandlers))
+      ..addAll(buildDbReadRoutes(_dbReadHandlers))
+      ..addAll(buildPluginRoutes(_pluginHandlers))
+      ..addAll(buildStaticFileRoutes(_staticFileHandlers));
+
+    // WebSocket-upgrade endpoints. Why these are NOT in
+    // [buildWebSocketRoutes] as method-tear-offs:
     //
-    // P2-15: we also lift the auth identity (digest of the bearer token
-    // that authenticated the upgrade) off the request context that
-    // `_authMiddleware` stashed there. Passing it down means the
-    // collaboration `viewerId` is always the authenticated principal,
-    // regardless of what the client puts in the `collaboration.join`
-    // payload.
-    Handler wsHandler() {
+    // 1. `shelf_web_socket`'s `webSocketHandler` strips the original
+    //    Request, so we capture it in an outer closure so the P1-1
+    //    replay handler can read `?since=` and `?instance=` query
+    //    parameters off the upgrade URL.
+    // 2. P2-15: we also lift the auth identity (digest of the bearer
+    //    token that authenticated the upgrade) off the request context
+    //    that `_authMiddleware` stashed there. Passing it down means
+    //    the collaboration `viewerId` is always the authenticated
+    //    principal, regardless of what the client puts in the
+    //    `collaboration.join` payload.
+    //
+    // [buildWebSocketRoutes] accepts the pre-built Handler closures so
+    // the route table stays purely declarative; the closure body itself
+    // has to live here because it accesses private server state.
+    Handler eventsHandler() {
       return (Request request) {
         final query = request.url.queryParameters;
         final authIdentity = _authIdentityFrom(request);
@@ -1416,173 +731,28 @@ class HeadlessApiServer {
       };
     }
 
-    router.get('/api/ws', wsHandler());
-    router.get('/events', wsHandler());
-
     // P2-10 — push-based live-view streaming. Distinct from the main
     // event WS because (a) it carries binary JPEG frames, not JSON
     // events, and (b) the message protocol is a per-socket
     // subscribe/unsubscribe model rather than the always-on event
     // broadcast.
-    router.get('/ws/live-view', (Request request) {
-      return webSocketHandler((socket, _) {
-        _liveViewStreamHandlers.handleSocket(socket);
-      }).call(request);
-    });
+    Handler liveViewHandler() {
+      return (Request request) {
+        return webSocketHandler((socket, _) {
+          _liveViewStreamHandlers.handleSocket(socket);
+        }).call(request);
+      };
+    }
 
-    // Wave 6 — Run-Watch monitoring endpoints (phone/tablet web app).
-    // The SSE endpoint is registered explicitly as a GET handler so the
-    // shelf router does not buffer the long-lived response.
-    router.get('/api/run-watch/snapshot', _runWatchHandlers.handleSnapshot);
-    router.get('/api/run-watch/frame-thumbnail',
-        _runWatchHandlers.handleFrameThumbnail);
-    router.get('/api/run-watch/events',
-        (Request req) => _runWatchHandlers.handleEventStream(req));
+    allRoutes.addAll(buildWebSocketRoutes(
+      eventsHandler: eventsHandler(),
+      liveViewHandler: liveViewHandler(),
+    ));
 
-    // Wave 7 Agent 2 — live-stacking broadcast (EAA / outreach).
-    // The /broadcast HTML page is intentionally served from the same
-    // server so a single LAN URL covers the whole audience.
-    router.get('/api/broadcast/info', _broadcastHandlers.handleInfo);
-    router.get('/api/broadcast/live-stack', _broadcastHandlers.handleLiveStack);
-    router.get('/api/broadcast/sse',
-        (Request req) => _broadcastHandlers.handleSse(req));
-    router.get('/broadcast',
-        (Request req) => _broadcastHandlers.handleBroadcastPage(req));
-
-    // P1-14 — remote log endpoints. Mobile operators on headless
-    // deployments (Pi / embedded) use these to diagnose without SSH.
-    // The SSE tail handler is registered explicitly as a GET so the
-    // shelf router does not buffer the long-lived response.
-    router.get('/api/logs', _logHandlers.handleListFiles);
-    router.get('/api/logs/recent', _logHandlers.handleRecent);
-    router.get('/api/logs/files/<filename>/download',
-        (Request req, String filename) =>
-            _logHandlers.handleDownloadFile(req, filename));
-    router.get('/api/logs/tail',
-        (Request req) => _logHandlers.handleTail(req));
-    router.post('/api/logs/clear', _logHandlers.handleClear);
-    router.post('/api/logs/test-entry', _logHandlers.handleTestEntry);
-
-    // ===========================================================================
-    // P1-10 — Remote calibration library management (darks, flats,
-    // defect maps). Previously the only way to manage these tables on a
-    // headless Pi was SSH; now they have a full REST surface.
-    // ===========================================================================
-    router.get('/api/calibration/darks', _calibrationHandlers.handleListDarks);
-    router.post(
-        '/api/calibration/darks', _calibrationHandlers.handleRegisterDark);
-    router.post('/api/calibration/darks/upload',
-        _calibrationHandlers.handleUploadDark);
-    router.post('/api/calibration/darks/find-match',
-        _calibrationHandlers.handleFindMatchingDark);
-    router.post('/api/calibration/darks/backfill-sizes',
-        _calibrationHandlers.handleVerifyDarkSizes);
-    router.get(
-        '/api/calibration/darks/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleGetDark(req, id));
-    router.get(
-        '/api/calibration/darks/<id>/download',
-        (Request req, String id) =>
-            _calibrationHandlers.handleDownloadDark(req, id));
-    router.delete(
-        '/api/calibration/darks/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleDeleteDark(req, id));
-
-    router.get('/api/calibration/flats', _calibrationHandlers.handleListFlats);
-    router.post(
-        '/api/calibration/flats', _calibrationHandlers.handleRecordFlat);
-    router.get('/api/calibration/flats/recommendation',
-        _calibrationHandlers.handleFlatRecommendation);
-    router.get(
-        '/api/calibration/flats/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleGetFlat(req, id));
-    router.delete(
-        '/api/calibration/flats/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleDeleteFlat(req, id));
-
-    router.get('/api/calibration/defect-maps',
-        _calibrationHandlers.handleListDefectMaps);
-    router.post('/api/calibration/defect-maps',
-        _calibrationHandlers.handleRegisterDefectMap);
-    router.get(
-        '/api/calibration/defect-maps/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleGetDefectMap(req, id));
-    router.delete(
-        '/api/calibration/defect-maps/<id>',
-        (Request req, String id) =>
-            _calibrationHandlers.handleDeleteDefectMap(req, id));
-    router.post(
-        '/api/calibration/defect-maps/<id>/regenerate',
-        (Request req, String id) =>
-            _calibrationHandlers.handleRegenerateDefectMap(req, id));
-
-    // ===========================================================================
-    // P1-12 — Catalog management. Without these endpoints a freshly
-    // imaged Pi has no way to populate its star/DSO catalogs without
-    // SSH; plate solving fails until someone runs the desktop GUI.
-    // ===========================================================================
-    router.get('/api/catalog/status', _catalogHandlers.handleStatus);
-    router.get('/api/catalog/available', _catalogHandlers.handleAvailable);
-    router.post('/api/catalog/download', _catalogHandlers.handleDownload);
-    router.post('/api/catalog/upload', _catalogHandlers.handleUpload);
-    router.post('/api/catalog/verify', _catalogHandlers.handleVerify);
-    router.post('/api/catalog/reload', _catalogHandlers.handleReload);
-    router.delete(
-        '/api/catalog/<name>',
-        (Request req, String name) =>
-            _catalogHandlers.handleDelete(req, name));
-
-    // ===========================================================================
-    // P2-8 — Read-only DB endpoints for tables the phone couldn't see
-    // (sequence runs, notes journal, guide-RMS history, polar alignment
-    // history, dark library, flat history). All paginated, all under
-    // /api with the same `{items,total}` envelope shape.
-    // ===========================================================================
-    router.get('/api/sequence-runs', _dbReadHandlers.handleListSequenceRuns);
-    router.get('/api/notes-journal', _dbReadHandlers.handleListNotesJournal);
-    router.get('/api/guide-rms-history',
-        _dbReadHandlers.handleListGuideRmsHistory);
-    router.get('/api/polar-alignment-history',
-        _dbReadHandlers.handleListPolarAlignmentHistory);
-    router.get('/api/db/dark-library', _dbReadHandlers.handleListDarkLibrary);
-    router.get('/api/db/flat-history', _dbReadHandlers.handleListFlatHistory);
-
-    // ===========================================================================
-    // P2-11 — Plugin management. Upload uses the raw body for the
-    // archive bytes; the `filename` and optional `sha256` come in as
-    // query parameters (same shape as /api/catalog/upload).
-    // ===========================================================================
-    router.get('/api/plugins', _pluginHandlers.handleListPlugins);
-    router.post('/api/plugins/upload', _pluginHandlers.handleUploadPlugin);
-    router.post(
-        '/api/plugins/<pluginId>/enable',
-        (Request req, String pluginId) =>
-            _pluginHandlers.handleEnablePlugin(req, pluginId));
-    router.post(
-        '/api/plugins/<pluginId>/disable',
-        (Request req, String pluginId) =>
-            _pluginHandlers.handleDisablePlugin(req, pluginId));
-    router.delete(
-        '/api/plugins/<pluginId>',
-        (Request req, String pluginId) =>
-            _pluginHandlers.handleUninstallPlugin(req, pluginId));
-
-    // Web Dashboard - static file serving
-    router.get('/dashboard', _staticFileHandlers.handleDashboardIndex);
-    router.get('/dashboard/', _staticFileHandlers.handleDashboardIndex);
-    router.get('/dashboard/<path|.*>', _staticFileHandlers.handleDashboardFile);
-
-    // Wave 6 — Run-Watch SPA static files. Mirrors the /dashboard
-    // resolver but searches `web_run_watch/` next to the executable
-    // and in the source tree.
-    router.get('/run-watch', _staticFileHandlers.handleRunWatchIndex);
-    router.get('/run-watch/', _staticFileHandlers.handleRunWatchIndex);
-    router.get('/run-watch/<path|.*>', _staticFileHandlers.handleRunWatchFile);
+    // Single dispatch point — `registerRoutes` walks the list once and
+    // calls the right `router.<verb>(...)` for each entry. See
+    // `routes/headless_route.dart` for the typed-list design rationale.
+    registerRoutes(router, allRoutes);
 
     final handler = Pipeline()
         .addMiddleware(_requestTrackingMiddleware())
