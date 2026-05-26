@@ -246,6 +246,7 @@ class HeadlessApiServer {
   late final CollaborationHandlers _collaborationHandlers;
   late final StaticFileHandlers _staticFileHandlers;
   late final AuthHandlers _authHandlers;
+  late final PairingHandlers _pairingHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -488,6 +489,21 @@ class HeadlessApiServer {
       scopeForToken: _scopeForToken,
       logger: container.read(loggingServiceProvider),
     );
+    _pairingHandlers = PairingHandlers(
+      pairingAttempts: _pairingAttempts,
+      ensurePairingService: _ensurePairingService,
+      // Why a closure: PairingHandlers does not have visibility into
+      // [_pairedSessionTokens], and we deliberately do not want to leak
+      // that map past the server boundary. The closure mutates it
+      // through a typed, intent-named entry point so the call site is
+      // unambiguous.
+      recordPairedSession: (token, scope) {
+        _pairedSessionTokens[token] = scope;
+      },
+      rateLimitClientKey: _rateLimitClientKey,
+      pairingPrintCodes: pairingPrintCodes,
+      logger: container.read(loggingServiceProvider),
+    );
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
@@ -607,13 +623,14 @@ class HeadlessApiServer {
 
     // Pairing flow (web dashboard first-run UX). See §2.1 in
     // 2026-05-09-v250-audit-fixes.md.
-    router.post('/api/pairing/start', _handlePairingStart);
-    router.post('/api/pairing/verify', _handlePairingVerify);
+    router.post('/api/pairing/start', _pairingHandlers.handlePairingStart);
+    router.post('/api/pairing/verify', _pairingHandlers.handlePairingVerify);
     // P0-3: admin-only view of currently-valid pairing sessions. Behind the
     // auth middleware (the path is NOT in `publicPaths`) and gated to admin
     // scope via `_adminOnlyPaths`. Lets headless operators on a paired admin
     // client retrieve the active code without watching stdout.
-    router.get('/api/pairing/active', _handlePairingActiveList);
+    router.get(
+        '/api/pairing/active', _pairingHandlers.handlePairingActiveList);
 
     // WebSocket auth ticket (§2.28). Issues a one-shot ticket so browsers
     // don't have to leak the bearer token via WS query parameters.
@@ -3161,223 +3178,11 @@ class HeadlessApiServer {
     return created;
   }
 
-  Future<Response> _handlePairingStart(Request request) async {
-    final requestId = _requestIdFrom(request);
-    final clientKey = _rateLimitClientKey(request);
-
-    final lockedFor = _pairingAttempts.retryAfter(clientKey);
-    if (lockedFor != null) {
-      _logWarning(
-        '[PAIR][$requestId] start rate-limited from $clientKey '
-        'retry=${lockedFor.inSeconds}s',
-      );
-      return jsonRateLimited(
-        {
-          'error': 'Pairing attempts temporarily locked',
-          'retryAfterSeconds':
-              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
-          'requestId': requestId,
-        },
-        headers: {
-          _requestIdHeader: requestId,
-          'retry-after':
-              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
-        },
-      );
-    }
-
-    final service = _ensurePairingService();
-    final result = await service.startPairing();
-
-    // The code itself goes only to the operator's stdout/log so an off-host
-    // attacker cannot harvest it from HTTP traces. The dashboard polls for
-    // success on /api/pairing/verify with the user-typed code.
-    _logInfo(
-      '[PAIR][$requestId] Pairing started; enter this code on the companion '
-      'within ${service.codeLifetime.inMinutes} minutes: ${result.code}',
-    );
-
-    // P0-3: when the headless operator passed --pairing-print-codes (or set
-    // NIGHTSHADE_PAIRING_PRINT_CODES=true), echo the code to stdout. Without
-    // this, a Pi-headless first-run has no way to retrieve the code — the
-    // HTTP response intentionally omits it and the structured log file is
-    // not always tailed. Operators must opt in to this print so accidental
-    // log capture in a CI/recording context does not leak the code.
-    if (pairingPrintCodes) {
-      print(
-        '[PAIRING] code=${result.code} '
-        'expires=${result.expiresAt.toUtc().toIso8601String()}',
-      );
-    }
-    return jsonOk(
-      {
-        'expiresAt': result.expiresAt.toUtc().toIso8601String(),
-        'expiresInSeconds':
-            result.expiresAt.difference(DateTime.now()).inSeconds,
-      },
-      headers: {_requestIdHeader: requestId},
-    );
-  }
-
-  /// P0-3: admin-only view of currently-valid pairing sessions. The full
-  /// code is included ONLY when the caller's token has admin scope —
-  /// returning it on a control-scope token would let any paired client read
-  /// freshly-minted codes that the operator might be sharing out-of-band.
-  /// Returns: `{ sessions: [{code?, expiresAt, expiresInSeconds, deviceId?}] }`.
-  ///
-  /// Code redaction: when called without admin scope this endpoint is
-  /// rejected by the auth middleware (it lives behind the
-  /// `_adminOnlyPaths` table). The handler itself does not need a
-  /// secondary scope check.
-  Future<Response> _handlePairingActiveList(Request request) async {
-    final requestId = _requestIdFrom(request);
-    try {
-      final service = _ensurePairingService();
-      // Query the underlying Drift DB directly — TokenManager has no need to
-      // expose unused pairing sessions because the only consumer is this
-      // admin-facing diagnostic. Walking the DB rather than caching in
-      // memory keeps the source of truth in one place.
-      final allSessions = await service.database
-          .select(service.database.pairingSessions)
-          .get();
-      final now = DateTime.now();
-      final sessions = <Map<String, Object?>>[];
-      for (final row in allSessions) {
-        if (row.isUsed) continue;
-        if (!row.expiresAt.isAfter(now)) continue;
-        sessions.add({
-          'code': row.pairingCode,
-          'expiresAt': row.expiresAt.toUtc().toIso8601String(),
-          'expiresInSeconds': row.expiresAt.difference(now).inSeconds,
-        });
-      }
-      return jsonOk(
-        {'sessions': sessions},
-        headers: {_requestIdHeader: requestId},
-      );
-    } catch (e) {
-      _logError('[PAIR][$requestId] Failed to list active sessions: $e');
-      return jsonInternalServerError(
-        {'error': 'Failed to list active pairing sessions: $e'},
-        headers: {_requestIdHeader: requestId},
-      );
-    }
-  }
-
-  Future<Response> _handlePairingVerify(Request request) async {
-    final requestId = _requestIdFrom(request);
-    final clientKey = _rateLimitClientKey(request);
-
-    final lockedFor = _pairingAttempts.retryAfter(clientKey);
-    if (lockedFor != null) {
-      _logWarning(
-        '[PAIR][$requestId] verify rate-limited from $clientKey '
-        'retry=${lockedFor.inSeconds}s',
-      );
-      return jsonRateLimited(
-        {
-          'error': 'Pairing attempts temporarily locked',
-          'retryAfterSeconds':
-              lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds,
-          'requestId': requestId,
-        },
-        headers: {
-          _requestIdHeader: requestId,
-          'retry-after':
-              (lockedFor.inSeconds < 1 ? 1 : lockedFor.inSeconds).toString(),
-        },
-      );
-    }
-
-    final payload = await readJsonObject(request);
-    final code = requireString(payload, 'code', maxLength: 32);
-    // deviceId/deviceName/deviceType identify the dashboard instance for the
-    // PairingDatabase. Defaults are conservative so a minimal browser client
-    // can pair without sending hardware fingerprints.
-    final deviceId = optionalString(payload, 'deviceId', maxLength: 128) ??
-        'dashboard:${clientKey.replaceAll(':', '_')}';
-    final deviceName =
-        optionalString(payload, 'deviceName', maxLength: 128) ?? 'Dashboard';
-    final deviceType =
-        optionalString(payload, 'deviceType', maxLength: 32) ?? 'browser';
-    final requestedScopeRaw =
-        optionalString(payload, 'requestedScope', maxLength: 16) ?? 'control';
-    final requestedScope = parseHeadlessTokenScope(requestedScopeRaw);
-
-    final service = _ensurePairingService();
-    final result = await service.verifyPairing(
-      code: code,
-      deviceId: deviceId,
-      deviceName: deviceName,
-      deviceType: deviceType,
-    );
-
-    switch (result.outcome) {
-      case PairingVerifyOutcome.success:
-        final token = result.sessionToken!;
-        // Default to control (imaging + devices). Admin is opt-in only via
-        // requestedScope=admin so a scanned QR or LAN pairing cannot silently
-        // gain backup/filesystem privileges.
-        final grantedScope = requestedScope == HeadlessTokenScope.admin
-            ? HeadlessTokenScope.admin
-            : HeadlessTokenScope.control;
-        _pairedSessionTokens[token] = grantedScope;
-        _pairingAttempts.clear(clientKey);
-        _logInfo(
-          '[PAIR][$requestId] Pairing succeeded for device=$deviceId '
-          'scope=${headlessTokenScopeName(grantedScope)}',
-        );
-        return jsonOk(
-          {
-            'token': token,
-            'tokenScope': headlessTokenScopeName(grantedScope),
-            'expiresAt': result.expiresAt!.toUtc().toIso8601String(),
-          },
-          headers: {_requestIdHeader: requestId},
-        );
-      case PairingVerifyOutcome.invalidCode:
-        _pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Invalid pairing code from $clientKey',
-        );
-        return jsonUnauthorized(
-          {
-            'error': 'invalid_pairing_code',
-            'message': 'The pairing code is not recognised.',
-            'requestId': requestId,
-          },
-          headers: {_requestIdHeader: requestId},
-        );
-      case PairingVerifyOutcome.codeExpired:
-        _pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Expired pairing code from $clientKey',
-        );
-        return jsonUnauthorized(
-          {
-            'error': 'pairing_code_expired',
-            'message':
-                'The pairing code has expired. Request a new one from the desktop console.',
-            'requestId': requestId,
-          },
-          headers: {_requestIdHeader: requestId},
-        );
-      case PairingVerifyOutcome.codeAlreadyUsed:
-        _pairingAttempts.recordFailure(clientKey);
-        _logWarning(
-          '[PAIR][$requestId] Reused pairing code from $clientKey',
-        );
-        return jsonUnauthorized(
-          {
-            'error': 'pairing_code_already_used',
-            'message':
-                'The pairing code has already been claimed. Request a new one.',
-            'requestId': requestId,
-          },
-          headers: {_requestIdHeader: requestId},
-        );
-    }
-  }
+  // /api/pairing/{start,verify,active} handlers moved to
+  // [PairingHandlers] (handlers/pairing_handlers.dart). The lifecycle
+  // callbacks `ensurePairingService` / `recordPairedSession` /
+  // `rateLimitClientKey` keep the server's private state behind a
+  // typed surface.
 
   // /api/ws/ticket and /api/auth/{cookie,csrf,logout} handlers moved to
   // [AuthHandlers] (handlers/auth_handlers.dart). The shared
