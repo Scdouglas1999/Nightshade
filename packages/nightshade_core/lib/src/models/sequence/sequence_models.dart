@@ -11,6 +11,8 @@ export '../meridian_flip_settings.dart'
 import '../../backend/nightshade_backend.dart' show DeviceType;
 import '_json_converters.dart';
 import 'instruction_progress_detail.dart';
+import 'sequence_tree_index.dart';
+export 'sequence_tree_index.dart' show SequenceTreeIndex;
 
 part 'sequence_models.freezed.dart';
 part 'sequence_models.g.dart';
@@ -4386,192 +4388,40 @@ class Sequence extends Equatable {
         modifiedAt = modifiedAt ?? DateTime.now();
 
   // ---------------------------------------------------------------------
-  // Derived tree indexes (lazy, cached per-Sequence-instance).
+  // Derived tree-index API (delegates to [SequenceTreeIndex]).
   //
-  // These are NOT part of [props] / equality — they are pure functions of
-  // [nodes]. Two sequences with equal `nodes` maps will have equal indexes.
+  // The lazy `late final` index fields that previously lived on this class
+  // were hoisted to the sibling [SequenceTreeIndex] in Phase 3 Step 1 so
+  // freezed-generated equality / hashCode (Phase 3 Step 3) does not see
+  // them. The per-instance cache lives in `sequenceTreeIndexCache`
+  // ([Expando]) and is keyed by instance identity — which preserves the
+  // previous "compute once on first access, then reuse" semantic exactly:
+  // a fresh `Sequence` built from the same `nodes` map starts with an
+  // empty cache and re-derives the index on first access.
   // ---------------------------------------------------------------------
 
-  /// Maps `parentId -> ordered child IDs`. The key `null` collects orphan
-  /// nodes (those whose `parentId == null`). The list ordering matches the
-  /// canonical `parent.childIds` ordering; we do NOT depend on
-  /// `node.orderIndex` for runtime traversal — that field is reserved for
-  /// persistence/serialization round-trips.
-  late final Map<String?, List<String>> _childrenByParent =
-      _buildChildrenIndex();
+  /// Materialized [SequenceTreeIndex] for this sequence, lazily built on
+  /// first access and cached on the instance via [Expando]. Hot-path code
+  /// that does many lookups against the same `Sequence` reuses the single
+  /// pre-built index — there is no per-call rebuild.
+  SequenceTreeIndex get treeIndex => sequenceTreeIndexFor(this);
 
-  /// Maps `node_id -> parent_id` (with `null` for nodes whose `parentId` is
-  /// null). Note: the root node has `parentId == null` and is therefore in
-  /// this map with a `null` value, which is distinct from "node not found".
-  late final Map<String, String?> _parentById = _buildParentIndex();
-
-  Map<String?, List<String>> _buildChildrenIndex() {
-    final index = <String?, List<String>>{};
-    for (final entry in nodes.entries) {
-      final node = entry.value;
-      // Seed the parent's bucket from this node's `childIds`. We iterate
-      // `nodes` rather than walking from a root because:
-      //   * the editor occasionally constructs partially-detached nodes
-      //     (e.g., during snippet inserts);
-      //   * we want every node referenced by some parent.childIds to be
-      //     resolvable without depending on which order keys appear in.
-      // Reading `node.childIds` for the bucket keyed by `node.id` is the
-      // authoritative source — `parent.childIds` is what the model has
-      // always documented as canonical.
-      index.putIfAbsent(node.id, () => <String>[]).addAll(node.childIds);
-    }
-    // Ensure every node id has a (possibly empty) bucket so `childrenOf`
-    // returns `const <String>[]` for leaves without a map-miss check.
-    for (final id in nodes.keys) {
-      index.putIfAbsent(id, () => <String>[]);
-    }
-    return index;
-  }
-
-  Map<String, String?> _buildParentIndex() {
-    final index = <String, String?>{};
-    // Pass 1: seed from each node's own `parentId` field. This is the
-    // authoritative source — the editor maintains node.parentId on every
-    // structural mutation, and the database load path reconstructs it.
-    for (final entry in nodes.entries) {
-      index[entry.key] = entry.value.parentId;
-    }
-    return index;
-  }
-
-  /// Children of [parentId] in their canonical order. Returns the materialized
-  /// `SequenceNode` instances (skipping any IDs that don't resolve — which is
-  /// a corrupt-state condition the editor never produces but defensive code
-  /// elsewhere does need to tolerate, e.g. mid-import).
-  ///
-  /// O(K) where K is the number of children of [parentId]. Does **not** sort
-  /// by `orderIndex` — the `_childrenByParent` list is already in canonical
-  /// order, matching `nodes[parentId].childIds`.
-  List<SequenceNode> childrenOf(String parentId) {
-    final ids = _childrenByParent[parentId];
-    if (ids == null || ids.isEmpty) return const <SequenceNode>[];
-    final out = <SequenceNode>[];
-    for (final id in ids) {
-      final n = nodes[id];
-      if (n != null) out.add(n);
-    }
-    return out;
-  }
+  /// Children of [parentId] in their canonical order. See
+  /// [SequenceTreeIndex.childrenOf] for the full contract.
+  List<SequenceNode> childrenOf(String parentId) =>
+      treeIndex.childrenOf(parentId);
 
   /// Parent ID of [nodeId], or `null` if [nodeId] is a root node OR is not
-  /// in this sequence. Use [nodes.containsKey] to distinguish those cases.
-  ///
-  /// O(1).
-  String? parentOf(String nodeId) => _parentById[nodeId];
+  /// in this sequence. See [SequenceTreeIndex.parentOf].
+  String? parentOf(String nodeId) => treeIndex.parentOf(nodeId);
 
-  /// IDs of all descendants of [nodeId] in DFS pre-order (children first, then
-  /// grandchildren, ...). The node itself is NOT included.
-  ///
-  /// Cycles cannot exist if [invariants] holds, but we guard with a visited
-  /// set anyway so a corrupted import doesn't loop forever.
-  List<String> descendantsOf(String nodeId) {
-    if (!nodes.containsKey(nodeId)) return const <String>[];
-    final out = <String>[];
-    final visited = <String>{nodeId};
-    void walk(String id) {
-      final children = _childrenByParent[id];
-      if (children == null) return;
-      for (final childId in children) {
-        if (!visited.add(childId)) continue;
-        if (!nodes.containsKey(childId)) continue;
-        out.add(childId);
-        walk(childId);
-      }
-    }
+  /// IDs of all descendants of [nodeId] in DFS pre-order. See
+  /// [SequenceTreeIndex.descendantsOf].
+  List<String> descendantsOf(String nodeId) => treeIndex.descendantsOf(nodeId);
 
-    walk(nodeId);
-    return out;
-  }
-
-  /// Verify the structural invariants of this sequence. Returns a list of
-  /// human-readable violation messages; empty list means OK. Intended for
-  /// debug asserts and tests — not called on every mutation in release mode
-  /// because rebuilding the indexes is O(N).
-  ///
-  /// Invariants checked:
-  ///   1. Every ID in `_childrenByParent[X]` exists in `nodes`.
-  ///   2. Every ID in `_childrenByParent[X]` has `_parentById[id] == X`.
-  ///   3. Every node in `nodes` has a `_parentById` entry.
-  ///   4. The graph is acyclic (no node is in its own ancestry).
-  ///   5. `node.childIds` matches `_childrenByParent[node.id]` (the two
-  ///      tree views agree).
-  List<String> invariants() {
-    final issues = <String>[];
-
-    // (3) Every node has a parent entry.
-    for (final id in nodes.keys) {
-      if (!_parentById.containsKey(id)) {
-        issues.add('node "$id" missing from _parentById');
-      }
-    }
-
-    // (1), (2), (5)
-    for (final entry in _childrenByParent.entries) {
-      final parent = entry.key;
-      final list = entry.value;
-      for (final childId in list) {
-        if (!nodes.containsKey(childId)) {
-          // It's legal to have an entry in _childrenByParent for a parent
-          // that's no longer in nodes (orphaned bucket) only if the bucket
-          // is empty; non-empty buckets pointing at missing nodes are bad.
-          issues
-              .add('child "$childId" of parent "$parent" not present in nodes');
-          continue;
-        }
-        final parentOfChild = _parentById[childId];
-        if (parentOfChild != parent) {
-          issues
-              .add('child "$childId" of "$parent" has parentId=$parentOfChild');
-        }
-      }
-      // (5) cross-check childIds.
-      if (parent != null) {
-        final parentNode = nodes[parent];
-        if (parentNode != null) {
-          final declared = parentNode.childIds;
-          if (declared.length != list.length) {
-            issues.add(
-                'parent "$parent" childIds length ${declared.length} != index ${list.length}');
-          } else {
-            for (var i = 0; i < declared.length; i++) {
-              if (declared[i] != list[i]) {
-                issues.add(
-                    'parent "$parent" childIds[$i]=${declared[i]} != index[$i]=${list[i]}');
-                break;
-              }
-            }
-          }
-        }
-      }
-    }
-
-    // (4) No cycles. Walk every node's ancestry; bail when we find a
-    // revisit. We bound the walk length to nodes.length so a true cycle
-    // can't run forever.
-    for (final id in nodes.keys) {
-      var hops = 0;
-      var cursor = _parentById[id];
-      final seen = <String>{id};
-      while (cursor != null) {
-        if (!seen.add(cursor)) {
-          issues.add('cycle detected at "$id" via ancestor "$cursor"');
-          break;
-        }
-        if (++hops > nodes.length) {
-          issues.add('ancestry walk for "$id" exceeded node count');
-          break;
-        }
-        cursor = _parentById[cursor];
-      }
-    }
-
-    return issues;
-  }
+  /// Verify the structural invariants of this sequence. See
+  /// [SequenceTreeIndex.invariants] for the full set of checks.
+  List<String> invariants() => treeIndex.invariants();
 
   /// Get total exposure count
   int get totalExposures {
@@ -4856,12 +4706,12 @@ class Sequence extends Equatable {
   /// whether deleting a node warrants a confirmation dialog (e.g.,
   /// "Delete N nodes?" for non-leaf containers).
   ///
-  /// Backed by `_childrenByParent` (single DFS over the parent-keyed index),
-  /// so the cost is O(size-of-subtree) — no nodes outside the subtree are
+  /// Backed by the parent-keyed index (single DFS over the subtree), so
+  /// the cost is O(size-of-subtree) — no nodes outside the subtree are
   /// visited. The defensive cycle guard from the pre-W1.7 implementation is
   /// preserved as defense-in-depth against malformed import data, even
   /// though [invariants] would have rejected it.
-  int countDescendants(String nodeId) => descendantsOf(nodeId).length;
+  int countDescendants(String nodeId) => treeIndex.countDescendants(nodeId);
 
   Sequence copyWith({
     String? id,
