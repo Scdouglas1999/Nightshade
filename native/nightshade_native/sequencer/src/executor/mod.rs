@@ -22,6 +22,7 @@
 //!     `build_trigger_autofocus_context`, etc.) are owned here because
 //!     the inline `start()` closures are their only callers.
 
+mod decision;
 mod lifecycle;
 
 use crate::device_ops::SharedDeviceOps;
@@ -1305,65 +1306,6 @@ impl SequenceExecutor {
             // sessions) so we ship enabled-by-default.
             decision_logging_enabled: Arc::new(AtomicBool::new(true)),
         }
-    }
-
-    /// Wave 8 Replay Debug — subscribe to the structured decision channel.
-    /// Used by the bridge to bridge decisions onto the unified
-    /// `NightshadeEvent` stream as `SequencerEvent::DecisionLogged` and to
-    /// persist into the `sequence_decisions` Drift table.
-    pub fn subscribe_decisions(&self) -> crate::decision::DecisionReceiver {
-        self.decision_tx.subscribe()
-    }
-
-    /// Wave 8 Replay Debug — clone of the decision sender so emit sites
-    /// outside the executor (instruction nodes, scheduler, recovery
-    /// driver) can push events without touching the executor lock.
-    pub fn decision_sender(&self) -> crate::decision::DecisionSender {
-        self.decision_tx.clone()
-    }
-
-    /// Wave 8 Replay Debug — stamp every subsequent decision with the
-    /// supplied `sequence_runs.id`. Called by the bridge once the Dart
-    /// side has inserted the row (a few ms after `start()`).
-    pub fn set_active_sequence_run_id(&self, run_id: Option<i64>) {
-        let mut guard = self.active_sequence_run_id.write();
-        *guard = run_id;
-    }
-
-    /// Wave 8 Replay Debug — read the currently-active sequence_runs id.
-    pub fn active_sequence_run_id(&self) -> Option<i64> {
-        *self.active_sequence_run_id.read()
-    }
-
-    /// Wave 8 Replay Debug — runtime toggle for decision emission.
-    pub fn set_decision_logging_enabled(&self, enabled: bool) {
-        self.decision_logging_enabled
-            .store(enabled, std::sync::atomic::Ordering::Relaxed);
-    }
-
-    /// Wave 8 Replay Debug — runtime toggle read.
-    pub fn decision_logging_enabled(&self) -> bool {
-        self.decision_logging_enabled
-            .load(std::sync::atomic::Ordering::Relaxed)
-    }
-
-    /// Wave 8 Replay Debug — emit a decision into the broadcast channel.
-    /// Stamps the active run id (if any) so persistence can write the FK
-    /// without recomputing.
-    ///
-    /// Returns `true` when at least one subscriber accepted the event.
-    /// Returns `false` when logging is disabled, the channel has no
-    /// subscribers, or the channel is closed. Callers DO NOT need to
-    /// check the return value — the persistence subscriber is the
-    /// source of truth.
-    pub fn emit_decision(&self, mut event: crate::decision::DecisionEvent) -> bool {
-        if !self.decision_logging_enabled() {
-            return false;
-        }
-        if event.sequence_run_id.is_none() {
-            event.sequence_run_id = self.active_sequence_run_id();
-        }
-        self.decision_tx.send(event).is_ok()
     }
 
     /// Set the safety fail mode for the sequencer
