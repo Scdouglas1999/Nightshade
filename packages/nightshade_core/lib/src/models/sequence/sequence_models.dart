@@ -3721,7 +3721,11 @@ class TargetSchedulerNode extends SequenceNode {
     double? minScoreToRun,
     int? recomputeEveryNExposures,
     bool? finishIterationOnSwitch,
-    Object? swapOnConditionsBelow = _sentinel,
+    // PHASE-5: plain `?? this.swapOnConditionsBelow` keep-or-replace
+    // semantics. The previous explicit-clear-via-`null` path moves to
+    // rebuild-explicit at the editor — see
+    // target_scheduler_properties.dart's adaptive-swap toggle.
+    double? swapOnConditionsBelow,
     double? swapHysteresisSecs,
     BrightnessTierPreferences? brightnessTierPreferences,
     int? maxConditionsScoreAgeSecs,
@@ -3745,17 +3749,8 @@ class TargetSchedulerNode extends SequenceNode {
           recomputeEveryNExposures ?? this.recomputeEveryNExposures,
       finishIterationOnSwitch:
           finishIterationOnSwitch ?? this.finishIterationOnSwitch,
-      swapOnConditionsBelow: identical(swapOnConditionsBelow, _sentinel)
-          ? this.swapOnConditionsBelow
-          : switch (swapOnConditionsBelow) {
-              null => null,
-              num value => value.toDouble(),
-              _ => throw ArgumentError.value(
-                  swapOnConditionsBelow,
-                  'swapOnConditionsBelow',
-                  'Expected a number or null',
-                ),
-            },
+      swapOnConditionsBelow:
+          swapOnConditionsBelow ?? this.swapOnConditionsBelow,
       swapHysteresisSecs: swapHysteresisSecs ?? this.swapHysteresisSecs,
       brightnessTierPreferences:
           brightnessTierPreferences ?? this.brightnessTierPreferences,

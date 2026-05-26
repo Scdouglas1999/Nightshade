@@ -390,10 +390,41 @@ class _AdaptiveSwapSection extends StatelessWidget {
               NightshadeSwitch(
                 value: enabled,
                 onChanged: canEdit
-                    ? (v) => onUpdate(node.copyWith(
-                          swapOnConditionsBelow:
-                              v ? _defaultSwapThreshold : null,
-                        ))
+                    ? (v) {
+                        if (v) {
+                          onUpdate(node.copyWith(
+                            swapOnConditionsBelow: _defaultSwapThreshold,
+                          ));
+                        } else {
+                          // PHASE-5: TargetSchedulerNode.copyWith now uses
+                          // plain `?? this.swapOnConditionsBelow`; clearing
+                          // back to null requires a fresh node.
+                          onUpdate(TargetSchedulerNode(
+                            id: node.id,
+                            name: node.name,
+                            isEnabled: node.isEnabled,
+                            childIds: node.childIds,
+                            parentId: node.parentId,
+                            orderIndex: node.orderIndex,
+                            comment: node.comment,
+                            altitudeWeight: node.altitudeWeight,
+                            moonDistanceWeight: node.moonDistanceWeight,
+                            transitProximityWeight: node.transitProximityWeight,
+                            darknessWeight: node.darknessWeight,
+                            airmassWeight: node.airmassWeight,
+                            minScoreToRun: node.minScoreToRun,
+                            recomputeEveryNExposures:
+                                node.recomputeEveryNExposures,
+                            finishIterationOnSwitch:
+                                node.finishIterationOnSwitch,
+                            swapHysteresisSecs: node.swapHysteresisSecs,
+                            brightnessTierPreferences:
+                                node.brightnessTierPreferences,
+                            maxConditionsScoreAgeSecs:
+                                node.maxConditionsScoreAgeSecs,
+                          ));
+                        }
+                      }
                     : null,
               ),
               const SizedBox(width: 8),

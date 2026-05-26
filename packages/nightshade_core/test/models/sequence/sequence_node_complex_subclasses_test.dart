@@ -19,7 +19,9 @@
 //   * MeridianFlipNode (plain copyWith; the sticky-override UX heuristic
 //     moved to `applyMeridianFlipEdit(...)` in the editor layer and is
 //     covered by `nightshade_app`'s widget tests)
-//   * TargetSchedulerNode (sentinel for swapOnConditionsBelow)
+//   * TargetSchedulerNode (Phase 5: sentinel removed —
+//     swapOnConditionsBelow uses plain keep-or-replace; the
+//     ArgumentError path is gone since the signature is now typed)
 //   * SmartExposureNode
 //   * LiveStackingNode (sentinel for authToken / watermarkText)
 //   * SciencePhotometryNode (sentinel for gain/offset, fromRustConfigJson)
@@ -812,35 +814,46 @@ void main() {
       expect(normed.weightsSum, closeTo(1.0, 1e-9));
     });
 
-    test(
-        'copyWith_swap_on_conditions_below_sentinel_allows_explicit_null', () {
-      // PHASE-2-NOTE: TargetSchedulerNode.copyWith uses the `_sentinel`
-      // marker for `swapOnConditionsBelow`. Default-arg = sentinel
-      // (omitted), `null` = clear, a num = set. Phase 2 freezed
-      // nullable-copyWith works the same way.
+    test('copyWith_swap_on_conditions_below_keeps_or_replaces', () {
+      // PHASE-5: TargetSchedulerNode.copyWith now uses plain
+      // `?? this.swapOnConditionsBelow` semantics. Omitted or null
+      // keeps; non-null replaces. The previous "explicit-null clears"
+      // path moved to rebuild-explicit at the editor (covered below).
       final n = TargetSchedulerNode(swapOnConditionsBelow: 60.0);
       expect(n.copyWith().swapOnConditionsBelow, equals(60.0));
       expect(n.copyWith(swapOnConditionsBelow: null).swapOnConditionsBelow,
-          isNull);
+          equals(60.0));
       expect(
         n.copyWith(swapOnConditionsBelow: 40.0).swapOnConditionsBelow,
         equals(40.0),
       );
     });
 
-    test('copyWith_swap_on_conditions_below_rejects_non_num_non_null', () {
-      // PHASE-2-NOTE: The current copyWith has a defensive
-      // ArgumentError path for "not a number or null". Phase 2's
-      // freezed copyWith would simply use a `double?` type at the
-      // signature level, which makes this validation structurally
-      // impossible — the call site would fail to compile. Document
-      // here that the migration LOSES this dynamic-type validation but
-      // GAINS compile-time safety, which is a net win.
-      final n = TargetSchedulerNode();
-      expect(
-        () => n.copyWith(swapOnConditionsBelow: 'bogus'),
-        throwsA(isA<ArgumentError>()),
+    test('swap_on_conditions_below_cleared_via_rebuild_explicit', () {
+      // PHASE-5: the rebuild-explicit recipe used by the editor's
+      // adaptive-swap toggle when the user disables the feature.
+      final n = TargetSchedulerNode(swapOnConditionsBelow: 60.0);
+      final cleared = TargetSchedulerNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        altitudeWeight: n.altitudeWeight,
+        moonDistanceWeight: n.moonDistanceWeight,
+        transitProximityWeight: n.transitProximityWeight,
+        darknessWeight: n.darknessWeight,
+        airmassWeight: n.airmassWeight,
+        minScoreToRun: n.minScoreToRun,
+        recomputeEveryNExposures: n.recomputeEveryNExposures,
+        finishIterationOnSwitch: n.finishIterationOnSwitch,
+        swapHysteresisSecs: n.swapHysteresisSecs,
+        brightnessTierPreferences: n.brightnessTierPreferences,
+        maxConditionsScoreAgeSecs: n.maxConditionsScoreAgeSecs,
       );
+      expect(cleared.swapOnConditionsBelow, isNull);
     });
 
     test('copyWith_each_field', () {
