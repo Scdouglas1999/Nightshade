@@ -14,6 +14,15 @@ import 'headless_route.dart';
 List<HeadlessRoute> buildDbReadRoutes(DbReadHandlers h) => <HeadlessRoute>[
       HeadlessRoute(
           HttpMethod.get, '/api/sequence-runs', h.handleListSequenceRuns),
+      // Wave 7B — session replay endpoints. ORDER MATTERS: specific path with
+      // child segments (`/events`, `/frames`) registers before the catch-all
+      // `/<runId>` so shelf_router doesn't shadow them with the by-id handler.
+      HeadlessRoute(HttpMethod.get, '/api/sequence-runs/<runId>/events',
+          h.handleGetSequenceRunEvents),
+      HeadlessRoute(HttpMethod.get, '/api/sequence-runs/<runId>/frames',
+          h.handleGetSequenceRunFrames),
+      HeadlessRoute(HttpMethod.get, '/api/sequence-runs/<runId>',
+          h.handleGetSequenceRunById),
       HeadlessRoute(
           HttpMethod.get, '/api/notes-journal', h.handleListNotesJournal),
       HeadlessRoute(HttpMethod.get, '/api/guide-rms-history',

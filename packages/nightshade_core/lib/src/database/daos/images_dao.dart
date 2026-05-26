@@ -774,4 +774,50 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       }
     });
   }
+
+  // Wave 7B replay support — Return all captured-image rows produced
+  // by a given sequence run, ordered by capture time ascending. The
+  // session-replay scrubber uses this to enumerate every frame on the
+  // run's timeline.
+  //
+  // `producing_run_id` is a raw-DDL TEXT column (v30 migration); the
+  // value is `sequence_runs.id.toString()` (see SequenceExecutor).
+  // We use `customSelect` because Drift's generated typed select API
+  // cannot reference the raw column. We then call `capturedImages.map`
+  // on the row data to materialise a fully-typed CapturedImage — that
+  // mapper is part of Drift's generated table accessor and accepts a
+  // `Map<String, dynamic>` of column-name → value.
+  Future<List<CapturedImage>> getImagesByProducingRun({
+    required String producingRunId,
+    int limit = 1000,
+    int offset = 0,
+  }) async {
+    final rows = await customSelect(
+      'SELECT * FROM captured_images '
+      'WHERE producing_run_id = ? '
+      'ORDER BY captured_at ASC '
+      'LIMIT ? OFFSET ?',
+      variables: [
+        Variable<String>(producingRunId),
+        Variable<int>(limit),
+        Variable<int>(offset),
+      ],
+      readsFrom: {capturedImages},
+    ).get();
+    return [
+      for (final row in rows) capturedImages.map(row.data),
+    ];
+  }
+
+  Future<int> countImagesByProducingRun({
+    required String producingRunId,
+  }) async {
+    final row = await customSelect(
+      'SELECT COUNT(*) AS c FROM captured_images '
+      'WHERE producing_run_id = ?',
+      variables: [Variable<String>(producingRunId)],
+      readsFrom: {capturedImages},
+    ).getSingleOrNull();
+    return (row?.data['c'] as int?) ?? 0;
+  }
 }

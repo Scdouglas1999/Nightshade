@@ -298,5 +298,198 @@ void main() {
       expect((items.first as Map)['filterName'], 'L');
       expect(body['total'], 1);
     });
+
+    // =====================================================================
+    // Wave 7B — Replay scrubber endpoints
+    // =====================================================================
+
+    group('GET /api/sequence-runs/<runId>', () {
+      test('returns 400 for non-integer runId', () async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunById(
+            Request('GET', Uri.parse('http://localhost/api/sequence-runs/foo')),
+            'foo',
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        // BadRequestError translation echoes the field name.
+        expect(body['field'], 'runId');
+      });
+
+      test('returns 404 when the run does not exist', () async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunById(
+            Request('GET',
+                Uri.parse('http://localhost/api/sequence-runs/999')),
+            '999',
+          ),
+        );
+        expect(response.statusCode, HttpStatus.notFound);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['error'], 'sequence_run_not_found');
+      });
+
+      test('returns run detail with frameCount projection', () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'NGC 7000 imaging',
+        );
+        await db.sequenceRunsDao.finishRun(runId, 'completed', '{}');
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunById(
+            Request('GET',
+                Uri.parse('http://localhost/api/sequence-runs/$runId')),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        final run = body['run'] as Map;
+        expect(run['id'], runId);
+        expect(run['sequenceName'], 'NGC 7000 imaging');
+        expect(run['frameCount'], 0);
+        expect(run['status'], 'completed');
+      });
+    });
+
+    group('GET /api/sequence-runs/<runId>/events', () {
+      test('returns 404 when the run does not exist', () async {
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunEvents(
+            Request('GET',
+                Uri.parse('http://localhost/api/sequence-runs/999/events')),
+            '999',
+          ),
+        );
+        expect(response.statusCode, HttpStatus.notFound);
+      });
+
+      test('returns empty envelope with is_partial=true for an empty buffer',
+          () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'Empty run',
+        );
+        await db.sequenceRunsDao.finishRun(runId, 'completed', '{}');
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunEvents(
+            Request(
+                'GET',
+                Uri.parse(
+                    'http://localhost/api/sequence-runs/$runId/events')),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['items'], isEmpty);
+        // No buffered entries in the test logging service → is_partial.
+        // The flag tells the phone the gap is by design, not data loss.
+        expect(body['is_partial'], isTrue);
+        expect(body['source'], 'logging_service_ring_buffer');
+      });
+
+      test('rejects an invalid severityMin query param', () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'Run',
+        );
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunEvents(
+            Request(
+                'GET',
+                Uri.parse(
+                    'http://localhost/api/sequence-runs/$runId/events?severityMin=NOPE')),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.badRequest);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['field'], 'severityMin');
+      });
+    });
+
+    group('GET /api/sequence-runs/<runId>/frames', () {
+      test('returns empty page for a run with no frames', () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'No-frame run',
+        );
+        await db.sequenceRunsDao.finishRun(runId, 'aborted', '{}');
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunFrames(
+            Request(
+                'GET',
+                Uri.parse(
+                    'http://localhost/api/sequence-runs/$runId/frames')),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['items'], isEmpty);
+        expect(body['total'], 0);
+      });
+
+      test('returns frames stamped with producing_run_id', () async {
+        final runId = await db.sequenceRunsDao.startRun(
+          sequenceId: null,
+          sequenceName: 'Frame run',
+        );
+        // Insert a frame via the sequence-driven path that stamps the
+        // producing_run_id column. We pass runId.toString() to mirror
+        // the executor's convention (see SequenceExecutor.runIdString).
+        await db.imagesDao.insertSequenceFrame(
+          filePath: '/tmp/frame_001.fits',
+          fileName: 'frame_001.fits',
+          fileFormat: 'fits',
+          exposureDuration: 60.0,
+          capturedAt: DateTime.utc(2026, 5, 25, 23, 0),
+          targetId: null,
+          sessionId: null,
+          frameType: 'light',
+          filter: 'L',
+          gain: 100,
+          offset: 10,
+          binX: 1,
+          binY: 1,
+          hfr: 2.5,
+          starCount: 250,
+          qualityScore: 87.0,
+          isAccepted: true,
+          producingNodeId: 'instr.expose',
+          producingRunId: runId.toString(),
+          runtimeGrade: 'pass',
+          rejectionReason: null,
+          eccentricity: 0.18,
+        );
+
+        final response = await translateHandlerErrors(
+          handlers.handleGetSequenceRunFrames(
+            Request(
+                'GET',
+                Uri.parse(
+                    'http://localhost/api/sequence-runs/$runId/frames')),
+            runId.toString(),
+          ),
+        );
+        expect(response.statusCode, HttpStatus.ok);
+        final body = jsonDecode(await response.readAsString()) as Map;
+        expect(body['total'], 1);
+        final items = body['items'] as List;
+        expect(items, hasLength(1));
+        final frame = items.first as Map;
+        expect(frame['fileName'], 'frame_001.fits');
+        expect(frame['filter'], 'L');
+        expect(frame['hfr'], 2.5);
+        expect(frame['frameType'], 'light');
+        expect(frame['isAccepted'], isTrue);
+        expect(frame['capturedAtMs'], isA<int>());
+      });
+    });
   });
 }

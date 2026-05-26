@@ -174,6 +174,8 @@ export 'src/providers/device_connection_progress_provider.dart';
 // recoveryEventBridgeProvider, recoveryAudibleBridgeProvider,
 // recoveryPushBridgeProvider).
 export 'src/providers/recovery_provider.dart';
+// Wave 7B — Mobile session replay scrubber provider + types.
+export 'src/providers/session_replay_provider.dart';
 export 'src/providers/auto_stretch_provider.dart';
 export 'src/providers/science_provider.dart';
 export 'src/providers/science_status_provider.dart';
