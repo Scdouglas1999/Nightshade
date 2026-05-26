@@ -1,6 +1,5 @@
 import 'dart:async';
-import 'dart:io';
-import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
@@ -27,6 +26,7 @@ import 'device_exceptions.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
 import 'error_service.dart';
+import 'phd2_launcher.dart';
 import 'phd2_status_poll.dart';
 import 'device_service_lifecycle.dart';
 
@@ -158,6 +158,7 @@ class DeviceService {
   StreamSubscription? _eventSubscription;
   late final CameraTemperaturePoller _temperaturePoller;
   late final CameraWarmupController _warmupController;
+  late final Phd2Launcher _phd2Launcher;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -206,6 +207,7 @@ class DeviceService {
       ref: _ref,
       backend: _backend,
     );
+    _phd2Launcher = Phd2Launcher(ref: _ref);
     DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
@@ -2477,8 +2479,9 @@ class DeviceService {
           // they delegate launch to the desktop via POST /api/phd2/connect.
           // For remote PHD2 hosts (host != localhost/127.0.0.1) we never spawn.
           final connectHost = resolvePhd2ConnectHost(settings.phd2Host);
-          if (_backend is! NetworkBackend && _isLocalHost(settings.phd2Host)) {
-            await _ensurePhd2Running(
+          if (_backend is! NetworkBackend &&
+              _phd2Launcher.isLocalHost(settings.phd2Host)) {
+            await _phd2Launcher.ensureRunning(
               executablePath: settings.phd2Path,
               host: connectHost,
               port: settings.phd2Port,
@@ -4452,131 +4455,6 @@ class DeviceService {
     return await _backend.sequencerGetStatus();
   }
 
-  // ---------------------------------------------------------------------------
-  // PHD2 auto-launch
-  //
-  // Why: PHD2 is an external program. Users routinely configure a path to
-  // its executable in Settings → PHD2 expecting "Connect" to start the
-  // process when it is not already running. The previous behaviour required
-  // the user to launch PHD2 separately before pressing Connect, which made
-  // the path field misleading.
-  //
-  // Audit-handoff §2.1 WIRE-UP item #1.
-  // ---------------------------------------------------------------------------
-
-  /// Maximum wait for the PHD2 socket to come up after spawning the process.
-  static const Duration _phd2LaunchTimeout = Duration(seconds: 10);
-  static const Duration _phd2PollInterval = Duration(milliseconds: 250);
-
-  /// True when the configured host is the same machine (i.e. we should
-  /// auto-spawn PHD2 ourselves rather than expecting it to be remote).
-  bool _isLocalHost(String host) {
-    if (kIsWeb) return false;
-    final normalized = host.trim().toLowerCase();
-    return normalized.isEmpty ||
-        normalized == 'localhost' ||
-        normalized == '127.0.0.1' ||
-        normalized == '::1';
-  }
-
-  /// Ensure PHD2 is running on [host]:[port]. If a socket is already
-  /// accepting connections we return immediately; otherwise we spawn the
-  /// configured executable and wait up to [_phd2LaunchTimeout] for the port
-  /// to open.
-  Future<void> _ensurePhd2Running({
-    required String executablePath,
-    required String host,
-    required int port,
-  }) async {
-    if (await _isPortOpen(host, port)) {
-      // Already running — nothing to do.
-      return;
-    }
-
-    final notifications = _ref.read(uiNotificationProvider.notifier);
-    final configuredPath = executablePath.trim();
-    if (configuredPath.isNotEmpty) {
-      final exe = File(configuredPath);
-      if (!await exe.exists()) {
-        throw FileSystemException(
-          'PHD2 executable not found. Update Settings → PHD2 Guiding → '
-          'PHD2 executable path or clear it to use automatic discovery.',
-          configuredPath,
-        );
-      }
-
-      notifications.showInfo(
-        'PHD2 not running — launching $configuredPath...',
-        title: 'PHD2',
-        duration: const Duration(seconds: 5),
-      );
-
-      try {
-        await Process.start(
-          configuredPath,
-          const <String>[],
-          mode: ProcessStartMode.detached,
-        );
-      } on ProcessException catch (e) {
-        throw ProcessException(
-          configuredPath,
-          const <String>[],
-          'Failed to launch PHD2 (${e.message}). Check the configured '
-          'PHD2 executable path.',
-          e.errorCode,
-        );
-      }
-    } else {
-      notifications.showInfo(
-        'PHD2 not running — searching for installed PHD2...',
-        title: 'PHD2',
-        duration: const Duration(seconds: 5),
-      );
-
-      try {
-        await bridge_api.apiLaunchPhd2();
-      } catch (e) {
-        throw StateError(
-          'PHD2 is not running and could not be launched automatically. '
-          'Install PHD2 or set Settings → PHD2 Guiding → PHD2 executable path. '
-          '($e)',
-        );
-      }
-    }
-
-    // Poll for the socket to open. PHD2 typically takes 2-5s to begin
-    // accepting connections on cold start.
-    final deadline = DateTime.now().add(_phd2LaunchTimeout);
-    while (DateTime.now().isBefore(deadline)) {
-      if (await _isPortOpen(host, port)) {
-        return;
-      }
-      await Future.delayed(_phd2PollInterval);
-    }
-
-    throw TimeoutException(
-      'PHD2 launched but did not open port $port on $host within '
-      '${_phd2LaunchTimeout.inSeconds} seconds. Verify PHD2 is configured '
-      'to expose its server interface.',
-      _phd2LaunchTimeout,
-    );
-  }
-
-  /// Check whether [host]:[port] is accepting TCP connections.
-  Future<bool> _isPortOpen(String host, int port) async {
-    final connectHost = resolvePhd2ConnectHost(host);
-    try {
-      final socket = await Socket.connect(
-        connectHost,
-        port,
-        timeout: const Duration(milliseconds: 500),
-      );
-      await socket.close();
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
 }
 
 /// Provider for the device service
