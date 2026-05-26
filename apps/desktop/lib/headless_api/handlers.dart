@@ -1,4 +1,5 @@
 // Export all handler modules
+export 'handlers/auth_handlers.dart';
 export 'handlers/collaboration_handlers.dart';
 export 'handlers/device_handlers.dart';
 export 'handlers/device_discovery_handlers.dart';

@@ -245,6 +245,7 @@ class HeadlessApiServer {
   late final DeviceDiscoveryHandlers _deviceDiscoveryHandlers;
   late final CollaborationHandlers _collaborationHandlers;
   late final StaticFileHandlers _staticFileHandlers;
+  late final AuthHandlers _authHandlers;
   late final GuidingHandlers _guidingHandlers;
   late final SequencerHandlers _sequencerHandlers;
   late final EquipmentHandlers _equipmentHandlers;
@@ -481,6 +482,12 @@ class HeadlessApiServer {
     _staticFileHandlers = StaticFileHandlers(
       logger: container.read(loggingServiceProvider),
     );
+    _authHandlers = AuthHandlers(
+      wsTicketManager: _wsTicketManager,
+      authCookieManager: _authCookieManager,
+      scopeForToken: _scopeForToken,
+      logger: container.read(loggingServiceProvider),
+    );
     _guidingHandlers = GuidingHandlers(container);
     _sequencerHandlers = SequencerHandlers(container);
     _equipmentHandlers = EquipmentHandlers(container);
@@ -610,15 +617,15 @@ class HeadlessApiServer {
 
     // WebSocket auth ticket (§2.28). Issues a one-shot ticket so browsers
     // don't have to leak the bearer token via WS query parameters.
-    router.post('/api/ws/ticket', _handleWsTicketIssue);
+    router.post('/api/ws/ticket', _authHandlers.handleWsTicketIssue);
 
     // HttpOnly cookie + CSRF token for the dashboard "remember me" path
     // (§2.5 long-form). The dashboard exchanges a freshly-paired bearer
     // token for a cookie that JS cannot read, plus a CSRF token it must
     // echo on every write. Logout invalidates both.
-    router.post('/api/auth/cookie', _handleAuthCookieIssue);
-    router.get('/api/auth/csrf', _handleAuthCsrfFetch);
-    router.post('/api/auth/logout', _handleAuthLogout);
+    router.post('/api/auth/cookie', _authHandlers.handleAuthCookieIssue);
+    router.get('/api/auth/csrf', _authHandlers.handleAuthCsrfFetch);
+    router.post('/api/auth/logout', _authHandlers.handleAuthLogout);
     router.get('/api/collaboration/state',
         _collaborationHandlers.handleCollaborationState);
     router.post('/api/collaboration/viewers/join',
@@ -3372,166 +3379,22 @@ class HeadlessApiServer {
     }
   }
 
-  // ===========================================================================
-  // WebSocket auth ticket (§2.28) — single-use ticket so browsers do not have
-  // to leak the bearer token via WS query parameters into HTTP/proxy logs.
-  // ===========================================================================
-  Future<Response> _handleWsTicketIssue(Request request) async {
-    final requestId = _requestIdFrom(request);
-    // Auth middleware has already verified the bearer token before we get
-    // here (the route is not public). We just mint a one-shot ticket the
-    // caller can present on the WS upgrade.
-    //
-    // P2-15: bind the ticket to the auth identity that minted it so the
-    // upgrade handler can identify the connection without trusting the
-    // client-supplied viewerId. The middleware stashes the digest on
-    // the request context; we pass it straight to the ticket manager.
-    final identity = _authIdentityFrom(request);
-    final ticket = _wsTicketManager.issue(identity: identity);
-    return jsonOk(
-      {
-        'ticket': ticket,
-        'expiresInSeconds': _wsTicketManager.ticketLifetime.inSeconds,
-      },
-      headers: {_requestIdHeader: requestId},
-    );
-  }
-
-  /// Issue an HttpOnly session cookie + CSRF token for the dashboard
-  /// "remember me" path (§2.5 long-form). The caller must already be
-  /// authenticated via the Authorization header — we explicitly require the
-  /// bearer (not the cookie) so the caller proves possession of the raw
-  /// token before we let the browser commit to JS-invisible storage.
-  ///
-  /// Response shape: `{ "csrfToken": "...", "expiresInSeconds": N }`.
-  /// The cookie value is NEVER returned in the body — only in `Set-Cookie` —
-  /// so a logging proxy or JS that scrapes responses cannot read it.
-  Future<Response> _handleAuthCookieIssue(Request request) async {
-    final requestId = _requestIdFrom(request);
-    final authHeader = request.headers['authorization'];
-    // Why re-check the header here even though auth middleware already
-    // accepted the request: the middleware may have accepted a cookie path.
-    // For *upgrading* to a cookie, only the raw bearer is acceptable —
-    // otherwise a stolen cookie could mint a fresh cookie for itself.
-    if (authHeader == null || !authHeader.startsWith('Bearer ')) {
-      _logWarning(
-        '[AUTH][$requestId] Cookie issue rejected: bearer token required (no cookie escalation).',
-      );
-      return jsonUnauthorized(
-        {
-          'error': 'bearer_required',
-          'message':
-              'POST /api/auth/cookie requires an Authorization: Bearer <token> header.',
-        },
-        headers: {_requestIdHeader: requestId},
-      );
-    }
-    final bearer = authHeader.substring(7);
-    final scope = _scopeForToken(bearer);
-    if (scope == null) {
-      // Should not reach here because middleware would have rejected, but
-      // defend in depth so a future middleware reorder cannot mint cookies
-      // for unrecognised tokens.
-      _logWarning(
-        '[AUTH][$requestId] Cookie issue rejected: bearer token did not resolve to a scope.',
-      );
-      return jsonForbidden(
-        {
-          'error': 'invalid_token',
-          'message': 'The bearer token is not recognised.',
-        },
-        headers: {_requestIdHeader: requestId},
-      );
-    }
-    final issue = _authCookieManager.mint(bearer);
-    final secure = !_isPlainLoopbackRequest(request);
-    final setCookie = AuthCookieManager.buildSetCookieHeader(
-      cookieToken: issue.cookieToken,
-      maxAge: issue.maxAge,
-      secure: secure,
-    );
-    return jsonOk(
-      {
-        'csrfToken': issue.csrfToken,
-        'expiresInSeconds': issue.maxAge.inSeconds,
-      },
-      headers: {
-        _requestIdHeader: requestId,
-        'set-cookie': setCookie,
-      },
-    );
-  }
-
-  /// Fetch the CSRF token bound to the caller's session cookie. The
-  /// dashboard calls this on page load when it detects a session cookie has
-  /// been sent (since the cookie itself is HttpOnly the SPA cannot read it
-  /// directly, but the browser will attach it to this request and we look
-  /// it up on the server side).
-  Future<Response> _handleAuthCsrfFetch(Request request) async {
-    final requestId = _requestIdFrom(request);
-    final cookieHeader = request.headers['cookie'];
-    final sessionCookie = AuthCookieManager.extractCookie(cookieHeader);
-    final csrf = _authCookieManager.fetchCsrf(sessionCookie);
-    if (csrf == null) {
-      return jsonUnauthorized(
-        {
-          'error': 'no_session',
-          'message':
-              'No active session cookie. Pair this browser, then POST /api/auth/cookie.',
-        },
-        headers: {_requestIdHeader: requestId},
-      );
-    }
-    return jsonOk(
-      {
-        'csrfToken': csrf,
-        'expiresInSeconds': AuthCookieManager.csrfLifetime.inSeconds,
-      },
-      headers: {_requestIdHeader: requestId},
-    );
-  }
-
-  /// Revoke the caller's session cookie (logout). Clears the cookie on the
-  /// browser AND drops the server-side session so a copied cookie value
-  /// cannot be reused after logout.
-  Future<Response> _handleAuthLogout(Request request) async {
-    final requestId = _requestIdFrom(request);
-    final cookieHeader = request.headers['cookie'];
-    final sessionCookie = AuthCookieManager.extractCookie(cookieHeader);
-    _authCookieManager.revoke(sessionCookie);
-    final secure = !_isPlainLoopbackRequest(request);
-    return jsonOk(
-      {'loggedOut': true},
-      headers: {
-        _requestIdHeader: requestId,
-        'set-cookie': AuthCookieManager.buildClearCookieHeader(secure: secure),
-      },
-    );
-  }
+  // /api/ws/ticket and /api/auth/{cookie,csrf,logout} handlers moved to
+  // [AuthHandlers] (handlers/auth_handlers.dart). The shared
+  // WsTicketManager, AuthCookieManager, and a TokenScopeResolver closure
+  // (`_scopeForToken`) are injected via the constructor.
 
   /// Whether [method] mutates state and therefore requires CSRF when the
   /// caller is using a cookie. Why uppercase compare: shelf passes the
   /// raw method but middleware may have lowercased it elsewhere — be
-  /// defensive.
+  /// defensive. Stays inline because the auth middleware (which lives
+  /// here) is the only consumer.
   static bool _methodNeedsCsrf(String method) {
     final upper = method.toUpperCase();
     return upper == 'POST' ||
         upper == 'PUT' ||
         upper == 'DELETE' ||
         upper == 'PATCH';
-  }
-
-  /// Whether this request landed on a plain-HTTP loopback bind. The cookie
-  /// MUST carry `Secure` over the public LAN — but a browser refuses to set
-  /// a `Secure` cookie on a plain `http://127.0.0.1` test rig, so we relax
-  /// the attribute when (and only when) the request was served over HTTP to
-  /// loopback. Any non-loopback or HTTPS request still gets `Secure`.
-  bool _isPlainLoopbackRequest(Request request) {
-    if (request.requestedUri.scheme == 'https') {
-      return false;
-    }
-    final host = request.requestedUri.host;
-    return host == '127.0.0.1' || host == 'localhost' || host == '::1';
   }
 
   // /api/devices/*, /api/devices/discover-indi, /api/devices/discover-alpaca,
