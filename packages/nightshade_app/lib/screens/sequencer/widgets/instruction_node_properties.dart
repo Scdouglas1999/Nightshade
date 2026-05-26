@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../equipment/dialogs/profile_editor_dialog.dart';
+import 'meridian_flip_edit_helper.dart';
 import 'node_property_widgets.dart';
 
 // ---------------------------------------------------------------------------

@@ -679,7 +679,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(triggerMethod: value),
+                    applyMeridianFlipEdit(node, triggerMethod: value),
                   );
             },
           ),
@@ -697,7 +697,7 @@ class MeridianFlipProperties extends ConsumerWidget {
               decimals: 1,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(minutesPastMeridian: value),
+                      applyMeridianFlipEdit(node, minutesPastMeridian: value),
                     );
               },
             ),
@@ -715,7 +715,7 @@ class MeridianFlipProperties extends ConsumerWidget {
               decimals: 0,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(minutesBeforeLimit: value),
+                      applyMeridianFlipEdit(node, minutesBeforeLimit: value),
                     );
               },
             ),
@@ -733,7 +733,7 @@ class MeridianFlipProperties extends ConsumerWidget {
               decimals: 2,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(hourAngleThreshold: value),
+                      applyMeridianFlipEdit(node, hourAngleThreshold: value),
                     );
               },
             ),
@@ -756,7 +756,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             value: node.pauseGuiding,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(pauseGuiding: value),
+                    applyMeridianFlipEdit(node, pauseGuiding: value),
                   );
             },
           ),
@@ -769,7 +769,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             value: node.autoCenter,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(autoCenter: value),
+                    applyMeridianFlipEdit(node, autoCenter: value),
                   );
             },
           ),
@@ -782,7 +782,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             value: node.refocusAfter,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(refocusAfter: value),
+                    applyMeridianFlipEdit(node, refocusAfter: value),
                   );
             },
           ),
@@ -795,7 +795,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             value: node.resumeGuiding,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(resumeGuiding: value),
+                    applyMeridianFlipEdit(node, resumeGuiding: value),
                   );
             },
           ),
@@ -812,7 +812,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(settleTime: value),
+                    applyMeridianFlipEdit(node, settleTime: value),
                   );
             },
           ),
@@ -837,7 +837,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             max: 10,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(maxRetries: value.toInt()),
+                    applyMeridianFlipEdit(node, maxRetries: value.toInt()),
                   );
             },
           ),
@@ -859,7 +859,7 @@ class MeridianFlipProperties extends ConsumerWidget {
             },
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(failureAction: value),
+                    applyMeridianFlipEdit(node, failureAction: value),
                   );
             },
           ),

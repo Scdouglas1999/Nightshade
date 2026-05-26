@@ -7,6 +7,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../../equipment/dialogs/profile_editor_dialog.dart';
 import 'delete_node_confirmation.dart';
+import 'meridian_flip_edit_helper.dart';
 import 'smart_exposure_properties.dart';
 import 'target_scheduler_properties.dart';
 

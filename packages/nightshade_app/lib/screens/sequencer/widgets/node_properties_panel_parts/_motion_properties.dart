@@ -427,7 +427,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
             decimals: 1,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(minutesPastMeridian: value),
+                    applyMeridianFlipEdit(node, minutesPastMeridian: value),
                   );
             },
           ),
@@ -440,7 +440,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
             value: node.pauseGuiding,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(pauseGuiding: value),
+                    applyMeridianFlipEdit(node, pauseGuiding: value),
                   );
             },
           ),
@@ -453,7 +453,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
             value: node.autoCenter,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(autoCenter: value),
+                    applyMeridianFlipEdit(node, autoCenter: value),
                   );
             },
           ),
@@ -470,7 +470,7 @@ class _MeridianFlipProperties extends ConsumerWidget {
             decimals: 0,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(settleTime: value),
+                    applyMeridianFlipEdit(node, settleTime: value),
                   );
             },
           ),
