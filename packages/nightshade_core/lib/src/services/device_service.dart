@@ -18,12 +18,11 @@ import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
-import '../models/sequence/sequence_models.dart';
 import '../utils/device_id_utils.dart';
 import 'camera_temperature_poller.dart';
 import 'camera_warmup_controller.dart';
+import 'device_reconnect_coordinator.dart';
 import 'device_exceptions.dart';
-import 'notification_service.dart';
 import 'logging_service.dart';
 import 'error_service.dart';
 import 'phd2_launcher.dart';
@@ -159,6 +158,7 @@ class DeviceService {
   late final CameraTemperaturePoller _temperaturePoller;
   late final CameraWarmupController _warmupController;
   late final Phd2Launcher _phd2Launcher;
+  late final DeviceReconnectCoordinator _reconnectCoordinator;
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -179,18 +179,10 @@ class DeviceService {
   int _inFlightOperations = 0;
   final List<Completer<void>> _quiesceWaiters = [];
 
-  /// User-initiated disconnects suppress auto-reconnect briefly (DV-P0-3).
-  final Set<String> _userInitiatedDisconnects = {};
-  Timer? _userDisconnectDebounceTimer;
-
-  /// Set during backend swap so stray Disconnected events cannot reconnect.
-  bool _suppressAutoReconnect = false;
-
   bool _disposed = false;
 
   static const Duration _connectProfileDeviceTimeout = Duration(seconds: 60);
   static const Duration _quiesceTimeout = Duration(seconds: 30);
-  static const Duration _userDisconnectSuppressDuration = Duration(seconds: 10);
 
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
   /// since the focuser and camera are shared hardware resources.
@@ -208,6 +200,12 @@ class DeviceService {
       backend: _backend,
     );
     _phd2Launcher = Phd2Launcher(ref: _ref);
+    _reconnectCoordinator = DeviceReconnectCoordinator(
+      ref: _ref,
+      backend: _backend,
+      resumeSequence: resumeSequence,
+      pauseSequence: pauseSequence,
+    );
     DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
@@ -309,11 +307,7 @@ class DeviceService {
   /// Cancel reconnect timers, suppress auto-reconnect, and quiesce before a
   /// backend swap disposes this service instance (DV-P0-2).
   Future<void> prepareForBackendSwap() async {
-    _suppressAutoReconnect = true;
-    _cancelAllReconnections();
-    _userInitiatedDisconnects.clear();
-    _userDisconnectDebounceTimer?.cancel();
-    _userDisconnectDebounceTimer = null;
+    _reconnectCoordinator.prepareForBackendSwap();
     cancelWarmCamera();
     _temperaturePoller.stop();
     _focuserVerifyGeneration++;
@@ -341,30 +335,8 @@ class DeviceService {
     }
   }
 
-  void _markUserInitiatedDisconnect(String deviceId) {
-    if (deviceId.isEmpty) {
-      return;
-    }
-    _userInitiatedDisconnects.add(deviceId);
-    final reconnectKeys = _reconnectionTimers.keys
-        .followedBy(_reconnectionAttempts.keys)
-        .where((key) => key.endsWith(':$deviceId'))
-        .toSet();
-    for (final key in reconnectKeys) {
-      _reconnectionTimers[key]?.cancel();
-      _reconnectionTimers.remove(key);
-      _reconnectionAttempts.remove(key);
-    }
-    _userDisconnectDebounceTimer?.cancel();
-    _userDisconnectDebounceTimer = Timer(_userDisconnectSuppressDuration, () {
-      _userInitiatedDisconnects.clear();
-      _userDisconnectDebounceTimer = null;
-    });
-  }
-
-  bool _isUserInitiatedDisconnect(String deviceId) {
-    return _userInitiatedDisconnects.contains(deviceId);
-  }
+  void _markUserInitiatedDisconnect(String deviceId) =>
+      _reconnectCoordinator.markUserInitiatedDisconnect(deviceId);
 
   /// Resolve a display name without running discovery. Falls back to
   /// [getConnectedDevices] when the backend already knows this device
@@ -1224,418 +1196,14 @@ class DeviceService {
     }
   }
 
-  /// Stored reconnection attempts for each device
-  final Map<String, int> _reconnectionAttempts = {};
+  /// Schedule a reconnection attempt via the [DeviceReconnectCoordinator].
+  Future<void> _attemptReconnect(DeviceType type, String deviceId) =>
+      _reconnectCoordinator.attemptReconnect(type, deviceId);
 
-  /// Timers for reconnection delays
-  final Map<String, Timer> _reconnectionTimers = {};
-
-  String _reconnectKey(DeviceType type, String deviceId) =>
-      '${type.name}:$deviceId';
-
-  /// Maximum number of reconnection attempts
-  static const int _maxReconnectAttempts = 3;
-
-  /// Reconnection delay backoff (5, 10, 20 seconds)
-  static const List<Duration> _reconnectDelays = [
-    Duration(seconds: 5),
-    Duration(seconds: 10),
-    Duration(seconds: 20),
-  ];
-
-  /// Attempt to reconnect to a device with exponential backoff
-  /// Read the current `autoReconnectEnabled` value for a device type.
-  ///
-  /// DEV-P1-1: Previously only [DeviceType.camera] honored the
-  /// user-controlled flag; every other type silently auto-reconnected
-  /// regardless of preference. This switch makes the bridge explicit
-  /// so each device type's state notifier owns the answer.
-  ///
-  /// Switch device has no state provider yet (tracked under DEV-P2-1);
-  /// it follows the legacy default of `true`.
-  bool _getAutoReconnectFor(DeviceType type) {
-    return switch (type) {
-      DeviceType.camera => _ref.read(cameraStateProvider).autoReconnectEnabled,
-      DeviceType.mount => _ref.read(mountStateProvider).autoReconnectEnabled,
-      DeviceType.focuser =>
-        _ref.read(focuserStateProvider).autoReconnectEnabled,
-      DeviceType.filterWheel =>
-        _ref.read(filterWheelStateProvider).autoReconnectEnabled,
-      DeviceType.guider => _ref.read(guiderStateProvider).autoReconnectEnabled,
-      DeviceType.rotator =>
-        _ref.read(rotatorStateProvider).autoReconnectEnabled,
-      DeviceType.dome => _ref.read(domeStateProvider).autoReconnectEnabled,
-      DeviceType.weather =>
-        _ref.read(weatherStateProvider).autoReconnectEnabled,
-      DeviceType.safetyMonitor =>
-        _ref.read(safetyMonitorStateProvider).autoReconnectEnabled,
-      DeviceType.coverCalibrator =>
-        _ref.read(coverCalibratorStateProvider).autoReconnectEnabled,
-      DeviceType.switch_ => _ref.read(switchStateProvider).autoReconnectEnabled,
-    };
-  }
-
-  Future<void> _attemptReconnect(DeviceType type, String deviceId) async {
-    if (_suppressAutoReconnect) {
-      return;
-    }
-
-    if (_isUserInitiatedDisconnect(deviceId)) {
-      _safeLog(
-        (logger) => logger.info(
-          'Skipping auto-reconnect for user-initiated disconnect of '
-          '${type.displayName} ($deviceId)',
-          source: 'DeviceService',
-        ),
-        'user-disconnect-reconnect-skip',
-      );
-      return;
-    }
-
-    // Check if auto-reconnect is enabled for this device.
-    final autoReconnectEnabled = _getAutoReconnectFor(type);
-
-    if (!autoReconnectEnabled) {
-      try {
-        final logger = _ref.read(loggingServiceProvider);
-        logger.info(
-          'Auto-reconnect disabled for ${type.displayName} ($deviceId)',
-          source: 'DeviceService',
-        );
-      } catch (e) {
-        // Logging service not available
-      }
-      return;
-    }
-
-    final reconnectKey = _reconnectKey(type, deviceId);
-
-    // Get current attempt count
-    final attemptCount = _reconnectionAttempts[reconnectKey] ?? 0;
-
-    if (attemptCount >= _maxReconnectAttempts) {
-      // Max attempts reached - notify user
-      try {
-        final logger = _ref.read(loggingServiceProvider);
-        logger.error(
-          'Failed to reconnect ${type.displayName} ($deviceId) after $_maxReconnectAttempts attempts',
-          source: 'DeviceService',
-        );
-      } catch (e) {
-        // Logging service not available
-      }
-      _showReconnectionFailedNotification(type, deviceId);
-      _reconnectionAttempts.remove(reconnectKey);
-      return;
-    }
-
-    // Increment attempt count
-    _reconnectionAttempts[reconnectKey] = attemptCount + 1;
-
-    // Get delay for this attempt
-    final delay = attemptCount < _reconnectDelays.length
-        ? _reconnectDelays[attemptCount]
-        : _reconnectDelays.last;
-
-    // Log reconnection attempt
-    try {
-      final logger = _ref.read(loggingServiceProvider);
-      logger.info(
-        'Scheduling reconnection attempt ${attemptCount + 1}/$_maxReconnectAttempts for ${type.displayName} ($deviceId) in ${delay.inSeconds}s at ${DateTime.now().add(delay).toIso8601String()}',
-        source: 'DeviceService',
-      );
-    } catch (e) {
-      // Logging service not available
-    }
-
-    // Cancel any existing reconnection timer for this device
-    _reconnectionTimers[reconnectKey]?.cancel();
-
-    // Schedule reconnection attempt
-    _reconnectionTimers[reconnectKey] = Timer(delay, () async {
-      try {
-        // Log the actual attempt
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Attempting reconnection ${attemptCount + 1}/$_maxReconnectAttempts for ${type.displayName} ($deviceId) at ${DateTime.now().toIso8601String()}',
-            source: 'DeviceService',
-          );
-        } catch (e) {
-          // Logging service not available
-        }
-
-        await _performReconnection(type, deviceId);
-
-        // Success - reset attempt count
-        _reconnectionAttempts.remove(reconnectKey);
-        _reconnectionTimers.remove(reconnectKey);
-
-        // Log success
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.info(
-            'Successfully reconnected ${type.displayName} ($deviceId) at ${DateTime.now().toIso8601String()}',
-            source: 'DeviceService',
-          );
-        } catch (e) {
-          // Logging service not available
-        }
-
-        // Show success notification
-        _showReconnectionSuccessNotification(type, deviceId);
-
-        // If this was a critical device and sequence is paused, consider resuming
-        await _considerSequenceResume(type);
-      } catch (e) {
-        // Log the failure
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.warning(
-            'Reconnection attempt ${attemptCount + 1}/$_maxReconnectAttempts failed for ${type.displayName} ($deviceId): $e',
-            source: 'DeviceService',
-          );
-        } catch (logError) {
-          // Logging service not available
-        }
-
-        // Reconnection failed - try again
-        unawaited(_attemptReconnect(type, deviceId));
-      }
-    });
-  }
-
-  /// Consider resuming the sequence if reconnection was successful
-  Future<void> _considerSequenceResume(DeviceType type) async {
-    // Only for critical devices
-    if (type != DeviceType.camera && type != DeviceType.mount) {
-      return;
-    }
-
-    // Check if sequence is paused
-    final sequenceState = _ref.read(sequenceExecutionStateProvider);
-    if (sequenceState != SequenceExecutionState.paused) {
-      return;
-    }
-
-    // Check if both critical devices are connected (if they're in the profile)
-    final activeProfile = _activeProfile;
-    if (activeProfile == null) {
-      return;
-    }
-
-    bool allCriticalDevicesConnected = true;
-
-    // Check camera if in profile
-    if (activeProfile.cameraId != null && activeProfile.cameraId!.isNotEmpty) {
-      final cameraState = _ref.read(cameraStateProvider);
-      if (cameraState.connectionState != DeviceConnectionState.connected) {
-        allCriticalDevicesConnected = false;
-      }
-    }
-
-    // Check mount if in profile
-    if (activeProfile.mountId != null && activeProfile.mountId!.isNotEmpty) {
-      final mountState = _ref.read(mountStateProvider);
-      if (mountState.connectionState != DeviceConnectionState.connected) {
-        allCriticalDevicesConnected = false;
-      }
-    }
-
-    // Resume if all critical devices are connected
-    if (allCriticalDevicesConnected) {
-      try {
-        await resumeSequence();
-      } catch (e) {
-        // Log error if available
-      }
-    }
-  }
-
-  /// Perform the actual reconnection based on device type
-  Future<void> _performReconnection(DeviceType type, String deviceId) async {
-    switch (type) {
-      case DeviceType.camera:
-        final notifier = _ref.read(cameraStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.mount:
-        final notifier = _ref.read(mountStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.focuser:
-        final notifier = _ref.read(focuserStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.filterWheel:
-        final notifier = _ref.read(filterWheelStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.guider:
-        final notifier = _ref.read(guiderStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.rotator:
-        final notifier = _ref.read(rotatorStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.dome:
-        final notifier = _ref.read(domeStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.weather:
-        final notifier = _ref.read(weatherStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.safetyMonitor:
-        final notifier = _ref.read(safetyMonitorStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.switch_:
-        final notifier = _ref.read(switchStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-
-      case DeviceType.coverCalibrator:
-        final notifier = _ref.read(coverCalibratorStateProvider.notifier);
-        await notifier.connect(deviceId, maxRetries: 1);
-        break;
-    }
-  }
-
-  /// Show notification that reconnection failed after max attempts
-  void _showReconnectionFailedNotification(DeviceType type, String deviceId) {
-    // Show UI notification with detailed troubleshooting info
-    try {
-      final uiNotifier = _ref.read(uiNotificationProvider.notifier);
-      uiNotifier.showError(
-        'Failed to reconnect ${type.displayName} after $_maxReconnectAttempts attempts.\n\n'
-        'Troubleshooting steps:\n'
-        '• Check device power and USB/network connections\n'
-        '• Verify device drivers are installed and up to date\n'
-        '• Try unplugging and reconnecting the device\n'
-        '• Restart the device software (ASCOM/INDI/etc.)\n'
-        '• Check for device error messages or logs\n\n'
-        'Please fix the issue and reconnect manually.',
-        title: '${type.displayName} Reconnection Failed',
-        duration: const Duration(seconds: 15),
-      );
-    } catch (e) {
-      // Ignore errors if notification system is not available
-    }
-
-    // Also send external notifications (Discord/Pushover) with detailed info
-    try {
-      final notificationService = _ref.read(notificationServiceProvider);
-      notificationService.notifyError(
-        errorTitle: 'Device Reconnection Failed',
-        errorMessage:
-            '${type.displayName} ($deviceId) could not be reconnected after $_maxReconnectAttempts attempts.\n\n'
-            'Auto-reconnection has stopped. Manual intervention required.\n'
-            'Check device power, connections, and drivers.',
-        source: 'Device Monitor',
-      );
-    } catch (e) {
-      // Ignore errors if notification service is not available
-    }
-  }
-
-  /// Show notification that reconnection succeeded
-  void _showReconnectionSuccessNotification(DeviceType type, String deviceId) {
-    // Show UI notification
-    try {
-      final uiNotifier = _ref.read(uiNotificationProvider.notifier);
-      uiNotifier.showSuccess(
-        '${type.displayName} has been reconnected successfully.',
-        title: 'Device Reconnected',
-        duration: const Duration(seconds: 5),
-      );
-    } catch (e) {
-      // Ignore errors if notification system is not available
-    }
-
-    // Also send external notifications if this was a critical device
-    if (type == DeviceType.camera || type == DeviceType.mount) {
-      try {
-        final notificationService = _ref.read(notificationServiceProvider);
-        notificationService.notifyCustom(
-          title: 'Device Reconnected',
-          message:
-              '${type.displayName} ($deviceId) has been reconnected successfully and is back online.',
-          priority: NotificationPriority.normal,
-        );
-      } catch (e) {
-        // Ignore errors if notification service is not available
-      }
-    }
-  }
-
-  /// Cancel all pending reconnection attempts
-  void _cancelAllReconnections() {
-    for (final timer in _reconnectionTimers.values) {
-      timer.cancel();
-    }
-    _reconnectionTimers.clear();
-    _reconnectionAttempts.clear();
-  }
-
-  /// Handle disconnection of critical devices (camera, mount) during sequence execution
   Future<void> _handleCriticalDeviceDisconnect(
-      String deviceType, String deviceId) async {
-    // Check if sequence is currently active. A paused sequence still needs a
-    // fresh checkpoint on critical disconnect so a crash during recovery does
-    // not roll back to the previous periodic checkpoint.
-    final sequenceState = _ref.read(sequenceExecutionStateProvider);
-    if (sequenceState != SequenceExecutionState.running &&
-        sequenceState != SequenceExecutionState.paused) {
-      return; // Not active, no action needed
-    }
-
-    try {
-      await _backend.saveCheckpoint();
-    } catch (e) {
-      _safeLog(
-        (logger) => logger.error(
-          'Failed to save checkpoint after critical $deviceType disconnect '
-          '($deviceId): $e',
-          source: 'DeviceService',
-        ),
-        'critical-disconnect-checkpoint',
-      );
-      try {
-        _ref.read(uiNotificationProvider.notifier).showError(
-              'Failed to save a sequence checkpoint after $deviceType disconnected.',
-              title: 'Checkpoint Failed',
-              duration: const Duration(seconds: 12),
-            );
-      } on Object {
-        // Notification failure must not mask the hardware-protection pause.
-      }
-    }
-
-    if (sequenceState == SequenceExecutionState.paused) {
-      return;
-    }
-
-    // Pause the sequence
-    try {
-      await pauseSequence();
-    } catch (e) {
-      // Log error if available
-    }
-
-    // The sequence will resume automatically if reconnection succeeds
-    // The reconnection logic in _performReconnection will handle resuming
-  }
+          String deviceType, String deviceId) =>
+      _reconnectCoordinator.handleCriticalDeviceDisconnect(
+          deviceType, deviceId);
 
   void _handleSequencerEvent(NightshadeEvent event) {
     applySequencerEventToSequenceProviders(_ref.read, event);
@@ -1647,8 +1215,7 @@ class DeviceService {
     _eventSubscription?.cancel();
     _temperaturePoller.dispose();
     _warmupController.dispose();
-    _userDisconnectDebounceTimer?.cancel();
-    _cancelAllReconnections();
+    _reconnectCoordinator.cancelAll();
   }
 
   /// Discover available devices of a specific type
