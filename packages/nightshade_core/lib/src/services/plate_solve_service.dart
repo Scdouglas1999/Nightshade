@@ -3,8 +3,8 @@
 import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
-import 'package:nightshade_bridge/src/api/plate_solve.dart'
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
+import 'package:nightshade_bridge/nightshade_bridge.dart'
     show PlateSolveResult;
 import '../models/plate_solver.dart' as ps_model;
 import '../providers/backend_provider.dart';

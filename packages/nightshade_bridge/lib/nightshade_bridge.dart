@@ -55,3 +55,7 @@ export 'src/device_capabilities.dart';
 // Export safe-cast helpers used at the FFI boundary (audit-rust §1.4).
 // Re-exported from nightshade_core for discoverability.
 export 'src/utils/safe_cast.dart';
+
+// Export the FRB-generated NightshadeError sealed class hierarchy so
+// consumers don't have to reach into `src/error.dart` directly.
+export 'src/error.dart';

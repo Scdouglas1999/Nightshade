@@ -8,8 +8,7 @@ import 'dart:typed_data';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:path/path.dart' as p;
-import 'package:nightshade_core/src/models/settings/app_settings.dart'
-    as models;
+import '../models/settings/app_settings.dart' as models;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:web_socket_channel/io.dart';
 

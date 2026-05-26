@@ -26,8 +26,8 @@
 //     should be wired during app bootstrap.
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_diag;
-import 'package:nightshade_bridge/src/device_capabilities.dart' as bridge_caps;
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_diag;
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_caps;
 
 import '../../models/backend/device_capabilities.dart';
 import '../../models/equipment/equipment_models.dart';

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
+import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
 import '../providers/profiles_provider.dart';
