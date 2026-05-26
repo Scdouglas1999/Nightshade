@@ -75,7 +75,8 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
       state = snippets;
       _loaded = true;
     } catch (e) {
-      developer.log('Error loading custom snippets: $e', name: 'TemplateSnippet', level: 1000);
+      developer.log('Error loading custom snippets: $e',
+          name: 'TemplateSnippet', level: 1000);
       state = [];
       _loaded = true;
     }
@@ -106,9 +107,8 @@ class CustomSnippetsNotifier extends StateNotifier<List<TemplateSnippet>> {
     await _ensureLoaded();
 
     // Ensure the snippet is not marked as built-in
-    final snippetToAdd = snippet.isBuiltIn
-        ? snippet.copyWith(isBuiltIn: false)
-        : snippet;
+    final snippetToAdd =
+        snippet.isBuiltIn ? snippet.copyWith(isBuiltIn: false) : snippet;
 
     state = [...state, snippetToAdd];
 
@@ -271,6 +271,21 @@ Map<String, dynamic> _serializeNode(
     base.addAll({
       'requiredSuccesses': node.requiredSuccesses,
     });
+  } else if (node is TargetSchedulerNode) {
+    base.addAll({
+      'altitudeWeight': node.altitudeWeight,
+      'moonDistanceWeight': node.moonDistanceWeight,
+      'transitProximityWeight': node.transitProximityWeight,
+      'darknessWeight': node.darknessWeight,
+      'airmassWeight': node.airmassWeight,
+      'minScoreToRun': node.minScoreToRun,
+      'recomputeEveryNExposures': node.recomputeEveryNExposures,
+      'finishIterationOnSwitch': node.finishIterationOnSwitch,
+      'swapOnConditionsBelow': node.swapOnConditionsBelow,
+      'swapHysteresisSecs': node.swapHysteresisSecs,
+      'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
+      'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+    });
   } else if (node is ConditionalNode) {
     base.addAll({
       'conditionType': node.conditionType.name,
@@ -313,6 +328,14 @@ Map<String, dynamic> _serializeNode(
       'offset': node.offset,
       'binning': node.binning.name,
       'ditherEvery': node.ditherEvery,
+    });
+  } else if (node is SmartExposureNode) {
+    base.addAll({
+      'plans': node.plans.map((p) => p.toJson()).toList(growable: false),
+      'rotateFilters': node.rotateFilters,
+      'ditherOnFilterChange': node.ditherOnFilterChange,
+      'integrationBudgetSecs': node.integrationBudgetSecs,
+      'batchSize': node.batchSize,
     });
   } else if (node is AutofocusNode) {
     base.addAll({

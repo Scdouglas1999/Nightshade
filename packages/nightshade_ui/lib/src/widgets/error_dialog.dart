@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
 import '../components/nightshade_button.dart';
-import '../utils/responsive_utils.dart';
+import '../dialogs/nightshade_dialog.dart';
 
 /// User-friendly error dialog with optional technical details.
 ///
@@ -65,145 +67,16 @@ class _ErrorDialogState extends State<ErrorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Semantics(
       label: 'Error dialog: ${widget.title}',
-      child: AlertDialog(
-        backgroundColor: colors.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(8),
-          side: BorderSide(color: colors.error.withValues(alpha: 0.3)),
-        ),
-        title: Semantics(
-          header: true,
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.error.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  LucideIcons.alertCircle,
-                  color: colors.error,
-                  size: 24,
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: colors.textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        content: ConstrainedBox(
-          constraints: Responsive.dialogConstraints(
-            context,
-            preferredWidth: 480,
-            minWidth: 320,
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // User-friendly message
-              Semantics(
-                label: 'Error message',
-                child: Text(
-                  widget.message,
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 14,
-                    height: 1.5,
-                  ),
-                ),
-              ),
-
-              // Technical details toggle
-              if (widget.technicalDetails != null) ...[
-                const SizedBox(height: 16),
-                Semantics(
-                  button: true,
-                  label: _showDetails
-                      ? 'Hide technical details'
-                      : 'Show technical details',
-                  child: InkWell(
-                    onTap: () => setState(() => _showDetails = !_showDetails),
-                    borderRadius: BorderRadius.circular(8),
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 6,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            _showDetails
-                                ? LucideIcons.chevronDown
-                                : LucideIcons.chevronRight,
-                            size: 16,
-                            color: colors.primary,
-                          ),
-                          const SizedBox(width: 6),
-                          Text(
-                            _showDetails
-                                ? 'Hide Technical Details'
-                                : 'View Technical Details',
-                            style: TextStyle(
-                              color: colors.primary,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w500,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-
-                // Technical details panel
-                if (_showDetails) ...[
-                  const SizedBox(height: 12),
-                  Semantics(
-                    label: 'Technical error details',
-                    child: Container(
-                      constraints: const BoxConstraints(maxHeight: 200),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: colors.background,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: SingleChildScrollView(
-                        child: SelectableText(
-                          widget.technicalDetails!,
-                          style: TextStyle(
-                            color: colors.textMuted,
-                            fontSize: 11,
-                            fontFamily: 'monospace',
-                            height: 1.4,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ],
-          ),
-        ),
+      child: NightshadeDialog(
+        title: widget.title,
+        icon: LucideIcons.alertCircle,
+        width: 520,
+        showCloseButton: false,
         actions: [
-          // Dismiss button
           Semantics(
             button: true,
             label: 'Close error dialog',
@@ -214,8 +87,6 @@ class _ErrorDialogState extends State<ErrorDialog> {
               size: ButtonSize.medium,
             ),
           ),
-
-          // Retry button (if provided)
           if (widget.onRetry != null)
             Semantics(
               button: true,
@@ -232,6 +103,89 @@ class _ErrorDialogState extends State<ErrorDialog> {
               ),
             ),
         ],
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // User-friendly message
+            Semantics(
+              label: 'Error message',
+              child: Text(
+                widget.message,
+                style: NightshadeTypography.body.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+
+            // Technical details toggle
+            if (widget.technicalDetails != null) ...[
+              const SizedBox(height: NightshadeTokens.spaceLg),
+              Semantics(
+                button: true,
+                label: _showDetails
+                    ? 'Hide technical details'
+                    : 'Show technical details',
+                child: InkWell(
+                  onTap: () => setState(() => _showDetails = !_showDetails),
+                  borderRadius: NightshadeTokens.borderRadiusMd,
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: NightshadeTokens.spaceSm,
+                      vertical: NightshadeTokens.spaceSm - 2,
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          _showDetails
+                              ? LucideIcons.chevronDown
+                              : LucideIcons.chevronRight,
+                          size: NightshadeTokens.iconSm,
+                          color: colors.primary,
+                        ),
+                        const SizedBox(width: NightshadeTokens.spaceSm - 2),
+                        Text(
+                          _showDetails
+                              ? 'Hide Technical Details'
+                              : 'View Technical Details',
+                          style: NightshadeTypography.label.copyWith(
+                            color: colors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+
+              // Technical details panel
+              if (_showDetails) ...[
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                Semantics(
+                  label: 'Technical error details',
+                  child: Container(
+                    constraints: const BoxConstraints(maxHeight: 200),
+                    padding: NightshadeTokens.paddingMd,
+                    decoration: BoxDecoration(
+                      color: colors.background,
+                      borderRadius: NightshadeTokens.borderRadiusMd,
+                      border: Border.all(color: colors.border),
+                    ),
+                    child: SingleChildScrollView(
+                      child: SelectableText(
+                        widget.technicalDetails!,
+                        style: NightshadeTypography.monoSm.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ],
+        ),
       ),
     );
   }

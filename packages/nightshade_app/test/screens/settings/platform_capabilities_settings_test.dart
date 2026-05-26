@@ -23,13 +23,8 @@ void main() {
       ProviderScope(
         child: MaterialApp(
           theme: NightshadeTheme.dark,
-          home: Builder(
-            builder: (context) {
-              final colors = Theme.of(context).extension<NightshadeColors>()!;
-              return Scaffold(
-                body: ConnectionSettings(colors: colors),
-              );
-            },
+          home: const Scaffold(
+            body: ConnectionSettings(),
           ),
         ),
       ),

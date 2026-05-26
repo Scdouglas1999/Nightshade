@@ -1,33 +1,38 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 
 class NightshadeDropdown extends StatelessWidget {
   final String? value;
   final String? hint;
   final List<String> items;
+  final List<String>? itemLabels;
   final ValueChanged<String?>? onChanged;
   final bool isExpanded;
+  final bool isDense;
 
   const NightshadeDropdown({
     super.key,
     this.value,
     this.hint,
     required this.items,
+    this.itemLabels,
     this.onChanged,
     this.isExpanded = false,
+    this.isDense = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+        border: Border.all(color: colors.border.withValues(alpha: 0.85)),
       ),
       child: DropdownButtonHideUnderline(
         child: DropdownButton<String>(
@@ -42,6 +47,7 @@ class NightshadeDropdown extends StatelessWidget {
                 )
               : null,
           isExpanded: isExpanded,
+          isDense: isDense,
           icon: Icon(
             LucideIcons.chevronDown,
             size: 14,
@@ -53,12 +59,19 @@ class NightshadeDropdown extends StatelessWidget {
             fontSize: 12,
             color: colors.textPrimary,
           ),
-          items: items.map((item) {
+          items: List.generate(items.length, (index) {
+            final item = items[index];
+            final label = itemLabels != null && index < itemLabels!.length
+                ? itemLabels![index]
+                : item;
             return DropdownMenuItem<String>(
               value: item,
-              child: Text(item),
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+              ),
             );
-          }).toList(),
+          }),
           onChanged: onChanged,
         ),
       ),

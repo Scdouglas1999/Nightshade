@@ -59,6 +59,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
 
   @override
   Widget build(BuildContext context) {
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
     final stackState = ref.watch(liveStackingProvider);
     final isRunning = stackState.status == LiveStackingStatus.running;
     final isError = stackState.status == LiveStackingStatus.error;
@@ -128,6 +129,19 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 12),
 
+                if (isRemoteMode)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Text(
+                      'Live stacking from a local file is only available on the '
+                      'imaging host. Capture frames on the host to stack remotely.',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: widget.colors.textMuted,
+                      ),
+                    ),
+                  ),
+
                 // Start/Stop buttons
                 Row(
                   children: [
@@ -138,7 +152,8 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                             ? LucideIcons.loader2
                             : LucideIcons.layers,
                         colors: widget.colors,
-                        isEnabled: !isRunning && !_isStarting,
+                        isEnabled:
+                            !isRemoteMode && !isRunning && !_isStarting,
                         onTap: _startStacking,
                       ),
                     ),
@@ -213,10 +228,38 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
                 const SizedBox(height: 8),
                 _StatRow(
-                  label: 'Sigma-Rejected Pixels',
+                  label: 'Sigma-Rejected (Total)',
                   value: _formatLargeNumber(stats.totalSigmaRejectedPixels),
                   colors: widget.colors,
                 ),
+                const SizedBox(height: 8),
+                _StatRow(
+                  label: 'Sigma-Rejected (Last Frame)',
+                  value: _formatLargeNumber(
+                      stackState.lastFrameSigmaRejectedPixels),
+                  valueColor: _rejectionRateColor(
+                      stackState.lastFrameSigmaRejectionRate, widget.colors),
+                  colors: widget.colors,
+                ),
+                const SizedBox(height: 8),
+                _StatRow(
+                  label: 'Rejection Rate (Last Frame)',
+                  value: stackState.lastFrameTotalPixels > 0
+                      ? '${(stackState.lastFrameSigmaRejectionRate * 100).toStringAsFixed(2)}%'
+                      : '--',
+                  valueColor: _rejectionRateColor(
+                      stackState.lastFrameSigmaRejectionRate, widget.colors),
+                  colors: widget.colors,
+                ),
+                if (stackState.lastFrameTotalPixels > 0 &&
+                    stackState.lastFrameSigmaRejectionRate >
+                        _rejectionWarningThreshold) ...[
+                  const SizedBox(height: 10),
+                  _RejectionWarning(
+                    rate: stackState.lastFrameSigmaRejectionRate,
+                    colors: widget.colors,
+                  ),
+                ],
                 const SizedBox(height: 12),
                 // Alignment quality indicator
                 _AlignmentQualityBar(
@@ -258,19 +301,13 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                         style: TextStyle(
                             fontSize: 12,
                             color: widget.colors.textSecondary)),
-                    SizedBox(
-                      height: 24,
-                      child: Switch(
-                        value: config.sigmaClipEnabled,
-                        onChanged: (value) {
-                          ref
-                              .read(liveStackingProvider.notifier)
-                              .updateConfig(
-                                config.copyWith(sigmaClipEnabled: value),
-                              );
-                        },
-                        activeColor: widget.colors.primary,
-                      ),
+                    NightshadeSwitch(
+                      value: config.sigmaClipEnabled,
+                      onChanged: (value) {
+                        ref.read(liveStackingProvider.notifier).updateConfig(
+                              config.copyWith(sigmaClipEnabled: value),
+                            );
+                      },
                     ),
                   ],
                 ),
@@ -374,7 +411,27 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     }
     return value.toString();
   }
+
+  /// Resolve the value-color for a sigma-rejection rate based on the
+  /// per-frame thresholds (`_rejectionWarningThreshold` /
+  /// `_rejectionErrorThreshold`). Returns `null` for healthy rates so the
+  /// stat row uses the default text color.
+  Color? _rejectionRateColor(double rate, NightshadeColors colors) {
+    if (rate >= _rejectionErrorThreshold) return colors.error;
+    if (rate >= _rejectionWarningThreshold) return colors.warning;
+    return null;
+  }
 }
+
+/// Per-frame sigma-rejection rate at which we paint the stat in the warning
+/// color. Above ~5% on a single frame usually indicates drift, a satellite
+/// trail, clouds, or a tracking glitch -- worth flagging to the user.
+const double _rejectionWarningThreshold = 0.05;
+
+/// Per-frame sigma-rejection rate at which we escalate to the error color
+/// and show the alert banner. Above ~15% the frame is contributing far more
+/// noise than signal -- typically a stale or fundamentally unusable frame.
+const double _rejectionErrorThreshold = 0.15;
 
 // ---------------------------------------------------------------------------
 // Private widgets
@@ -391,10 +448,9 @@ class _ErrorBanner extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       margin: const EdgeInsets.only(bottom: 16),
-      decoration: BoxDecoration(
-        color: colors.error.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.error,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -441,6 +497,76 @@ class _StatRow extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Inline warning shown when the sigma-clipper rejected an unusually high
+/// fraction of pixels on the most recent frame. The Rust engine accumulates
+/// rejections silently; surfacing it here lets the observer react (refocus,
+/// fix tracking, abandon the frame) instead of finding out hours later.
+class _RejectionWarning extends StatelessWidget {
+  final double rate;
+  final NightshadeColors colors;
+
+  const _RejectionWarning({
+    required this.rate,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isError = rate >= _rejectionErrorThreshold;
+    final accent = isError ? colors.error : colors.warning;
+    final label = isError
+        ? 'Very high sigma rejection on last frame'
+        : 'Elevated sigma rejection on last frame';
+    final detail = isError
+        ? 'Above ${(_rejectionErrorThreshold * 100).toStringAsFixed(0)}% rejected -- '
+            'check for clouds, drift, or a satellite trail.'
+        : 'Above ${(_rejectionWarningThreshold * 100).toStringAsFixed(0)}% rejected -- '
+            'seeing, dithering, or alignment may be off.';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: NightshadeDecorations.emphasisSurface(
+        accent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            isError ? LucideIcons.alertOctagon : LucideIcons.alertTriangle,
+            size: 14,
+            color: accent,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: accent,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

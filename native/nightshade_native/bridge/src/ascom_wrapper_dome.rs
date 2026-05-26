@@ -22,11 +22,18 @@ enum AscomDomeCommand {
         azimuth: f64,
         reply: oneshot::Sender<Result<(), String>>,
     },
+    AbortSlew(oneshot::Sender<Result<(), String>>),
+    FindHome(oneshot::Sender<Result<(), String>>),
+    SetSlaved {
+        slaved: bool,
+        reply: oneshot::Sender<Result<(), String>>,
+    },
     // Version query commands
     GetInterfaceVersion(oneshot::Sender<Result<i32, String>>),
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
     GetDriverInfo(oneshot::Sender<Result<String, String>>),
     GetSupportedActions(oneshot::Sender<Result<Vec<String>, String>>),
+    Heartbeat(oneshot::Sender<Result<(), String>>),
 }
 
 pub struct AscomDomeWrapper {
@@ -106,6 +113,15 @@ impl AscomDomeWrapper {
                     AscomDomeCommand::SlewToAzimuth { azimuth, reply } => {
                         let _ = reply.send(dome.slew_to_azimuth(azimuth));
                     }
+                    AscomDomeCommand::AbortSlew(reply) => {
+                        let _ = reply.send(dome.abort_slew());
+                    }
+                    AscomDomeCommand::FindHome(reply) => {
+                        let _ = reply.send(dome.find_home());
+                    }
+                    AscomDomeCommand::SetSlaved { slaved, reply } => {
+                        let _ = reply.send(dome.set_slaved(slaved));
+                    }
                     AscomDomeCommand::GetInterfaceVersion(reply) => {
                         let _ = reply.send(dome.interface_version());
                     }
@@ -117,6 +133,9 @@ impl AscomDomeWrapper {
                     }
                     AscomDomeCommand::GetSupportedActions(reply) => {
                         let _ = reply.send(dome.supported_actions());
+                    }
+                    AscomDomeCommand::Heartbeat(reply) => {
+                        let _ = reply.send(dome.heartbeat());
                     }
                 }
             }
@@ -177,8 +196,18 @@ impl AscomDomeWrapper {
         result
     }
 
+    #[allow(dead_code)] // Used by ASCOM dome heartbeat once FB-P1-5 in-dispatch probe lands.
     pub fn is_connected(&self) -> bool {
         self.connected.load(Ordering::SeqCst)
+    }
+
+    pub async fn heartbeat(&self) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomDomeCommand::Heartbeat(tx))
+            .await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "heartbeat").await
     }
 
     pub async fn open_shutter(&self) -> Result<(), String> {
@@ -253,6 +282,33 @@ impl AscomDomeWrapper {
         Self::recv_with_timeout(rx, Timeouts::dome(), "slew_to_azimuth").await
     }
 
+    pub async fn abort_slew(&self) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomDomeCommand::AbortSlew(tx))
+            .await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::dome(), "abort_slew").await
+    }
+
+    pub async fn find_home(&self) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomDomeCommand::FindHome(tx))
+            .await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::find_home(), "find_home").await
+    }
+
+    pub async fn set_slaved(&self, slaved: bool) -> Result<(), String> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomDomeCommand::SetSlaved { slaved, reply: tx })
+            .await
+            .map_err(|e| format!("Send error: {}", e))?;
+        Self::recv_with_timeout(rx, Timeouts::property_write(), "set_slaved").await
+    }
+
     /// Get the ASCOM interface version number
     pub async fn interface_version(&self) -> Result<i32, String> {
         let (tx, rx) = oneshot::channel();
@@ -291,5 +347,51 @@ impl AscomDomeWrapper {
             .await
             .map_err(|e| format!("Send error: {}", e))?;
         Self::recv_with_timeout(rx, Timeouts::property_read(), "supported_actions").await
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn build_test_wrapper<F>(handler: F) -> AscomDomeWrapper
+    where
+        F: FnMut(AscomDomeCommand) -> bool + Send + 'static,
+    {
+        let (tx, mut rx) = mpsc::channel(8);
+        let handle = thread::spawn(move || {
+            let mut handler = handler;
+            while let Some(cmd) = rx.blocking_recv() {
+                if handler(cmd) {
+                    break;
+                }
+            }
+        });
+
+        AscomDomeWrapper {
+            id: "test-dome".to_string(),
+            name: "Test Dome".to_string(),
+            sender: tx,
+            _thread_handle: Arc::new(handle),
+            connected: AtomicBool::new(false),
+        }
+    }
+
+    #[tokio::test]
+    async fn test_heartbeat_uses_worker_command() {
+        let wrapper = build_test_wrapper(|cmd| {
+            if let AscomDomeCommand::Heartbeat(reply) = cmd {
+                let _ = reply.send(Err("COM disconnected".to_string()));
+                return true;
+            }
+            false
+        });
+
+        let result = wrapper.heartbeat().await;
+        assert!(
+            result.is_err(),
+            "heartbeat must propagate COM read failures"
+        );
+        assert!(!wrapper.is_connected());
     }
 }

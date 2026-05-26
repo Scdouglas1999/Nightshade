@@ -129,6 +129,13 @@ class TargetHandlers {
 
     final id = await database.targetsDao.createTarget(companion);
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.target,
+      action: HostMutationAction.created,
+      entityId: id.toString(),
+      extra: {'name': requireString(payload, 'name')},
+    );
     return jsonOk({'status': 'created', 'id': id});
   }
 
@@ -187,6 +194,13 @@ class TargetHandlers {
 
     await database.targetsDao.updateTarget(updated);
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.target,
+      action: HostMutationAction.updated,
+      entityId: targetId.toString(),
+      extra: {'name': updated.name},
+    );
     return jsonOk({'status': 'updated'});
   }
 
@@ -204,6 +218,12 @@ class TargetHandlers {
       return jsonNotFound({'error': 'Target not found: $id'});
     }
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.target,
+      action: HostMutationAction.deleted,
+      entityId: targetId.toString(),
+    );
     return jsonOk({'status': 'deleted'});
   }
 

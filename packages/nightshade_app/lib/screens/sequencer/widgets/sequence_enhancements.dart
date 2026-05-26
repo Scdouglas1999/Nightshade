@@ -76,11 +76,9 @@ class EstimatedCompletionWidget extends ConsumerWidget {
             const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: colors.success.withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.statusChip(
+                colors.success,
                 borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
               child: Text(
                 'RUNNING',
@@ -274,13 +272,6 @@ class _TargetBreakdownChipState extends State<_TargetBreakdownChip> {
               color: widget.colors.surface,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: widget.colors.border),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.2),
-                  blurRadius: 12,
-                  offset: const Offset(0, -4),
-                ),
-              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -399,14 +390,10 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
           height: 8,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: widget.color,
-            boxShadow: [
-              BoxShadow(
-                color: widget.color.withValues(alpha: value * 0.6),
-                blurRadius: 4 + (1 - value) * 6,
-                spreadRadius: (1 - value) * 3,
-              ),
-            ],
+            color: widget.color.withValues(alpha: value),
+            border: Border.all(
+              color: widget.color.withValues(alpha: 0.5),
+            ),
           ),
         );
       },
@@ -434,12 +421,7 @@ class LoopIterationBadge extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.primary.withValues(alpha: 0.2),
-            colors.accent.withValues(alpha: 0.2),
-          ],
-        ),
+        color: colors.primary.withValues(alpha: 0.1),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: Color.lerp(colors.primary, colors.accent, progress)!,
@@ -491,25 +473,22 @@ class NodeProgressIndicator extends StatelessWidget {
         children: [
           // Progress bar background
           Positioned.fill(
-            child: AnimatedContainer(
-              duration: const Duration(milliseconds: 300),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                  stops: [progress, progress],
-                  colors: [
-                    isActive
-                        ? colors.success.withValues(alpha: 0.15)
-                        : colors.primary.withValues(alpha: 0.1),
-                    Colors.transparent,
-                  ],
-                ),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              widthFactor: progress.clamp(0.0, 1.0),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 300),
+                decoration: isActive
+                    ? NightshadeDecorations.statusChip(
+                        colors.success,
+                        bordered: false,
+                      )
+                    : NightshadeDecorations.tintedBadge(colors.primary),
               ),
             ),
           ),
 
-          // Active glow border
+          // Active border
           if (isActive)
             Positioned.fill(
               child: Container(
@@ -519,13 +498,6 @@ class NodeProgressIndicator extends StatelessWidget {
                     color: colors.success,
                     width: 2,
                   ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: colors.success.withValues(alpha: 0.3),
-                      blurRadius: 8,
-                      spreadRadius: 2,
-                    ),
-                  ],
                 ),
               ),
             ),
@@ -554,23 +526,6 @@ class ActiveBranchHighlight extends StatelessWidget {
 
     return Stack(
       children: [
-        // Glow effect
-        Positioned.fill(
-          child: Container(
-            margin: const EdgeInsets.all(-4),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.success.withValues(alpha: 0.2),
-                  blurRadius: 16,
-                  spreadRadius: 4,
-                ),
-              ],
-            ),
-          ),
-        ),
-        // Actual content with border
         Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(8),

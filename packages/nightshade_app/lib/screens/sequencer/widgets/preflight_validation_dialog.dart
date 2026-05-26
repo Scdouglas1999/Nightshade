@@ -5,6 +5,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'mount_unpark_dialog.dart';
+import 'sequence_diff_dialog.dart';
+import 'session_handoff_dialog.dart';
+import 'visual_timeline.dart';
 
 // =============================================================================
 // PRE-FLIGHT VALIDATION DIALOG
@@ -36,12 +39,23 @@ class PreFlightValidationDialog extends ConsumerStatefulWidget {
 class _PreFlightValidationDialogState
     extends ConsumerState<PreFlightValidationDialog> {
   ValidationResult? _result;
+  PreSessionSimulationResult? _simulation;
+  String? _simulationUnavailableReason;
   bool _isValidating = true;
+
+  /// Wave 6 Pack O — diff vs the most recent COMPLETED run of this
+  /// sequence. `null` either means we haven't computed it yet, or there
+  /// is no previous run to compare against (fresh sequence, or first
+  /// successful run still pending). When non-null AND non-empty we
+  /// surface a small info-banner near the top of the dialog with a
+  /// "View N changes" link.
+  SequenceDiffResult? _previousRunDiff;
 
   @override
   void initState() {
     super.initState();
     _runValidation();
+    _computePreviousRunDiff();
   }
 
   Future<void> _runValidation() async {
@@ -53,16 +67,111 @@ class _PreFlightValidationDialogState
 
     final validator = ref.read(sequenceValidatorProvider);
     final result = await validator.validate(sequence);
+    final (simulation, simulationUnavailableReason) =
+        await _simulateCurrentSequence(sequence);
 
     if (mounted) {
       setState(() {
         _result = result;
+        _simulation = simulation;
+        _simulationUnavailableReason = simulationUnavailableReason;
         _isValidating = false;
       });
     }
   }
 
-  /// Handle starting the sequence, checking for mount parking first
+  Future<(PreSessionSimulationResult?, String?)> _simulateCurrentSequence(
+    Sequence sequence,
+  ) async {
+    final settings = await ref.read(appSettingsProvider.future);
+    if (settings.latitude == 0.0 && settings.longitude == 0.0) {
+      return (
+        null,
+        'Set observer latitude and longitude to simulate target visibility.',
+      );
+    }
+
+    try {
+      final twilight = ref.read(preSessionTwilightTimesProvider);
+      final simulation = const PreSessionSimulator().simulate(
+        sequence,
+        start: DateTime.now(),
+        latitude: settings.latitude,
+        longitude: settings.longitude,
+        minAltitude: settings.effectiveHorizonDeg,
+        darkWindowStart: twilight?.astronomicalDusk,
+        darkWindowEnd: twilight?.astronomicalDawn,
+      );
+      return (simulation, null);
+    } catch (e) {
+      return (null, 'Simulation failed: $e');
+    }
+  }
+
+  /// Resolve the most recent COMPLETED run of the current sequence and
+  /// compute a structural diff against the in-editor copy. The diff is
+  /// informational only — pre-flight does NOT block on it; the link
+  /// just lets the operator review what's changed since the last
+  /// known-good run.
+  ///
+  /// We swallow errors quietly: a missing repository, missing DAO, or
+  /// stale node-id mapping should not block the user from starting the
+  /// sequence. The link simply won't appear in those cases.
+  Future<void> _computePreviousRunDiff() async {
+    try {
+      final sequence = ref.read(currentSequenceProvider);
+      if (sequence == null) return;
+      final sequenceDbId = sequence.databaseId;
+      if (sequenceDbId == null) {
+        // Sequence has never been persisted — no run history to diff.
+        return;
+      }
+      final dao = ref.read(sequenceRunsDaoProvider);
+      final runs = await dao.getRunsForSequence(sequenceDbId);
+      // Filter to "completed" runs only; failed / cancelled / running
+      // runs are not the operator's reference point for "last known
+      // good".
+      SequenceRun? lastCompleted;
+      for (final r in runs) {
+        if (r.status == 'completed') {
+          lastCompleted = r;
+          break;
+        }
+      }
+      if (lastCompleted == null) return;
+
+      // We don't yet snapshot the sequence definition inside each run
+      // row (see [SequenceDiffDialog.showForRun] for context), so the
+      // diff against the persisted current sequence is the best we can
+      // do. The diff service is structural by node id; if the user has
+      // genuinely changed nothing, this returns an empty result and
+      // we skip the banner.
+      final repo = ref.read(sequenceRepositoryProvider);
+      final persisted = await repo.loadSequence(sequenceDbId);
+      if (persisted == null) return;
+      final diffService = ref.read(sequenceDiffServiceProvider);
+      final result = diffService.diff(
+        previous: persisted,
+        current: sequence,
+      );
+      if (result.isEmpty) return;
+      if (!mounted) return;
+      setState(() => _previousRunDiff = result);
+    } catch (_) {
+      // Quietly skip — pre-flight is not the place to bubble up
+      // diff-resolution errors. The link just won't appear.
+    }
+  }
+
+  /// Handle starting the sequence, checking for mount parking first.
+  ///
+  /// Wave 7 — Before kicking off the mount-unpark flow we surface the
+  /// multi-night carry-over dialog when (a) at least one target has
+  /// recent unfinished integration and (b) the
+  /// `sessionHandoffAutoPrompt` setting is on. The decision is recorded
+  /// in [sessionHandoffDecisionProvider]; the executor reads that value
+  /// at sequence start so the IntegrationBudget tracker can either
+  /// reuse or ignore the prior-session frames.
   Future<void> _handleStartSequence() async {
     // Check if a mount is connected and parked
     final mountState = ref.read(mountStateProvider);
@@ -73,6 +182,33 @@ class _PreFlightValidationDialogState
     // Close the preflight dialog first
     if (mounted) {
       Navigator.of(context).pop();
+    }
+
+    // Wave 7 — Surface the carry-over banner when enabled.
+    if (mounted) {
+      final autoPrompt = ref.read(sessionHandoffAutoPromptProvider);
+      if (autoPrompt) {
+        final carry = await ref
+            .read(sessionCarryOverProvider.future)
+            .catchError((_) => const <SessionCarryOver>[]);
+        if (!mounted) return;
+        if (carry.isNotEmpty) {
+          final sequenceId = ref.read(currentSequenceProvider)?.databaseId;
+          final decisions = await SessionHandoffDialog.show(
+            context: context,
+            sequenceId: sequenceId,
+            carryOvers: carry,
+          );
+          // null = user dismissed; we still proceed with the run
+          // because the carry-over is informational only.
+          if (!mounted) return;
+          if (decisions == null) {
+            // User cancelled the handoff dialog entirely — abort the
+            // sequence start in case they intended to back out.
+            return;
+          }
+        }
+      }
     }
 
     // If mount is connected and parked, show the unpark dialog
@@ -94,18 +230,23 @@ class _PreFlightValidationDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 500,
+      designHeight: 600,
+    );
 
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Container(
-        width: 500,
-        constraints: const BoxConstraints(maxHeight: 600),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
             // Header
             _buildHeader(colors),
@@ -137,8 +278,8 @@ class _PreFlightValidationDialogState
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              colors.primary,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(LucideIcons.clipboardCheck,
@@ -226,67 +367,265 @@ class _PreFlightValidationDialogState
 
   Widget _buildResults(NightshadeColors colors) {
     final result = _result!;
+    final hasSimulationIssues = _simulation?.issues.isNotEmpty ?? false;
+
+    // Wave 5 Agent 3 — partition issues into the three new pre-flight
+    // groups (Dark Library, Equipment Health, Optical Train) so each
+    // gets its own collapsible section, then a "General" bucket for
+    // the existing categories (structure / equipment / settings / etc).
+    final darkLibrary = result.issues
+        .where((i) => i.category == ValidationCategory.darkLibrary)
+        .toList(growable: false);
+    final equipmentHealth = result.issues
+        .where((i) => i.category == ValidationCategory.equipmentHealth)
+        .toList(growable: false);
+    final opticalTrain = result.issues
+        .where((i) => i.category == ValidationCategory.opticalTrain)
+        .toList(growable: false);
+    final general = result.issues
+        .where((i) =>
+            i.category != ValidationCategory.darkLibrary &&
+            i.category != ValidationCategory.equipmentHealth &&
+            i.category != ValidationCategory.opticalTrain)
+        .toList(growable: false);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Wave 6 Pack O — info banner when the sequence has changed
+          // since the last completed run. Informational only; not a
+          // pre-flight blocker.
+          if (_previousRunDiff != null && !_previousRunDiff!.isEmpty) ...[
+            _buildPreviousRunDiffBanner(colors, _previousRunDiff!),
+            const SizedBox(height: 12),
+          ],
+
           // Summary
-          _buildSummary(colors, result),
+          _buildSummary(colors, result, _simulation),
+          const SizedBox(height: 20),
+          _buildSimulationSection(colors),
           const SizedBox(height: 20),
 
-          // Issues list
-          if (result.issues.isNotEmpty) ...[
-            Text(
-              'Issues Found',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-                letterSpacing: 0.5,
-              ),
-            ),
-            const SizedBox(height: 12),
-            ...result.issues.map((issue) => _buildIssueCard(colors, issue)),
-          ] else ...[
+          if (result.issues.isEmpty && !hasSimulationIssues) ...[
             _buildAllClearCard(colors),
+          ] else ...[
+            if (general.isNotEmpty) ...[
+              Text(
+                'General',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textSecondary,
+                  letterSpacing: 0.5,
+                ),
+              ),
+              const SizedBox(height: 12),
+              ...general.map((issue) => _buildIssueCard(colors, issue)),
+              const SizedBox(height: 8),
+            ],
+            if (darkLibrary.isNotEmpty)
+              _PreflightSection(
+                colors: colors,
+                icon: LucideIcons.moon,
+                title: 'Dark Library',
+                issues: darkLibrary,
+                trailing: TextButton.icon(
+                  onPressed: _openCalibrationCenter,
+                  icon: Icon(LucideIcons.cameraOff,
+                      size: 14, color: colors.primary),
+                  label: Text(
+                    'Capture missing darks',
+                    style: TextStyle(
+                      color: colors.primary,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+              ),
+            if (equipmentHealth.isNotEmpty)
+              _PreflightSection(
+                colors: colors,
+                icon: LucideIcons.activity,
+                title: 'Equipment Health',
+                issues: equipmentHealth,
+              ),
+            if (opticalTrain.isNotEmpty)
+              _PreflightSection(
+                colors: colors,
+                icon: LucideIcons.crosshair,
+                title: 'Optical Train',
+                issues: opticalTrain,
+              ),
           ],
         ],
       ),
     );
   }
 
-  Widget _buildSummary(NightshadeColors colors, ValidationResult result) {
+  Widget _buildSimulationSection(NightshadeColors colors) {
+    final simulation = _simulation;
+    final unavailableReason = _simulationUnavailableReason;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.ganttChart, size: 16, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Simulation',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w700,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              if (simulation != null)
+                Text(
+                  'Ends ${_formatClock(simulation.end)}',
+                  style: TextStyle(fontSize: 11, color: colors.textMuted),
+                ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          if (simulation == null) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(LucideIcons.info, size: 14, color: colors.info),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    unavailableReason ?? 'Simulation unavailable.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ] else ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _SimulationMetric(
+                  colors: colors,
+                  label: 'Duration',
+                  value: _formatDuration(simulation.duration),
+                ),
+                _SimulationMetric(
+                  colors: colors,
+                  label: 'Segments',
+                  value: '${simulation.segments.length}',
+                ),
+                _SimulationMetric(
+                  colors: colors,
+                  label: 'Targets',
+                  value: '${simulation.targetWindows.length}',
+                ),
+                _SimulationMetric(
+                  colors: colors,
+                  label: 'Issues',
+                  value: '${simulation.issues.length}',
+                  tone: simulation.hasBlockingIssues
+                      ? colors.error
+                      : simulation.issues.isEmpty
+                          ? colors.success
+                          : colors.warning,
+                ),
+              ],
+            ),
+            if (simulation.segments.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _SimulationTimeline(colors: colors, simulation: simulation),
+            ],
+            if (simulation.issues.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              for (final issue in simulation.issues.take(3))
+                _SimulationIssueRow(colors: colors, issue: issue),
+            ],
+          ],
+        ],
+      ),
+    );
+  }
+
+  /// Deep-link to the dark library / calibration tools. The exact route
+  /// name is defined in `apps/desktop/lib/app_routes.dart` (and matched
+  /// on mobile). We deliberately do not build the capture sequence
+  /// here — opening the existing tool keeps the responsibility with the
+  /// dark-library screen.
+  void _openCalibrationCenter() {
+    Navigator.of(context).pop();
+    // Use a name-based push so the dialog doesn't have to import the
+    // route table. `pushNamed` silently no-ops if the name isn't
+    // registered, which is the right behaviour on unit-test contexts
+    // that don't install routes.
+    Navigator.of(context).pushNamed('/calibration');
+  }
+
+  Widget _buildSummary(
+    NightshadeColors colors,
+    ValidationResult result,
+    PreSessionSimulationResult? simulation,
+  ) {
+    final simulationErrorCount = simulation?.issues
+            .where(
+                (issue) => issue.severity == PreSessionSimulationSeverity.error)
+            .length ??
+        0;
+    final simulationWarningCount = simulation?.issues
+            .where((issue) =>
+                issue.severity == PreSessionSimulationSeverity.warning)
+            .length ??
+        0;
+    final simulationInfoCount = simulation?.issues
+            .where(
+                (issue) => issue.severity == PreSessionSimulationSeverity.info)
+            .length ??
+        0;
+
+    final errorCount = result.errorCount + simulationErrorCount;
+    final warningCount = result.warningCount + simulationWarningCount;
+    final infoCount = result.infoCount + simulationInfoCount;
+    final hasErrors = errorCount > 0;
+    final hasWarnings = warningCount > 0;
+
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: result.hasErrors
-            ? colors.error.withValues(alpha: 0.1)
-            : result.hasWarnings
-                ? colors.warning.withValues(alpha: 0.1)
-                : colors.success.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        hasErrors
+            ? colors.error
+            : hasWarnings
+                ? colors.warning
+                : colors.success,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: result.hasErrors
-              ? colors.error.withValues(alpha: 0.3)
-              : result.hasWarnings
-                  ? colors.warning.withValues(alpha: 0.3)
-                  : colors.success.withValues(alpha: 0.3),
-        ),
       ),
       child: Row(
         children: [
           Icon(
-            result.hasErrors
+            hasErrors
                 ? LucideIcons.xCircle
-                : result.hasWarnings
+                : hasWarnings
                     ? LucideIcons.alertTriangle
                     : LucideIcons.checkCircle,
             size: 32,
-            color: result.hasErrors
+            color: hasErrors
                 ? colors.error
-                : result.hasWarnings
+                : hasWarnings
                     ? colors.warning
                     : colors.success,
           ),
@@ -296,26 +635,26 @@ class _PreFlightValidationDialogState
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  result.hasErrors
+                  hasErrors
                       ? 'Cannot Start Sequence'
-                      : result.hasWarnings
+                      : hasWarnings
                           ? 'Ready with Warnings'
                           : 'All Checks Passed',
                   style: TextStyle(
                     fontSize: 14,
                     fontWeight: FontWeight.w600,
-                    color: result.hasErrors
+                    color: hasErrors
                         ? colors.error
-                        : result.hasWarnings
+                        : hasWarnings
                             ? colors.warning
                             : colors.success,
                   ),
                 ),
                 Text(
-                  result.hasErrors
-                      ? 'Please fix ${result.errorCount} error(s) before starting'
-                      : result.hasWarnings
-                          ? '${result.warningCount} warning(s) found'
+                  hasErrors
+                      ? 'Please fix $errorCount error(s) before starting'
+                      : hasWarnings
+                          ? '$warningCount warning(s) found'
                           : 'Sequence is ready to run',
                   style: TextStyle(
                     fontSize: 12,
@@ -328,24 +667,24 @@ class _PreFlightValidationDialogState
           // Issue counts
           Row(
             children: [
-              if (result.errorCount > 0)
+              if (errorCount > 0)
                 _CountBadge(
-                  count: result.errorCount,
+                  count: errorCount,
                   color: colors.error,
                   icon: LucideIcons.xCircle,
                 ),
-              if (result.warningCount > 0) ...[
+              if (warningCount > 0) ...[
                 const SizedBox(width: 8),
                 _CountBadge(
-                  count: result.warningCount,
+                  count: warningCount,
                   color: colors.warning,
                   icon: LucideIcons.alertTriangle,
                 ),
               ],
-              if (result.infoCount > 0) ...[
+              if (infoCount > 0) ...[
                 const SizedBox(width: 8),
                 _CountBadge(
-                  count: result.infoCount,
+                  count: infoCount,
                   color: colors.info,
                   icon: LucideIcons.info,
                 ),
@@ -389,9 +728,10 @@ class _PreFlightValidationDialogState
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: issueColor.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              issueColor,
               borderRadius: BorderRadius.circular(6),
+              bordered: false,
             ),
             child: Icon(issueIcon, size: 14, color: issueColor),
           ),
@@ -466,6 +806,70 @@ class _PreFlightValidationDialogState
     );
   }
 
+  /// Wave 6 Pack O — info-severity banner shown when the in-editor
+  /// sequence differs structurally from the most recent COMPLETED run
+  /// of the same sequence. Tapping "View N changes" pops the structural
+  /// diff dialog.
+  Widget _buildPreviousRunDiffBanner(
+    NightshadeColors colors,
+    SequenceDiffResult diff,
+  ) {
+    final changeCount =
+        diff.added.length + diff.removed.length + diff.modified.length;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: colors.info.withValues(alpha: 0.10),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.info.withValues(alpha: 0.30)),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.gitCompare, size: 16, color: colors.info),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'Sequence has changed since last successful run',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '$changeCount change${changeCount == 1 ? '' : 's'} '
+                  'across ${diff.added.length} added, '
+                  '${diff.removed.length} removed, '
+                  '${diff.modified.length} modified node(s).',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          TextButton.icon(
+            onPressed: () => SequenceDiffDialog.show(context, diff),
+            icon: Icon(LucideIcons.eye, size: 14, color: colors.info),
+            label: Text(
+              'View changes',
+              style: TextStyle(
+                color: colors.info,
+                fontSize: 12,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildAllClearCard(NightshadeColors colors) {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -500,50 +904,222 @@ class _PreFlightValidationDialogState
   }
 
   Widget _buildActions(NightshadeColors colors) {
-    final canStart = _result?.isValid ?? false;
-    final hasWarningsOnly =
-        _result != null && !_result!.hasErrors && _result!.hasWarnings;
+    final hasBlockingSimulationIssue = _simulation?.hasBlockingIssues ?? false;
+    final hasSimulationWarnings = _simulation?.issues.any(
+            (issue) => issue.severity != PreSessionSimulationSeverity.error) ??
+        false;
+    final canStart = (_result?.isValid ?? false) && !hasBlockingSimulationIssue;
+    final hasWarningsOnly = _result != null &&
+        !_result!.hasErrors &&
+        !hasBlockingSimulationIssue &&
+        (_result!.hasWarnings || hasSimulationWarnings);
 
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Row(
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 12,
+        runSpacing: 12,
         children: [
-          // Refresh button
-          NightshadeButton(
-            onPressed: () {
-              setState(() => _isValidating = true);
-              _runValidation();
-            },
-            icon: LucideIcons.refreshCw,
-            label: 'Re-check',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
+          SizedBox(
+            width: 120,
+            child: NightshadeButton(
+              onPressed: () {
+                setState(() => _isValidating = true);
+                _runValidation();
+              },
+              icon: LucideIcons.refreshCw,
+              label: 'Re-check',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
           ),
-
-          const Spacer(),
-
-          // Cancel button
-          NightshadeButton(
-            onPressed: () => Navigator.of(context).pop(),
-            label: 'Cancel',
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NightshadeButton(
+                onPressed: () => Navigator.of(context).pop(),
+                label: 'Cancel',
+                variant: ButtonVariant.ghost,
+                size: ButtonSize.small,
+              ),
+              const SizedBox(width: 12),
+              _StartSequenceButton(
+                canStart: canStart,
+                hasWarningsOnly: hasWarningsOnly,
+                colors: colors,
+                onPressed: (canStart || hasWarningsOnly)
+                    ? () async {
+                        await _handleStartSequence();
+                      }
+                    : null,
+              ),
+            ],
           ),
-          const SizedBox(width: 12),
+        ],
+      ),
+    );
+  }
 
-          // Start button
-          _StartSequenceButton(
-            canStart: canStart,
-            hasWarningsOnly: hasWarningsOnly,
-            colors: colors,
-            onPressed: (canStart || hasWarningsOnly)
-                ? () async {
-                    await _handleStartSequence();
-                  }
-                : null,
+  String _formatClock(DateTime time) =>
+      '${time.hour.toString().padLeft(2, '0')}:'
+      '${time.minute.toString().padLeft(2, '0')}';
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours > 0) return '${hours}h ${minutes}m';
+    if (minutes > 0) return '${minutes}m';
+    return '${duration.inSeconds}s';
+  }
+}
+
+class _SimulationMetric extends StatelessWidget {
+  final NightshadeColors colors;
+  final String label;
+  final String value;
+  final Color? tone;
+
+  const _SimulationMetric({
+    required this.colors,
+    required this.label,
+    required this.value,
+    this.tone,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final valueColor = tone ?? colors.textPrimary;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            label,
+            style: TextStyle(fontSize: 10, color: colors.textMuted),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+              color: valueColor,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _SimulationTimeline extends StatelessWidget {
+  final NightshadeColors colors;
+  final PreSessionSimulationResult simulation;
+
+  const _SimulationTimeline({
+    required this.colors,
+    required this.simulation,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final totalMs = simulation.duration.inMilliseconds;
+    if (totalMs <= 0) return const SizedBox.shrink();
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(4),
+      child: SizedBox(
+        height: 18,
+        child: Row(
+          children: [
+            for (final segment in simulation.segments)
+              Expanded(
+                flex: segment.duration.inMilliseconds.clamp(1, totalMs),
+                child: Tooltip(
+                  message:
+                      '${segment.nodeName}: ${_formatDuration(segment.duration)}',
+                  child: Container(
+                    margin: const EdgeInsets.only(right: 1),
+                    color: _colorFor(segment),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Color _colorFor(PreSessionSimulationSegment segment) {
+    switch (segment.nodeType) {
+      case 'TakeExposure':
+        return colors.primary;
+      case 'SmartExposure':
+        return colors.info;
+      case 'Autofocus':
+        return colors.warning;
+      case 'SlewToTarget':
+      case 'CenterTarget':
+        return colors.success;
+      default:
+        return colors.textMuted;
+    }
+  }
+
+  String _formatDuration(Duration duration) {
+    final hours = duration.inHours;
+    final minutes = duration.inMinutes.remainder(60);
+    if (hours > 0) return '${hours}h ${minutes}m';
+    if (minutes > 0) return '${minutes}m';
+    return '${duration.inSeconds}s';
+  }
+}
+
+class _SimulationIssueRow extends StatelessWidget {
+  final NightshadeColors colors;
+  final PreSessionSimulationIssue issue;
+
+  const _SimulationIssueRow({
+    required this.colors,
+    required this.issue,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tone = switch (issue.severity) {
+      PreSessionSimulationSeverity.error => colors.error,
+      PreSessionSimulationSeverity.warning => colors.warning,
+      PreSessionSimulationSeverity.info => colors.info,
+    };
+    final icon = switch (issue.severity) {
+      PreSessionSimulationSeverity.error => LucideIcons.xCircle,
+      PreSessionSimulationSeverity.warning => LucideIcons.alertTriangle,
+      PreSessionSimulationSeverity.info => LucideIcons.info,
+    };
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 12, color: tone),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              issue.message,
+              style: TextStyle(fontSize: 11, color: colors.textSecondary),
+            ),
           ),
         ],
       ),
@@ -567,9 +1143,10 @@ class _CountBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(8),
+        bordered: false,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -590,7 +1167,7 @@ class _CountBadge extends StatelessWidget {
   }
 }
 
-/// Custom start sequence button with muted gradient styling
+/// Custom start sequence button with solid fill styling
 class _StartSequenceButton extends StatefulWidget {
   final bool canStart;
   final bool hasWarningsOnly;
@@ -611,14 +1188,6 @@ class _StartSequenceButton extends StatefulWidget {
 class _StartSequenceButtonState extends State<_StartSequenceButton> {
   bool _isHovered = false;
 
-  /// Creates a slightly darker shade of the given color
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final isEnabled = widget.onPressed != null;
@@ -628,6 +1197,11 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
         : widget.hasWarningsOnly
             ? widget.colors.warning
             : widget.colors.textMuted;
+    final buttonColors = NightshadeDecorations.filledButtonColors(
+      baseColor,
+      isHovered: _isHovered,
+      isDisabled: !isEnabled,
+    );
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -640,27 +1214,9 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            gradient: isEnabled
-                ? LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      baseColor,
-                      _darkenColor(baseColor, 0.08),
-                    ],
-                  )
-                : null,
-            color: isEnabled ? null : baseColor.withValues(alpha: 0.5),
+            color: buttonColors.background,
             borderRadius: BorderRadius.circular(8),
-            boxShadow: isEnabled && _isHovered
-                ? [
-                    BoxShadow(
-                      color: baseColor.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                    ),
-                  ]
-                : null,
+            border: Border.all(color: buttonColors.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -682,6 +1238,224 @@ class _StartSequenceButtonState extends State<_StartSequenceButton> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Wave 5 Agent 3 — Pre-flight category section
+// =============================================================================
+//
+// Compact collapsible-style group for the new pre-flight categories.
+// Renders an icon + title + (optional) trailing action button (e.g.
+// "Capture missing darks") and the issue cards beneath.
+
+class _PreflightSection extends StatefulWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String title;
+  final List<ValidationIssue> issues;
+  final Widget? trailing;
+
+  const _PreflightSection({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    required this.issues,
+    this.trailing,
+  });
+
+  @override
+  State<_PreflightSection> createState() => _PreflightSectionState();
+}
+
+class _PreflightSectionState extends State<_PreflightSection> {
+  bool _expanded = true;
+
+  Color _worstColor() {
+    if (widget.issues.any((i) => i.severity == ValidationSeverity.error)) {
+      return widget.colors.error;
+    }
+    if (widget.issues.any((i) => i.severity == ValidationSeverity.warning)) {
+      return widget.colors.warning;
+    }
+    return widget.colors.info;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    final tone = _worstColor();
+    return Container(
+      margin: const EdgeInsets.only(bottom: 14),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(10),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: NightshadeDecorations.statusChip(
+                      tone,
+                      borderRadius: BorderRadius.circular(6),
+                      bordered: false,
+                    ),
+                    child: Icon(widget.icon, size: 14, color: tone),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      widget.title,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: NightshadeDecorations.statusChip(
+                      tone,
+                      borderRadius: BorderRadius.circular(8),
+                      bordered: false,
+                    ),
+                    child: Text(
+                      '${widget.issues.length}',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: tone,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  Icon(
+                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    size: 16,
+                    color: colors.textMuted,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          if (_expanded) ...[
+            const Divider(height: 1, thickness: 1),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 10, 12, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  for (final issue in widget.issues)
+                    _IssueRow(colors: colors, issue: issue),
+                ],
+              ),
+            ),
+            if (widget.trailing != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                child: Row(
+                  children: [
+                    const Spacer(),
+                    widget.trailing!,
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _IssueRow extends StatelessWidget {
+  final NightshadeColors colors;
+  final ValidationIssue issue;
+
+  const _IssueRow({required this.colors, required this.issue});
+
+  @override
+  Widget build(BuildContext context) {
+    final Color issueColor;
+    final IconData issueIcon;
+    switch (issue.severity) {
+      case ValidationSeverity.error:
+        issueColor = colors.error;
+        issueIcon = LucideIcons.xCircle;
+        break;
+      case ValidationSeverity.warning:
+        issueColor = colors.warning;
+        issueIcon = LucideIcons.alertTriangle;
+        break;
+      case ValidationSeverity.info:
+        issueColor = colors.info;
+        issueIcon = LucideIcons.info;
+        break;
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(issueIcon, size: 12, color: issueColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  issue.title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  issue.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                if (issue.resolutionHint != null) ...[
+                  const SizedBox(height: 4),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(LucideIcons.lightbulb,
+                          size: 10, color: colors.primary),
+                      const SizedBox(width: 4),
+                      Expanded(
+                        child: Text(
+                          issue.resolutionHint!,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: colors.primary,
+                            fontStyle: FontStyle.italic,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

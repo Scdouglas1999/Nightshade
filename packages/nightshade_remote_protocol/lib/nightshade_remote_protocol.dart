@@ -16,6 +16,8 @@ library;
 export 'src/discovery.dart';
 export 'src/enhanced_discovery.dart';
 export 'src/server_compatibility.dart';
+export 'src/server_identity.dart';
+export 'src/remote_pairing_client.dart';
 export 'src/collaboration/live_collaboration_session.dart';
 
 // Secure authentication and encryption
@@ -25,6 +27,16 @@ export 'src/crypto/channel_encryption.dart';
 // Secure pairing-mode discovery (used by W1.5 pairing flow)
 export 'src/discovery/secure_discovery.dart';
 
+// Server-side mDNS / Bonjour / DNS-SD advertisement (P1-6).
+export 'src/discovery/mdns_registration.dart';
+
 // Database
 export 'src/database/paired_devices_table.dart';
 export 'src/database/pairing_database.dart';
+
+// P1-19 — LAN UDP push fan-out + FCM/APNs scaffolding. The broadcaster
+// runs on the desktop next to the WebSocket fan-out so paired phones
+// receive critical alerts even when their WS has dropped. See header
+// of lan_push_broadcaster.dart for the wire format + threat model.
+export 'src/push/lan_push_broadcaster.dart';
+export 'src/push/remote_push_delivery.dart';

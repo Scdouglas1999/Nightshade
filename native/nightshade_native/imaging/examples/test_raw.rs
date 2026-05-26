@@ -80,29 +80,36 @@ fn main() {
 
             // Test RGBA conversion (this is what Flutter will use for display)
             println!("\n--- RGBA Conversion Test ---");
-            let rgba = image.to_rgba();
-            let expected_size = (image.width * image.height * 4) as usize;
-            if rgba.len() == expected_size {
-                println!("✓ RGBA conversion successful!");
-                println!(
-                    "  RGBA Size: {} bytes ({} pixels)",
-                    rgba.len(),
-                    image.width * image.height
-                );
-                println!("  Expected: {} bytes", expected_size);
+            match image.to_rgba() {
+                Ok(rgba) => {
+                    let expected_size = (image.width * image.height * 4) as usize;
+                    if rgba.len() == expected_size {
+                        println!("✓ RGBA conversion successful!");
+                        println!(
+                            "  RGBA Size: {} bytes ({} pixels)",
+                            rgba.len(),
+                            image.width * image.height
+                        );
+                        println!("  Expected: {} bytes", expected_size);
 
-                // Sample first few pixels
-                println!("\n  Sample pixel values (first pixel):");
-                if rgba.len() >= 4 {
-                    println!(
-                        "    R: {}, G: {}, B: {}, A: {}",
-                        rgba[0], rgba[1], rgba[2], rgba[3]
-                    );
+                        // Sample first few pixels
+                        println!("\n  Sample pixel values (first pixel):");
+                        if rgba.len() >= 4 {
+                            println!(
+                                "    R: {}, G: {}, B: {}, A: {}",
+                                rgba[0], rgba[1], rgba[2], rgba[3]
+                            );
+                        }
+                    } else {
+                        println!("✗ RGBA conversion size mismatch!");
+                        println!("  Got: {} bytes", rgba.len());
+                        println!("  Expected: {} bytes", expected_size);
+                    }
                 }
-            } else {
-                println!("✗ RGBA conversion size mismatch!");
-                println!("  Got: {} bytes", rgba.len());
-                println!("  Expected: {} bytes", expected_size);
+                Err(e) => {
+                    eprintln!("✗ RGBA conversion FAILED: {}", e);
+                    std::process::exit(1);
+                }
             }
         }
         Err(e) => {

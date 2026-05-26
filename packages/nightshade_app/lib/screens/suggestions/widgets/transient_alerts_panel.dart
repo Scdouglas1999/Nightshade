@@ -16,7 +16,7 @@ class TransientAlertsPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final alertStates = ref.watch(transientAlertStatesProvider);
 
@@ -251,7 +251,7 @@ class _TransientAlertTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final effectiveState = alertState ?? TransientAlertState.newAlert;
     final isNew = effectiveState == TransientAlertState.newAlert;
     final isDismissed = effectiveState == TransientAlertState.dismissed;
@@ -486,7 +486,7 @@ class _TypeBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     IconData icon;
     Color color;
@@ -536,7 +536,7 @@ class _TypeBadge extends StatelessWidget {
 class _TransientSettingsDialog extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final settings = ref.watch(transientAlertSettingsProvider);
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
 
@@ -547,7 +547,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
         style: TextStyle(color: colors.textPrimary),
       ),
       content: SizedBox(
-        width: 400,
+        width: dialogMaxWidth(context, 400),
         child: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,

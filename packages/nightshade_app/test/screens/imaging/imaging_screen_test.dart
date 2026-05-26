@@ -56,6 +56,8 @@
 //
 // See: docs/code-quality/audit-tests.md §1.
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/imaging/imaging_screen.dart';
@@ -427,5 +429,86 @@ void main() {
         reason:
             'Tapping Camera tab must advance selectedImagingPanelProvider to 1 '
             'so the panel state survives a route push/pop or hot reload.');
+  });
+
+  // IMG-P1-4: the "Calibrated" badge surfaces in the upper-right of the
+  // live preview whenever the published image's file path carries the
+  // `_cal.fits` suffix the calibration service writes. Two flavours so
+  // the test pins on both the positive case (badge present + text) and
+  // the negative one (raw light frame, no badge) — without the negative
+  // side a regression that always rendered the badge would still pass.
+  testWidgets(
+      'calibrated_badge_visible_for_calibrated_frame: live preview shows '
+      'the success badge when current image filePath ends in _cal.fits',
+      (tester) async {
+    _swallowKnownOverflows();
+    final calibratedFrame = CapturedImageData(
+      width: 8,
+      height: 8,
+      displayData: Uint8List(8 * 8 * 4),
+      histogram: List<int>.filled(256, 0),
+      stats: const ImageStats(mean: 0, stdDev: 0),
+      capturedAt: DateTime.utc(2026, 5, 23, 21, 0, 0),
+      settings: const ExposureSettings(
+        exposureTime: 1.0,
+        gain: 100,
+        offset: 10,
+      ),
+      filePath: '/tmp/light_001_cal.fits',
+    );
+    final handle = await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(1600, 900),
+      settle: false,
+    );
+    await _drainAsyncFrames(tester);
+    // Publish the calibrated frame after pump so the provider override
+    // doesn't fight with the screen's own listeners during build.
+    handle.container.read(currentImageProvider.notifier).state =
+        calibratedFrame;
+    await _drainAsyncFrames(tester);
+
+    expect(find.text('Calibrated'), findsOneWidget,
+        reason:
+            'A frame whose saved path ends in _cal.fits is the only signal '
+            'the imaging pipeline has that calibration actually succeeded — '
+            'the badge MUST render so users can tell raw vs calibrated.');
+  });
+
+  testWidgets(
+      'calibrated_badge_hidden_for_raw_frame: live preview does not show the '
+      'Calibrated badge when the current image is an uncalibrated .fits',
+      (tester) async {
+    _swallowKnownOverflows();
+    final rawFrame = CapturedImageData(
+      width: 8,
+      height: 8,
+      displayData: Uint8List(8 * 8 * 4),
+      histogram: List<int>.filled(256, 0),
+      stats: const ImageStats(mean: 0, stdDev: 0),
+      capturedAt: DateTime.utc(2026, 5, 23, 21, 0, 0),
+      settings: const ExposureSettings(
+        exposureTime: 1.0,
+        gain: 100,
+        offset: 10,
+      ),
+      filePath: '/tmp/light_001.fits',
+    );
+    final handle = await pumpAppScreen(
+      tester,
+      const ImagingScreen(),
+      size: const Size(1600, 900),
+      settle: false,
+    );
+    await _drainAsyncFrames(tester);
+    handle.container.read(currentImageProvider.notifier).state = rawFrame;
+    await _drainAsyncFrames(tester);
+
+    expect(find.text('Calibrated'), findsNothing,
+        reason:
+            'A raw .fits frame must not display the Calibrated badge — doing '
+            'so would lie to the operator about a frame that never went '
+            'through dark/flat/bias subtraction.');
   });
 }

@@ -26,10 +26,13 @@ const RESPONSE_TERM: u8 = b'#';
 
 mod commands {
     pub const GET_MOUNT_VERSION: &str = ":MountInfo#";
+    pub const GET_MAIN_AND_HC_FIRMWARE: &str = ":FW1#";
+    pub const GET_MOTOR_BOARD_FIRMWARE: &str = ":FW2#";
     pub const GET_RA_DEC: &str = ":GEC#";
     pub const GET_ALT_AZ: &str = ":GAC#";
     pub const GET_SYSTEM_STATUS: &str = ":GAS#";
     pub const GET_SIDEREAL_TIME: &str = ":GLS#";
+    pub const GET_GUIDE_RATE: &str = ":AG#";
 
     pub const SLEW_RA_DEC: &str = ":MS#";
     pub const SET_RA: &str = ":Sr";
@@ -55,6 +58,10 @@ mod commands {
     pub const PULSE_GUIDE_EAST: &str = ":Me";
     pub const PULSE_GUIDE_WEST: &str = ":Mw";
 }
+
+const MIN_GUIDE_RATE: f64 = 0.10;
+const MAX_GUIDE_RATE: f64 = 1.00;
+const MAX_PULSE_GUIDE_DURATION_MS: u32 = 32_767;
 
 // =============================================================================
 // MOUNT STATUS PARSING
@@ -102,6 +109,112 @@ fn parse_system_status(response: &str) -> Result<IOptronStatus, NativeError> {
         gps_connected: chars.get(7) == Some(&'1'),
         tracking_rate,
     })
+}
+
+fn parse_guide_rate(response: &str) -> Result<f64, NativeError> {
+    let rate = response
+        .trim()
+        .parse::<f64>()
+        .map_err(|_| NativeError::SdkError(format!("Invalid guide rate response: {response}")))?;
+    if !rate.is_finite() {
+        return Err(NativeError::SdkError(format!(
+            "Invalid non-finite guide rate response: {response}"
+        )));
+    }
+    validate_guide_rate(rate)
+}
+
+fn validate_guide_rate(rate: f64) -> Result<f64, NativeError> {
+    if !(MIN_GUIDE_RATE..=MAX_GUIDE_RATE).contains(&rate) {
+        return Err(NativeError::SdkError(format!(
+            "iOptron guide rate {:.2}x is outside the supported {:.2}x..{:.2}x sidereal range",
+            rate, MIN_GUIDE_RATE, MAX_GUIDE_RATE
+        )));
+    }
+    Ok(rate)
+}
+
+fn validate_pulse_guide_duration(duration_ms: u32) -> Result<(), NativeError> {
+    if duration_ms == 0 {
+        return Err(NativeError::InvalidParameter(
+            "iOptron pulse guide duration 0ms requests continuous motion; use abort_slew to stop existing motion instead"
+                .to_string(),
+        ));
+    }
+    if duration_ms > MAX_PULSE_GUIDE_DURATION_MS {
+        return Err(NativeError::InvalidParameter(format!(
+            "iOptron pulse guide duration {}ms exceeds protocol maximum {}ms",
+            duration_ms, MAX_PULSE_GUIDE_DURATION_MS
+        )));
+    }
+    Ok(())
+}
+
+fn normalize_firmware_date(date: &str) -> Option<String> {
+    let date = date.trim();
+    if date.len() != 6 || !date.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    let yy: u16 = date[0..2].parse().ok()?;
+    let month: u8 = date[2..4].parse().ok()?;
+    let day: u8 = date[4..6].parse().ok()?;
+    if !(1..=12).contains(&month) || !(1..=31).contains(&day) {
+        return None;
+    }
+
+    Some(format!("20{:02}-{:02}-{:02}", yy, month, day))
+}
+
+fn normalize_firmware_pair(response: &str) -> Option<(String, String)> {
+    let response = response.trim().trim_end_matches('#');
+    if response.len() != 12 || !response.chars().all(|c| c.is_ascii_digit()) {
+        return None;
+    }
+
+    Some((
+        normalize_firmware_date(&response[0..6])?,
+        normalize_firmware_date(&response[6..12])?,
+    ))
+}
+
+fn format_firmware_versions(fw1: Option<&str>, fw2: Option<&str>) -> Option<String> {
+    let main_hc = fw1.and_then(normalize_firmware_pair);
+    let motors = fw2.and_then(normalize_firmware_pair);
+
+    match (main_hc, motors) {
+        (Some((main, hc)), Some((ra, dec))) => Some(format!(
+            "iOptron firmware mainboard {}, hand controller {}, RA motor {}, Dec motor {}",
+            main, hc, ra, dec
+        )),
+        (Some((main, hc)), None) => Some(format!(
+            "iOptron firmware mainboard {}, hand controller {}",
+            main, hc
+        )),
+        (None, Some((ra, dec))) => Some(format!(
+            "iOptron firmware RA motor {}, Dec motor {}",
+            ra, dec
+        )),
+        (None, None) => None,
+    }
+}
+
+fn query_hash_command(port: &mut dyn serialport::SerialPort, command: &str) -> Option<String> {
+    if port.write_all(command.as_bytes()).is_err() {
+        return None;
+    }
+    let _ = port.flush();
+
+    let mut buf = [0u8; 32];
+    std::thread::sleep(Duration::from_millis(100));
+    let n = port.read(&mut buf).ok()?;
+    let response = String::from_utf8_lossy(&buf[..n]);
+    let trimmed = response.trim().trim_end_matches('#').trim().to_string();
+    if trimmed.is_empty() {
+        None
+    } else {
+        Some(trimmed)
+    }
 }
 
 // =============================================================================
@@ -283,6 +396,16 @@ impl IOptronMount {
             .lock()
             .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = new_status;
         Ok(())
+    }
+
+    fn guide_rate(&self) -> Result<f64, NativeError> {
+        let response = self.send_command(commands::GET_GUIDE_RATE)?;
+        parse_guide_rate(&response)
+    }
+
+    fn validate_pulse_guide_inputs(&self, duration_ms: u32) -> Result<f64, NativeError> {
+        validate_pulse_guide_duration(duration_ms)?;
+        self.guide_rate()
     }
 }
 
@@ -532,6 +655,7 @@ impl NativeMount for IOptronMount {
             return Err(NativeError::NotConnected);
         }
 
+        let guide_rate = self.validate_pulse_guide_inputs(duration_ms)?;
         let cmd = match direction {
             GuideDirection::North => format!("{}{}#", commands::PULSE_GUIDE_NORTH, duration_ms),
             GuideDirection::South => format!("{}{}#", commands::PULSE_GUIDE_SOUTH, duration_ms),
@@ -539,6 +663,12 @@ impl NativeMount for IOptronMount {
             GuideDirection::West => format!("{}{}#", commands::PULSE_GUIDE_WEST, duration_ms),
         };
 
+        tracing::debug!(
+            "iOptron pulse guide {:?} for {}ms at {:.2}x sidereal guide rate",
+            direction,
+            duration_ms,
+            guide_rate
+        );
         self.send_command_no_response(&cmd)?;
 
         Ok(())
@@ -710,6 +840,7 @@ pub struct IOptronMountInfo {
     pub port: String,
     pub name: String,
     pub model: String,
+    pub firmware_version: Option<String>,
     /// Baud rate that was successful during discovery
     pub baud_rate: u32,
 }
@@ -765,10 +896,17 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
                         {
                             let model = response.trim_end_matches('#').to_string();
                             let display_name = format!("iOptron {} ({})", model, port_name);
+                            let fw1 =
+                                query_hash_command(&mut *port, commands::GET_MAIN_AND_HC_FIRMWARE);
+                            let fw2 =
+                                query_hash_command(&mut *port, commands::GET_MOTOR_BOARD_FIRMWARE);
+                            let firmware_version =
+                                format_firmware_versions(fw1.as_deref(), fw2.as_deref());
                             mounts.push(IOptronMountInfo {
                                 port: port_name.clone(),
                                 name: display_name.clone(),
                                 model,
+                                firmware_version,
                                 baud_rate,
                             });
                             tracing::info!(
@@ -794,4 +932,56 @@ pub async fn discover_mounts() -> Result<Vec<IOptronMountInfo>, NativeError> {
 
 pub fn is_available() -> bool {
     true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn parse_guide_rate_accepts_documented_range() {
+        assert_eq!(parse_guide_rate("0.10").unwrap(), 0.10);
+        assert_eq!(parse_guide_rate("0.50").unwrap(), 0.50);
+        assert_eq!(parse_guide_rate("1.00").unwrap(), 1.00);
+    }
+
+    #[test]
+    fn parse_guide_rate_rejects_invalid_or_out_of_range_values() {
+        assert!(parse_guide_rate("0.00").is_err());
+        assert!(parse_guide_rate("1.25").is_err());
+        assert!(parse_guide_rate("NaN").is_err());
+        assert!(parse_guide_rate("not-a-rate").is_err());
+    }
+
+    #[test]
+    fn validate_pulse_guide_duration_rejects_continuous_or_oversized_pulses() {
+        validate_pulse_guide_duration(1).expect("minimum pulse");
+        validate_pulse_guide_duration(MAX_PULSE_GUIDE_DURATION_MS).expect("maximum pulse");
+        assert!(validate_pulse_guide_duration(0).is_err());
+        assert!(validate_pulse_guide_duration(MAX_PULSE_GUIDE_DURATION_MS + 1).is_err());
+    }
+
+    #[test]
+    fn normalize_ioptron_firmware_pair_formats_dates() {
+        assert_eq!(
+            normalize_firmware_pair("260525240101#"),
+            Some(("2026-05-25".to_string(), "2024-01-01".to_string()))
+        );
+    }
+
+    #[test]
+    fn normalize_ioptron_firmware_pair_rejects_invalid_dates() {
+        assert_eq!(normalize_firmware_pair("260025240101"), None);
+        assert_eq!(normalize_firmware_pair("260525bad101"), None);
+    }
+
+    #[test]
+    fn format_ioptron_firmware_versions_combines_main_and_motor_boards() {
+        assert_eq!(
+            format_firmware_versions(Some("260525240101"), Some("230201230202")).as_deref(),
+            Some(
+                "iOptron firmware mainboard 2026-05-25, hand controller 2024-01-01, RA motor 2023-02-01, Dec motor 2023-02-02"
+            )
+        );
+    }
 }

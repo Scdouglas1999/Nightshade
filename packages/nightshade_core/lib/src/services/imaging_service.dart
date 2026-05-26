@@ -4,6 +4,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:io';
+import 'package:flutter/foundation.dart' show visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:drift/drift.dart' as drift;
 import 'package:path/path.dart' as path;
@@ -16,9 +17,15 @@ import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/session_provider.dart';
 import '../providers/database_provider.dart';
+import 'imaging_records_repository.dart';
 import '../providers/ui_notification_provider.dart';
+import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
+import 'capture_preview_loader.dart';
 import '../database/database.dart' show CapturedImagesCompanion;
+import '../database/daos/images_dao.dart' show ImagesDao;
+import '../providers/database_provider.dart' show imagesDaoProvider;
+import '../providers/thumbnail_sidecar_provider.dart';
 import 'calibration_service.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
@@ -43,6 +50,14 @@ class ImagingService {
     required ExposureSettings settings,
     String? targetName,
     int? frameNumber,
+    // Wave 6 Thumbnails — producing-instruction provenance. When the
+    // imaging service is called from a sequencer-tagged path (e.g.
+    // future plugin-node captures), the caller can pass the node id
+    // here so the persisted row is queryable by
+    // [ImagesDao.watchImagesByProducingNode]. Ad-hoc captures from the
+    // Imaging tab simply leave this `null`.
+    String? producingNodeId,
+    String? producingRunId,
   }) async {
     if (_isCapturing) {
       throw Exception('Already capturing');
@@ -177,8 +192,9 @@ class ImagingService {
         // Update to downloading state
         progressNotifier.startDownload();
 
-        // Get the captured image from backend
-        _logger.debug('Calling cameraGetLastImage...',
+        // Get the captured image from backend (remote uses JPEG wire format).
+        _logger.debug(
+            'Calling cameraGetLastImage (${backend is NetworkBackend ? 'remote/jpeg' : 'local'})...',
             source: 'ImagingService');
         final capturedImage =
             await backend.cameraGetLastImage(deviceId).timeout(
@@ -220,37 +236,16 @@ class ImagingService {
         // This ensures the UI shows the image even if file saving fails
         _logger.debug('Creating CapturedImageData...',
             source: 'ImagingService');
-        CapturedImageData imageData;
+        late CapturedImageData imageData;
         try {
-          imageData = CapturedImageData(
-            width: capturedImage.width,
-            height: capturedImage.height,
-            displayData: Uint8List.fromList(capturedImage.displayData),
-            histogram: capturedImage.histogram,
-            stats: ImageStats(
-              min: capturedImage.stats.min,
-              max: capturedImage.stats.max,
-              mean: capturedImage.stats.mean,
-              median: capturedImage.stats.median,
-              stdDev: capturedImage.stats.stdDev,
-              hfr: capturedImage.stats.hfr,
-              fwhm: capturedImage.stats.hfr != null
-                  ? capturedImage.stats.hfr! * 2.35 // FWHM ~ 2.35 * HFR
-                  : null,
-              starCount: capturedImage.stats.starCount > 0
-                  ? capturedImage.stats.starCount
-                  : null,
-              background: capturedImage.stats.mean - capturedImage.stats.stdDev,
-              noise: capturedImage.stats.stdDev,
-              snr: capturedImage.stats.stdDev > 0
-                  ? capturedImage.stats.mean / capturedImage.stats.stdDev
-                  : 0.0,
-            ),
-            capturedAt: captureTimestamp,
+          imageData = capturedImageDataFromResult(
+            capturedImage: capturedImage,
             settings: settings,
+            capturedAt: captureTimestamp,
             targetName: targetName,
-            isColor: capturedImage.isColor, // Use isColor from backend
-            filePath: null, // Will be updated after FITS save
+            previewSource: backend is NetworkBackend
+                ? CapturePreviewSource.remote
+                : CapturePreviewSource.local,
           );
         } catch (e) {
           _logger.error('Error creating CapturedImageData: $e',
@@ -259,12 +254,15 @@ class ImagingService {
         }
 
         _logger.debug(
-            'CapturedImageData created, updating providers IMMEDIATELY...',
+            'CapturedImageData created, publishing JPEG preview...',
             source: 'ImagingService');
-        // Update providers FIRST to show image in UI
-        _ref.read(currentImageProvider.notifier).state = imageData;
-        _ref.read(lastImageStatsProvider.notifier).state = imageData.stats;
-        _logger.debug('Providers updated! Image should now be visible.',
+        // JPEG/display buffer first; host raw loads in the background when remote.
+        _ref.read(capturePreviewPublisherProvider).publish(
+              _ref,
+              imageData,
+              deviceId,
+            );
+        _logger.debug('Preview published; raw may load in background.',
             source: 'ImagingService');
 
         // Now save FITS file and persist to database (non-critical operations)
@@ -334,23 +332,37 @@ class ImagingService {
               targetName: targetName,
               timestamp: captureTimestamp,
             );
+            // Wave 6 Thumbnails — when the caller tagged the capture
+            // with a producing node id (sequencer-driven path), stamp
+            // the row so the sequence-tree thumbnail strip can pick it
+            // up via `watchImagesByProducingNode`. Best-effort: a
+            // stamp failure must never fail the capture (the FITS is
+            // already on disk; the breadcrumb is purely UI).
+            if (producingNodeId != null && producingNodeId.isNotEmpty) {
+              try {
+                final records = _ref.read(imagingRecordsRepositoryProvider);
+                await records.stampProducingNode(
+                  imageId: dbImageId,
+                  producingNodeId: producingNodeId,
+                  producingRunId: producingRunId,
+                );
+              } catch (e) {
+                _logger.warning(
+                  'Wave 6 Thumbnails: stampProducingNode failed for '
+                  'image $dbImageId (node $producingNodeId): $e',
+                  source: 'ImagingService',
+                );
+              }
+            }
           }
 
-          // Update imageData with file path (create new instance since it's immutable)
-          imageData = CapturedImageData(
-            width: imageData.width,
-            height: imageData.height,
-            displayData: imageData.displayData,
-            histogram: imageData.histogram,
-            stats: imageData.stats,
-            capturedAt: imageData.capturedAt,
-            settings: imageData.settings,
-            targetName: imageData.targetName,
-            isColor: imageData.isColor,
-            filePath: savedFilePath,
-          );
-          // Update provider with file path
-          _ref.read(currentImageProvider.notifier).state = imageData;
+          imageData = imageData.copyWith(filePath: savedFilePath);
+          final currentPreview = _ref.read(currentImageProvider);
+          if (currentPreview != null &&
+              currentPreview.capturedAt == imageData.capturedAt) {
+            _ref.read(currentImageProvider.notifier).state =
+                currentPreview.copyWith(filePath: savedFilePath);
+          }
           effectiveFilePath = savedFilePath;
         } catch (e) {
           // Log error but don't fail the capture - image is already displayed!
@@ -399,23 +411,17 @@ class ImagingService {
 
               if (dbImageId != null && effectiveFilePath != savedFilePath) {
                 await _ref
-                    .read(imagesDaoProvider)
+                    .read(imagingRecordsRepositoryProvider)
                     .updateImageFilePath(dbImageId, effectiveFilePath);
               }
 
-              imageData = CapturedImageData(
-                width: imageData.width,
-                height: imageData.height,
-                displayData: imageData.displayData,
-                histogram: imageData.histogram,
-                stats: imageData.stats,
-                capturedAt: imageData.capturedAt,
-                settings: imageData.settings,
-                targetName: imageData.targetName,
-                isColor: imageData.isColor,
-                filePath: effectiveFilePath,
-              );
-              _ref.read(currentImageProvider.notifier).state = imageData;
+              imageData = imageData.copyWith(filePath: effectiveFilePath);
+              final currentPreview = _ref.read(currentImageProvider);
+              if (currentPreview != null &&
+                  currentPreview.capturedAt == imageData.capturedAt) {
+                _ref.read(currentImageProvider.notifier).state =
+                    currentPreview.copyWith(filePath: effectiveFilePath);
+              }
             }
           } catch (e) {
             // Calibration failure should not prevent the capture from succeeding.
@@ -565,7 +571,27 @@ class ImagingService {
     _frameNumber = 0;
   }
 
-  /// Generate file path for captured image
+  /// Generate file path for captured image.
+  ///
+  /// The user's [NamingPattern.pattern] is interpreted as a `/`-separated
+  /// path *including the filename*: every segment before the final `/` is a
+  /// subdirectory, and the final segment is the filename stem (the extension
+  /// is appended from [NamingPattern.format]). The default pattern
+  /// `$TARGET/$FRAMETYPE/$TARGET_$FILTER_$EXPTIME_$FRAMENUM` therefore yields
+  /// e.g. `M31/Light/M31_L_120.0_0001.fits` under the configured base
+  /// directory. This matches the convention implemented by the Rust
+  /// `FilenameGenerator` in `native/nightshade_native/imaging/src/naming.rs`.
+  ///
+  /// All `$VARIABLE` tokens are validated against [_patternVariables]; any
+  /// unknown token raises an [Exception] (CLAUDE.md "errors are a feature":
+  /// silently leaving e.g. `$BANANA` in the filename would hide a typo in the
+  /// user's pattern for weeks).
+  ///
+  /// Date/time substitutions (`$DATE`, `$TIME`, `$DATETIME`) use **UTC** so
+  /// the path matches the FITS `DATE-OBS` keyword written by the Rust
+  /// `FitsHeader::captureTimestamp` path (which also uses UTC). A 19:00 PST
+  /// frame is grouped under the UTC date 03:00 the next morning — i.e. the
+  /// folder name matches the timestamp embedded in the file.
   Future<String> _generateImageFilePath({
     required AppSettingsState appSettings,
     required ExposureSettings exposureSettings,
@@ -581,38 +607,19 @@ class ImagingService {
     // Get naming pattern from imaging provider
     final namingPattern = _ref.read(namingPatternProvider);
 
-    // Build subdirectory path based on pattern
-    String pattern = namingPattern.pattern;
+    final substitutions = _buildPatternSubstitutions(
+      exposureSettings: exposureSettings,
+      targetName: targetName,
+      frameNumber: frameNumber,
+      timestamp: timestamp,
+    );
 
-    // Replace pattern variables
-    final target = targetName ?? 'Unknown';
-    final filter = exposureSettings.filter ?? 'NoFilter';
-    final frameType = exposureSettings.frameType.name;
-    final expTime = exposureSettings.exposureTime.toStringAsFixed(1);
-    final dateStr = timestamp.toIso8601String().substring(0, 10); // YYYY-MM-DD
-    final timeStr = timestamp
-        .toIso8601String()
-        .substring(11, 19)
-        .replaceAll(':', '-'); // HH-MM-SS
-
-    pattern = pattern
-        .replaceAll(r'$TARGET', target)
-        .replaceAll(r'$FILTER', filter)
-        .replaceAll(r'$FRAMETYPE', frameType)
-        .replaceAll(r'$EXPTIME', expTime)
-        .replaceAll(r'$DATE', dateStr)
-        .replaceAll(r'$TIME', timeStr)
-        .replaceAll(r'$DATETIME', '${dateStr}_$timeStr')
-        .replaceAll(r'$FRAMENUM', frameNumber.toString().padLeft(4, '0'))
-        .replaceAll(r'$GAIN', exposureSettings.gain.toString())
-        .replaceAll(r'$OFFSET', exposureSettings.offset.toString())
-        .replaceAll(r'$BINNING',
-            '${exposureSettings.binningX}x${exposureSettings.binningY}');
-
-    // Build full path
-    final fileName =
-        '${target}_${filter}_${frameNumber.toString().padLeft(4, '0')}.${namingPattern.format.extension}';
-    final fullPath = path.join(basePath, pattern, fileName);
+    final fullPath = buildImageFilePath(
+      pattern: namingPattern.pattern,
+      basePath: basePath,
+      extension: namingPattern.format.extension,
+      substitutions: substitutions,
+    );
 
     // Create directory if needed
     final directory = Directory(path.dirname(fullPath));
@@ -621,6 +628,219 @@ class ImagingService {
     }
 
     return _ensureUniqueFilePath(fullPath);
+  }
+
+  /// All naming-pattern variables this service recognises.
+  ///
+  /// Keep this in sync with [NamingPattern.availableVariables],
+  /// `docs/features/settings.md`, and the documentation in
+  /// `native/nightshade_native/imaging/src/naming.rs`. The settings UI
+  /// surfaces a shorter subset (`$TARGET, $FILTER, $DATE, $SEQ, $EXPOSURE`),
+  /// but the full set is honoured here so that patterns shared between the
+  /// Dart and Rust capture paths behave identically.
+  static const Set<String> _patternVariables = {
+    r'$TARGET',
+    r'$FILTER',
+    r'$EXPTIME',
+    r'$EXPOSURE', // alias documented in settings_screen subtitle + seed_data
+    r'$DATE',
+    r'$TIME',
+    r'$DATETIME',
+    r'$FRAMETYPE',
+    r'$FRAMENUM',
+    r'$SEQ', // alias documented in settings_screen subtitle + defaults
+    r'$GAIN',
+    r'$OFFSET',
+    r'$TEMP',
+    r'$BINNING',
+    r'$CAMERA',
+    r'$TELESCOPE',
+    r'$SEQUENCE',
+    r'$SESSION',
+  };
+
+  /// Build the substitution map used by [expandNamingPattern]. Pulled out of
+  /// [_generateImageFilePath] so the provider-bound pieces (camera/mount
+  /// name, sensor temperature) are read in one place. Delegates the pure
+  /// timestamp/exposure formatting to [buildTimestampSubstitutions] so unit
+  /// tests can exercise the date convention without a `ProviderContainer`.
+  Map<String, String> _buildPatternSubstitutions({
+    required ExposureSettings exposureSettings,
+    String? targetName,
+    required int frameNumber,
+    required DateTime timestamp,
+  }) {
+    // $TEMP, $CAMERA, $TELESCOPE are best-effort: equipment may not be
+    // connected when this runs (e.g. headless tests). Fall back to the
+    // documented defaults from the Rust naming.rs so cross-language users see
+    // consistent path strings.
+    String camera = 'Camera';
+    String tempStr = '0C';
+    try {
+      final cameraState = _ref.read(cameraStateProvider);
+      if (cameraState.deviceName != null &&
+          cameraState.deviceName!.isNotEmpty) {
+        camera = cameraState.deviceName!;
+      }
+      final temp = cameraState.temperature;
+      if (temp != null) {
+        tempStr = '${temp.toStringAsFixed(0)}C';
+      }
+    } catch (_) {
+      // Provider not available (e.g. minimal test container) — use defaults.
+    }
+
+    String telescope = 'Telescope';
+    try {
+      final mountState = _ref.read(mountStateProvider);
+      if (mountState.deviceName != null && mountState.deviceName!.isNotEmpty) {
+        telescope = mountState.deviceName!;
+      }
+    } catch (_) {
+      // Provider not available — use default.
+    }
+
+    return buildTimestampSubstitutions(
+      exposureSettings: exposureSettings,
+      targetName: targetName,
+      frameNumber: frameNumber,
+      timestamp: timestamp,
+      camera: camera,
+      telescope: telescope,
+      tempStr: tempStr,
+    );
+  }
+
+  /// Regex that finds `$IDENT` tokens (uppercase letters only) in a pattern.
+  /// Used by [expandNamingPattern] both to perform substitutions and to
+  /// reject unknown variables.
+  ///
+  /// Underscore is intentionally **excluded** from the character class
+  /// because the documented patterns use `_` as a literal separator between
+  /// variables (e.g. `$TARGET_$FILTER_$FRAMENUM` ⇒ three tokens joined by
+  /// underscores, not one nine-character token). Every variable name in
+  /// [_patternVariables] is letters-only, so this is sufficient.
+  static final RegExp _patternVarRegex = RegExp(r'\$[A-Z]+');
+
+  /// Expand `$VARIABLE` tokens in [pattern] using [substitutions].
+  ///
+  /// Throws an [Exception] if [pattern] references any token that is not in
+  /// [_patternVariables]. This is intentional: silently leaving an unknown
+  /// `$BANANA` in the path produces malformed filenames that look like
+  /// they "worked" but break downstream sorting/searching. See CLAUDE.md —
+  /// "Errors are a feature".
+  ///
+  /// Exposed for unit testing of the pattern-expansion logic in isolation
+  /// from the capture pipeline / provider graph.
+  @visibleForTesting
+  static String expandNamingPattern(
+    String pattern,
+    Map<String, String> substitutions,
+  ) {
+    // Find every $TOKEN in the pattern and validate it up-front so the user
+    // gets ONE error listing all unknowns, not one error per failed capture.
+    final unknown = <String>{};
+    for (final match in _patternVarRegex.allMatches(pattern)) {
+      final token = match.group(0)!;
+      if (!_patternVariables.contains(token)) {
+        unknown.add(token);
+      }
+    }
+    if (unknown.isNotEmpty) {
+      final sorted = unknown.toList()..sort();
+      throw Exception(
+        'Unknown naming-pattern variable(s) ${sorted.join(', ')} in '
+        'pattern "$pattern". Supported variables: '
+        '${(_patternVariables.toList()..sort()).join(', ')}.',
+      );
+    }
+
+    // Replace using the regex so we don't get fooled by prefix overlaps
+    // (e.g. `$EXPTIME` vs `$EXPOSURE`, `$FRAMENUM` vs `$FRAMETYPE`). The
+    // previous chained-`replaceAll` implementation happened to work because
+    // each variable name was a unique substring, but a regex-based pass is
+    // robust to future additions.
+    return pattern.replaceAllMapped(_patternVarRegex, (m) {
+      final token = m.group(0)!;
+      // Safe: we just validated every token above.
+      return substitutions[token]!;
+    });
+  }
+
+  /// Build the absolute file path for a captured image given the resolved
+  /// pattern substitutions. Splits the expanded pattern on `/` so that all
+  /// segments before the last become subdirectories under [basePath] and the
+  /// last segment becomes the filename stem (extension appended).
+  ///
+  /// Exposed for unit testing — no filesystem or provider access happens
+  /// inside this function.
+  @visibleForTesting
+  static String buildImageFilePath({
+    required String pattern,
+    required String basePath,
+    required String extension,
+    required Map<String, String> substitutions,
+  }) {
+    final expanded = expandNamingPattern(pattern, substitutions);
+
+    // Split on '/' (the documented pattern separator). The last segment is
+    // the filename stem; earlier segments are subdirectories. If the user's
+    // pattern contains no '/' the entire pattern is the filename and the
+    // capture lands directly in the base directory.
+    final segments = expanded.split('/').where((s) => s.isNotEmpty).toList();
+    if (segments.isEmpty) {
+      throw Exception(
+        'Naming pattern expanded to an empty path: "$pattern"',
+      );
+    }
+    final fileNameStem = segments.removeLast();
+    final fileName = '$fileNameStem.$extension';
+
+    return path.joinAll([basePath, ...segments, fileName]);
+  }
+
+  /// Build the canonical substitution map for `$DATE`, `$TIME`, etc. given
+  /// only the values that don't require provider access (camera state, mount
+  /// state). Useful for unit tests that want to verify the UTC date/time
+  /// conventions without spinning up a `ProviderContainer`. The full
+  /// provider-aware map lives in [_buildPatternSubstitutions].
+  @visibleForTesting
+  static Map<String, String> buildTimestampSubstitutions({
+    required ExposureSettings exposureSettings,
+    String? targetName,
+    required int frameNumber,
+    required DateTime timestamp,
+    String camera = 'Camera',
+    String telescope = 'Telescope',
+    String tempStr = '0C',
+  }) {
+    final utcTs = timestamp.toUtc();
+    final iso = utcTs.toIso8601String();
+    final dateStr = iso.substring(0, 10);
+    final timeStr = iso.substring(11, 19).replaceAll(':', '-');
+    final frameNumStr = frameNumber.toString().padLeft(4, '0');
+    final exposureStr = exposureSettings.exposureTime.toStringAsFixed(1);
+
+    return {
+      r'$TARGET': targetName ?? 'Unknown',
+      r'$FILTER': exposureSettings.filter ?? 'NoFilter',
+      r'$EXPTIME': exposureStr,
+      r'$EXPOSURE': exposureStr,
+      r'$DATE': dateStr,
+      r'$TIME': timeStr,
+      r'$DATETIME': '${dateStr}_$timeStr',
+      r'$FRAMETYPE': exposureSettings.frameType.name,
+      r'$FRAMENUM': frameNumStr,
+      r'$SEQ': frameNumStr,
+      r'$GAIN': exposureSettings.gain.toString(),
+      r'$OFFSET': exposureSettings.offset.toString(),
+      r'$TEMP': tempStr,
+      r'$BINNING': '${exposureSettings.binningX}x${exposureSettings.binningY}',
+      r'$CAMERA': camera,
+      r'$TELESCOPE': telescope,
+      r'$SEQUENCE': targetName ?? 'Sequence',
+      r'$SESSION': dateStr.replaceAll('-', ''),
+    };
   }
 
   Future<String> _ensureUniqueFilePath(String desiredPath) async {
@@ -718,8 +938,7 @@ class ImagingService {
     String? targetName,
     required DateTime timestamp,
   }) async {
-    final db = _ref.read(databaseProvider);
-    final imagesDao = db.imagesDao;
+    final records = _ref.read(imagingRecordsRepositoryProvider);
 
     // Get current session ID if available
     final sessionState = _ref.read(sessionStateProvider);
@@ -740,12 +959,29 @@ class ImagingService {
       stdDev: capturedImage.stats.stdDev,
     );
 
+    // P0-5 #2 — stat the on-disk file BEFORE inserting so the row carries
+    // a real byte count. The caller's _saveFitsFile() finishes writing
+    // the FITS synchronously before we get here, so the file is on disk.
+    // If the stat fails (permissions, race with external deletion), the
+    // row goes in with NULL size — the size is auxiliary metadata, the
+    // row itself must be written so the capture is recorded.
+    int? fileSize;
+    try {
+      fileSize = await File(filePath).length();
+    } catch (e) {
+      _logger.warning(
+        'Failed to stat captured FITS for size: $filePath ($e) — '
+        'row will be inserted with NULL file_size',
+        source: 'ImagingService',
+      );
+    }
+
     // Create image record with complete metadata
     final companion = CapturedImagesCompanion(
       filePath: drift.Value(filePath),
       fileName: drift.Value(path.basename(filePath)),
       fileFormat: const drift.Value('fits'),
-      fileSize: const drift.Value(null), // Will be updated after file is written
+      fileSize: drift.Value(fileSize),
       sessionId: drift.Value(sessionId),
       targetId: const drift.Value(null), // Link to target if available
       frameType: drift.Value(exposureSettings.frameType.name),
@@ -783,7 +1019,37 @@ class ImagingService {
       rejectionReason: const drift.Value(null),
     );
 
-    return await imagesDao.createImage(companion);
+    final imageId = await records.createImage(companion);
+
+    // P1-13: schedule fire-and-forget sidecar generation for ad-hoc
+    // captures (the sequencer-driven path goes through
+    // `insertSequenceFrame` which schedules its own sidecar). Local-only:
+    // the remote-companion case is handled by the host's headless server
+    // when it processes the `POST /api/images` request (see
+    // `session_handlers.dart::handleCreateImage`). We probe `_imagesDao`
+    // indirectly via the provider — when running against a remote
+    // backend the provider still points at the local (empty) DB, but the
+    // sidecar service is a no-op on an unreachable path so the
+    // ergonomics are the same.
+    if (!records.isRemote && filePath.isNotEmpty) {
+      try {
+        final sidecarService =
+            _ref.read(thumbnailSidecarServiceProvider);
+        final ImagesDao imagesDao = _ref.read(imagesDaoProvider);
+        sidecarService.scheduleSidecarWrite(
+          imageId: imageId,
+          fitsPath: filePath,
+          imagesDao: imagesDao,
+        );
+      } catch (e) {
+        _logger.warning(
+          'Failed to schedule sidecar for image $imageId ($filePath): $e',
+          source: 'ImagingService',
+        );
+      }
+    }
+
+    return imageId;
   }
 
   /// Calculate image quality score (0-100)
@@ -1014,6 +1280,52 @@ final imagingServiceProvider = Provider<ImagingService>((ref) {
 
 /// Provider for the current displayed image
 final currentImageProvider = StateProvider<CapturedImageData?>((ref) => null);
+
+/// Whether the currently displayed image has been auto-calibrated.
+///
+/// Derived from `currentImageProvider.filePath`: the calibration service
+/// writes calibrated frames with a `_cal.fits` suffix, and the imaging
+/// service swaps the file path on the captured image data once the
+/// calibration step succeeds (see `ImagingService.captureImage` —
+/// auto-calibration block). When calibration fails or isn't enabled the
+/// path stays at the original `.fits`, so the badge reflects only
+/// actually-calibrated frames — never a wishful "we tried" state. That
+/// matches the project rule that errors must surface, not silently
+/// downgrade to a misleading badge.
+final currentImageIsCalibratedProvider = Provider<bool>((ref) {
+  final image = ref.watch(currentImageProvider);
+  final path = image?.filePath;
+  if (path == null || path.isEmpty) {
+    return false;
+  }
+  // The calibration service produces files ending in `_cal.fits` (or
+  // `_cal.fit`). We match either casing on the suffix; the rest of the
+  // pipeline normalises paths but the suffix itself is stable.
+  final lower = path.toLowerCase();
+  return lower.endsWith('_cal.fits') || lower.endsWith('_cal.fit');
+});
+
+/// Live preview histogram: uses host raw pixels when [CapturedImageData.hasRawReady],
+/// otherwise the JPEG preview histogram bundled with the capture.
+final previewDisplayHistogramProvider = Provider<List<int>?>((ref) {
+  final image = ref.watch(currentImageProvider);
+  if (image == null) {
+    return null;
+  }
+  if (image.hasRawReady && image.rawU16 != null) {
+    return histogram256FromRawU16(image.rawU16!);
+  }
+  return image.histogram;
+});
+
+/// Build 256-bin histogram from 16-bit mono raw (high byte per pixel).
+List<int> histogram256FromRawU16(Uint16List raw) {
+  final bins = List<int>.filled(256, 0);
+  for (var i = 0; i < raw.length; i++) {
+    bins[raw[i] >> 8]++;
+  }
+  return bins;
+}
 
 /// Provider for exposure progress
 final exposureProgressProvider =

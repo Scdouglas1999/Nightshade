@@ -381,6 +381,7 @@ pub struct FliDiscoveryInfo {
     pub device_path: String,
     pub name: String,
     pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
     pub device_type: FliDeviceType,
 }
 
@@ -419,6 +420,7 @@ async fn discover_devices_by_type(
     let _lock = fli_mutex().lock().await;
 
     let domain = FLIDOMAIN_USB | device_flag;
+    let sdk_version = sdk_version_from_sdk(sdk);
     let mut devices = Vec::new();
 
     // Create device list
@@ -494,6 +496,7 @@ async fn discover_devices_by_type(
             device_path: path,
             name,
             serial_number: serial,
+            sdk_version: sdk_version.clone(),
             device_type,
         });
 
@@ -525,21 +528,30 @@ pub fn is_sdk_available() -> bool {
 /// Get SDK status for diagnostics
 pub fn get_sdk_status() -> (bool, String) {
     match get_sdk() {
-        Ok(sdk) => {
-            let mut version_buf = [0i8; 64];
-            // SAFETY: version_buf is a 64-byte stack array; the length is passed truthfully so the SDK can't overrun. FLIGetLibVersion has no device handle to validate.
-            if unsafe { (sdk.get_lib_version)(version_buf.as_mut_ptr(), version_buf.len()) } == 0 {
-                // SAFETY: version_buf is 64 bytes; FLI SDK guarantees NUL-termination on success.
-                let version = unsafe { CStr::from_ptr(version_buf.as_ptr()) }
-                    .to_string_lossy()
-                    .to_string();
-                (true, format!("FLI libfli v{}", version))
-            } else {
-                (true, "FLI libfli (version unknown)".to_string())
-            }
-        }
+        Ok(sdk) => (
+            true,
+            sdk_version_from_sdk(sdk).unwrap_or_else(|| "FLI libfli (version unknown)".to_string()),
+        ),
         Err(e) => (false, format!("SDK not available: {}", e)),
     }
+}
+
+fn sdk_version_from_sdk(sdk: &FliSdk) -> Option<String> {
+    let mut version_buf = [0i8; 64];
+    // SAFETY: version_buf is a 64-byte stack array; the length is passed truthfully so the SDK can't overrun. FLIGetLibVersion has no device handle to validate.
+    if unsafe { (sdk.get_lib_version)(version_buf.as_mut_ptr(), version_buf.len()) } != 0 {
+        return None;
+    }
+    // SAFETY: version_buf is 64 bytes; FLI SDK guarantees NUL-termination on success.
+    let version = unsafe { CStr::from_ptr(version_buf.as_ptr()) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!version.is_empty()).then_some(format!("FLI libfli v{version}"))
+}
+
+pub fn sdk_version() -> Option<String> {
+    get_sdk().ok().and_then(sdk_version_from_sdk)
 }
 
 // =============================================================================
@@ -1143,21 +1155,19 @@ impl NativeCamera for FliCamera {
     }
 
     async fn set_gain(&mut self, _gain: i32) -> Result<(), NativeError> {
-        // FLI doesn't support gain control
-        Ok(())
+        Err(NativeError::NotSupported)
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        Ok(0)
+        Err(NativeError::NotSupported)
     }
 
     async fn set_offset(&mut self, _offset: i32) -> Result<(), NativeError> {
-        // FLI doesn't support offset control
-        Ok(())
+        Err(NativeError::NotSupported)
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        Ok(0)
+        Err(NativeError::NotSupported)
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
@@ -1305,6 +1315,25 @@ impl NativeCamera for FliCamera {
 
         // FLI cameras typically don't have user-adjustable offset.
         Err(NativeError::NotSupported)
+    }
+}
+
+#[cfg(test)]
+mod camera_tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn fli_gain_and_offset_writes_report_not_supported() {
+        let mut camera = FliCamera::new("test".to_string());
+
+        assert!(matches!(
+            camera.set_gain(10).await,
+            Err(NativeError::NotSupported)
+        ));
+        assert!(matches!(
+            camera.set_offset(20).await,
+            Err(NativeError::NotSupported)
+        ));
     }
 }
 

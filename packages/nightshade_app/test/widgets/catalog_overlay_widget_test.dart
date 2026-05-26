@@ -27,6 +27,12 @@ class _StubCatalogSource implements CatalogOverlaySource {
 
   @override
   Future<bool> get isAvailable async => true;
+
+  @override
+  Future<bool> get dsoCatalogAvailable async => dsos.isNotEmpty;
+
+  @override
+  Future<bool> get starCatalogAvailable async => stars.isNotEmpty;
 }
 
 const _wcs = SolvedWcs(
@@ -60,6 +66,8 @@ Future<void> _pump(
   required CatalogOverlayService service,
   bool enabled = true,
   double magLimit = 10,
+  bool includeDsos = true,
+  bool includeStars = false,
 }) async {
   tester.view.devicePixelRatio = 1.0;
   tester.view.physicalSize = const Size(800, 800);
@@ -74,8 +82,8 @@ Future<void> _pump(
         catalogOverlayServiceProvider.overrideWithValue(service),
         catalogOverlayEnabledProvider.overrideWith((_) => enabled),
         catalogOverlayMagnitudeLimitProvider.overrideWith((_) => magLimit),
-        catalogOverlayIncludeDsosProvider.overrideWith((_) => true),
-        catalogOverlayIncludeStarsProvider.overrideWith((_) => false),
+        catalogOverlayIncludeDsosProvider.overrideWith((_) => includeDsos),
+        catalogOverlayIncludeStarsProvider.overrideWith((_) => includeStars),
       ],
       child: MaterialApp(
         theme: NightshadeTheme.dark,
@@ -83,6 +91,7 @@ Future<void> _pump(
       ),
     ),
   );
+
   // Resolve the FutureProvider that backs the overlay's data.
   await tester.pumpAndSettle();
 }
@@ -131,6 +140,41 @@ void main() {
 
       // HUD reports the correct counts.
       expect(find.text('3 of 3 objects ≤ mag 10.0'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'tapping a marker opens the catalog details panel',
+    (tester) async {
+      final source = _StubCatalogSource(
+        dsos: [
+          _dso(id: 'M81', raHours: 5.5, decDeg: -5.0, magnitude: 6.9),
+        ],
+      );
+      final service = CatalogOverlayService(source: source);
+
+      await _pump(
+        tester,
+        service: service,
+        child: const SizedBox(
+          width: 600,
+          height: 600,
+          child: CatalogOverlayWidget(
+            wcs: _wcs,
+            zoomLevel: 1.0,
+            imageOffset: Offset.zero,
+            imageSize: Size(600, 600),
+          ),
+        ),
+      );
+
+      expect(find.text('M81'), findsNothing);
+      await tester.tapAt(const Offset(300, 300));
+      await tester.pumpAndSettle();
+
+      expect(find.text('M81'), findsOneWidget);
+      expect(find.text('Catalog'), findsOneWidget);
+      expect(find.text('Type'), findsOneWidget);
     },
   );
 
@@ -209,6 +253,30 @@ void main() {
       expect(find.text('No catalog installed'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'shows a clear empty state when every catalog layer is disabled',
+    (tester) async {
+      final service = CatalogOverlayService(source: _StubCatalogSource());
+      await _pump(
+        tester,
+        includeDsos: false,
+        includeStars: false,
+        service: service,
+        child: const SizedBox(
+          width: 600,
+          height: 600,
+          child: CatalogOverlayWidget(
+            wcs: _wcs,
+            zoomLevel: 1.0,
+            imageOffset: Offset.zero,
+            imageSize: Size(600, 600),
+          ),
+        ),
+      );
+      expect(find.text('No catalog layers selected'), findsOneWidget);
+    },
+  );
 }
 
 class _UnavailableSource implements CatalogOverlaySource {
@@ -220,4 +288,10 @@ class _UnavailableSource implements CatalogOverlaySource {
 
   @override
   Future<bool> get isAvailable async => false;
+
+  @override
+  Future<bool> get dsoCatalogAvailable async => false;
+
+  @override
+  Future<bool> get starCatalogAvailable async => false;
 }

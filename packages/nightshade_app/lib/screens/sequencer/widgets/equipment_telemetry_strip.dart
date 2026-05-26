@@ -566,10 +566,11 @@ class _DeviceBlock extends StatelessWidget {
             ),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-              decoration: BoxDecoration(
-                color: statusColor.withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.statusChip(
+                statusColor,
                 borderRadius:
                     BorderRadius.circular(NightshadeTokens.radiusXs),
+                bordered: false,
               ),
               child: Text(
                 statusText,

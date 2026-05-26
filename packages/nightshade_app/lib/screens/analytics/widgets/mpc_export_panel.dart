@@ -348,9 +348,10 @@ class _ObservationGroupTile extends StatelessWidget {
               Container(
                 margin: const EdgeInsets.only(left: 4),
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.success.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  colors.success,
                   borderRadius: BorderRadius.circular(3),
+                  bordered: false,
                 ),
                 child: Text(
                   'Known',
@@ -366,9 +367,10 @@ class _ObservationGroupTile extends StatelessWidget {
               const SizedBox(width: 6),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(3),
+                  bordered: false,
                 ),
                 child: Text(
                   '${group.nightCount} nights',
@@ -398,11 +400,9 @@ class _ObservationGroupTile extends StatelessWidget {
                   SizedBox(
                     width: 24,
                     height: 24,
-                    child: Checkbox(
+                    child: NightshadeCheckbox(
                       value: isSelected,
                       onChanged: (_) => onToggleObservation(obs.id),
-                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      visualDensity: VisualDensity.compact,
                     ),
                   ),
                   const SizedBox(width: 4),

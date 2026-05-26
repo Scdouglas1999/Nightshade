@@ -51,6 +51,13 @@ dependencies:
   flutter_map: ^6.1.0
   latlong2: ^0.9.1
   sensors_plus: ^6.1.1
+  # Wave 6 Agent 5 — render markdown in journal note bodies (notes_panel).
+  # Pulled at ^0.7.x for compatibility with our flutter SDK; this is the
+  # last release that supports the inline Markdown syntax we need (bold,
+  # italics, code blocks, links, lists) without dragging in the larger
+  # flutter_markdown_plus tree.
+  flutter_markdown: ^0.7.0
+  qr_flutter: ^4.1.0
 
 dev_dependencies:
   flutter_test:

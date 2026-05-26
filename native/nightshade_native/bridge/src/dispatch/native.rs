@@ -7,16 +7,18 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+#[allow(unused_imports)] // Trait methods on `dyn Native*` handles require these in scope.
 use nightshade_native::traits::{
-    NativeCamera, NativeDevice, NativeFilterWheel, NativeFocuser, NativeMount,
+    NativeCamera, NativeCoverCalibrator, NativeDevice, NativeDome, NativeFilterWheel,
+    NativeFocuser, NativeMount, NativeRotator, NativeSafetyMonitor, NativeSwitch, NativeWeather,
 };
-use nightshade_native::vendor::atik::AtikCamera;
+use nightshade_native::vendor::atik::{AtikCamera, AtikFilterWheel};
 use nightshade_native::vendor::fli::{FliCamera, FliFilterWheel, FliFocuser};
 use nightshade_native::vendor::gphoto2::GPhoto2Camera;
 use nightshade_native::vendor::ioptron::IOptronMount;
 use nightshade_native::vendor::lx200::{Lx200Mount, Lx200MountType};
 use nightshade_native::vendor::moravian::MoravianCamera;
-use nightshade_native::vendor::player_one::PlayerOneCamera;
+use nightshade_native::vendor::player_one::{PlayerOneCamera, PlayerOneFilterWheel};
 use nightshade_native::vendor::qhy::{QhyCamera, QhyFilterWheel};
 use nightshade_native::vendor::skywatcher::SkyWatcherMount;
 use nightshade_native::vendor::svbony::SvbonyCamera;
@@ -182,6 +184,18 @@ impl DeviceManager {
                     // FLI uses device path as ID
                     Box::new(FliFilterWheel::new(id_str.to_string()))
                 }
+                "atik_efw" => {
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid Atik EFW filter wheel ID")?;
+                    Box::new(AtikFilterWheel::new(id))
+                }
+                "playerone_pw" => {
+                    let id = id_str
+                        .parse::<i32>()
+                        .map_err(|_| "Invalid Player One filter wheel handle")?;
+                    Box::new(PlayerOneFilterWheel::new(id))
+                }
                 _ => return Err(format!("Unknown native filter wheel vendor: {}", vendor)),
             };
 
@@ -310,5 +324,199 @@ impl DeviceManager {
 
         tracing::info!("Connected to native device: {}", info.name);
         Ok(())
+    }
+
+    /// Native driver liveness probe for the heartbeat loop (FB-P0-4).
+    ///
+    /// Uses a lightweight SDK read per device class instead of the in-process
+    /// `connected` flag, which can stay true after USB unplug.
+    pub(crate) async fn perform_native_health_check(
+        &self,
+        device_id: &str,
+        device_type: &DeviceType,
+    ) -> Result<bool, String> {
+        if device_id == crate::builtin_guider::device_id() {
+            let connected = crate::builtin_guider::is_connected().await;
+            return Ok(connected);
+        }
+
+        match device_type {
+            DeviceType::Camera => {
+                let cameras = self.native_cameras.read().await;
+                let camera = cameras.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native camera {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !camera.is_connected() {
+                    return Ok(false);
+                }
+                camera
+                    .get_temperature()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native camera liveness probe failed: {}", e))
+            }
+            DeviceType::Mount => {
+                let mounts = self.native_mounts.read().await;
+                let mount = mounts.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native mount {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !mount.is_connected() {
+                    return Ok(false);
+                }
+                mount
+                    .get_tracking()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native mount liveness probe failed: {}", e))
+            }
+            DeviceType::Focuser => {
+                let focusers = self.native_focusers.read().await;
+                let focuser = focusers.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native focuser {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !focuser.is_connected() {
+                    return Ok(false);
+                }
+                focuser
+                    .get_position()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native focuser liveness probe failed: {}", e))
+            }
+            DeviceType::FilterWheel => {
+                let wheels = self.native_filter_wheels.read().await;
+                let wheel = wheels.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native filter wheel {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !wheel.is_connected() {
+                    return Ok(false);
+                }
+                wheel
+                    .get_position()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native filter wheel liveness probe failed: {}", e))
+            }
+            DeviceType::Rotator => {
+                let rotators = self.native_rotators.read().await;
+                let rotator = rotators.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native rotator {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !rotator.is_connected() {
+                    return Ok(false);
+                }
+                rotator
+                    .get_position()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native rotator liveness probe failed: {}", e))
+            }
+            DeviceType::Dome => {
+                let domes = self.native_domes.read().await;
+                let dome = domes.get(device_id).ok_or_else(|| {
+                    format!("Native dome {} not registered in device manager", device_id)
+                })?;
+                if !dome.is_connected() {
+                    return Ok(false);
+                }
+                dome.get_azimuth()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native dome liveness probe failed: {}", e))
+            }
+            DeviceType::Weather => {
+                let stations = self.native_weather.read().await;
+                let station = stations.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native weather station {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !station.is_connected() {
+                    return Ok(false);
+                }
+                station
+                    .get_temperature()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native weather liveness probe failed: {}", e))
+            }
+            DeviceType::SafetyMonitor => {
+                let monitors = self.native_safety_monitors.read().await;
+                let monitor = monitors.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native safety monitor {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !monitor.is_connected() {
+                    return Ok(false);
+                }
+                monitor
+                    .is_safe()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native safety monitor liveness probe failed: {}", e))
+            }
+            DeviceType::Switch => {
+                let switches = self.native_switches.read().await;
+                let switch = switches.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native switch {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !switch.is_connected() {
+                    return Ok(false);
+                }
+                switch
+                    .get_switch_count()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native switch liveness probe failed: {}", e))
+            }
+            DeviceType::CoverCalibrator => {
+                let covers = self.native_cover_calibrators.read().await;
+                let cover = covers.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native cover calibrator {} not registered in device manager",
+                        device_id
+                    )
+                })?;
+                if !cover.is_connected() {
+                    return Ok(false);
+                }
+                cover
+                    .get_cover_state()
+                    .await
+                    .map(|_| true)
+                    .map_err(|e| format!("Native cover calibrator liveness probe failed: {}", e))
+            }
+            other => {
+                let devices = self.native_devices.read().await;
+                let device = devices.get(device_id).ok_or_else(|| {
+                    format!(
+                        "Native device {} (type {:?}) not registered in device manager",
+                        device_id, other
+                    )
+                })?;
+                Ok(device.is_connected())
+            }
+        }
     }
 }

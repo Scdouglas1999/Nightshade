@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import '../components/focus_ring.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 
 /// An accessible icon button with proper semantics and focus support.
 ///
@@ -30,7 +32,7 @@ class AccessibleIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final effectiveColor = color ?? colors.textPrimary;
     final isEnabled = onPressed != null;
 
@@ -40,13 +42,17 @@ class AccessibleIconButton extends StatelessWidget {
       enabled: isEnabled,
       child: Tooltip(
         message: tooltip ?? label,
-        child: IconButton(
-          icon: Icon(icon),
-          iconSize: size,
-          color: isEnabled ? effectiveColor : colors.textMuted,
-          onPressed: onPressed,
-          autofocus: autofocus,
-          splashRadius: size + 4,
+        child: FocusRing(
+          borderRadius: NightshadeTokens.borderRadiusSm,
+          focusColor: colors.primary,
+          child: IconButton(
+            icon: Icon(icon),
+            iconSize: size,
+            color: isEnabled ? effectiveColor : colors.textMuted,
+            onPressed: onPressed,
+            autofocus: autofocus,
+            splashRadius: size + 4,
+          ),
         ),
       ),
     );

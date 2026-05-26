@@ -218,7 +218,11 @@ class _CompactStatusIndicator extends StatelessWidget {
         padding: const EdgeInsets.all(4),
         decoration: BoxDecoration(
           color: isConnected
-              ? colors.success.withValues(alpha: 0.15)
+              ? NightshadeDecorations.statusChip(
+                  colors.success,
+                  borderRadius: BorderRadius.circular(4),
+                  bordered: false,
+                ).color
               : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(4),
           border: Border.all(
@@ -259,7 +263,10 @@ class _ExpandedStatusChip extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
         color: isConnected
-            ? colors.success.withValues(alpha: 0.1)
+            ? NightshadeDecorations.tintedBadge(
+                colors.success,
+                borderRadius: BorderRadius.circular(6),
+              ).color
             : colors.surfaceAlt,
         borderRadius: BorderRadius.circular(6),
         border: Border.all(

@@ -74,6 +74,122 @@ class FlatHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     ));
   }
 
+  /// P1-10: remote calibration API — fetch by id.
+  Future<FlatHistoryEntry?> getById(int id) {
+    return (select(flatHistory)..where((t) => t.id.equals(id)))
+        .getSingleOrNull();
+  }
+
+  /// P1-10: remote calibration API — filtered listing.
+  ///
+  /// Arguments are independent filters; null/missing means "no constraint".
+  /// Returns newest-first up to [limit] rows. Callers MUST validate and
+  /// clamp [limit] at the handler layer before delegating here.
+  Future<List<FlatHistoryEntry>> listFiltered({
+    String? filterName,
+    int? equipmentProfileId,
+    int? gain,
+    DateTime? since,
+    int limit = 100,
+  }) {
+    var query = select(flatHistory)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+      ..limit(limit);
+
+    if (filterName != null) {
+      query = query..where((t) => t.filterName.equals(filterName));
+    }
+    if (equipmentProfileId != null) {
+      query = query
+        ..where((t) => t.equipmentProfileId.equals(equipmentProfileId));
+    }
+    if (gain != null) {
+      query = query..where((t) => t.gain.equals(gain));
+    }
+    if (since != null) {
+      query = query..where((t) => t.timestamp.isBiggerOrEqualValue(since));
+    }
+    return query.get();
+  }
+
+  /// P1-10: insert a flat-history row from API input. Companion-based so
+  /// optional fields preserve their nullability.
+  Future<int> insertEntry(FlatHistoryCompanion entry) {
+    return into(flatHistory).insert(entry);
+  }
+
+  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// `timestamp`. The `?panelKey=` query parameter falls onto
+  /// `panelBrightness` (no separate panel-id column in this table —
+  /// callers can stringify their panel-brightness mapping). Callers MUST
+  /// validate / clamp [limit] and [offset].
+  Future<List<FlatHistoryEntry>> listPaginated({
+    String? filterName,
+    int? panelBrightness,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    var query = select(flatHistory)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+      ..limit(limit, offset: offset);
+    if (filterName != null) {
+      query = query..where((t) => t.filterName.equals(filterName));
+    }
+    if (panelBrightness != null) {
+      query = query..where((t) => t.panelBrightness.equals(panelBrightness));
+    }
+    return query.get();
+  }
+
+  /// P2-8: row count matching [listPaginated]'s filters.
+  Future<int> countFiltered({
+    String? filterName,
+    int? panelBrightness,
+  }) async {
+    final countExpr = flatHistory.id.count();
+    final query = selectOnly(flatHistory)..addColumns([countExpr]);
+    if (filterName != null) {
+      query.where(flatHistory.filterName.equals(filterName));
+    }
+    if (panelBrightness != null) {
+      query.where(flatHistory.panelBrightness.equals(panelBrightness));
+    }
+    final row = await query.getSingle();
+    return row.read(countExpr) ?? 0;
+  }
+
+  /// P1-10: delete a single flat-history row by id. Returns number of
+  /// rows affected (0 or 1) so the handler can map 0 to 404.
+  Future<int> deleteById(int id) {
+    return (delete(flatHistory)..where((t) => t.id.equals(id))).go();
+  }
+
+  /// P1-10: recommendation source for the headless calibration API.
+  ///
+  /// Searches the most recent matching [FlatHistoryEntry] for the given
+  /// filter/profile/gain combination. Returns null when no row matches.
+  /// The caller derives an age-based confidence label (`high` / `medium` /
+  /// `low`) from `entry.timestamp`.
+  Future<FlatHistoryEntry?> findMostRecentMatch({
+    required String filterName,
+    int? equipmentProfileId,
+    int? gain,
+  }) async {
+    var query = select(flatHistory)
+      ..where((t) => t.filterName.equals(filterName))
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+      ..limit(1);
+
+    if (equipmentProfileId != null) {
+      query = query
+        ..where((t) => t.equipmentProfileId.equals(equipmentProfileId));
+    }
+    if (gain != null) {
+      query = query..where((t) => t.gain.equals(gain));
+    }
+    return query.getSingleOrNull();
+  }
+
   /// Clear old history entries (keep last N per filter)
   Future<void> pruneHistory({int keepPerFilter = 50}) async {
     await transaction(() async {

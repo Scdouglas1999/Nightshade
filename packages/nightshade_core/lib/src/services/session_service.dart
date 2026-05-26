@@ -1,7 +1,7 @@
 import 'dart:async';
 
-import '../database/daos/sessions_dao.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
+import 'imaging_records_repository.dart';
 import 'logging_service.dart';
 
 /// Configuration for session checkpointing
@@ -109,7 +109,7 @@ class SessionRecoveryInfo {
 
 /// Service for managing imaging session lifecycle with persistence and recovery
 class SessionService {
-  final SessionsDao sessionsDao;
+  final ImagingRecordsRepository _records;
   final SequenceCheckpointsDao? checkpointsDao; // Optional, for sequence integration
   final LoggingService _logger;
 
@@ -132,11 +132,12 @@ class SessionService {
   /// timezone. Defaults to [DateTime.now] for tests and for hosts that
   /// have not configured a TZ override (audit-handoff §2.1 WIRE-UP #9).
   SessionService({
-    required this.sessionsDao,
+    required ImagingRecordsRepository records,
     this.checkpointsDao,
     required LoggingService logger,
     DateTime Function()? nowProvider,
-  })  : _logger = logger,
+  })  : _records = records,
+        _logger = logger,
         _now = nowProvider ?? DateTime.now;
 
   /// Stream of status updates
@@ -168,7 +169,7 @@ class SessionService {
     _logger.debug('  Profile ID: $profileId', source: 'SessionService');
 
     // Create database session record with 'active' status
-    final sessionId = await sessionsDao.startSession(
+    final sessionId = await _records.startSession(
       name: name,
       profileId: profileId,
       targetId: targetId,
@@ -241,7 +242,7 @@ class SessionService {
       final stats = _currentStats ?? SessionStats(lastUpdated: DateTime.now());
 
       // Update session with final statistics and status
-      await sessionsDao.updateSessionStats(
+      await _records.updateSessionStats(
         _currentSessionId!,
         totalExposures: stats.completedExposures + stats.failedExposures,
         successfulExposures: stats.completedExposures,
@@ -253,7 +254,7 @@ class SessionService {
       );
 
       // Set end time and status
-      await sessionsDao.endSession(_currentSessionId!, status: status);
+      await _records.endSession(_currentSessionId!, status: status);
 
       _statusController.add('Session ended: $_currentSessionId ($status)');
       _logger.info('Session finalized', source: 'SessionService');
@@ -283,11 +284,11 @@ class SessionService {
   Future<void> errorSession(String errorMessage) async {
     if (_currentSessionId != null && _currentStats != null) {
       // Optionally store error message in notes
-      final currentSession = await sessionsDao.getSessionById(_currentSessionId!);
+      final currentSession = await _records.getSessionById(_currentSessionId!);
       if (currentSession != null) {
         final notes = currentSession.notes ?? '';
         final errorNotes = notes.isEmpty ? errorMessage : '$notes\n\nError: $errorMessage';
-        await sessionsDao.updateNotes(_currentSessionId!, errorNotes);
+        await _records.updateSessionNotes(_currentSessionId!, errorNotes);
       }
     }
     await endSession(status: 'error');
@@ -299,7 +300,7 @@ class SessionService {
     _logger.debug('Checking for incomplete sessions...', source: 'SessionService');
 
     try {
-      final allSessions = await sessionsDao.getAllSessions();
+      final allSessions = await _records.getAllSessions();
 
       // Find sessions with 'active' status (not completed/aborted/error)
       final incompleteSessions = allSessions.where((s) => s.status == 'active').toList();
@@ -349,7 +350,7 @@ class SessionService {
     _logger.info('Recovering session $sessionId...', source: 'SessionService');
 
     // Verify session exists and is in 'active' state
-    final session = await sessionsDao.getSessionById(sessionId);
+    final session = await _records.getSessionById(sessionId);
     if (session == null) {
       throw Exception('Session $sessionId not found');
     }
@@ -386,7 +387,7 @@ class SessionService {
   /// Mark a session as aborted (for recovery dialog when user chooses not to resume)
   Future<void> markSessionAborted(int sessionId) async {
     _logger.info('Marking session $sessionId as aborted', source: 'SessionService');
-    await sessionsDao.endSession(sessionId, status: 'aborted');
+    await _records.endSession(sessionId, status: 'aborted');
   }
 
   /// Update checkpoint configuration
@@ -437,7 +438,7 @@ class SessionService {
 
     try {
       // Save current statistics to database
-      await sessionsDao.updateSessionStats(
+      await _records.updateSessionStats(
         _currentSessionId!,
         totalExposures: _currentStats!.completedExposures + _currentStats!.failedExposures,
         successfulExposures: _currentStats!.completedExposures,

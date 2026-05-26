@@ -18,7 +18,7 @@ class RunDashboardExposureProgress extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final exposure = ref.watch(exposureProgressProvider);
     final seq = ref.watch(sequenceProgressProvider);
 
@@ -49,11 +49,11 @@ class RunDashboardExposureProgress extends ConsumerWidget {
                     ? 'Frame ${exposure.frameNumber}'
                         '${exposure.totalFrames != null ? ' / ${exposure.totalFrames}' : ''}'
                     : 'Idle',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: colors.textSecondary,
-                  fontWeight: FontWeight.w600,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                style: NightshadeTypography.withTabular(
+                  NightshadeTypography.labelQuiet.copyWith(
+                    color: colors.textSecondary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
             ],
@@ -68,16 +68,13 @@ class RunDashboardExposureProgress extends ConsumerWidget {
                   : exposure.isDownloading
                       ? 'Downloading…'
                       : '—',
-              style: TextStyle(
-                fontSize: 36,
+              style: NightshadeTypography.telemetryLg.copyWith(
                 fontWeight: FontWeight.w700,
                 color: hasFrame
                     ? colors.primary
                     : exposure.isDownloading
                         ? colors.warning
                         : colors.textMuted,
-                fontFeatures: const [FontFeature.tabularFigures()],
-                height: 1.0,
               ),
             ),
           ),
@@ -108,29 +105,30 @@ class RunDashboardExposureProgress extends ConsumerWidget {
               const Spacer(),
               Text(
                 '${seq.completedExposures} / ${seq.totalExposures}',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textSecondary,
-                  fontFeatures: const [FontFeature.tabularFigures()],
+                style: NightshadeTypography.withTabular(
+                  NightshadeTypography.labelSm.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: colors.textSecondary,
+                  ),
                 ),
               ),
               const SizedBox(width: NightshadeTokens.spaceSm),
               Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  colors.primary,
                   borderRadius:
                       BorderRadius.circular(NightshadeTokens.radiusXs),
+                  bordered: false,
                 ),
                 child: Text(
                   '${(seq.progressPercent * 100).toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w700,
-                    color: colors.primary,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  style: NightshadeTypography.withTabular(
+                    NightshadeTypography.captionSm.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: colors.primary,
+                    ),
                   ),
                 ),
               ),
@@ -150,10 +148,10 @@ class RunDashboardExposureProgress extends ConsumerWidget {
                 const SizedBox(width: 4),
                 Text(
                   '~${formatSeconds(seq.estimatedRemainingSecs!)} remaining',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colors.textMuted,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                  style: NightshadeTypography.withTabular(
+                    NightshadeTypography.labelQuiet.copyWith(
+                      color: colors.textMuted,
+                    ),
                   ),
                 ),
               ],

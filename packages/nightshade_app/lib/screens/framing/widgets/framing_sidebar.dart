@@ -396,11 +396,9 @@ class FramingEquipmentSection extends StatelessWidget {
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: colors.warning.withValues(alpha: 0.1),
+                        decoration: NightshadeDecorations.emphasisSurface(
+                          colors.warning,
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(
-                              color: colors.warning.withValues(alpha: 0.3)),
                         ),
                         child: Row(
                           children: [
@@ -858,12 +856,10 @@ class FramingMosaicSection extends ConsumerWidget {
                 ),
               ),
             ),
-            Switch(
+            NightshadeSwitch(
               value: framingState.mosaicEnabled,
               onChanged:
                   hasEquipment ? (v) => notifier.setMosaicEnabled(v) : null,
-              activeTrackColor: colors.primary,
-              thumbColor: WidgetStateProperty.all(Colors.white),
             ),
           ],
         ),

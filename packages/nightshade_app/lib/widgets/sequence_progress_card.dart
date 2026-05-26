@@ -25,19 +25,13 @@ class SequenceProgressCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final progress = ref.watch(sequenceProgressProvider);
-    final theme = Theme.of(context);
-    final colors = Theme.of(context).extension<NightshadeColors>();
+    final colors = NightshadeColors.of(context);
 
-    // Safe color access with fallbacks
-    final surfaceColor = colors?.surface ?? theme.cardColor;
-    final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
-    final textColor = colors?.textPrimary ??
-        theme.textTheme.bodyLarge?.color ??
-        theme.colorScheme.onSurface;
-    final textSecondary = colors?.textSecondary ??
-        theme.textTheme.bodyMedium?.color ??
-        theme.colorScheme.onSurfaceVariant;
-    final primaryColor = colors?.primary ?? theme.colorScheme.primary;
+    final surfaceColor = colors.surface;
+    final borderColor = colors.border;
+    final textColor = colors.textPrimary;
+    final textSecondary = colors.textSecondary;
+    final primaryColor = colors.primary;
 
     // Don't show card if sequence is idle
     if (progress.state == SequenceExecutionState.idle) {
@@ -54,13 +48,6 @@ class SequenceProgressCard extends ConsumerWidget {
         color: surfaceColor,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: borderColor),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -301,6 +288,10 @@ class SequenceProgressCard extends ConsumerWidget {
         return colors?.info ?? primaryColor;
       case SequenceExecutionState.failed:
         return colors?.error ?? primaryColor;
+      case SequenceExecutionState.recovering:
+        // Wave 4 — recovery shares the error palette so the progress
+        // card and the recovery banner agree visually.
+        return colors?.error ?? primaryColor;
     }
   }
 
@@ -318,6 +309,8 @@ class SequenceProgressCard extends ConsumerWidget {
         return 'Completed';
       case SequenceExecutionState.failed:
         return 'Failed';
+      case SequenceExecutionState.recovering:
+        return 'Recovering';
     }
   }
 }

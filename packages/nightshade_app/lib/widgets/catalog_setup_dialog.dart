@@ -108,7 +108,7 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -130,8 +130,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      colors.primary,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(
@@ -238,11 +238,8 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
-                    border:
-                        Border.all(color: colors.error.withValues(alpha: 0.3)),
+                  decoration: NightshadeDecorations.emphasisSurface(
+                    colors.error,
                   ),
                   child: Row(
                     children: [
@@ -316,16 +313,15 @@ class _CatalogSetupDialogState extends ConsumerState<CatalogSetupDialog> {
       child: Container(
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.background,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-            width: isSelected ? 2 : 1,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.tintedBadge(colors.primary).copyWith(
+                border: Border.all(color: colors.primary, width: 2),
+              )
+            : BoxDecoration(
+                color: colors.background,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
         child: Row(
           children: [
             Icon(
@@ -388,15 +384,13 @@ class CatalogRequiredBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Container(
       margin: const EdgeInsets.all(16),
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.warning,
       ),
       child: Row(
         children: [

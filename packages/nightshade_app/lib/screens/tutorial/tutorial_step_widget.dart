@@ -68,7 +68,7 @@ class TutorialStepWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final icon = _resolveIcon(step.iconName);
 
     return Column(
@@ -83,8 +83,8 @@ class TutorialStepWidget extends StatelessWidget {
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.iconChip(
+                colors.primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(icon, color: colors.primary, size: 24),

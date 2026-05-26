@@ -82,6 +82,15 @@ class CapturedImages extends Table {
   // Flags
   BoolColumn get isAccepted => boolean().withDefault(const Constant(true))(); // For rejection marking
   TextColumn get rejectionReason => text().nullable()();
+
+  // Wave 6 Thumbnails: producing-instruction provenance lives in raw-DDL
+  // columns (`producing_node_id`, `producing_run_id`, `runtime_grade`,
+  // `eccentricity`) added by the v30 migration but NOT declared on the
+  // Drift Table here.  Same convention as Wave 6 Agent 5 (notes_journal)
+  // and the v27/v28 raw-DDL tables — the migration lands without
+  // forcing a drift codegen pass, and the new
+  // `ImagesDao.watchImagesByProducingNode` reads the columns via
+  // `customSelect`.
 }
 
 /// Extended image metadata table

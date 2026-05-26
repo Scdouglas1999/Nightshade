@@ -48,7 +48,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isConnected = ref.watch(phd2ConnectedProvider);
     final phd2State = ref.watch(phd2StateProvider);
     final guideStats = ref.watch(guideStatsProvider);
@@ -91,11 +91,11 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
   ) {
     return Column(
       children: [
-        // Guide graph at top - prominent on mobile
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-          child: SizedBox(
-            height: 220,
+        // Guide graph — shares vertical space like desktop (Expanded, not fixed 220).
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
             child: _buildCenterPanel(colors, guideStats),
           ),
         ),
@@ -161,6 +161,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
         ),
         // Tab content
         Expanded(
+          flex: 3,
           child: TabBarView(
             controller: _tabController,
             children: [
@@ -378,61 +379,45 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
   ) {
     final calibrationData = ref.watch(calibrationStateProvider);
 
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
         children: [
-          // Controls panel - use LayoutBuilder to adapt height to available space
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // Use responsive height based on screen width
-              // Smaller screens get slightly less height to fit content
-              final controlsHeight = constraints.maxWidth < 360 ? 340.0 : 380.0;
-              return SizedBox(
-                height: controlsHeight,
-                child: GuideControlsPanel(
-                  key: GuidingTutorialKeys.controls,
-                  state: _mapPhd2State(phd2State),
-                  isConnected: isConnected,
-                  onStartGuiding: () =>
-                      ref.read(phd2ControllerProvider).startGuiding(),
-                  onStopGuiding: () =>
-                      ref.read(phd2ControllerProvider).stopGuiding(),
-                  onLoop: () => ref.read(phd2ControllerProvider).loop(),
-                  onFindStar: () =>
-                      ref.read(lockPositionProvider.notifier).findStar(),
-                  onDeselectStar: () => _deselectStar(),
-                  onDither: () => ref.read(phd2ControllerProvider).dither(),
-                ),
-              );
-            },
+          Expanded(
+            flex: 3,
+            child: GuideControlsPanel(
+              key: GuidingTutorialKeys.controls,
+              state: _mapPhd2State(phd2State),
+              isConnected: isConnected,
+              onStartGuiding: () =>
+                  ref.read(phd2ControllerProvider).startGuiding(),
+              onStopGuiding: () =>
+                  ref.read(phd2ControllerProvider).stopGuiding(),
+              onLoop: () => ref.read(phd2ControllerProvider).loop(),
+              onFindStar: () =>
+                  ref.read(lockPositionProvider.notifier).findStar(),
+              onDeselectStar: () => _deselectStar(),
+              onDither: () => ref.read(phd2ControllerProvider).dither(),
+            ),
           ),
           const SizedBox(height: 12),
-          // Calibration panel - use LayoutBuilder for responsive height
-          LayoutBuilder(
-            builder: (context, constraints) {
-              // Adjust calibration panel height based on screen width
-              final calibrationHeight =
-                  constraints.maxWidth < 360 ? 180.0 : 200.0;
-              return SizedBox(
-                height: calibrationHeight,
-                child: CalibrationPanel(
-                  state: calibrationData.isCalibrated
-                      ? CalibrationState.calibrated
-                      : CalibrationState.notCalibrated,
-                  data: CalibrationData(
-                    hasCalibration: calibrationData.isCalibrated,
-                    raAngle: calibrationData.rotationAngle,
-                    decAngle: null,
-                    raRate: calibrationData.raRate,
-                    decRate: calibrationData.decRate,
-                  ),
-                  isConnected: isConnected,
-                  onClearCalibration: () => _clearCalibration(),
-                  onFlipCalibration: () => _flipCalibration(),
-                ),
-              );
-            },
+          Expanded(
+            flex: 2,
+            child: CalibrationPanel(
+              state: calibrationData.isCalibrated
+                  ? CalibrationState.calibrated
+                  : CalibrationState.notCalibrated,
+              data: CalibrationData(
+                hasCalibration: calibrationData.isCalibrated,
+                raAngle: calibrationData.rotationAngle,
+                decAngle: null,
+                raRate: calibrationData.raRate,
+                decRate: calibrationData.decRate,
+              ),
+              isConnected: isConnected,
+              onClearCalibration: () => _clearCalibration(),
+              onFlipCalibration: () => _flipCalibration(),
+            ),
           ),
         ],
       ),
@@ -440,11 +425,11 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
   }
 
   Widget _buildMobileSettingsTab(NightshadeColors colors) {
-    return SingleChildScrollView(
+    return Padding(
       padding: const EdgeInsets.all(12),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // Brain settings toggle and panel
           NightshadeButton(
             key: GuidingTutorialKeys.brainBtn,
             label:
@@ -454,52 +439,51 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                 _showBrainPanel ? ButtonVariant.primary : ButtonVariant.outline,
             onPressed: () => setState(() => _showBrainPanel = !_showBrainPanel),
           ),
-          if (_showBrainPanel) ...[
-            const SizedBox(height: 12),
-            SizedBox(
-              height: 450,
+          const SizedBox(height: 12),
+          if (_showBrainPanel)
+            Expanded(
               child: _buildBrainPanel(colors),
-            ),
-          ],
-          if (!_showBrainPanel) ...[
-            const SizedBox(height: 24),
-            // Show some helpful info when brain panel is hidden
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
+            )
+          else
+            Expanded(
+              child: SingleChildScrollView(
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: colors.border),
+                  ),
+                  child: Column(
+                    children: [
+                      Icon(
+                        LucideIcons.brain,
+                        size: 48,
+                        color: colors.textMuted,
+                      ),
+                      const SizedBox(height: 12),
+                      Text(
+                        'PHD2 Brain Settings',
+                        style: TextStyle(
+                          color: colors.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 16,
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Configure RA and Dec guide algorithm parameters for fine-tuning guiding performance.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: colors.textSecondary,
+                          fontSize: 13,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
-              child: Column(
-                children: [
-                  Icon(
-                    LucideIcons.brain,
-                    size: 48,
-                    color: colors.textMuted,
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    'PHD2 Brain Settings',
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 16,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Configure RA and Dec guide algorithm parameters for fine-tuning guiding performance.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
             ),
-          ],
         ],
       ),
     );
@@ -519,9 +503,9 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
             constraints.maxWidth - 32; // Account for outer padding
         final isCompact = availableWidth < 900;
 
-        // Adaptive panel widths based on available space
+        // Below 900px use fractional widths so side panels scale with viewport.
         final leftPanelWidth = isCompact
-            ? 220.0
+            ? availableWidth * 0.26
             : Responsive.value(
                 context,
                 mobile: 240.0,
@@ -529,7 +513,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
                 desktop: 280.0,
               );
         final rightPanelWidth = isCompact
-            ? 240.0
+            ? availableWidth * 0.30
             : Responsive.value(
                 context,
                 mobile: 260.0,
@@ -583,20 +567,13 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       ),
       child: Row(
         children: [
-          // Connection status with glow effect
+          // Connection status indicator
           Container(
             width: 10,
             height: 10,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: isConnected ? colors.success : colors.error,
-              boxShadow: [
-                BoxShadow(
-                  color: (isConnected ? colors.success : colors.error)
-                      .withValues(alpha: 0.4),
-                  blurRadius: 6,
-                ),
-              ],
             ),
           ),
           const SizedBox(width: 10),
@@ -616,10 +593,9 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
               horizontal: isMobile ? 8 : 12,
               vertical: 5,
             ),
-            decoration: BoxDecoration(
-              color: stateColor.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              stateColor,
               borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: stateColor.withValues(alpha: 0.3)),
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -887,13 +863,6 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -959,13 +928,6 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1227,7 +1189,7 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
   }
 
   Color _getStateColor(Phd2State state) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     switch (state) {
       case Phd2State.stopped:
         return colors.textMuted;

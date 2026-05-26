@@ -82,17 +82,9 @@ class DashboardClockWidget extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.primary.withValues(alpha: 0.15),
-            colors.accent.withValues(alpha: 0.1),
-          ],
-        ),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.2),
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -137,10 +129,9 @@ class EditModeBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
       ),
       child: Row(
         children: [

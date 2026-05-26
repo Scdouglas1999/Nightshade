@@ -575,7 +575,7 @@ impl ParsedDeviceId {
     ///   e.g. `native:zwo:0`, `native:qhy:QHY600M-12345`,
     ///   `native:lx200:COM3`.
     /// * 4-part subtype: `native:{vendor}:{subtype}:{id}` for ZWO
-    ///   `eaf`/`efw`, QHY `cfw`, FLI `focuser`/`fw`.
+    ///   `eaf`/`efw`, QHY `cfw`, Atik `efw`, FLI `focuser`/`fw`.
     ///   e.g. `native:zwo:eaf:0`.
     /// * 4-part composite (alternative encoding emitted by
     ///   `discovery.rs`): `native:{vendor}_{subtype}:{id}`, e.g.
@@ -663,7 +663,7 @@ impl ParsedDeviceId {
 
         // 4-part subtype form: `native:{vendor}:{subtype}:{id}` where
         // {subtype} is one of the registered subtype tokens for the
-        // vendor (zwo: eaf/efw, qhy: cfw, fli: focuser/fw). We only
+        // vendor (zwo: eaf/efw, qhy: cfw, atik: efw, fli: focuser/fw). We only
         // claim this branch when both conditions hold so legitimate
         // 3-part vendor IDs whose payload happens to contain colons
         // (e.g. `native:lx200:COM3:9600`) still take the default path.
@@ -1066,6 +1066,78 @@ mod tests {
         assert_eq!(port, 11111);
         assert_eq!(dtype, "camera");
         assert_eq!(dnum, 0);
+        assert_eq!(
+            parsed.alpaca_base_url(),
+            Some("http://192.168.1.100:11111"),
+            "base_url must not duplicate the port (FB-P0-1/FB-P0-2)"
+        );
+    }
+
+    /// Regression: broken `splitn`/`rsplitn` parsers produced doubled ports or
+    /// failed to parse device numbers for canonical Alpaca discovery IDs.
+    #[test]
+    fn test_parse_alpaca_canonical_discovery_ids() {
+        let cases = [
+            (
+                "alpaca:http://192.168.1.8:11111:camera:0",
+                "http",
+                "192.168.1.8",
+                11111_u16,
+                "camera",
+                0_u32,
+                "http://192.168.1.8:11111",
+            ),
+            (
+                "alpaca:https://alpaca.example.com:11111:telescope:1",
+                "https",
+                "alpaca.example.com",
+                11111,
+                "telescope",
+                1,
+                "https://alpaca.example.com:11111",
+            ),
+            (
+                "alpaca:http://localhost:11111:filterwheel:2",
+                "http",
+                "localhost",
+                11111,
+                "filterwheel",
+                2,
+                "http://localhost:11111",
+            ),
+            (
+                "alpaca:http://host:11111:camera:0",
+                "http",
+                "host",
+                11111,
+                "camera",
+                0,
+                "http://host:11111",
+            ),
+        ];
+
+        for (raw, proto, host, port, dtype, dnum, base_url) in cases {
+            let parsed = ParsedDeviceId::parse(raw)
+                .unwrap_or_else(|e| panic!("expected `{}` to parse: {}", raw, e));
+            assert_eq!(parsed.driver_type, DriverType::Alpaca, "{}", raw);
+            let (p, h, pt, dt, dn) = parsed.alpaca_info().unwrap();
+            assert_eq!(p, proto, "protocol for {}", raw);
+            assert_eq!(h, host, "host for {}", raw);
+            assert_eq!(pt, port, "port for {}", raw);
+            assert_eq!(dt, dtype, "device_type for {}", raw);
+            assert_eq!(dn, dnum, "device_num for {}", raw);
+            assert_eq!(
+                parsed.alpaca_base_url(),
+                Some(base_url),
+                "base_url for {}",
+                raw
+            );
+        }
+    }
+
+    #[test]
+    fn test_parse_alpaca_bad_device_number() {
+        assert!(ParsedDeviceId::parse("alpaca:http://host:11111:camera:notanum").is_err());
     }
 
     #[test]
@@ -1206,6 +1278,18 @@ mod tests {
     }
 
     #[test]
+    fn native_atik_efw_forms() {
+        assert_native_roundtrip("native:atik:efw:0", "atik");
+        let parsed = ParsedDeviceId::parse("native:atik:efw:3").unwrap();
+        let (vendor, dev, idx) = parsed.native_info().unwrap();
+        assert_eq!(vendor, "atik");
+        assert_eq!(dev, "3");
+        assert_eq!(idx, Some(3));
+
+        assert_native_roundtrip("native:atik_efw:0", "atik_efw");
+    }
+
+    #[test]
     fn native_fli_camera_3part_with_path() {
         // FLI uses sanitized device path as ID; path-safe form may
         // contain underscores from `/` or `\` substitution.
@@ -1278,6 +1362,7 @@ mod tests {
         let parsed = ParsedDeviceId::parse("native:playerone:0").unwrap();
         let (_, _, idx) = parsed.native_info().unwrap();
         assert_eq!(idx, Some(0));
+        assert_native_roundtrip("native:playerone_pw:42", "playerone_pw");
     }
 
     #[test]

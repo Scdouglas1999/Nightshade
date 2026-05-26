@@ -96,11 +96,9 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: widget.colors.warning.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                widget.colors.warning,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -303,8 +301,8 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.primary,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -343,11 +341,9 @@ class _BuiltinGuiderConfigSection extends ConsumerWidget {
             ),
             error: (error, _) => Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: colors.error.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                colors.error,
                 borderRadius: BorderRadius.circular(10),
-                border:
-                    Border.all(color: colors.error.withValues(alpha: 0.3)),
               ),
               child: Text(
                 'Failed to load guider config: $error',

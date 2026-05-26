@@ -27,14 +27,14 @@ class StatusPill extends StatefulWidget {
 class _StatusPillState extends State<StatusPill>
     with SingleTickerProviderStateMixin {
   bool _isHovered = false;
-  late AnimationController _pulseController;
-  late Animation<double> _pulseAnimation;
+  late AnimationController _flashController;
+  late Animation<double> _flashAnimation;
   StatusPillStatus? _previousStatus;
 
   @override
   void initState() {
     super.initState();
-    _setupPulseAnimation();
+    _setupFlashAnimation();
   }
 
   @override
@@ -42,62 +42,35 @@ class _StatusPillState extends State<StatusPill>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.status != widget.status) {
       _previousStatus = oldWidget.status;
-      _setupPulseAnimation();
+      _setupFlashAnimation();
     }
   }
 
-  void _setupPulseAnimation() {
-    // Determine animation duration based on status
-    final Duration pulseDuration;
-    final bool shouldPulse;
-
-    switch (widget.status) {
-      case StatusPillStatus.active:
-        pulseDuration = NightshadeTokens.durationPulse; // 2s
-        shouldPulse = true;
-      case StatusPillStatus.warning:
-        pulseDuration = const Duration(milliseconds: 2500); // Slow pulse
-        shouldPulse = true;
-      case StatusPillStatus.error:
-        pulseDuration = const Duration(milliseconds: 1000); // Sharp pulse
-        shouldPulse = true;
-      case StatusPillStatus.success:
-        // Brief flash on transition, then steady
-        pulseDuration = NightshadeTokens.durationSmooth;
-        shouldPulse = _previousStatus != StatusPillStatus.success;
-      case StatusPillStatus.inactive:
-        pulseDuration = NightshadeTokens.durationPulse;
-        shouldPulse = false;
-    }
-
-    _pulseController = AnimationController(
+  void _setupFlashAnimation() {
+    _flashController = AnimationController(
       vsync: this,
-      duration: pulseDuration,
+      duration: NightshadeTokens.durationSmooth,
     );
 
-    _pulseAnimation = Tween<double>(
-      begin: 0.4,
-      end: 0.7,
-    ).animate(CurvedAnimation(
-      parent: _pulseController,
-      curve: Curves.easeInOut,
-    ));
+    _flashAnimation = Tween<double>(begin: 1.0, end: 1.35).animate(
+      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
+    );
 
-    if (shouldPulse) {
-      if (widget.status == StatusPillStatus.success) {
-        // One-shot flash for success transition
-        _pulseController.forward().then((_) {
-          if (mounted) _pulseController.reverse();
-        });
-      } else {
-        _pulseController.repeat(reverse: true);
-      }
+    final shouldFlash = widget.status == StatusPillStatus.success &&
+        _previousStatus != StatusPillStatus.success;
+
+    if (shouldFlash) {
+      _flashController.forward().then((_) {
+        if (mounted) _flashController.reverse();
+      });
+    } else {
+      _flashController.value = 0.0;
     }
   }
 
   @override
   void dispose() {
-    _pulseController.dispose();
+    _flashController.dispose();
     super.dispose();
   }
 
@@ -118,9 +91,9 @@ class _StatusPillState extends State<StatusPill>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final statusColor = _getStatusColor(colors);
-    final shouldAnimate = widget.status != StatusPillStatus.inactive;
+    final isLive = widget.status != StatusPillStatus.inactive;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -136,37 +109,25 @@ class _StatusPillState extends State<StatusPill>
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
           decoration: BoxDecoration(
             color: _isHovered ? colors.surfaceHover : colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(
-              color: shouldAnimate
-                  ? statusColor.withValues(alpha: 0.3)
-                  : colors.border,
+              color: isLive
+                  ? statusColor.withValues(alpha: 0.28)
+                  : colors.border.withValues(alpha: 0.75),
             ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              // Animated status indicator
               AnimatedBuilder(
-                animation: _pulseAnimation,
+                animation: _flashAnimation,
                 builder: (context, child) {
                   return Container(
-                    width: 8,
-                    height: 8,
+                    width: 6 * _flashAnimation.value,
+                    height: 6 * _flashAnimation.value,
                     decoration: BoxDecoration(
                       color: statusColor,
                       shape: BoxShape.circle,
-                      boxShadow: shouldAnimate
-                          ? [
-                              BoxShadow(
-                                color: statusColor.withValues(
-                                  alpha: _pulseAnimation.value,
-                                ),
-                                blurRadius: 6,
-                                spreadRadius: 1,
-                              ),
-                            ]
-                          : null,
                     ),
                   );
                 },

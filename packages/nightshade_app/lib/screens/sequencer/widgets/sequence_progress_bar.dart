@@ -13,6 +13,12 @@ class SequenceProgressBar extends ConsumerStatefulWidget {
   ConsumerState<SequenceProgressBar> createState() => _SequenceProgressBarState();
 }
 
+/// Static alpha value used to tint the progress bar background when the
+/// sequence is paused. Picked so it sits inside the running pulse range
+/// (0.05–0.08) but stays constant, so users get a calm, non-animating
+/// warning-tinted background instead of a strobing primary-tinted one.
+const double _kPausedBackgroundAlpha = 0.06;
+
 class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     with SingleTickerProviderStateMixin {
   late AnimationController _pulseController;
@@ -23,13 +29,33 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     _pulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 2000),
-    )..repeat();
+    );
+    // Defer starting the pulse to build(), which knows the current
+    // execution state. This keeps the controller idle if the widget
+    // mounts while already paused.
   }
 
   @override
   void dispose() {
     _pulseController.dispose();
     super.dispose();
+  }
+
+  /// Sync the pulse controller with the current paused state.
+  /// Called from build() so it reacts to any provider change that flips
+  /// `isPaused`, without needing a separate `didUpdateWidget` (which would
+  /// not fire on provider changes anyway since `widget` is unchanged).
+  void _syncPulse({required bool isPaused}) {
+    if (isPaused) {
+      if (_pulseController.isAnimating) {
+        _pulseController.stop();
+      }
+    } else {
+      if (!_pulseController.isAnimating) {
+        // Resume from current value so we don't snap back to 0.
+        _pulseController.repeat();
+      }
+    }
   }
 
   String _formatDuration(double seconds) {
@@ -51,20 +77,23 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
     final progress = ref.watch(sequenceProgressProvider);
     final isPaused = ref.watch(sequenceExecutionStateProvider) == SequenceExecutionState.paused;
 
+    // React to isPaused flips by starting/stopping the pulse controller.
+    // Doing this in build() keeps it in lockstep with the watched provider
+    // and means we never start the ticker until we know we're not paused.
+    _syncPulse(isPaused: isPaused);
+
     return AnimatedBuilder(
       animation: _pulseController,
       builder: (context, child) {
+        final backgroundColor = isPaused
+            ? widget.colors.warning.withValues(alpha: _kPausedBackgroundAlpha)
+            : widget.colors.primary.withValues(
+                alpha: 0.05 + _pulseController.value * 0.03,
+              );
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.centerLeft,
-              end: Alignment.centerRight,
-              colors: [
-                widget.colors.primary.withValues(alpha: 0.05 + _pulseController.value * 0.03),
-                widget.colors.accent.withValues(alpha: 0.05 + _pulseController.value * 0.03),
-              ],
-            ),
+            color: backgroundColor,
             border: Border(
               bottom: BorderSide(color: widget.colors.border),
             ),
@@ -80,9 +109,10 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                         margin: const EdgeInsets.only(right: 12),
-                        decoration: BoxDecoration(
-                          color: widget.colors.warning.withValues(alpha: 0.2),
+                        decoration: NightshadeDecorations.statusChip(
+                          widget.colors.warning,
                           borderRadius: BorderRadius.circular(4),
+                          bordered: false,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -116,7 +146,10 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           Text(
-                            progress.currentNodeName ?? 'Starting...',
+                            progress.currentNodeName ??
+                                (isPaused
+                                    ? 'Paused — no active node'
+                                    : 'Starting...'),
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
@@ -234,9 +267,10 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                             const SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                              decoration: BoxDecoration(
-                                color: widget.colors.primary.withValues(alpha: 0.15),
+                              decoration: NightshadeDecorations.statusChip(
+                                widget.colors.primary,
                                 borderRadius: BorderRadius.circular(4),
+                                bordered: false,
                               ),
                               child: Text(
                                 '${(progress.progressPercent * 100).toStringAsFixed(0)}%',
@@ -268,19 +302,8 @@ class _SequenceProgressBarState extends ConsumerState<SequenceProgressBar>
                           child: Container(
                             height: 8,
                             decoration: BoxDecoration(
-                              gradient: LinearGradient(
-                                colors: [
-                                  widget.colors.primary,
-                                  widget.colors.accent,
-                                ],
-                              ),
+                              color: widget.colors.primary,
                               borderRadius: BorderRadius.circular(4),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: widget.colors.primary.withValues(alpha: 0.4),
-                                  blurRadius: 8,
-                                ),
-                              ],
                             ),
                           ),
                         ),
@@ -401,14 +424,9 @@ class _PulsingIndicatorState extends State<_PulsingIndicator>
           height: 12,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: widget.colors.success,
-            boxShadow: [
-              BoxShadow(
-                color: widget.colors.success.withValues(alpha: 0.5 * (1 - _controller.value)),
-                blurRadius: 4 + _controller.value * 8,
-                spreadRadius: _controller.value * 4,
-              ),
-            ],
+            color: widget.colors.success.withValues(
+              alpha: 0.5 + _controller.value * 0.5,
+            ),
           ),
         );
       },

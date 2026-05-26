@@ -51,4 +51,39 @@ void main() {
     expect(response, contains('Already receiving update'));
     expect(receiver.versionInfo['isReceiving'], isTrue);
   });
+
+  test('releases receive slot after failed authentication', () async {
+    final verifier = await _verifierWithKey();
+    final receiver = LanPushReceiver(
+      currentVersion: '2.0.0',
+      currentBuildNumber: 1,
+      pushSecret: 'secret',
+      serverPort: 45692,
+      verifier: verifier,
+    );
+    await receiver.startServer();
+    addTearDown(receiver.stopServer);
+
+    final client = await Socket.connect(InternetAddress.loopbackIPv4, 45692);
+    client.add(_authFrame('wrong-secret'));
+    await client.flush();
+
+    final response = await client
+        .map(utf8.decode)
+        .join()
+        .timeout(const Duration(seconds: 2));
+
+    expect(response, contains('rejected'));
+    expect(response, contains('invalid secret'));
+    expect(receiver.versionInfo['isReceiving'], isFalse);
+  });
+}
+
+Uint8List _authFrame(String secret) {
+  final payload = utf8.encode(jsonEncode({'secret': secret}));
+  final length = ByteData(4)..setInt32(0, payload.length, Endian.big);
+  return Uint8List.fromList([
+    ...length.buffer.asUint8List(),
+    ...payload,
+  ]);
 }

@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
+import '../shell_navigation.dart';
 
 class NightshadeBottomNavigation extends StatefulWidget {
   final String currentRoute;
@@ -21,7 +21,6 @@ class NightshadeBottomNavigation extends StatefulWidget {
 
 class _NightshadeBottomNavigationState
     extends State<NightshadeBottomNavigation> {
-  static const double _itemGap = 8;
   final ScrollController _scrollController = ScrollController();
 
   @override
@@ -32,14 +31,25 @@ class _NightshadeBottomNavigationState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final items = _navigationItems(context);
+    final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
+    final items = ShellNavigation.bottomNavigationDestinations
+        .map(
+          (d) => _NavRouteItem(
+            route: d.route,
+            label: d.label(l10n),
+            icon: d.icon,
+          ),
+        )
+        .toList(growable: false);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final itemWidth =
-            _itemWidth(MediaQuery.sizeOf(context), constraints.maxWidth);
-        _scheduleScroll(items.length, itemWidth, constraints.maxWidth);
+        final itemWidth = BottomNavMetrics.itemWidth(
+          MediaQuery.sizeOf(context),
+          constraints.maxWidth,
+        );
+        _scheduleScroll(items, itemWidth, constraints.maxWidth);
 
         return Container(
           decoration: BoxDecoration(
@@ -51,22 +61,26 @@ class _NightshadeBottomNavigationState
           child: SafeArea(
             top: false,
             child: SizedBox(
-              height: 78,
+              height: BottomNavMetrics.barHeight,
               child: ListView.separated(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: BottomNavMetrics.listHorizontalPadding,
+                  vertical: BottomNavMetrics.listVerticalPadding,
+                ),
                 itemCount: items.length,
-                separatorBuilder: (_, __) => const SizedBox(width: _itemGap),
+                separatorBuilder: (_, __) =>
+                    const SizedBox(width: BottomNavMetrics.itemGap),
                 itemBuilder: (context, index) {
                   final item = items[index];
+                  final currentPath = widget.currentRoute.split('?').first;
                   return SizedBox(
                     width: itemWidth,
                     child: _BottomNavItem(
                       icon: item.icon,
                       label: item.label,
-                      isSelected: widget.currentRoute == item.route,
+                      isSelected: currentPath == item.route,
                       colors: colors,
                       onTap: () => widget.onRouteSelected(item.route),
                     ),
@@ -80,21 +94,28 @@ class _NightshadeBottomNavigationState
     );
   }
 
-  void _scheduleScroll(int itemCount, double itemWidth, double viewportWidth) {
+  void _scheduleScroll(
+    List<_NavRouteItem> items,
+    double itemWidth,
+    double viewportWidth,
+  ) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || !_scrollController.hasClients) {
         return;
       }
 
-      final selectedIndex = _navigationItems(context)
-          .indexWhere((item) => item.route == widget.currentRoute);
+      final selectedIndex = items.indexWhere((item) {
+        final path = widget.currentRoute.split('?').first;
+        return path == item.route;
+      });
       if (selectedIndex < 0) {
         return;
       }
 
-      final slotWidth = itemWidth + _itemGap;
-      final target =
-          (selectedIndex * slotWidth) - ((viewportWidth - itemWidth) / 2) + 10;
+      final slotWidth = itemWidth + BottomNavMetrics.itemGap;
+      final target = (selectedIndex * slotWidth) -
+          ((viewportWidth - itemWidth) / 2) +
+          BottomNavMetrics.listHorizontalPadding;
       final clampedTarget =
           target.clamp(0.0, _scrollController.position.maxScrollExtent);
 
@@ -104,96 +125,10 @@ class _NightshadeBottomNavigationState
 
       _scrollController.animateTo(
         clampedTarget,
-        duration: const Duration(milliseconds: 220),
+        duration: BottomNavMetrics.scrollAnimationDuration,
         curve: Curves.easeOutCubic,
       );
     });
-  }
-
-  double _itemWidth(Size screenSize, double viewportWidth) {
-    final aspectRatio = screenSize.width / screenSize.height;
-    final visibleSlots = switch (viewportWidth) {
-      >= 960 => 8.0,
-      >= 780 => 7.0,
-      >= 640 => 6.0,
-      >= 520 => 5.25,
-      _ when aspectRatio > 0.56 => 4.6,
-      _ => 4.15,
-    };
-
-    final computed = (viewportWidth - 20) / visibleSlots;
-    return computed.clamp(84.0, 116.0);
-  }
-
-  List<_NavRouteItem> _navigationItems(BuildContext context) {
-    final l10n = context.l10n;
-    return [
-      _NavRouteItem(
-        route: '/equipment',
-        label: l10n.text('navEquipment'),
-        icon: LucideIcons.plug,
-      ),
-      _NavRouteItem(
-        route: '/imaging',
-        label: l10n.text('navImaging'),
-        icon: LucideIcons.camera,
-      ),
-      _NavRouteItem(
-        route: '/sequencer',
-        label: l10n.text('navSequencer'),
-        icon: LucideIcons.listOrdered,
-      ),
-      _NavRouteItem(
-        route: '/planetarium',
-        label: l10n.text('navPlanetarium'),
-        icon: LucideIcons.globe,
-      ),
-      _NavRouteItem(
-        route: '/dashboard',
-        label: l10n.text('navDashboard'),
-        icon: LucideIcons.layoutDashboard,
-      ),
-      _NavRouteItem(
-        route: '/guiding',
-        label: l10n.text('navGuiding'),
-        icon: LucideIcons.crosshair,
-      ),
-      _NavRouteItem(
-        route: '/framing',
-        label: l10n.text('navFraming'),
-        icon: LucideIcons.frame,
-      ),
-      _NavRouteItem(
-        route: '/analytics',
-        label: l10n.text('navAnalytics'),
-        icon: LucideIcons.barChart3,
-      ),
-      _NavRouteItem(
-        route: '/flat-wizard',
-        label: l10n.text('navFlatWizard'),
-        icon: LucideIcons.sun,
-      ),
-      _NavRouteItem(
-        route: '/weather',
-        label: l10n.text('navWeather'),
-        icon: LucideIcons.cloudRain,
-      ),
-      _NavRouteItem(
-        route: '/planner',
-        label: l10n.text('navPlanner'),
-        icon: LucideIcons.moonStar,
-      ),
-      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
-      // W8-SCHED-MERGE). Reach it via Plan Tonight → Target Queue or
-      // `/planner?tab=scheduler`.
-      // Diagnostics merged into Analytics as a tab (§UX consolidation).
-      // Reach it via Analytics → Diagnostics or `/analytics?tab=diagnostics`.
-      _NavRouteItem(
-        route: '/settings',
-        label: l10n.text('settingsTitle'),
-        icon: LucideIcons.settings,
-      ),
-    ];
   }
 }
 
@@ -217,16 +152,18 @@ class _BottomNavItem extends StatelessWidget {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius:
+            BorderRadius.circular(BottomNavMetrics.itemBorderRadius),
         onTap: onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 180),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          duration: BottomNavMetrics.itemSelectionAnimationDuration,
+          padding: BottomNavMetrics.itemPadding,
           decoration: BoxDecoration(
             color: isSelected
                 ? colors.primary.withValues(alpha: 0.12)
                 : colors.surface,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius:
+                BorderRadius.circular(BottomNavMetrics.itemBorderRadius),
             border: Border.all(
               color: isSelected
                   ? colors.primary.withValues(alpha: 0.35)
@@ -238,17 +175,17 @@ class _BottomNavItem extends StatelessWidget {
             children: [
               Icon(
                 icon,
-                size: 18,
+                size: BottomNavMetrics.itemIconSize,
                 color: isSelected ? colors.primary : colors.textSecondary,
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: BottomNavMetrics.itemIconLabelGap),
               Text(
                 label,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: BottomNavMetrics.itemLabelFontSize,
                   fontWeight: isSelected ? FontWeight.w700 : FontWeight.w500,
                   color: isSelected ? colors.primary : colors.textSecondary,
                 ),

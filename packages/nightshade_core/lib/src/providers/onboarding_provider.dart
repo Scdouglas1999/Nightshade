@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/backend/device_types.dart';
 import '../models/onboarding/onboarding_state.dart';
+import '../backend/network_backend.dart';
+import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/tutorial_provider.dart';
@@ -29,9 +31,15 @@ final shouldRunEquipmentOnboardingProvider = FutureProvider<bool>((ref) async {
   // got past onboarding (either through this wizard or the original
   // equipment screen). The wizard is reachable from settings for those
   // users.
-  final profilesDao = ref.read(equipmentProfilesDaoProvider);
-  final profiles = await profilesDao.getAllProfiles();
-  if (profiles.isNotEmpty) return false;
+  final backend = ref.read(backendProvider);
+  if (backend is NetworkBackend) {
+    final remoteProfiles = await backend.getProfiles();
+    if (remoteProfiles.isNotEmpty) return false;
+  } else {
+    final profilesDao = ref.read(equipmentProfilesDaoProvider);
+    final profiles = await profilesDao.getAllProfiles();
+    if (profiles.isNotEmpty) return false;
+  }
 
   final tutorialDao = ref.read(tutorialProgressDaoProvider);
   final progress =
@@ -295,7 +303,38 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       telescopeAperture: draft.apertureMm,
       filterNames: draft.filterNames,
     );
-    final id = await dao.createProfile(profile.toCompanion());
+
+    final int id;
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      await backend.saveProfile(profile.toRemoteProfile());
+      _ref.invalidate(equipmentProfilesProvider);
+      final remoteProfiles = await backend.getProfiles();
+      var createdId = '';
+      for (final remoteProfile in remoteProfiles) {
+        if (remoteProfile.name == profile.name) {
+          createdId = remoteProfile.id;
+          break;
+        }
+      }
+      if (createdId.isEmpty) {
+        throw StateError(
+          'Host saved onboarding profile "${profile.name}" but id was not resolved',
+        );
+      }
+      final parsedId = int.tryParse(createdId);
+      if (parsedId == null) {
+        throw StateError(
+          'Host saved onboarding profile "${profile.name}" with non-numeric id',
+        );
+      }
+      await backend.loadProfile(createdId);
+      _ref.invalidate(equipmentProfilesProvider);
+      id = parsedId;
+    } else {
+      id = await dao.createProfile(profile.toCompanion());
+      _ref.invalidate(equipmentProfilesProvider);
+    }
 
     // Persist the capture directory selection at the app-settings level so
     // the imaging service picks it up from day one.

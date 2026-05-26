@@ -176,9 +176,7 @@ impl MeridianFlipExecutor {
                 let msg = format!(
                     "Meridian flip skipped: target '{}' altitude is {:.1}° which is below \
                      the minimum {:.1}°. The target is too low for useful imaging after the flip.",
-                    ctx.target_name,
-                    altitude,
-                    min_altitude
+                    ctx.target_name, altitude, min_altitude
                 );
                 tracing::warn!("[MERIDIAN] {}", msg);
                 self.emit_event(MeridianFlipEvent::Failed {
@@ -954,6 +952,49 @@ impl MeridianFlipExecutor {
             // the flip is invoked outside the live executor (unit tests) the
             // sender is None and emits are silently dropped.
             event_tx: self.executor_event_tx.clone(),
+            recovery_request_tx: None,
+            // Wave 3 Image Grading: meridian-flip refocus does not save FITS
+            // frames itself (autofocus uses in-memory star detection only),
+            // so empty defaults are correct here.
+            session_id: String::new(),
+            target_id: None,
+            mosaic_panel: None,
+            current_filter_index: None,
+            set_temp_c: None,
+            bayer_pattern: None,
+            observer_name: None,
+            site_elevation_m: None,
+            camera_make: None,
+            camera_model: None,
+            telescope_name: None,
+            telescope_focal_length_mm: None,
+            telescope_aperture_mm: None,
+            last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
+            consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            default_quality_check: None,
+            reject_folder_path: None,
+            // Wave 7 Agent 3: meridian-flip refocus does not save FITS
+            // frames so the defect-map slot stays empty.
+            defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            // Wave 8 — Forensics: meridian-flip refocus does not save
+            // FITS frames or grade them; start empty Arcs.
+            forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::new(),
+            )),
+            current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
+                crate::node::context::CloudMotionSnapshot::default(),
+            )),
+            current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            // Wave 8 Replay Debug — meridian flip refocus does not emit
+            // decisions; sender starts None.
+            decision_tx: None,
+            active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
         };
 
         tracing::info!(
@@ -1146,6 +1187,7 @@ impl MeridianFlipExecutor {
                         "error",
                         "Meridian Flip Failed",
                         "The meridian flip could not complete. Please check your equipment.",
+                        None,
                     )
                     .await
                 {
@@ -1185,6 +1227,7 @@ impl MeridianFlipExecutor {
                                  tracking ({}). The mount may drift past safe limits.",
                                 e
                             ),
+                            None,
                         )
                         .await;
                     // Continue to park attempt — stopping tracking is best-effort
@@ -1227,6 +1270,7 @@ impl MeridianFlipExecutor {
                                 "error",
                                 "Meridian Flip Failed - Mount Parked",
                                 "The meridian flip failed. Mount has been parked for safety.",
+                                None,
                             )
                             .await
                         {
@@ -1258,6 +1302,7 @@ impl MeridianFlipExecutor {
                                 "critical",
                                 "Meridian Flip Failed - PARK FAILED",
                                 &critical_msg,
+                                None,
                             )
                             .await
                         {
@@ -1310,10 +1355,8 @@ impl MeridianFlipExecutor {
                     );
                     last_err = e;
                     if attempt < retry_count {
-                        tokio::time::sleep(std::time::Duration::from_secs_f64(
-                            retry_delay_secs,
-                        ))
-                        .await;
+                        tokio::time::sleep(std::time::Duration::from_secs_f64(retry_delay_secs))
+                            .await;
                     }
                 }
             }
@@ -1741,10 +1784,7 @@ mod tests {
             &self,
             _image_data: &ImageData,
             _file_path: &str,
-            _target_name: Option<&str>,
-            _filter: Option<&str>,
-            _ra: Option<f64>,
-            _dec: Option<f64>,
+            _frame_ctx: &crate::scheduling::FrameContext,
         ) -> DeviceResult<()> {
             Ok(())
         }
@@ -1754,6 +1794,7 @@ mod tests {
             level: &str,
             title: &str,
             _message: &str,
+            _explicit_transports: Option<&[String]>,
         ) -> DeviceResult<()> {
             self.state
                 .notifications
@@ -2250,9 +2291,7 @@ mod tests {
             crate::meridian::PierSide::East,
         ]);
         // Park always fails — far more than any test would tolerate by default.
-        state
-            .park_failures_remaining
-            .store(99, Ordering::Relaxed);
+        state.park_failures_remaining.store(99, Ordering::Relaxed);
         let ops: SharedDeviceOps = Arc::new(MockDeviceOps::new(state.clone()));
 
         let config = MeridianFlipConfig {

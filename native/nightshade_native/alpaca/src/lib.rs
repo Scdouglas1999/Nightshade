@@ -125,6 +125,39 @@ pub struct AlpacaDevice {
 }
 
 impl AlpacaDevice {
+    /// Build a deterministic device identity for clients constructed directly
+    /// from a server URL and device number rather than full discovery metadata.
+    pub fn server_unique_id(
+        base_url: &str,
+        device_type: AlpacaDeviceType,
+        device_number: u32,
+    ) -> String {
+        format!(
+            "{}:{}:{}",
+            base_url.trim_end_matches('/'),
+            device_type.as_str(),
+            device_number
+        )
+    }
+
+    /// Create an Alpaca device from direct server details.
+    ///
+    /// Discovery provides server/manufacturer/name fields, but direct connect
+    /// paths often only know the URL, type, and device number. The unique ID
+    /// must still be non-empty so cross-layer grouping can distinguish multiple
+    /// devices on the same Alpaca host.
+    pub fn from_server(device_type: AlpacaDeviceType, base_url: &str, device_number: u32) -> Self {
+        Self {
+            device_type,
+            device_number,
+            server_name: String::new(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: Self::server_unique_id(base_url, device_type, device_number),
+            base_url: base_url.to_string(),
+        }
+    }
+
     /// Get a unique identifier for this device
     pub fn id(&self) -> String {
         format!(
@@ -152,5 +185,24 @@ impl AlpacaDevice {
 impl std::fmt::Display for AlpacaDevice {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{} at {}", self.display_name(), self.base_url)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn from_server_sets_stable_unique_id() {
+        let camera =
+            AlpacaDevice::from_server(AlpacaDeviceType::Camera, "http://127.0.0.1:11111/", 0);
+        let focuser =
+            AlpacaDevice::from_server(AlpacaDeviceType::Focuser, "http://127.0.0.1:11111/", 0);
+        let camera_1 =
+            AlpacaDevice::from_server(AlpacaDeviceType::Camera, "http://127.0.0.1:11111/", 1);
+
+        assert_eq!(camera.unique_id, "http://127.0.0.1:11111:camera:0");
+        assert_ne!(camera.unique_id, focuser.unique_id);
+        assert_ne!(camera.unique_id, camera_1.unique_id);
     }
 }

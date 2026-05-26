@@ -2,18 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import 'settings_widgets.dart';
 
 class WeatherSafetySettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const WeatherSafetySettings({
     super.key,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -83,13 +80,11 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
     return SettingsPage(
       title: l10n.text('weatherSafetyTitle'),
       description: l10n.text('weatherSafetyDescription'),
-      colors: widget.colors,
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
       children: [
         SettingsSection(
           title: l10n.text('weatherSafetyActions'),
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             SettingRow(
@@ -100,9 +95,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 value: settings.weatherSafetyEnabled,
                 onChanged: (value) =>
                     _updateSettings(weatherSafetyEnabled: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -112,9 +105,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
               trailing: SettingsSwitch(
                 value: settings.autoParkEnabled,
                 onChanged: (value) => _updateSettings(autoParkEnabled: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -124,9 +115,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
               trailing: SettingsSwitch(
                 value: settings.autoResumeEnabled,
                 onChanged: (value) => _updateSettings(autoResumeEnabled: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
               isLast: true,
             ),
@@ -134,7 +123,6 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
         ),
         SettingsSection(
           title: l10n.text('weatherSafetyHardware'),
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             SettingRow(
@@ -149,9 +137,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 decimals: 0,
                 onChanged: (value) =>
                     _updateSettings(maxHumidityPercent: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -165,9 +151,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 max: 150,
                 decimals: 0,
                 onChanged: (value) => _updateSettings(maxWindSpeedKph: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -182,9 +166,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 decimals: 0,
                 onChanged: (value) =>
                     _updateSettings(maxCloudCoverPercent: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
               isLast: true,
             ),
@@ -192,7 +174,6 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
         ),
         SettingsSection(
           title: l10n.text('weatherSafetyAlertTiming'),
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             SettingRow(
@@ -206,9 +187,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 max: 500,
                 decimals: 0,
                 onChanged: (value) => _updateSettings(triggerDistanceKm: value),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -223,9 +202,7 @@ class _WeatherSafetySettingsState extends ConsumerState<WeatherSafetySettings> {
                 decimals: 0,
                 onChanged: (value) =>
                     _updateSettings(leadTimeMinutes: value.toInt()),
-                colors: widget.colors,
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
               isLast: true,
             ),

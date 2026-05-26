@@ -15,7 +15,7 @@ class SchedulerScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Scaffold(
       backgroundColor: colors.background,
       body: const SchedulerTabContent(),

@@ -26,20 +26,40 @@ class WsTicketManager {
       : _random = random ?? Random.secure(),
         _now = now ?? DateTime.now;
 
-  /// Issues a fresh ticket. The caller is responsible for confirming that the
-  /// requestor presented a full bearer token before calling this.
-  String issue() {
+  /// Issues a fresh ticket bound to [identity] (the SHA-256 digest of the
+  /// bearer token that authenticated `POST /api/ws/ticket`). The caller is
+  /// responsible for confirming that the requestor presented a full bearer
+  /// token before calling this.
+  ///
+  /// P2-15: binding the ticket to the issuing identity means a client
+  /// cannot launder its identity through the ticket flow — the WS
+  /// upgrade carries the same principal as the HTTP request that minted
+  /// the ticket, which is what the collaboration manager uses to fill
+  /// `viewerId`.
+  String issue({String? identity}) {
     _purgeExpired();
     final ticket = _generateTicket();
-    _tickets[ticket] = _Ticket(expiresAt: _now().add(_ticketLifetime));
+    _tickets[ticket] = _Ticket(
+      expiresAt: _now().add(_ticketLifetime),
+      identity: identity,
+    );
     return ticket;
   }
 
-  /// Consumes [presented] iff a non-expired matching ticket exists. Returns
-  /// `true` on success and removes the ticket so it cannot be reused.
-  bool consume(String? presented) {
+  /// Consumes [presented] iff a non-expired matching ticket exists.
+  /// Returns the identity that was bound at [issue] time on success, or
+  /// `null` when no matching ticket exists or it's expired. Returning the
+  /// identity instead of a bool lets the caller propagate the principal
+  /// onto the upgraded socket without a second resolve pass.
+  ///
+  /// When the ticket was issued without an identity (legacy paths that
+  /// have not yet been wired through) the returned value is the empty
+  /// string — distinct from null so callers can still tell "ticket
+  /// matched" from "ticket missing", but tells them the identity is not
+  /// known and the WS path must fall back to its anonymous handling.
+  String? consume(String? presented) {
     if (presented == null || presented.isEmpty) {
-      return false;
+      return null;
     }
     _purgeExpired();
     // Iterate full set to keep comparison O(n) constant-time-ish; the map is
@@ -52,10 +72,10 @@ class WsTicketManager {
       }
     }
     if (matchedKey == null) {
-      return false;
+      return null;
     }
-    _tickets.remove(matchedKey);
-    return true;
+    final ticket = _tickets.remove(matchedKey);
+    return ticket?.identity ?? '';
   }
 
   /// Visible for diagnostics/tests.
@@ -84,5 +104,11 @@ class WsTicketManager {
 
 class _Ticket {
   final DateTime expiresAt;
-  _Ticket({required this.expiresAt});
+
+  /// P2-15: the SHA-256 digest of the bearer token that minted this
+  /// ticket. Null only for tickets issued through the legacy unbound
+  /// path; see [WsTicketManager.consume] for the semantics.
+  final String? identity;
+
+  _Ticket({required this.expiresAt, this.identity});
 }

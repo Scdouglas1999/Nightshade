@@ -107,6 +107,25 @@ struct POACameraProperties {
     reserved: [c_char; 248],          // reserved
 }
 
+/// Player One Phoenix filter-wheel properties from PlayerOnePW.h.
+#[repr(C)]
+#[derive(Debug, Clone)]
+struct PWProperties {
+    name: [c_char; 64],
+    handle: c_int,
+    position_count: c_int,
+    sn: [c_char; 32],
+    reserved: [c_char; 32],
+}
+
+#[repr(C)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PWState {
+    Closed = 0,
+    Opened = 1,
+    Moving = 2,
+}
+
 /// POA Exposure Status
 #[repr(C)]
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -256,9 +275,86 @@ struct PoaSdk {
     get_image_size: unsafe extern "C" fn(c_int, *mut c_int, *mut c_int) -> c_int,
     // Additional functions for readout modes
     image_ready: unsafe extern "C" fn(c_int, *mut POABool) -> c_int,
+    // SDK metadata. Older camera SDK builds may not export this, so keep it optional.
+    get_sdk_version: Option<unsafe extern "C" fn() -> *const c_char>,
 }
 
 static POA_SDK: OnceLock<Option<PoaSdk>> = OnceLock::new();
+
+/// Player One Phoenix filter-wheel SDK wrapper.
+struct PoaPwSdk {
+    #[allow(dead_code)]
+    lib: libloading::Library,
+    get_pw_count: unsafe extern "C" fn() -> c_int,
+    get_pw_properties: unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
+    get_pw_properties_by_handle: unsafe extern "C" fn(c_int, *mut PWProperties) -> c_int,
+    open_pw: unsafe extern "C" fn(c_int) -> c_int,
+    close_pw: unsafe extern "C" fn(c_int) -> c_int,
+    get_current_position: unsafe extern "C" fn(c_int, *mut c_int) -> c_int,
+    goto_position: unsafe extern "C" fn(c_int, c_int) -> c_int,
+    get_pw_state: unsafe extern "C" fn(c_int, *mut PWState) -> c_int,
+    get_filter_alias: unsafe extern "C" fn(c_int, c_int, *mut c_char, c_int) -> c_int,
+    set_filter_alias: unsafe extern "C" fn(c_int, c_int, *const c_char) -> c_int,
+    get_sdk_version: unsafe extern "C" fn() -> *const c_char,
+}
+
+static POA_PW_SDK: OnceLock<Option<PoaPwSdk>> = OnceLock::new();
+
+impl PoaPwSdk {
+    fn load() -> Option<Self> {
+        let lib_paths = if cfg!(target_os = "windows") {
+            vec![
+                "PlayerOnePW.dll",
+                "C:\\Program Files\\PlayerOne\\SDK\\lib\\x64\\PlayerOnePW.dll",
+            ]
+        } else if cfg!(target_os = "macos") {
+            vec![
+                "libPlayerOnePW.dylib",
+                "/usr/local/lib/libPlayerOnePW.dylib",
+            ]
+        } else {
+            vec![
+                "libPlayerOnePW.so",
+                "libPlayerOnePW.so.1",
+                "/usr/lib/libPlayerOnePW.so",
+                "/usr/local/lib/libPlayerOnePW.so",
+            ]
+        };
+
+        for path in lib_paths {
+            // SAFETY: path is a static vendor SDK library name/path and symbols below match
+            // PlayerOnePW.h. The Library is stored in PoaPwSdk so function pointers remain valid.
+            unsafe {
+                if let Ok(lib) = libloading::Library::new(path) {
+                    tracing::info!("Loaded Player One PW SDK from: {}", path);
+                    return Some(Self {
+                        get_pw_count: *lib.get(b"POAGetPWCount\0").ok()?,
+                        get_pw_properties: *lib.get(b"POAGetPWProperties\0").ok()?,
+                        get_pw_properties_by_handle: *lib
+                            .get(b"POAGetPWPropertiesByHandle\0")
+                            .ok()?,
+                        open_pw: *lib.get(b"POAOpenPW\0").ok()?,
+                        close_pw: *lib.get(b"POAClosePW\0").ok()?,
+                        get_current_position: *lib.get(b"POAGetCurrentPosition\0").ok()?,
+                        goto_position: *lib.get(b"POAGotoPosition\0").ok()?,
+                        get_pw_state: *lib.get(b"POAGetPWState\0").ok()?,
+                        get_filter_alias: *lib.get(b"POAGetPWFilterAlias\0").ok()?,
+                        set_filter_alias: *lib.get(b"POASetPWFilterAlias\0").ok()?,
+                        get_sdk_version: *lib.get(b"POAGetPWSDKVer\0").ok()?,
+                        lib,
+                    });
+                }
+            }
+        }
+
+        tracing::debug!("Player One PW SDK not found");
+        None
+    }
+
+    fn get() -> Option<&'static PoaPwSdk> {
+        POA_PW_SDK.get_or_init(Self::load).as_ref()
+    }
+}
 
 impl PoaSdk {
     /// Load the POA SDK library
@@ -310,6 +406,10 @@ impl PoaSdk {
                         get_image_data: *lib.get(b"POAGetImageData\0").ok()?,
                         get_image_size: *lib.get(b"POAGetImageSize\0").ok()?,
                         image_ready: *lib.get(b"POAImageReady\0").ok()?,
+                        get_sdk_version: lib
+                            .get::<unsafe extern "C" fn() -> *const c_char>(b"POAGetSDKVersion\0")
+                            .ok()
+                            .map(|symbol| *symbol),
                         lib,
                     };
 
@@ -376,6 +476,81 @@ fn check_poa_error(code: c_int, operation: &str) -> Result<(), NativeError> {
             operation, code
         ))),
     }
+}
+
+fn check_poa_pw_error(code: c_int, operation: &str) -> Result<(), NativeError> {
+    match code {
+        0 => Ok(()),
+        1 => Err(NativeError::InvalidDevice(format!(
+            "{}: invalid filter-wheel index",
+            operation
+        ))),
+        2 => Err(NativeError::InvalidDevice(format!(
+            "{}: invalid filter-wheel handle",
+            operation
+        ))),
+        3 => Err(NativeError::InvalidParameter(format!(
+            "{}: invalid filter-wheel argument",
+            operation
+        ))),
+        4 => Err(NativeError::NotConnected),
+        5 => Err(NativeError::Disconnected),
+        6 => Err(NativeError::SdkError(format!(
+            "{}: filter wheel is moving",
+            operation
+        ))),
+        7 => Err(NativeError::InvalidParameter(format!(
+            "{}: null output pointer rejected by Player One PW SDK",
+            operation
+        ))),
+        8 => Err(NativeError::SdkError(format!(
+            "{}: Player One PW operation failed",
+            operation
+        ))),
+        9 => Err(NativeError::SdkError(format!(
+            "{}: Player One PW firmware error",
+            operation
+        ))),
+        other => Err(NativeError::SdkError(format!(
+            "{}: unknown Player One PW error code {}",
+            operation, other
+        ))),
+    }
+}
+
+fn pw_cstr<const N: usize>(value: &[c_char; N]) -> String {
+    safe_cstr_to_string(value.as_ptr(), N)
+}
+
+fn player_one_static_cstr(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+
+    // SAFETY: Player One version functions return static, NUL-terminated C strings
+    // owned by the loaded SDK library.
+    let value = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+fn pw_sdk_version_from_sdk(sdk: &PoaPwSdk) -> Option<String> {
+    // SAFETY: POAGetPWSDKVer takes no arguments and returns a static C string.
+    player_one_static_cstr(unsafe { (sdk.get_sdk_version)() })
+        .map(|version| format!("Player One PW SDK v{version}"))
+}
+
+pub fn pw_sdk_version() -> Option<String> {
+    PoaPwSdk::get().and_then(pw_sdk_version_from_sdk)
+}
+
+fn camera_sdk_version_from_sdk(sdk: &PoaSdk) -> Option<String> {
+    let get_sdk_version = sdk.get_sdk_version?;
+    // SAFETY: POAGetSDKVersion takes no arguments and returns a static C string.
+    player_one_static_cstr(unsafe { get_sdk_version() })
+        .map(|version| format!("Player One SDK v{version}"))
 }
 
 // =============================================================================
@@ -1028,7 +1203,12 @@ impl NativeCamera for PlayerOneCamera {
             width: width_u32,
             height: height_u32,
             data,
-            bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
+            bits_per_pixel: self
+                .camera_info
+                .as_ref()
+                .and_then(|info| u32::try_from(info.bit_depth).ok())
+                .filter(|bits| (1..=32).contains(bits))
+                .unwrap_or(if bytes_per_pixel == 2 { 16 } else { 8 }),
             bayer_pattern: self
                 .camera_info
                 .as_ref()
@@ -1097,6 +1277,15 @@ impl NativeCamera for PlayerOneCamera {
     }
 
     async fn get_temperature(&self) -> Result<f64, NativeError> {
+        if let Some(delay_ms) = crate::quirks::get_temperature_delay_ms(&self.device_id) {
+            tracing::debug!(
+                "Applying temperature RequiresDelayMs quirk: sleeping {}ms before reading {}",
+                delay_ms,
+                self.device_id
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
+
         // POA_TEMPERATURE is a float value in Celsius (uses async version with mutex)
         self.get_control_float_async(POAConfig::POA_TEMPERATURE)
             .await
@@ -1329,6 +1518,8 @@ pub struct PlayerOneCameraInfo {
     pub serial_number: Option<String>,
     /// User custom ID (if set)
     pub user_custom_id: Option<String>,
+    /// Player One camera SDK version reported by the loaded native library, when available
+    pub sdk_version: Option<String>,
 }
 
 /// Check if Player One SDK is available
@@ -1345,6 +1536,7 @@ pub async fn discover_devices() -> Result<Vec<PlayerOneCameraInfo>, NativeError>
 
     // Acquire mutex for SDK discovery operations
     let _lock = player_one_mutex().lock().await;
+    let sdk_version = camera_sdk_version_from_sdk(sdk);
 
     // SAFETY: player_one_mutex held above (single-threaded SDK access); POAGetCameraCount takes no arguments.
     let num_cameras = unsafe { (sdk.get_camera_count)() };
@@ -1395,11 +1587,283 @@ pub async fn discover_devices() -> Result<Vec<PlayerOneCameraInfo>, NativeError>
                 name,
                 serial_number,
                 user_custom_id,
+                sdk_version: sdk_version.clone(),
             });
         }
     }
 
     Ok(cameras)
+}
+
+/// Player One Phoenix filter-wheel discovery info.
+#[derive(Debug, Clone)]
+pub struct PlayerOneFilterWheelInfo {
+    pub handle: i32,
+    pub name: String,
+    pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
+    pub position_count: i32,
+}
+
+/// Discover Player One Phoenix filter wheels.
+pub async fn discover_filter_wheels() -> Result<Vec<PlayerOneFilterWheelInfo>, NativeError> {
+    let sdk = match PoaPwSdk::get() {
+        Some(sdk) => sdk,
+        None => return Ok(Vec::new()),
+    };
+
+    let _lock = player_one_mutex().lock().await;
+    let sdk_version = pw_sdk_version_from_sdk(sdk);
+    // SAFETY: player_one_mutex held; POAGetPWCount takes no arguments.
+    let count = unsafe { (sdk.get_pw_count)() };
+    let mut wheels = Vec::new();
+
+    for index in 0..count {
+        // SAFETY: PWProperties is repr(C) POD; zeroed is a valid initial out buffer.
+        let mut props: PWProperties = unsafe { std::mem::zeroed() };
+        // SAFETY: player_one_mutex held; index is in [0, count); props is a valid out-pointer.
+        let result = unsafe { (sdk.get_pw_properties)(index, &mut props) };
+        if result != 0 {
+            tracing::warn!(
+                "Player One PW property query failed for index {}: error {}",
+                index,
+                result
+            );
+            continue;
+        }
+
+        wheels.push(PlayerOneFilterWheelInfo {
+            handle: props.handle,
+            name: pw_cstr(&props.name),
+            serial_number: {
+                let sn = pw_cstr(&props.sn);
+                if sn.is_empty() {
+                    None
+                } else {
+                    Some(sn)
+                }
+            },
+            sdk_version: sdk_version.clone(),
+            position_count: props.position_count,
+        });
+    }
+
+    Ok(wheels)
+}
+
+/// Player One Phoenix filter-wheel driver.
+pub struct PlayerOneFilterWheel {
+    handle: i32,
+    device_id: String,
+    name: String,
+    connected: bool,
+    filter_count: i32,
+}
+
+impl std::fmt::Debug for PlayerOneFilterWheel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PlayerOneFilterWheel")
+            .field("handle", &self.handle)
+            .field("name", &self.name)
+            .field("connected", &self.connected)
+            .field("filter_count", &self.filter_count)
+            .finish()
+    }
+}
+
+impl PlayerOneFilterWheel {
+    pub fn new(handle: i32) -> Self {
+        Self {
+            handle,
+            device_id: format!("native:playerone_pw:{}", handle),
+            name: format!("Player One PW {}", handle),
+            connected: false,
+            filter_count: 0,
+        }
+    }
+}
+
+#[async_trait]
+impl NativeDevice for PlayerOneFilterWheel {
+    fn id(&self) -> &str {
+        &self.device_id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn vendor(&self) -> NativeVendor {
+        NativeVendor::PlayerOne
+    }
+
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    async fn connect(&mut self) -> Result<(), NativeError> {
+        if self.connected {
+            return Ok(());
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+
+        // SAFETY: player_one_mutex held; handle comes from discovery or caller input. SDK
+        // validates it and returns PW_ERROR_INVALID_HANDLE if stale.
+        check_poa_pw_error(unsafe { (sdk.open_pw)(self.handle) }, "open filter wheel")?;
+
+        // SAFETY: PWProperties is repr(C) POD and props is a valid out-pointer.
+        let mut props: PWProperties = unsafe { std::mem::zeroed() };
+        // SAFETY: player_one_mutex held; handle has just been opened.
+        check_poa_pw_error(
+            unsafe { (sdk.get_pw_properties_by_handle)(self.handle, &mut props) },
+            "get filter wheel properties",
+        )?;
+
+        if props.position_count <= 0 {
+            return Err(NativeError::SdkError(format!(
+                "Player One PW handle {} reported invalid position count {}",
+                self.handle, props.position_count
+            )));
+        }
+
+        self.name = pw_cstr(&props.name);
+        self.filter_count = props.position_count;
+        self.connected = true;
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), NativeError> {
+        if !self.connected {
+            return Ok(());
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        // SAFETY: player_one_mutex held; handle is open because connected is true.
+        check_poa_pw_error(unsafe { (sdk.close_pw)(self.handle) }, "close filter wheel")?;
+        self.connected = false;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl NativeFilterWheel for PlayerOneFilterWheel {
+    async fn move_to_position(&mut self, position: i32) -> Result<(), NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+        if position < 0 || position >= self.filter_count {
+            return Err(NativeError::InvalidParameter(format!(
+                "Player One PW position {} outside valid range 0-{}",
+                position,
+                self.filter_count - 1
+            )));
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        // SAFETY: player_one_mutex held; handle is open and position is bounds-checked.
+        check_poa_pw_error(
+            unsafe { (sdk.goto_position)(self.handle, position) },
+            "goto filter position",
+        )
+    }
+
+    async fn get_position(&self) -> Result<i32, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        let mut position = 0;
+        // SAFETY: player_one_mutex held; handle is open and position is a valid out-pointer.
+        check_poa_pw_error(
+            unsafe { (sdk.get_current_position)(self.handle, &mut position) },
+            "get current filter position",
+        )?;
+        Ok(position)
+    }
+
+    async fn is_moving(&self) -> Result<bool, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        let mut state = PWState::Closed;
+        // SAFETY: player_one_mutex held; handle is open and state is a valid out-pointer.
+        check_poa_pw_error(
+            unsafe { (sdk.get_pw_state)(self.handle, &mut state) },
+            "get filter wheel state",
+        )?;
+        Ok(state == PWState::Moving)
+    }
+
+    fn get_filter_count(&self) -> i32 {
+        self.filter_count
+    }
+
+    async fn get_filter_names(&self) -> Result<Vec<String>, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        let mut names = Vec::new();
+        for position in 0..self.filter_count {
+            let mut name_buf = [0i8; 24];
+            // SAFETY: player_one_mutex held; handle is open; position is in range; buffer length
+            // matches PlayerOnePW.h MAX_NAME_LEN.
+            let result =
+                unsafe { (sdk.get_filter_alias)(self.handle, position, name_buf.as_mut_ptr(), 24) };
+            if result == 0 {
+                let name = safe_cstr_to_string(name_buf.as_ptr(), 24);
+                names.push(if name.is_empty() {
+                    format!("Filter {}", position + 1)
+                } else {
+                    name
+                });
+            } else {
+                names.push(format!("Filter {}", position + 1));
+            }
+        }
+        Ok(names)
+    }
+
+    async fn set_filter_name(&mut self, position: i32, name: String) -> Result<(), NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+        if position < 0 || position >= self.filter_count {
+            return Err(NativeError::InvalidParameter(format!(
+                "Player One PW position {} outside valid range 0-{}",
+                position,
+                self.filter_count - 1
+            )));
+        }
+        if name.as_bytes().contains(&0) || name.len() >= 24 {
+            return Err(NativeError::InvalidParameter(
+                "Player One PW filter alias must be non-NUL and shorter than 24 bytes".to_string(),
+            ));
+        }
+
+        let c_name = std::ffi::CString::new(name).map_err(|_| {
+            NativeError::InvalidParameter("Player One PW filter alias contains NUL".to_string())
+        })?;
+        let sdk = PoaPwSdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = player_one_mutex().lock().await;
+        // SAFETY: player_one_mutex held; handle is open; position bounds checked; CString is
+        // NUL-terminated and lives for the call.
+        check_poa_pw_error(
+            unsafe { (sdk.set_filter_alias)(self.handle, position, c_name.as_ptr()) },
+            "set filter alias",
+        )
+    }
 }
 
 // =============================================================================

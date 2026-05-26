@@ -1,5 +1,3 @@
-// ignore_for_file: unused_element_parameter
-
 import 'dart:async';
 import 'dart:io';
 
@@ -144,7 +142,7 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: colors.success.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
                 border:
                     Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
@@ -398,7 +396,7 @@ class _SectionHeader extends StatelessWidget {
 }
 
 class _FilterSelector extends ConsumerWidget {
-  const _FilterSelector({super.key});
+  const _FilterSelector();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -759,7 +757,7 @@ class _TwilightOption extends StatelessWidget {
           color: isSelected
               ? colors.primary.withValues(alpha: 0.1)
               : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
           border: Border.all(
             color: isSelected ? colors.primary : colors.border,
             width: isSelected ? 2 : 1,
@@ -805,9 +803,6 @@ class _ActionButtons extends ConsumerWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final state = ref.watch(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
-    final cameraState = ref.watch(cameraStateProvider);
-    final isCameraConnected =
-        cameraState.connectionState == DeviceConnectionState.connected;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -853,24 +848,8 @@ class _ActionButtons extends ConsumerWidget {
             key: FlatWizardTutorialKeys.startBtn,
             label:
                 mode == FlatWizardMode.quick ? 'Start Capture' : 'Start Batch',
-            onPressed:
-                isCameraConnected ? () => _startCapture(context, ref) : null,
+            onPressed: () => _startCapture(context, ref),
           ),
-        if (!state.isCapturing && !isCameraConnected) ...[
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Icon(LucideIcons.cameraOff, size: 14, color: colors.warning),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  'Connect a camera before starting flat capture.',
-                  style: TextStyle(fontSize: 12, color: colors.textSecondary),
-                ),
-              ),
-            ],
-          ),
-        ],
       ],
     );
   }
@@ -878,13 +857,6 @@ class _ActionButtons extends ConsumerWidget {
   Future<void> _startCapture(BuildContext context, WidgetRef ref) async {
     final state = ref.read(flatWizardProvider);
     final notifier = ref.read(flatWizardProvider.notifier);
-    final cameraState = ref.read(cameraStateProvider);
-
-    if (cameraState.connectionState != DeviceConnectionState.connected ||
-        cameraState.deviceId == null) {
-      notifier.setErrorMessage('Camera not connected');
-      return;
-    }
 
     // Check if save path is set
     if (state.globalSettings.savePath == null ||
@@ -935,6 +907,9 @@ class _ActionButtons extends ConsumerWidget {
     final db = ref.read(databaseProvider);
     final activeProfile = ref.read(activeEquipmentProfileProvider);
     final profileId = activeProfile?.id;
+    final defaultGain = activeProfile?.defaultGain ?? cameraState.gain ?? 0;
+    final defaultOffset =
+        activeProfile?.defaultOffset ?? cameraState.offset ?? 0;
     final brightnessTracker = ref.read(skyBrightnessTrackerProvider);
 
     // Validate camera is connected
@@ -945,14 +920,6 @@ class _ActionButtons extends ConsumerWidget {
     }
 
     final cameraId = cameraState.deviceId!;
-    final gain = activeProfile?.defaultGain;
-    final offset = activeProfile?.defaultOffset;
-    if (gain == null || offset == null) {
-      notifier.setErrorMessage(
-        'Set gain and offset on the active equipment profile before calibrating flats.',
-      );
-      return;
-    }
 
     // Build save path with optional date subfolder
     String baseSavePath = state.globalSettings.savePath!;
@@ -1007,8 +974,8 @@ class _ActionButtons extends ConsumerWidget {
         calibrationResult = await flatService.calibrateFilterWithRateTracking(
           deviceId: cameraId,
           filter: filterSetting.filterName,
-          gain: gain,
-          offset: offset,
+          gain: defaultGain,
+          offset: defaultOffset,
           targetAdu: targetAdu,
           tolerance: tolerance,
           minExposure: minExp,
@@ -1028,8 +995,8 @@ class _ActionButtons extends ConsumerWidget {
         calibrationResult = await flatService.calibrateFilter(
           deviceId: cameraId,
           filter: filterSetting.filterName,
-          gain: gain,
-          offset: offset,
+          gain: defaultGain,
+          offset: defaultOffset,
           targetAdu: targetAdu,
           tolerance: tolerance,
           minExposure: minExp,
@@ -1092,77 +1059,30 @@ class _ActionButtons extends ConsumerWidget {
 
         // Capture frame
         try {
-          // Subscribe to imaging events BEFORE starting the exposure so a fast
-          // camera that fires ExposureComplete / ImageReady before our await
-          // resumes does not slip past us into a false "image not ready" path.
-          final exposureCompleter = Completer<void>();
-          final eventSubscription = backend.eventStream.listen((event) {
-            if (event.category != EventCategory.imaging) return;
-            switch (event.eventType) {
-              case 'ExposureComplete':
-              case 'ExposureCompleted':
-              case 'ImageReady':
-                if (!exposureCompleter.isCompleted) {
-                  exposureCompleter.complete();
-                }
-                break;
-              case 'ExposureFailed':
-                if (!exposureCompleter.isCompleted) {
-                  final reason = (event.data['error'] as String?) ??
-                      (event.data['reason'] as String?) ??
-                      'Camera reported exposure failure';
-                  exposureCompleter
-                      .completeError(Exception('Exposure failed: $reason'));
-                }
-                break;
-              case 'ExposureCancelled':
-                if (!exposureCompleter.isCompleted) {
-                  exposureCompleter
-                      .completeError(Exception('Exposure cancelled'));
-                }
-                break;
-            }
-          });
+          await backend.cameraStartExposure(
+            deviceId: cameraId,
+            exposureTime: calibrationResult.exposure,
+            frameType: FrameType.flat,
+            gain: cameraState.gain ?? 0,
+            offset: cameraState.offset ?? 0,
+            binX: 1,
+            binY: 1,
+          );
 
-          try {
-            await backend.cameraStartExposure(
-              deviceId: cameraId,
-              exposureTime: calibrationResult.exposure,
-              frameType: FrameType.flat,
-              gain: cameraState.gain ?? 0,
-              offset: cameraState.offset ?? 0,
-              binX: 1,
-              binY: 1,
-            );
-
-            // Bound the wait at exposureTime + readout/download margin. 30s
-            // matches imaging_service.dart and flat_wizard_service.dart, which
-            // covers the slow-USB / large-sensor case the audit calls out.
-            final timeout = Duration(
-              milliseconds: (calibrationResult.exposure * 1000).toInt() + 30000,
-            );
-            await exposureCompleter.future.timeout(
-              timeout,
-              onTimeout: () {
-                throw TimeoutException(
-                  'Camera did not report image-ready within '
-                  '${timeout.inSeconds}s for ${filterSetting.filterName} '
-                  'frame $frameNum',
-                  timeout,
-                );
-              },
-            );
-          } finally {
-            await eventSubscription.cancel();
-          }
+          // Wait for exposure to complete
+          await Future.delayed(
+            Duration(
+                milliseconds:
+                    (calibrationResult.exposure * 1000 + 500).toInt()),
+          );
 
           notifier.setExposing(false);
 
           // Get the captured image for preview
           final image = await backend.cameraGetLastImage(cameraId);
           if (image != null) {
-            // Update preview with full image result (includes pixels, histogram, stats)
-            notifier.setLastImage(null, image);
+            // Update preview with latest image data
+            notifier.setLastImage(null, image.displayData);
 
             // Update ADU reading from actual capture
             notifier.addAduMeasurement(
@@ -1192,7 +1112,7 @@ class _ActionButtons extends ConsumerWidget {
           );
 
           notifier.incrementFilterCapturedCount(filterIdx);
-          notifier.setLastImage(filePath, image);
+          notifier.setLastImage(filePath, image?.displayData);
         } catch (e) {
           notifier.setExposing(false);
           notifier.setWarningMessage('Frame $frameNum failed: $e');
@@ -1221,10 +1141,7 @@ class _ActionButtons extends ConsumerWidget {
               : null,
         );
       } catch (e) {
-        ref.read(loggingServiceProvider).warning(
-            '[FlatWizard] Failed to record calibration to history: $e',
-            source: 'FlatWizardScreen',
-            fields: {'error': e.toString()});
+        debugPrint('[FlatWizard] Failed to record calibration to history: $e');
       }
     }
 

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'plugin_api.dart';
 import 'plugin_context.dart';
+import 'plugin_node_registry.dart';
 
 /// Represents a loaded plugin with its state
 class LoadedPlugin {
@@ -96,11 +97,23 @@ class PluginHost {
   final PluginContextFactory _contextFactory;
   final Duration _lifecycleTimeout;
 
+  /// Registry of plugin-contributed sequence node definitions. Populated
+  /// automatically when a [SequencePlugin] is registered + enabled; emptied
+  /// when the plugin is unregistered or disabled.
+  ///
+  /// Consumers (sequence editor palette, sequence executor dispatch) read
+  /// from this registry — there is intentionally NO separate "register
+  /// node" API for plugin authors. Authoring a node = exposing it from
+  /// `SequencePlugin.nodeDefinitions`.
+  final PluginNodeRegistry nodeRegistry;
+
   PluginHost({
     PluginContextFactory? contextFactory,
     Duration lifecycleTimeout = const Duration(seconds: 5),
+    PluginNodeRegistry? nodeRegistry,
   })  : _contextFactory = contextFactory ?? PluginContextFactory(),
-        _lifecycleTimeout = lifecycleTimeout;
+        _lifecycleTimeout = lifecycleTimeout,
+        nodeRegistry = nodeRegistry ?? PluginNodeRegistry();
 
   /// Get all loaded plugins
   List<NightshadePlugin> get plugins =>
@@ -134,6 +147,14 @@ class PluginHost {
   /// Get a plugin by ID
   NightshadePlugin? getPlugin(String pluginId) {
     return _plugins[pluginId]?.plugin;
+  }
+
+  /// Return the live [PluginContext] associated with [pluginId], or `null`
+  /// if no such plugin is registered. Plugin nodes use this to access the
+  /// same logger / storage / event bus their owning plugin sees during
+  /// lifecycle callbacks.
+  PluginContext? contextFor(String pluginId) {
+    return _plugins[pluginId]?.context;
   }
 
   /// Check if a plugin is loaded
@@ -180,6 +201,13 @@ class PluginHost {
       // Call onEnable if starting enabled
       if (enabled) {
         await _runLifecycle(plugin, context, 'onEnable', plugin.onEnable);
+        // Wire sequence-plugin nodes into the registry as soon as the
+        // plugin is enabled. SequenceNodeDefinition.createNode is the
+        // contract — we DON'T pre-instantiate nodes, just expose the
+        // factories so the sequence executor can build instances later.
+        if (plugin is SequencePlugin) {
+          nodeRegistry.registerSequencePlugin(plugin);
+        }
       }
 
       context.logger.info('Plugin registered successfully');
@@ -204,6 +232,14 @@ class PluginHost {
   Future<void> unregisterPlugin(String pluginId) async {
     final loaded = _plugins[pluginId];
     if (loaded == null) return;
+
+    // Drop sequence-node registrations BEFORE running onDisable so any
+    // in-flight palette / executor lookups see a consistent state during
+    // teardown. A late-firing executor that grabs a registration just
+    // before unregister will still find the node in the host's plugin
+    // map (the registration is purely a "is this node available right
+    // now?" cache).
+    nodeRegistry.unregisterPlugin(pluginId);
 
     try {
       // Disable if enabled
@@ -257,8 +293,19 @@ class PluginHost {
           'onEnable',
           loaded.plugin.onEnable,
         );
+        // Re-publish sequence nodes when a previously-disabled plugin
+        // is re-enabled. We do this AFTER onEnable returns so the
+        // plugin's own context is in the enabled state by the time
+        // the executor could resolve and run one of its nodes.
+        if (loaded.plugin is SequencePlugin) {
+          nodeRegistry.registerSequencePlugin(loaded.plugin as SequencePlugin);
+        }
         loaded.context.logger.info('Plugin enabled');
       } else {
+        // Yank registrations BEFORE onDisable so a late palette refresh
+        // doesn't show ghost entries for a plugin that's halfway through
+        // releasing resources.
+        nodeRegistry.unregisterPlugin(pluginId);
         await _runLifecycle(
           loaded.plugin,
           loaded.context,
@@ -305,6 +352,7 @@ class PluginHost {
 
     _contextFactory.dispose();
     _plugins.clear();
+    nodeRegistry.dispose();
   }
 
   Future<void> _runLifecycle(
@@ -361,6 +409,29 @@ final uiExtensionPointsProvider = Provider<List<UiExtensionPoint>>((ref) {
   return host.getPlugins<UiPlugin>()
       .expand((p) => p.extensionPoints)
       .toList();
+});
+
+/// Plugin sequence-node registry provider. Exposed at the package level so
+/// the sequence editor (palette) and the sequence executor (dispatch) can
+/// resolve plugin-contributed nodes without depending on the host directly.
+final pluginNodeRegistryProvider = Provider<PluginNodeRegistry>((ref) {
+  final host = ref.watch(pluginHostProvider);
+  return host.nodeRegistry;
+});
+
+/// Stream of registry changes. Useful for editor widgets that want to keep
+/// a live "available plugin nodes" listing in sync as the user installs /
+/// enables / disables plugins.
+final pluginNodeRegistrationsStreamProvider =
+    StreamProvider<List<PluginNodeRegistration>>((ref) {
+  final registry = ref.watch(pluginNodeRegistryProvider);
+  // Seed the stream with the current snapshot so a subscriber attached
+  // after registration still observes the existing entries on first build.
+  return Stream<List<PluginNodeRegistration>>.value(registry.registrations)
+      .asyncExpand((seed) async* {
+    yield seed;
+    yield* registry.changes;
+  });
 });
 
 

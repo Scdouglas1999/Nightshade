@@ -1,20 +1,29 @@
 import 'package:equatable/equatable.dart';
 import 'package:uuid/uuid.dart';
 import '../imaging/imaging_models.dart' show FrameType;
+import '../notification/notification_categories.dart'
+    show NotificationTransportKind;
 import '../meridian_flip_settings.dart'
     show MeridianTriggerMethod, FlipFailureAction;
 export '../meridian_flip_settings.dart'
     show MeridianTriggerMethod, FlipFailureAction;
 import '../../backend/nightshade_backend.dart' show DeviceType;
+import 'instruction_progress_detail.dart';
 
 /// Sequence execution state
+///
+/// Wave 4: `recovering` is the visible recovery-mode state. Mirrors the Rust
+/// `ExecutorState::Recovering` variant — the Run Dashboard renders a
+/// pulsing red LED, the persistent recovery banner with cause + attempt
+/// counter + countdown, and the Try Now / Abort controls when this fires.
 enum SequenceExecutionState {
   idle,
   running,
   paused,
   stopping,
   completed,
-  failed
+  failed,
+  recovering,
 }
 
 /// Node execution status
@@ -227,7 +236,18 @@ enum RecoveryActionType {
   nextTarget,
   retry,
   parkAndAbort,
-  customBranch
+  customBranch,
+  // Wave 5 Agent 4 — cloud-motion-aware recovery actions. `pauseAndWaitForClear`
+  // promotes the pause to a Wave 4 RecoveryCause::WeatherUnsafe so the
+  // dashboard banner / audible alert fire; `slewToGapAndContinue` re-points
+  // the mount to a clear-sky direction reported by the analyzer.
+  pauseAndWaitForClear,
+  slewToGapAndContinue,
+  // Wave 7 Science — transparency-adaptive recovery. Paired with
+  // [TriggerType.transparencyDropped]. Consults the operator's
+  // pre-configured backup plan (backup filter and/or backup target id)
+  // and either swaps the filter, skips to the backup target, or both.
+  switchTargetOrFilter,
 }
 
 /// Trigger type.
@@ -260,6 +280,21 @@ enum TriggerType {
   autofocusInterval,
   ditherInterval,
   driftLimit,
+  // Wave 5 Agent 4 — cloud-motion-aware triggers backed by the live
+  // CloudMotionAnalyzer. The runtime sample data is pushed from Dart via
+  // `backend.sequencerUpdateCloudMotion` on a ~60s cadence; the trigger
+  // config payloads are stored on [`RecoveryNode`] in the dedicated
+  // cloud* fields below.
+  cloudArrivingIn,
+  cloudOpeningIn,
+  cloudCoverThreshold,
+  // Wave 7 Science — transparency-adaptive trigger backed by the live
+  // sky transparency sampler. The runtime sample data is pushed from
+  // the Dart science pipeline via `backend.sequencerUpdateTransparency`.
+  // Paired with [RecoveryActionType.switchTargetOrFilter] for the
+  // "swap from faint RGB target to a brighter Lum backup when the sky
+  // goes hazy" workflow.
+  transparencyDropped,
 }
 
 /// Notification level
@@ -393,6 +428,416 @@ class MosaicPanelInfo extends Equatable {
 // CONTAINER / LOGIC NODES
 // =============================================================================
 
+/// Wave 3 Agent 3 — Dart mirror of the Rust `FilterBudgetEntry`.
+/// `Absolute(secs)` caps that filter at a fixed time; `Ratio(value)` is
+/// normalised against the other ratios in the same target and the
+/// target's `totalSecs`. JSON shape matches the Rust enum:
+/// `{"kind":"Absolute","value":3600.0}` / `{"kind":"Ratio","value":4.0}`.
+class FilterBudgetEntry {
+  /// `'Absolute'` or `'Ratio'`.
+  final String kind;
+  final double value;
+
+  const FilterBudgetEntry.absolute(this.value) : kind = 'Absolute';
+  const FilterBudgetEntry.ratio(this.value) : kind = 'Ratio';
+
+  bool get isAbsolute => kind == 'Absolute';
+  bool get isRatio => kind == 'Ratio';
+
+  Map<String, dynamic> toJson() => {'kind': kind, 'value': value};
+
+  factory FilterBudgetEntry.fromJson(Map<String, dynamic> json) {
+    final kind = json['kind'] as String;
+    final value = (json['value'] as num).toDouble();
+    if (kind == 'Absolute') {
+      return FilterBudgetEntry.absolute(value);
+    } else if (kind == 'Ratio') {
+      return FilterBudgetEntry.ratio(value);
+    } else {
+      throw FormatException(
+          'Unknown FilterBudgetEntry kind "$kind"; expected Absolute or Ratio');
+    }
+  }
+
+  @override
+  bool operator ==(Object other) =>
+      other is FilterBudgetEntry && other.kind == kind && other.value == value;
+
+  @override
+  int get hashCode => Object.hash(kind, value);
+
+  @override
+  String toString() => '$kind($value)';
+}
+
+/// Wave 3 Agent 3 — Per-target integration budget configuration.
+///
+/// Mirrors the Rust `IntegrationBudget` struct one-to-one for serde
+/// round-tripping through the FRB bridge. See
+/// `native/nightshade_native/sequencer/src/lib.rs` for the canonical
+/// definition.
+class IntegrationBudget {
+  /// Total wall-clock integration cap across all filters (seconds).
+  /// `0.0` means "no overall cap"; only `perFilter` entries apply.
+  final double totalSecs;
+
+  /// Per-filter budgets. Empty map means "only totalSecs applies".
+  final Map<String, FilterBudgetEntry> perFilter;
+
+  /// When the budget is hit, the TargetHeader returns Success and the
+  /// executor advances to the next sibling. Default true.
+  final bool stopOnBudgetMet;
+
+  const IntegrationBudget({
+    this.totalSecs = 0.0,
+    this.perFilter = const {},
+    this.stopOnBudgetMet = true,
+  });
+
+  /// True iff the budget has at least one cap that can ever fire. The
+  /// UI uses this to suppress no-op budget panels.
+  bool get isActive {
+    if (totalSecs > 0.0) return true;
+    return perFilter.values.any((e) => e.value > 0);
+  }
+
+  /// Resolved absolute cap (seconds) for a single filter, mirroring
+  /// `IntegrationBudget::resolved_filter_cap` on the Rust side. Used
+  /// by the properties UI's "what will this carve up to?" preview.
+  double? resolvedFilterCap(String filter) {
+    final entry = perFilter[filter];
+    if (entry == null) return null;
+    if (entry.isAbsolute) {
+      return entry.value > 0 ? entry.value : null;
+    }
+    if (entry.isRatio) {
+      if (entry.value <= 0 || totalSecs <= 0) return null;
+      final sum = perFilter.values
+          .where((e) => e.isRatio && e.value > 0)
+          .fold<double>(0, (acc, e) => acc + e.value);
+      if (sum <= 0) return null;
+      return (entry.value / sum) * totalSecs;
+    }
+    return null;
+  }
+
+  IntegrationBudget copyWith({
+    double? totalSecs,
+    Map<String, FilterBudgetEntry>? perFilter,
+    bool? stopOnBudgetMet,
+  }) {
+    return IntegrationBudget(
+      totalSecs: totalSecs ?? this.totalSecs,
+      perFilter: perFilter ?? this.perFilter,
+      stopOnBudgetMet: stopOnBudgetMet ?? this.stopOnBudgetMet,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'total_secs': totalSecs,
+        'per_filter': perFilter.map((k, v) => MapEntry(k, v.toJson())),
+        'stop_on_budget_met': stopOnBudgetMet,
+      };
+
+  factory IntegrationBudget.fromJson(Map<String, dynamic> json) {
+    return IntegrationBudget(
+      totalSecs: (json['total_secs'] as num?)?.toDouble() ?? 0.0,
+      perFilter: (json['per_filter'] as Map<String, dynamic>? ?? const {}).map(
+          (k, v) => MapEntry(
+              k, FilterBudgetEntry.fromJson(v as Map<String, dynamic>))),
+      stopOnBudgetMet: json['stop_on_budget_met'] as bool? ?? true,
+    );
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (other is! IntegrationBudget) return false;
+    if (other.totalSecs != totalSecs) return false;
+    if (other.stopOnBudgetMet != stopOnBudgetMet) return false;
+    if (other.perFilter.length != perFilter.length) return false;
+    for (final entry in perFilter.entries) {
+      if (other.perFilter[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        totalSecs,
+        stopOnBudgetMet,
+        Object.hashAllUnordered(
+            perFilter.entries.map((e) => Object.hash(e.key, e.value))),
+      );
+}
+
+// ============================================================================
+// Wave 4 — Per-target start/end altitude crossings.
+//
+// `TargetTrigger` mirrors the Rust enum in
+// `native/nightshade_native/sequencer/src/scheduling/target_trigger.rs`.
+// Used by `TargetHeaderNode.startWhen` / `endWhen` to gate when a target
+// begins / ends imaging. We use a hand-rolled sealed-class hierarchy so
+// JSON encoding stays symmetric with the Rust
+// `#[serde(tag = "kind", content = "value")]` shape.
+// ============================================================================
+
+/// One leaf or compound condition that can gate a target's start / end.
+sealed class TargetTrigger {
+  const TargetTrigger();
+
+  /// JSON shape: `{"kind":"AltitudeAbove","value":35.0}` (and nested
+  /// `value: [...]` for And/Or). Stays symmetric to the Rust
+  /// `#[serde(tag = "kind", content = "value")]` encoding.
+  Map<String, dynamic> toJson();
+
+  /// Decode a `TargetTrigger` from JSON. Throws on unknown / malformed
+  /// kinds — errors-are-a-feature; we never silently downgrade to a
+  /// trigger that is "always false" or "always true".
+  factory TargetTrigger.fromJson(Map<String, dynamic> json) {
+    final kind = json['kind'] as String?;
+    final raw = json['value'];
+    switch (kind) {
+      case 'AltitudeAbove':
+        return AltitudeAboveTrigger((raw as num).toDouble());
+      case 'AltitudeBelow':
+        return AltitudeBelowTrigger((raw as num).toDouble());
+      case 'TimeAfter':
+        return TimeAfterTrigger((raw as num).toInt());
+      case 'TimeBefore':
+        return TimeBeforeTrigger((raw as num).toInt());
+      case 'And':
+        return AndTrigger((raw as List<dynamic>)
+            .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
+            .toList());
+      case 'Or':
+        return OrTrigger((raw as List<dynamic>)
+            .map((e) => TargetTrigger.fromJson(e as Map<String, dynamic>))
+            .toList());
+      case 'HourAngleBetween':
+        final m = raw as Map<String, dynamic>;
+        return HourAngleBetweenTrigger(
+          minHa: (m['minHa'] as num).toDouble(),
+          maxHa: (m['maxHa'] as num).toDouble(),
+        );
+      default:
+        throw FormatException(
+            'Unknown TargetTrigger kind "$kind" — expected AltitudeAbove, '
+            'AltitudeBelow, TimeAfter, TimeBefore, And, Or, or HourAngleBetween');
+    }
+  }
+
+  /// Human-readable label used by the dashboard / live preview.
+  String get label;
+
+  /// True iff this trigger (or any nested sub-trigger) references an
+  /// altitude threshold. Used by the validator to surface "this target
+  /// never reaches that altitude from your location" errors.
+  bool get referencesAltitude;
+
+  /// Recursively detect empty And / Or compounds. Used by
+  /// [TargetTriggerEmptyCompoundRule].
+  bool get hasEmptyCompound;
+}
+
+class AltitudeAboveTrigger extends TargetTrigger {
+  final double altitudeDeg;
+  const AltitudeAboveTrigger(this.altitudeDeg);
+  @override
+  Map<String, dynamic> toJson() =>
+      {'kind': 'AltitudeAbove', 'value': altitudeDeg};
+  @override
+  String get label => 'altitude ≥ ${altitudeDeg.toStringAsFixed(1)}°';
+  @override
+  bool get referencesAltitude => true;
+  @override
+  bool get hasEmptyCompound => false;
+  @override
+  bool operator ==(Object other) =>
+      other is AltitudeAboveTrigger && other.altitudeDeg == altitudeDeg;
+  @override
+  int get hashCode => Object.hash('AltitudeAbove', altitudeDeg);
+}
+
+class AltitudeBelowTrigger extends TargetTrigger {
+  final double altitudeDeg;
+  const AltitudeBelowTrigger(this.altitudeDeg);
+  @override
+  Map<String, dynamic> toJson() =>
+      {'kind': 'AltitudeBelow', 'value': altitudeDeg};
+  @override
+  String get label => 'altitude ≤ ${altitudeDeg.toStringAsFixed(1)}°';
+  @override
+  bool get referencesAltitude => true;
+  @override
+  bool get hasEmptyCompound => false;
+  @override
+  bool operator ==(Object other) =>
+      other is AltitudeBelowTrigger && other.altitudeDeg == altitudeDeg;
+  @override
+  int get hashCode => Object.hash('AltitudeBelow', altitudeDeg);
+}
+
+class TimeAfterTrigger extends TargetTrigger {
+  /// Unix timestamp (seconds).
+  final int unixSeconds;
+  const TimeAfterTrigger(this.unixSeconds);
+  @override
+  Map<String, dynamic> toJson() => {'kind': 'TimeAfter', 'value': unixSeconds};
+  @override
+  String get label => 'time ≥ $unixSeconds';
+  @override
+  bool get referencesAltitude => false;
+  @override
+  bool get hasEmptyCompound => false;
+  @override
+  bool operator ==(Object other) =>
+      other is TimeAfterTrigger && other.unixSeconds == unixSeconds;
+  @override
+  int get hashCode => Object.hash('TimeAfter', unixSeconds);
+}
+
+class TimeBeforeTrigger extends TargetTrigger {
+  /// Unix timestamp (seconds).
+  final int unixSeconds;
+  const TimeBeforeTrigger(this.unixSeconds);
+  @override
+  Map<String, dynamic> toJson() => {'kind': 'TimeBefore', 'value': unixSeconds};
+  @override
+  String get label => 'time < $unixSeconds';
+  @override
+  bool get referencesAltitude => false;
+  @override
+  bool get hasEmptyCompound => false;
+  @override
+  bool operator ==(Object other) =>
+      other is TimeBeforeTrigger && other.unixSeconds == unixSeconds;
+  @override
+  int get hashCode => Object.hash('TimeBefore', unixSeconds);
+}
+
+class AndTrigger extends TargetTrigger {
+  final List<TargetTrigger> children;
+  const AndTrigger(this.children);
+  @override
+  Map<String, dynamic> toJson() => {
+        'kind': 'And',
+        'value': children.map((c) => c.toJson()).toList(),
+      };
+  @override
+  String get label => '(${children.map((c) => c.label).join(' AND ')})';
+  @override
+  bool get referencesAltitude => children.any((c) => c.referencesAltitude);
+  @override
+  bool get hasEmptyCompound =>
+      children.isEmpty || children.any((c) => c.hasEmptyCompound);
+  @override
+  bool operator ==(Object other) {
+    if (other is! AndTrigger) return false;
+    if (other.children.length != children.length) return false;
+    for (var i = 0; i < children.length; i++) {
+      if (other.children[i] != children[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash('And', Object.hashAll(children));
+}
+
+class OrTrigger extends TargetTrigger {
+  final List<TargetTrigger> children;
+  const OrTrigger(this.children);
+  @override
+  Map<String, dynamic> toJson() => {
+        'kind': 'Or',
+        'value': children.map((c) => c.toJson()).toList(),
+      };
+  @override
+  String get label => '(${children.map((c) => c.label).join(' OR ')})';
+  @override
+  bool get referencesAltitude => children.any((c) => c.referencesAltitude);
+  @override
+  bool get hasEmptyCompound =>
+      children.isEmpty || children.any((c) => c.hasEmptyCompound);
+  @override
+  bool operator ==(Object other) {
+    if (other is! OrTrigger) return false;
+    if (other.children.length != children.length) return false;
+    for (var i = 0; i < children.length; i++) {
+      if (other.children[i] != children[i]) return false;
+    }
+    return true;
+  }
+
+  @override
+  int get hashCode => Object.hash('Or', Object.hashAll(children));
+}
+
+class HourAngleBetweenTrigger extends TargetTrigger {
+  /// Minimum hour angle in hours (negative = east of meridian).
+  final double minHa;
+
+  /// Maximum hour angle in hours (positive = west of meridian).
+  final double maxHa;
+
+  const HourAngleBetweenTrigger({required this.minHa, required this.maxHa});
+  @override
+  Map<String, dynamic> toJson() => {
+        'kind': 'HourAngleBetween',
+        'value': {'minHa': minHa, 'maxHa': maxHa},
+      };
+  @override
+  String get label =>
+      '${minHa.toStringAsFixed(2)}h ≤ HA ≤ ${maxHa.toStringAsFixed(2)}h';
+  @override
+  bool get referencesAltitude => false;
+  @override
+  bool get hasEmptyCompound => false;
+  @override
+  bool operator ==(Object other) =>
+      other is HourAngleBetweenTrigger &&
+      other.minHa == minHa &&
+      other.maxHa == maxHa;
+  @override
+  int get hashCode => Object.hash('HourAngleBetween', minHa, maxHa);
+}
+
+/// Evaluate a [TargetTrigger] against an observer / target / now snapshot.
+/// Used by the dashboard live-preview and the
+/// `TargetTriggerStartEndContradictionRule` validator. Mirrors the Rust
+/// `TargetTrigger::is_satisfied`.
+bool evaluateTargetTrigger(
+  TargetTrigger trigger, {
+  required double altitudeDeg,
+  required double hourAngleHours,
+  required int nowUnix,
+}) {
+  switch (trigger) {
+    case AltitudeAboveTrigger(altitudeDeg: final t):
+      return altitudeDeg >= t;
+    case AltitudeBelowTrigger(altitudeDeg: final t):
+      return altitudeDeg <= t;
+    case TimeAfterTrigger(unixSeconds: final t):
+      return nowUnix >= t;
+    case TimeBeforeTrigger(unixSeconds: final t):
+      return nowUnix < t;
+    case AndTrigger(children: final cs):
+      if (cs.isEmpty) return false;
+      return cs.every((c) => evaluateTargetTrigger(c,
+          altitudeDeg: altitudeDeg,
+          hourAngleHours: hourAngleHours,
+          nowUnix: nowUnix));
+    case OrTrigger(children: final cs):
+      if (cs.isEmpty) return false;
+      return cs.any((c) => evaluateTargetTrigger(c,
+          altitudeDeg: altitudeDeg,
+          hourAngleHours: hourAngleHours,
+          nowUnix: nowUnix));
+    case HourAngleBetweenTrigger(minHa: final lo, maxHa: final hi):
+      return hourAngleHours >= lo && hourAngleHours <= hi;
+  }
+}
+
 /// Target header - the root node containing imaging instructions for a target.
 /// Each target acts as an independent root in the sequence tree.
 /// Provides rich display with coordinates, altitude plot, and progress tracking.
@@ -407,6 +852,36 @@ class TargetHeaderNode extends SequenceNode {
   final DateTime? startAfter;
   final DateTime? endBefore;
   final MosaicPanelInfo? mosaicPanel;
+
+  /// Wave 3 Agent 3 — optional per-target integration budget. `null` =
+  /// no budget enforcement (current behaviour). When set, the
+  /// TargetHeader runtime returns Success the moment the budget is met
+  /// and the dashboard shows live per-filter progress bars.
+  final IntegrationBudget? integrationBudget;
+
+  /// Wave 4 — wait condition: target waits until this becomes true
+  /// before imaging children. When `null` *and* none of the legacy
+  /// `startAfter` / `minAltitude` fields are set, the target starts
+  /// immediately.
+  final TargetTrigger? startWhen;
+
+  /// Wave 4 — stop condition: target ends as soon as this becomes true.
+  /// When `null` *and* none of the legacy `endBefore` / `maxAltitude`
+  /// fields are set, the target runs to natural completion of its
+  /// children.
+  final TargetTrigger? endWhen;
+
+  /// Wave 4 — how often (seconds) the runtime polls `startWhen` /
+  /// `endWhen`. Default 30s.
+  final int triggerPollIntervalSecs;
+
+  /// Wave 8 — brightness tier hint consulted by the TargetScheduler's
+  /// adaptive-swap logic. `null` lets the scheduler infer the tier (or
+  /// default to [BrightnessTier.medium]). Pinned values:
+  /// [BrightnessTier.faint] for galaxies / faint nebulae,
+  /// [BrightnessTier.medium] for bright galaxies / dim nebulae,
+  /// [BrightnessTier.bright] for planetary nebulae / open clusters.
+  final BrightnessTier? brightnessTierHint;
 
   TargetHeaderNode({
     super.id,
@@ -426,6 +901,11 @@ class TargetHeaderNode extends SequenceNode {
     this.startAfter,
     this.endBefore,
     this.mosaicPanel,
+    this.integrationBudget,
+    this.startWhen,
+    this.endWhen,
+    this.triggerPollIntervalSecs = 30,
+    this.brightnessTierHint,
   });
 
   @override
@@ -454,6 +934,28 @@ class TargetHeaderNode extends SequenceNode {
   /// Check if this target has altitude constraints
   bool get hasAltitudeConstraints => minAltitude != null || maxAltitude != null;
 
+  /// Wave 3 Agent 3 — true iff the integration budget is configured and
+  /// will actually enforce a cap. Used by UI to gate the "Budget" panel.
+  bool get hasActiveIntegrationBudget =>
+      integrationBudget != null && integrationBudget!.isActive;
+
+  /// Wave 4 — true iff this target has an explicit start/end crossing
+  /// configured. Used by the Targets tab to render the "Imaging window:
+  /// HH:MM – HH:MM" row.
+  bool get hasCrossingTriggers => startWhen != null || endWhen != null;
+
+  /// Wave 4 — One-line label describing the imaging window in human
+  /// terms ("starts when altitude ≥ 35°, ends when altitude ≤ 30°").
+  /// Returns `null` when no triggers are set. The dashboard / Targets
+  /// tab uses this to render a friendly row without re-deriving labels.
+  String? get crossingWindowLabel {
+    if (startWhen == null && endWhen == null) return null;
+    final parts = <String>[];
+    if (startWhen != null) parts.add('starts when ${startWhen!.label}');
+    if (endWhen != null) parts.add('ends when ${endWhen!.label}');
+    return parts.join(' · ');
+  }
+
   @override
   TargetHeaderNode copyWith({
     String? id,
@@ -473,6 +975,11 @@ class TargetHeaderNode extends SequenceNode {
     DateTime? startAfter,
     DateTime? endBefore,
     MosaicPanelInfo? mosaicPanel,
+    Object? integrationBudget = _sentinel,
+    Object? startWhen = _sentinel,
+    Object? endWhen = _sentinel,
+    int? triggerPollIntervalSecs,
+    Object? brightnessTierHint = _sentinel,
   }) {
     return TargetHeaderNode(
       id: id ?? this.id,
@@ -492,6 +999,23 @@ class TargetHeaderNode extends SequenceNode {
       startAfter: startAfter ?? this.startAfter,
       endBefore: endBefore ?? this.endBefore,
       mosaicPanel: mosaicPanel ?? this.mosaicPanel,
+      // sentinel-based copyWith so the caller can explicitly clear the
+      // budget by passing `null` (`integrationBudget: null` => null,
+      // omitted => keep this.integrationBudget).
+      integrationBudget: identical(integrationBudget, _sentinel)
+          ? this.integrationBudget
+          : integrationBudget as IntegrationBudget?,
+      startWhen: identical(startWhen, _sentinel)
+          ? this.startWhen
+          : startWhen as TargetTrigger?,
+      endWhen: identical(endWhen, _sentinel)
+          ? this.endWhen
+          : endWhen as TargetTrigger?,
+      triggerPollIntervalSecs:
+          triggerPollIntervalSecs ?? this.triggerPollIntervalSecs,
+      brightnessTierHint: identical(brightnessTierHint, _sentinel)
+          ? this.brightnessTierHint
+          : brightnessTierHint as BrightnessTier?,
     );
   }
 
@@ -508,8 +1032,15 @@ class TargetHeaderNode extends SequenceNode {
         startAfter,
         endBefore,
         mosaicPanel,
+        integrationBudget,
+        startWhen,
+        endWhen,
+        triggerPollIntervalSecs,
+        brightnessTierHint,
       ];
 }
+
+const Object _sentinel = Object();
 
 /// Loop node - repeats children based on condition
 class LoopNode extends SequenceNode {
@@ -659,6 +1190,14 @@ class ConditionalNode extends SequenceNode {
   final double? thresholdValue;
   final DateTime? thresholdTime;
 
+  /// Audit C2 — when [conditionType] is [ConditionalType.safetyMonitorSafe]
+  /// and the user has multiple safety monitors configured, this names the
+  /// specific monitor the conditional branch should consult. `null` =
+  /// fall back to the profile-default / aggregated safety state (current
+  /// behaviour for single-monitor setups). Ignored for any other
+  /// [ConditionalType].
+  final String? safetyMonitorId;
+
   ConditionalNode({
     super.id,
     super.name = 'Conditional',
@@ -670,6 +1209,7 @@ class ConditionalNode extends SequenceNode {
     this.conditionType = ConditionalType.always,
     this.thresholdValue,
     this.thresholdTime,
+    this.safetyMonitorId,
   });
 
   @override
@@ -693,6 +1233,11 @@ class ConditionalNode extends SequenceNode {
     ConditionalType? conditionType,
     double? thresholdValue,
     DateTime? thresholdTime,
+    // Sentinel-based optional: callers omit the argument to keep the
+    // existing value, or pass `safetyMonitorId: null` to explicitly clear
+    // it. The `?? this.X` pattern used for the other fields cannot
+    // distinguish those two cases.
+    Object? safetyMonitorId = _unsetSentinel,
   }) {
     return ConditionalNode(
       id: id ?? this.id,
@@ -705,6 +1250,9 @@ class ConditionalNode extends SequenceNode {
       conditionType: conditionType ?? this.conditionType,
       thresholdValue: thresholdValue ?? this.thresholdValue,
       thresholdTime: thresholdTime ?? this.thresholdTime,
+      safetyMonitorId: identical(safetyMonitorId, _unsetSentinel)
+          ? this.safetyMonitorId
+          : safetyMonitorId as String?,
     );
   }
 
@@ -714,8 +1262,14 @@ class ConditionalNode extends SequenceNode {
         conditionType,
         thresholdValue,
         thresholdTime,
+        safetyMonitorId,
       ];
 }
+
+/// Sentinel used by [ConditionalNode.copyWith] to distinguish "argument
+/// omitted" from "argument explicitly cleared to null". File-private; a
+/// pure marker — never compared by value, only by identity.
+const Object _unsetSentinel = Object();
 
 /// Recovery node - handles errors with retry/recovery logic
 class RecoveryNode extends SequenceNode {
@@ -772,6 +1326,37 @@ class RecoveryNode extends SequenceNode {
   /// before firing.
   final double guidingFailedDurationSecs;
 
+  // ===== Wave 5 Agent 4 cloud-motion trigger config fields =====
+
+  /// [TriggerType.cloudArrivingIn] and [TriggerType.cloudOpeningIn]:
+  /// fire when arrival/opening is at or below this many minutes.
+  final double cloudMinutesBefore;
+
+  /// [TriggerType.cloudArrivingIn]: required predicted coverage percentage
+  /// (0-100). Trigger fires only when predicted cover exceeds this value.
+  final double cloudCoverageThresholdPercent;
+
+  /// [TriggerType.cloudOpeningIn]: minimum opening duration (seconds) that
+  /// counts as imageable. Smaller gaps are ignored.
+  final double cloudOpeningMinDurationSecs;
+
+  /// [TriggerType.cloudCoverThreshold]: maximum allowed cover (0-100).
+  /// Fire when current cover exceeds this value for [cloudCoverDurationSecs].
+  final double cloudCoverMaxPercent;
+
+  /// [TriggerType.cloudCoverThreshold]: required duration (seconds) above
+  /// the threshold before firing. Acts as a debounce.
+  final double cloudCoverDurationSecs;
+
+  /// [TriggerType.transparencyDropped]: transparency fraction (0.0..=1.0)
+  /// below which the trigger fires after [transparencyDurationSecs] of
+  /// continuous samples at or below the threshold.
+  final double transparencyBelowThreshold;
+
+  /// [TriggerType.transparencyDropped]: required duration (seconds) at or
+  /// below the threshold before firing. Acts as a debounce. Default 60s.
+  final double transparencyDurationSecs;
+
   RecoveryNode({
     super.id,
     super.name = 'Recovery',
@@ -791,6 +1376,19 @@ class RecoveryNode extends SequenceNode {
     this.focusDriftMinIncreasingCount = 5,
     this.focusDriftMinTotalIncrease = 0.5,
     this.guidingFailedDurationSecs = 30.0,
+    // Wave 5 Agent 4 — cloud-motion defaults. 10 min lead time + 70%
+    // coverage matches the SGP-style "act before clouds hit" semantic;
+    // the 30 s opening minimum prevents firing on a wisp.
+    this.cloudMinutesBefore = 10.0,
+    this.cloudCoverageThresholdPercent = 70.0,
+    this.cloudOpeningMinDurationSecs = 300.0,
+    this.cloudCoverMaxPercent = 80.0,
+    this.cloudCoverDurationSecs = 60.0,
+    // Wave 7 Science — transparency-adaptive trigger defaults. 0.7 +
+    // 60s matches the brief's recommended "swap when transparency
+    // drops below 70% for a minute" workflow.
+    this.transparencyBelowThreshold = 0.7,
+    this.transparencyDurationSecs = 60.0,
   });
 
   @override
@@ -822,6 +1420,13 @@ class RecoveryNode extends SequenceNode {
     int? focusDriftMinIncreasingCount,
     double? focusDriftMinTotalIncrease,
     double? guidingFailedDurationSecs,
+    double? cloudMinutesBefore,
+    double? cloudCoverageThresholdPercent,
+    double? cloudOpeningMinDurationSecs,
+    double? cloudCoverMaxPercent,
+    double? cloudCoverDurationSecs,
+    double? transparencyBelowThreshold,
+    double? transparencyDurationSecs,
   }) {
     return RecoveryNode(
       id: id ?? this.id,
@@ -845,6 +1450,18 @@ class RecoveryNode extends SequenceNode {
           focusDriftMinTotalIncrease ?? this.focusDriftMinTotalIncrease,
       guidingFailedDurationSecs:
           guidingFailedDurationSecs ?? this.guidingFailedDurationSecs,
+      cloudMinutesBefore: cloudMinutesBefore ?? this.cloudMinutesBefore,
+      cloudCoverageThresholdPercent:
+          cloudCoverageThresholdPercent ?? this.cloudCoverageThresholdPercent,
+      cloudOpeningMinDurationSecs:
+          cloudOpeningMinDurationSecs ?? this.cloudOpeningMinDurationSecs,
+      cloudCoverMaxPercent: cloudCoverMaxPercent ?? this.cloudCoverMaxPercent,
+      cloudCoverDurationSecs:
+          cloudCoverDurationSecs ?? this.cloudCoverDurationSecs,
+      transparencyBelowThreshold:
+          transparencyBelowThreshold ?? this.transparencyBelowThreshold,
+      transparencyDurationSecs:
+          transparencyDurationSecs ?? this.transparencyDurationSecs,
     );
   }
 
@@ -862,6 +1479,13 @@ class RecoveryNode extends SequenceNode {
         focusDriftMinIncreasingCount,
         focusDriftMinTotalIncrease,
         guidingFailedDurationSecs,
+        cloudMinutesBefore,
+        cloudCoverageThresholdPercent,
+        cloudOpeningMinDurationSecs,
+        cloudCoverMaxPercent,
+        cloudCoverDurationSecs,
+        transparencyBelowThreshold,
+        transparencyDurationSecs,
       ];
 
   /// Wave 1.5 Pack A: serialize the configured trigger into the Rust-side
@@ -945,6 +1569,38 @@ class RecoveryNode extends SequenceNode {
       case TriggerType.driftLimit:
         return {
           'DriftLimit': {'max_pixels': triggerThreshold ?? 30.0}
+        };
+      // Wave 5 Agent 4 — cloud-motion-aware triggers. Field names match
+      // the Rust serde-tagged enum form (`#[serde(...)]` external default).
+      case TriggerType.cloudArrivingIn:
+        return {
+          'CloudArrivingIn': {
+            'minutes_before': cloudMinutesBefore,
+            'coverage_threshold': cloudCoverageThresholdPercent,
+          }
+        };
+      case TriggerType.cloudOpeningIn:
+        return {
+          'CloudOpeningIn': {
+            'minutes_before': cloudMinutesBefore,
+            'minimum_duration_secs': cloudOpeningMinDurationSecs,
+          }
+        };
+      case TriggerType.cloudCoverThreshold:
+        return {
+          'CloudCoverThreshold': {
+            'max_percent': cloudCoverMaxPercent,
+            'duration_secs': cloudCoverDurationSecs,
+          }
+        };
+      // Wave 7 Science — transparency-adaptive trigger. Field names
+      // match the Rust serde-tagged enum variant.
+      case TriggerType.transparencyDropped:
+        return {
+          'TransparencyDropped': {
+            'below_threshold': transparencyBelowThreshold,
+            'duration_secs': transparencyDurationSecs,
+          }
         };
     }
   }
@@ -1151,6 +1807,179 @@ class CenterNode extends SequenceNode {
       ];
 }
 
+/// Wave 5 Agent 2 — Sky-brightness adaptive exposure config carried on
+/// an [ExposureNode] (or as a global default in app settings). Mirrors
+/// the Rust `AdaptiveExposureConfig`. Plain immutable value class with
+/// hand-rolled equality so we stay consistent with the rest of the
+/// sequence-models package (no freezed annotations here).
+class AdaptiveExposureConfig {
+  /// Target SNR (informational; the current adapter scales by sky-
+  /// background flux ratio rather than aiming at a numeric target).
+  final double targetSnr;
+
+  /// Sky brightness in mag/arcsec² that the node's configured nominal
+  /// exposure is calibrated for.
+  final double referenceSkyBrightnessMag;
+
+  /// Global minimum exposure clamp (seconds).
+  final double minExposureSecs;
+
+  /// Global maximum exposure clamp (seconds).
+  final double maxExposureSecs;
+
+  /// Per-filter enable map. Filter name -> bool. Empty => apply globally.
+  final Map<String, bool> perFilterEnabled;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  final Map<String, double> perFilterMinSecs;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  final Map<String, double> perFilterMaxSecs;
+
+  /// Global enable toggle. When false the whole config is a no-op
+  /// regardless of per-filter map content.
+  final bool enabled;
+
+  const AdaptiveExposureConfig({
+    this.targetSnr = 30.0,
+    this.referenceSkyBrightnessMag = 21.5,
+    this.minExposureSecs = 5.0,
+    this.maxExposureSecs = 600.0,
+    this.perFilterEnabled = const {},
+    this.perFilterMinSecs = const {},
+    this.perFilterMaxSecs = const {},
+    this.enabled = true,
+  });
+
+  AdaptiveExposureConfig copyWith({
+    double? targetSnr,
+    double? referenceSkyBrightnessMag,
+    double? minExposureSecs,
+    double? maxExposureSecs,
+    Map<String, bool>? perFilterEnabled,
+    Map<String, double>? perFilterMinSecs,
+    Map<String, double>? perFilterMaxSecs,
+    bool? enabled,
+  }) =>
+      AdaptiveExposureConfig(
+        targetSnr: targetSnr ?? this.targetSnr,
+        referenceSkyBrightnessMag:
+            referenceSkyBrightnessMag ?? this.referenceSkyBrightnessMag,
+        minExposureSecs: minExposureSecs ?? this.minExposureSecs,
+        maxExposureSecs: maxExposureSecs ?? this.maxExposureSecs,
+        perFilterEnabled: perFilterEnabled ?? this.perFilterEnabled,
+        perFilterMinSecs: perFilterMinSecs ?? this.perFilterMinSecs,
+        perFilterMaxSecs: perFilterMaxSecs ?? this.perFilterMaxSecs,
+        enabled: enabled ?? this.enabled,
+      );
+
+  Map<String, dynamic> toJson() => {
+        'target_snr': targetSnr,
+        'reference_sky_brightness_mag': referenceSkyBrightnessMag,
+        'min_exposure_secs': minExposureSecs,
+        'max_exposure_secs': maxExposureSecs,
+        'per_filter_enabled': perFilterEnabled,
+        'per_filter_min_secs': perFilterMinSecs,
+        'per_filter_max_secs': perFilterMaxSecs,
+        'enabled': enabled,
+      };
+
+  static AdaptiveExposureConfig fromJson(Map<String, dynamic> json) =>
+      AdaptiveExposureConfig(
+        targetSnr: (json['target_snr'] as num?)?.toDouble() ?? 30.0,
+        referenceSkyBrightnessMag:
+            (json['reference_sky_brightness_mag'] as num?)?.toDouble() ?? 21.5,
+        minExposureSecs: (json['min_exposure_secs'] as num?)?.toDouble() ?? 5.0,
+        maxExposureSecs:
+            (json['max_exposure_secs'] as num?)?.toDouble() ?? 600.0,
+        perFilterEnabled: (json['per_filter_enabled'] as Map?)
+                ?.map((k, v) => MapEntry(k.toString(), v == true)) ??
+            const {},
+        perFilterMinSecs: (json['per_filter_min_secs'] as Map?)?.map(
+              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+            ) ??
+            const {},
+        perFilterMaxSecs: (json['per_filter_max_secs'] as Map?)?.map(
+              (k, v) => MapEntry(k.toString(), (v as num).toDouble()),
+            ) ??
+            const {},
+        enabled: json['enabled'] as bool? ?? true,
+      );
+
+  /// Whether the adapter wants to act on the given filter. Mirrors the
+  /// Rust `is_enabled_for_filter`.
+  bool isEnabledForFilter(String? filter) {
+    if (!enabled) return false;
+    if (filter == null) return true;
+    final per = perFilterEnabled[filter];
+    if (per != null) return per;
+    return perFilterEnabled.isEmpty;
+  }
+
+  /// Resolve the per-filter min clamp (per-filter wins over global).
+  double minForFilter(String? filter) {
+    if (filter != null) {
+      final per = perFilterMinSecs[filter];
+      if (per != null) return per;
+    }
+    return minExposureSecs;
+  }
+
+  /// Resolve the per-filter max clamp (per-filter wins over global).
+  double maxForFilter(String? filter) {
+    if (filter != null) {
+      final per = perFilterMaxSecs[filter];
+      if (per != null) return per;
+    }
+    return maxExposureSecs;
+  }
+
+  @override
+  bool operator ==(Object other) {
+    if (identical(this, other)) return true;
+    if (other is! AdaptiveExposureConfig) return false;
+    return targetSnr == other.targetSnr &&
+        referenceSkyBrightnessMag == other.referenceSkyBrightnessMag &&
+        minExposureSecs == other.minExposureSecs &&
+        maxExposureSecs == other.maxExposureSecs &&
+        enabled == other.enabled &&
+        _mapEq(perFilterEnabled, other.perFilterEnabled) &&
+        _mapEq(perFilterMinSecs, other.perFilterMinSecs) &&
+        _mapEq(perFilterMaxSecs, other.perFilterMaxSecs);
+  }
+
+  @override
+  int get hashCode => Object.hash(
+        targetSnr,
+        referenceSkyBrightnessMag,
+        minExposureSecs,
+        maxExposureSecs,
+        enabled,
+        // Maps not directly hashable, so hash the sorted key/value pairs.
+        _mapHash(perFilterEnabled),
+        _mapHash(perFilterMinSecs),
+        _mapHash(perFilterMaxSecs),
+      );
+
+  static bool _mapEq<K, V>(Map<K, V> a, Map<K, V> b) {
+    if (a.length != b.length) return false;
+    for (final entry in a.entries) {
+      if (!b.containsKey(entry.key)) return false;
+      if (b[entry.key] != entry.value) return false;
+    }
+    return true;
+  }
+
+  static int _mapHash<K, V>(Map<K, V> m) {
+    var h = 0;
+    final keys = m.keys.map((k) => k.toString()).toList()..sort();
+    for (final k in keys) {
+      h = Object.hash(h, k, m[k]);
+    }
+    return h;
+  }
+}
+
 /// Take exposure instruction
 class ExposureNode extends SequenceNode {
   final double durationSecs;
@@ -1165,6 +1994,11 @@ class ExposureNode extends SequenceNode {
   final BinningMode binning;
   final int? ditherEvery;
   final List<Map<String, dynamic>> triggers;
+
+  /// Wave 5 Agent 2 — per-node sky-brightness adaptive exposure config.
+  /// `null` means "use the global default from app settings"; an
+  /// explicit value overrides the global default for this node.
+  final AdaptiveExposureConfig? adaptiveExposure;
 
   ExposureNode({
     super.id,
@@ -1184,6 +2018,7 @@ class ExposureNode extends SequenceNode {
     this.binning = BinningMode.one,
     this.ditherEvery = 1,
     this.triggers = const [],
+    this.adaptiveExposure,
   });
 
   /// Get estimated total duration
@@ -1220,6 +2055,11 @@ class ExposureNode extends SequenceNode {
     BinningMode? binning,
     int? ditherEvery,
     List<Map<String, dynamic>>? triggers,
+    // Wave 5 Agent 2: pass `clearAdaptiveExposure: true` to reset to
+    // "use global default"; passing a non-null `adaptiveExposure`
+    // installs an explicit per-node override.
+    AdaptiveExposureConfig? adaptiveExposure,
+    bool clearAdaptiveExposure = false,
   }) {
     return ExposureNode(
       id: id ?? this.id,
@@ -1239,6 +2079,9 @@ class ExposureNode extends SequenceNode {
       binning: binning ?? this.binning,
       ditherEvery: ditherEvery ?? this.ditherEvery,
       triggers: triggers ?? this.triggers,
+      adaptiveExposure: clearAdaptiveExposure
+          ? null
+          : (adaptiveExposure ?? this.adaptiveExposure),
     );
   }
 
@@ -1255,6 +2098,7 @@ class ExposureNode extends SequenceNode {
         binning,
         ditherEvery,
         triggers,
+        adaptiveExposure,
       ];
 }
 
@@ -1357,6 +2201,14 @@ class AutofocusNode extends SequenceNode {
 }
 
 /// Dither instruction
+/// Mirror of Rust `DitherPattern` (sequencer/src/lib.rs). `random` produces
+/// classic uncorrelated offsets each call; `grid` cycles through an NxN
+/// grid of positions, which yields more uniform sky coverage.
+enum DitherPattern {
+  random,
+  grid,
+}
+
 class DitherNode extends SequenceNode {
   final double pixels;
   final double settleTime;
@@ -1367,6 +2219,14 @@ class DitherNode extends SequenceNode {
 
   /// If true, only dither in RA (useful for dec backlash-prone setups)
   final bool raOnly;
+
+  /// Dither pattern selection. [DitherPattern.random] is classic; [DitherPattern.grid]
+  /// walks a [gridSize] x [gridSize] grid for systematic coverage.
+  final DitherPattern pattern;
+
+  /// Grid side length (N for NxN) used when [pattern] is [DitherPattern.grid].
+  /// Ignored for [DitherPattern.random]. Must be >= 2.
+  final int gridSize;
 
   DitherNode({
     super.id,
@@ -1381,6 +2241,8 @@ class DitherNode extends SequenceNode {
     this.settlePixels = 1.5,
     this.settleTimeout = 120.0,
     this.raOnly = false,
+    this.pattern = DitherPattern.random,
+    this.gridSize = 3,
   });
 
   @override
@@ -1409,6 +2271,8 @@ class DitherNode extends SequenceNode {
     double? settlePixels,
     double? settleTimeout,
     bool? raOnly,
+    DitherPattern? pattern,
+    int? gridSize,
   }) {
     return DitherNode(
       id: id ?? this.id,
@@ -1423,12 +2287,22 @@ class DitherNode extends SequenceNode {
       settlePixels: settlePixels ?? this.settlePixels,
       settleTimeout: settleTimeout ?? this.settleTimeout,
       raOnly: raOnly ?? this.raOnly,
+      pattern: pattern ?? this.pattern,
+      gridSize: gridSize ?? this.gridSize,
     );
   }
 
   @override
-  List<Object?> get props =>
-      [...super.props, pixels, settleTime, settlePixels, settleTimeout, raOnly];
+  List<Object?> get props => [
+        ...super.props,
+        pixels,
+        settleTime,
+        settlePixels,
+        settleTimeout,
+        raOnly,
+        pattern,
+        gridSize,
+      ];
 }
 
 /// Start guiding instruction - connects to PHD2 and starts guiding
@@ -1542,9 +2416,6 @@ class StopGuidingNode extends SequenceNode {
       comment: comment ?? this.comment,
     );
   }
-
-  @override
-  List<Object?> get props => super.props;
 }
 
 /// Change filter instruction
@@ -1983,6 +2854,14 @@ class NotificationNode extends SequenceNode {
   final String message;
   final NotificationLevel level;
 
+  /// Wave 5 Agent 5 — explicit transport override for this node only.
+  ///
+  /// When non-null, the executor's NotificationNode dispatcher hands this
+  /// list to `NotificationRouter.routeNotificationNode(explicitTransports:)`
+  /// which bypasses the matrix's `custom` rule. When null (legacy), the
+  /// node inherits the matrix's `custom` transports.
+  final List<NotificationTransportKind>? explicitTransports;
+
   NotificationNode({
     super.id,
     super.name = 'Send Notification',
@@ -1994,6 +2873,7 @@ class NotificationNode extends SequenceNode {
     this.title = '',
     this.message = '',
     this.level = NotificationLevel.info,
+    this.explicitTransports,
   });
 
   @override
@@ -2005,6 +2885,11 @@ class NotificationNode extends SequenceNode {
   @override
   NodeCategory get category => NodeCategory.instruction;
 
+  /// `copyWith` for `explicitTransports`. We need a three-state semantics
+  /// here:
+  ///   * leave alone     → pass nothing
+  ///   * set to a value  → pass the new list
+  ///   * clear (back to matrix-default) → set `clearExplicitTransports: true`
   @override
   NotificationNode copyWith({
     String? id,
@@ -2017,6 +2902,8 @@ class NotificationNode extends SequenceNode {
     String? title,
     String? message,
     NotificationLevel? level,
+    List<NotificationTransportKind>? explicitTransports,
+    bool clearExplicitTransports = false,
   }) {
     return NotificationNode(
       id: id ?? this.id,
@@ -2029,11 +2916,15 @@ class NotificationNode extends SequenceNode {
       title: title ?? this.title,
       message: message ?? this.message,
       level: level ?? this.level,
+      explicitTransports: clearExplicitTransports
+          ? null
+          : (explicitTransports ?? this.explicitTransports),
     );
   }
 
   @override
-  List<Object?> get props => [...super.props, title, message, level];
+  List<Object?> get props =>
+      [...super.props, title, message, level, explicitTransports];
 }
 
 /// Script instruction
@@ -2202,8 +3093,8 @@ class MeridianFlipNode extends SequenceNode {
         resumeGuiding != null ||
         maxRetries != null ||
         failureAction != null;
-    final resolvedUseGlobalDefaults = useGlobalDefaults ??
-        (touchedConfig ? false : this.useGlobalDefaults);
+    final resolvedUseGlobalDefaults =
+        useGlobalDefaults ?? (touchedConfig ? false : this.useGlobalDefaults);
 
     return MeridianFlipNode(
       id: id ?? this.id,
@@ -2730,10 +3621,1169 @@ class CalibratorOffNode extends SequenceNode {
 }
 
 // =============================================================================
+// Wave 3 Agent 1: TargetScheduler — dynamic target picker
+// =============================================================================
+
+/// Wave 8 — brightness tier hint mirrored from
+/// `crate::scheduling::adaptive_swap::BrightnessTier`. Used by
+/// [TargetSchedulerNode]'s adaptive-swap logic to decide whether the
+/// currently-running target's tier still accepts the live sky-conditions
+/// score.
+enum BrightnessTier {
+  /// Galaxies, faint nebulae — needs pristine sky.
+  faint,
+
+  /// Bright galaxies, medium nebulae — tolerates degraded sky.
+  medium,
+
+  /// Planetary nebulae, open clusters — tolerates poor sky.
+  bright;
+
+  /// Stable wire string used by the Rust ↔ Dart bridge. Matches
+  /// `BrightnessTier::as_str()` on the Rust side.
+  String get wireValue => name; // 'faint' / 'medium' / 'bright'
+
+  /// Human-friendly label for the properties editor dropdown.
+  String get displayLabel {
+    switch (this) {
+      case BrightnessTier.faint:
+        return 'Faint (galaxies, dim nebulae)';
+      case BrightnessTier.medium:
+        return 'Medium (bright galaxies, dim nebulae)';
+      case BrightnessTier.bright:
+        return 'Bright (planetary nebulae, open clusters)';
+    }
+  }
+
+  /// Parse from the wire string. Returns `null` for unrecognised values
+  /// so callers can fall back to "auto" rather than silently accepting
+  /// junk input — schema drift between Rust and Dart should be loud.
+  static BrightnessTier? fromWire(String? s) {
+    if (s == null) return null;
+    switch (s.toLowerCase()) {
+      case 'faint':
+        return BrightnessTier.faint;
+      case 'medium':
+        return BrightnessTier.medium;
+      case 'bright':
+        return BrightnessTier.bright;
+      default:
+        return null;
+    }
+  }
+}
+
+/// Wave 8 — per-tier conditions-score floor preferences. Mirrors the
+/// Rust `BrightnessTierPreferences` struct.
+class BrightnessTierPreferences extends Equatable {
+  final double faintMinScore;
+  final double mediumMinScore;
+  final double brightMinScore;
+
+  const BrightnessTierPreferences({
+    this.faintMinScore = 70.0,
+    this.mediumMinScore = 50.0,
+    this.brightMinScore = 30.0,
+  });
+
+  double floorFor(BrightnessTier tier) {
+    switch (tier) {
+      case BrightnessTier.faint:
+        return faintMinScore;
+      case BrightnessTier.medium:
+        return mediumMinScore;
+      case BrightnessTier.bright:
+        return brightMinScore;
+    }
+  }
+
+  bool accepts(BrightnessTier tier, double score) => score >= floorFor(tier);
+
+  BrightnessTierPreferences copyWith({
+    double? faintMinScore,
+    double? mediumMinScore,
+    double? brightMinScore,
+  }) {
+    return BrightnessTierPreferences(
+      faintMinScore: faintMinScore ?? this.faintMinScore,
+      mediumMinScore: mediumMinScore ?? this.mediumMinScore,
+      brightMinScore: brightMinScore ?? this.brightMinScore,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'faint_min_score': faintMinScore,
+        'medium_min_score': mediumMinScore,
+        'bright_min_score': brightMinScore,
+      };
+
+  factory BrightnessTierPreferences.fromJson(Map<String, dynamic> json) =>
+      BrightnessTierPreferences(
+        faintMinScore: (json['faint_min_score'] as num?)?.toDouble() ?? 70.0,
+        mediumMinScore: (json['medium_min_score'] as num?)?.toDouble() ?? 50.0,
+        brightMinScore: (json['bright_min_score'] as num?)?.toDouble() ?? 30.0,
+      );
+
+  @override
+  List<Object?> get props => [faintMinScore, mediumMinScore, brightMinScore];
+}
+
+/// Wave 8 — per-axis weights applied when composing the live
+/// ConditionsScore. Mirrors the Rust `ConditionsScoreWeights` struct.
+class ConditionsScoreWeights extends Equatable {
+  final double transparencyWeight;
+  final double seeingWeight;
+  final double cloudWeight;
+  final double windWeight;
+
+  const ConditionsScoreWeights({
+    this.transparencyWeight = 0.40,
+    this.seeingWeight = 0.25,
+    this.cloudWeight = 0.25,
+    this.windWeight = 0.10,
+  });
+
+  double get sum =>
+      transparencyWeight + seeingWeight + cloudWeight + windWeight;
+
+  /// True when the weights sum to ~1.0 (validator lenient ±5% band).
+  bool get isNormalised => sum >= 0.95 && sum <= 1.05;
+
+  ConditionsScoreWeights copyWith({
+    double? transparencyWeight,
+    double? seeingWeight,
+    double? cloudWeight,
+    double? windWeight,
+  }) {
+    return ConditionsScoreWeights(
+      transparencyWeight: transparencyWeight ?? this.transparencyWeight,
+      seeingWeight: seeingWeight ?? this.seeingWeight,
+      cloudWeight: cloudWeight ?? this.cloudWeight,
+      windWeight: windWeight ?? this.windWeight,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'transparency_weight': transparencyWeight,
+        'seeing_weight': seeingWeight,
+        'cloud_weight': cloudWeight,
+        'wind_weight': windWeight,
+      };
+
+  factory ConditionsScoreWeights.fromJson(Map<String, dynamic> json) =>
+      ConditionsScoreWeights(
+        transparencyWeight:
+            (json['transparency_weight'] as num?)?.toDouble() ?? 0.40,
+        seeingWeight: (json['seeing_weight'] as num?)?.toDouble() ?? 0.25,
+        cloudWeight: (json['cloud_weight'] as num?)?.toDouble() ?? 0.25,
+        windWeight: (json['wind_weight'] as num?)?.toDouble() ?? 0.10,
+      );
+
+  @override
+  List<Object?> get props =>
+      [transparencyWeight, seeingWeight, cloudWeight, windWeight];
+}
+
+/// Wave 8 — composite sky-conditions score (0..=100) pushed from Dart
+/// to the Rust executor. Mirrors `ConditionsScore`.
+class ConditionsScore extends Equatable {
+  final double score;
+  final double? transparencyScore;
+  final double? seeingScore;
+  final double? cloudScore;
+  final double? windScore;
+  final ConditionsScoreWeights weights;
+  final DateTime generatedAt;
+
+  const ConditionsScore({
+    required this.score,
+    this.transparencyScore,
+    this.seeingScore,
+    this.cloudScore,
+    this.windScore,
+    this.weights = const ConditionsScoreWeights(),
+    required this.generatedAt,
+  });
+
+  /// Convenience: classify the score band.
+  String get qualityLabel {
+    if (score >= 90) return 'Pristine';
+    if (score >= 70) return 'Good';
+    if (score >= 50) return 'Degraded';
+    return 'Bad';
+  }
+
+  Map<String, dynamic> toJson() => {
+        'score': score,
+        'transparency_score': transparencyScore,
+        'seeing_score': seeingScore,
+        'cloud_score': cloudScore,
+        'wind_score': windScore,
+        'weights': weights.toJson(),
+        'generated_unix_secs': generatedAt.millisecondsSinceEpoch ~/ 1000,
+      };
+
+  factory ConditionsScore.fromJson(Map<String, dynamic> json) =>
+      ConditionsScore(
+        score: (json['score'] as num).toDouble(),
+        transparencyScore: (json['transparency_score'] as num?)?.toDouble(),
+        seeingScore: (json['seeing_score'] as num?)?.toDouble(),
+        cloudScore: (json['cloud_score'] as num?)?.toDouble(),
+        windScore: (json['wind_score'] as num?)?.toDouble(),
+        weights: json['weights'] is Map<String, dynamic>
+            ? ConditionsScoreWeights.fromJson(
+                json['weights'] as Map<String, dynamic>,
+              )
+            : const ConditionsScoreWeights(),
+        generatedAt: DateTime.fromMillisecondsSinceEpoch(
+          ((json['generated_unix_secs'] as num?)?.toInt() ?? 0) * 1000,
+          isUtc: true,
+        ),
+      );
+
+  @override
+  List<Object?> get props => [
+        score,
+        transparencyScore,
+        seeingScore,
+        cloudScore,
+        windScore,
+        weights,
+        generatedAt,
+      ];
+}
+
+/// Wave 8 — runtime adaptive-swap state pushed from Rust to the dashboard.
+/// Mirrors the Rust `AdaptiveSwapRuntimeState` struct.
+class AdaptiveSwapRuntimeState extends Equatable {
+  final String? currentTargetId;
+  final String? currentTier;
+  final String? lastDecisionKind;
+  final String? lastDecisionReason;
+  final DateTime? lastSwapAt;
+  final String? lastSwapFromTargetId;
+  final String? lastSwapToTargetId;
+  final double? lastObservedScore;
+  final double? configuredThreshold;
+  final double configuredHysteresisSecs;
+
+  const AdaptiveSwapRuntimeState({
+    this.currentTargetId,
+    this.currentTier,
+    this.lastDecisionKind,
+    this.lastDecisionReason,
+    this.lastSwapAt,
+    this.lastSwapFromTargetId,
+    this.lastSwapToTargetId,
+    this.lastObservedScore,
+    this.configuredThreshold,
+    this.configuredHysteresisSecs = 180.0,
+  });
+
+  /// Seconds until the next swap is allowed by hysteresis. Returns `null`
+  /// when no swap has fired yet or the cooldown has elapsed.
+  double? cooldownRemainingSecs(DateTime now) {
+    final last = lastSwapAt;
+    if (last == null) return null;
+    final elapsed = now.difference(last).inMilliseconds / 1000.0;
+    final remaining = configuredHysteresisSecs - elapsed;
+    return remaining > 0 ? remaining : null;
+  }
+
+  factory AdaptiveSwapRuntimeState.fromJson(Map<String, dynamic> json) {
+    final lastSwapUnix = json['last_swap_unix_secs'] as int?;
+    return AdaptiveSwapRuntimeState(
+      currentTargetId: json['current_target_id'] as String?,
+      currentTier: json['current_tier'] as String?,
+      lastDecisionKind: json['last_decision_kind'] as String?,
+      lastDecisionReason: json['last_decision_reason'] as String?,
+      lastSwapAt: lastSwapUnix == null
+          ? null
+          : DateTime.fromMillisecondsSinceEpoch(
+              lastSwapUnix * 1000,
+              isUtc: true,
+            ),
+      lastSwapFromTargetId: json['last_swap_from_target_id'] as String?,
+      lastSwapToTargetId: json['last_swap_to_target_id'] as String?,
+      lastObservedScore: (json['last_observed_score'] as num?)?.toDouble(),
+      configuredThreshold: (json['configured_threshold'] as num?)?.toDouble(),
+      configuredHysteresisSecs:
+          (json['configured_hysteresis_secs'] as num?)?.toDouble() ?? 180.0,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'current_target_id': currentTargetId,
+        'current_tier': currentTier,
+        'last_decision_kind': lastDecisionKind,
+        'last_decision_reason': lastDecisionReason,
+        'last_swap_unix_secs': lastSwapAt?.millisecondsSinceEpoch == null
+            ? null
+            : lastSwapAt!.toUtc().millisecondsSinceEpoch ~/ 1000,
+        'last_swap_from_target_id': lastSwapFromTargetId,
+        'last_swap_to_target_id': lastSwapToTargetId,
+        'last_observed_score': lastObservedScore,
+        'configured_threshold': configuredThreshold,
+        'configured_hysteresis_secs': configuredHysteresisSecs,
+      };
+
+  @override
+  List<Object?> get props => [
+        currentTargetId,
+        currentTier,
+        lastDecisionKind,
+        lastDecisionReason,
+        lastSwapAt,
+        lastSwapFromTargetId,
+        lastSwapToTargetId,
+        lastObservedScore,
+        configuredThreshold,
+        configuredHysteresisSecs,
+      ];
+}
+
+/// Wave 8 — paired snapshot returned by
+/// `api_sequencer_get_adaptive_swap_json`. The score may be null when
+/// telemetry has been lost while a previous adaptive-swap decision is
+/// still on display, so the two fields are independent.
+class AdaptiveSwapSnapshot extends Equatable {
+  final ConditionsScore? score;
+  final AdaptiveSwapRuntimeState state;
+
+  const AdaptiveSwapSnapshot({this.score, required this.state});
+
+  factory AdaptiveSwapSnapshot.fromJson(Map<String, dynamic> json) {
+    return AdaptiveSwapSnapshot(
+      score: json['score'] is Map<String, dynamic>
+          ? ConditionsScore.fromJson(json['score'] as Map<String, dynamic>)
+          : null,
+      state: json['state'] is Map<String, dynamic>
+          ? AdaptiveSwapRuntimeState.fromJson(
+              json['state'] as Map<String, dynamic>,
+            )
+          : const AdaptiveSwapRuntimeState(),
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'score': score?.toJson(),
+        'state': state.toJson(),
+      };
+
+  @override
+  List<Object?> get props => [score, state];
+}
+
+/// Container node that picks the highest-scoring runnable [TargetHeaderNode]
+/// child at runtime instead of executing them in author order.
+///
+/// Mirrors `TargetSchedulerConfig` in the Rust sequencer (see
+/// `native/nightshade_native/sequencer/src/lib.rs`). All scoring weights and
+/// thresholds are sent verbatim to the Rust scheduler which uses the same
+/// scoring math as the planetarium-side `TargetScoringService` — see the
+/// parity test in `target_scheduler/scoring.rs`.
+class TargetSchedulerNode extends SequenceNode {
+  /// Altitude axis weight (default 0.25).
+  final double altitudeWeight;
+
+  /// Moon-distance axis weight (default 0.25).
+  final double moonDistanceWeight;
+
+  /// Transit-proximity axis weight (default 0.20).
+  final double transitProximityWeight;
+
+  /// Darkness axis weight (default 0.15).
+  final double darknessWeight;
+
+  /// Airmass axis weight (default 0.15).
+  final double airmassWeight;
+
+  /// Minimum total score (0..=100) below which the scheduler treats every
+  /// target as unrunnable. When no child clears this floor the node returns
+  /// Skipped. Default 30.
+  final double minScoreToRun;
+
+  /// Recompute the schedule every N exposures completed inside the
+  /// currently-running target's subtree. 0 means "boundary-only" — only
+  /// re-decide when the current target finishes.
+  final int recomputeEveryNExposures;
+
+  /// Once a target's subtree starts, finish its current Loop iteration
+  /// before switching even if a recompute would otherwise pick someone else.
+  /// Prevents abandoning a partially-completed exposure burst. Default true.
+  final bool finishIterationOnSwitch;
+
+  /// Wave 8 — conditions-score floor below which adaptive swap engages.
+  /// `null` disables the feature for this scheduler instance.
+  final double? swapOnConditionsBelow;
+
+  /// Wave 8 — minimum seconds between consecutive adaptive swaps
+  /// (hysteresis). Default 180s (3 minutes).
+  final double swapHysteresisSecs;
+
+  /// Wave 8 — per-tier conditions-score floors. Defaults follow the
+  /// brief (faint ≥ 70, medium ≥ 50, bright ≥ 30).
+  final BrightnessTierPreferences brightnessTierPreferences;
+
+  /// Wave 8 — score readings older than this are treated as missing
+  /// telemetry and the scheduler falls back to the ordinary ranking.
+  /// Default 300s (5 minutes).
+  final int maxConditionsScoreAgeSecs;
+
+  TargetSchedulerNode({
+    super.id,
+    super.name = 'Scheduler',
+    super.isEnabled,
+    super.childIds,
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.altitudeWeight = 0.25,
+    this.moonDistanceWeight = 0.25,
+    this.transitProximityWeight = 0.20,
+    this.darknessWeight = 0.15,
+    this.airmassWeight = 0.15,
+    this.minScoreToRun = 30.0,
+    this.recomputeEveryNExposures = 0,
+    this.finishIterationOnSwitch = true,
+    this.swapOnConditionsBelow,
+    this.swapHysteresisSecs = 180.0,
+    this.brightnessTierPreferences = const BrightnessTierPreferences(),
+    this.maxConditionsScoreAgeSecs = 300,
+  });
+
+  /// Stable nodeType identifier. Must match the Rust `NodeType` discriminant
+  /// (`TargetScheduler`) so `serde_json::from_str` on the round-tripped
+  /// config picks the right variant.
+  @override
+  String get nodeType => 'TargetScheduler';
+
+  @override
+  String get iconName => 'scheduler';
+
+  /// Categorised as `logic` because the node is a container; the editor
+  /// colour-codes it the same way as Loop/Parallel.
+  @override
+  NodeCategory get category => NodeCategory.logic;
+
+  /// The scheduler does not directly require any device — its children
+  /// (TargetHeaders) accumulate the device requirements.
+  @override
+  Set<DeviceType> get requiredDevices => {DeviceType.mount};
+
+  /// True when the five weights sum to approximately 1.0 (lenient ±5% band
+  /// so floating-point rounding from UI sliders doesn't trip the warning).
+  /// Used by the validator's [TargetSchedulerWeightsRule].
+  bool get weightsNormalised {
+    final sum = altitudeWeight +
+        moonDistanceWeight +
+        transitProximityWeight +
+        darknessWeight +
+        airmassWeight;
+    return sum >= 0.95 && sum <= 1.05;
+  }
+
+  /// Sum of all five weights — surfaced in the UI's "normalised: 1.00"
+  /// indicator.
+  double get weightsSum =>
+      altitudeWeight +
+      moonDistanceWeight +
+      transitProximityWeight +
+      darknessWeight +
+      airmassWeight;
+
+  /// Return a copy whose weights sum to exactly 1.0. Used by the
+  /// properties-editor "Normalise" button so users don't have to nudge five
+  /// sliders by hand.
+  TargetSchedulerNode normalisedWeights() {
+    final sum = weightsSum;
+    if (sum <= 0) return this;
+    return copyWith(
+      altitudeWeight: altitudeWeight / sum,
+      moonDistanceWeight: moonDistanceWeight / sum,
+      transitProximityWeight: transitProximityWeight / sum,
+      darknessWeight: darknessWeight / sum,
+      airmassWeight: airmassWeight / sum,
+    );
+  }
+
+  @override
+  TargetSchedulerNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    double? altitudeWeight,
+    double? moonDistanceWeight,
+    double? transitProximityWeight,
+    double? darknessWeight,
+    double? airmassWeight,
+    double? minScoreToRun,
+    int? recomputeEveryNExposures,
+    bool? finishIterationOnSwitch,
+    Object? swapOnConditionsBelow = _sentinel,
+    double? swapHysteresisSecs,
+    BrightnessTierPreferences? brightnessTierPreferences,
+    int? maxConditionsScoreAgeSecs,
+  }) {
+    return TargetSchedulerNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      altitudeWeight: altitudeWeight ?? this.altitudeWeight,
+      moonDistanceWeight: moonDistanceWeight ?? this.moonDistanceWeight,
+      transitProximityWeight:
+          transitProximityWeight ?? this.transitProximityWeight,
+      darknessWeight: darknessWeight ?? this.darknessWeight,
+      airmassWeight: airmassWeight ?? this.airmassWeight,
+      minScoreToRun: minScoreToRun ?? this.minScoreToRun,
+      recomputeEveryNExposures:
+          recomputeEveryNExposures ?? this.recomputeEveryNExposures,
+      finishIterationOnSwitch:
+          finishIterationOnSwitch ?? this.finishIterationOnSwitch,
+      swapOnConditionsBelow: identical(swapOnConditionsBelow, _sentinel)
+          ? this.swapOnConditionsBelow
+          : switch (swapOnConditionsBelow) {
+              null => null,
+              num value => value.toDouble(),
+              _ => throw ArgumentError.value(
+                  swapOnConditionsBelow,
+                  'swapOnConditionsBelow',
+                  'Expected a number or null',
+                ),
+            },
+      swapHysteresisSecs: swapHysteresisSecs ?? this.swapHysteresisSecs,
+      brightnessTierPreferences:
+          brightnessTierPreferences ?? this.brightnessTierPreferences,
+      maxConditionsScoreAgeSecs:
+          maxConditionsScoreAgeSecs ?? this.maxConditionsScoreAgeSecs,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        altitudeWeight,
+        moonDistanceWeight,
+        transitProximityWeight,
+        darknessWeight,
+        airmassWeight,
+        minScoreToRun,
+        recomputeEveryNExposures,
+        finishIterationOnSwitch,
+        swapOnConditionsBelow,
+        swapHysteresisSecs,
+        brightnessTierPreferences,
+        maxConditionsScoreAgeSecs,
+      ];
+}
+
+// =============================================================================
+// Wave 3 Agent 2: SmartExposure — multi-filter container instruction
+// =============================================================================
+
+/// One row in a [SmartExposureNode]'s filter plan.
+///
+/// Mirrors the Rust `FilterPlan` struct in
+/// `native/nightshade_native/sequencer/src/lib.rs`. The field set is the
+/// minimal "what to take per filter": filter name (+ optional index), how
+/// many subs, sub-length, gain/offset/binning, and a per-plan dither
+/// cadence override.
+class FilterPlan extends Equatable {
+  /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+  /// connected filter wheel's name list when [filterIndex] is null.
+  final String filterName;
+
+  /// 0-based filter wheel index. Preferred over [filterName] for
+  /// reliability — matches `ExposureNode.filterIndex` / Rust
+  /// `FilterConfig::filter_index`.
+  final int? filterIndex;
+
+  /// Total number of exposures to take for this filter.
+  final int count;
+
+  /// Sub-exposure duration in seconds.
+  final double durationSecs;
+
+  /// Optional gain override. null means "use camera/profile default".
+  final int? gain;
+
+  /// Optional offset override.
+  final int? offset;
+
+  /// Binning for this filter. Defaults to 1x1.
+  final BinningMode binning;
+
+  /// Per-plan dither cadence (every N frames). null disables dithering for
+  /// this filter regardless of any global default. 0 is treated as "no
+  /// dither" — matches `ExposureNode.ditherEvery`.
+  final int? ditherEvery;
+
+  const FilterPlan({
+    required this.filterName,
+    this.filterIndex,
+    this.count = 10,
+    this.durationSecs = 60.0,
+    this.gain,
+    this.offset,
+    this.binning = BinningMode.one,
+    this.ditherEvery,
+  });
+
+  FilterPlan copyWith({
+    String? filterName,
+    Object? filterIndex = _sentinel,
+    int? count,
+    double? durationSecs,
+    Object? gain = _sentinel,
+    Object? offset = _sentinel,
+    BinningMode? binning,
+    Object? ditherEvery = _sentinel,
+  }) {
+    return FilterPlan(
+      filterName: filterName ?? this.filterName,
+      filterIndex: identical(filterIndex, _sentinel)
+          ? this.filterIndex
+          : filterIndex as int?,
+      count: count ?? this.count,
+      durationSecs: durationSecs ?? this.durationSecs,
+      gain: identical(gain, _sentinel) ? this.gain : gain as int?,
+      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
+      binning: binning ?? this.binning,
+      ditherEvery: identical(ditherEvery, _sentinel)
+          ? this.ditherEvery
+          : ditherEvery as int?,
+    );
+  }
+
+  /// Estimated integration time for this row, in seconds (count * duration).
+  /// Does NOT include filter change or dither overhead — that's added by
+  /// `SmartExposureNode.estimateTotalSecs`.
+  double get integrationSecs => count * durationSecs;
+
+  Map<String, dynamic> toJson() => {
+        'filter_name': filterName,
+        'filter_index': filterIndex,
+        'count': count,
+        'duration_secs': durationSecs,
+        'gain': gain,
+        'offset': offset,
+        'binning': _binningModeToRustString(binning),
+        'dither_every': ditherEvery,
+      };
+
+  factory FilterPlan.fromJson(Map<String, dynamic> json) => FilterPlan(
+        filterName: (json['filter_name'] as String?) ?? '',
+        filterIndex: (json['filter_index'] as num?)?.toInt(),
+        count: (json['count'] as num?)?.toInt() ?? 10,
+        durationSecs: (json['duration_secs'] as num?)?.toDouble() ?? 60.0,
+        gain: (json['gain'] as num?)?.toInt(),
+        offset: (json['offset'] as num?)?.toInt(),
+        binning: _rustStringToBinningMode(json['binning'] as String?),
+        ditherEvery: (json['dither_every'] as num?)?.toInt(),
+      );
+
+  @override
+  List<Object?> get props => [
+        filterName,
+        filterIndex,
+        count,
+        durationSecs,
+        gain,
+        offset,
+        binning,
+        ditherEvery,
+      ];
+}
+
+// Note: the `_sentinel` constant declared earlier in this file (above
+// `LoopNode`) is reused here by `FilterPlan.copyWith` so callers can pass
+// an explicit `null` to clear a nullable field without colliding with the
+// "no-argument" default.
+
+/// Map [BinningMode] to the PascalCase string Rust's serde expects.
+/// Kept private and local because the rest of the file uses sequence
+/// _executor's binning string helper; here we need the same mapping for
+/// `FilterPlan.toJson` without dragging the executor's private helper into
+/// the models layer.
+String _binningModeToRustString(BinningMode mode) {
+  switch (mode) {
+    case BinningMode.one:
+      return 'One';
+    case BinningMode.two:
+      return 'Two';
+    case BinningMode.three:
+      return 'Three';
+    case BinningMode.four:
+      return 'Four';
+  }
+}
+
+BinningMode _rustStringToBinningMode(String? value) {
+  switch (value) {
+    case 'One':
+      return BinningMode.one;
+    case 'Two':
+      return BinningMode.two;
+    case 'Three':
+      return BinningMode.three;
+    case 'Four':
+      return BinningMode.four;
+    default:
+      return BinningMode.one;
+  }
+}
+
+/// SmartExposure container instruction. One row per filter; the node
+/// internally handles filter changes, dither cadence, and rotation order
+/// — see the Rust `SmartExposureConfig` doc-comment for the full execution
+/// semantics.
+///
+/// SmartExposure is a *leaf* in the Dart tree (no childIds): the per-filter
+/// behaviour is fully encoded in the [plans] field. The Rust executor
+/// dispatches each plan row through the existing `TakeExposure` /
+/// `ChangeFilter` instruction nodes via the InstructionRegistry, so a
+/// hand-authored `FilterChange → Loop(N) → TakeExposure` chain and a
+/// SmartExposure with the equivalent plan rows produce indistinguishable
+/// imaging output.
+class SmartExposureNode extends SequenceNode {
+  /// Ordered list of per-filter plans. Rotation order when [rotateFilters]
+  /// is true.
+  final List<FilterPlan> plans;
+
+  /// If true, take one batch from each plan in order before repeating
+  /// (RGRGRG …). If false, drain each plan before moving to the next
+  /// (RRRRRGGG …). Default true (rotation).
+  final bool rotateFilters;
+
+  /// If true, run a dither between filter changes in addition to the
+  /// per-plan [FilterPlan.ditherEvery]. Default false.
+  final bool ditherOnFilterChange;
+
+  /// Global integration budget cap in seconds. When > 0 and the
+  /// node-local accumulated exposure time exceeds this value, SmartExposure
+  /// returns Success even if some plans have unfilled counts.
+  ///
+  /// 0 = no cap (run every plan to completion).
+  final double integrationBudgetSecs;
+
+  /// Number of exposures to take per filter before rotating to the next
+  /// (only meaningful when [rotateFilters] is true). Default 1.
+  final int batchSize;
+
+  SmartExposureNode({
+    super.id,
+    super.name = 'Smart Exposure',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.plans = const [],
+    this.rotateFilters = true,
+    this.ditherOnFilterChange = false,
+    this.integrationBudgetSecs = 0.0,
+    this.batchSize = 1,
+  });
+
+  @override
+  String get nodeType => 'SmartExposure';
+
+  @override
+  String get iconName => 'layers';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices =>
+      {DeviceType.camera, DeviceType.filterWheel};
+
+  /// Sum of per-plan integration time across all filter rows (count *
+  /// duration), in seconds. The dashboard's "estimated total" indicator
+  /// reads this; wall-clock estimates that include filter-change and
+  /// dither overhead live in `sequence_time_estimator.dart`.
+  double get totalIntegrationSecs =>
+      plans.fold(0.0, (sum, p) => sum + p.integrationSecs);
+
+  /// Number of distinct filter names across [plans]. Used by the UI's
+  /// "duplicate filter" warning — two plans with the same filter name are
+  /// legal (e.g. two different exposure lengths for the same band) but
+  /// usually a UX mistake.
+  int get distinctFilterCount => plans.map((p) => p.filterName).toSet().length;
+
+  /// True when at least two plans share the same filter name. Surfaced by
+  /// [SmartExposureDuplicateFilterRule].
+  bool get hasDuplicateFilter => distinctFilterCount != plans.length;
+
+  @override
+  SmartExposureNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    List<FilterPlan>? plans,
+    bool? rotateFilters,
+    bool? ditherOnFilterChange,
+    double? integrationBudgetSecs,
+    int? batchSize,
+  }) {
+    return SmartExposureNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      plans: plans ?? this.plans,
+      rotateFilters: rotateFilters ?? this.rotateFilters,
+      ditherOnFilterChange: ditherOnFilterChange ?? this.ditherOnFilterChange,
+      integrationBudgetSecs:
+          integrationBudgetSecs ?? this.integrationBudgetSecs,
+      batchSize: batchSize ?? this.batchSize,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        plans,
+        rotateFilters,
+        ditherOnFilterChange,
+        integrationBudgetSecs,
+        batchSize,
+      ];
+}
+
+// =============================================================================
+// LIVE STACKING (Wave 7 Agent 2)
+// =============================================================================
+
+/// Operating mode for a [LiveStackingNode].
+///
+/// `broadcastOnly` keeps the building stack in memory only. The
+/// captured FITS files are untouched; the broadcast simply pulls a
+/// rendered JPEG of the current stack on demand.
+///
+/// `recordAndBroadcast` additionally writes the stacked JPEG to the
+/// session's save directory after every accepted frame so the user
+/// keeps a build-up timelapse alongside the raw subs.
+enum LiveStackingMode {
+  broadcastOnly,
+  recordAndBroadcast;
+
+  String get storageKey => switch (this) {
+        LiveStackingMode.broadcastOnly => 'broadcast_only',
+        LiveStackingMode.recordAndBroadcast => 'record_and_broadcast',
+      };
+
+  String get label => switch (this) {
+        LiveStackingMode.broadcastOnly => 'Broadcast only',
+        LiveStackingMode.recordAndBroadcast => 'Record + broadcast',
+      };
+
+  static LiveStackingMode fromStorageKey(String? key) => switch (key) {
+        'record_and_broadcast' => LiveStackingMode.recordAndBroadcast,
+        _ => LiveStackingMode.broadcastOnly,
+      };
+}
+
+/// Stack-combine method for the live stack.
+///
+/// Wire form is snake_case to match the Rust `StackMethod` enum
+/// (see `native/nightshade_native/sequencer/src/lib.rs`).
+enum LiveStackingMethod {
+  average,
+  medianRej,
+  sigma;
+
+  String get storageKey => switch (this) {
+        LiveStackingMethod.average => 'average',
+        LiveStackingMethod.medianRej => 'median_rej',
+        LiveStackingMethod.sigma => 'sigma',
+      };
+
+  String get label => switch (this) {
+        LiveStackingMethod.average => 'Average',
+        LiveStackingMethod.medianRej => 'Median + Rejection',
+        LiveStackingMethod.sigma => 'Sigma-clipped',
+      };
+
+  static LiveStackingMethod fromStorageKey(String? key) => switch (key) {
+        'median_rej' => LiveStackingMethod.medianRej,
+        'sigma' => LiveStackingMethod.sigma,
+        _ => LiveStackingMethod.average,
+      };
+}
+
+/// EAA / outreach broadcast node.
+///
+/// When entered, the node arms the broadcast service (a Rust singleton
+/// shared with the Dart `BroadcastService`) and immediately returns
+/// success. Sibling exposure nodes inside the same `Loop` / target
+/// subtree continue to capture frames; each `FrameAccepted` event on
+/// the backend feeds the saved FITS into the live-stacking engine and
+/// publishes the result as a JPEG on the broadcast endpoint.
+///
+/// The instruction itself is non-blocking — a user dropping this node
+/// in front of an `ExposureNode` does not have to wait on it. Stopping
+/// the sequence (or starting a new one) automatically deactivates the
+/// broadcast, so a paused public outreach run cannot leak imagery into
+/// the next session.
+class LiveStackingNode extends SequenceNode {
+  /// Operating mode: broadcast only, or also write JPEG snapshots to
+  /// disk for a built-up "timelapse" record.
+  final LiveStackingMode mode;
+
+  /// Stack-combine method (average / median+rej / sigma-clipped).
+  final LiveStackingMethod stackMethod;
+
+  /// Hard cap on number of frames added to the stack. `0` = unlimited.
+  /// Long public events should set this so memory does not unbounded-
+  /// grow over a multi-hour outreach session.
+  final int maxFramesToStack;
+
+  /// Whether the broadcast endpoint serves requests. Off => stack
+  /// builds in memory but `/api/broadcast/live-stack` returns 404.
+  final bool broadcastEnabled;
+
+  /// TCP port for the broadcast endpoints. Defaults to 8081. Must
+  /// not clash with the headless API server's port (validated by
+  /// [LiveStackingPortClashRule] at edit time).
+  final int broadcastPort;
+
+  /// HTTP path prefix the broadcast HTML page is served at. Defaults
+  /// to `/broadcast`. Useful for vanity URLs at public events.
+  final String broadcastPath;
+
+  /// Optional shared secret. When set (non-empty), every broadcast
+  /// endpoint requires `?token=…` matching this value. `null` (or
+  /// empty) = public access — appropriate for outreach but the
+  /// settings UI defaults to private to make public an explicit
+  /// opt-in.
+  final String? authToken;
+
+  /// Optional watermark text rendered on the broadcast JPEG. Variable
+  /// interpolation (Wave 4) is applied at render time so the user can
+  /// write templates like `"M42 — L ${integration.hms}"`. `null`
+  /// disables the watermark.
+  final String? watermarkText;
+
+  /// Output thumbnail width × height for the broadcast JPEG.
+  /// Default 1280 × 720 keeps the payload phone-friendly while
+  /// preserving enough detail for the EAA viewer.
+  final int thumbnailWidth;
+  final int thumbnailHeight;
+
+  LiveStackingNode({
+    super.id,
+    super.name = 'Live Stacking',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.mode = LiveStackingMode.broadcastOnly,
+    this.stackMethod = LiveStackingMethod.average,
+    this.maxFramesToStack = 0,
+    this.broadcastEnabled = true,
+    this.broadcastPort = 8081,
+    this.broadcastPath = '/broadcast',
+    this.authToken,
+    this.watermarkText,
+    this.thumbnailWidth = 1280,
+    this.thumbnailHeight = 720,
+  });
+
+  @override
+  String get nodeType => 'LiveStacking';
+
+  @override
+  String get iconName => 'cast_connected';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices => const <DeviceType>{};
+
+  /// True when the user has explicitly set a non-empty auth token.
+  /// Used by the run-dashboard "Public" / "Private" badge.
+  bool get isPublic => authToken == null || authToken!.isEmpty;
+
+  /// True when a watermark template is configured.
+  bool get hasWatermark =>
+      watermarkText != null && watermarkText!.trim().isNotEmpty;
+
+  @override
+  LiveStackingNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    LiveStackingMode? mode,
+    LiveStackingMethod? stackMethod,
+    int? maxFramesToStack,
+    bool? broadcastEnabled,
+    int? broadcastPort,
+    String? broadcastPath,
+    // Use Object? sentinel so callers can clear auth_token to null
+    // (the regular Dart "null means leave alone" copyWith pattern
+    // cannot distinguish "leave alone" from "clear" without this).
+    Object? authToken = _unset,
+    Object? watermarkText = _unset,
+    int? thumbnailWidth,
+    int? thumbnailHeight,
+  }) {
+    return LiveStackingNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      mode: mode ?? this.mode,
+      stackMethod: stackMethod ?? this.stackMethod,
+      maxFramesToStack: maxFramesToStack ?? this.maxFramesToStack,
+      broadcastEnabled: broadcastEnabled ?? this.broadcastEnabled,
+      broadcastPort: broadcastPort ?? this.broadcastPort,
+      broadcastPath: broadcastPath ?? this.broadcastPath,
+      authToken: authToken == _unset ? this.authToken : authToken as String?,
+      watermarkText: watermarkText == _unset
+          ? this.watermarkText
+          : watermarkText as String?,
+      thumbnailWidth: thumbnailWidth ?? this.thumbnailWidth,
+      thumbnailHeight: thumbnailHeight ?? this.thumbnailHeight,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        mode,
+        stackMethod,
+        maxFramesToStack,
+        broadcastEnabled,
+        broadcastPort,
+        broadcastPath,
+        authToken,
+        watermarkText,
+        thumbnailWidth,
+        thumbnailHeight,
+      ];
+}
+
+/// Sentinel for [LiveStackingNode.copyWith] so callers can distinguish
+/// "leave unchanged" (default) from "explicitly clear" (`authToken: null`).
+const Object _unset = Object();
+
+/// Parse a duration string of the form "4h 30m", "90m", "3600s", "1.5h"
+/// into seconds. Returns null for unparseable input. Used by the
+/// integration-budget input on the SmartExposure properties editor.
+///
+/// Supported units (case-insensitive, may follow a number with or without
+/// space): `s` (seconds), `m` (minutes), `h` (hours), `d` (days).
+/// Multiple terms are summed: "1h 30m" → 5400. A bare number (no unit) is
+/// interpreted as seconds for backwards compatibility with raw entry.
+double? parseHumanDurationSecs(String input) {
+  final trimmed = input.trim();
+  if (trimmed.isEmpty) return null;
+
+  // Bare number → seconds.
+  final asNumber = double.tryParse(trimmed);
+  if (asNumber != null) return asNumber;
+
+  // Token scan: alternating (number, unit) pairs. Whitespace optional.
+  final pattern = RegExp(r'(\d+(?:\.\d+)?)\s*([smhdSMHD])');
+  final matches = pattern.allMatches(trimmed);
+  if (matches.isEmpty) return null;
+
+  double total = 0.0;
+  for (final m in matches) {
+    final value = double.tryParse(m.group(1) ?? '');
+    final unit = m.group(2)?.toLowerCase();
+    if (value == null || unit == null) return null;
+    switch (unit) {
+      case 's':
+        total += value;
+        break;
+      case 'm':
+        total += value * 60.0;
+        break;
+      case 'h':
+        total += value * 3600.0;
+        break;
+      case 'd':
+        total += value * 86400.0;
+        break;
+    }
+  }
+  return total;
+}
+
+/// Format a duration in seconds as a compact "Xh Ym" string. Used by the
+/// integration-budget read-back in the properties editor and the Run
+/// Dashboard's filter-integration panel.
+String formatHumanDurationSecs(double secs) {
+  if (secs <= 0) return '0s';
+  final totalSecs = secs.round();
+  final hours = totalSecs ~/ 3600;
+  final minutes = (totalSecs % 3600) ~/ 60;
+  final seconds = totalSecs % 60;
+  if (hours > 0 && minutes > 0) return '${hours}h ${minutes}m';
+  if (hours > 0) return '${hours}h';
+  if (minutes > 0 && seconds > 0) return '${minutes}m ${seconds}s';
+  if (minutes > 0) return '${minutes}m';
+  return '${seconds}s';
+}
+
+// =============================================================================
 // SEQUENCE
 // =============================================================================
 
-/// Complete sequence
+/// Complete sequence.
+///
+/// **Tree representation contract** (W1.7 refactor):
+///
+///   * `nodes` (a flat `Map<String, SequenceNode>`) remains the canonical
+///     content store and the on-disk serialization shape. Every node carries
+///     its own `childIds: List<String>` and `parentId: String?`. The on-the-
+///     wire JSON (executor payload + `.nseq.json` export) is unchanged.
+///
+///   * `_childrenByParent` and `_parentById` are **derived** runtime indexes
+///     built lazily from `nodes` on first access. They make `childrenOf(p)`,
+///     `parentOf(c)`, and descendant walks O(1) per hop without scanning the
+///     full node map.
+///
+///   * The runtime invariant is: `_childrenByParent[parentId]` is the
+///     authoritative ordering of children under `parentId`, and `parentId`
+///     in each node's `parentId` field matches `_parentById[node.id]`. The
+///     index is built FROM `nodes[*].childIds` + `nodes[*].parentId`, so the
+///     two representations are kept consistent by construction — every
+///     mutation goes through `CurrentSequenceNotifier`, which produces a
+///     fresh `Sequence` via `copyWith(nodes: ...)`; the new instance rebuilds
+///     its indexes from the new `nodes` map.
+///
+///   * `orderIndex` on each node is preserved as a load-bearing persistence
+///     field (Drift uses it for `ORDER BY` on load). The editor renumbers
+///     `orderIndex` only within the affected parent's children list — never
+///     a tree-wide rewrite — so reorder/insert/remove cost is bounded by the
+///     parent's sibling count, not by the total tree size.
 class Sequence extends Equatable {
   final String id;
   final int? databaseId; // Database primary key (null if not persisted)
@@ -2761,6 +4811,194 @@ class Sequence extends Equatable {
         nodes = nodes ?? {},
         createdAt = createdAt ?? DateTime.now(),
         modifiedAt = modifiedAt ?? DateTime.now();
+
+  // ---------------------------------------------------------------------
+  // Derived tree indexes (lazy, cached per-Sequence-instance).
+  //
+  // These are NOT part of [props] / equality — they are pure functions of
+  // [nodes]. Two sequences with equal `nodes` maps will have equal indexes.
+  // ---------------------------------------------------------------------
+
+  /// Maps `parentId -> ordered child IDs`. The key `null` collects orphan
+  /// nodes (those whose `parentId == null`). The list ordering matches the
+  /// canonical `parent.childIds` ordering; we do NOT depend on
+  /// `node.orderIndex` for runtime traversal — that field is reserved for
+  /// persistence/serialization round-trips.
+  late final Map<String?, List<String>> _childrenByParent =
+      _buildChildrenIndex();
+
+  /// Maps `node_id -> parent_id` (with `null` for nodes whose `parentId` is
+  /// null). Note: the root node has `parentId == null` and is therefore in
+  /// this map with a `null` value, which is distinct from "node not found".
+  late final Map<String, String?> _parentById = _buildParentIndex();
+
+  Map<String?, List<String>> _buildChildrenIndex() {
+    final index = <String?, List<String>>{};
+    for (final entry in nodes.entries) {
+      final node = entry.value;
+      // Seed the parent's bucket from this node's `childIds`. We iterate
+      // `nodes` rather than walking from a root because:
+      //   * the editor occasionally constructs partially-detached nodes
+      //     (e.g., during snippet inserts);
+      //   * we want every node referenced by some parent.childIds to be
+      //     resolvable without depending on which order keys appear in.
+      // Reading `node.childIds` for the bucket keyed by `node.id` is the
+      // authoritative source — `parent.childIds` is what the model has
+      // always documented as canonical.
+      index.putIfAbsent(node.id, () => <String>[]).addAll(node.childIds);
+    }
+    // Ensure every node id has a (possibly empty) bucket so `childrenOf`
+    // returns `const <String>[]` for leaves without a map-miss check.
+    for (final id in nodes.keys) {
+      index.putIfAbsent(id, () => <String>[]);
+    }
+    return index;
+  }
+
+  Map<String, String?> _buildParentIndex() {
+    final index = <String, String?>{};
+    // Pass 1: seed from each node's own `parentId` field. This is the
+    // authoritative source — the editor maintains node.parentId on every
+    // structural mutation, and the database load path reconstructs it.
+    for (final entry in nodes.entries) {
+      index[entry.key] = entry.value.parentId;
+    }
+    return index;
+  }
+
+  /// Children of [parentId] in their canonical order. Returns the materialized
+  /// `SequenceNode` instances (skipping any IDs that don't resolve — which is
+  /// a corrupt-state condition the editor never produces but defensive code
+  /// elsewhere does need to tolerate, e.g. mid-import).
+  ///
+  /// O(K) where K is the number of children of [parentId]. Does **not** sort
+  /// by `orderIndex` — the `_childrenByParent` list is already in canonical
+  /// order, matching `nodes[parentId].childIds`.
+  List<SequenceNode> childrenOf(String parentId) {
+    final ids = _childrenByParent[parentId];
+    if (ids == null || ids.isEmpty) return const <SequenceNode>[];
+    final out = <SequenceNode>[];
+    for (final id in ids) {
+      final n = nodes[id];
+      if (n != null) out.add(n);
+    }
+    return out;
+  }
+
+  /// Parent ID of [nodeId], or `null` if [nodeId] is a root node OR is not
+  /// in this sequence. Use [nodes.containsKey] to distinguish those cases.
+  ///
+  /// O(1).
+  String? parentOf(String nodeId) => _parentById[nodeId];
+
+  /// IDs of all descendants of [nodeId] in DFS pre-order (children first, then
+  /// grandchildren, ...). The node itself is NOT included.
+  ///
+  /// Cycles cannot exist if [invariants] holds, but we guard with a visited
+  /// set anyway so a corrupted import doesn't loop forever.
+  List<String> descendantsOf(String nodeId) {
+    if (!nodes.containsKey(nodeId)) return const <String>[];
+    final out = <String>[];
+    final visited = <String>{nodeId};
+    void walk(String id) {
+      final children = _childrenByParent[id];
+      if (children == null) return;
+      for (final childId in children) {
+        if (!visited.add(childId)) continue;
+        if (!nodes.containsKey(childId)) continue;
+        out.add(childId);
+        walk(childId);
+      }
+    }
+
+    walk(nodeId);
+    return out;
+  }
+
+  /// Verify the structural invariants of this sequence. Returns a list of
+  /// human-readable violation messages; empty list means OK. Intended for
+  /// debug asserts and tests — not called on every mutation in release mode
+  /// because rebuilding the indexes is O(N).
+  ///
+  /// Invariants checked:
+  ///   1. Every ID in `_childrenByParent[X]` exists in `nodes`.
+  ///   2. Every ID in `_childrenByParent[X]` has `_parentById[id] == X`.
+  ///   3. Every node in `nodes` has a `_parentById` entry.
+  ///   4. The graph is acyclic (no node is in its own ancestry).
+  ///   5. `node.childIds` matches `_childrenByParent[node.id]` (the two
+  ///      tree views agree).
+  List<String> invariants() {
+    final issues = <String>[];
+
+    // (3) Every node has a parent entry.
+    for (final id in nodes.keys) {
+      if (!_parentById.containsKey(id)) {
+        issues.add('node "$id" missing from _parentById');
+      }
+    }
+
+    // (1), (2), (5)
+    for (final entry in _childrenByParent.entries) {
+      final parent = entry.key;
+      final list = entry.value;
+      for (final childId in list) {
+        if (!nodes.containsKey(childId)) {
+          // It's legal to have an entry in _childrenByParent for a parent
+          // that's no longer in nodes (orphaned bucket) only if the bucket
+          // is empty; non-empty buckets pointing at missing nodes are bad.
+          issues
+              .add('child "$childId" of parent "$parent" not present in nodes');
+          continue;
+        }
+        final parentOfChild = _parentById[childId];
+        if (parentOfChild != parent) {
+          issues
+              .add('child "$childId" of "$parent" has parentId=$parentOfChild');
+        }
+      }
+      // (5) cross-check childIds.
+      if (parent != null) {
+        final parentNode = nodes[parent];
+        if (parentNode != null) {
+          final declared = parentNode.childIds;
+          if (declared.length != list.length) {
+            issues.add(
+                'parent "$parent" childIds length ${declared.length} != index ${list.length}');
+          } else {
+            for (var i = 0; i < declared.length; i++) {
+              if (declared[i] != list[i]) {
+                issues.add(
+                    'parent "$parent" childIds[$i]=${declared[i]} != index[$i]=${list[i]}');
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // (4) No cycles. Walk every node's ancestry; bail when we find a
+    // revisit. We bound the walk length to nodes.length so a true cycle
+    // can't run forever.
+    for (final id in nodes.keys) {
+      var hops = 0;
+      var cursor = _parentById[id];
+      final seen = <String>{id};
+      while (cursor != null) {
+        if (!seen.add(cursor)) {
+          issues.add('cycle detected at "$id" via ancestor "$cursor"');
+          break;
+        }
+        if (++hops > nodes.length) {
+          issues.add('ancestry walk for "$id" exceeded node count');
+          break;
+        }
+        cursor = _parentById[cursor];
+      }
+    }
+
+    return issues;
+  }
 
   /// Get total exposure count
   int get totalExposures {
@@ -3010,7 +5248,15 @@ class Sequence extends Equatable {
     );
   }
 
-  /// Get target headers (root nodes for each target)
+  /// Get target headers (root nodes for each target).
+  ///
+  /// Flattens every enabled [TargetHeaderNode] in the tree regardless of
+  /// nesting depth (targets may live under root, under a loop, or under any
+  /// container). Sorted by `orderIndex` to keep the legacy UI ordering — the
+  /// alternative (tree-walk-canonical-order) would not work for sequences
+  /// where targets are spread across multiple parent containers, which the
+  /// `CrossParentReorderException` test in `sequence_editor_trust_patch_test`
+  /// pins as supported behavior.
   List<TargetHeaderNode> get targetHeaders {
     return nodes.values
         .whereType<TargetHeaderNode>()
@@ -3025,16 +5271,10 @@ class Sequence extends Equatable {
   /// Get root node
   SequenceNode? get rootNode => rootNodeId != null ? nodes[rootNodeId] : null;
 
-  /// Get children of a node
-  List<SequenceNode> getChildren(String parentId) {
-    final parent = nodes[parentId];
-    if (parent == null) return [];
-    return parent.childIds
-        .map((id) => nodes[id])
-        .whereType<SequenceNode>()
-        .toList()
-      ..sort((a, b) => a.orderIndex.compareTo(b.orderIndex));
-  }
+  /// Get children of a node. See [childrenOf] for the index-backed equivalent;
+  /// this is the legacy entry point kept for backward compatibility with
+  /// consumers that already use `getChildren`. Both return the same list.
+  List<SequenceNode> getChildren(String parentId) => childrenOf(parentId);
 
   /// Count all descendants of [nodeId] (children, grandchildren, ...).
   ///
@@ -3043,29 +5283,12 @@ class Sequence extends Equatable {
   /// whether deleting a node warrants a confirmation dialog (e.g.,
   /// "Delete N nodes?" for non-leaf containers).
   ///
-  /// Cycles in the node graph would cause this to loop forever, so we
-  /// guard with a visited set even though the editor maintains tree
-  /// invariants — defense in depth against corrupted import data.
-  int countDescendants(String nodeId) {
-    final root = nodes[nodeId];
-    if (root == null) return 0;
-
-    final visited = <String>{nodeId};
-    int count = 0;
-
-    void recurse(SequenceNode node) {
-      for (final childId in node.childIds) {
-        if (!visited.add(childId)) continue;
-        final child = nodes[childId];
-        if (child == null) continue;
-        count++;
-        recurse(child);
-      }
-    }
-
-    recurse(root);
-    return count;
-  }
+  /// Backed by `_childrenByParent` (single DFS over the parent-keyed index),
+  /// so the cost is O(size-of-subtree) — no nodes outside the subtree are
+  /// visited. The defensive cycle guard from the pre-W1.7 implementation is
+  /// preserved as defense-in-depth against malformed import data, even
+  /// though [invariants] would have rejected it.
+  int countDescendants(String nodeId) => descendantsOf(nodeId).length;
 
   Sequence copyWith({
     String? id,
@@ -3132,6 +5355,9 @@ class SequenceProgress extends Equatable {
   /// Per-node instruction progress detail message
   final Map<String, String> nodeProgressDetail;
 
+  /// Per-node structured instruction progress detail.
+  final Map<String, InstructionProgressDetail> nodeProgressStructuredDetail;
+
   const SequenceProgress({
     this.state = SequenceExecutionState.idle,
     this.currentNodeId,
@@ -3149,6 +5375,7 @@ class SequenceProgress extends Equatable {
     this.nodeStatuses = const {},
     this.nodeProgressPercent = const {},
     this.nodeProgressDetail = const {},
+    this.nodeProgressStructuredDetail = const {},
   });
 
   double get progressPercent {
@@ -3173,6 +5400,7 @@ class SequenceProgress extends Equatable {
     Map<String, NodeStatus>? nodeStatuses,
     Map<String, double>? nodeProgressPercent,
     Map<String, String>? nodeProgressDetail,
+    Map<String, InstructionProgressDetail>? nodeProgressStructuredDetail,
   }) {
     return SequenceProgress(
       state: state ?? this.state,
@@ -3193,6 +5421,8 @@ class SequenceProgress extends Equatable {
       nodeStatuses: nodeStatuses ?? this.nodeStatuses,
       nodeProgressPercent: nodeProgressPercent ?? this.nodeProgressPercent,
       nodeProgressDetail: nodeProgressDetail ?? this.nodeProgressDetail,
+      nodeProgressStructuredDetail:
+          nodeProgressStructuredDetail ?? this.nodeProgressStructuredDetail,
     );
   }
 
@@ -3214,5 +5444,505 @@ class SequenceProgress extends Equatable {
         nodeStatuses,
         nodeProgressPercent,
         nodeProgressDetail,
+        nodeProgressStructuredDetail,
+      ];
+}
+
+// =============================================================================
+// Wave 7 Science — SciencePhotometryNode + transparency-adaptive support.
+// =============================================================================
+
+/// Per-frame photometric quality gates. Mirrors the Rust
+/// `PhotometryQualityGates` struct one-to-one. Frames failing any gate
+/// are routed to the Wave 3 Image Grading reject folder and their
+/// `photometry_measurements` row is marked outlier.
+class PhotometryQualityGates extends Equatable {
+  /// Minimum target SNR. AAVSO research-grade default is 50.
+  final double minSnr;
+
+  /// Maximum acceptable FWHM in arcseconds. Default 5".
+  final double maxFwhmArcsec;
+
+  /// When true, frames where any reference star failed to extract are
+  /// rejected.
+  final bool requireAllRefsVisible;
+
+  /// Maximum airmass. AAVSO Bright Star Monitor cut-off ≈ 2.5.
+  final double maxAirmass;
+
+  const PhotometryQualityGates({
+    this.minSnr = 50.0,
+    this.maxFwhmArcsec = 5.0,
+    this.requireAllRefsVisible = true,
+    this.maxAirmass = 2.5,
+  });
+
+  PhotometryQualityGates copyWith({
+    double? minSnr,
+    double? maxFwhmArcsec,
+    bool? requireAllRefsVisible,
+    double? maxAirmass,
+  }) {
+    return PhotometryQualityGates(
+      minSnr: minSnr ?? this.minSnr,
+      maxFwhmArcsec: maxFwhmArcsec ?? this.maxFwhmArcsec,
+      requireAllRefsVisible:
+          requireAllRefsVisible ?? this.requireAllRefsVisible,
+      maxAirmass: maxAirmass ?? this.maxAirmass,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'min_snr': minSnr,
+        'max_fwhm_arcsec': maxFwhmArcsec,
+        'require_all_refs_visible': requireAllRefsVisible,
+        'max_airmass': maxAirmass,
+      };
+
+  factory PhotometryQualityGates.fromJson(Map<String, dynamic> json) {
+    return PhotometryQualityGates(
+      minSnr: (json['min_snr'] as num?)?.toDouble() ?? 50.0,
+      maxFwhmArcsec: (json['max_fwhm_arcsec'] as num?)?.toDouble() ?? 5.0,
+      requireAllRefsVisible: json['require_all_refs_visible'] as bool? ?? true,
+      maxAirmass: (json['max_airmass'] as num?)?.toDouble() ?? 2.5,
+    );
+  }
+
+  @override
+  List<Object?> get props =>
+      [minSnr, maxFwhmArcsec, requireAllRefsVisible, maxAirmass];
+}
+
+/// Standard photometric bands recognised by the Dart-side validator.
+/// Matches `SciencePhotometryConfig::is_photometric_filter_name` in Rust.
+const Set<String> kPhotometricFilterBands = {
+  'V',
+  'B',
+  'R',
+  'I',
+  'U',
+  'g',
+  'r',
+  'i',
+  'z',
+  "g'",
+  "r'",
+  "i'",
+  "z'",
+  'Clear',
+  'CV',
+  'CR',
+  'CB',
+};
+
+bool isPhotometricFilterBand(String name) =>
+    kPhotometricFilterBands.contains(name.trim());
+
+/// Cadence-enforced photometric capture node. Mirrors the Rust
+/// `NodeType::SciencePhotometry(SciencePhotometryConfig)` variant.
+///
+/// The node delegates per-frame capture to the standard
+/// `TakeExposure` pipeline and layers in per-frame photometric
+/// reduction (instrumental + differential magnitude) + cadence
+/// tracking. Frames failing the configured quality gates are routed
+/// to the Wave 3 Image Grading reject path.
+class SciencePhotometryNode extends SequenceNode {
+  /// Target object identifier (catalogue ID, e.g. "V0376 Per").
+  final String targetDesignation;
+
+  /// Catalogue IDs of reference stars used for differential photometry.
+  /// Empty when [applyDifferential] is false.
+  final List<String> referenceStars;
+
+  /// Maximum inter-frame start-to-start gap (seconds) before a
+  /// cadence-broken warning is emitted. 0.0 disables the check.
+  /// Default 2.0s — matches the brief's V0376 Per example.
+  final double maxCadenceGapSecs;
+
+  /// Photometric filter (one of [kPhotometricFilterBands]).
+  final String filter;
+
+  /// Per-frame exposure duration in seconds.
+  final double exposureSecs;
+
+  /// Number of frames to capture in the burst.
+  final int count;
+
+  /// When true, the runtime extracts the target's instrumental
+  /// magnitude from each captured frame in real time and writes a row
+  /// to `photometry_measurements`.
+  final bool reduceLive;
+
+  /// When true (and [reduceLive] is true), additionally computes the
+  /// differential magnitude against [referenceStars].
+  final bool applyDifferential;
+
+  /// Per-frame quality gates.
+  final PhotometryQualityGates quality;
+
+  /// Optional gain override.
+  final int? gain;
+
+  /// Optional offset override.
+  final int? offset;
+
+  /// Binning.
+  final BinningMode binning;
+
+  SciencePhotometryNode({
+    super.id,
+    super.name = 'Science Photometry',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    this.targetDesignation = '',
+    this.referenceStars = const [],
+    this.maxCadenceGapSecs = 2.0,
+    this.filter = 'Clear',
+    this.exposureSecs = 60.0,
+    this.count = 60,
+    this.reduceLive = true,
+    this.applyDifferential = true,
+    this.quality = const PhotometryQualityGates(),
+    this.gain,
+    this.offset,
+    this.binning = BinningMode.one,
+  });
+
+  @override
+  String get nodeType => 'SciencePhotometry';
+
+  @override
+  String get iconName => 'analytics';
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  @override
+  Set<DeviceType> get requiredDevices =>
+      {DeviceType.camera, DeviceType.filterWheel};
+
+  bool get isPhotometricFilter => isPhotometricFilterBand(filter);
+
+  /// True when the configured cadence is structurally invalid. The
+  /// runtime computes the start-to-start gap and compares it against
+  /// `exposure_secs + max_cadence_gap_secs`, so the only nonsense
+  /// values are negative or NaN. We treat `< 0` as impossible.
+  bool get hasImpossibleCadence => maxCadenceGapSecs < 0.0;
+
+  @override
+  SciencePhotometryNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    String? targetDesignation,
+    List<String>? referenceStars,
+    double? maxCadenceGapSecs,
+    String? filter,
+    double? exposureSecs,
+    int? count,
+    bool? reduceLive,
+    bool? applyDifferential,
+    PhotometryQualityGates? quality,
+    Object? gain = _sentinel,
+    Object? offset = _sentinel,
+    BinningMode? binning,
+  }) {
+    return SciencePhotometryNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      targetDesignation: targetDesignation ?? this.targetDesignation,
+      referenceStars: referenceStars ?? this.referenceStars,
+      maxCadenceGapSecs: maxCadenceGapSecs ?? this.maxCadenceGapSecs,
+      filter: filter ?? this.filter,
+      exposureSecs: exposureSecs ?? this.exposureSecs,
+      count: count ?? this.count,
+      reduceLive: reduceLive ?? this.reduceLive,
+      applyDifferential: applyDifferential ?? this.applyDifferential,
+      quality: quality ?? this.quality,
+      gain: identical(gain, _sentinel) ? this.gain : gain as int?,
+      offset: identical(offset, _sentinel) ? this.offset : offset as int?,
+      binning: binning ?? this.binning,
+    );
+  }
+
+  /// Serialise to the JSON shape expected by the Rust
+  /// `SciencePhotometryConfig` (snake_case keys, externally tagged).
+  Map<String, dynamic> toRustConfigJson() => {
+        'target_designation': targetDesignation,
+        'reference_stars': referenceStars,
+        'max_cadence_gap_secs': maxCadenceGapSecs,
+        'filter': filter,
+        'exposure_secs': exposureSecs,
+        'count': count,
+        'reduce_live': reduceLive,
+        'apply_differential': applyDifferential,
+        'quality': quality.toJson(),
+        'gain': gain,
+        'offset': offset,
+        'binning': _binningModeToRustString(binning),
+      };
+
+  factory SciencePhotometryNode.fromRustConfigJson(
+    Map<String, dynamic> json, {
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+  }) {
+    final refs = (json['reference_stars'] as List<dynamic>?)
+            ?.map((e) => e.toString())
+            .toList(growable: false) ??
+        const <String>[];
+    final qualityJson = json['quality'];
+    final quality = qualityJson is Map<String, dynamic>
+        ? PhotometryQualityGates.fromJson(qualityJson)
+        : const PhotometryQualityGates();
+    return SciencePhotometryNode(
+      id: id,
+      name: name ?? 'Science Photometry',
+      isEnabled: isEnabled ?? true,
+      childIds: childIds ?? const [],
+      parentId: parentId,
+      orderIndex: orderIndex ?? 0,
+      comment: comment,
+      targetDesignation: (json['target_designation'] as String?) ?? '',
+      referenceStars: refs,
+      maxCadenceGapSecs:
+          (json['max_cadence_gap_secs'] as num?)?.toDouble() ?? 2.0,
+      filter: (json['filter'] as String?) ?? 'Clear',
+      exposureSecs: (json['exposure_secs'] as num?)?.toDouble() ?? 60.0,
+      count: (json['count'] as num?)?.toInt() ?? 60,
+      reduceLive: json['reduce_live'] as bool? ?? true,
+      applyDifferential: json['apply_differential'] as bool? ?? true,
+      quality: quality,
+      gain: (json['gain'] as num?)?.toInt(),
+      offset: (json['offset'] as num?)?.toInt(),
+      binning: _rustStringToBinningMode(json['binning'] as String?),
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        targetDesignation,
+        referenceStars,
+        maxCadenceGapSecs,
+        filter,
+        exposureSecs,
+        count,
+        reduceLive,
+        applyDifferential,
+        quality,
+        gain,
+        offset,
+        binning,
+      ];
+}
+
+/// Operator-configured backup plan consulted by
+/// `RecoveryActionType.switchTargetOrFilter`. Mirrors the Rust
+/// `TransparencyBackupPlan` struct.
+///
+/// Either [backupFilter] or [backupTargetId] may be set independently
+/// (or both). When both are null the recovery action falls back to
+/// `PauseAndWaitForClear` rather than silently no-oping.
+class TransparencyBackupPlan extends Equatable {
+  /// Filter to switch to when transparency drops (e.g. `"Lum"`).
+  final String? backupFilter;
+
+  /// Sequence node id to skip to when transparency drops.
+  final String? backupTargetId;
+
+  /// Optional human-readable description surfaced in the UI / logs.
+  final String? description;
+
+  const TransparencyBackupPlan({
+    this.backupFilter,
+    this.backupTargetId,
+    this.description,
+  });
+
+  bool get isEmpty => backupFilter == null && backupTargetId == null;
+
+  TransparencyBackupPlan copyWith({
+    Object? backupFilter = _sentinel,
+    Object? backupTargetId = _sentinel,
+    Object? description = _sentinel,
+  }) {
+    return TransparencyBackupPlan(
+      backupFilter: identical(backupFilter, _sentinel)
+          ? this.backupFilter
+          : backupFilter as String?,
+      backupTargetId: identical(backupTargetId, _sentinel)
+          ? this.backupTargetId
+          : backupTargetId as String?,
+      description: identical(description, _sentinel)
+          ? this.description
+          : description as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'backup_filter': backupFilter,
+        'backup_target_id': backupTargetId,
+        'description': description,
+      };
+
+  factory TransparencyBackupPlan.fromJson(Map<String, dynamic> json) {
+    return TransparencyBackupPlan(
+      backupFilter: json['backup_filter'] as String?,
+      backupTargetId: json['backup_target_id'] as String?,
+      description: json['description'] as String?,
+    );
+  }
+
+  @override
+  List<Object?> get props => [backupFilter, backupTargetId, description];
+}
+
+/// Audit §11 — Plugin-contributed sequence instruction.
+///
+/// Holds the metadata required to identify a plugin-authored node in the
+/// sequence tree (`pluginId`, `nodeTypeId`) and the opaque plugin-authored
+/// JSON config that the Dart-side `PluginNodeExecutor` will pass to
+/// `PluginSequenceNode.execute` at runtime. The Rust executor only forwards
+/// these fields verbatim — every interpretation of `configJson` happens on
+/// the Dart side.
+///
+/// The node is a *leaf*: container behaviour is owned by the plugin itself
+/// (which can fan out internally via the plugin event bus / nested executor
+/// hooks), so the editor refuses child drops.
+///
+/// Serialisation contract (Rust `NodeType::PluginNode`):
+///
+/// ```json
+/// {
+///   "type": "PluginNode",
+///   "plugin_id": "<pluginId>",
+///   "node_type_id": "<nodeTypeId>",
+///   "config_json": "<configJson>",
+///   "display_name": "<name>",
+///   "timeout_secs": <timeoutSecs?>
+/// }
+/// ```
+class PluginInstructionNode extends SequenceNode {
+  /// Stable plugin identifier the host registered the owning plugin under
+  /// (e.g. `com.example.pushover`).
+  final String pluginId;
+
+  /// Stable per-plugin node-type id (e.g. `pushover.notify`). Combined with
+  /// [pluginId] this is the composite registry key the Dart-side executor
+  /// uses to look up the plugin's `SequenceNodeDefinition`.
+  final String nodeTypeId;
+
+  /// Opaque JSON blob the plugin author owns. The dispatcher passes this
+  /// through `jsonDecode` and hands the resulting map to
+  /// `PluginSequenceNode.execute(params)`. Defaults to `'{}'` so a
+  /// freshly-dropped palette node round-trips through `jsonDecode` cleanly.
+  final String configJson;
+
+  /// Optional per-node timeout override (seconds). `null` falls back to the
+  /// Rust executor default (600s). `0` is treated the same as `null` by the
+  /// Rust side rather than as a zero-second fail-now.
+  final int? timeoutSecs;
+
+  /// Human-readable plugin name surfaced in logs / properties panel. Mirrors
+  /// the [pluginId] registration; pinned to the node so importing a
+  /// sequence whose owning plugin is currently unavailable still shows a
+  /// sensible label.
+  final String pluginName;
+
+  /// Icon hint forwarded from the plugin's `SequenceNodeDefinition`. The
+  /// palette widget falls back to the generic puzzle-piece icon when the
+  /// hint is unknown.
+  final String iconHint;
+
+  PluginInstructionNode({
+    super.id,
+    super.name = 'Plugin Node',
+    super.isEnabled,
+    super.childIds = const [],
+    super.parentId,
+    super.orderIndex,
+    super.comment,
+    required this.pluginId,
+    required this.nodeTypeId,
+    this.configJson = '{}',
+    this.timeoutSecs,
+    this.pluginName = '',
+    this.iconHint = 'puzzle',
+  });
+
+  @override
+  String get nodeType => 'PluginNode';
+
+  @override
+  String get iconName => iconHint;
+
+  @override
+  NodeCategory get category => NodeCategory.instruction;
+
+  /// Composite registry key, mirroring `PluginNodeRegistration.composeKey`.
+  /// Lives here so the executor can build the lookup key without depending
+  /// on the plugins package.
+  String get registrationKey => '$pluginId::$nodeTypeId';
+
+  @override
+  PluginInstructionNode copyWith({
+    String? id,
+    String? name,
+    bool? isEnabled,
+    List<String>? childIds,
+    String? parentId,
+    int? orderIndex,
+    String? comment,
+    String? pluginId,
+    String? nodeTypeId,
+    String? configJson,
+    int? timeoutSecs,
+    String? pluginName,
+    String? iconHint,
+  }) {
+    return PluginInstructionNode(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      isEnabled: isEnabled ?? this.isEnabled,
+      childIds: childIds ?? this.childIds,
+      parentId: parentId ?? this.parentId,
+      orderIndex: orderIndex ?? this.orderIndex,
+      comment: comment ?? this.comment,
+      pluginId: pluginId ?? this.pluginId,
+      nodeTypeId: nodeTypeId ?? this.nodeTypeId,
+      configJson: configJson ?? this.configJson,
+      timeoutSecs: timeoutSecs ?? this.timeoutSecs,
+      pluginName: pluginName ?? this.pluginName,
+      iconHint: iconHint ?? this.iconHint,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        ...super.props,
+        pluginId,
+        nodeTypeId,
+        configJson,
+        timeoutSecs,
+        pluginName,
+        iconHint,
       ];
 }

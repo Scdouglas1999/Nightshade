@@ -2,13 +2,23 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_core/nightshade_core.dart' show appVersionProvider;
+import 'package:nightshade_core/nightshade_core.dart'
+    show
+        DeviceConnectionState,
+        SequenceExecutionState,
+        appVersionProvider,
+        backendProvider,
+        cameraStateProvider,
+        mountStateProvider,
+        sequenceExecutionStateProvider;
 
 import '../models/update_manifest.dart';
 import '../models/update_state.dart';
 import '../services/update_downloader.dart';
 import '../services/update_service.dart';
 import '../services/lan_push_receiver.dart';
+
+typedef UpdateApplySafetyCheck = Future<void> Function();
 
 /// Provider for the update state.
 ///
@@ -25,19 +35,98 @@ final updateProvider =
   return UpdateNotifier(
     currentVersion: versionInfo.version,
     currentBuildNumber: versionInfo.buildNumber,
+    applySafetyCheck: () => defaultUpdateApplySafetyCheck(ref),
   );
 });
+
+bool _isActiveSequenceState(SequenceExecutionState state) {
+  return state == SequenceExecutionState.running ||
+      state == SequenceExecutionState.paused ||
+      state == SequenceExecutionState.stopping ||
+      state == SequenceExecutionState.recovering;
+}
+
+Future<void> _checkpointIfSessionLoaded(Ref ref) async {
+  final sequenceState = ref.read(sequenceExecutionStateProvider);
+  if (sequenceState == SequenceExecutionState.idle) {
+    return;
+  }
+
+  await ref.read(backendProvider).saveCheckpoint();
+}
+
+Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
+  final sequenceState = ref.read(sequenceExecutionStateProvider);
+  if (_isActiveSequenceState(sequenceState)) {
+    try {
+      await ref.read(backendProvider).saveCheckpoint();
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to save checkpoint before refusing update apply: $e',
+        name: 'UpdateNotifier',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
+    }
+    throw UpdateException(
+      'Cannot apply an update while a sequence is ${sequenceState.name}. '
+      'Stop the sequence before applying the update.',
+    );
+  }
+
+  final cameraState = ref.read(cameraStateProvider);
+  if (cameraState.connectionState == DeviceConnectionState.connected) {
+    if (cameraState.isExposing) {
+      throw UpdateException(
+        'Cannot apply an update while the camera is exposing.',
+      );
+    }
+    final coolerPower = cameraState.coolerPower ?? 0;
+    if (cameraState.isCooling || cameraState.isWarming || coolerPower > 2) {
+      throw UpdateException(
+        'Cannot apply an update while the camera cooler is active. '
+        'Warm the camera and wait for cooler power to reach 0% first.',
+      );
+    }
+  }
+
+  final mountState = ref.read(mountStateProvider);
+  if (mountState.connectionState == DeviceConnectionState.connected) {
+    if (mountState.isSlewing) {
+      throw UpdateException(
+        'Cannot apply an update while the mount is slewing.',
+      );
+    }
+    if (!mountState.isParked) {
+      throw UpdateException(
+        'Cannot apply an update until the mount is parked.',
+      );
+    }
+  }
+
+  try {
+    await _checkpointIfSessionLoaded(ref);
+  } catch (e) {
+    throw UpdateException(
+      'Cannot apply update because the current session checkpoint '
+      'could not be saved: $e',
+    );
+  }
+}
 
 /// Notifier for managing update state
 class UpdateNotifier extends StateNotifier<UpdateState> {
   final UpdateService _updateService;
   final LanPushReceiver _lanPushReceiver;
+  final UpdateApplySafetyCheck _applySafetyCheck;
 
   UpdateNotifier({
     required String currentVersion,
     required int currentBuildNumber,
     UpdateService? updateService,
     LanPushReceiver? lanPushReceiver,
+    UpdateApplySafetyCheck? applySafetyCheck,
   })  : _updateService = updateService ??
             UpdateService(
               currentVersion: currentVersion,
@@ -48,6 +137,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
               currentVersion: currentVersion,
               currentBuildNumber: currentBuildNumber,
             ),
+        _applySafetyCheck = applySafetyCheck ?? (() async {}),
         super(UpdateState(
           currentVersion: currentVersion,
           currentBuildNumber: currentBuildNumber,
@@ -119,7 +209,8 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   Future<void> checkForUpdates() async {
     if (state.isBusy) return;
     if (state.updateServerUrl == null || state.updateServerUrl!.isEmpty) {
-      developer.log('Update server URL not configured, skipping update check', name: 'UpdateNotifier');
+      developer.log('Update server URL not configured, skipping update check',
+          name: 'UpdateNotifier');
       state = state.copyWith(
         status: UpdateStatus.upToDate,
         lastCheckTime: DateTime.now(),
@@ -221,26 +312,38 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
 
   /// Apply the staged update (will restart the app)
   Future<void> applyUpdate() async {
-    developer.log('applyUpdate() called, status: ${state.status}, staged: ${state.stagingPath}, version: ${state.availableUpdate?.version}', name: 'UpdateNotifier', level: 800);
+    developer.log(
+        'applyUpdate() called, status: ${state.status}, staged: ${state.stagingPath}, version: ${state.availableUpdate?.version}',
+        name: 'UpdateNotifier',
+        level: 800);
 
     if (state.status != UpdateStatus.staged) {
-      developer.log('Status is not staged, returning early', name: 'UpdateNotifier', level: 900);
+      developer.log('Status is not staged, returning early',
+          name: 'UpdateNotifier', level: 900);
       return;
     }
 
     state = state.copyWith(status: UpdateStatus.applying);
-    developer.log('Status set to applying, calling service...', name: 'UpdateNotifier', level: 800);
+    developer.log('Status set to applying, calling service...',
+        name: 'UpdateNotifier', level: 800);
 
     try {
+      await _applySafetyCheck();
       await _updateService.applyUpdate();
       // If we get here, something went wrong (we should have exited)
-      developer.log('applyUpdate returned without exiting!', name: 'UpdateNotifier', level: 1000);
+      developer.log('applyUpdate returned without exiting!',
+          name: 'UpdateNotifier', level: 1000);
       state = state.copyWith(
         status: UpdateStatus.error,
-        errorMessage: 'Update process did not launch correctly. The app should have restarted.',
+        errorMessage:
+            'Update process did not launch correctly. The app should have restarted.',
       );
     } catch (e, stackTrace) {
-      developer.log('Error applying update: $e', name: 'UpdateNotifier', level: 1000, error: e, stackTrace: stackTrace);
+      developer.log('Error applying update: $e',
+          name: 'UpdateNotifier',
+          level: 1000,
+          error: e,
+          stackTrace: stackTrace);
       state = state.copyWith(
         status: UpdateStatus.error,
         errorMessage: e.toString(),
@@ -305,7 +408,8 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   /// Set the state to staged from an external LAN push notification
   /// Called when the LanPushNotifier stream receives an update
   void setStagedFromLanPush(UpdateManifest manifest, String stagingPath) {
-    developer.log('setStagedFromLanPush: ${manifest.version} at $stagingPath', name: 'UpdateNotifier', level: 800);
+    developer.log('setStagedFromLanPush: ${manifest.version} at $stagingPath',
+        name: 'UpdateNotifier', level: 800);
     state = state.copyWith(
       status: UpdateStatus.staged,
       availableUpdate: manifest,

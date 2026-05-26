@@ -113,7 +113,12 @@ class BackupService {
   final SequenceRepository sequenceRepository;
   final LoggingService _logger;
 
-  static const String backupVersion = '2.0';
+  // P2-9: bumped from '2.0' to '2.1' when we broadened backup coverage to
+  // include dark_library, flat_history, defect_maps, polar_alignment_history,
+  // guide_rms_history, sequence_runs, observation_logs (notes journal),
+  // and the science_* tables. Restore is idempotent (insertOrIgnore) so
+  // older v2.0 backups remain restorable on the new code path.
+  static const String backupVersion = '2.1';
   static const String appVersion = '2.5.0'; // Must match version.yaml
 
   BackupService({
@@ -141,8 +146,15 @@ class BackupService {
       final sequences = await _exportSequences();
       final targets = await _exportTargets();
 
+      // P2-9 — extended coverage: each entry is the literal table name and
+      // a list of rows (each row is the drift-generated `toJson()` map).
+      // Restore round-trips through `_genericTableImport` which uses the
+      // companion's `fromJson` + InsertMode.insertOrIgnore so existing
+      // primary keys are preserved and user data is never overwritten.
+      final extendedTables = await _exportExtendedTables();
+
       // Build backup data structure
-      final backup = {
+      final backup = <String, dynamic>{
         'version': backupVersion,
         'createdAt': DateTime.now().toIso8601String(),
         'appVersion': appVersion,
@@ -152,11 +164,19 @@ class BackupService {
           'profilesCount': profiles.length,
           'sequencesCount': sequences.length,
           'targetsCount': targets.length,
+          // P2-9: per-extended-table row counts so an operator can spot
+          // a partial backup (a table with unexpected 0 rows) before
+          // committing to a restore.
+          for (final entry in extendedTables.entries)
+            '${entry.key}Count': entry.value.length,
         },
         'settings': settings,
         'equipmentProfiles': profiles,
         'sequences': sequences,
         'targets': targets,
+        // Flatten the extended tables into top-level keys so a JSON
+        // viewer surfaces the same structure as the original four keys.
+        for (final entry in extendedTables.entries) entry.key: entry.value,
       };
 
       // Determine save location
@@ -175,8 +195,13 @@ class BackupService {
       final jsonString = const JsonEncoder.withIndent('  ').convert(backup);
       await file.writeAsString(jsonString);
 
-      final totalItems =
-          settings.length + profiles.length + sequences.length + targets.length;
+      final extendedItems = extendedTables.values
+          .fold<int>(0, (sum, rows) => sum + rows.length);
+      final totalItems = settings.length +
+          profiles.length +
+          sequences.length +
+          targets.length +
+          extendedItems;
 
       _logger.info(
         'Backup completed successfully\n'
@@ -185,6 +210,8 @@ class BackupService {
         '  Profiles: ${profiles.length}\n'
         '  Sequences: ${sequences.length}\n'
         '  Targets: ${targets.length}\n'
+        '  Extended tables: ${extendedTables.length} '
+        '(rows: $extendedItems)\n'
         '  Total items: $totalItems',
         source: 'BackupService',
       );
@@ -288,6 +315,38 @@ class BackupService {
         );
         categoryCounts['targets'] = count;
         _logger.debug('Restored $count targets');
+      }
+
+      // P2-9 — restore the extended-coverage tables. Idempotent:
+      // insertOrIgnore on the row's primary key. We never overwrite
+      // existing rows, even when `replaceExisting` is true — the
+      // `_clearAllData` step that runs before this branch wipes the
+      // tables that the legacy backup pass owns, and the extended
+      // tables (calibration / science / forensics / notes / runs /
+      // alignments / guide history) are intentionally NOT cleared so
+      // a corrupted-payload restore can never destroy field-collected
+      // data.
+      for (final entry in _extendedTableImporters.entries) {
+        final key = entry.key;
+        if (!backup.containsKey(key)) continue;
+        final rows = backup[key];
+        if (rows is! List) {
+          _logger.debug(
+              'Skipping extended table "$key": payload is not a list');
+          continue;
+        }
+        try {
+          final count = await entry.value(rows);
+          categoryCounts[key] = count;
+          _logger.debug('Restored $count rows into "$key"');
+        } catch (e, st) {
+          // One bad table must not abort the whole restore — log and
+          // continue with the rest so the operator still gets the
+          // recoverable subset.
+          _logger.error(
+              'Failed to restore extended table "$key": $e\n$st',
+              source: 'BackupService');
+        }
       }
 
       final totalItems =
@@ -498,6 +557,29 @@ class BackupService {
         'repeatUntil': node.repeatUntil?.toIso8601String(),
         'repeatUntilAltitude': node.repeatUntilAltitude,
       });
+    } else if (node is TargetSchedulerNode) {
+      base.addAll({
+        'altitudeWeight': node.altitudeWeight,
+        'moonDistanceWeight': node.moonDistanceWeight,
+        'transitProximityWeight': node.transitProximityWeight,
+        'darknessWeight': node.darknessWeight,
+        'airmassWeight': node.airmassWeight,
+        'minScoreToRun': node.minScoreToRun,
+        'recomputeEveryNExposures': node.recomputeEveryNExposures,
+        'finishIterationOnSwitch': node.finishIterationOnSwitch,
+        'swapOnConditionsBelow': node.swapOnConditionsBelow,
+        'swapHysteresisSecs': node.swapHysteresisSecs,
+        'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
+        'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+      });
+    } else if (node is SmartExposureNode) {
+      base.addAll({
+        'plans': node.plans.map((p) => p.toJson()).toList(growable: false),
+        'rotateFilters': node.rotateFilters,
+        'ditherOnFilterChange': node.ditherOnFilterChange,
+        'integrationBudgetSecs': node.integrationBudgetSecs,
+        'batchSize': node.batchSize,
+      });
     }
 
     return base;
@@ -638,18 +720,22 @@ class BackupService {
 
   SequenceNode? _jsonToNode(Map<String, dynamic> json) {
     try {
-      final nodeType = json['nodeType'] as String;
+      final rawNodeType = json['nodeType'] as String;
+      final nodeType =
+          rawNodeType.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
       switch (nodeType) {
+        case 'takeexposure':
         case 'exposure':
           return ExposureNode(
             id: json['id'] as String,
             name: json['name'] as String,
-            durationSecs: (json['durationSecs'] as num).toDouble(),
-            count: json['count'] as int,
+            durationSecs: (json['durationSecs'] as num?)?.toDouble() ?? 60.0,
+            count: (json['count'] as num?)?.toInt() ?? 1,
             filter: json['filter'] as String?,
-            gain: json['gain'] as int?,
-            offset: json['offset'] as int?,
+            filterIndex: (json['filterIndex'] as num?)?.toInt(),
+            gain: (json['gain'] as num?)?.toInt(),
+            offset: (json['offset'] as num?)?.toInt(),
             binning: BinningMode.values.firstWhere(
               (e) => e.name == json['binning'],
               orElse: () => BinningMode.one,
@@ -660,37 +746,41 @@ class BackupService {
                     orElse: () => FrameType.light,
                   )
                 : FrameType.light,
-            ditherEvery: json['ditherEvery'] as int?,
+            ditherEvery: (json['ditherEvery'] as num?)?.toInt(),
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-            orderIndex: json['orderIndex'] as int,
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
             isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
-        case 'TargetHeader':
-        case 'targetGroup':
+        case 'targetheader':
+        case 'targetgroup':
           return TargetHeaderNode(
             id: json['id'] as String,
             name: json['name'] as String,
             targetName: json['targetName'] as String,
             raHours: (json['raHours'] as num).toDouble(),
             decDegrees: (json['decDegrees'] as num).toDouble(),
+            rotation: (json['rotation'] as num?)?.toDouble(),
+            minAltitude: (json['minAltitude'] as num?)?.toDouble(),
+            maxAltitude: (json['maxAltitude'] as num?)?.toDouble(),
+            priority: (json['priority'] as num?)?.toInt() ?? 0,
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-            orderIndex: json['orderIndex'] as int,
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
             isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
-        case 'instructionSet':
+        case 'instructionset':
           return InstructionSetNode(
             id: json['id'] as String,
             name: json['name'] as String,
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-            orderIndex: json['orderIndex'] as int,
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
             isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
@@ -711,18 +801,288 @@ class BackupService {
             parentId: json['parentId'] as String?,
             childIds:
                 (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
-            orderIndex: json['orderIndex'] as int,
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
+            isEnabled: json['isEnabled'] as bool? ?? false,
+          );
+
+        case 'targetscheduler':
+        case 'targetschedulernode':
+          return TargetSchedulerNode(
+            id: json['id'] as String,
+            name: json['name'] as String,
+            altitudeWeight:
+                (json['altitudeWeight'] as num?)?.toDouble() ?? 0.25,
+            moonDistanceWeight:
+                (json['moonDistanceWeight'] as num?)?.toDouble() ?? 0.25,
+            transitProximityWeight:
+                (json['transitProximityWeight'] as num?)?.toDouble() ?? 0.20,
+            darknessWeight:
+                (json['darknessWeight'] as num?)?.toDouble() ?? 0.15,
+            airmassWeight: (json['airmassWeight'] as num?)?.toDouble() ?? 0.15,
+            minScoreToRun: (json['minScoreToRun'] as num?)?.toDouble() ?? 30.0,
+            recomputeEveryNExposures:
+                (json['recomputeEveryNExposures'] as num?)?.toInt() ?? 0,
+            finishIterationOnSwitch:
+                json['finishIterationOnSwitch'] as bool? ?? true,
+            swapOnConditionsBelow:
+                (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
+                    (json['swap_on_conditions_below'] as num?)?.toDouble(),
+            swapHysteresisSecs:
+                (json['swapHysteresisSecs'] as num?)?.toDouble() ??
+                    (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+                    180.0,
+            brightnessTierPreferences: _parseBrightnessTierPreferences(
+              json['brightnessTierPreferences'] ??
+                  json['brightness_tier_preferences'],
+            ),
+            maxConditionsScoreAgeSecs:
+                (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
+                    (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+                    300,
+            parentId: json['parentId'] as String?,
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
+            isEnabled: json['isEnabled'] as bool? ?? false,
+          );
+
+        case 'smartexposure':
+        case 'smartexposurenode':
+          return SmartExposureNode(
+            id: json['id'] as String,
+            name: json['name'] as String,
+            plans: ((json['plans'] as List?) ?? const [])
+                .whereType<Map>()
+                .map((plan) => FilterPlan.fromJson(
+                      plan.cast<String, dynamic>(),
+                    ))
+                .toList(growable: false),
+            rotateFilters: json['rotateFilters'] as bool? ?? true,
+            ditherOnFilterChange:
+                json['ditherOnFilterChange'] as bool? ?? false,
+            integrationBudgetSecs:
+                (json['integrationBudgetSecs'] as num?)?.toDouble() ?? 0.0,
+            batchSize: (json['batchSize'] as num?)?.toInt() ?? 1,
+            parentId: json['parentId'] as String?,
+            childIds:
+                (json['childIds'] as List<dynamic>?)?.cast<String>() ?? [],
+            orderIndex: (json['orderIndex'] as num?)?.toInt() ?? 0,
             isEnabled: json['isEnabled'] as bool? ?? false,
           );
 
         default:
-          _logger.debug('Unknown node type: $nodeType');
+          _logger.debug('Unknown node type: $rawNodeType');
           return null;
       }
     } catch (e) {
       _logger.debug('Failed to parse node: $e');
       return null;
     }
+  }
+
+  // =========================================================================
+  // P2-9 — Extended-coverage export/import. Each table is exported as a
+  // JSON array of the drift-generated `toJson()` representation. Restore
+  // uses the corresponding companion's `fromJson` + InsertMode.insertOrIgnore
+  // so existing primary keys round-trip without overwriting current data.
+  // =========================================================================
+
+  /// Export every extended-coverage table to a `tableKey -> rows` map.
+  /// Keys are the same strings the restore branch looks for in the backup
+  /// JSON. Missing dependencies (e.g. an empty table) yield an empty list,
+  /// never a missing key, so an old backup file is structurally complete.
+  Future<Map<String, List<Map<String, dynamic>>>>
+      _exportExtendedTables() async {
+    return {
+      // Calibration library
+      'darkLibrary': await _dumpTable(database.darkLibrary),
+      'flatHistory': await _dumpTable(database.flatHistory),
+      'defectMaps': await _dumpTable(database.defectMaps),
+      // Run history
+      'sequenceRuns': await _dumpTable(database.sequenceRuns),
+      // Notes journal (observation_logs)
+      'notesJournal': await _dumpTable(database.observationLogs),
+      // Polar alignment / guide history
+      'polarAlignmentHistory':
+          await _dumpTable(database.polarAlignmentHistory),
+      'guideRmsHistory': await _dumpTable(database.guideRmsHistory),
+      // Science tables.
+      'scienceSessionConfig': await _dumpTable(database.scienceSessionConfig),
+      'photometryMeasurements':
+          await _dumpTable(database.photometryMeasurements),
+      'framePhotometricCalibration':
+          await _dumpTable(database.framePhotometricCalibration),
+      'transparencySamples': await _dumpTable(database.transparencySamples),
+      'psfFieldTiles': await _dumpTable(database.psfFieldTiles),
+      'scienceFrameQualityMetrics':
+          await _dumpTable(database.scienceFrameQualityMetrics),
+      'scienceTileMetrics': await _dumpTable(database.scienceTileMetrics),
+      'astrometryResidualVectors':
+          await _dumpTable(database.astrometryResidualVectors),
+      'movingObjectCandidates':
+          await _dumpTable(database.movingObjectCandidates),
+      'photometricTransforms': await _dumpTable(database.photometricTransforms),
+      'lineRatioProducts': await _dumpTable(database.lineRatioProducts),
+      // Focus models
+      'focusModels': await _dumpTable(database.focusModels),
+    };
+  }
+
+  /// Generic "select * + toJson" dump. Each drift TableInfo exposes a
+  /// `map(Map<String, dynamic>)` factory that hydrates a typed
+  /// DataClass from a row map. We pair `customSelect` (which gives a
+  /// row as `Map<String, dynamic>` keyed by SQL column names) with that
+  /// `map()` factory and then call the DataClass's `toJson()` so the
+  /// import side can read the same camelCase keys back via
+  /// `*.fromJson`. This is the only way to keep the export/import code
+  /// table-agnostic without threading a typed generic through every
+  /// call site (which trips Dart's `couldn't infer T` due to the
+  /// drift-generated multi-level inheritance).
+  Future<List<Map<String, dynamic>>> _dumpTable(TableInfo table) async {
+    final rows = await database
+        .customSelect('SELECT * FROM ${table.actualTableName}')
+        .get();
+    final out = <Map<String, dynamic>>[];
+    for (final row in rows) {
+      // ignore: avoid_dynamic_calls
+      final dataClass = (table as dynamic).map(row.data);
+      // ignore: avoid_dynamic_calls
+      out.add((dataClass as dynamic).toJson() as Map<String, dynamic>);
+    }
+    return out;
+  }
+
+  /// Importer signature used by [_extendedTableImporters]. Returns the
+  /// number of rows that were successfully inserted (rejected duplicates
+  /// don't count).
+  late final Map<String, Future<int> Function(List<dynamic>)>
+      _extendedTableImporters = {
+    'darkLibrary': (rows) => _importRows(
+          rows,
+          (json) => DarkLibraryEntry.fromJson(json),
+          database.darkLibrary,
+        ),
+    'flatHistory': (rows) => _importRows(
+          rows,
+          (json) => FlatHistoryEntry.fromJson(json),
+          database.flatHistory,
+        ),
+    'defectMaps': (rows) => _importRows(
+          rows,
+          (json) => DefectMapEntry.fromJson(json),
+          database.defectMaps,
+        ),
+    'sequenceRuns': (rows) => _importRows(
+          rows,
+          (json) => SequenceRun.fromJson(json),
+          database.sequenceRuns,
+        ),
+    'notesJournal': (rows) => _importRows(
+          rows,
+          (json) => ObservationLogEntry.fromJson(json),
+          database.observationLogs,
+        ),
+    'polarAlignmentHistory': (rows) => _importRows(
+          rows,
+          (json) => PolarAlignmentHistoryEntry.fromJson(json),
+          database.polarAlignmentHistory,
+        ),
+    'guideRmsHistory': (rows) => _importRows(
+          rows,
+          (json) => GuideRmsHistoryEntry.fromJson(json),
+          database.guideRmsHistory,
+        ),
+    'scienceSessionConfig': (rows) => _importRows(
+          rows,
+          (json) => ScienceSessionConfigRow.fromJson(json),
+          database.scienceSessionConfig,
+        ),
+    'photometryMeasurements': (rows) => _importRows(
+          rows,
+          (json) => PhotometryMeasurementRow.fromJson(json),
+          database.photometryMeasurements,
+        ),
+    'framePhotometricCalibration': (rows) => _importRows(
+          rows,
+          (json) => FramePhotometricCalibrationRow.fromJson(json),
+          database.framePhotometricCalibration,
+        ),
+    'transparencySamples': (rows) => _importRows(
+          rows,
+          (json) => TransparencySampleRow.fromJson(json),
+          database.transparencySamples,
+        ),
+    'psfFieldTiles': (rows) => _importRows(
+          rows,
+          (json) => PsfFieldTileRow.fromJson(json),
+          database.psfFieldTiles,
+        ),
+    'scienceFrameQualityMetrics': (rows) => _importRows(
+          rows,
+          (json) => ScienceFrameQualityMetricsRow.fromJson(json),
+          database.scienceFrameQualityMetrics,
+        ),
+    'scienceTileMetrics': (rows) => _importRows(
+          rows,
+          (json) => ScienceTileMetricRow.fromJson(json),
+          database.scienceTileMetrics,
+        ),
+    'astrometryResidualVectors': (rows) => _importRows(
+          rows,
+          (json) => AstrometryResidualVectorRow.fromJson(json),
+          database.astrometryResidualVectors,
+        ),
+    'movingObjectCandidates': (rows) => _importRows(
+          rows,
+          (json) => MovingObjectCandidateRow.fromJson(json),
+          database.movingObjectCandidates,
+        ),
+    'photometricTransforms': (rows) => _importRows(
+          rows,
+          (json) => PhotometricTransformRow.fromJson(json),
+          database.photometricTransforms,
+        ),
+    'lineRatioProducts': (rows) => _importRows(
+          rows,
+          (json) => LineRatioProductRow.fromJson(json),
+          database.lineRatioProducts,
+        ),
+    'focusModels': (rows) => _importRows(
+          rows,
+          (json) => FocusModelEntry.fromJson(json),
+          database.focusModels,
+        ),
+  };
+
+  /// Generic per-row import. Each row's JSON is decoded into its companion
+  /// via `fromJson`, then inserted with [InsertMode.insertOrIgnore] so
+  /// existing primary keys are preserved. We never use `InsertMode.replace`
+  /// here — restoring a backup must never destroy field-collected data the
+  /// user generated after the backup was taken.
+  Future<int> _importRows<T extends Insertable<dynamic>>(
+    List<dynamic> rows,
+    T Function(Map<String, dynamic>) decoder,
+    TableInfo table,
+  ) async {
+    var count = 0;
+    for (final raw in rows) {
+      if (raw is! Map) continue;
+      try {
+        final row = decoder(raw.cast<String, dynamic>());
+        final inserted = await database
+            .into(table)
+            .insert(row, mode: InsertMode.insertOrIgnore);
+        // `insert` returns the row id on success (or the existing one on
+        // conflict). Drift returns 0 specifically when an InsertOrIgnore
+        // conflicted and nothing was written.
+        if (inserted != 0) {
+          count++;
+        }
+      } catch (e) {
+        _logger.debug('Skipped malformed row during import: $e');
+      }
+    }
+    return count;
   }
 
   // =========================================================================
@@ -784,6 +1144,13 @@ int? _intOrNull(Object? value) {
 
 int _intOrDefault(Object? value, int fallback) {
   return (value as num?)?.toInt() ?? fallback;
+}
+
+BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
+  if (value is Map) {
+    return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
+  }
+  return const BrightnessTierPreferences();
 }
 
 /// Provider for BackupService

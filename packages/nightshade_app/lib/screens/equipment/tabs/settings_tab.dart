@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import '../../../utils/snackbar_helper.dart';
 
 class EquipmentSettingsTab extends ConsumerWidget {
   const EquipmentSettingsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
@@ -50,6 +52,7 @@ class EquipmentSettingsTab extends ConsumerWidget {
                 _MountSettingsCard(settings: settings),
                 _FocuserSettingsCard(settings: settings),
                 _GuiderSettingsCard(settings: settings),
+                const _BuiltinGuiderSettingsCard(),
               ],
             ),
           ],
@@ -66,7 +69,7 @@ class _CameraSettingsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
     return NightshadeCard(
@@ -97,29 +100,25 @@ class _CameraSettingsCard extends ConsumerWidget {
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Default Gain',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.defaultGain.toString(),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null) notifier.setDefaultGain(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.defaultGain.toString(),
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null) notifier.setDefaultGain(parsed);
+                },
               ),
             ),
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Default Offset',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.defaultOffset.toString(),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null) notifier.setDefaultOffset(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.defaultOffset.toString(),
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null) notifier.setDefaultOffset(parsed);
+                },
               ),
             ),
           ],
@@ -136,7 +135,7 @@ class _MountSettingsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
     return NightshadeCard(
@@ -154,25 +153,21 @@ class _MountSettingsCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _SettingRow(
+            NightshadeSwitchRow(
               label: 'Meridian Flip',
-              child: NightshadeSwitch(
-                value: settings.enableMeridianFlip,
-                onChanged: (value) => notifier.setEnableMeridianFlip(value),
-              ),
+              value: settings.enableMeridianFlip,
+              onChanged: (value) => notifier.setEnableMeridianFlip(value),
             ),
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Flip Offset (min)',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.meridianFlipMinutes.toString(),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null) notifier.setMeridianFlipMinutes(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.meridianFlipMinutes.toString(),
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null) notifier.setMeridianFlipMinutes(parsed);
+                },
               ),
             ),
           ],
@@ -189,8 +184,26 @@ class _FocuserSettingsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
+
+    // DEV-P3-1: gate the Temp Compensation row on whether the connected
+    // focuser reports `tempCompAvailable`. The toggle is a Nightshade-side
+    // controller (we re-issue moves based on a coefficient), but it
+    // depends on the focuser publishing a temperature reading — drivers
+    // without a probe will never provide one and the row would silently
+    // do nothing. Use opacity-disable rather than visibility so the
+    // setting remains discoverable; tooltip explains the reason.
+    final focuserState = ref.watch(focuserStateProvider);
+    final focuserCapsAsync = ref.watch(
+        equipmentFocuserCapabilitiesProvider(focuserState.deviceId ?? ''));
+    final tempCompAvailable = gateCapability<FocuserCapabilities>(
+      focuserCapsAsync,
+      (c) => c.tempCompAvailable,
+      // While loading we keep the toggle live so existing setups don't
+      // appear to lose their setting on every screen open.
+      loadingDefault: true,
+    );
 
     return NightshadeCard(
       child: Padding(
@@ -207,40 +220,45 @@ class _FocuserSettingsCard extends ConsumerWidget {
               ),
             ),
             const SizedBox(height: 16),
-            _SettingRow(
-              label: 'Temp Compensation',
-              child: NightshadeSwitch(
-                value: settings.tempCompensation,
-                onChanged: (value) => notifier.setTempCompensation(value),
+            Tooltip(
+              message: tempCompAvailable
+                  ? ''
+                  : 'Connected focuser does not report a temperature probe; '
+                      'temp compensation cannot run.',
+              child: Opacity(
+                opacity: tempCompAvailable ? 1.0 : 0.5,
+                child: IgnorePointer(
+                  ignoring: !tempCompAvailable,
+                  child: NightshadeSwitchRow(
+                    label: 'Temp Compensation',
+                    value: settings.tempCompensation,
+                    onChanged: (value) => notifier.setTempCompensation(value),
+                  ),
+                ),
               ),
             ),
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Temp Coefficient',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.tempCoefficient.toString(),
-                  onChanged: (value) {
-                    final parsed = double.tryParse(value);
-                    if (parsed != null) notifier.setTempCoefficient(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.tempCoefficient.toString(),
+                onChanged: (value) {
+                  final parsed = double.tryParse(value);
+                  if (parsed != null) notifier.setTempCoefficient(parsed);
+                },
               ),
             ),
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Backlash Comp',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.backlashCompensation.toString(),
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null)
-                      notifier.setBacklashCompensation(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.backlashCompensation.toString(),
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null) notifier.setBacklashCompensation(parsed);
+                },
               ),
             ),
           ],
@@ -257,7 +275,7 @@ class _GuiderSettingsCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final notifier = ref.read(appSettingsProvider.notifier);
 
     return NightshadeCard(
@@ -288,31 +306,27 @@ class _GuiderSettingsCard extends ConsumerWidget {
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Settle Threshold',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.settleThreshold.toString(),
-                  suffix: '"',
-                  onChanged: (value) {
-                    final parsed = double.tryParse(value);
-                    if (parsed != null) notifier.setSettleThreshold(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.settleThreshold.toString(),
+                suffix: '"',
+                onChanged: (value) {
+                  final parsed = double.tryParse(value);
+                  if (parsed != null) notifier.setSettleThreshold(parsed);
+                },
               ),
             ),
             const SizedBox(height: 12),
             _SettingRow(
               label: 'Settle Timeout',
-              child: SizedBox(
-                width: 100,
-                child: NightshadeTextField(
-                  initialValue: settings.settleTimeout.toString(),
-                  suffix: 's',
-                  onChanged: (value) {
-                    final parsed = int.tryParse(value);
-                    if (parsed != null) notifier.setSettleTimeout(parsed);
-                  },
-                ),
+              child: _compactNumberField(
+                context,
+                initialValue: settings.settleTimeout.toString(),
+                suffix: 's',
+                onChanged: (value) {
+                  final parsed = int.tryParse(value);
+                  if (parsed != null) notifier.setSettleTimeout(parsed);
+                },
               ),
             ),
           ],
@@ -320,6 +334,438 @@ class _GuiderSettingsCard extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Settings card for the built-in multi-star guider.
+///
+/// The built-in guider runs entirely inside Nightshade (no second camera, no
+/// PHD2 process) using star detection on the imaging camera and pulse-guide
+/// pulses to the connected mount. Settings here apply to the Rust-side
+/// [`GuiderConfig`] and persist for the duration of the app session.
+///
+/// The card is shown whenever the Equipment Settings dialog is open so users
+/// can pre-configure the guider before assigning it to a profile. The Rust
+/// `get_config`/`set_config` calls succeed regardless of whether the guider
+/// is currently connected — they read/write the in-memory default config.
+class _BuiltinGuiderSettingsCard extends ConsumerStatefulWidget {
+  const _BuiltinGuiderSettingsCard();
+
+  @override
+  ConsumerState<_BuiltinGuiderSettingsCard> createState() =>
+      _BuiltinGuiderSettingsCardState();
+}
+
+class _BuiltinGuiderSettingsCardState
+    extends ConsumerState<_BuiltinGuiderSettingsCard> {
+  late TextEditingController _exposureController;
+  late TextEditingController _gainController;
+  late TextEditingController _offsetController;
+  late TextEditingController _binningController;
+  late TextEditingController _calibrationMsController;
+  late TextEditingController _minPulseController;
+  late TextEditingController _maxPulseController;
+  late TextEditingController _settleSleepController;
+
+  bool _initialized = false;
+  bool _loading = true;
+  String? _loadError;
+  BuiltinGuiderConfig _lastApplied = BuiltinGuiderConfig.defaults;
+
+  @override
+  void initState() {
+    super.initState();
+    _exposureController = TextEditingController();
+    _gainController = TextEditingController();
+    _offsetController = TextEditingController();
+    _binningController = TextEditingController();
+    _calibrationMsController = TextEditingController();
+    _minPulseController = TextEditingController();
+    _maxPulseController = TextEditingController();
+    _settleSleepController = TextEditingController();
+    _loadInitialConfig();
+  }
+
+  Future<void> _loadInitialConfig() async {
+    // The builtinGuiderConfigProvider only auto-fetches when the built-in
+    // guider is connected. From the Equipment Settings dialog we want the
+    // current config regardless of connection state, so we read it directly
+    // through the backend. Rust returns the in-memory default when the
+    // guider hasn't been connected, which is exactly what we want to show.
+    try {
+      final config = await ref.read(backendProvider).builtinGuiderGetConfig();
+      if (!mounted) return;
+      _applyToControllers(config);
+      setState(() {
+        _lastApplied = config;
+        _loading = false;
+        _initialized = true;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _loadError = e.toString();
+        _loading = false;
+      });
+    }
+  }
+
+  void _applyToControllers(BuiltinGuiderConfig config) {
+    _exposureController.text = config.exposureSecs.toString();
+    _gainController.text = config.gain.toString();
+    _offsetController.text = config.offset.toString();
+    _binningController.text = config.binning.toString();
+    _calibrationMsController.text = config.calibrationMs.toString();
+    _minPulseController.text = config.minPulseMs.toString();
+    _maxPulseController.text = config.maxPulseMs.toString();
+    _settleSleepController.text = config.settleSleepMs.toString();
+  }
+
+  @override
+  void dispose() {
+    _exposureController.dispose();
+    _gainController.dispose();
+    _offsetController.dispose();
+    _binningController.dispose();
+    _calibrationMsController.dispose();
+    _minPulseController.dispose();
+    _maxPulseController.dispose();
+    _settleSleepController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _applyConfig() async {
+    final exposure = double.tryParse(_exposureController.text);
+    final gain = int.tryParse(_gainController.text);
+    final offset = int.tryParse(_offsetController.text);
+    final binning = int.tryParse(_binningController.text);
+    final calibrationMs = int.tryParse(_calibrationMsController.text);
+    final minPulse = double.tryParse(_minPulseController.text);
+    final maxPulse = double.tryParse(_maxPulseController.text);
+    final settleSleep = int.tryParse(_settleSleepController.text);
+
+    if (exposure == null ||
+        gain == null ||
+        offset == null ||
+        binning == null ||
+        calibrationMs == null ||
+        minPulse == null ||
+        maxPulse == null ||
+        settleSleep == null) {
+      context.showErrorSnackBar('Invalid built-in guider config value');
+      return;
+    }
+
+    // Sanity bounds. Errors are a feature (CLAUDE.md): bail loudly rather than
+    // silently coerce the user's input.
+    if (exposure <= 0 || exposure > 30) {
+      context.showErrorSnackBar('Exposure must be between 0 and 30 seconds');
+      return;
+    }
+    if (binning < 1 || binning > 4) {
+      context.showErrorSnackBar('Binning must be between 1 and 4');
+      return;
+    }
+    if (calibrationMs < 50 || calibrationMs > 5000) {
+      context.showErrorSnackBar('Calibration pulse must be 50–5000 ms');
+      return;
+    }
+    if (minPulse < 0 || maxPulse <= minPulse) {
+      context.showErrorSnackBar('Max pulse must be greater than min pulse');
+      return;
+    }
+
+    final newConfig = BuiltinGuiderConfig(
+      exposureSecs: exposure,
+      gain: gain,
+      offset: offset,
+      binning: binning,
+      calibrationMs: calibrationMs,
+      minPulseMs: minPulse,
+      maxPulseMs: maxPulse,
+      settleSleepMs: settleSleep,
+    );
+
+    try {
+      // When the built-in guider is connected, the riverpod notifier owns the
+      // canonical state. Route through it so its cached AsyncValue stays in
+      // sync. Otherwise call the backend directly.
+      final isConnected = ref.read(isBuiltinGuiderProvider);
+      if (isConnected) {
+        await ref
+            .read(builtinGuiderConfigProvider.notifier)
+            .updateConfig(newConfig);
+      } else {
+        await ref.read(backendProvider).builtinGuiderSetConfig(newConfig);
+      }
+      if (!mounted) return;
+      setState(() => _lastApplied = newConfig);
+      context.showSuccessSnackBar('Built-in guider settings applied');
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Failed to apply settings: $e');
+    }
+  }
+
+  Future<void> _resetDefaults() async {
+    const defaults = BuiltinGuiderConfig.defaults;
+    _applyToControllers(defaults);
+    try {
+      final isConnected = ref.read(isBuiltinGuiderProvider);
+      if (isConnected) {
+        await ref
+            .read(builtinGuiderConfigProvider.notifier)
+            .resetToDefaults();
+      } else {
+        await ref.read(backendProvider).builtinGuiderSetConfig(defaults);
+      }
+      if (!mounted) return;
+      setState(() => _lastApplied = defaults);
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Failed to reset settings: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final isConnected = ref.watch(isBuiltinGuiderProvider);
+
+    Widget body;
+    if (_loading) {
+      body = const Padding(
+        padding: EdgeInsets.symmetric(vertical: 16),
+        child: Center(
+          child: SizedBox(
+            width: 18,
+            height: 18,
+            child: CircularProgressIndicator(strokeWidth: 2),
+          ),
+        ),
+      );
+    } else if (_loadError != null) {
+      body = Padding(
+        padding: const EdgeInsets.symmetric(vertical: 8),
+        child: Text(
+          'Failed to load built-in guider config: $_loadError',
+          style: TextStyle(fontSize: 12, color: colors.error),
+        ),
+      );
+    } else {
+      body = Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _SettingRow(
+            label: 'Exposure (s)',
+            child: _builtinNumberField(
+              context,
+              controller: _exposureController,
+              decimal: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Gain',
+            child: _builtinNumberField(
+              context,
+              controller: _gainController,
+              decimal: false,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Offset',
+            child: _builtinNumberField(
+              context,
+              controller: _offsetController,
+              decimal: false,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Binning',
+            child: _builtinNumberField(
+              context,
+              controller: _binningController,
+              decimal: false,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Cal. Pulse (ms)',
+            child: _builtinNumberField(
+              context,
+              controller: _calibrationMsController,
+              decimal: false,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Min Pulse (ms)',
+            child: _builtinNumberField(
+              context,
+              controller: _minPulseController,
+              decimal: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Max Pulse (ms)',
+            child: _builtinNumberField(
+              context,
+              controller: _maxPulseController,
+              decimal: true,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _SettingRow(
+            label: 'Settle Sleep (ms)',
+            child: _builtinNumberField(
+              context,
+              controller: _settleSleepController,
+              decimal: false,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton.icon(
+                  onPressed: _initialized ? _resetDefaults : null,
+                  icon: const Icon(Icons.refresh, size: 14),
+                  label: const Text('Reset',
+                      style: TextStyle(fontSize: 12)),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton.icon(
+                  onPressed: _initialized ? _applyConfig : null,
+                  icon: const Icon(Icons.check, size: 14),
+                  label: const Text('Apply',
+                      style: TextStyle(fontSize: 12)),
+                ),
+              ),
+            ],
+          ),
+        ],
+      );
+    }
+
+    return NightshadeCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    'Built-in Guider',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                ),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    isConnected ? colors.success : colors.textMuted,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    isConnected ? 'Active' : 'Standby',
+                    style: TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w600,
+                      color:
+                          isConnected ? colors.success : colors.textSecondary,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Multi-star software guider that uses the imaging camera and mount '
+              'pulse-guide. No second guide camera required.',
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 16),
+            body,
+            if (!_loading && _loadError == null) ...[
+              const SizedBox(height: 10),
+              Text(
+                'Last applied: ${_describeConfig(_lastApplied)}',
+                style: TextStyle(
+                  fontSize: 10,
+                  color: colors.textMuted,
+                ),
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  static String _describeConfig(BuiltinGuiderConfig c) {
+    return 'exp ${c.exposureSecs}s, gain ${c.gain}, bin ${c.binning}, '
+        'cal ${c.calibrationMs}ms';
+  }
+}
+
+Widget _builtinNumberField(
+  BuildContext context, {
+  required TextEditingController controller,
+  required bool decimal,
+}) {
+  return ConstrainedBox(
+    constraints: BoxConstraints(maxWidth: dialogMaxWidth(context, 100)),
+    child: TextField(
+      controller: controller,
+      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
+      inputFormatters: decimal
+          ? <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
+            ]
+          : <TextInputFormatter>[
+              FilteringTextInputFormatter.allow(RegExp(r'[0-9\-]')),
+            ],
+      style: const TextStyle(fontSize: 13),
+      decoration: const InputDecoration(
+        isDense: true,
+        contentPadding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        border: OutlineInputBorder(),
+      ),
+    ),
+  );
+}
+
+/// Compact numeric field for equipment settings cards (design max 100px).
+Widget _compactNumberField(
+  BuildContext context, {
+  required String initialValue,
+  required ValueChanged<String> onChanged,
+  String? suffix,
+}) {
+  return ConstrainedBox(
+    constraints: BoxConstraints(maxWidth: dialogMaxWidth(context, 100)),
+    child: NightshadeTextField(
+      initialValue: initialValue,
+      suffix: suffix,
+      onChanged: onChanged,
+    ),
+  );
 }
 
 class _SettingRow extends StatelessWidget {
@@ -330,20 +776,51 @@ class _SettingRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: colors.textSecondary,
-          ),
-        ),
-        child,
-      ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stackFields = constraints.maxWidth < 220;
+        if (stackFields) {
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              child,
+            ],
+          );
+        }
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Flexible(
+              flex: 2,
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Flexible(
+              flex: 1,
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: child,
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }

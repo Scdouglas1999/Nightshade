@@ -84,7 +84,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     final (indicatorColor, indicatorIcon) = _getIndicatorStyle(colors);
@@ -181,10 +181,7 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
               // Device count
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: _getCountBadgeColor(colors),
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: _getCountBadgeDecoration(colors),
                 child: Text(
                   _getDeviceCountText(),
                   style: TextStyle(
@@ -218,18 +215,33 @@ class _ProfileChipState extends ConsumerState<ProfileChip>
     }
   }
 
-  Color _getCountBadgeColor(NightshadeColors colors) {
+  BoxDecoration _getCountBadgeDecoration(NightshadeColors colors) {
     switch (widget.connectionState) {
       case ProfileConnectionState.connected:
-        return colors.success.withValues(alpha: 0.15);
+        return NightshadeDecorations.statusChip(
+          colors.success,
+          borderRadius: BorderRadius.circular(8),
+          bordered: false,
+        );
       case ProfileConnectionState.partiallyConnected:
       case ProfileConnectionState.connecting:
       case ProfileConnectionState.mismatch:
-        return colors.warning.withValues(alpha: 0.15);
+        return NightshadeDecorations.statusChip(
+          colors.warning,
+          borderRadius: BorderRadius.circular(8),
+          bordered: false,
+        );
       case ProfileConnectionState.error:
-        return colors.error.withValues(alpha: 0.15);
+        return NightshadeDecorations.statusChip(
+          colors.error,
+          borderRadius: BorderRadius.circular(8),
+          bordered: false,
+        );
       case ProfileConnectionState.disconnected:
-        return colors.surfaceAlt;
+        return BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+        );
     }
   }
 
@@ -271,7 +283,7 @@ class _AddProfileChipState extends State<AddProfileChip> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),

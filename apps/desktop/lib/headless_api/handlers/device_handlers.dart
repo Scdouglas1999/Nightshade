@@ -1,19 +1,402 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/src/error.dart' as bridge_error;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
+import '../command_correlator.dart';
+import '../display_buffer_jpeg.dart';
+import '../job_manager.dart';
 import '../response_helpers.dart';
+import '../utils/device_type_parser.dart';
 import '../validation.dart';
+
+/// MIME-style `Accept` header value that opts the caller into the
+/// pre-P1-2 synchronous response shape for autofocus / plate-solve /
+/// center-on-target / polar-alignment. New clients should not send this;
+/// the audit's spec keeps the legacy path so pinned mobile builds stay
+/// functional during the rollout.
+const String legacyBlockingAcceptType = 'application/x.nightshade.legacy-blocking';
+
+/// True when the request's `Accept` header explicitly opts into the
+/// legacy synchronous response shape.
+bool requestPrefersLegacyBlocking(Request request) {
+  final accept = request.headers['accept'] ?? '';
+  if (accept.isEmpty) return false;
+  // Accept may be a comma-separated list; do a case-insensitive contains
+  // check against the documented opt-in type.
+  return accept.toLowerCase().contains(legacyBlockingAcceptType);
+}
 
 /// Handlers for device control endpoints (camera, mount, focuser, filter wheel, rotator)
 class DeviceHandlers {
   final ProviderContainer container;
-  DeviceHandlers(this.container);
+
+  /// P1-4: optional command correlator. When set, every action POST
+  /// generates a UUID v4 commandId and includes it in the response. The
+  /// later NightshadeEvent that completes the command picks the id back
+  /// up via `correlatingCommandId`. Null in unit tests that don't care
+  /// about correlation (those tests still validate the legacy response
+  /// shape).
+  final CommandCorrelator? commandCorrelator;
+
+  /// P1-2 / P1-3: optional job manager. When set, long-running endpoints
+  /// (currently autofocus) return `{jobId, status: queued, commandId}`
+  /// immediately and surface progress via the WS event stream. When null
+  /// (unit tests / legacy callers), the handler falls back to the
+  /// blocking response shape.
+  final JobManager? jobManager;
+
+  DeviceHandlers(
+    this.container, {
+    this.commandCorrelator,
+    this.jobManager,
+  });
 
   LoggingService get _logger => container.read(loggingServiceProvider);
 
   void _logInfo(String message) =>
       _logger.info(message, source: 'DeviceHandlers');
+
+  void _logWarning(String message) =>
+      _logger.warning(message, source: 'DeviceHandlers');
+
+  // ===========================================================================
+  // Connection lifecycle
+  //
+  // Audit DEV-P0-2: the previous headless implementation called
+  // `backend.connectDevice` / `backend.disconnectDevice` directly. That
+  // shipped a "connected" response to remote clients while skipping the
+  // full per-device-type connect flow that the desktop UI runs through
+  // `DeviceService`:
+  //
+  //   * cameras: cool-on-connect, target-temp seeding, recommended-gain
+  //     auto-apply, temperature polling, heartbeat monitoring
+  //   * mounts: initial status snapshot (RA/Dec/Alt/Az + park/track flags),
+  //     heartbeat monitoring
+  //   * focusers: status snapshot (position, max position, temperature)
+  //   * filter wheels: position settling poll, filter-name sync to driver
+  //     from active profile / session
+  //   * guiders: PHD2 handshake when applicable
+  //
+  // It also left the per-device-type StateNotifier (`cameraStateProvider`,
+  // `mountStateProvider`, ...) untouched, so any local UI listening to the
+  // Riverpod state still believed nothing was connected — exactly the same
+  // failure mode we just fixed for sequencer start (audit C3).
+  //
+  // The fix routes every connect through `DeviceService.connect<Type>` so
+  // remote clients are first-class consumers of the same code path the
+  // desktop UI uses.
+  // ===========================================================================
+
+  /// POST /api/devices/connect
+  ///
+  /// Body: `{deviceId, deviceType}`. The `deviceType` value must match one
+  /// of [DeviceType]'s names (case-insensitive). Returns
+  /// `{status: "connected", deviceId, deviceType}` on success and surfaces
+  /// validation/state errors as 4xx with a structured body so a remote
+  /// dashboard can render the same "device not found" / "no profile active"
+  /// hints the desktop dialog does.
+  Future<Response> handleConnectDevice(Request request) async {
+    _logInfo('[API] POST /api/devices/connect');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final deviceTypeStr = requireString(payload, 'deviceType');
+    final deviceType = parseDeviceType(deviceTypeStr);
+    if (deviceType == null) {
+      throw BadRequestError(
+        field: 'deviceType',
+        expected: validDeviceTypeList(),
+        message: 'Unknown device type: $deviceTypeStr',
+      );
+    }
+
+    final service = container.read(deviceServiceProvider);
+    try {
+      await _dispatchConnect(service, deviceType, deviceId);
+    } on _DeviceNotFoundFailure catch (e) {
+      throw HandlerFailure(
+        code: 'device_not_found',
+        message: e.message,
+        statusCode: 404,
+        details: {
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+        },
+      );
+    } catch (e, stackTrace) {
+      // The connect threw after passing discovery — most likely the
+      // underlying driver refused (cable unplugged, ASCOM driver not
+      // installed, INDI server unreachable, etc.). Surface a 502 with the
+      // service's own message so the remote operator sees the same
+      // diagnostic the desktop UI would have surfaced via a snackbar.
+      _logWarning(
+        '[API] POST /api/devices/connect failed for ${deviceType.name} '
+        '$deviceId: $e',
+      );
+      throw HandlerFailure(
+        code: 'device_connect_failed',
+        message: _sanitizeConnectErrorMessage(e),
+        statusCode: 502,
+        details: {
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+        },
+        cause: e,
+        stackTrace: stackTrace,
+      );
+    }
+
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.equipment,
+      action: HostMutationAction.connected,
+      entityId: deviceId,
+      extra: {
+        'deviceType': deviceType.name,
+        'deviceId': deviceId,
+      },
+    );
+
+    return jsonOk({
+      'status': 'connected',
+      'deviceId': deviceId,
+      'deviceType': deviceType.name,
+    });
+  }
+
+  /// POST /api/devices/disconnect
+  ///
+  /// Body: `{deviceId, deviceType}`. The disconnect path always operates on
+  /// the device currently held in the matching StateNotifier; we still
+  /// require `deviceId` so the caller cannot silently disconnect a
+  /// different device than they think they are. If the supplied `deviceId`
+  /// does not match the currently-connected one, we return 409 rather than
+  /// guess.
+  Future<Response> handleDisconnectDevice(Request request) async {
+    _logInfo('[API] POST /api/devices/disconnect');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final deviceTypeStr = requireString(payload, 'deviceType');
+    final deviceType = parseDeviceType(deviceTypeStr);
+    if (deviceType == null) {
+      throw BadRequestError(
+        field: 'deviceType',
+        expected: validDeviceTypeList(),
+        message: 'Unknown device type: $deviceTypeStr',
+      );
+    }
+
+    final connectedId = _connectedDeviceIdFor(deviceType);
+    if (connectedId == null || connectedId.isEmpty) {
+      throw HandlerFailure(
+        code: 'device_not_connected',
+        message: 'No ${deviceType.name} is currently connected',
+        statusCode: 409,
+        details: {
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+        },
+      );
+    }
+    if (connectedId != deviceId) {
+      throw HandlerFailure(
+        code: 'device_id_mismatch',
+        message:
+            'Requested deviceId does not match the currently-connected ${deviceType.name}',
+        statusCode: 409,
+        details: {
+          'requestedDeviceId': deviceId,
+          'connectedDeviceId': connectedId,
+          'deviceType': deviceType.name,
+        },
+      );
+    }
+
+    final service = container.read(deviceServiceProvider);
+    try {
+      await _dispatchDisconnect(service, deviceType);
+    } catch (e, stackTrace) {
+      _logWarning(
+        '[API] POST /api/devices/disconnect failed for ${deviceType.name} '
+        '$deviceId: $e',
+      );
+      throw HandlerFailure(
+        code: 'device_disconnect_failed',
+        message: _sanitizeConnectErrorMessage(e),
+        statusCode: 502,
+        details: {
+          'deviceId': deviceId,
+          'deviceType': deviceType.name,
+        },
+        cause: e,
+        stackTrace: stackTrace,
+      );
+    }
+
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.equipment,
+      action: HostMutationAction.disconnected,
+      entityId: deviceId,
+      extra: {
+        'deviceType': deviceType.name,
+        'deviceId': deviceId,
+      },
+    );
+
+    return jsonOk({
+      'status': 'disconnected',
+      'deviceId': deviceId,
+      'deviceType': deviceType.name,
+    });
+  }
+
+  /// Dispatches connect by [DeviceType] to the matching `DeviceService`
+  /// method. The DeviceService methods do all the bookkeeping (state
+  /// notifier transitions, cool-on-connect, recommended-gain auto-apply,
+  /// heartbeat start, filter-name sync, ...).
+  ///
+  /// DEV-P2-1 brought switches in line with every other device type:
+  /// `DeviceService.connectSwitch` / `disconnectSwitch` drive the
+  /// `switchStateProvider` notifier and own the auto-reconnect loop, so
+  /// the dispatcher routes switches through the service like everything
+  /// else.
+  Future<void> _dispatchConnect(
+    DeviceService service,
+    DeviceType type,
+    String deviceId,
+  ) async {
+    try {
+      switch (type) {
+        case DeviceType.camera:
+          await service.connectCamera(deviceId);
+          break;
+        case DeviceType.mount:
+          await service.connectMount(deviceId);
+          break;
+        case DeviceType.focuser:
+          await service.connectFocuser(deviceId);
+          break;
+        case DeviceType.filterWheel:
+          await service.connectFilterWheel(deviceId);
+          break;
+        case DeviceType.guider:
+          await service.connectGuider(deviceId);
+          break;
+        case DeviceType.rotator:
+          await service.connectRotator(deviceId);
+          break;
+        case DeviceType.dome:
+          await service.connectDome(deviceId);
+          break;
+        case DeviceType.weather:
+          await service.connectWeather(deviceId);
+          break;
+        case DeviceType.safetyMonitor:
+          await service.connectSafetyMonitor(deviceId);
+          break;
+        case DeviceType.coverCalibrator:
+          await service.connectCoverCalibrator(deviceId);
+          break;
+        case DeviceType.switch_:
+          await service.connectSwitch(deviceId);
+          break;
+      }
+    } on Exception catch (e) {
+      // DeviceService throws `Exception('<Kind> not found: <id>')` when
+      // discovery doesn't surface the requested device. Translate that
+      // into a structured 404 so remote clients can distinguish
+      // "you asked for a device that does not exist" from
+      // "the driver failed to open the device".
+      final message = e.toString();
+      if (message.contains('not found:')) {
+        throw _DeviceNotFoundFailure(message.replaceFirst('Exception: ', ''));
+      }
+      rethrow;
+    }
+  }
+
+  Future<void> _dispatchDisconnect(
+    DeviceService service,
+    DeviceType type,
+  ) async {
+    switch (type) {
+      case DeviceType.camera:
+        await service.disconnectCamera();
+        break;
+      case DeviceType.mount:
+        await service.disconnectMount();
+        break;
+      case DeviceType.focuser:
+        await service.disconnectFocuser();
+        break;
+      case DeviceType.filterWheel:
+        await service.disconnectFilterWheel();
+        break;
+      case DeviceType.guider:
+        await service.disconnectGuider();
+        break;
+      case DeviceType.rotator:
+        await service.disconnectRotator();
+        break;
+      case DeviceType.dome:
+        await service.disconnectDome();
+        break;
+      case DeviceType.weather:
+        await service.disconnectWeather();
+        break;
+      case DeviceType.safetyMonitor:
+        await service.disconnectSafetyMonitor();
+        break;
+      case DeviceType.coverCalibrator:
+        await service.disconnectCoverCalibrator();
+        break;
+      case DeviceType.switch_:
+        await service.disconnectSwitch();
+        break;
+    }
+  }
+
+  /// Reads the deviceId currently held by the matching equipment
+  /// StateNotifier. Used by the disconnect endpoint to verify that the
+  /// caller is asking to disconnect the device that is actually connected.
+  String? _connectedDeviceIdFor(DeviceType type) {
+    switch (type) {
+      case DeviceType.camera:
+        return container.read(cameraStateProvider).deviceId;
+      case DeviceType.mount:
+        return container.read(mountStateProvider).deviceId;
+      case DeviceType.focuser:
+        return container.read(focuserStateProvider).deviceId;
+      case DeviceType.filterWheel:
+        return container.read(filterWheelStateProvider).deviceId;
+      case DeviceType.guider:
+        return container.read(guiderStateProvider).deviceId;
+      case DeviceType.rotator:
+        return container.read(rotatorStateProvider).deviceId;
+      case DeviceType.dome:
+        return container.read(domeStateProvider).deviceId;
+      case DeviceType.weather:
+        return container.read(weatherStateProvider).deviceId;
+      case DeviceType.safetyMonitor:
+        return container.read(safetyMonitorStateProvider).deviceId;
+      case DeviceType.coverCalibrator:
+        return container.read(coverCalibratorStateProvider).deviceId;
+      case DeviceType.switch_:
+        return container.read(switchStateProvider).deviceId;
+    }
+  }
+
+  /// Strips the leading `Exception: ` Dart prepends so the wire message
+  /// reads cleanly to a remote operator. Internal type names and stacks
+  /// stay in the structured log via [HandlerFailure.cause].
+  String _sanitizeConnectErrorMessage(Object error) {
+    final raw = error.toString();
+    if (raw.startsWith('Exception: ')) {
+      return raw.substring('Exception: '.length);
+    }
+    return raw;
+  }
 
   // ===========================================================================
   // Camera Control
@@ -26,6 +409,15 @@ class DeviceHandlers {
     final exposureTime = requireDouble(payload, 'exposureTime');
     final frameTypeStr = optionalString(payload, 'frameType') ?? 'light';
     final frameType = _parseFrameType(frameTypeStr);
+
+    // P1-4: register the command BEFORE kicking off the exposure so a
+    // FrameAccepted event that arrives during `await
+    // backend.cameraStartExposure` (rare but possible on fast cameras) can
+    // still be correlated.
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'camera.expose',
+      deviceId: deviceId,
+    );
 
     final backend = container.read(backendProvider);
     await backend.cameraStartExposure(
@@ -42,7 +434,10 @@ class DeviceHandlers {
       height: optionalInt(payload, 'height'),
     );
 
-    return jsonOk({'status': 'exposing'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'exposing',
+    });
   }
 
   Future<Response> handleCameraAbort(Request request) async {
@@ -50,23 +445,50 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'camera.abort',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.cameraAbortExposure(deviceId);
 
-    return jsonOk({'status': 'aborted'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'aborted',
+    });
   }
 
+  /// GET /api/camera/last-image
+  ///
+  /// Preferred remote wire format: `?format=jpeg` or
+  /// [handleCameraGetLastImageJpeg] (`/api/camera/last-image/jpeg`).
+  ///
+  /// The default JSON response embeds full RGBA `displayData` and is kept
+  /// for backward compatibility only; new remote clients must not rely on it.
   Future<Response> handleCameraGetLastImage(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    final format = request.url.queryParameters['format']?.toLowerCase();
+    if (format == 'jpeg' || format == 'jpg') {
+      return handleCameraGetLastImageJpeg(request);
+    }
 
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
     final backend = container.read(backendProvider);
     final image = await backend.cameraGetLastImage(deviceId);
 
     if (image == null) {
-      return jsonOk({'image': null});
+      return jsonOk({
+        'image': null,
+        'legacy': true,
+        'preferredFormat': 'jpeg',
+        'preferredEndpoint': '/api/camera/last-image/jpeg',
+      });
     }
 
     return jsonOk({
+      'legacy': true,
+      'preferredFormat': 'jpeg',
+      'preferredEndpoint': '/api/camera/last-image/jpeg',
       'image': {
         'width': image.width,
         'height': image.height,
@@ -86,6 +508,153 @@ class DeviceHandlers {
         'isColor': image.isColor,
       },
     });
+  }
+
+  /// GET /api/camera/last-image/jpeg
+  ///
+  /// Returns the host-authoritative stretched display buffer as JPEG.
+  /// Metadata (stats, histogram, source dimensions) travels in `x-image-meta`.
+  Future<Response> handleCameraGetLastImageJpeg(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+
+    final maxWidth =
+        int.tryParse(request.url.queryParameters['maxWidth'] ?? '') ?? 0;
+    final quality =
+        (int.tryParse(request.url.queryParameters['quality'] ?? '') ?? 85)
+            .clamp(1, 100);
+
+    final backend = container.read(backendProvider);
+    final image = await backend.cameraGetLastImage(deviceId);
+
+    if (image == null) {
+      return jsonNotFound({
+        'error': 'no_image',
+        'message': 'No image has been captured yet on this camera.',
+      });
+    }
+
+    final encoded = encodeCapturedImageDisplayBufferToJpeg(
+      image,
+      maxWidth: maxWidth,
+      quality: quality,
+    );
+    if (encoded == null) {
+      return jsonInternalServerError({
+        'error': 'bad_image_buffer',
+        'message': 'Display buffer size mismatch.',
+      });
+    }
+
+    return contentResponse(
+      encoded.bytes,
+      contentType: 'image/jpeg',
+      contentLength: encoded.bytes.length,
+      headers: {
+        'cache-control': 'no-store, no-cache, must-revalidate',
+        'x-image-width': encoded.sourceWidth.toString(),
+        'x-image-height': encoded.sourceHeight.toString(),
+        'x-image-encoded-width': encoded.encodedWidth.toString(),
+        'x-image-encoded-height': encoded.encodedHeight.toString(),
+        'x-image-meta': encoded.metaHeaderValue,
+        'x-frame-timestamp': image.timestamp,
+        'x-frame-exposure-secs': image.exposureTime.toString(),
+        if (image.stats.hfr != null)
+          'x-frame-hfr': image.stats.hfr!.toString(),
+        'x-frame-star-count': image.stats.starCount.toString(),
+      },
+    );
+  }
+
+  /// GET /api/camera/live-view/frame
+  ///
+  /// Returns a JPEG live-view frame from the host-native preview pipeline when
+  /// the connected camera driver supports it (gPhoto2 DSLRs, Fujifilm live view).
+  ///
+  /// Poll this endpoint at 2–5 Hz for a simple remote viewer. For push delivery,
+  /// clients may also open `GET /api/run-watch/frame-thumbnail` (last capture) or
+  /// subscribe to imaging SSE events on `/api/run-watch/events`.
+  ///
+  /// Query params:
+  ///   deviceId — required connected camera id
+  Future<Response> handleCameraLiveViewFrame(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId']?.trim() ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+
+    final backend = container.read(backendProvider);
+    List<DeviceInfo> connected = [];
+    try {
+      connected = await backend.getConnectedDevices();
+    } catch (e) {
+      _logInfo('live-view: getConnectedDevices failed: $e');
+    }
+    final isCamera = connected.any(
+      (d) => d.id == deviceId && d.deviceType == DeviceType.camera,
+    );
+    if (!isCamera) {
+      return jsonNotFound({
+        'error': 'camera_not_connected',
+        'message': 'Camera $deviceId is not connected.',
+        'deviceId': deviceId,
+      });
+    }
+
+    try {
+      final jpeg = await backend.cameraLiveViewFrame(deviceId);
+      if (jpeg.isEmpty) {
+        return jsonServiceUnavailable({
+          'error': 'live_view_unavailable',
+          'message': 'Camera returned an empty live-view frame.',
+          'deviceId': deviceId,
+        });
+      }
+
+      return contentResponse(
+        jpeg,
+        contentType: 'image/jpeg',
+        contentLength: jpeg.length,
+        headers: {
+          'cache-control': 'no-store, no-cache, must-revalidate',
+          'x-live-view-source': 'native_preview',
+          'x-frame-device-id': deviceId,
+        },
+      );
+    } on bridge_error.NightshadeError catch (e) {
+      final message = e.maybeMap(
+        operationFailed: (v) => v.field0,
+        notSupported: (v) =>
+            'Live view is not supported for ${v.deviceId} (${v.operation})',
+        orElse: () => 'Live view capture failed',
+      );
+      _logInfo('live-view unavailable for $deviceId: $message');
+      return jsonServiceUnavailable({
+        'error': 'live_view_unavailable',
+        'message': message,
+        'deviceId': deviceId,
+        'hint':
+            'Use GET /api/run-watch/frame-thumbnail for the last captured frame, '
+            'or connect a camera with native preview support (gPhoto2 / Fujifilm).',
+      });
+    } catch (e) {
+      _logInfo('live-view failed for $deviceId: $e');
+      return jsonServiceUnavailable({
+        'error': 'live_view_unavailable',
+        'message': 'Failed to capture live-view frame.',
+        'deviceId': deviceId,
+      });
+    }
   }
 
   Future<Response> handleCameraSetCooling(Request request) async {
@@ -158,6 +727,35 @@ class DeviceHandlers {
     return jsonOk({'readoutModes': caps.readoutModes});
   }
 
+  /// GET /api/camera/recommended-settings — manufacturer-recommended
+  /// gain/offset values, when the vendor SDK exposes them.
+  ///
+  /// Mirrors the FFI shape: the JSON body is the exact projection of
+  /// [CameraRecommendedSettings] (unityGain, hcgGain, defaultOffset, notes).
+  /// Older remote hosts won't expose this route — the network backend's
+  /// fallback handles the resulting 404 by returning an empty recommendation.
+  ///
+  /// Errors bubble out as the standard `{code, message, ...}` envelope so
+  /// network-backend callers can tell "SDK failed" from "route missing".
+  Future<Response> handleCameraGetRecommendedSettings(Request request) async {
+    final deviceId = request.url.queryParameters['deviceId'] ?? '';
+    if (deviceId.isEmpty) {
+      throw BadRequestError(
+        field: 'deviceId',
+        expected: 'string',
+        message: "Missing 'deviceId' query parameter",
+      );
+    }
+    final backend = container.read(backendProvider);
+    final recommended = await backend.cameraGetRecommendedSettings(deviceId);
+    return jsonOk({
+      'unityGain': recommended.unityGain,
+      'hcgGain': recommended.hcgGain,
+      'defaultOffset': recommended.defaultOffset,
+      'notes': recommended.notes,
+    });
+  }
+
   Future<Response> handleCameraSetReadoutMode(Request request) async {
     _logInfo('[API] POST /api/camera/readoutMode');
     final payload = await readJsonObject(request);
@@ -194,23 +792,6 @@ class DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  Future<Response> handleCameraGetRecommendedSettings(Request request) async {
-    final deviceId = request.url.queryParameters['deviceId'];
-    if (deviceId == null || deviceId.trim().isEmpty) {
-      throw BadRequestError(
-        field: 'deviceId',
-        expected: 'non-empty string query parameter',
-        message: 'Query parameter deviceId is required',
-      );
-    }
-
-    final backend = container.read(backendProvider);
-    final settings =
-        await backend.cameraGetRecommendedSettings(deviceId.trim());
-
-    return jsonOk(settings.toJson());
-  }
-
   // ===========================================================================
   // Mount Control
   // ===========================================================================
@@ -222,10 +803,18 @@ class DeviceHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.slew',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.mountSlewToCoordinates(deviceId, ra, dec);
 
-    return jsonOk({'status': 'slewing'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'slewing',
+    });
   }
 
   Future<Response> handleMountSync(Request request) async {
@@ -246,10 +835,18 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.park',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.mountPark(deviceId);
 
-    return jsonOk({'status': 'parking'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'parking',
+    });
   }
 
   Future<Response> handleMountUnpark(Request request) async {
@@ -257,10 +854,18 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.unpark',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.mountUnpark(deviceId);
 
-    return jsonOk({'status': 'unparked'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'unparked',
+    });
   }
 
   Future<Response> handleMountSetTracking(Request request) async {
@@ -344,10 +949,18 @@ class DeviceHandlers {
     final altitude = requireDouble(payload, 'altitude');
     final azimuth = requireDouble(payload, 'azimuth');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'mount.slew-alt-az',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.mountSlewAltAz(deviceId, altitude, azimuth);
 
-    return jsonOk({'status': 'slewing'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'slewing',
+    });
   }
 
   Future<Response> handleMountFindHome(Request request) async {
@@ -371,10 +984,18 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final position = requireInt(payload, 'position');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.move-to',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.focuserMoveTo(deviceId, position);
 
-    return jsonOk({'status': 'moving'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'moving',
+    });
   }
 
   Future<Response> handleFocuserMoveRelative(Request request) async {
@@ -383,10 +1004,18 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final delta = requireInt(payload, 'delta');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.move-relative',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.focuserMoveRelative(deviceId, delta);
 
-    return jsonOk({'status': 'moving'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'moving',
+    });
   }
 
   Future<Response> handleFocuserHalt(Request request) async {
@@ -411,6 +1040,69 @@ class DeviceHandlers {
     final method = optionalString(payload, 'method') ?? 'VCurve';
     final binning = optionalInt(payload, 'binning') ?? 1;
 
+    // P1-4: register the command so any later event with a matching
+    // operation kind picks up `correlatingCommandId`. We still register
+    // even in the new job-model path because the event correlator's
+    // matching is independent of the job's own jobId — they evolve in
+    // parallel (the audit's §3 lays out the rationale).
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.autofocus.start',
+      deviceId: deviceId,
+    );
+
+    // P1-2 / P1-3: when a JobManager is wired up and the client has
+    // NOT opted into the legacy synchronous shape, return `{jobId,
+    // status: queued, commandId}` immediately and run the autofocus
+    // work in the background. Progress + completion arrive via WS
+    // events (category=job).
+    final mgr = jobManager;
+    final preferLegacy = requestPrefersLegacyBlocking(request);
+    if (mgr != null && !preferLegacy) {
+      final job = mgr.start(
+        operation: 'focuser.autofocus',
+        deviceId: deviceId,
+        commandId: commandId,
+        work: (sink, cancellation) async {
+          sink.update(null, 'Starting autofocus');
+          final backend = container.read(backendProvider);
+          // The backend call is currently a long synchronous FFI
+          // operation — see audit Q6 — so cooperative cancellation has
+          // to wait for it to return. We race the work against the
+          // cancellation token so the JobManager can flag the job as
+          // cancelled even though the FFI side keeps running. A future
+          // wave will plumb cancellation into Rust.
+          final workFuture = backend.autofocusStart(
+            deviceId: deviceId,
+            cameraId: cameraId,
+            exposureTime: exposureTime,
+            stepSize: stepSize,
+            stepsOut: stepsOut,
+            method: method,
+            binning: binning,
+          );
+          final result = await Future.any<dynamic>([
+            workFuture,
+            cancellation.whenCancelled.then((_) => _CancelledMarker.instance),
+          ]);
+          if (result is _CancelledMarker) {
+            throw const JobCancelledException(
+              'Autofocus cancellation requested by client',
+            );
+          }
+          final typed = result as AutofocusResult;
+          return typed.toJson();
+        },
+      );
+      return jsonOk({
+        'jobId': job.jobId,
+        'status': job.state.wireName,
+        if (commandId != null) 'commandId': commandId,
+        'operation': job.operation,
+      });
+    }
+
+    // Legacy fallback (no JobManager wired or client opted into
+    // synchronous shape). Existing behaviour preserved.
     final backend = container.read(backendProvider);
     final result = await backend.autofocusStart(
       deviceId: deviceId,
@@ -422,15 +1114,24 @@ class DeviceHandlers {
       binning: binning,
     );
 
-    return jsonOk(result.toJson());
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      ...result.toJson(),
+    });
   }
 
   Future<Response> handleAutofocusCancel(Request request) async {
     _logInfo('[API] POST /api/focuser/autofocus/cancel');
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'focuser.autofocus.cancel',
+    );
     final backend = container.read(backendProvider);
     await backend.autofocusCancel();
 
-    return jsonOk({'status': 'cancelled'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'cancelled',
+    });
   }
 
   // ===========================================================================
@@ -443,10 +1144,18 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final position = requireInt(payload, 'position');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'filter-wheel.set-position',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.filterWheelSetPosition(deviceId, position);
 
-    return jsonOk({'status': 'ok'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'ok',
+    });
   }
 
   Future<Response> handleFilterWheelGetNames(Request request) async {
@@ -458,16 +1167,30 @@ class DeviceHandlers {
     return jsonOk({'names': names});
   }
 
-  Future<Response> handleFilterWheelSetNames(Request request) async {
-    _logInfo('[API] POST /api/filter-wheel/names');
-    final payload = await readJsonObject(request);
-    final deviceId = requireString(payload, 'deviceId');
-    final names = requireList<String>(payload, 'names');
-
-    final backend = container.read(backendProvider);
-    await backend.filterWheelSetNames(deviceId, names);
-
-    return jsonOk({'status': 'ok'});
+  /// P2-7 — remote GET for the current filter-wheel position/state.
+  ///
+  /// Reads from `filterWheelStateProvider` which the device-service
+  /// keeps in sync with the underlying driver via the position-settle
+  /// poll. Why this provider (not a backend call): the StateNotifier
+  /// already aggregates the position, the slot-name table, and the
+  /// `isMoving` flag in one place. Going directly to the backend would
+  /// give us the integer but miss the resolved filter name and the
+  /// move-in-progress flag, which is exactly what mobile callers need.
+  ///
+  /// The response shape matches the task spec:
+  ///   { "position": int|null, "name": string|null, "isMoving": bool }
+  /// Position is null when the wheel is disconnected or has not yet
+  /// reported a starting slot. Name is null when no slot label is
+  /// available for the current position (driver returned a short array
+  /// or the wheel is disconnected).
+  Future<Response> handleFilterWheelGetPosition(Request request) async {
+    _logInfo('[API] GET /api/filter-wheel/position');
+    final state = container.read(filterWheelStateProvider);
+    return jsonOk({
+      'position': state.currentPosition,
+      'name': state.currentFilterName,
+      'isMoving': state.isMoving,
+    });
   }
 
   Future<Response> handleFilterWheelSetByName(Request request) async {
@@ -492,10 +1215,18 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final angle = requireDouble(payload, 'angle');
 
+    final commandId = commandCorrelator?.beginCommand(
+      operation: 'rotator.move-to',
+      deviceId: deviceId,
+    );
+
     final backend = container.read(backendProvider);
     await backend.rotatorMoveTo(deviceId, angle);
 
-    return jsonOk({'status': 'moving'});
+    return jsonOk({
+      if (commandId != null) 'commandId': commandId,
+      'status': 'moving',
+    });
   }
 
   Future<Response> handleRotatorMoveRelative(Request request) async {
@@ -585,4 +1316,24 @@ class DeviceHandlers {
         return FrameType.light;
     }
   }
+}
+
+/// Internal sentinel raised by `_dispatchConnect` when the requested
+/// device id does not match anything `DeviceService.discoverDevices`
+/// returned. The connect handler translates this into a structured
+/// `device_not_found` HTTP 404 with the original service message.
+class _DeviceNotFoundFailure implements Exception {
+  final String message;
+  _DeviceNotFoundFailure(this.message);
+  @override
+  String toString() => message;
+}
+
+/// Sentinel used to flag the cancellation branch of a `Future.any` race
+/// against a long-running backend call. We can't pass `null` because the
+/// race's result type is non-nullable; a sentinel keeps the type system
+/// happy without requiring a wrapper class on every result type.
+class _CancelledMarker {
+  const _CancelledMarker._();
+  static const _CancelledMarker instance = _CancelledMarker._();
 }

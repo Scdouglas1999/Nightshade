@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Shared helper for adding a target header to the current sequence.
 ///
@@ -29,23 +31,28 @@ Future<bool> addTargetHeaderWithPrompt({
       // pre-named after the target, then retry.
       final shouldCreate = await showDialog<bool>(
         context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('No sequence open'),
-          content: Text(
+        builder: (ctx) => NightshadeDialog(
+          title: 'No sequence open',
+          icon: LucideIcons.folderOpen,
+          width: 420,
+          actions: [
+            NightshadeButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              label: 'Cancel',
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+            ),
+            NightshadeButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              label: 'Create & add',
+              size: ButtonSize.small,
+            ),
+          ],
+          child: Text(
             'You don\'t have a sequence open yet. '
             'Create one named "${targetNode.targetName}" and add this '
             'target to it?',
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(false),
-              child: const Text('Cancel'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Create & add'),
-            ),
-          ],
         ),
       );
       if (shouldCreate != true) return false;

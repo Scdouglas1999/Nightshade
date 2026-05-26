@@ -10,6 +10,12 @@ export 'router/page_transitions.dart';
 
 // Screens
 export 'screens/analytics/analytics_screen.dart';
+export 'screens/analytics/widgets/science_status_banner.dart';
+export 'screens/analytics/widgets/science_session_summary.dart';
+export 'screens/analytics/widgets/science_solve_rate_card.dart';
+export 'screens/analytics/widgets/science_campaign_strip.dart';
+export 'screens/analytics/widgets/image_grader_dialog.dart';
+export 'screens/analytics/widgets/campaign_rollup_dialog.dart';
 export 'screens/dashboard/dashboard_screen.dart';
 export 'screens/equipment/equipment_screen.dart';
 export 'screens/framing/framing_screen.dart';
@@ -43,6 +49,13 @@ export 'widgets/contextual_tour_prompt.dart';
 export 'widgets/connection_stale_banner.dart';
 export 'widgets/equipment_status_indicator.dart';
 export 'widgets/ios_background_banner.dart';
+export 'widgets/android_notifications_banner.dart';
+export 'widgets/remote_connection_indicator.dart';
+// Wave 5A/5C diagnostic cards — phone-friendly cards that the mobile
+// companion dashboard surfaces alongside its existing device cards.
+export 'widgets/guide_health_card.dart';
+export 'widgets/focus_model_curve_card.dart';
+export 'screens/sequencer/widgets/run_dashboard/weather_safety_card.dart';
 
 // Sequencer Wizards (Priority 2)
 export 'screens/sequencer/widgets/mosaic_wizard_dialog.dart';
@@ -54,3 +67,13 @@ export 'screens/sequencer/widgets/sequence_enhancements.dart';
 
 // Services
 export 'services/location_sync_service.dart';
+// Wave 6 Pack P — plugin-node dispatcher wiring. Exported so the app
+// entry point can install the Riverpod override that backs the
+// `pluginNodeDispatcherProvider` (defined in nightshade_core) with the
+// real PluginNodeExecutor (defined in nightshade_plugins).
+export 'services/plugin_node_dispatcher_wiring.dart';
+// Audit §11 — plugin sequence-node palette wiring. The app entry point
+// installs this override alongside the dispatcher override so the
+// sequencer palette surfaces plugin-contributed nodes the moment a
+// plugin registers.
+export 'services/plugin_node_palette_wiring.dart';

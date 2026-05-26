@@ -17,13 +17,21 @@ class PairingDatabase extends _$PairingDatabase {
   PairingDatabase.forTesting(QueryExecutor e) : super(e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+      },
+      onUpgrade: (Migrator m, int from, int to) async {
+        // v1 -> v2 (P0-10): add expires_at column to paired_devices. Existing
+        // rows are migrated with NULL (treated as "no expiry" for backward
+        // compatibility); new pairings will populate the column going forward.
+        if (from < 2) {
+          await m.addColumn(pairedDevices, pairedDevices.expiresAt);
+        }
       },
       beforeOpen: (details) async {
         // Enable foreign key enforcement
@@ -50,11 +58,17 @@ class PairingDatabase extends _$PairingDatabase {
   }
 
   /// Add a new paired device
+  ///
+  /// [expiresAt] is the absolute moment after which the issued session token
+  /// MUST be rejected by `TokenManager.verifySessionToken` and by the headless
+  /// auth middleware. May be `null` only for callers that explicitly opt out
+  /// (test fixtures); the production pairing flow always populates it.
   Future<void> addPairedDevice({
     required String deviceId,
     required String deviceName,
     required String sessionToken,
     required String deviceType,
+    DateTime? expiresAt,
   }) async {
     await into(pairedDevices).insert(
       PairedDevicesCompanion.insert(
@@ -63,6 +77,7 @@ class PairingDatabase extends _$PairingDatabase {
         sessionToken: sessionToken,
         pairedAt: DateTime.now(),
         deviceType: Value(deviceType),
+        expiresAt: Value(expiresAt),
       ),
     );
   }
@@ -147,6 +162,53 @@ class PairingDatabase extends _$PairingDatabase {
   Future<void> deleteUsedPairingSessions() async {
     await (delete(pairingSessions)..where((tbl) => tbl.isUsed.equals(true)))
         .go();
+  }
+
+  /// Find all paired-device rows whose session token has either expired
+  /// (`expires_at <= now`) or been revoked (`is_active = false`).
+  ///
+  /// Used by the headless server's periodic sweep to:
+  ///  - evict revoked tokens from the in-memory `_pairedSessionTokens` map
+  ///    so revocation propagates without a server restart, and
+  ///  - delete genuinely expired rows from the DB (revoked rows are retained
+  ///    for audit purposes).
+  Future<List<PairedDevice>> getExpiredOrRevokedDevices(DateTime now) async {
+    final query = select(pairedDevices)
+      ..where(
+        (tbl) =>
+            tbl.isActive.equals(false) |
+            (tbl.expiresAt.isNotNull() &
+                tbl.expiresAt.isSmallerOrEqualValue(now)),
+      );
+    return query.get();
+  }
+
+  /// Hard-delete a paired-device row whose session token has expired.
+  ///
+  /// Revoked-but-unexpired rows are kept by [getExpiredOrRevokedDevices]
+  /// callers (the headless sweep uses [deletePairedDevice] on the revoked
+  /// half only when explicitly requested).
+  Future<void> deleteExpiredPairedDevices(DateTime now) async {
+    await (delete(pairedDevices)
+          ..where((tbl) =>
+              tbl.expiresAt.isNotNull() &
+              tbl.expiresAt.isSmallerOrEqualValue(now)))
+        .go();
+  }
+
+  /// Active (`is_active = true`) AND not yet expired (`expires_at IS NULL OR
+  /// expires_at > now`). This is the canonical "tokens the auth middleware
+  /// should accept" snapshot, used to hydrate the in-memory token map at
+  /// server startup.
+  Future<List<PairedDevice>> getActiveUnexpiredPairedDevices(
+      DateTime now) async {
+    final query = select(pairedDevices)
+      ..where(
+        (tbl) =>
+            tbl.isActive.equals(true) &
+            (tbl.expiresAt.isNull() | tbl.expiresAt.isBiggerThanValue(now)),
+      );
+    return query.get();
   }
 }
 

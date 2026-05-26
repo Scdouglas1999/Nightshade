@@ -96,6 +96,9 @@ abstract final class NightshadeTokens {
   /// 8px - Default radius (inputs, small cards)
   static const double radiusMd = 8.0;
 
+  /// 10px - Filled accent buttons
+  static const double radiusButton = 10.0;
+
   /// 12px - Large radius (cards, panels)
   static const double radiusLg = 12.0;
 
@@ -109,6 +112,8 @@ abstract final class NightshadeTokens {
   static final BorderRadius borderRadiusXs = BorderRadius.circular(radiusXs);
   static final BorderRadius borderRadiusSm = BorderRadius.circular(radiusSm);
   static final BorderRadius borderRadiusMd = BorderRadius.circular(radiusMd);
+  static final BorderRadius borderRadiusButton =
+      BorderRadius.circular(radiusButton);
   static final BorderRadius borderRadiusLg = BorderRadius.circular(radiusLg);
   static final BorderRadius borderRadiusXl = BorderRadius.circular(radiusXl);
   static final BorderRadius borderRadiusFull = BorderRadius.circular(radiusFull);
@@ -238,27 +243,37 @@ abstract final class NightshadeTokens {
   /// Navigation sidebar width (expanded)
   static const double sidebarExpanded = 220.0;
 
-  /// Standard app bar height
+  /// In-screen Material [AppBar] height (56px).
+  ///
+  /// Frameless desktop window chrome uses 40px (`ShellChromeMetrics.titleBarHeight`)
+  /// instead — do not substitute this value for the custom title bar.
   static const double appBarHeight = 56.0;
 
-  // ===========================================================================
-  // Shadows
-  // ===========================================================================
+  /// Minimum touch target (iOS HIG / Material accessibility).
+  static const double minTouchTarget = 44.0;
 
-  /// Subtle shadow for cards
+  // ===========================================================================
+  // Shadows & Elevation
+  // ===========================================================================
+  //
+  // Cards use borders for separation — not box shadows.
+  // Shadows are reserved for floating overlays (menus, toasts, modals, drag
+  // feedback) where tonal lift is needed above the base surface.
+
+  /// Subtle shadow for floating menus and toasts
   static const List<BoxShadow> shadowSm = [
     BoxShadow(
-      color: Color(0x0D000000),
-      blurRadius: 4,
+      color: Color(0x14000000),
+      blurRadius: 6,
       offset: Offset(0, 2),
     ),
   ];
 
-  /// Medium shadow for elevated cards
+  /// Medium shadow for dropdowns and popovers
   static const List<BoxShadow> shadowMd = [
     BoxShadow(
-      color: Color(0x1A000000),
-      blurRadius: 8,
+      color: Color(0x1F000000),
+      blurRadius: 10,
       offset: Offset(0, 4),
     ),
   ];
@@ -266,18 +281,9 @@ abstract final class NightshadeTokens {
   /// Large shadow for dialogs/modals
   static const List<BoxShadow> shadowLg = [
     BoxShadow(
-      color: Color(0x26000000),
-      blurRadius: 16,
+      color: Color(0x33000000),
+      blurRadius: 20,
       offset: Offset(0, 8),
-    ),
-  ];
-
-  /// Glow shadow for highlighted elements
-  static List<BoxShadow> shadowGlow(Color color) => [
-    BoxShadow(
-      color: color.withValues(alpha: 0.3),
-      blurRadius: 12,
-      spreadRadius: 2,
     ),
   ];
 
@@ -285,45 +291,20 @@ abstract final class NightshadeTokens {
   // Elevation System (Dark Theme Optimized)
   // ===========================================================================
 
-  /// Level 1 - Base elevation for cards, panels, sidebar
-  /// Barely lifted, creates separation from background
-  static const List<BoxShadow> elevationLevel1 = [
+  /// Level 1 - Reserved for tonal separation; cards rely on borders instead.
+  static const List<BoxShadow> elevationLevel1 = [];
+
+  /// Level 2 - Light hover emphasis on interactive panels and drag feedback
+  static const List<BoxShadow> elevationLevel2 = [
     BoxShadow(
-      color: Color(0x4D000000), // 30% opacity
-      blurRadius: 8,
+      color: Color(0x14000000),
+      blurRadius: 5,
       offset: Offset(0, 2),
     ),
   ];
 
-  /// Level 2 - Raised elevation for hovered cards, dropdowns, active panels
-  /// Noticeable lift with layered shadows for depth
-  static const List<BoxShadow> elevationLevel2 = [
-    BoxShadow(
-      color: Color(0x66000000), // 40% opacity
-      blurRadius: 16,
-      offset: Offset(0, 4),
-    ),
-    BoxShadow(
-      color: Color(0x33000000), // 20% opacity
-      blurRadius: 4,
-      offset: Offset(0, 1),
-    ),
-  ];
-
-  /// Level 3 - Floating elevation for modals, dialogs, tooltips
-  /// Prominent shadow with subtle accent glow
-  static List<BoxShadow> elevationLevel3(Color accentColor) => [
-    const BoxShadow(
-      color: Color(0x80000000), // 50% opacity
-      blurRadius: 32,
-      offset: Offset(0, 8),
-    ),
-    BoxShadow(
-      color: accentColor.withValues(alpha: 0.1),
-      blurRadius: 24,
-      spreadRadius: -4,
-    ),
-  ];
+  /// Level 3 - Floating elevation for modals and dialogs only
+  static List<BoxShadow> elevationLevel3(Color accentColor) => shadowLg;
 
   /// Inset shadow for recessed elements (input fields, wells)
   /// Creates depth by appearing pressed into the surface
@@ -337,14 +318,7 @@ abstract final class NightshadeTokens {
   ];
 
   /// Transition shadow from level 1 to level 2 (for hover animations)
-  /// Use with AnimatedContainer for smooth elevation changes
-  static const List<BoxShadow> elevationLevel1to2 = [
-    BoxShadow(
-      color: Color(0x59000000), // 35% opacity (between L1 and L2)
-      blurRadius: 12,
-      offset: Offset(0, 3),
-    ),
-  ];
+  static const List<BoxShadow> elevationLevel1to2 = elevationLevel2;
 
   // ===========================================================================
   // Opacity Levels
@@ -359,9 +333,55 @@ abstract final class NightshadeTokens {
   /// Subtle background overlay
   static const double opacitySubtle = 0.1;
 
+  /// Status chip and KPI badge fill
+  static const double opacityStatusFill = 0.15;
+
   /// Medium overlay (hover states)
   static const double opacityMedium = 0.2;
 
   /// Strong overlay (pressed states)
   static const double opacityStrong = 0.3;
+
+  /// Very light primary/accent tint for selected surfaces (4%)
+  static const double opacityTint = 0.04;
+
+  /// Icon chip and medium-strength accent borders (25%)
+  static const double opacityBorderMedium = 0.25;
+
+  /// Selected nav/card accent border emphasis (45%)
+  static const double opacityEmphasisBorder = 0.45;
+
+  /// Half-opacity for disabled filled buttons (50%)
+  static const double opacityHalf = 0.5;
+
+  /// Hover border emphasis on interactive cards (85%)
+  static const double opacityHoverBorder = 0.85;
+
+  /// KPI/score badge border strength (40%)
+  static const double opacityBadgeBorder = 0.4;
+
+  /// Lighten amount for filled button hover state
+  static const double buttonHoverLighten = 0.04;
+
+  /// Darken amount for filled button border
+  static const double buttonBorderDarken = 0.12;
+
+  // ===========================================================================
+  // Panel Row Layout (imaging side panel)
+  // ===========================================================================
+
+  /// Internal padding for grouped panel sections in the imaging side panel.
+  static const double panelSectionPadding = 14.0;
+
+  /// Flex weight for label column in label/control row pairs.
+  static const int panelRowLabelFlex = 2;
+
+  /// Flex weight for control column in label/control row pairs.
+  static const int panelRowControlFlex = 3;
+
+  /// Font size for panel section titles and row labels.
+  static const double fontSizePanelLabel = 12.0;
+
+  /// Font size for compact panel captions and section headers.
+  static const double fontSizePanelCaption = 10.0;
 }

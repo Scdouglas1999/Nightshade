@@ -40,7 +40,7 @@ class BackendSelectorChips extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (availableBackends.isEmpty) {
       return const SizedBox.shrink();
@@ -130,23 +130,12 @@ class _BackendChipState extends State<_BackendChip> {
   bool _isHovered = false;
 
   Color _getBackendColor(NightshadeColors colors) {
-    switch (widget.backend) {
-      case DriverType.native:
-        return colors.success; // Green for native (best)
-      case DriverType.ascom:
-        return colors.info; // Blue for ASCOM
-      case DriverType.alpaca:
-        return colors.warning; // Orange for Alpaca
-      case DriverType.indi:
-        return const Color(0xFF9333EA); // Purple for INDI
-      case DriverType.simulator:
-        return colors.textMuted; // Gray for simulator
-    }
+    return BackendProtocolColors.forBackend(widget.backend, colors);
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final backendColor = _getBackendColor(colors);
 
     final backgroundColor = widget.isSelected
@@ -253,7 +242,7 @@ class CompactBackendSelector extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (availableBackends.length <= 1) {
       // Only one backend, show as a simple badge

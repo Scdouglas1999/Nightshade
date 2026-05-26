@@ -2,16 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'settings_widgets.dart';
 
 class ImagingSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const ImagingSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<ImagingSettings> createState() => _ImagingSettingsState();
@@ -40,11 +38,9 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -55,13 +51,11 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
         return SettingsPage(
           title: 'Imaging',
           description: 'Default capture settings',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           hideHeader: widget.isMobile,
           children: [
             SettingsSection(
               title: 'File Format',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
@@ -78,10 +72,8 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
                             .setImageFormat(value);
                       }
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -98,10 +90,8 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
                             .setBitDepth(value);
                       }
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -117,11 +107,9 @@ class _ImagingSettingsState extends ConsumerState<ImagingSettings> {
                           .read(appSettingsProvider.notifier)
                           .setFileNamingPattern(value);
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                   stackOnMobile: widget.isMobile,
                 ),

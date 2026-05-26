@@ -13,6 +13,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../widgets/equipment_status_indicator.dart';
 import '../../../widgets/operation_status_bar.dart';
+import '../../sequencer/widgets/run_dashboard/recovery_banner.dart';
 
 class _SavePathStatus {
   final String path;
@@ -42,7 +43,11 @@ final _savePathStatusProvider = FutureProvider<_SavePathStatus>((ref) async {
 });
 
 class StatusBar extends ConsumerStatefulWidget {
-  const StatusBar({super.key});
+  /// When true, uses a horizontally scrollable strip and hides desktop-only
+  /// actions (web dashboard, share session) to fit phone widths.
+  final bool compact;
+
+  const StatusBar({super.key, this.compact = false});
 
   @override
   ConsumerState<StatusBar> createState() => _StatusBarState();
@@ -105,7 +110,7 @@ class _StatusBarState extends ConsumerState<StatusBar>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final savePathStatus = ref.watch(_savePathStatusProvider).valueOrNull ??
         const _SavePathStatus(path: '', exists: false);
 
@@ -133,17 +138,105 @@ class _StatusBarState extends ConsumerState<StatusBar>
             ? 'Images save to $savePath'
             : 'Configured output path is missing: $savePath';
 
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            colors.surface,
-            colors.surface.withValues(alpha: 0.95),
-          ],
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
+    final leading = <Widget>[
+      const SizedBox(width: 12),
+      _SequenceIndicator(colors: colors),
+      const SizedBox(width: 12),
+      _divider(colors),
+      const SizedBox(width: 8),
+      const EquipmentStatusIndicator(),
+      const SizedBox(width: 8),
+      _divider(colors),
+      const SizedBox(width: 12),
+      _StatusPillButton(
+        icon: LucideIcons.camera,
+        label: 'Camera',
+        value: cameraConnected
+            ? _getDeviceDisplayName(
+                cameraState.deviceName, cameraState.deviceId, 'Connected')
+            : 'Disconnected',
+        isConnected: cameraConnected,
+        colors: colors,
+        compact: widget.compact,
+      ),
+      const SizedBox(width: 8),
+      _StatusPillButton(
+        icon: LucideIcons.move3d,
+        label: 'Mount',
+        value: mountConnected
+            ? _getDeviceDisplayName(
+                mountState.deviceName, mountState.deviceId, 'Connected')
+            : 'Disconnected',
+        isConnected: mountConnected,
+        colors: colors,
+        compact: widget.compact,
+      ),
+      const SizedBox(width: 8),
+      _StatusPillButton(
+        icon: LucideIcons.crosshair,
+        label: 'Guider',
+        value: guiderConnected
+            ? (guiderState.isGuiding ? 'Guiding' : 'Ready')
+            : 'Idle',
+        isConnected: guiderConnected,
+        colors: colors,
+        compact: widget.compact,
+      ),
+      const SizedBox(width: 8),
+      _StatusPillButton(
+        icon: LucideIcons.focus,
+        label: 'Focus',
+        value: focuserConnected
+            ? (focuserState.position?.toString() ?? 'Ready')
+            : '---',
+        isConnected: focuserConnected,
+        colors: colors,
+        compact: widget.compact,
+      ),
+      const SizedBox(width: 4),
+      _TempCompIndicator(colors: colors),
+      const SizedBox(width: 8),
+      SequencerStatusLed(showLabel: !widget.compact),
+      const OperationStatusBar(),
+    ];
+
+    final trailing = <Widget>[
+      _InfoChip(
+        icon: LucideIcons.thermometer,
+        value: cameraConnected && cameraState.temperature != null
+            ? '${cameraState.temperature!.toStringAsFixed(1)}\u00B0C'
+            : '---',
+        colors: colors,
+      ),
+      const SizedBox(width: 12),
+      if (!widget.compact)
+        _InfoChip(
+          icon: savePathExists ? LucideIcons.folderOpen : LucideIcons.folderX,
+          value: savePathLabel,
+          tooltip: savePathTooltip,
+          colors: colors,
         ),
+      if (!widget.compact) const SizedBox(width: 12),
+      if (!widget.compact) ...[
+        _divider(colors),
+        const SizedBox(width: 8),
+        _WebDashboardButton(colors: colors),
+        const SizedBox(width: 4),
+        _ShareSessionButton(colors: colors),
+        const SizedBox(width: 8),
+        _divider(colors),
+        const SizedBox(width: 12),
+      ],
+      _TimeDisplay(now: _now, colors: colors),
+      const SizedBox(width: 12),
+    ];
+
+    return Container(
+      height: widget.compact
+          ? ShellChromeMetrics.statusBarHeightCompact
+          : ShellChromeMetrics.statusBarHeight,
+      decoration: BoxDecoration(
+        color: colors.surface,
         border: Border(
           top: BorderSide(
             color: colors.border,
@@ -151,137 +244,20 @@ class _StatusBarState extends ConsumerState<StatusBar>
           ),
         ),
       ),
-      child: Row(
-        children: [
-          const SizedBox(width: 16),
-
-          // Sequence status indicator
-          _SequenceIndicator(colors: colors),
-
-          const SizedBox(width: 16),
-
-          Container(
-            width: 1,
-            height: 20,
-            color: colors.border.withValues(alpha: 0.5),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Profile-based equipment status indicator with dropdown
-          const EquipmentStatusIndicator(),
-
-          const SizedBox(width: 8),
-
-          Container(
-            width: 1,
-            height: 20,
-            color: colors.border.withValues(alpha: 0.5),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Equipment status pills (DYNAMIC)
-          _StatusPillButton(
-            icon: LucideIcons.camera,
-            label: 'Camera',
-            value: cameraConnected
-                ? _getDeviceDisplayName(
-                    cameraState.deviceName, cameraState.deviceId, 'Connected')
-                : 'Disconnected',
-            isConnected: cameraConnected,
-            colors: colors,
-          ),
-          const SizedBox(width: 8),
-          _StatusPillButton(
-            icon: LucideIcons.move3d,
-            label: 'Mount',
-            value: mountConnected
-                ? _getDeviceDisplayName(
-                    mountState.deviceName, mountState.deviceId, 'Connected')
-                : 'Disconnected',
-            isConnected: mountConnected,
-            colors: colors,
-          ),
-          const SizedBox(width: 8),
-          _StatusPillButton(
-            icon: LucideIcons.crosshair,
-            label: 'Guider',
-            value: guiderConnected
-                ? (guiderState.isGuiding ? 'Guiding' : 'Ready')
-                : 'Idle',
-            isConnected: guiderConnected,
-            colors: colors,
-          ),
-          const SizedBox(width: 8),
-          _StatusPillButton(
-            icon: LucideIcons.focus,
-            label: 'Focus',
-            value: focuserConnected
-                ? (focuserState.position?.toString() ?? 'Ready')
-                : '---',
-            isConnected: focuserConnected,
-            colors: colors,
-          ),
-          const SizedBox(width: 4),
-          _TempCompIndicator(colors: colors),
-
-          // Operation progress indicator (when operations are active)
-          const OperationStatusBar(),
-
-          const Spacer(),
-
-          // Temperature / weather
-          _InfoChip(
-            icon: LucideIcons.thermometer,
-            value: cameraConnected && cameraState.temperature != null
-                ? '${cameraState.temperature!.toStringAsFixed(1)}\u00B0C'
-                : '---',
-            colors: colors,
-          ),
-          const SizedBox(width: 12),
-
-          // Image output path
-          _InfoChip(
-            icon: savePathExists ? LucideIcons.folderOpen : LucideIcons.folderX,
-            value: savePathLabel,
-            tooltip: savePathTooltip,
-            colors: colors,
-          ),
-          const SizedBox(width: 12),
-
-          Container(
-            width: 1,
-            height: 20,
-            color: colors.border.withValues(alpha: 0.5),
-          ),
-
-          const SizedBox(width: 8),
-
-          // Web Dashboard button
-          _WebDashboardButton(colors: colors),
-
-          const SizedBox(width: 4),
-
-          // Share Session button
-          _ShareSessionButton(colors: colors),
-
-          const SizedBox(width: 8),
-
-          Container(
-            width: 1,
-            height: 20,
-            color: colors.border.withValues(alpha: 0.5),
-          ),
-
-          const SizedBox(width: 12),
-
-          // Time display
-          _TimeDisplay(now: _now, colors: colors),
-
-          const SizedBox(width: 16),
-        ],
-      ),
+      child: widget.compact
+          ? SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [...leading, ...trailing],
+              ),
+            )
+          : Row(
+              children: [
+                ...leading,
+                const Spacer(),
+                ...trailing,
+              ],
+            ),
     );
   }
 
@@ -289,6 +265,14 @@ class _StatusBarState extends ConsumerState<StatusBar>
     final normalized = p.normalize(path);
     final baseName = p.basename(normalized);
     return baseName.isNotEmpty ? baseName : normalized;
+  }
+
+  Widget _divider(NightshadeColors colors) {
+    return Container(
+      width: 1,
+      height: ShellChromeMetrics.statusBarDividerHeight,
+      color: colors.border.withValues(alpha: 0.5),
+    );
   }
 }
 
@@ -405,6 +389,12 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
         return widget.colors.primary;
       case SequenceExecutionState.failed:
         return widget.colors.error;
+      case SequenceExecutionState.recovering:
+        // Wave 4 — recovery is its own visible state. Use the error
+        // colour so the status bar dot is unmistakeably "something is
+        // wrong, the sequence is fighting through it" — same colour as
+        // the recovery banner for consistency.
+        return widget.colors.error;
     }
   }
 
@@ -422,6 +412,8 @@ class _SequenceIndicatorState extends ConsumerState<_SequenceIndicator>
         return 'Completed';
       case SequenceExecutionState.failed:
         return 'Failed';
+      case SequenceExecutionState.recovering:
+        return 'Recovering';
     }
   }
 }
@@ -432,6 +424,7 @@ class _StatusPillButton extends StatefulWidget {
   final String value;
   final bool isConnected;
   final NightshadeColors colors;
+  final bool compact;
 
   const _StatusPillButton({
     required this.icon,
@@ -439,6 +432,7 @@ class _StatusPillButton extends StatefulWidget {
     required this.value,
     required this.isConnected,
     required this.colors,
+    this.compact = false,
   });
 
   @override
@@ -450,19 +444,55 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
 
   @override
   Widget build(BuildContext context) {
+    final statusDot = Container(
+      width: 5,
+      height: 5,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: widget.isConnected
+            ? widget.colors.success
+            : widget.colors.textMuted.withValues(alpha: 0.5),
+      ),
+    );
+
     return Tooltip(
       message: '${widget.label}: ${widget.value}',
       child: MouseRegion(
         onEnter: (_) => setState(() => _isHovered = true),
         onExit: (_) => setState(() => _isHovered = false),
-        child: AnimatedContainer(
+        child: ConstrainedBox(
+          constraints: widget.compact
+              ? const BoxConstraints(
+                  minWidth: NightshadeTokens.minTouchTarget,
+                  minHeight: NightshadeTokens.minTouchTarget,
+                )
+              : const BoxConstraints(),
+          child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding: EdgeInsets.symmetric(
+            horizontal: widget.compact ? 10 : 8,
+            vertical: widget.compact ? 10 : 4,
+          ),
           decoration: BoxDecoration(
             color: _isHovered ? widget.colors.surfaceAlt : Colors.transparent,
             borderRadius: BorderRadius.circular(6),
           ),
-          child: Row(
+          child: widget.compact
+              ? Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      widget.icon,
+                      size: 14,
+                      color: widget.isConnected
+                          ? widget.colors.success
+                          : widget.colors.textMuted,
+                    ),
+                    const SizedBox(width: 4),
+                    statusDot,
+                  ],
+                )
+              : Row(
             mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
@@ -482,7 +512,11 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
               ),
               const SizedBox(width: 6),
               ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 120),
+                constraints: BoxConstraints(
+                  maxWidth: ShellChromeMetrics.scaledStatusPillValueMaxWidth(
+                    context,
+                  ),
+                ),
                 child: Text(
                   widget.value,
                   overflow: TextOverflow.ellipsis,
@@ -494,18 +528,10 @@ class _StatusPillButtonState extends State<_StatusPillButton> {
                 ),
               ),
               const SizedBox(width: 6),
-              Container(
-                width: 5,
-                height: 5,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: widget.isConnected
-                      ? widget.colors.success
-                      : widget.colors.textMuted.withValues(alpha: 0.5),
-                ),
-              ),
+              statusDot,
             ],
           ),
+        ),
         ),
       ),
     );
@@ -714,7 +740,7 @@ class _ShareSessionButtonState extends ConsumerState<_ShareSessionButton> {
   }
 
   void _showShareDialog(BuildContext context, WebServerState webState) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     showDialog(
       context: context,
@@ -763,8 +789,11 @@ class _ShareSessionDialog extends ConsumerWidget {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 420,
+      content: ConstrainedBox(
+        constraints: Responsive.dialogConstraints(
+          context,
+          preferredWidth: ShellChromeMetrics.shareDialogPreferredWidth,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -870,12 +899,11 @@ class _ShareSessionDialog extends ConsumerWidget {
         ),
       ),
       actions: [
-        TextButton(
+        NightshadeButton(
+          label: 'Close',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
           onPressed: () => Navigator.of(context).pop(),
-          child: Text(
-            'Close',
-            style: TextStyle(color: colors.textSecondary),
-          ),
         ),
       ],
     );
@@ -948,8 +976,8 @@ class _UrlCard extends StatelessWidget {
                     horizontal: 10,
                     vertical: 6,
                   ),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.primary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
@@ -1039,8 +1067,8 @@ class _TempCompIndicator extends ConsumerWidget {
       message: tooltip,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-        decoration: BoxDecoration(
-          color: indicatorColor.withValues(alpha: 0.1),
+        decoration: NightshadeDecorations.tintedBadge(
+          indicatorColor,
           borderRadius: BorderRadius.circular(4),
         ),
         child: Row(
@@ -1104,9 +1132,10 @@ class _TimeDisplay extends ConsumerWidget {
         const SizedBox(width: 8),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.15),
+          decoration: NightshadeDecorations.statusChip(
+            colors.primary,
             borderRadius: BorderRadius.circular(4),
+            bordered: false,
           ),
           child: Text(
             'LST ${_formatLST(lst)}',

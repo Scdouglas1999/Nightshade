@@ -108,6 +108,30 @@ final observerLocationProvider =
   return PlanetariumObserverNotifier();
 });
 
+/// The user-configured effective horizon in degrees, as observed by the
+/// planetarium widgets.
+///
+/// 0° = mathematical horizon. A non-zero value (e.g. 20°) accounts for
+/// trees / buildings / hills the user cannot see through. Rise/transit/set
+/// times and the altitude card's shading both read from this provider so
+/// the planetarium agrees with the Run Dashboard's time-to-set stat to
+/// the second.
+///
+/// Why a planetarium-local provider with a default: `nightshade_core`
+/// (which owns the persisted setting via its own
+/// `effectiveHorizonDegProvider`) already depends on
+/// `nightshade_planetarium` for catalog access, so adding the reverse
+/// dependency would create a cycle. The app layer syncs the two
+/// providers (`nightshade_app/lib/services/location_sync_service.dart`).
+/// In standalone-planetarium scenarios (tests, demos) the default of
+/// `0.0` keeps the math identical to pre-Pack-D behaviour.
+///
+/// Name distinct from core's `effectiveHorizonDegProvider` to avoid
+/// `ambiguous_import` at app-layer call sites that already pull in both
+/// packages via the umbrella exports.
+final planetariumEffectiveHorizonDegProvider =
+    StateProvider<double>((ref) => 0.0);
+
 // ============================================================================
 // Observation Time Provider
 // ============================================================================

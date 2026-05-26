@@ -75,11 +75,11 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     messenger.showSnackBar(
       SnackBar(
         content: Text(notice.message),
-        backgroundColor: colors?.warning ?? Colors.orange.shade800,
+        backgroundColor: colors?.warning ?? NightshadeColors.dark.warning,
         duration: const Duration(seconds: 12),
         action: SnackBarAction(
           label: 'Dismiss',
-          textColor: colors?.textPrimary ?? Colors.white,
+          textColor: colors?.textPrimary ?? NightshadeColors.dark.textPrimary,
           onPressed: messenger.hideCurrentSnackBar,
         ),
       ),
@@ -248,7 +248,9 @@ class _UpdateManagerState extends ConsumerState<UpdateManager> {
     // Check if a sequence is currently running
     final sequencerState = ref.read(sequenceExecutionStateProvider);
     final isSessionActive = sequencerState == SequenceExecutionState.running ||
-        sequencerState == SequenceExecutionState.paused;
+        sequencerState == SequenceExecutionState.paused ||
+        sequencerState == SequenceExecutionState.stopping ||
+        sequencerState == SequenceExecutionState.recovering;
 
     UpdateReadyDialog.show(
       context,

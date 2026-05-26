@@ -8,7 +8,7 @@ class NightshadeServerCompatibility {
   // servers will surface a clear `server_too_old` error instead of a confusing
   // partial connection.
   static const minimumSupportedVersion = ServerSemanticVersion(2, 4, 0);
-  static const serverApiVersion = ServerSemanticVersion(2, 5, 0);
+  static const serverApiVersion = ServerSemanticVersion(2, 6, 0);
   static const clientApiVersion = serverApiVersion;
 
   const NightshadeServerCompatibility._();

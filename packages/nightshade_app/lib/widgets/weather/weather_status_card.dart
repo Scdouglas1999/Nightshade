@@ -37,25 +37,7 @@ class WeatherStatusCard extends ConsumerStatefulWidget {
   ConsumerState<WeatherStatusCard> createState() => _WeatherStatusCardState();
 }
 
-class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
+class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard> {
   /// Get icon for alert level
   IconData _getAlertIcon(AlertLevel level) {
     switch (level) {
@@ -78,7 +60,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
       case AlertLevel.watch:
         return colors.warning;
       case AlertLevel.warning:
-        return const Color(0xFFFB923C); // Orange
+        return colors.warning;
       case AlertLevel.critical:
         return colors.error;
     }
@@ -157,7 +139,7 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Default to clear if no alert
     final alertLevel = widget.alert?.level ?? AlertLevel.clear;
@@ -194,9 +176,8 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: alertColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      alertColor,
                     ),
                     child: Icon(
                       alertIcon,
@@ -331,30 +312,18 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
     final now = DateTime.now();
     final remaining = eta.difference(now);
 
-    // Pulsing animation for critical alerts and imminent arrivals
-    final shouldPulse =
-        alertLevel == AlertLevel.critical || remaining.inMinutes < 5;
-
+    // Critical/imminent arrivals stay static — no continuous pulse.
     Widget content = Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            _getAlertColor(alertLevel, colors).withValues(alpha: 0.15),
-            _getAlertColor(alertLevel, colors).withValues(alpha: 0.05),
-          ],
-        ),
+      decoration: NightshadeDecorations.emphasisSurface(
+        _getAlertColor(alertLevel, colors),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: _getAlertColor(alertLevel, colors).withValues(alpha: 0.3),
-        ),
       ),
       child: Column(
         children: [
           Text(
             _formatEta(remaining),
-            style: TextStyle(
-              fontSize: 24,
+            style: NightshadeTypography.telemetryMd.copyWith(
               fontWeight: FontWeight.w700,
               color: _getAlertColor(alertLevel, colors),
               letterSpacing: -0.5,
@@ -371,22 +340,6 @@ class _WeatherStatusCardState extends ConsumerState<WeatherStatusCard>
         ],
       ),
     );
-
-    if (shouldPulse) {
-      return AnimatedBuilder(
-        animation: _pulseController,
-        builder: (context, child) {
-          return Transform.scale(
-            scale: 1.0 + (_pulseController.value * 0.02),
-            child: Opacity(
-              opacity: 0.85 + (_pulseController.value * 0.15),
-              child: child,
-            ),
-          );
-        },
-        child: content,
-      );
-    }
 
     return content;
   }

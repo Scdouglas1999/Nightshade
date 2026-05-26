@@ -17,6 +17,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use nightshade_indi::IndiFilterWheel;
 use nightshade_native::traits::NativeFilterWheel;
 
 impl DeviceManager {
@@ -44,7 +45,10 @@ impl DeviceManager {
                     if let Some(wheel) = wheels.get(device_id) {
                         let mut wheel = wheel.write().await;
                         return wheel.move_to_position(position).await.map_err(|e| {
-                            format!("Failed to move ASCOM filter wheel {} to slot {}: {}", device_id, position, e)
+                            format!(
+                                "Failed to move ASCOM filter wheel {} to slot {}: {}",
+                                device_id, position, e
+                            )
                         });
                     }
                 }
@@ -54,7 +58,10 @@ impl DeviceManager {
                 let mut native_filter_wheels = self.native_filter_wheels.write().await;
                 if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
                     return wheel.move_to_position(position).await.map_err(|e| {
-                        format!("Failed to move native filter wheel {} to slot {}: {}", device_id, position, e)
+                        format!(
+                            "Failed to move native filter wheel {} to slot {}: {}",
+                            device_id, position, e
+                        )
                     });
                 }
                 Err("Native filter wheel not connected".to_string())
@@ -77,22 +84,25 @@ impl DeviceManager {
 
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
-                    let mut locked = client.write().await;
-                    // INDI filter slots are 1-based
-                    return locked.set_number(&device_name, "FILTER_SLOT", "FILTER_SLOT_VALUE", position as f64).await.map_err(|e| {
-                        format!("Failed to set INDI filter wheel {} to slot {}: {}", device_name, position, e)
+                    let wheel = IndiFilterWheel::new(client.clone(), &device_name);
+                    return wheel.set_position(position).await.map_err(|e| {
+                        format!(
+                            "Failed to set INDI filter wheel {} to slot {}: {}",
+                            device_name, position, e
+                        )
                     });
                 }
                 Err("INDI filter wheel not connected".to_string())
             }
             DriverType::Simulator => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let fw = crate::api::devices::simulation::get_sim_filterwheel();
+                let mut fw = fw.write().await;
+                if !fw.status.connected {
+                    return Err(crate::device_manager::ops::sim_gate::not_connected_filterwheel());
+                }
+                fw.status.position = position;
+                Ok(())
             }
-
-            // Fallback logic for devices not matching specific driver types
-            // This is primarily for the catch-all pattern required by match
-            // but in practice DriverType is exhaustive for supported devices.
-            // Keeping this arm for safety but returning an error is correct.
         }
     }
 
@@ -143,17 +153,14 @@ impl DeviceManager {
 
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
-                    let locked = client.read().await;
-                    // INDI filter slots are 1-based, convert to 0-based for consistency
-                    if let Some(pos) = locked.get_number(&device_name, "FILTER_SLOT", "FILTER_SLOT_VALUE").await {
-                        return Ok((pos as i32) - 1);
-                    }
-                    return Err("Could not read filter position from INDI device".to_string());
+                    let wheel = IndiFilterWheel::new(client.clone(), &device_name);
+                    return wheel.get_position().await;
                 }
                 Err("INDI filter wheel not connected".to_string())
             }
             DriverType::Simulator => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
+                Ok(sim.position)
             }
         }
     }
@@ -214,7 +221,8 @@ impl DeviceManager {
                 Err("INDI filter wheel not connected".to_string())
             }
             DriverType::Simulator => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
+                Ok(sim.moving)
             }
         }
     }
@@ -251,7 +259,11 @@ impl DeviceManager {
                 {
                     let wheels = self.ascom_filter_wheels.read().await;
                     let ascom_keys: Vec<_> = wheels.keys().collect();
-                    tracing::debug!("filter_wheel_get_config: Looking for '{}' in ascom_filter_wheels: {:?}", device_id, ascom_keys);
+                    tracing::debug!(
+                        "filter_wheel_get_config: Looking for '{}' in ascom_filter_wheels: {:?}",
+                        device_id,
+                        ascom_keys
+                    );
 
                     if let Some(wheel) = wheels.get(device_id) {
                         let wheel = wheel.read().await;
@@ -283,9 +295,8 @@ impl DeviceManager {
 
                     let clients = self.indi_clients.read().await;
                     if let Some(client) = clients.get(&server_key) {
-                        let locked_client = client.read().await;
-                        let names = locked_client.get_filter_names(&device_name).await
-                            .unwrap_or_else(|_| vec![]);
+                        let wheel = IndiFilterWheel::new(client.clone(), &device_name);
+                        let names = wheel.get_names().await.unwrap_or_else(|_| vec![]);
                         let count = names.len() as i32;
                         return Ok((count, names));
                     }
@@ -295,19 +306,28 @@ impl DeviceManager {
             DriverType::Native => {
                 let native_filter_wheels = self.native_filter_wheels.read().await;
                 let native_keys: Vec<_> = native_filter_wheels.keys().collect();
-                tracing::debug!("filter_wheel_get_config: Looking for '{}' in native_filter_wheels: {:?}", device_id, native_keys);
+                tracing::debug!(
+                    "filter_wheel_get_config: Looking for '{}' in native_filter_wheels: {:?}",
+                    device_id,
+                    native_keys
+                );
 
                 if let Some(wheel) = native_filter_wheels.get(device_id) {
                     let count = wheel.get_filter_count();
                     let names = wheel.get_filter_names().await.map_err(|e| e.to_string())?;
-                    tracing::info!("filter_wheel_get_config: Returning {} filter names: {:?}", count, names);
+                    tracing::info!(
+                        "filter_wheel_get_config: Returning {} filter names: {:?}",
+                        count,
+                        names
+                    );
                     return Ok((count, names));
                 }
                 tracing::error!("filter_wheel_get_config: Native filter wheel '{}' not found in native_filter_wheels map!", device_id);
                 Err("Native filter wheel not connected".to_string())
             }
             DriverType::Simulator => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let sim = crate::device_manager::ops::sim_gate::read_filterwheel_status().await?;
+                Ok((sim.filter_count, sim.filter_names))
             }
         }
     }
@@ -337,9 +357,15 @@ impl DeviceManager {
                 let mut native_filter_wheels = self.native_filter_wheels.write().await;
                 if let Some(wheel) = native_filter_wheels.get_mut(device_id) {
                     for (i, name) in names.iter().enumerate() {
-                        wheel.set_filter_name(i as i32, name.clone()).await.map_err(|e| e.to_string())?;
+                        wheel
+                            .set_filter_name(i as i32, name.clone())
+                            .await
+                            .map_err(|e| e.to_string())?;
                     }
-                    tracing::info!("filter_wheel_set_filter_names: Successfully set {} filter names", names.len());
+                    tracing::info!(
+                        "filter_wheel_set_filter_names: Successfully set {} filter names",
+                        names.len()
+                    );
                     return Ok(());
                 }
                 Err("Native filter wheel not connected".to_string())
@@ -364,7 +390,19 @@ impl DeviceManager {
                 Err(msg.to_string())
             }
             DriverType::Simulator => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let fw = crate::api::devices::simulation::get_sim_filterwheel();
+                let mut fw = fw.write().await;
+                if !fw.status.connected {
+                    return Err(crate::device_manager::ops::sim_gate::not_connected_filterwheel());
+                }
+                // Only overwrite up to the existing slot count — matches the
+                // simulator-side semantics in
+                // `api::devices::simulation::api_filterwheel_set_filter_names`.
+                let count = fw.status.filter_names.len().min(names.len());
+                for (i, name) in names.iter().take(count).enumerate() {
+                    fw.status.filter_names[i] = name.clone();
+                }
+                Ok(())
             }
         }
     }

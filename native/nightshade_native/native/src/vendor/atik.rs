@@ -8,7 +8,7 @@ use crate::camera::{
     ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::atik_mutex;
-use crate::traits::{NativeCamera, NativeDevice, NativeError};
+use crate::traits::{NativeCamera, NativeDevice, NativeError, NativeFilterWheel};
 use crate::NativeVendor;
 use async_trait::async_trait;
 use std::ffi::{c_char, c_float, c_int, c_void, CStr};
@@ -108,6 +108,20 @@ type ArtemisDeviceName = unsafe extern "C" fn(device: c_int, name: *mut c_char) 
 type ArtemisDeviceSerial = unsafe extern "C" fn(device: c_int, serial: *mut c_char) -> c_int;
 type ArtemisDeviceIsCamera = unsafe extern "C" fn(device: c_int) -> c_int;
 type ArtemisDeviceHasFilterWheel = unsafe extern "C" fn(device: c_int) -> c_int;
+type ArtemisEFWIsPresent = unsafe extern "C" fn(device: c_int) -> c_int;
+type ArtemisEFWGetDeviceDetails =
+    unsafe extern "C" fn(device: c_int, efw_type: *mut c_int, serial: *mut c_char) -> c_int;
+type ArtemisEFWConnect = unsafe extern "C" fn(device: c_int) -> ArtemisHandle;
+type ArtemisEFWIsConnected = unsafe extern "C" fn(handle: ArtemisHandle) -> bool;
+type ArtemisEFWDisconnect = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
+type ArtemisEFWNmrPosition =
+    unsafe extern "C" fn(handle: ArtemisHandle, positions: *mut c_int) -> c_int;
+type ArtemisEFWSetPosition = unsafe extern "C" fn(handle: ArtemisHandle, position: c_int) -> c_int;
+type ArtemisEFWGetPosition = unsafe extern "C" fn(
+    handle: ArtemisHandle,
+    position: *mut c_int,
+    is_moving: *mut bool,
+) -> c_int;
 type ArtemisConnect = unsafe extern "C" fn(device: c_int) -> ArtemisHandle;
 type ArtemisDisconnect = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
 type ArtemisIsConnected = unsafe extern "C" fn(handle: ArtemisHandle) -> c_int;
@@ -178,6 +192,14 @@ struct AtikSdk {
     device_is_camera: ArtemisDeviceIsCamera,
     #[allow(dead_code)]
     device_has_filter_wheel: Option<ArtemisDeviceHasFilterWheel>,
+    efw_is_present: Option<ArtemisEFWIsPresent>,
+    efw_get_device_details: Option<ArtemisEFWGetDeviceDetails>,
+    efw_connect: Option<ArtemisEFWConnect>,
+    efw_is_connected: Option<ArtemisEFWIsConnected>,
+    efw_disconnect: Option<ArtemisEFWDisconnect>,
+    efw_nmr_position: Option<ArtemisEFWNmrPosition>,
+    efw_set_position: Option<ArtemisEFWSetPosition>,
+    efw_get_position: Option<ArtemisEFWGetPosition>,
     connect: ArtemisConnect,
     disconnect: ArtemisDisconnect,
     is_connected: ArtemisIsConnected,
@@ -257,6 +279,38 @@ impl AtikSdk {
                     })?,
                 device_has_filter_wheel: library
                     .get::<ArtemisDeviceHasFilterWheel>(b"ArtemisDeviceHasFilterWheel\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_is_present: library
+                    .get::<ArtemisEFWIsPresent>(b"ArtemisEFWIsPresent\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_get_device_details: library
+                    .get::<ArtemisEFWGetDeviceDetails>(b"ArtemisEFWGetDeviceDetails\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_connect: library
+                    .get::<ArtemisEFWConnect>(b"ArtemisEFWConnect\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_is_connected: library
+                    .get::<ArtemisEFWIsConnected>(b"ArtemisEFWIsConnected\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_disconnect: library
+                    .get::<ArtemisEFWDisconnect>(b"ArtemisEFWDisconnect\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_nmr_position: library
+                    .get::<ArtemisEFWNmrPosition>(b"ArtemisEFWNmrPosition\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_set_position: library
+                    .get::<ArtemisEFWSetPosition>(b"ArtemisEFWSetPosition\0")
+                    .ok()
+                    .map(|sym| *sym),
+                efw_get_position: library
+                    .get::<ArtemisEFWGetPosition>(b"ArtemisEFWGetPosition\0")
                     .ok()
                     .map(|sym| *sym),
                 connect: *library
@@ -396,6 +450,40 @@ fn get_sdk() -> Result<&'static AtikSdk, NativeError> {
         .map_err(|e| NativeError::SdkError(e.clone()))
 }
 
+fn check_artemis_error(result: c_int, operation: &str) -> Result<(), NativeError> {
+    let err = ArtemisError::from_i32(result);
+    if err == ArtemisError::Ok {
+        Ok(())
+    } else {
+        Err(err.to_native_error(operation))
+    }
+}
+
+fn require_efw_api(sdk: &AtikSdk) -> Result<(), NativeError> {
+    if sdk.efw_is_present.is_some()
+        && sdk.efw_get_device_details.is_some()
+        && sdk.efw_connect.is_some()
+        && sdk.efw_is_connected.is_some()
+        && sdk.efw_disconnect.is_some()
+        && sdk.efw_nmr_position.is_some()
+        && sdk.efw_set_position.is_some()
+        && sdk.efw_get_position.is_some()
+    {
+        Ok(())
+    } else {
+        Err(NativeError::NotSupported)
+    }
+}
+
+fn atik_efw_type_name(efw_type: c_int) -> String {
+    match efw_type {
+        1 => "Atik EFW1".to_string(),
+        // The Atik SDK documents EFW3 devices as reporting the EFW2 firmware type.
+        2 => "Atik EFW2/EFW3".to_string(),
+        other => format!("Atik EFW type {}", other),
+    }
+}
+
 // =============================================================================
 // Discovery
 // =============================================================================
@@ -406,6 +494,17 @@ pub struct AtikDiscoveryInfo {
     pub device_index: i32,
     pub name: String,
     pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
+}
+
+/// Discovered Atik standalone filter wheel info.
+#[derive(Debug, Clone)]
+pub struct AtikFilterWheelDiscoveryInfo {
+    pub device_index: i32,
+    pub name: String,
+    pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
+    pub efw_type: i32,
 }
 
 /// Discover connected Atik cameras
@@ -421,6 +520,7 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
     // SAFETY: atik_mutex held above ensuring single-threaded SDK access; ArtemisDeviceCount
     // takes no arguments and returns a c_int — no pointers involved.
     let count = unsafe { (sdk.device_count)() };
+    let sdk_version = sdk_version_from_sdk(sdk);
     let mut devices = Vec::new();
 
     for i in 0..count {
@@ -473,6 +573,76 @@ pub async fn discover_devices() -> Result<Vec<AtikDiscoveryInfo>, NativeError> {
             device_index: i,
             name,
             serial_number: serial,
+            sdk_version: sdk_version.clone(),
+        });
+    }
+
+    Ok(devices)
+}
+
+/// Discover connected Atik EFW filter wheels.
+pub async fn discover_filter_wheels() -> Result<Vec<AtikFilterWheelDiscoveryInfo>, NativeError> {
+    let sdk = match get_sdk() {
+        Ok(sdk) => sdk,
+        Err(_) => return Ok(Vec::new()),
+    };
+
+    if require_efw_api(sdk).is_err() {
+        tracing::debug!("Atik EFW discovery skipped: SDK lacks EFW API exports");
+        return Ok(Vec::new());
+    }
+
+    let efw_is_present = sdk.efw_is_present.unwrap();
+    let efw_get_device_details = sdk.efw_get_device_details.unwrap();
+    let sdk_version = sdk_version_from_sdk(sdk);
+
+    let _lock = atik_mutex().lock().await;
+
+    // The Atik SDK exposes standalone EFW devices by index through
+    // ArtemisEFWIsPresent/ArtemisEFWGetDeviceDetails; there is no separate
+    // EFW count call, so use ArtemisDeviceCount as the bounded index space.
+    let count = unsafe { (sdk.device_count)() };
+    let mut devices = Vec::new();
+
+    for i in 0..count {
+        // SAFETY: atik_mutex held; `i` is in the bounded SDK enumeration range.
+        if unsafe { efw_is_present(i) } == 0 {
+            continue;
+        }
+
+        let mut efw_type: c_int = 0;
+        let mut serial_buf = [0i8; 100];
+        // SAFETY: atik_mutex held; `i` was reported present by ArtemisEFWIsPresent;
+        // `efw_type` and `serial_buf` are valid out-pointers per AtikCameras.h.
+        let result = unsafe { efw_get_device_details(i, &mut efw_type, serial_buf.as_mut_ptr()) };
+        if result != ArtemisError::Ok as c_int {
+            tracing::warn!(
+                "Atik EFWGetDeviceDetails failed for index {}: {:?}",
+                i,
+                ArtemisError::from_i32(result)
+            );
+            continue;
+        }
+
+        let serial = {
+            // SAFETY: Atik documents serialNumber as a char array of length 100 populated by
+            // ArtemisEFWGetDeviceDetails on success.
+            let s = unsafe { CStr::from_ptr(serial_buf.as_ptr()) }
+                .to_string_lossy()
+                .to_string();
+            if s.is_empty() {
+                None
+            } else {
+                Some(s)
+            }
+        };
+
+        devices.push(AtikFilterWheelDiscoveryInfo {
+            device_index: i,
+            name: atik_efw_type_name(efw_type),
+            serial_number: serial,
+            sdk_version: sdk_version.clone(),
+            efw_type,
         });
     }
 
@@ -487,15 +657,24 @@ pub fn is_sdk_available() -> bool {
 /// Get SDK status for diagnostics
 pub fn get_sdk_status() -> (bool, String) {
     match get_sdk() {
-        Ok(sdk) => {
-            // SAFETY: ArtemisAPIVersion takes no arguments and returns a c_int; it is safe to
-            // call without a device handle or the SDK mutex (the call is read-only and the SDK
-            // documents it as version-query, not state-modifying).
-            let version = unsafe { (sdk.api_version)() };
-            (true, format!("Atik SDK v{}", version))
-        }
+        Ok(sdk) => (
+            true,
+            sdk_version_from_sdk(sdk).unwrap_or_else(|| "Atik SDK vunknown".to_string()),
+        ),
         Err(e) => (false, format!("SDK not available: {}", e)),
     }
+}
+
+fn sdk_version_from_sdk(sdk: &AtikSdk) -> Option<String> {
+    // SAFETY: ArtemisAPIVersion takes no arguments and returns a c_int; it is safe to
+    // call without a device handle or the SDK mutex (the call is read-only and the SDK
+    // documents it as version-query, not state-modifying).
+    let version = unsafe { (sdk.api_version)() };
+    (version > 0).then_some(format!("Atik SDK v{version}"))
+}
+
+pub fn sdk_version() -> Option<String> {
+    get_sdk().ok().and_then(sdk_version_from_sdk)
 }
 
 // =============================================================================
@@ -1145,6 +1324,18 @@ impl NativeCamera for AtikCamera {
             return Err(NativeError::NotSupported);
         }
 
+        if enabled {
+            let quirk_lookup_id = format!("native:atik:{}", self.name);
+            if let Some((min_temp, max_temp)) = crate::quirks::get_cooler_range(&quirk_lookup_id) {
+                if target_temp < min_temp || target_temp > max_temp {
+                    return Err(NativeError::InvalidParameter(format!(
+                        "Atik cooler target {target_temp}C is outside the supported range {min_temp}C..={max_temp}C for {}",
+                        self.name
+                    )));
+                }
+            }
+        }
+
         let sdk = get_sdk()?;
 
         // Acquire global SDK mutex for thread safety
@@ -1462,5 +1653,228 @@ impl NativeCamera for AtikCamera {
         // Atik cameras have limited offset/bias control.
         // Return reasonable defaults.
         Ok((0, 255))
+    }
+}
+
+/// Atik standalone EFW filter wheel native driver.
+pub struct AtikFilterWheel {
+    device_index: c_int,
+    device_id: String,
+    name: String,
+    handle: Mutex<HandleWrapper>,
+    connected: bool,
+    filter_count: i32,
+}
+
+impl std::fmt::Debug for AtikFilterWheel {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("AtikFilterWheel")
+            .field("device_index", &self.device_index)
+            .field("name", &self.name)
+            .field("connected", &self.connected)
+            .field("filter_count", &self.filter_count)
+            .finish()
+    }
+}
+
+impl AtikFilterWheel {
+    /// Create a new Atik EFW filter wheel instance from a discovery index.
+    pub fn new(device_index: i32) -> Self {
+        Self {
+            device_index,
+            device_id: format!("atik_efw_{}", device_index),
+            name: format!("Atik EFW {}", device_index),
+            handle: Mutex::new(HandleWrapper(std::ptr::null_mut())),
+            connected: false,
+            filter_count: 0,
+        }
+    }
+}
+
+#[async_trait]
+impl NativeDevice for AtikFilterWheel {
+    fn id(&self) -> &str {
+        &self.device_id
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn vendor(&self) -> NativeVendor {
+        NativeVendor::Atik
+    }
+
+    fn is_connected(&self) -> bool {
+        self.connected
+    }
+
+    async fn connect(&mut self) -> Result<(), NativeError> {
+        if self.connected {
+            return Ok(());
+        }
+
+        let sdk = get_sdk()?;
+        require_efw_api(sdk)?;
+        let efw_connect = sdk.efw_connect.unwrap();
+        let efw_is_connected = sdk.efw_is_connected.unwrap();
+        let efw_nmr_position = sdk.efw_nmr_position.unwrap();
+        let efw_get_device_details = sdk.efw_get_device_details.unwrap();
+
+        let _lock = atik_mutex().lock().await;
+
+        // SAFETY: atik_mutex held; device_index comes from Atik EFW discovery or caller input;
+        // NULL is checked below.
+        let handle = unsafe { efw_connect(self.device_index) };
+        if handle.is_null() {
+            return Err(NativeError::SdkError(format!(
+                "Failed to connect to Atik EFW at index {}",
+                self.device_index
+            )));
+        }
+
+        // SAFETY: handle was just returned by ArtemisEFWConnect and checked non-null.
+        if !unsafe { efw_is_connected(handle) } {
+            return Err(NativeError::SdkError(format!(
+                "Atik EFW index {} did not report connected after connect",
+                self.device_index
+            )));
+        }
+
+        let mut efw_type: c_int = 0;
+        let mut serial_buf = [0i8; 100];
+        // SAFETY: atik_mutex held; out-pointers are valid. Failure is non-fatal for connect:
+        // the wheel handle is already valid, and type/name are display metadata.
+        if unsafe {
+            efw_get_device_details(self.device_index, &mut efw_type, serial_buf.as_mut_ptr())
+        } == ArtemisError::Ok as c_int
+        {
+            self.name = atik_efw_type_name(efw_type);
+        }
+
+        let mut filter_count: c_int = 0;
+        // SAFETY: atik_mutex held; handle is connected and `filter_count` is a valid out-pointer.
+        check_artemis_error(
+            unsafe { efw_nmr_position(handle, &mut filter_count) },
+            "get EFW filter count",
+        )?;
+        if filter_count <= 0 {
+            return Err(NativeError::SdkError(format!(
+                "Atik EFW index {} reported invalid filter count {}",
+                self.device_index, filter_count
+            )));
+        }
+
+        {
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+            *h = HandleWrapper(handle);
+        }
+        self.filter_count = filter_count;
+        self.connected = true;
+        Ok(())
+    }
+
+    async fn disconnect(&mut self) -> Result<(), NativeError> {
+        if !self.connected {
+            return Ok(());
+        }
+
+        let sdk = get_sdk()?;
+        require_efw_api(sdk)?;
+        let efw_disconnect = sdk.efw_disconnect.unwrap();
+
+        let _lock = atik_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+        // SAFETY: atik_mutex held; handle is valid because self.connected is true.
+        check_artemis_error(unsafe { efw_disconnect(handle) }, "disconnect EFW")?;
+
+        {
+            let mut h = self.handle.lock().unwrap_or_else(|e| e.into_inner());
+            *h = HandleWrapper(std::ptr::null_mut());
+        }
+        self.connected = false;
+        Ok(())
+    }
+}
+
+#[async_trait]
+impl NativeFilterWheel for AtikFilterWheel {
+    async fn move_to_position(&mut self, position: i32) -> Result<(), NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+        if position < 0 || position >= self.filter_count {
+            return Err(NativeError::InvalidParameter(format!(
+                "Atik EFW position {} outside valid range 0-{}",
+                position,
+                self.filter_count - 1
+            )));
+        }
+
+        let sdk = get_sdk()?;
+        require_efw_api(sdk)?;
+        let efw_set_position = sdk.efw_set_position.unwrap();
+        let _lock = atik_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+        // SAFETY: atik_mutex held; handle is connected and position was bounds-checked.
+        check_artemis_error(
+            unsafe { efw_set_position(handle, position as c_int) },
+            "set EFW position",
+        )
+    }
+
+    async fn get_position(&self) -> Result<i32, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = get_sdk()?;
+        require_efw_api(sdk)?;
+        let efw_get_position = sdk.efw_get_position.unwrap();
+        let _lock = atik_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+        let mut position: c_int = -1;
+        let mut is_moving = false;
+        // SAFETY: atik_mutex held; handle is connected and both out-pointers are valid.
+        check_artemis_error(
+            unsafe { efw_get_position(handle, &mut position, &mut is_moving) },
+            "get EFW position",
+        )?;
+        Ok(position)
+    }
+
+    async fn is_moving(&self) -> Result<bool, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = get_sdk()?;
+        require_efw_api(sdk)?;
+        let efw_get_position = sdk.efw_get_position.unwrap();
+        let _lock = atik_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+        let mut position: c_int = -1;
+        let mut is_moving = false;
+        // SAFETY: atik_mutex held; handle is connected and both out-pointers are valid.
+        check_artemis_error(
+            unsafe { efw_get_position(handle, &mut position, &mut is_moving) },
+            "get EFW moving state",
+        )?;
+        Ok(is_moving)
+    }
+
+    fn get_filter_count(&self) -> i32 {
+        self.filter_count
+    }
+
+    async fn get_filter_names(&self) -> Result<Vec<String>, NativeError> {
+        Ok((0..self.filter_count)
+            .map(|i| format!("Filter {}", i + 1))
+            .collect())
+    }
+
+    async fn set_filter_name(&mut self, _position: i32, _name: String) -> Result<(), NativeError> {
+        // Atik EFW firmware does not persist filter names; callers maintain labels.
+        Ok(())
     }
 }

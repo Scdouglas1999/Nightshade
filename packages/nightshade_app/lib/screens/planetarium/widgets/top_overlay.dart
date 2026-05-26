@@ -7,6 +7,7 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:intl/intl.dart';
 import '../../../utils/coordinate_format_utils.dart';
+import '../../sequencer/widgets/run_dashboard/recovery_banner.dart';
 
 class TopOverlay extends ConsumerWidget {
   final NightshadeColors colors;
@@ -34,76 +35,116 @@ class TopOverlay extends ConsumerWidget {
               location.latitude, location.longitude);
     }
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.8),
-            Colors.transparent,
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // Wave 4 Recovery Mode — surface the live recovery banner at the
+        // top of the planetarium screen so a user watching the sky chart
+        // still sees recovery state. Empty SizedBox when not recovering.
+        const RunDashboardRecoveryBanner(),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final isCompact = constraints.maxWidth < 900;
+            final isVeryCompact = constraints.maxWidth < 720;
+            final horizontalPadding =
+                isVeryCompact ? 12.0 : (isCompact ? 16.0 : 20.0);
+            final chipSpacing = isVeryCompact ? 6.0 : (isCompact ? 8.0 : 12.0);
+            final toggleSpacing = isVeryCompact ? 2.0 : 4.0;
+            final timeFormat =
+                isCompact ? DateFormat('HH:mm') : DateFormat('HH:mm:ss');
+
+            return Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: isCompact ? 8 : 12,
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          if (!isVeryCompact) ...[
+                            OverlayChip(
+                              icon: LucideIcons.mapPin,
+                              label: locationLabel,
+                              colors: colors,
+                              compact: isCompact,
+                            ),
+                            SizedBox(width: chipSpacing),
+                          ],
+                          OverlayChip(
+                            icon: LucideIcons.clock,
+                            label: timeFormat.format(time.time),
+                            colors: colors,
+                            compact: isCompact,
+                          ),
+                          SizedBox(width: chipSpacing),
+                          OverlayChip(
+                            icon: LucideIcons.star,
+                            label: 'LST ${_formatHours(lst)}',
+                            colors: colors,
+                            compact: isCompact,
+                          ),
+                          SizedBox(width: chipSpacing),
+                          SequencerStatusLed(showLabel: !isCompact),
+                          if (!time.isRealTime) ...[
+                            SizedBox(width: chipSpacing),
+                            TimeControlButton(
+                              icon: LucideIcons.play,
+                              onTap: () => ref
+                                  .read(observationTimeProvider.notifier)
+                                  .setRealTime(true),
+                              colors: colors,
+                              compact: isCompact,
+                            ),
+                          ],
+                        ],
+                      ),
+                    ),
+                  ),
+                  SizedBox(width: chipSpacing),
+                  OverlayToggle(
+                    icon: LucideIcons.grid,
+                    tooltip: 'Coordinate grid',
+                    isActive: renderConfig.showCoordinateGrid,
+                    onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
+                  ),
+                  SizedBox(width: toggleSpacing),
+                  OverlayToggle(
+                    icon: LucideIcons.activity,
+                    tooltip: 'Constellation lines',
+                    isActive: renderConfig.showConstellationLines,
+                    onTap: ref
+                        .read(skyRenderConfigProvider.notifier)
+                        .toggleConstellationLines,
+                  ),
+                  SizedBox(width: toggleSpacing),
+                  if (!isVeryCompact) ...[
+                    OverlayToggle(
+                      icon: LucideIcons.tag,
+                      tooltip: 'Constellation labels',
+                      isActive: renderConfig.showConstellationLabels,
+                      onTap: ref
+                          .read(skyRenderConfigProvider.notifier)
+                          .toggleConstellationLabels,
+                    ),
+                    SizedBox(width: toggleSpacing),
+                  ],
+                  OverlayToggle(
+                    icon: LucideIcons.circle,
+                    tooltip: 'Horizon',
+                    isActive: renderConfig.showHorizon,
+                    onTap:
+                        ref.read(skyRenderConfigProvider.notifier).toggleHorizon,
+                  ),
+                ],
+              ),
+            );
+          },
         ),
-      ),
-      child: Row(
-        children: [
-          OverlayChip(
-            icon: LucideIcons.mapPin,
-            label: locationLabel,
-            colors: colors,
-          ),
-          const SizedBox(width: 12),
-          OverlayChip(
-            icon: LucideIcons.clock,
-            label: DateFormat('HH:mm:ss').format(time.time),
-            colors: colors,
-          ),
-          const SizedBox(width: 12),
-          OverlayChip(
-            icon: LucideIcons.star,
-            label: 'LST ${_formatHours(lst)}',
-            colors: colors,
-          ),
-          if (!time.isRealTime) ...[
-            const SizedBox(width: 12),
-            TimeControlButton(
-              icon: LucideIcons.play,
-              onTap: () =>
-                  ref.read(observationTimeProvider.notifier).setRealTime(true),
-              colors: colors,
-            ),
-          ],
-          const Spacer(),
-          OverlayToggle(
-            icon: LucideIcons.grid,
-            isActive: renderConfig.showCoordinateGrid,
-            onTap: ref.read(skyRenderConfigProvider.notifier).toggleGrid,
-          ),
-          const SizedBox(width: 4),
-          OverlayToggle(
-            icon: LucideIcons.activity,
-            isActive: renderConfig.showConstellationLines,
-            onTap: ref
-                .read(skyRenderConfigProvider.notifier)
-                .toggleConstellationLines,
-          ),
-          const SizedBox(width: 4),
-          OverlayToggle(
-            icon: LucideIcons.tag,
-            isActive: renderConfig.showConstellationLabels,
-            onTap: ref
-                .read(skyRenderConfigProvider.notifier)
-                .toggleConstellationLabels,
-          ),
-          const SizedBox(width: 4),
-          OverlayToggle(
-            icon: LucideIcons.circle,
-            isActive: renderConfig.showHorizon,
-            onTap: ref.read(skyRenderConfigProvider.notifier).toggleHorizon,
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -118,34 +159,41 @@ class OverlayChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final NightshadeColors colors;
+  final bool compact;
 
   const OverlayChip({
     super.key,
     required this.icon,
     required this.label,
     required this.colors,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: compact ? 8 : 12,
+        vertical: compact ? 4 : 6,
+      ),
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.5),
+        color: colors.surfaceOverlay.withValues(alpha: 0.85),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        border: Border.all(color: colors.border.withValues(alpha: 0.6)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 12, color: Colors.white70),
-          const SizedBox(width: 6),
+          Icon(icon, size: compact ? 11 : 12, color: colors.textSecondary),
+          SizedBox(width: compact ? 4 : 6),
           Text(
             label,
-            style: const TextStyle(
-              fontSize: 11,
-              color: Colors.white70,
-              fontFeatures: [ui.FontFeature.tabularFigures()],
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: compact ? 10 : 11,
+              color: colors.textSecondary,
+              fontFeatures: const [ui.FontFeature.tabularFigures()],
             ),
           ),
         ],
@@ -156,12 +204,14 @@ class OverlayChip extends StatelessWidget {
 
 class OverlayToggle extends StatefulWidget {
   final IconData icon;
+  final String tooltip;
   final bool isActive;
   final VoidCallback onTap;
 
   const OverlayToggle({
     super.key,
     required this.icon,
+    required this.tooltip,
     required this.isActive,
     required this.onTap,
   });
@@ -175,27 +225,39 @@ class _OverlayToggleState extends State<OverlayToggle> {
 
   @override
   Widget build(BuildContext context) {
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            color: widget.isActive
-                ? Colors.white.withValues(alpha: 0.2)
-                : _isHovered
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Icon(
-            widget.icon,
-            size: 16,
-            color: widget.isActive ? Colors.white : Colors.white70,
+    final colors = NightshadeColors.of(context);
+    final touchSize = AdaptiveSizing.of(context).minTouchTarget;
+    final iconSize = touchSize <= 36 ? 14.0 : 16.0;
+
+    return NightshadeTooltip(
+      message: widget.tooltip,
+      position: NightshadeTooltipPosition.bottom,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _isHovered = true),
+        onExit: (_) => setState(() => _isHovered = false),
+        child: GestureDetector(
+          onTap: widget.onTap,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 150),
+            width: touchSize,
+            height: touchSize,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: widget.isActive
+                  ? colors.primary.withValues(alpha: 0.2)
+                  : _isHovered
+                      ? colors.surfaceOverlay.withValues(alpha: 0.5)
+                      : Colors.transparent,
+              borderRadius: BorderRadius.circular(6),
+              border: widget.isActive
+                  ? Border.all(color: colors.primary.withValues(alpha: 0.4))
+                  : null,
+            ),
+            child: Icon(
+              widget.icon,
+              size: iconSize,
+              color: widget.isActive ? colors.primary : colors.textSecondary,
+            ),
           ),
         ),
       ),
@@ -207,12 +269,14 @@ class TimeControlButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final NightshadeColors colors;
+  final bool compact;
 
   const TimeControlButton({
     super.key,
     required this.icon,
     required this.onTap,
     required this.colors,
+    this.compact = false,
   });
 
   @override
@@ -220,12 +284,12 @@ class TimeControlButton extends StatelessWidget {
     return GestureDetector(
       onTap: onTap,
       child: Container(
-        padding: const EdgeInsets.all(6),
+        padding: EdgeInsets.all(compact ? 4 : 6),
         decoration: BoxDecoration(
           color: colors.primary.withValues(alpha: 0.3),
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Icon(icon, size: 14, color: colors.primary),
+        child: Icon(icon, size: compact ? 12 : 14, color: colors.primary),
       ),
     );
   }

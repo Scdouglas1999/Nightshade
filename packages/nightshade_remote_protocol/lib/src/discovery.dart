@@ -15,6 +15,13 @@ class DiscoveredServer {
   final String authenticationMode;
   final bool pairingSupported;
   final String? authToken;
+  final String? fingerprint;
+  /// Transport scheme. Either `http` (plain) or `https` (TLS). Defaults to
+  /// `http` because UDP-broadcast discovery cannot tell the difference — the
+  /// mDNS browse path populates this from the server's `scheme` TXT record so
+  /// QR-less Tailscale / WiFi connections still land on the right protocol
+  /// when the operator has TLS enabled.
+  final String scheme;
 
   DiscoveredServer({
     required this.host,
@@ -27,10 +34,17 @@ class DiscoveredServer {
     this.authenticationMode = 'none',
     this.pairingSupported = false,
     this.authToken,
+    this.fingerprint,
+    this.scheme = 'http',
   });
 
-  String get webUrl => 'http://$host:$webPort';
-  String get signalingUrl => 'http://$host:$signalingPort';
+  /// `true` when the server advertised TLS via mDNS. UDP-broadcast discovery
+  /// always reports false — the cascade falls back to enriching via
+  /// `GET /api/info` which carries the canonical answer.
+  bool get isTls => scheme == 'https';
+
+  String get webUrl => '$scheme://$host:$webPort';
+  String get signalingUrl => '$scheme://$host:$signalingPort';
 
   DiscoveredServer copyWith({
     String? host,
@@ -43,6 +57,8 @@ class DiscoveredServer {
     String? authenticationMode,
     bool? pairingSupported,
     String? authToken,
+    String? fingerprint,
+    String? scheme,
   }) {
     return DiscoveredServer(
       host: host ?? this.host,
@@ -55,6 +71,8 @@ class DiscoveredServer {
       authenticationMode: authenticationMode ?? this.authenticationMode,
       pairingSupported: pairingSupported ?? this.pairingSupported,
       authToken: authToken ?? this.authToken,
+      fingerprint: fingerprint ?? this.fingerprint,
+      scheme: scheme ?? this.scheme,
     );
   }
 

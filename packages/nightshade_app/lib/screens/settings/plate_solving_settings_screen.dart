@@ -72,9 +72,8 @@ class _PlateSolvingSettingsScreenState
       if (ok) {
         context.showSuccessSnackBar('Plate-solver settings saved.');
       } else {
-        context
-            .showErrorSnackBar('Another save is already in flight. Wait, '
-                'then try again.');
+        context.showErrorSnackBar('Another save is already in flight. Wait, '
+            'then try again.');
       }
     } catch (e) {
       if (!mounted) return;
@@ -106,7 +105,7 @@ class _PlateSolvingSettingsScreenState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final detectionAsync = ref.watch(plateSolverDetectionProvider);
     final prefAsync = ref.watch(plateSolverPreferenceProvider);
     final uiState = ref.watch(plateSolverSettingsNotifierProvider);
@@ -161,7 +160,6 @@ class _PlateSolvingSettingsScreenState
             ),
           ),
           data: (pref) => _buildBody(
-            colors: colors,
             detection: detection,
             preference: pref,
             uiState: uiState,
@@ -172,7 +170,6 @@ class _PlateSolvingSettingsScreenState
   }
 
   Widget _buildBody({
-    required NightshadeColors colors,
     required PlateSolverDetection detection,
     required PlateSolverPreference preference,
     required PlateSolverSettingsState uiState,
@@ -182,7 +179,6 @@ class _PlateSolvingSettingsScreenState
       description:
           'Configure ASTAP / Astrometry.net for centering, framing, and '
           'polar alignment.',
-      colors: colors,
       children: [
         SolverDetectionCard(
           detection: detection,
@@ -192,14 +188,12 @@ class _PlateSolvingSettingsScreenState
         if (!detection.hasAnySolver) ...[
           const SizedBox(height: 16),
           _NoSolverQuickStart(
-            colors: colors,
             onRescan: uiState.savingPreference ? null : _rescan,
             isRescanning: uiState.savingPreference,
           ),
         ] else if (detection.astapPath != null && !detection.astapReady) ...[
           const SizedBox(height: 12),
           _CatalogMissingHint(
-            colors: colors,
             preference: preference,
             onBrowseCatalog: () => _browseAstapCatalogDirectory(preference),
           ),
@@ -218,7 +212,6 @@ class _PlateSolvingSettingsScreenState
         const SizedBox(height: 16),
         SettingsSection(
           title: 'ASTAP',
-          colors: colors,
           children: [
             SettingRow(
               icon: LucideIcons.fileCode,
@@ -229,9 +222,7 @@ class _PlateSolvingSettingsScreenState
               trailing: SettingsPathInput(
                 path: preference.astapPath,
                 onBrowse: () => _browseAstapExecutable(preference),
-                colors: colors,
               ),
-              colors: colors,
             ),
             SettingRow(
               icon: LucideIcons.folder,
@@ -242,9 +233,7 @@ class _PlateSolvingSettingsScreenState
               trailing: SettingsPathInput(
                 path: preference.catalogPath,
                 onBrowse: () => _browseAstapCatalogDirectory(preference),
-                colors: colors,
               ),
-              colors: colors,
             ),
             SettingRow(
               icon: LucideIcons.shieldCheck,
@@ -264,28 +253,23 @@ class _PlateSolvingSettingsScreenState
                         _resolveAstapTarget(detection, preference)!),
               ),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
         const SizedBox(height: 16),
         SettingsSection(
           title: 'Astrometry.net',
-          colors: colors,
           children: [
             SettingRow(
               icon: LucideIcons.fileCode,
               title: 'solve-field executable',
               subtitle: preference.astrometryPath.isEmpty
-                  ? (detection.astrometryPath ??
-                      'Auto-detect — not found')
+                  ? (detection.astrometryPath ?? 'Auto-detect — not found')
                   : preference.astrometryPath,
               trailing: SettingsPathInput(
                 path: preference.astrometryPath,
                 onBrowse: () => _browseAstrometryExecutable(preference),
-                colors: colors,
               ),
-              colors: colors,
             ),
             SettingRow(
               icon: LucideIcons.shieldCheck,
@@ -306,14 +290,12 @@ class _PlateSolvingSettingsScreenState
                             _resolveAstrometryTarget(detection, preference)!),
               ),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
         const SizedBox(height: 16),
         SettingsSection(
           title: 'Active solver',
-          colors: colors,
           children: [
             _ChoiceRow(
               label: 'ASTAP',
@@ -322,7 +304,6 @@ class _PlateSolvingSettingsScreenState
               icon: LucideIcons.zap,
               value: PlateSolverChoice.astap,
               groupValue: preference.choice,
-              colors: colors,
               onChanged: (next) async {
                 if (next == null) return;
                 await _savePreference(preference.copyWith(choice: next));
@@ -330,12 +311,10 @@ class _PlateSolvingSettingsScreenState
             ),
             _ChoiceRow(
               label: 'Astrometry.net',
-              subtitle:
-                  'Local solve-field. Slower but useful on Linux/macOS.',
+              subtitle: 'Local solve-field. Slower but useful on Linux/macOS.',
               icon: LucideIcons.globe,
               value: PlateSolverChoice.astrometry,
               groupValue: preference.choice,
-              colors: colors,
               onChanged: (next) async {
                 if (next == null) return;
                 await _savePreference(preference.copyWith(choice: next));
@@ -343,13 +322,11 @@ class _PlateSolvingSettingsScreenState
             ),
             _ChoiceRow(
               label: 'Auto-fallback',
-              subtitle:
-                  'Try ASTAP first; fall back to Astrometry.net if ASTAP '
+              subtitle: 'Try ASTAP first; fall back to Astrometry.net if ASTAP '
                   'fails or is missing.',
               icon: LucideIcons.shuffle,
               value: PlateSolverChoice.auto,
               groupValue: preference.choice,
-              colors: colors,
               onChanged: (next) async {
                 if (next == null) return;
                 await _savePreference(preference.copyWith(choice: next));
@@ -425,13 +402,10 @@ class _PlateSolvingSettingsScreenState
 /// to "download a catalog" to "re-scan".
 class _NoSolverQuickStart extends StatelessWidget {
   static const String _astapDownloadUrl = 'https://www.hnsky.org/astap.htm';
-
-  final NightshadeColors colors;
   final VoidCallback? onRescan;
   final bool isRescanning;
 
   const _NoSolverQuickStart({
-    required this.colors,
     required this.onRescan,
     required this.isRescanning,
   });
@@ -445,6 +419,7 @@ class _NoSolverQuickStart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
@@ -472,7 +447,6 @@ class _NoSolverQuickStart extends StatelessWidget {
           ),
           const SizedBox(height: 14),
           _QuickStartStep(
-            colors: colors,
             stepNumber: 1,
             title: 'Install ASTAP',
             body: 'ASTAP is fast, free, and works fully offline. Click '
@@ -489,7 +463,6 @@ class _NoSolverQuickStart extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _QuickStartStep(
-            colors: colors,
             stepNumber: 2,
             title: 'Download a star catalog',
             body: 'Grab a catalog from the same page. V17 is recommended '
@@ -509,7 +482,6 @@ class _NoSolverQuickStart extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           _QuickStartStep(
-            colors: colors,
             stepNumber: 3,
             title: 'Click Re-scan',
             body: 'Once ASTAP and the catalog are installed, click Re-scan '
@@ -530,7 +502,6 @@ class _NoSolverQuickStart extends StatelessWidget {
 }
 
 class _QuickStartStep extends StatelessWidget {
-  final NightshadeColors colors;
   final int stepNumber;
   final String title;
   final String body;
@@ -543,7 +514,6 @@ class _QuickStartStep extends StatelessWidget {
   final VoidCallback? onTap;
 
   const _QuickStartStep({
-    required this.colors,
     required this.stepNumber,
     required this.title,
     required this.body,
@@ -554,6 +524,7 @@ class _QuickStartStep extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final card = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
@@ -568,12 +539,9 @@ class _QuickStartStep extends StatelessWidget {
             width: 28,
             height: 28,
             alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(
-                color: colors.primary.withValues(alpha: 0.45),
-              ),
+            decoration: NightshadeDecorations.iconChip(
+              colors.primary,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
             ),
             child: Text(
               '$stepNumber',
@@ -637,27 +605,25 @@ class _QuickStartStep extends StatelessWidget {
 /// Nightshade is surfaced verbatim alongside a one-click browse button
 /// so the user can point the app at the catalog they already have.
 class _CatalogMissingHint extends StatelessWidget {
-  final NightshadeColors colors;
   final PlateSolverPreference preference;
   final VoidCallback onBrowseCatalog;
 
   const _CatalogMissingHint({
-    required this.colors,
     required this.preference,
     required this.onBrowseCatalog,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final probed = preference.catalogPath.isNotEmpty
         ? preference.catalogPath
         : 'the directory containing astap.exe';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.warning,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -695,7 +661,6 @@ class _ChoiceRow extends StatelessWidget {
   final IconData icon;
   final PlateSolverChoice value;
   final PlateSolverChoice groupValue;
-  final NightshadeColors colors;
   final ValueChanged<PlateSolverChoice?> onChanged;
   final bool isLast;
 
@@ -705,13 +670,13 @@ class _ChoiceRow extends StatelessWidget {
     required this.icon,
     required this.value,
     required this.groupValue,
-    required this.colors,
     required this.onChanged,
     this.isLast = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return SettingRow(
       icon: icon,
       title: label,
@@ -723,7 +688,6 @@ class _ChoiceRow extends StatelessWidget {
         activeColor: colors.accent,
       ),
       isLast: isLast,
-      colors: colors,
     );
   }
 }

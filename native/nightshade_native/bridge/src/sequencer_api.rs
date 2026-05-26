@@ -83,6 +83,11 @@ pub async fn sequencer_get_status() -> Result<SequencerStatus, NightshadeError> 
         ExecutorState::Cancelled => "Cancelled",
         ExecutorState::Completed => "Completed",
         ExecutorState::Failed => "Failed",
+        // Wave 4 Recovery Mode — first-class state for the visible
+        // recovery loop. Mirrors `ExecutorState::Recovering` on the Rust
+        // side; the Dart `SequenceExecutionState` enum gains a
+        // `recovering` member.
+        ExecutorState::Recovering => "Recovering",
     }
     .to_string();
 
@@ -175,6 +180,28 @@ pub async fn sequencer_set_safety_fail_mode(mode: String) -> Result<(), Nightsha
     let mut exec = executor.write().await;
     exec.set_safety_fail_mode(fail_mode);
     tracing::info!("Sequencer safety fail mode set to: {:?}", fail_mode);
+
+    Ok(())
+}
+
+/// Set the safety/humidity polling interval for the sequencer.
+pub async fn sequencer_set_safety_check_interval_seconds(
+    seconds: u32,
+) -> Result<(), NightshadeError> {
+    if !(5..=3600).contains(&seconds) {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "Invalid safety check interval: {}. Must be between 5 and 3600 seconds.",
+            seconds
+        )));
+    }
+
+    let executor = get_executor();
+    let mut exec = executor.write().await;
+    exec.set_safety_check_interval_secs(u64::from(seconds));
+    tracing::info!(
+        "Sequencer safety check interval set to: {} seconds",
+        seconds
+    );
 
     Ok(())
 }
@@ -426,3 +453,12 @@ pub async fn sequencer_reset_hfr_baseline() -> Result<(), NightshadeError> {
 
     Ok(())
 }
+
+// ============================================================================
+// Wave 4 Recovery Mode API
+// ============================================================================
+//
+// The FRB-facing recovery functions live in `crate::api::sequencer` so they
+// land in the FRB scan root (`crate::api`). See
+// `api_sequencer_recovery_try_now` and friends. This module retains no
+// recovery shims to avoid two divergent surfaces.

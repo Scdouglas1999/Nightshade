@@ -77,7 +77,7 @@ class _GuideStarViewState extends State<GuideStarView> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -93,12 +93,6 @@ class _GuideStarViewState extends State<GuideStarView> {
                 width: 2,
               ),
               borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: _getSnrColor(colors).withValues(alpha: 0.1),
-                  blurRadius: 8,
-                ),
-              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),

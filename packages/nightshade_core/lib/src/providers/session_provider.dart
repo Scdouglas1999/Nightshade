@@ -5,6 +5,7 @@ import 'package:equatable/equatable.dart';
 
 import 'clock_provider.dart';
 import 'database_provider.dart';
+import '../services/imaging_records_repository.dart';
 import '../services/session_service.dart';
 import '../services/logging_service.dart';
 import '../database/daos/sequence_checkpoints_dao.dart';
@@ -383,7 +384,7 @@ final sessionServiceProvider = Provider<SessionService>((ref) {
   // (audit-handoff §2.1 WIRE-UP #9).
   final clock = ref.watch(clockProvider);
   final service = SessionService(
-    sessionsDao: ref.watch(sessionsDaoProvider),
+    records: ref.watch(imagingRecordsRepositoryProvider),
     checkpointsDao: ref.watch(sequenceCheckpointsDaoProvider),
     logger: ref.watch(loggingServiceProvider),
     nowProvider: clock.now,

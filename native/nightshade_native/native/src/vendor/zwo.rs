@@ -279,6 +279,8 @@ load_vendor_sdk! {
         // ASIGetCameraProperty(ASI_CAMERA_INFO *pASICameraInfo, int iCameraIndex)
         get_camera_property: b"ASIGetCameraProperty\0"
             => unsafe extern "C" fn(*mut ASICameraInfo, c_int) -> c_int,
+        get_sdk_version: b"ASIGetSDKVersion\0"
+            => unsafe extern "C" fn() -> *const c_char,
         open_camera: b"ASIOpenCamera\0"
             => unsafe extern "C" fn(c_int) -> c_int,
         init_camera: b"ASIInitCamera\0"
@@ -384,6 +386,7 @@ pub struct ZwoCamera {
     current_subframe: Option<SubFrame>,
     // Locally-tracked cooler command (last set_cooler) — see CoolerState docs.
     cooler_state: Mutex<CoolerState>,
+    temperature_skip_first_pending: Mutex<bool>,
 }
 
 impl ZwoCamera {
@@ -403,6 +406,7 @@ impl ZwoCamera {
             exposure_time: 0.0,
             current_subframe: None,
             cooler_state: Mutex::new(CoolerState::default()),
+            temperature_skip_first_pending: Mutex::new(false),
         }
     }
 
@@ -431,6 +435,29 @@ impl ZwoCamera {
         } else {
             format!("ZWO Camera {}", self.camera_id)
         }
+    }
+
+    fn take_temperature_skip_first_pending(&self) -> bool {
+        let mut pending = self
+            .temperature_skip_first_pending
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let should_skip = *pending;
+        *pending = false;
+        should_skip
+    }
+
+    fn read_temperature_celsius_sync(&self) -> Result<f64, NativeError> {
+        if self.take_temperature_skip_first_pending() {
+            tracing::debug!(
+                "Discarding first ZWO temperature read after connect for {}",
+                self.camera_name()
+            );
+            let _ = self.get_control(ASIControlType::ASI_TEMPERATURE)?;
+        }
+
+        let value = self.get_control(ASIControlType::ASI_TEMPERATURE)?;
+        Ok(value as f64 / 10.0)
     }
 
     /// Get a control value (mutex protected)
@@ -506,6 +533,20 @@ impl ZwoCamera {
         &self,
         target_control: ASIControlType,
     ) -> Result<(i32, i32), NativeError> {
+        let (min, max, _default) = self.get_control_caps_async(target_control).await?;
+        Ok((min, max))
+    }
+
+    /// Get the full caps tuple `(min, max, default)` for a control (mutex protected).
+    ///
+    /// ZWO publishes per-control `default_value` via `ASIGetControlCaps`. For the
+    /// `ASI_GAIN` control this is the manufacturer's recommended starting gain,
+    /// which the SDK header documents as "the manufacturer's recommended default"
+    /// and which matches the unity-gain table ZWO publishes for each camera.
+    async fn get_control_caps_async(
+        &self,
+        target_control: ASIControlType,
+    ) -> Result<(i32, i32, i32), NativeError> {
         let sdk = AsiSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_camera_mutex().lock().await;
 
@@ -525,7 +566,16 @@ impl ZwoCamera {
                 // Check if this is the control we're looking for
                 // The control_type field tells us which control this is
                 if caps.control_type as c_int == target_control as c_int {
-                    return Ok((caps.min_value, caps.max_value));
+                    // Why: caps fields are `c_long` (i32 on Windows, i64 on Linux);
+                    // ZWO controls never exceed i32 in practice (gain <= 600,
+                    // offset <= 255). The cast is a no-op on Windows (hence the
+                    // clippy allow) but necessary for portability.
+                    #[allow(clippy::unnecessary_cast)]
+                    return Ok((
+                        caps.min_value as i32,
+                        caps.max_value as i32,
+                        caps.default_value as i32,
+                    ));
                 }
             }
         }
@@ -618,6 +668,26 @@ impl ZwoCamera {
             }
         }
     }
+}
+
+fn validate_zwo_eaf_target(position: i32, max_position: i32) -> Result<i32, NativeError> {
+    if position < 0 || position > max_position {
+        return Err(NativeError::InvalidParameter(format!(
+            "ZWO EAF target position {} outside valid range 0-{}",
+            position, max_position
+        )));
+    }
+    Ok(position)
+}
+
+fn commit_zwo_cached_setting(
+    cache: &mut i32,
+    requested_value: i32,
+    sdk_result: Result<(), NativeError>,
+) -> Result<(), NativeError> {
+    sdk_result?;
+    *cache = requested_value;
+    Ok(())
 }
 
 #[async_trait]
@@ -741,10 +811,32 @@ impl NativeDevice for ZwoCamera {
         cleanup_guard.defuse();
 
         self.connected = true;
-        tracing::info!(
-            "Successfully connected to ZWO camera: {}",
-            self.camera_name()
-        );
+        let camera_name = self.camera_name();
+        tracing::info!("Successfully connected to ZWO camera: {}", camera_name);
+        let quirk_lookup_id = format!("native:zwo:{}", camera_name);
+        {
+            let mut pending = self
+                .temperature_skip_first_pending
+                .lock()
+                .unwrap_or_else(|e| e.into_inner());
+            *pending = crate::quirks::should_skip_first_temperature_read(&quirk_lookup_id);
+        }
+
+        // Drop the SDK mutex before any post-connect settle so other threads
+        // can resume.
+        drop(_lock);
+
+        // Apply per-model DelayAfterConnect quirk (e.g. ASI533: 200ms). The
+        // quirks database is queried with a synthetic device_id that embeds the
+        // SDK-reported model name so per-model `ModelContains` matchers fire.
+        if let Some(delay_ms) = crate::quirks::get_timing_delay(&quirk_lookup_id, "connect") {
+            tracing::debug!(
+                "Applying DelayAfterConnect quirk: sleeping {}ms after connecting to {}",
+                delay_ms,
+                camera_name
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
         Ok(())
     }
 
@@ -806,10 +898,7 @@ impl NativeCamera for ZwoCamera {
         };
 
         // Get temperature (ASI_TEMPERATURE returns 10*temperature) - use sync version since we hold mutex
-        let temp = self
-            .get_control(ASIControlType::ASI_TEMPERATURE)
-            .map(|v| v as f64 / 10.0)
-            .ok();
+        let temp = self.read_temperature_celsius_sync().ok();
 
         let supports_cooler = if let Some(info) = self.camera_info.as_ref() {
             info.is_cooler_cam != 0
@@ -1062,7 +1151,12 @@ impl NativeCamera for ZwoCamera {
             width: width_u32,
             height: height_u32,
             data,
-            bits_per_pixel: if bytes_per_pixel == 2 { 16 } else { 8 },
+            bits_per_pixel: self
+                .camera_info
+                .as_ref()
+                .and_then(|info| u32::try_from(info.bit_depth).ok())
+                .filter(|bits| (1..=32).contains(bits))
+                .unwrap_or(if bytes_per_pixel == 2 { 16 } else { 8 }),
             bayer_pattern: self
                 .camera_info
                 .as_ref()
@@ -1135,11 +1229,8 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn get_temperature(&self) -> Result<f64, NativeError> {
-        // ASI_TEMPERATURE returns 10*temperature - use async version with mutex
-        let value = self
-            .get_control_async(ASIControlType::ASI_TEMPERATURE)
-            .await?;
-        Ok(value as f64 / 10.0)
+        let _lock = zwo_camera_mutex().lock().await;
+        self.read_temperature_celsius_sync()
     }
 
     async fn get_cooler_power(&self) -> Result<f64, NativeError> {
@@ -1162,9 +1253,10 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
-        self.current_gain = gain;
-        self.set_control_async(ASIControlType::ASI_GAIN, gain as c_long, false)
-            .await
+        let sdk_result = self
+            .set_control_async(ASIControlType::ASI_GAIN, gain as c_long, false)
+            .await;
+        commit_zwo_cached_setting(&mut self.current_gain, gain, sdk_result)
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
@@ -1176,9 +1268,10 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
-        self.current_offset = offset;
-        self.set_control_async(ASIControlType::ASI_OFFSET, offset as c_long, false)
-            .await
+        let sdk_result = self
+            .set_control_async(ASIControlType::ASI_OFFSET, offset as c_long, false)
+            .await;
+        commit_zwo_cached_setting(&mut self.current_offset, offset, sdk_result)
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
@@ -1360,6 +1453,79 @@ impl NativeCamera for ZwoCamera {
         self.get_control_range_async(ASIControlType::ASI_OFFSET)
             .await
     }
+
+    /// Surface the SDK-advertised recommended settings.
+    ///
+    /// Sources:
+    /// - `ASIControlCaps.default_value` for `ASI_GAIN` and `ASI_OFFSET`. ZWO's
+    ///   SDK header documents this as "the value the SDK starts with" — for
+    ///   gain this matches the per-camera unity-gain value ZWO publishes in
+    ///   their official tables (e.g. ASI2600MM = 100, ASI533MC = 100,
+    ///   ASI294MC = 120). For offset it matches their recommended default.
+    /// - `ASICameraInfo.elec_per_adu` is reported at the camera's default gain;
+    ///   we include it in the notes string so the user can see how the
+    ///   recommendation was derived.
+    ///
+    /// ZWO does NOT expose the HCG transition point through the SDK — that's
+    /// documented per-camera in the manual. We honestly return `None` for
+    /// `hcg_gain` instead of fabricating a value.
+    async fn get_recommended_settings(
+        &self,
+    ) -> Result<crate::camera::CameraRecommendedSettings, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let mut out = crate::camera::CameraRecommendedSettings::default();
+        let mut notes: Vec<String> = Vec::new();
+
+        // Unity gain: ZWO's documented "default gain" on the GAIN control.
+        match self.get_control_caps_async(ASIControlType::ASI_GAIN).await {
+            Ok((_min, _max, default)) => {
+                out.unity_gain = Some(default);
+                // Append ElecPerADU when the camera reports it (non-zero).
+                if let Some(info) = &self.camera_info {
+                    if info.elec_per_adu > 0.0 {
+                        notes.push(format!(
+                            "ZWO SDK reports default gain = {} (ElecPerADU at default = {:.3})",
+                            default, info.elec_per_adu
+                        ));
+                    } else {
+                        notes.push(format!("ZWO SDK reports default gain = {}", default));
+                    }
+                } else {
+                    notes.push(format!("ZWO SDK reports default gain = {}", default));
+                }
+            }
+            Err(NativeError::NotSupported) => {
+                // Camera doesn't have a gain control (some very old ZWO cameras).
+                // This is an honest "no recommendation available".
+            }
+            Err(e) => {
+                tracing::warn!("ZWO: failed to query gain control caps: {:?}", e);
+            }
+        }
+
+        // Recommended offset: same source.
+        match self
+            .get_control_caps_async(ASIControlType::ASI_OFFSET)
+            .await
+        {
+            Ok((_min, _max, default)) => {
+                out.default_offset = Some(default);
+                notes.push(format!("ZWO SDK reports default offset = {}", default));
+            }
+            Err(NativeError::NotSupported) => {
+                // Camera doesn't expose offset control.
+            }
+            Err(e) => {
+                tracing::warn!("ZWO: failed to query offset control caps: {:?}", e);
+            }
+        }
+
+        out.notes = notes.join("; ");
+        Ok(out)
+    }
 }
 
 // =============================================================================
@@ -1373,6 +1539,8 @@ pub struct ZwoDiscoveryInfo {
     /// Discovery index (0-based) for disambiguation when multiple same-model cameras
     /// ZWO SDK doesn't expose serial numbers, so we use index instead
     pub discovery_index: usize,
+    /// ZWO ASI SDK version reported by the loaded native library
+    pub sdk_version: Option<String>,
 }
 
 /// Check if ZWO SDK is available
@@ -1383,9 +1551,20 @@ pub fn is_sdk_available() -> bool {
 /// Check if ZWO SDK is loaded and return status message
 pub fn get_sdk_status() -> (bool, String) {
     match AsiSdk::get() {
-        Some(_) => (true, "ZWO ASI SDK loaded successfully".to_string()),
+        Some(sdk) => (
+            true,
+            asi_sdk_version_from_sdk(sdk)
+                .map(|version| format!("{version} loaded successfully"))
+                .unwrap_or_else(|| "ZWO ASI SDK loaded successfully".to_string()),
+        ),
         None => (false, "ZWO ASI SDK (ASICamera2.dll) not found. Install the ASI SDK or use ASCOM drivers instead.".to_string()),
     }
+}
+
+fn asi_sdk_version_from_sdk(sdk: &AsiSdk) -> Option<String> {
+    // SAFETY: ASIGetSDKVersion takes no arguments and returns a static C string.
+    sdk_static_cstr(unsafe { (sdk.get_sdk_version)() })
+        .map(|version| format!("ZWO ASI SDK v{version}"))
 }
 
 /// Discover ZWO cameras
@@ -1401,6 +1580,7 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
 
     // Acquire mutex for SDK discovery operations
     let _lock = zwo_camera_mutex().lock().await;
+    let sdk_version = asi_sdk_version_from_sdk(sdk);
 
     tracing::debug!("Discovering ZWO cameras via native ASI SDK...");
     // SAFETY: zwo_camera_mutex held above; ASIGetNumOfConnectedCameras takes no arguments and only reads internal SDK state.
@@ -1433,6 +1613,7 @@ pub async fn discover_devices() -> Result<Vec<ZwoDiscoveryInfo>, NativeError> {
                 // bound; ZWO advertises a small camera count (<= ~10). `as usize` is
                 // widening with verified non-negative value.
                 discovery_index: i as usize,
+                sdk_version: sdk_version.clone(),
             });
         } else {
             failed_count += 1;
@@ -1774,11 +1955,11 @@ impl NativeFocuser for ZwoFocuser {
         let sdk = EafSdk::get().ok_or(NativeError::SdkNotLoaded)?;
         let _lock = zwo_eaf_mutex().lock().await;
 
-        // Clamp position to valid range
-        let target = position.clamp(0, self.max_position);
+        let target = validate_zwo_eaf_target(position, self.max_position)?;
 
         tracing::debug!("Moving ZWO EAF to position {}", target);
-        // SAFETY: zwo_eaf_mutex held above; `target` is clamped to [0, max_position] by the caller; focuser_id is valid (connected=true checked).
+        // SAFETY: zwo_eaf_mutex held above; `target` was validated to be in
+        // [0, max_position]; focuser_id is valid (connected=true checked).
         let result = unsafe { (sdk.move_to)(self.focuser_id, target) };
         check_eaf_error(result)
     }
@@ -1789,7 +1970,12 @@ impl NativeFocuser for ZwoFocuser {
         }
 
         let current = self.get_position().await?;
-        let target = (current + steps).clamp(0, self.max_position);
+        let target = current.checked_add(steps).ok_or_else(|| {
+            NativeError::InvalidParameter(format!(
+                "ZWO EAF relative move from {} by {} overflows i32",
+                current, steps
+            ))
+        })?;
         self.move_to(target).await
     }
 
@@ -1917,7 +2103,12 @@ impl ZwoFocuser {
     ) -> Result<(), NativeError> {
         // Calculate target position
         let current = self.get_position().await?;
-        let target = (current + steps).clamp(0, self.max_position);
+        let target = current.checked_add(steps).ok_or_else(|| {
+            NativeError::InvalidParameter(format!(
+                "ZWO EAF relative move from {} by {} overflows i32",
+                current, steps
+            ))
+        })?;
 
         // Use move_to_with_timeout
         self.move_to_with_timeout(target, config).await
@@ -1933,6 +2124,7 @@ pub struct ZwoFocuserDiscoveryInfo {
     pub focuser_id: i32,
     pub name: String,
     pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
     pub discovery_index: usize,
 }
 
@@ -1944,12 +2136,41 @@ pub fn is_eaf_sdk_available() -> bool {
 /// Get EAF SDK status
 pub fn get_eaf_sdk_status() -> (bool, String) {
     match EafSdk::get() {
-        Some(_) => (true, "ZWO EAF SDK loaded successfully".to_string()),
+        Some(_) => (
+            true,
+            eaf_sdk_version()
+                .map(|version| format!("{version} loaded successfully"))
+                .unwrap_or_else(|| "ZWO EAF SDK loaded successfully".to_string()),
+        ),
         None => (
             false,
             "ZWO EAF SDK (EAF_focuser.dll) not found.".to_string(),
         ),
     }
+}
+
+fn sdk_static_cstr(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+
+    // SAFETY: vendor SDK version functions return pointers to static,
+    // NUL-terminated strings owned by the loaded SDK library.
+    let value = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+fn eaf_sdk_version_from_sdk(sdk: &EafSdk) -> Option<String> {
+    // SAFETY: EAFGetSDKVersion takes no arguments and returns a static C string.
+    sdk_static_cstr(unsafe { (sdk.get_sdk_version)() })
+        .map(|version| format!("ZWO EAF SDK v{version}"))
+}
+
+pub fn eaf_sdk_version() -> Option<String> {
+    EafSdk::get().and_then(eaf_sdk_version_from_sdk)
 }
 
 /// Discover ZWO EAF focusers
@@ -1966,6 +2187,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
     let _lock = zwo_eaf_mutex().lock().await;
 
     tracing::debug!("Discovering ZWO EAF focusers via native SDK...");
+    let sdk_version = eaf_sdk_version_from_sdk(sdk);
     // SAFETY: zwo_eaf_mutex held above; EAFGetNum takes no arguments and only reads internal SDK state.
     let num_focusers = unsafe { (sdk.get_num)() };
     tracing::info!("EAF SDK reports {} connected focuser(s)", num_focusers);
@@ -2026,6 +2248,7 @@ pub async fn discover_focusers() -> Result<Vec<ZwoFocuserDiscoveryInfo>, NativeE
                     focuser_id: id,
                     name,
                     serial_number,
+                    sdk_version: sdk_version.clone(),
                     // Why: `i` is the loop index (c_int, 0..count) — non-negative by
                     // construction. `as usize` is widening with verified non-negative.
                     discovery_index: i as usize,
@@ -2330,7 +2553,26 @@ impl NativeFilterWheel for ZwoFilterWheel {
         tracing::debug!("Moving ZWO EFW to position {}", position);
         // SAFETY: zwo_efw_mutex held above; `position` was bounds-checked against slot_count earlier in this function; filterwheel_id is valid (connected=true checked).
         let result = unsafe { (sdk.set_position)(self.filterwheel_id, position) };
-        check_efw_error(result)
+        check_efw_error(result)?;
+        drop(_lock);
+
+        // Honour the EFW DelayAfterMoveMs quirk: some ZWO EFW firmware revisions
+        // report a stale slot index for ~500ms after a move completes. The quirks
+        // database carries the per-model delay; if a future model has none we log
+        // loudly so the missing entry doesn't disappear into a silent fallback.
+        match crate::quirks::get_position_delay_after_move_ms(&self.device_id) {
+            Some(delay_ms) if delay_ms > 0 => {
+                tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+            }
+            Some(_) => {}
+            None => {
+                tracing::warn!(
+                    "ZWO EFW {} has no DelayAfterMoveMs quirk entry; skipping post-move settle (callers may observe stale slot index).",
+                    self.device_id
+                );
+            }
+        }
+        Ok(())
     }
 
     async fn get_position(&self) -> Result<i32, NativeError> {
@@ -2441,6 +2683,7 @@ pub struct ZwoFilterWheelDiscoveryInfo {
     pub name: String,
     pub slot_count: i32,
     pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
     pub discovery_index: usize,
 }
 
@@ -2452,9 +2695,24 @@ pub fn is_efw_sdk_available() -> bool {
 /// Get EFW SDK status
 pub fn get_efw_sdk_status() -> (bool, String) {
     match EfwSdk::get() {
-        Some(_) => (true, "ZWO EFW SDK loaded successfully".to_string()),
+        Some(_) => (
+            true,
+            efw_sdk_version()
+                .map(|version| format!("{version} loaded successfully"))
+                .unwrap_or_else(|| "ZWO EFW SDK loaded successfully".to_string()),
+        ),
         None => (false, "ZWO EFW SDK (EFW_filter.dll) not found.".to_string()),
     }
+}
+
+fn efw_sdk_version_from_sdk(sdk: &EfwSdk) -> Option<String> {
+    // SAFETY: EFWGetSDKVersion takes no arguments and returns a static C string.
+    sdk_static_cstr(unsafe { (sdk.get_sdk_version)() })
+        .map(|version| format!("ZWO EFW SDK v{version}"))
+}
+
+pub fn efw_sdk_version() -> Option<String> {
+    EfwSdk::get().and_then(efw_sdk_version_from_sdk)
 }
 
 /// Discover ZWO EFW filter wheels
@@ -2471,6 +2729,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     let _lock = zwo_efw_mutex().lock().await;
 
     tracing::debug!("Discovering ZWO EFW filter wheels via native SDK...");
+    let sdk_version = efw_sdk_version_from_sdk(sdk);
     // SAFETY: zwo_efw_mutex held above; EFWGetNum takes no arguments and only reads internal SDK state.
     let num_wheels = unsafe { (sdk.get_num)() };
     tracing::info!("EFW SDK reports {} connected filter wheel(s)", num_wheels);
@@ -2534,6 +2793,7 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
                     name,
                     slot_count,
                     serial_number,
+                    sdk_version: sdk_version.clone(),
                     // Why: `i` is loop index (c_int, 0..count) — non-negative by
                     // construction. `as usize` is widening with verified non-negative.
                     discovery_index: i as usize,
@@ -2543,4 +2803,42 @@ pub async fn discover_filter_wheels() -> Result<Vec<ZwoFilterWheelDiscoveryInfo>
     }
 
     Ok(wheels)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn zwo_cached_setting_updates_after_success_only() {
+        let mut cached = 10;
+
+        commit_zwo_cached_setting(&mut cached, 42, Ok(())).unwrap();
+        assert_eq!(cached, 42);
+
+        let err = commit_zwo_cached_setting(
+            &mut cached,
+            99,
+            Err(NativeError::SdkError("rejected".to_string())),
+        )
+        .unwrap_err();
+
+        assert!(matches!(err, NativeError::SdkError(_)));
+        assert_eq!(cached, 42);
+    }
+
+    #[test]
+    fn zwo_eaf_target_validation_rejects_clamped_positions() {
+        assert_eq!(validate_zwo_eaf_target(0, 100).unwrap(), 0);
+        assert_eq!(validate_zwo_eaf_target(100, 100).unwrap(), 100);
+
+        assert!(matches!(
+            validate_zwo_eaf_target(-1, 100),
+            Err(NativeError::InvalidParameter(_))
+        ));
+        assert!(matches!(
+            validate_zwo_eaf_target(101, 100),
+            Err(NativeError::InvalidParameter(_))
+        ));
+    }
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Set true when the WebSocket connection to a remote backend has been
@@ -9,18 +10,49 @@ final connectionStaleProvider = StateProvider<bool>((_) => false);
 
 /// Inline banner shown across all screens while the mobile app is mid-
 /// reconnect. Replaces the old "session torn down after 3 polls" UX.
-class ConnectionStaleBanner extends ConsumerWidget {
+///
+/// During the 30-second grace window the operator now also gets a
+/// "Retry" button so they can force an immediate reconnect attempt
+/// instead of waiting for the exponential-backoff timer to fire
+/// (audit P1-15 bug 6). The button is a no-op when the current
+/// backend is not a [NetworkBackend] (e.g. host-side desktop).
+class ConnectionStaleBanner extends ConsumerStatefulWidget {
   const ConnectionStaleBanner({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConnectionStaleBanner> createState() =>
+      _ConnectionStaleBannerState();
+}
+
+class _ConnectionStaleBannerState extends ConsumerState<ConnectionStaleBanner> {
+  bool _retrying = false;
+
+  Future<void> _handleRetry() async {
+    final backend = ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      // No remote session to reconnect — the banner shouldn't normally
+      // show in that case, but if it does we just no-op rather than
+      // throw, because spinning forever would be worse UX.
+      return;
+    }
+    setState(() => _retrying = true);
+    try {
+      await backend.reconnectNow();
+    } finally {
+      if (mounted) {
+        setState(() => _retrying = false);
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final stale = ref.watch(connectionStaleProvider);
     if (!stale) return const SizedBox.shrink();
 
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>();
-    final bg = colors?.warning ?? Colors.amber.shade700;
-    final fg = colors?.background ?? Colors.black;
+    final colors = NightshadeColors.of(context);
+    final bg = colors.warning;
+    final fg = colors.background;
 
     return Material(
       color: bg,
@@ -46,6 +78,26 @@ class ConnectionStaleBanner extends ConsumerWidget {
                   fontWeight: FontWeight.w500,
                 ),
               ),
+            ),
+            const SizedBox(width: 8),
+            TextButton(
+              onPressed: _retrying ? null : _handleRetry,
+              style: TextButton.styleFrom(
+                foregroundColor: fg,
+                disabledForegroundColor: fg.withValues(alpha: 0.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 4,
+                ),
+                minimumSize: const Size(0, 28),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                visualDensity: VisualDensity.compact,
+                textStyle: const TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              child: Text(_retrying ? 'Retrying…' : 'Retry'),
             ),
           ],
         ),

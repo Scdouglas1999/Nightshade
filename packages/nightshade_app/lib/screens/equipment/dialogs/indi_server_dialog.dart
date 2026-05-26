@@ -96,7 +96,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return AlertDialog(
       backgroundColor: colors.surface,
@@ -111,7 +111,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
         ],
       ),
       content: SizedBox(
-        width: 400,
+        width: dialogMaxWidth(context, 400),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -119,11 +119,9 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
             // Info about INDI
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                colors.primary,
                 borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: colors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -203,16 +201,11 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
               const SizedBox(height: 12),
               Container(
                 padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: (_connectionSuccess ?? false)
-                      ? colors.success.withValues(alpha: 0.1)
-                      : colors.error.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.emphasisSurface(
+                  (_connectionSuccess ?? false)
+                      ? colors.success
+                      : colors.error,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(
-                    color: (_connectionSuccess ?? false)
-                        ? colors.success.withValues(alpha: 0.3)
-                        : colors.error.withValues(alpha: 0.3),
-                  ),
                 ),
                 child: Row(
                   children: [
@@ -250,7 +243,7 @@ class _IndiServerDialogState extends ConsumerState<IndiServerDialog> {
           size: ButtonSize.small,
         ),
         NightshadeButton(
-          onPressed: _connectionSuccess == true ? _saveAndConnect : null,
+          onPressed: _saveAndConnect,
           label: 'Connect',
           variant: ButtonVariant.primary,
         ),

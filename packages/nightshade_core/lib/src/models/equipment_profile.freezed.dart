@@ -32,6 +32,8 @@ mixin _$EquipmentProfile {
   String? get rotatorId => throw _privateConstructorUsedError;
   String? get domeId => throw _privateConstructorUsedError;
   String? get weatherId => throw _privateConstructorUsedError;
+  String? get safetyMonitorId => throw _privateConstructorUsedError;
+  String? get switchId => throw _privateConstructorUsedError;
   String? get coverCalibratorId =>
       throw _privateConstructorUsedError; // Optical setup
   double get focalLength => throw _privateConstructorUsedError;
@@ -97,6 +99,8 @@ abstract class $EquipmentProfileCopyWith<$Res> {
       String? rotatorId,
       String? domeId,
       String? weatherId,
+      String? safetyMonitorId,
+      String? switchId,
       String? coverCalibratorId,
       double focalLength,
       double aperture,
@@ -154,6 +158,8 @@ class _$EquipmentProfileCopyWithImpl<$Res, $Val extends EquipmentProfile>
     Object? rotatorId = freezed,
     Object? domeId = freezed,
     Object? weatherId = freezed,
+    Object? safetyMonitorId = freezed,
+    Object? switchId = freezed,
     Object? coverCalibratorId = freezed,
     Object? focalLength = null,
     Object? aperture = null,
@@ -230,6 +236,14 @@ class _$EquipmentProfileCopyWithImpl<$Res, $Val extends EquipmentProfile>
       weatherId: freezed == weatherId
           ? _value.weatherId
           : weatherId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      safetyMonitorId: freezed == safetyMonitorId
+          ? _value.safetyMonitorId
+          : safetyMonitorId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      switchId: freezed == switchId
+          ? _value.switchId
+          : switchId // ignore: cast_nullable_to_non_nullable
               as String?,
       coverCalibratorId: freezed == coverCalibratorId
           ? _value.coverCalibratorId
@@ -379,6 +393,8 @@ abstract class _$$EquipmentProfileImplCopyWith<$Res>
       String? rotatorId,
       String? domeId,
       String? weatherId,
+      String? safetyMonitorId,
+      String? switchId,
       String? coverCalibratorId,
       double focalLength,
       double aperture,
@@ -434,6 +450,8 @@ class __$$EquipmentProfileImplCopyWithImpl<$Res>
     Object? rotatorId = freezed,
     Object? domeId = freezed,
     Object? weatherId = freezed,
+    Object? safetyMonitorId = freezed,
+    Object? switchId = freezed,
     Object? coverCalibratorId = freezed,
     Object? focalLength = null,
     Object? aperture = null,
@@ -510,6 +528,14 @@ class __$$EquipmentProfileImplCopyWithImpl<$Res>
       weatherId: freezed == weatherId
           ? _value.weatherId
           : weatherId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      safetyMonitorId: freezed == safetyMonitorId
+          ? _value.safetyMonitorId
+          : safetyMonitorId // ignore: cast_nullable_to_non_nullable
+              as String?,
+      switchId: freezed == switchId
+          ? _value.switchId
+          : switchId // ignore: cast_nullable_to_non_nullable
               as String?,
       coverCalibratorId: freezed == coverCalibratorId
           ? _value.coverCalibratorId
@@ -654,6 +680,8 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
       this.rotatorId,
       this.domeId,
       this.weatherId,
+      this.safetyMonitorId,
+      this.switchId,
       this.coverCalibratorId,
       this.focalLength = 0.0,
       this.aperture = 0.0,
@@ -712,6 +740,10 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
   final String? domeId;
   @override
   final String? weatherId;
+  @override
+  final String? safetyMonitorId;
+  @override
+  final String? switchId;
   @override
   final String? coverCalibratorId;
 // Optical setup
@@ -798,7 +830,7 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
 
   @override
   String toString() {
-    return 'EquipmentProfile(id: $id, name: $name, description: $description, cameraId: $cameraId, mountId: $mountId, focuserId: $focuserId, filterWheelId: $filterWheelId, guiderId: $guiderId, rotatorId: $rotatorId, domeId: $domeId, weatherId: $weatherId, coverCalibratorId: $coverCalibratorId, focalLength: $focalLength, aperture: $aperture, focalRatio: $focalRatio, defaultGain: $defaultGain, defaultOffset: $defaultOffset, defaultBinX: $defaultBinX, defaultBinY: $defaultBinY, defaultCoolingTemp: $defaultCoolingTemp, coolOnConnect: $coolOnConnect, defaultCenteringExposure: $defaultCenteringExposure, filterNames: $filterNames, filterFocusOffsets: $filterFocusOffsets, meridianFlipOverrides: $meridianFlipOverrides, cameraName: $cameraName, mountName: $mountName, focuserName: $focuserName, filterWheelName: $filterWheelName, guiderName: $guiderName, rotatorName: $rotatorName, telescopeName: $telescopeName, telescopeFocalLength: $telescopeFocalLength, telescopeAperture: $telescopeAperture, profileIcon: $profileIcon, profileColor: $profileColor, sortOrder: $sortOrder, isDefault: $isDefault, createdAt: $createdAt, updatedAt: $updatedAt, isActive: $isActive, pixelSize: $pixelSize)';
+    return 'EquipmentProfile(id: $id, name: $name, description: $description, cameraId: $cameraId, mountId: $mountId, focuserId: $focuserId, filterWheelId: $filterWheelId, guiderId: $guiderId, rotatorId: $rotatorId, domeId: $domeId, weatherId: $weatherId, safetyMonitorId: $safetyMonitorId, switchId: $switchId, coverCalibratorId: $coverCalibratorId, focalLength: $focalLength, aperture: $aperture, focalRatio: $focalRatio, defaultGain: $defaultGain, defaultOffset: $defaultOffset, defaultBinX: $defaultBinX, defaultBinY: $defaultBinY, defaultCoolingTemp: $defaultCoolingTemp, coolOnConnect: $coolOnConnect, defaultCenteringExposure: $defaultCenteringExposure, filterNames: $filterNames, filterFocusOffsets: $filterFocusOffsets, meridianFlipOverrides: $meridianFlipOverrides, cameraName: $cameraName, mountName: $mountName, focuserName: $focuserName, filterWheelName: $filterWheelName, guiderName: $guiderName, rotatorName: $rotatorName, telescopeName: $telescopeName, telescopeFocalLength: $telescopeFocalLength, telescopeAperture: $telescopeAperture, profileIcon: $profileIcon, profileColor: $profileColor, sortOrder: $sortOrder, isDefault: $isDefault, createdAt: $createdAt, updatedAt: $updatedAt, isActive: $isActive, pixelSize: $pixelSize)';
   }
 
   @override
@@ -824,6 +856,10 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
             (identical(other.domeId, domeId) || other.domeId == domeId) &&
             (identical(other.weatherId, weatherId) ||
                 other.weatherId == weatherId) &&
+            (identical(other.safetyMonitorId, safetyMonitorId) ||
+                other.safetyMonitorId == safetyMonitorId) &&
+            (identical(other.switchId, switchId) ||
+                other.switchId == switchId) &&
             (identical(other.coverCalibratorId, coverCalibratorId) ||
                 other.coverCalibratorId == coverCalibratorId) &&
             (identical(other.focalLength, focalLength) ||
@@ -884,8 +920,7 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
                 other.updatedAt == updatedAt) &&
             (identical(other.isActive, isActive) ||
                 other.isActive == isActive) &&
-            (identical(other.pixelSize, pixelSize) ||
-                other.pixelSize == pixelSize));
+            (identical(other.pixelSize, pixelSize) || other.pixelSize == pixelSize));
   }
 
   @JsonKey(ignore: true)
@@ -903,6 +938,8 @@ class _$EquipmentProfileImpl implements _EquipmentProfile {
         rotatorId,
         domeId,
         weatherId,
+        safetyMonitorId,
+        switchId,
         coverCalibratorId,
         focalLength,
         aperture,
@@ -964,6 +1001,8 @@ abstract class _EquipmentProfile implements EquipmentProfile {
       final String? rotatorId,
       final String? domeId,
       final String? weatherId,
+      final String? safetyMonitorId,
+      final String? switchId,
       final String? coverCalibratorId,
       final double focalLength,
       final double aperture,
@@ -1021,6 +1060,10 @@ abstract class _EquipmentProfile implements EquipmentProfile {
   String? get domeId;
   @override
   String? get weatherId;
+  @override
+  String? get safetyMonitorId;
+  @override
+  String? get switchId;
   @override
   String? get coverCalibratorId;
   @override // Optical setup

@@ -3,7 +3,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../localization/nightshade_localizations.dart';
@@ -11,12 +13,10 @@ import '../pairing_screen.dart';
 import 'settings_widgets.dart';
 
 class RemoteAccessSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const RemoteAccessSettings({
     super.key,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -115,13 +115,13 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
   Widget build(BuildContext context) {
     final settingsAsync = ref.watch(appSettingsProvider);
     final webState = ref.watch(webServerStateProvider);
+    final pairingState = ref.watch(pairingProvider);
+    final appVersion = ref.watch(appVersionProvider);
     final l10n = context.l10n;
 
     return settingsAsync.when(
-      loading: () => SettingsLoadingState(
-          colors: widget.colors, isMobile: widget.isMobile),
+      loading: () => SettingsLoadingState(isMobile: widget.isMobile),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -138,13 +138,11 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
         return SettingsPage(
           title: l10n.text('remoteAccessTitle'),
           description: l10n.text('remoteAccessDescription'),
-          colors: widget.colors,
           isMobile: widget.isMobile,
           hideHeader: widget.isMobile,
           children: [
             SettingsSection(
               title: l10n.text('remoteAccessWebServer'),
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
@@ -158,9 +156,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                           .read(appSettingsProvider.notifier)
                           .setWebServerEnabled(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -179,7 +175,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                       ],
                       style: TextStyle(
                         fontSize: 13,
-                        color: widget.colors.textPrimary,
+                        color: NightshadeColors.of(context).textPrimary,
                       ),
                       decoration: InputDecoration(
                         isDense: true,
@@ -189,21 +185,23 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                         ),
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: BorderSide(color: widget.colors.border),
+                          borderSide: BorderSide(
+                              color: NightshadeColors.of(context).border),
                         ),
                         enabledBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
-                          borderSide: BorderSide(color: widget.colors.border),
+                          borderSide: BorderSide(
+                              color: NightshadeColors.of(context).border),
                         ),
                         focusedBorder: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(6),
                           borderSide: BorderSide(
-                            color: widget.colors.primary,
+                            color: NightshadeColors.of(context).primary,
                             width: 2,
                           ),
                         ),
                         filled: true,
-                        fillColor: widget.colors.surfaceAlt,
+                        fillColor: NightshadeColors.of(context).surfaceAlt,
                       ),
                       onTapOutside: (_) =>
                           _commitPort(settings, showFeedback: true),
@@ -212,7 +210,6 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     ),
                   ),
                   isLast: true,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
               ],
@@ -220,15 +217,13 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
             const SizedBox(height: 8),
             if (webState.lastError.isNotEmpty)
               _RemoteAccessNoticeCard(
-                colors: widget.colors,
                 icon: LucideIcons.alertTriangle,
-                iconColor: widget.colors.error,
+                iconColor: NightshadeColors.of(context).error,
                 title: l10n.text('remoteAccessIssueTitle'),
                 body: l10n.text('remoteAccessIssueBody'),
               )
             else if (webState.isRunning) ...[
               _AccessActionCard(
-                colors: widget.colors,
                 icon: LucideIcons.monitor,
                 title: l10n.text('remoteAccessLocalActionTitle'),
                 description: l10n.text('remoteAccessLocalActionBody'),
@@ -242,7 +237,6 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               ),
               if (webState.networkUrl.isNotEmpty)
                 _AccessActionCard(
-                  colors: widget.colors,
                   icon: LucideIcons.wifi,
                   title: l10n.text('remoteAccessLanActionTitle'),
                   description: l10n.text(
@@ -260,13 +254,12 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                 ),
             ] else
               _RemoteAccessNoticeCard(
-                colors: widget.colors,
                 icon: settings.webServerEnabled
                     ? LucideIcons.loader2
                     : LucideIcons.power,
                 iconColor: settings.webServerEnabled
-                    ? widget.colors.info
-                    : widget.colors.textMuted,
+                    ? NightshadeColors.of(context).info
+                    : NightshadeColors.of(context).textMuted,
                 title: settings.webServerEnabled
                     ? l10n.text('remoteAccessStartingTitle')
                     : l10n.text('remoteAccessDisabledTitle'),
@@ -276,7 +269,6 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
               ),
             const SizedBox(height: 8),
             _PairingCallout(
-              colors: widget.colors,
               title: l10n.text('remoteAccessPairTitle'),
               description: l10n.text('remoteAccessPairDesc'),
               onPressed: () {
@@ -287,15 +279,25 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                 );
               },
             ),
+            if (webState.isRunning &&
+                webState.serverFingerprint.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              _RemotePairingQrPanel(
+                webState: webState,
+                pairingCode: pairingState.pairingCode,
+                appVersion: appVersion.version,
+                onStartPairing: pairingState.pairingCode == null
+                    ? () => ref.read(pairingProvider.notifier).startPairing()
+                    : null,
+              ),
+            ],
             const SizedBox(height: 8),
             Container(
               padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: widget.colors.primary.withValues(alpha: 0.08),
+              decoration: NightshadeDecorations.iconChip(
+                NightshadeColors.of(context).primary,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: widget.colors.primary.withValues(alpha: 0.2),
-                ),
+                borderAlpha: 0.2,
               ),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -303,7 +305,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                   Icon(
                     LucideIcons.info,
                     size: 16,
-                    color: widget.colors.primary,
+                    color: NightshadeColors.of(context).primary,
                   ),
                   const SizedBox(width: 10),
                   Expanded(
@@ -311,7 +313,7 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                       l10n.text('remoteAccessInfoBody'),
                       style: TextStyle(
                         fontSize: 12,
-                        color: widget.colors.textSecondary,
+                        color: NightshadeColors.of(context).textSecondary,
                         height: 1.5,
                       ),
                     ),
@@ -327,9 +329,10 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                 ),
                 child: Container(
                   decoration: BoxDecoration(
-                    color: widget.colors.surface,
+                    color: NightshadeColors.of(context).surface,
                     borderRadius: BorderRadius.circular(10),
-                    border: Border.all(color: widget.colors.border),
+                    border:
+                        Border.all(color: NightshadeColors.of(context).border),
                   ),
                   child: ExpansionTile(
                     tilePadding: const EdgeInsets.symmetric(
@@ -340,21 +343,21 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                     leading: Icon(
                       LucideIcons.slidersHorizontal,
                       size: 16,
-                      color: widget.colors.textMuted,
+                      color: NightshadeColors.of(context).textMuted,
                     ),
                     title: Text(
                       l10n.text('remoteAccessDetailsTitle'),
                       style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: widget.colors.textPrimary,
+                        color: NightshadeColors.of(context).textPrimary,
                       ),
                     ),
                     subtitle: Text(
                       l10n.text('remoteAccessDetailsBody'),
                       style: TextStyle(
                         fontSize: 12,
-                        color: widget.colors.textMuted,
+                        color: NightshadeColors.of(context).textMuted,
                       ),
                     ),
                     children: [
@@ -363,69 +366,63 @@ class _RemoteAccessSettingsState extends ConsumerState<RemoteAccessSettings> {
                             ? LucideIcons.checkCircle2
                             : LucideIcons.xCircle,
                         iconColor: webState.isRunning
-                            ? widget.colors.success
-                            : widget.colors.textMuted,
+                            ? NightshadeColors.of(context).success
+                            : NightshadeColors.of(context).textMuted,
                         label: l10n.text('remoteAccessServerStatus'),
                         value: webState.isRunning
                             ? l10n.text('remoteAccessRunning')
                             : l10n.text('remoteAccessStopped'),
-                        colors: widget.colors,
                       ),
                       _StatusRow(
                         icon: LucideIcons.shield,
                         iconColor: webState.requiresAuthentication
-                            ? widget.colors.primary
-                            : widget.colors.textMuted,
+                            ? NightshadeColors.of(context).primary
+                            : NightshadeColors.of(context).textMuted,
                         label: l10n.text('remoteAccessAuth'),
                         value: webState.requiresAuthentication
                             ? l10n.text('remoteAccessAuthRequired')
                             : l10n.text('remoteAccessAuthNotRequired'),
-                        colors: widget.colors,
                       ),
                       _StatusRow(
                         icon: LucideIcons.wifi,
                         iconColor: webState.bindLocalOnly
-                            ? widget.colors.textMuted
-                            : widget.colors.primary,
+                            ? NightshadeColors.of(context).textMuted
+                            : NightshadeColors.of(context).primary,
                         label: l10n.text('remoteAccessScope'),
                         value: webState.bindLocalOnly
                             ? l10n.text('remoteAccessScopeLocal')
                             : l10n.text('remoteAccessScopeLan'),
-                        colors: widget.colors,
                       ),
                       _StatusRow(
                         icon: LucideIcons.monitor,
                         iconColor: webState.dashboardAvailable
-                            ? widget.colors.success
-                            : widget.colors.warning,
+                            ? NightshadeColors.of(context).success
+                            : NightshadeColors.of(context).warning,
                         label: l10n.text('remoteAccessDashboard'),
                         value: webState.dashboardAvailable
                             ? l10n.text('remoteAccessDashboardAvailable')
                             : l10n.text('remoteAccessDashboardMissing'),
-                        colors: widget.colors,
                       ),
                       _StatusRow(
                         icon: LucideIcons.users,
                         iconColor: webState.activeViewers > 0
-                            ? widget.colors.primary
-                            : widget.colors.textMuted,
+                            ? NightshadeColors.of(context).primary
+                            : NightshadeColors.of(context).textMuted,
                         label: l10n.text('remoteAccessActiveViewers'),
                         value: webState.activeViewers.toString(),
-                        colors: widget.colors,
                       ),
                       _StatusRow(
                         icon: webState.lastError.isEmpty
                             ? LucideIcons.info
                             : LucideIcons.alertTriangle,
                         iconColor: webState.lastError.isEmpty
-                            ? widget.colors.textMuted
-                            : widget.colors.error,
+                            ? NightshadeColors.of(context).textMuted
+                            : NightshadeColors.of(context).error,
                         label: l10n.text('remoteAccessLastError'),
                         value: webState.lastError.isEmpty
                             ? l10n.text('remoteAccessNoErrors')
                             : webState.lastError,
                         isLast: true,
-                        colors: widget.colors,
                       ),
                     ],
                   ),
@@ -454,14 +451,12 @@ class _PortRangeFormatter extends TextInputFormatter {
 }
 
 class _RemoteAccessNoticeCard extends StatelessWidget {
-  final NightshadeColors colors;
   final IconData icon;
   final Color iconColor;
   final String title;
   final String body;
 
   const _RemoteAccessNoticeCard({
-    required this.colors,
     required this.icon,
     required this.iconColor,
     required this.title,
@@ -470,6 +465,7 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -513,7 +509,6 @@ class _RemoteAccessNoticeCard extends StatelessWidget {
 }
 
 class _AccessActionCard extends StatelessWidget {
-  final NightshadeColors colors;
   final IconData icon;
   final String title;
   final String description;
@@ -526,7 +521,6 @@ class _AccessActionCard extends StatelessWidget {
   final VoidCallback onSecondary;
 
   const _AccessActionCard({
-    required this.colors,
     required this.icon,
     required this.title,
     required this.description,
@@ -541,6 +535,7 @@ class _AccessActionCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(14),
@@ -622,14 +617,136 @@ class _AccessActionCard extends StatelessWidget {
   }
 }
 
+class _RemotePairingQrPanel extends StatelessWidget {
+  final WebServerState webState;
+  final String? pairingCode;
+  final String appVersion;
+  final VoidCallback? onStartPairing;
+
+  const _RemotePairingQrPanel({
+    required this.webState,
+    required this.pairingCode,
+    required this.appVersion,
+    this.onStartPairing,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final l10n = context.l10n;
+    // Never embed localhost in QR — tablets cannot reach the PC loopback.
+    final host = webState.localIp.isNotEmpty &&
+            webState.localIp != 'localhost' &&
+            webState.localIp != '127.0.0.1'
+        ? webState.localIp
+        : '';
+    final qrPayload = host.isEmpty
+        ? null
+        : EnhancedNightshadeDiscovery.generateQrData(
+            host: host,
+            webPort: webState.actualPort,
+            version: appVersion,
+            fingerprint: webState.serverFingerprint,
+            serverName: 'Nightshade',
+            mode: 'desktop',
+            authRequired: webState.requiresAuthentication,
+            authenticationMode:
+                webState.requiresAuthentication ? 'token' : 'none',
+            pairingSupported: true,
+            pairingCode: pairingCode,
+          );
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            l10n.text('remoteAccessQrTitle'),
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            l10n.text('remoteAccessQrBody'),
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+              height: 1.4,
+            ),
+          ),
+          const SizedBox(height: 8),
+          SelectableText(
+            '${l10n.text('remoteAccessFingerprint')}: '
+            '${shortServerFingerprint(webState.serverFingerprint)}',
+            style: TextStyle(
+              fontSize: 12,
+              fontFamily: 'monospace',
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 12),
+          if (pairingCode == null && onStartPairing != null) ...[
+            NightshadeButton(
+              label: l10n.text('pairingStartButton'),
+              icon: LucideIcons.link,
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: onStartPairing,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              l10n.text('remoteAccessQrStartHint'),
+              style: TextStyle(fontSize: 12, color: colors.textMuted),
+            ),
+          ] else if (pairingCode != null && qrPayload != null) ...[
+            Center(
+              child: QrImageView(
+                data: qrPayload,
+                size: 200,
+                backgroundColor: const Color(0xFFFFFFFF),
+                semanticsLabel:
+                    'Nightshade pairing QR for $host:${webState.actualPort}',
+              ),
+            ),
+          ] else if (pairingCode != null && qrPayload == null) ...[
+            Text(
+              l10n.text('remoteAccessQrNoLanIp'),
+              style: TextStyle(fontSize: 12, color: colors.warning),
+            ),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                pairingCode!,
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                  fontFamily: 'monospace',
+                  color: colors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _PairingCallout extends StatelessWidget {
-  final NightshadeColors colors;
   final String title;
   final String description;
   final VoidCallback onPressed;
 
   const _PairingCallout({
-    required this.colors,
     required this.title,
     required this.description,
     required this.onPressed,
@@ -637,6 +754,7 @@ class _PairingCallout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -689,7 +807,6 @@ class _StatusRow extends StatelessWidget {
   final String label;
   final String value;
   final bool isLast;
-  final NightshadeColors colors;
 
   const _StatusRow({
     required this.icon,
@@ -697,11 +814,11 @@ class _StatusRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.isLast = false,
-    required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(

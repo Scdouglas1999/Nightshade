@@ -31,43 +31,70 @@ class PanelTabs extends ConsumerWidget {
   /// Index of the Annotations tab
   static const int annotationsTabIndex = 7;
 
+  /// Number of columns in the tab grid.
+  static const int _columns = 4;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final annotation = ref.watch(currentAnnotationProvider);
     final objectCount = annotation?.objects.length ?? 0;
 
+    final rowCount = (_tabs.length + _columns - 1) ~/ _columns;
+
     return Container(
-      height: 52,
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         border: Border(
           bottom: BorderSide(color: colors.border),
         ),
       ),
-      child: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        child: Row(
-          children: _tabs.asMap().entries.map((entry) {
-            final index = entry.key;
-            final (icon, label) = entry.value;
-            final isSelected = index == selectedIndex;
+      padding: const EdgeInsets.fromLTRB(6, 6, 6, 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          for (var row = 0; row < rowCount; row++) ...[
+            if (row > 0) const SizedBox(height: 6),
+            _buildRow(row, objectCount),
+          ],
+        ],
+      ),
+    );
+  }
 
-            // Build the label with count badge for the Annotations tab
-            final displayLabel = index == annotationsTabIndex && objectCount > 0
-                ? '$label ($objectCount)'
-                : label;
+  Widget _buildRow(int row, int objectCount) {
+    final startIndex = row * _columns;
+    return Row(
+      children: List.generate(_columns, (col) {
+        final tabIndex = startIndex + col;
 
-            return _PanelTab(
+        if (tabIndex >= _tabs.length) {
+          return Expanded(
+            child: Padding(
+              padding: EdgeInsets.only(left: col == 0 ? 0 : 6),
+              child: const SizedBox.shrink(),
+            ),
+          );
+        }
+
+        final (icon, label) = _tabs[tabIndex];
+        final isSelected = tabIndex == selectedIndex;
+        final displayLabel = tabIndex == annotationsTabIndex && objectCount > 0
+            ? '$label ($objectCount)'
+            : label;
+
+        return Expanded(
+          child: Padding(
+            padding: EdgeInsets.only(left: col == 0 ? 0 : 6),
+            child: _PanelTab(
               icon: icon,
               label: displayLabel,
               isSelected: isSelected,
-              onTap: () => onSelected(index),
+              onTap: () => onSelected(tabIndex),
               colors: colors,
-            );
-          }).toList(),
-        ),
-      ),
+            ),
+          ),
+        );
+      }),
     );
   }
 }
@@ -105,56 +132,56 @@ class _PanelTabState extends State<_PanelTab> {
         child: MouseRegion(
           onEnter: (_) => setState(() => _isHovered = true),
           onExit: (_) => setState(() => _isHovered = false),
+          cursor: SystemMouseCursors.click,
           child: GestureDetector(
             onTap: widget.onTap,
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 180),
               curve: Curves.easeOutCubic,
-              width: widget.label.length > 9 ? 118 : 92,
-              margin: const EdgeInsets.symmetric(horizontal: 3, vertical: 7),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-              decoration: BoxDecoration(
-                color: widget.isSelected
-                    ? widget.colors.primary.withValues(alpha: 0.16)
-                    : _isHovered
-                        ? widget.colors.surfaceHover
-                        : widget.colors.surface.withValues(alpha: 0.28),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: widget.isSelected
-                      ? widget.colors.primary.withValues(alpha: 0.42)
-                      : _isHovered
-                          ? widget.colors.borderHighlight.withValues(alpha: 0.7)
-                          : widget.colors.border.withValues(alpha: 0.55),
-                ),
-              ),
-              child: Row(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 8),
+              decoration: widget.isSelected
+                  ? NightshadeDecorations.selectedSurface(
+                      widget.colors.primary,
+                      fillAlpha: 0.16,
+                    )
+                  : BoxDecoration(
+                      color: _isHovered
+                          ? widget.colors.surfaceHover
+                          : widget.colors.surface,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: _isHovered
+                            ? widget.colors.borderHighlight
+                            : widget.colors.border,
+                      ),
+                    ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Icon(
                     widget.icon,
-                    size: 14,
+                    size: 16,
                     color: widget.isSelected
                         ? widget.colors.primary
                         : widget.colors.textSecondary,
                   ),
-                  const SizedBox(width: 6),
-                  Flexible(
-                    child: Text(
-                      widget.label,
-                      overflow: TextOverflow.ellipsis,
-                      maxLines: 1,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: widget.isSelected
-                            ? FontWeight.w600
-                            : FontWeight.w500,
-                        color: widget.isSelected
-                            ? widget.colors.primary
-                            : _isHovered
-                                ? widget.colors.textPrimary
-                                : widget.colors.textSecondary,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    widget.label,
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: widget.isSelected
+                          ? FontWeight.w600
+                          : FontWeight.w500,
+                      color: widget.isSelected
+                          ? widget.colors.primary
+                          : _isHovered
+                              ? widget.colors.textPrimary
+                              : widget.colors.textSecondary,
                     ),
                   ),
                 ],
@@ -193,7 +220,7 @@ class ControlSection extends StatelessWidget {
             letterSpacing: 0.5,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         child,
       ],
     );
@@ -275,18 +302,10 @@ class _BigActionButtonState extends State<BigActionButton>
             horizontal: widget.isMobile ? 12 : 20,
             vertical: widget.isMobile ? 12 : 16,
           ),
-          decoration: BoxDecoration(
-            color: effectiveColor.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: _isHovered && widget.isEnabled
-                ? [
-                    BoxShadow(
-                      color: effectiveColor.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
+          decoration: NightshadeDecorations.filledButton(
+            effectiveColor,
+            isHovered: _isHovered && widget.isEnabled,
+            isDisabled: !widget.isEnabled,
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -401,7 +420,7 @@ class _EditableCompactInputState extends State<EditableCompactInput> {
         Text(
           widget.label,
           style: TextStyle(
-            fontSize: 10,
+            fontSize: NightshadeTokens.fontSizePanelCaption,
             color: widget.colors.textMuted,
           ),
         ),
@@ -484,6 +503,13 @@ class PanelSection extends StatelessWidget {
   final Widget child;
   final NightshadeColors colors;
 
+  /// A titled section with a bordered container for grouped imaging controls.
+  ///
+  /// For settings-style rows with a label and trailing control, compose
+  /// [DropdownRow], [InputRow], or [InputRowEditable] inside this section.
+  /// Those row widgets follow the same label/control flex layout as
+  /// [SettingRow] in `../../settings/widgets/settings_widgets.dart`, adapted
+  /// for the denser imaging side panel.
   const PanelSection({
     super.key,
     required this.title,
@@ -499,17 +525,17 @@ class PanelSection extends StatelessWidget {
         Text(
           title,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: NightshadeTokens.fontSizePanelLabel,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: NightshadeTokens.spaceMd),
         Container(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(NightshadeTokens.panelSectionPadding),
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: NightshadeTokens.borderRadiusButton,
             border: Border.all(color: colors.border),
           ),
           child: child,
@@ -538,22 +564,22 @@ class InputRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          flex: 2,
+          flex: NightshadeTokens.panelRowLabelFlex,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTokens.fontSizePanelLabel,
               color: colors.textSecondary,
             ),
           ),
         ),
         Expanded(
-          flex: 3,
+          flex: NightshadeTokens.panelRowControlFlex,
           child: Container(
             padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
             decoration: BoxDecoration(
               color: colors.background,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: NightshadeTokens.borderRadiusSm,
               border: Border.all(color: colors.border),
             ),
             child: Row(
@@ -601,21 +627,21 @@ class InputRowEditable extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          flex: 2,
+          flex: NightshadeTokens.panelRowLabelFlex,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTokens.fontSizePanelLabel,
               color: colors.textSecondary,
             ),
           ),
         ),
         Expanded(
-          flex: 3,
+          flex: NightshadeTokens.panelRowControlFlex,
           child: Container(
             decoration: BoxDecoration(
               color: colors.background,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: NightshadeTokens.borderRadiusSm,
               border: Border.all(color: colors.border),
             ),
             child: TextField(
@@ -652,6 +678,11 @@ class DropdownRow extends StatelessWidget {
   final NightshadeColors colors;
   final ValueChanged<String?>? onChanged;
 
+  /// Label + dropdown row for the imaging side panel.
+  ///
+  /// Layout mirrors [SettingRow] in `../../settings/widgets/settings_widgets.dart`:
+  /// label on the left, control on the right. Uses [NightshadeDropdown] for the
+  /// control styling.
   const DropdownRow({
     super.key,
     required this.label,
@@ -668,48 +699,22 @@ class DropdownRow extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          flex: 2,
+          flex: NightshadeTokens.panelRowLabelFlex,
           child: Text(
             label,
             style: TextStyle(
-              fontSize: 12,
+              fontSize: NightshadeTokens.fontSizePanelLabel,
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
           ),
         ),
         Expanded(
-          flex: 3,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-            decoration: BoxDecoration(
-              color: isEnabled ? colors.background : colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: colors.border),
-            ),
-            child: DropdownButtonHideUnderline(
-              child: DropdownButton<String>(
-                value: items.contains(value) ? value : null,
-                isExpanded: true,
-                isDense: true,
-                icon: Icon(
-                  LucideIcons.chevronDown,
-                  size: 14,
-                  color: colors.textMuted,
-                ),
-                dropdownColor: colors.surface,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isEnabled ? colors.textPrimary : colors.textMuted,
-                ),
-                items: items.map((item) {
-                  return DropdownMenuItem<String>(
-                    value: item,
-                    child: Text(item),
-                  );
-                }).toList(),
-                onChanged: onChanged,
-              ),
-            ),
+          flex: NightshadeTokens.panelRowControlFlex,
+          child: NightshadeDropdown(
+            value: items.contains(value) ? value : null,
+            items: items,
+            isExpanded: true,
+            onChanged: onChanged,
           ),
         ),
       ],
@@ -744,7 +749,7 @@ class SliderRowInteractive extends StatelessWidget {
     return Row(
       children: [
         Expanded(
-          flex: 2,
+          flex: NightshadeTokens.panelRowLabelFlex,
           child: Text(
             label,
             style: TextStyle(
@@ -754,7 +759,7 @@ class SliderRowInteractive extends StatelessWidget {
           ),
         ),
         Expanded(
-          flex: 3,
+          flex: NightshadeTokens.panelRowControlFlex,
           child: SliderTheme(
             data: SliderThemeData(
               trackHeight: 2,
@@ -822,16 +827,6 @@ class _SmallButtonState extends State<SmallButton> {
     final primaryColor =
         isEnabled ? widget.colors.primary : widget.colors.textMuted;
 
-    // Build gradient for filled (non-outline) buttons
-    final useGradient = !widget.isOutline && isEnabled;
-    final fillColor = widget.isOutline
-        ? _isHovered && isEnabled
-            ? primaryColor.withValues(alpha: 0.1)
-            : Colors.transparent
-        : isEnabled
-            ? null // Use gradient instead
-            : widget.colors.surfaceAlt;
-
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -840,14 +835,21 @@ class _SmallButtonState extends State<SmallButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-          decoration: BoxDecoration(
-            color:
-                useGradient ? primaryColor.withValues(alpha: 0.65) : fillColor,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: primaryColor,
-            ),
-          ),
+          decoration: widget.isOutline
+              ? BoxDecoration(
+                  color: _isHovered && isEnabled
+                      ? primaryColor.withValues(
+                          alpha: NightshadeTokens.opacitySubtle,
+                        )
+                      : Colors.transparent,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: primaryColor),
+                )
+              : NightshadeDecorations.filledButton(
+                  primaryColor,
+                  isHovered: _isHovered && isEnabled,
+                  isDisabled: !isEnabled,
+                ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             mainAxisSize: MainAxisSize.min,
@@ -879,91 +881,6 @@ class _SmallButtonState extends State<SmallButton> {
                 ),
               ),
             ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A dialog action button with gradient styling to match NightshadeButton
-class GradientDialogButton extends StatefulWidget {
-  final VoidCallback? onPressed;
-  final Color color;
-  final Widget child;
-
-  const GradientDialogButton({
-    super.key,
-    required this.onPressed,
-    required this.color,
-    required this.child,
-  });
-
-  @override
-  State<GradientDialogButton> createState() => _GradientDialogButtonState();
-}
-
-class _GradientDialogButtonState extends State<GradientDialogButton> {
-  bool _isHovered = false;
-  bool _isPressed = false;
-
-  /// Creates a slightly darker shade of the given color
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final primaryForeground = Theme.of(context).colorScheme.onPrimary;
-    final isDisabled = widget.onPressed == null;
-    final effectiveColor = isDisabled
-        ? widget.color.withValues(alpha: 0.4)
-        : _isPressed
-            ? _darkenColor(widget.color, 0.1)
-            : widget.color;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) {
-        setState(() {
-          _isHovered = false;
-          _isPressed = false;
-        });
-      },
-      cursor:
-          isDisabled ? SystemMouseCursors.forbidden : SystemMouseCursors.click,
-      child: GestureDetector(
-        onTapDown: isDisabled ? null : (_) => setState(() => _isPressed = true),
-        onTapUp: isDisabled ? null : (_) => setState(() => _isPressed = false),
-        onTapCancel:
-            isDisabled ? null : () => setState(() => _isPressed = false),
-        onTap: widget.onPressed,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 100),
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-          decoration: BoxDecoration(
-            color: effectiveColor.withValues(alpha: 0.65),
-            borderRadius: BorderRadius.circular(8),
-            boxShadow: _isHovered && !isDisabled && !_isPressed
-                ? [
-                    BoxShadow(
-                      color: effectiveColor.withValues(alpha: 0.3),
-                      blurRadius: 12,
-                      spreadRadius: 0,
-                    ),
-                  ]
-                : null,
-          ),
-          child: DefaultTextStyle(
-            style: TextStyle(
-              color: primaryForeground,
-              fontWeight: FontWeight.w500,
-              fontSize: 14,
-            ),
-            child: widget.child,
           ),
         ),
       ),

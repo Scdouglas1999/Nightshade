@@ -112,8 +112,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
   Future<void> _scanForDevices() async {
     setState(() => _isScanning = true);
     try {
+      // UI-P0-4: discoverAll clears stale grouped results before scanning.
       await ref.read(unifiedDiscoveryProvider.notifier).discoverAll();
-      ref.read(lastScanTimeProvider.notifier).state = DateTime.now();
+      final completedAt =
+          ref.read(unifiedDiscoveryProvider).lastDiscoveryCompletedAt;
+      ref.read(lastScanTimeProvider.notifier).state =
+          completedAt ?? DateTime.now();
     } finally {
       if (mounted) {
         setState(() => _isScanning = false);
@@ -142,11 +146,12 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final discoveryState = ref.watch(unifiedDiscoveryProvider);
     final lastScanTime = ref.watch(lastScanTimeProvider);
     final groupedDevices = discoveryState.groupedDevices;
     final isDiscovering = discoveryState.isDiscovering || _isScanning;
+    final discoveryCompletedAt = discoveryState.lastDiscoveryCompletedAt;
 
     // Count discovered devices by type
     final cameras =
@@ -173,7 +178,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
         .toList();
 
     final totalDevices = groupedDevices.length;
-    final lastScanText = _formatLastScanTime(lastScanTime);
+    final lastScanText = _formatLastScanTime(
+      lastScanTime ?? discoveryCompletedAt,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -190,89 +197,131 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
             borderRadius: BorderRadius.circular(8),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-              child: Row(
-                children: [
-                  // Discovery icon
-                  Icon(
-                    LucideIcons.radar,
-                    size: 18,
-                    color: colors.primary,
-                  ),
-                  const SizedBox(width: 10),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final compact =
+                      constraints.maxWidth < BreakpointTokens.breakpointPhone;
 
-                  // Title
-                  Text(
-                    'DISCOVERY',
+                  final summary = Text(
+                    '$totalDevices device${totalDevices == 1 ? '' : 's'} found  \u2022  Last scan: $lastScanText',
                     style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                      letterSpacing: 0.5,
+                      fontSize: 11,
+                      color: colors.textMuted,
                     ),
-                  ),
+                    overflow: TextOverflow.ellipsis,
+                  );
 
-                  const SizedBox(width: 16),
-
-                  // Summary text
-                  Expanded(
-                    child: Text(
-                      '$totalDevices device${totalDevices == 1 ? '' : 's'} found  \u2022  Last scan: $lastScanText',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textMuted,
-                      ),
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  // Scan All button
-                  NightshadeButton(
-                    label: isDiscovering ? 'Scanning...' : 'Scan All',
+                  final scanButton = NightshadeButton(
+                    label: compact
+                        ? ''
+                        : (isDiscovering ? 'Scanning...' : 'Scan All'),
                     icon: LucideIcons.search,
                     variant: ButtonVariant.outline,
                     size: ButtonSize.small,
                     isLoading: isDiscovering,
                     onPressed: isDiscovering ? null : _scanForDevices,
-                  ),
+                  );
 
-                  const SizedBox(width: 8),
-
-                  // Expand/collapse button
-                  Container(
-                    padding:
-                        const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(6),
-                      border: Border.all(color: colors.border),
+                  final expandControl = InkWell(
+                    onTap: _toggleExpanded,
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      padding: EdgeInsets.symmetric(
+                        horizontal: compact ? 8 : 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (!compact) ...[
+                            Text(
+                              _isExpanded ? 'Collapse' : 'Expand',
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                color: colors.textSecondary,
+                              ),
+                            ),
+                            const SizedBox(width: 4),
+                          ],
+                          AnimatedRotation(
+                            turns: _isExpanded ? 0 : 0.5,
+                            duration: const Duration(milliseconds: 200),
+                            child: Icon(
+                              LucideIcons.chevronDown,
+                              size: 14,
+                              color: colors.textMuted,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
+                  );
+
+                  if (compact) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Text(
-                          _isExpanded ? 'Collapse' : 'Expand',
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w500,
-                            color: colors.textSecondary,
-                          ),
+                        Row(
+                          children: [
+                            Icon(
+                              LucideIcons.radar,
+                              size: 18,
+                              color: colors.primary,
+                            ),
+                            const SizedBox(width: 10),
+                            Text(
+                              'DISCOVERY',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: colors.textPrimary,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const Spacer(),
+                            scanButton,
+                            const SizedBox(width: 8),
+                            expandControl,
+                          ],
                         ),
-                        const SizedBox(width: 4),
-                        AnimatedRotation(
-                          turns: _isExpanded ? 0 : 0.5,
-                          duration: const Duration(milliseconds: 200),
-                          child: Icon(
-                            LucideIcons.chevronDown,
-                            size: 14,
-                            color: colors.textMuted,
-                          ),
-                        ),
+                        const SizedBox(height: 6),
+                        summary,
                       ],
-                    ),
-                  ),
-                ],
+                    );
+                  }
+
+                  return Row(
+                    children: [
+                      Icon(
+                        LucideIcons.radar,
+                        size: 18,
+                        color: colors.primary,
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'DISCOVERY',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(child: summary),
+                      const SizedBox(width: 12),
+                      scanButton,
+                      const SizedBox(width: 8),
+                      expandControl,
+                    ],
+                  );
+                },
               ),
             ),
           ),
@@ -486,10 +535,9 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
       padding: const EdgeInsets.only(bottom: 16),
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: colors.info.withValues(alpha: 0.1),
+        decoration: NightshadeDecorations.emphasisSurface(
+          colors.info,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: colors.info.withValues(alpha: 0.3)),
         ),
         child: Row(
           children: [
@@ -810,23 +858,12 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
   }
 
   Color _getDriverTypeColor(DriverType driverType, NightshadeColors colors) {
-    switch (driverType) {
-      case DriverType.native:
-        return colors.success;
-      case DriverType.ascom:
-        return colors.info;
-      case DriverType.alpaca:
-        return colors.warning;
-      case DriverType.indi:
-        return const Color(0xFF9333EA); // Purple
-      case DriverType.simulator:
-        return colors.textMuted;
-    }
+    return BackendProtocolColors.forBackend(driverType, colors);
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Watch device states to react to connection changes
     ref.watch(cameraStateProvider);
@@ -873,14 +910,9 @@ class _DeviceRowItemState extends ConsumerState<_DeviceRowItem> {
           // Driver type badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: _getDriverTypeColor(activeBackend, colors)
-                  .withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              _getDriverTypeColor(activeBackend, colors),
               borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: _getDriverTypeColor(activeBackend, colors)
-                    .withValues(alpha: 0.3),
-              ),
             ),
             child: Text(
               activeBackend.shortLabel.toLowerCase(),

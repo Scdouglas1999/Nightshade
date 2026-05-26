@@ -33,6 +33,8 @@ import 'event.dart' as gen_event;
 import 'state.dart' as gen_state;
 import 'storage.dart' as gen_storage;
 import 'frb_generated.dart' as frb;
+import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart'
+    show ExternalLibrary;
 import 'utils/safe_cast.dart';
 
 // ============================================================================
@@ -309,6 +311,9 @@ class NativeBridge {
   static bool _initialized = false;
   static bool _nativeAvailable = false;
   static DynamicLibrary? _nativeLib;
+
+  /// Absolute path used to load [_nativeLib], passed to FRB on release builds.
+  static String? _loadedNativeLibraryPath;
   static final _eventController =
       StreamController<_FallbackNightshadeEvent>.broadcast();
 
@@ -353,13 +358,19 @@ class NativeBridge {
     if (_initialized) return;
 
     // Try to load native library manually (for fallback path)
-    _nativeAvailable = await _tryLoadNativeLibrary();
+    await _tryLoadNativeLibrary();
 
-    // Try to initialize RustLib (it will try to auto-load the library)
-    // This enables native ZWO discovery and proper ASCOM discovery
-    // Note: If manual load succeeded, RustLib should also be able to find it
+    // FRB defaults to a dev-tree relative path (see kDefaultExternalLibraryLoaderConfig)
+    // which does not exist next to a packaged Release exe. When we found the DLL
+    // beside the executable, pass that path explicitly.
     try {
-      await frb.RustLib.init();
+      if (_loadedNativeLibraryPath != null) {
+        await frb.RustLib.init(
+          externalLibrary: ExternalLibrary.open(_loadedNativeLibraryPath!),
+        );
+      } else {
+        await frb.RustLib.init();
+      }
 
       // Initialize the native bridge API
       if (logDirectory != null) {
@@ -570,27 +581,25 @@ class NativeBridge {
         try {
           final file = File(libPath);
           if (await file.exists()) {
-            _nativeLib = DynamicLibrary.open(libPath);
-            return true;
+            try {
+              _nativeLib = DynamicLibrary.open(libPath);
+              _loadedNativeLibraryPath = path.normalize(libPath);
+              return true;
+            } catch (e) {
+              developer.log(
+                '[Bridge] Failed to load native library at $libPath: $e',
+                name: 'NativeBridge',
+                level: 900,
+              );
+            }
           }
         } catch (e) {
           // Continue trying other paths
         }
       }
 
-      // If we couldn't find the library, try loading by name (system will search)
-      try {
-        if (Platform.isWindows) {
-          _nativeLib = DynamicLibrary.open(libName);
-        } else if (Platform.isLinux) {
-          _nativeLib = DynamicLibrary.open(libName);
-        } else if (Platform.isMacOS) {
-          _nativeLib = DynamicLibrary.open(libName);
-        }
-        return true;
-      } catch (e) {
-        // System search also failed
-      }
+      _loadedNativeLibraryPath = null;
+      _nativeLib = null;
 
       // Why: warning-level — same fail-closed signal as the init path; this
       // is the dlopen-side failure when the library couldn't be located on
@@ -2549,6 +2558,16 @@ class NativeBridge {
     final targetHost = host ?? 'localhost';
     final targetPort = port ?? 4400;
 
+    // Guider commands (loop, guide, find star, etc.) use the Rust PHD2 client
+    // when the native bridge is loaded. Connect must use the same backend or
+    // Dart will show "connected" while Rust returns NotConnected(PHD2).
+    if (_nativeAvailable) {
+      _phd2Client?.dispose();
+      _phd2Client = null;
+      await gen_api.apiPhd2Connect(host: targetHost, port: targetPort);
+      return;
+    }
+
     // Check if PHD2 is already running
     bool phd2Running =
         await phd2.checkPhd2Running(host: targetHost, port: targetPort);
@@ -2640,6 +2659,13 @@ class NativeBridge {
 
   /// Disconnect from PHD2
   static Future<void> phd2Disconnect() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2Disconnect();
+      _phd2Client?.dispose();
+      _phd2Client = null;
+      return;
+    }
+
     _phd2Client?.disconnect();
     _phd2Client = null;
 
@@ -2658,6 +2684,14 @@ class NativeBridge {
     required double settleTime,
     required double settleTimeout,
   }) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2StartGuiding(
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected. Connect to PHD2 first.');
     }
@@ -2679,6 +2713,10 @@ class NativeBridge {
 
   /// Stop guiding
   static Future<void> phd2StopGuiding() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2StopGuiding();
+      return;
+    }
     if (_phd2Client != null && _phd2Client!.isConnected) {
       await _phd2Client!.stopGuiding();
     }
@@ -2694,6 +2732,10 @@ class NativeBridge {
 
   /// Pause guiding
   static Future<void> phd2PauseGuiding() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2SetPaused(paused: true);
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -2702,6 +2744,10 @@ class NativeBridge {
 
   /// Resume guiding
   static Future<void> phd2ResumeGuiding() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2SetPaused(paused: false);
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -2716,6 +2762,16 @@ class NativeBridge {
     required double settleTime,
     required double settleTimeout,
   }) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2Dither(
+        amount: amount,
+        raOnly: raOnly ? 1 : 0,
+        settlePixels: settlePixels,
+        settleTime: settleTime,
+        settleTimeout: settleTimeout,
+      );
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected. Connect to PHD2 first.');
     }
@@ -2739,6 +2795,9 @@ class NativeBridge {
 
   /// Get PHD2 status
   static Future<Phd2Status> phd2GetStatus() async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetStatus();
+    }
     if (_phd2Client == null) {
       return const Phd2Status(
         connected: false,
@@ -2979,6 +3038,9 @@ class NativeBridge {
 
   /// Auto-select guide star in PHD2
   static Future<void> phd2AutoSelectStar() async {
+    if (_nativeAvailable) {
+      _nativeBridgeRequired('phd2AutoSelectStar');
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -2987,6 +3049,10 @@ class NativeBridge {
 
   /// Start looping exposures in PHD2
   static Future<void> phd2Loop() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2Loop();
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -2995,6 +3061,9 @@ class NativeBridge {
 
   /// Get PHD2 star image
   static Future<Phd2StarImage> phd2GetStarImage({int size = 50}) async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetStarImage(size: size);
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3049,6 +3118,9 @@ class NativeBridge {
   /// Get PHD2 algorithm parameter names
   static Future<List<String>> phd2GetAlgoParamNames(
       {required String axis}) async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetAlgoParamNames(axis: axis);
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3060,6 +3132,9 @@ class NativeBridge {
     required String axis,
     required String name,
   }) async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetAlgoParam(axis: axis, name: name);
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3072,6 +3147,14 @@ class NativeBridge {
     required String name,
     required double value,
   }) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2SetAlgoParam(
+        axis: axis,
+        name: name,
+        value: value,
+      );
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3080,6 +3163,10 @@ class NativeBridge {
 
   /// Set PHD2 paused state
   static Future<void> phd2SetPaused({required bool paused}) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2SetPaused(paused: paused);
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3092,6 +3179,10 @@ class NativeBridge {
 
   /// Clear PHD2 calibration
   static Future<void> phd2ClearCalibration({String which = 'both'}) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2ClearCalibration(which: which);
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3100,6 +3191,10 @@ class NativeBridge {
 
   /// Flip PHD2 calibration (for meridian flip)
   static Future<void> phd2FlipCalibration() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2FlipCalibration();
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3108,6 +3203,9 @@ class NativeBridge {
 
   /// Get PHD2 calibration data
   static Future<gen_api.Phd2CalibrationData> phd2GetCalibrationData() async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetCalibrationData();
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3150,6 +3248,9 @@ class NativeBridge {
 
   /// Find a guide star in PHD2
   static Future<(double, double)> phd2FindStar() async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2FindStar();
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3162,6 +3263,10 @@ class NativeBridge {
     required double y,
     bool exact = false,
   }) async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2SetLockPosition(x: x, y: y, exact: exact);
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3170,6 +3275,9 @@ class NativeBridge {
 
   /// Get PHD2 lock position
   static Future<(double, double)> phd2GetLockPosition() async {
+    if (_nativeAvailable) {
+      return gen_api.apiPhd2GetLockPosition();
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3178,6 +3286,10 @@ class NativeBridge {
 
   /// Deselect star in PHD2
   static Future<void> phd2DeselectStar() async {
+    if (_nativeAvailable) {
+      await gen_api.apiPhd2DeselectStar();
+      return;
+    }
     if (_phd2Client == null || !_phd2Client!.isConnected) {
       throw Exception('PHD2 not connected');
     }
@@ -3286,6 +3398,26 @@ class NativeBridge {
     }
   }
 
+  /// Set the safety/humidity polling interval for the sequencer
+  static Future<void> sequencerSetSafetyCheckIntervalSeconds(
+      int seconds) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetSafetyCheckIntervalSeconds');
+    }
+
+    try {
+      await gen_api.apiSequencerSetSafetyCheckIntervalSeconds(seconds: seconds);
+      developer.log('[Bridge] Set sequencer safety check interval: ${seconds}s',
+          name: 'NativeBridge', level: 800);
+    } catch (e) {
+      developer.log(
+          '[Bridge] Error setting sequencer safety check interval: $e',
+          name: 'NativeBridge',
+          level: 1000);
+      rethrow;
+    }
+  }
+
   /// Set the save path for sequencer images
   static Future<void> sequencerSetSavePath({String? path}) async {
     if (!_nativeAvailable) {
@@ -3299,6 +3431,62 @@ class NativeBridge {
     } catch (e) {
       developer.log('[Bridge] Error setting sequencer save path: $e',
           name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 8 Replay Debug — stamp the active `sequence_runs.id` on the
+  /// Rust executor so every emitted `DecisionEvent` carries the FK.
+  ///
+  /// Wrapper around the FRB-generated `apiSequencerSetActiveSequenceRunId`
+  /// in `api/sequencer.dart`, which itself gracefully degrades when the
+  /// underlying `RustLib` binding hasn't been regenerated.
+  static Future<void> sequencerSetActiveSequenceRunId({
+    int? sequenceRunId,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetActiveSequenceRunId');
+    }
+    try {
+      await gen_api.apiSequencerSetActiveSequenceRunId(
+        sequenceRunId: sequenceRunId,
+      );
+      developer.log(
+        '[Bridge] Set active sequence_run_id: ${sequenceRunId ?? "<none>"}',
+        name: 'NativeBridge',
+        level: 800,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error setting active sequence_run_id: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
+  /// Wave 8 Replay Debug — runtime toggle for the decision-logging
+  /// broadcast channel.
+  static Future<void> sequencerSetDecisionLoggingEnabled({
+    required bool enabled,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSetDecisionLoggingEnabled');
+    }
+    try {
+      await gen_api.apiSequencerSetDecisionLoggingEnabled(enabled: enabled);
+      developer.log(
+        '[Bridge] Set decision logging enabled: $enabled',
+        name: 'NativeBridge',
+        level: 800,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error setting decision logging enabled: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
       rethrow;
     }
   }
@@ -3372,6 +3560,245 @@ class NativeBridge {
           name: 'NativeBridge', level: 800);
     } catch (e) {
       developer.log('[Bridge] Error updating sequencer filter offsets: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 7.5 — stage per-target / per-filter carry-over integration on
+  /// the executor so the next sequencerStart() seeds the
+  /// IntegrationBudget tracker. See [api_sequencer_update_pending_integration_carry_over]
+  /// for semantics; empty inner map zeroes a target's carry-over.
+  static Future<void> sequencerUpdatePendingIntegrationCarryOver(
+      {required Map<String, Map<String, double>> carryOver}) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdatePendingIntegrationCarryOver');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdatePendingIntegrationCarryOver(
+        carryOver: carryOver,
+      );
+      developer.log(
+        '[Bridge] Staged integration carry-over for ${carryOver.length} targets',
+        name: 'NativeBridge',
+        level: 800,
+      );
+    } catch (e) {
+      developer.log(
+        '[Bridge] Error staging integration carry-over: $e',
+        name: 'NativeBridge',
+        level: 1000,
+      );
+      rethrow;
+    }
+  }
+
+  /// Wave 1.5 Pack A: update the autofocus-interval trigger cadence at
+  /// runtime. The bridge rejects 0 (the trigger evaluator treats 0 as
+  /// disabled; use the per-trigger `enabled` toggle for that intent).
+  static Future<void> sequencerUpdateAutofocusInterval(
+      {required int everyNFrames}) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateAutofocusInterval');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateAutofocusInterval(
+          everyNFrames: everyNFrames);
+      developer.log(
+          '[Bridge] Updated sequencer autofocus-interval cadence: $everyNFrames frames',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log(
+          '[Bridge] Error updating sequencer autofocus-interval cadence: $e',
+          name: 'NativeBridge',
+          level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Pack G — update the global default image-grading thresholds. When
+  /// `enabled` is false, grading is disabled globally (per-node
+  /// `quality_check` on TakeExposure still wins). The four threshold
+  /// fields are optional and respected only when enabled.
+  static Future<void> sequencerUpdateDefaultQualityCheck({
+    double? hfrThreshold,
+    double? hfrBaselinePercent,
+    double? eccentricityThreshold,
+    int? starCountMin,
+    required int maxConsecutiveRejects,
+    required bool enabled,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateDefaultQualityCheck');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateDefaultQualityCheck(
+        hfrThreshold: hfrThreshold,
+        hfrBaselinePercent: hfrBaselinePercent,
+        eccentricityThreshold: eccentricityThreshold,
+        starCountMin: starCountMin,
+        maxConsecutiveRejects: maxConsecutiveRejects,
+        enabled: enabled,
+      );
+      developer.log(
+          '[Bridge] Updated default_quality_check: enabled=$enabled, hfr=$hfrThreshold, baseline=$hfrBaselinePercent%, ecc=$eccentricityThreshold, stars=$starCountMin, maxRejects=$maxConsecutiveRejects',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error updating default_quality_check: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Pack G — update the reject-folder override. Pass `null` or empty
+  /// string to fall back to `<save_path>/Reject/`.
+  static Future<void> sequencerUpdateRejectFolderPath({
+    String? path,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateRejectFolderPath');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateRejectFolderPath(path: path);
+      developer.log(
+          '[Bridge] Updated reject_folder_path: ${path ?? "<default>"}',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error updating reject_folder_path: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Pack G — push observer / equipment identification so the next FITS
+  /// save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN, APTDIA,
+  /// INSTRUME, SITEELEV). Every field is optional — empty / null fields
+  /// are omitted from FITS rather than emitted as sentinels.
+  static Future<void> sequencerUpdateObserverProfile({
+    String? observerName,
+    double? siteElevationM,
+    String? cameraMake,
+    String? cameraModel,
+    String? telescopeName,
+    double? telescopeFocalLengthMm,
+    double? telescopeApertureMm,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateObserverProfile');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateObserverProfile(
+        observerName: observerName,
+        siteElevationM: siteElevationM,
+        cameraMake: cameraMake,
+        cameraModel: cameraModel,
+        telescopeName: telescopeName,
+        telescopeFocalLengthMm: telescopeFocalLengthMm,
+        telescopeApertureMm: telescopeApertureMm,
+      );
+      developer.log(
+          '[Bridge] Updated observer_profile: observer=$observerName, telescope=$telescopeName, camera=$cameraMake $cameraModel',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error updating observer_profile: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 5 Agent 2 — push the latest live sky-brightness reading
+  /// (mag/arcsec²; bigger = darker) to the executor. Drives sky-
+  /// brightness adaptive exposure decisions on the next TakeExposure
+  /// burst. Pass `null` when the tracker has lost lock.
+  static Future<void> sequencerUpdateSkyBrightness({
+    required double? mag,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateSkyBrightness');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateSkyBrightness(mag: mag);
+      developer.log(
+          '[Bridge] Updated sky brightness: ${mag?.toStringAsFixed(2) ?? "<none>"} mag/arcsec²',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error updating sky brightness: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 5 Agent 2 — push the global default sky-brightness adaptive
+  /// exposure config. Per-node `ExposureNode.adaptiveExposure` overrides
+  /// still win; this is the fallback applied to nodes that have none.
+  ///
+  /// The per-filter overrides are flattened into parallel
+  /// (keys, values) lists because FRB cannot bridge `Map<String, T>`
+  /// across the boundary.
+  static Future<void> sequencerUpdateDefaultAdaptiveExposure({
+    required bool enabled,
+    required double targetSnr,
+    required double referenceSkyBrightnessMag,
+    required double minExposureSecs,
+    required double maxExposureSecs,
+    required Map<String, bool> perFilterEnabled,
+    required Map<String, double> perFilterMinSecs,
+    required Map<String, double> perFilterMaxSecs,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerUpdateDefaultAdaptiveExposure');
+    }
+
+    try {
+      await gen_api.apiSequencerUpdateDefaultAdaptiveExposure(
+        enabled: enabled,
+        targetSnr: targetSnr,
+        referenceSkyBrightnessMag: referenceSkyBrightnessMag,
+        minExposureSecs: minExposureSecs,
+        maxExposureSecs: maxExposureSecs,
+        perFilterEnabledKeys: perFilterEnabled.keys.toList(),
+        perFilterEnabledValues: perFilterEnabled.values.toList(),
+        perFilterMinKeys: perFilterMinSecs.keys.toList(),
+        perFilterMinValues: perFilterMinSecs.values.toList(),
+        perFilterMaxKeys: perFilterMaxSecs.keys.toList(),
+        perFilterMaxValues: perFilterMaxSecs.values.toList(),
+      );
+      developer.log(
+          '[Bridge] Updated default_adaptive_exposure: enabled=$enabled, ref=$referenceSkyBrightnessMag mag, min=${minExposureSecs}s, max=${maxExposureSecs}s, per_filter_enabled=${perFilterEnabled.length}',
+          name: 'NativeBridge',
+          level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error updating default_adaptive_exposure: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 5 Agent 2 — disable the global default sky-brightness
+  /// adaptive exposure config. Convenience wrapper around the typed
+  /// update for the "off" case.
+  static Future<void> sequencerClearDefaultAdaptiveExposure() async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerClearDefaultAdaptiveExposure');
+    }
+
+    try {
+      await gen_api.apiSequencerClearDefaultAdaptiveExposure();
+      developer.log('[Bridge] Cleared default_adaptive_exposure',
+          name: 'NativeBridge', level: 800);
+    } catch (e) {
+      developer.log('[Bridge] Error clearing default_adaptive_exposure: $e',
           name: 'NativeBridge', level: 1000);
       rethrow;
     }
@@ -3456,6 +3883,53 @@ class NativeBridge {
     } catch (e) {
       developer.log('[Bridge] Error skipping node via native: $e',
           name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 1.5 Pack A: jump execution to a specific node id. Preceding
+  /// siblings are marked Skipped; the currently-running instruction
+  /// completes first. Throws if the executor is not running.
+  static Future<void> sequencerSkipToNode({required String nodeId}) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerSkipToNode');
+    }
+
+    try {
+      await gen_api.apiSequencerSkipToNode(nodeId: nodeId);
+    } catch (e) {
+      developer.log('[Bridge] Error skipping to node "$nodeId" via native: $e',
+          name: 'NativeBridge', level: 1000);
+      rethrow;
+    }
+  }
+
+  /// Wave 6 Pack P: report the verdict of a plugin-dispatched
+  /// `NodeType::PluginNode` back to the Rust executor. The Rust side
+  /// has a pending oneshot keyed on [nodeId]; the verdict resolves it
+  /// and the awaiting instruction returns Success / Failure.
+  static Future<void> sequencerPluginNodeFinished({
+    required String nodeId,
+    required bool success,
+    String? message,
+    String? structuredDetailJson,
+  }) async {
+    if (!_nativeAvailable) {
+      _nativeBridgeRequired('sequencerPluginNodeFinished');
+    }
+
+    try {
+      await gen_api.apiSequencerPluginNodeFinished(
+        nodeId: nodeId,
+        success: success,
+        message: message,
+        structuredDetailJson: structuredDetailJson,
+      );
+    } catch (e) {
+      developer.log(
+          '[Bridge] Error delivering plugin node verdict for "$nodeId" via native: $e',
+          name: 'NativeBridge',
+          level: 1000);
       rethrow;
     }
   }

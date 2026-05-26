@@ -14,67 +14,81 @@ class OpticalConfigPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Watch optical config from provider
     final opticalConfig = ref.watch(opticalConfigProvider);
     final activeProfile = ref.watch(activeEquipmentProfileProvider);
 
-    return Container(
-      width: 260,
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Header with close button
-          Row(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final viewportWidth = constraints.maxWidth.isFinite
+            ? constraints.maxWidth
+            : MediaQuery.sizeOf(context).width;
+        final maxWidth = Responsive.previewOverlayMaxWidth(
+          viewportWidth,
+          maxAbsolute: 260,
+        );
+        return Container(
+          width: double.infinity,
+          constraints: BoxConstraints(maxWidth: maxWidth),
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(LucideIcons.aperture, size: 14, color: colors.textMuted),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  'OPTICAL CONFIG',
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: colors.textMuted,
-                    letterSpacing: 0.5,
+              Row(
+                children: [
+                  Icon(LucideIcons.aperture, size: 14, color: colors.textMuted),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'OPTICAL CONFIG',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textMuted,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
                   ),
-                ),
+                  SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: IconButton(
+                      padding: EdgeInsets.zero,
+                      iconSize: 14,
+                      tooltip: 'Hide optical config panel',
+                      icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
+                      onPressed: () {
+                        ref
+                            .read(framingProvider.notifier)
+                            .setOpticalConfigPanelVisible(false);
+                      },
+                    ),
+                  ),
+                ],
               ),
-              SizedBox(
-                width: 24,
-                height: 24,
-                child: IconButton(
-                  padding: EdgeInsets.zero,
-                  iconSize: 14,
-                  tooltip: 'Hide optical config panel',
-                  icon: Icon(LucideIcons.x, size: 14, color: colors.textMuted),
-                  onPressed: () {
-                    ref
-                        .read(framingProvider.notifier)
-                        .setOpticalConfigPanelVisible(false);
-                  },
+              const SizedBox(height: 16),
+              if (opticalConfig == null || !_hasValidConfig(opticalConfig))
+                _buildMissingConfigState(context, colors, activeProfile)
+              else
+                _buildConfigDisplay(
+                  context,
+                  colors,
+                  opticalConfig,
+                  activeProfile,
+                  ref,
                 ),
-              ),
             ],
           ),
-          const SizedBox(height: 16),
-
-          // Content based on whether config exists
-          if (opticalConfig == null || !_hasValidConfig(opticalConfig))
-            _buildMissingConfigState(context, colors, activeProfile)
-          else
-            _buildConfigDisplay(
-                context, colors, opticalConfig, activeProfile, ref),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -285,7 +299,7 @@ class _ProfileSwitcher extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final profilesAsync = ref.watch(allProfilesProvider);
 
     return profilesAsync.when(

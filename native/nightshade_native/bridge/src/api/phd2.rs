@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -132,10 +130,19 @@ pub async fn api_phd2_connect(
     // Why (audit-rust §4.3): localhost + PHD2 default port 4400 are the
     // documented PHD2 defaults from the PHD2 EventMonitoring wiki and the
     // Nightshade PHD2-settings UI placeholder values.
-    let host = host.unwrap_or_else(|| "127.0.0.1".to_string());
+    let host = nightshade_imaging::normalize_phd2_tcp_host(
+        &host.unwrap_or_else(|| "127.0.0.1".to_string()),
+    );
     let port = port.unwrap_or(4400);
 
     tracing::info!("Connecting to PHD2 at {}:{}", host, port);
+
+    {
+        let mut storage = get_phd2_storage().write().await;
+        if let Some(mut existing) = storage.take() {
+            existing.disconnect();
+        }
+    }
 
     let mut client = nightshade_imaging::Phd2Client::new(&host, port);
 
@@ -252,6 +259,13 @@ pub async fn api_phd2_connect(
     client
         .connect()
         .map_err(|e| NightshadeError::connection_failed("phd2_guider", format!("PHD2: {}", e)))?;
+
+    client
+        .wait_until_ready(Duration::from_secs(10))
+        .map_err(|e| {
+            client.disconnect();
+            NightshadeError::connection_failed("phd2_guider", format!("PHD2: {}", e))
+        })?;
 
     // Store the client
     let mut storage = get_phd2_storage().write().await;
@@ -399,7 +413,7 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
     };
 
     Ok(Phd2Status {
-        connected: true,
+        connected: client.is_connected(),
         state: state_str,
         rms_ra: 0.0, // Would need to track from events
         rms_dec: 0.0,
@@ -835,6 +849,23 @@ pub async fn api_guider_get_status(device_id: String) -> Result<Phd2Status, Nigh
     }
     if device_id == crate::builtin_guider::device_id() {
         return crate::builtin_guider::get_status().await;
+    }
+    Err(NightshadeError::OperationFailed(format!(
+        "Unsupported guider device: {}",
+        device_id
+    )))
+}
+
+/// Unified accessor for calibration data across all guider backends.
+/// Used by the sequencer to validate calibration quality post-StartGuiding (P3-7).
+pub async fn api_guider_get_calibration(
+    device_id: String,
+) -> Result<Phd2CalibrationData, NightshadeError> {
+    if is_phd2_device_id(&device_id) {
+        return api_phd2_get_calibration_data().await;
+    }
+    if device_id == crate::builtin_guider::device_id() {
+        return crate::builtin_guider::get_calibration_data().await;
     }
     Err(NightshadeError::OperationFailed(format!(
         "Unsupported guider device: {}",

@@ -14,7 +14,7 @@ class EquipmentHealthPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isExpanded = ref.watch(equipmentHealthExpandedProvider);
     final reportAsync = ref.watch(equipmentHealthReportProvider);
     final deviceSnapshots = ref.watch(deviceHealthSnapshotsProvider);
@@ -91,8 +91,8 @@ class _HealthHeaderBar extends StatelessWidget {
       const SizedBox(width: 8),
       Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
-        decoration: BoxDecoration(
-          color: colors.warning.withValues(alpha: 0.15),
+        decoration: NightshadeDecorations.tintedBadge(
+          colors.warning,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Text(
@@ -109,7 +109,7 @@ class _HealthHeaderBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return InkWell(
       onTap: onToggle,
@@ -119,36 +119,42 @@ class _HealthHeaderBar extends StatelessWidget {
           children: [
             Icon(LucideIcons.heartPulse, size: 16, color: colors.textMuted),
             const SizedBox(width: 8),
-            Text(
-              'System Health',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textSecondary,
-                letterSpacing: 0.5,
+            Expanded(
+              child: Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      'System Health',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.textSecondary,
+                        letterSpacing: 0.5,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  reportAsync.when(
+                    data: (report) => _ScoreBadge(score: report.score),
+                    loading: () => SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 1.5,
+                        color: colors.textMuted,
+                      ),
+                    ),
+                    error: (_, __) => Icon(
+                      LucideIcons.alertTriangle,
+                      size: 14,
+                      color: colors.error,
+                    ),
+                  ),
+                  ..._warningCountWidgets(reportAsync, colors),
+                ],
               ),
             ),
-            const SizedBox(width: 12),
-            // Inline score badge
-            reportAsync.when(
-              data: (report) => _ScoreBadge(score: report.score),
-              loading: () => SizedBox(
-                width: 12,
-                height: 12,
-                child: CircularProgressIndicator(
-                  strokeWidth: 1.5,
-                  color: colors.textMuted,
-                ),
-              ),
-              error: (_, __) => Icon(
-                LucideIcons.alertTriangle,
-                size: 14,
-                color: colors.error,
-              ),
-            ),
-            // Show warning count if any
-            ..._warningCountWidgets(reportAsync, colors),
-            const Spacer(),
             Icon(
               isExpanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
               size: 16,
@@ -172,15 +178,14 @@ class _ScoreBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final (badgeColor, label) = _scoreAppearance(score, colors);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        badgeColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -231,7 +236,7 @@ class _HealthDetailContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
@@ -286,7 +291,7 @@ class _ScoreGaugeRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final (gaugeColor, _) = _ScoreBadge._scoreAppearance(score, colors);
 
     return Row(
@@ -294,11 +299,9 @@ class _ScoreGaugeRow extends StatelessWidget {
         // Score number
         Text(
           '${score.round()}',
-          style: TextStyle(
-            fontSize: 36,
+          style: NightshadeTypography.telemetryLg.copyWith(
             fontWeight: FontWeight.w700,
             color: gaugeColor,
-            height: 1.0,
           ),
         ),
         const SizedBox(width: 4),
@@ -364,7 +367,7 @@ class _InsightCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final (iconData, iconColor) = _severityAppearance(insight.severity, colors);
 
     return Container(
@@ -432,7 +435,7 @@ class _DeviceHeartbeatChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final statusColor = snapshot.isHealthy ? colors.success : colors.error;
     final lastSeen = DateTime.fromMillisecondsSinceEpoch(
         snapshot.lastSuccessfulTimestampMs);
@@ -516,7 +519,7 @@ class _HealthErrorContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),

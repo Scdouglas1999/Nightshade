@@ -19,69 +19,97 @@ class BottomInfoBar extends ConsumerWidget {
     final bortle = ref.watch(bortleClassProvider);
     final limMag = BortleScale.limitingMagnitude(bortle);
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.8),
-            Colors.transparent,
-          ],
-        ),
-      ),
-      child: Row(
-        children: [
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isCompact = constraints.maxWidth < 900;
+        final isVeryCompact = constraints.maxWidth < 720;
+        final horizontalPadding = isVeryCompact ? 12.0 : (isCompact ? 16.0 : 20.0);
+        final itemSpacing = isVeryCompact ? 8.0 : (isCompact ? 12.0 : 20.0);
+
+        final items = <Widget>[
           InfoItem(
             label: 'Center RA',
             value: CoordinateFormatUtils.formatRAShort(viewState.centerRA),
             colors: colors,
+            compact: isCompact,
           ),
-          const SizedBox(width: 20),
+          SizedBox(width: itemSpacing),
           InfoItem(
             label: 'Center Dec',
-            value: CoordinateFormatUtils.formatDec(viewState.centerDec),
+            value: isCompact
+                ? CoordinateFormatUtils.formatDecCompact(viewState.centerDec)
+                : CoordinateFormatUtils.formatDec(viewState.centerDec),
             colors: colors,
+            compact: isCompact,
           ),
-          const SizedBox(width: 20),
+          SizedBox(width: itemSpacing),
           InfoItem(
             label: 'FOV',
             value: CoordinateFormatUtils.formatFOV(viewState.fieldOfView),
             colors: colors,
+            compact: isCompact,
           ),
-          const SizedBox(width: 20),
-          InfoItem(
-            label: 'Bortle',
-            value: '$bortle (lim ${limMag.toStringAsFixed(1)}m)',
-            colors: colors,
-            valueColor: bortle <= 3
-                ? colors.success
-                : bortle <= 5
-                    ? Colors.amber
-                    : colors.error,
-          ),
-          if (selectedObject.currentAltAz != null) ...[
-            const SizedBox(width: 40),
+          if (!isVeryCompact) ...[
+            SizedBox(width: itemSpacing),
+            InfoItem(
+              label: 'Bortle',
+              value: '$bortle (lim ${limMag.toStringAsFixed(1)}m)',
+              colors: colors,
+              compact: isCompact,
+              valueColor: bortle <= 3
+                  ? colors.success
+                  : bortle <= 5
+                      ? Colors.amber
+                      : colors.error,
+            ),
+          ],
+          if (!isCompact && selectedObject.currentAltAz != null) ...[
+            SizedBox(width: itemSpacing * 2),
             InfoItem(
               label: 'Selected Alt',
               value: CoordinateFormatUtils.formatAltitude(
                   selectedObject.currentAltAz!.$1),
               colors: colors,
+              compact: isCompact,
               valueColor: selectedObject.currentAltAz!.$1 > 0
                   ? colors.success
                   : colors.error,
             ),
-            const SizedBox(width: 20),
+            SizedBox(width: itemSpacing),
             InfoItem(
               label: 'Az',
               value: CoordinateFormatUtils.formatAzimuth(
                   selectedObject.currentAltAz!.$2),
               colors: colors,
+              compact: isCompact,
             ),
           ],
-        ],
-      ),
+        ];
+
+        return Container(
+          padding: EdgeInsets.symmetric(
+            horizontal: horizontalPadding,
+            vertical: isCompact ? 8 : 12,
+          ),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.bottomCenter,
+              end: Alignment.topCenter,
+              colors: [
+                Colors.black.withValues(alpha: 0.8),
+                Colors.transparent,
+              ],
+            ),
+          ),
+          child: isVeryCompact
+              ? FittedBox(
+                  fit: BoxFit.scaleDown,
+                  alignment: Alignment.centerLeft,
+                  child: Row(mainAxisSize: MainAxisSize.min, children: items),
+                )
+              : Row(children: items),
+        );
+      },
     );
   }
 }
@@ -91,6 +119,7 @@ class InfoItem extends StatelessWidget {
   final String value;
   final NightshadeColors colors;
   final Color? valueColor;
+  final bool compact;
 
   const InfoItem({
     super.key,
@@ -98,22 +127,26 @@ class InfoItem extends StatelessWidget {
     required this.value,
     required this.colors,
     this.valueColor,
+    this.compact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          '$label:',
+          '${compact ? label.split(' ').first : label}:',
           style: TextStyle(
-              fontSize: 11, color: Colors.white.withValues(alpha: 0.5)),
+            fontSize: compact ? 10 : 11,
+            color: Colors.white.withValues(alpha: 0.5),
+          ),
         ),
         const SizedBox(width: 4),
         Text(
           value,
           style: TextStyle(
-            fontSize: 12,
+            fontSize: compact ? 11 : 12,
             fontWeight: FontWeight.w500,
             color: valueColor ?? Colors.white70,
             fontFeatures: const [ui.FontFeature.tabularFigures()],

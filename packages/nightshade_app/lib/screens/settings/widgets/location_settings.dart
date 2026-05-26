@@ -15,11 +15,10 @@ import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
 class LocationSettingsPage extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const LocationSettingsPage(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<LocationSettingsPage> createState() => _LocationSettingsState();
@@ -72,11 +71,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -88,13 +85,11 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
           key: SettingsTutorialKeys.location,
           title: 'Location',
           description: 'Observatory location for calculations',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           hideHeader: widget.isMobile,
           children: [
             SettingsSection(
               title: 'Coordinates',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
@@ -112,10 +107,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                           .read(appSettingsProvider.notifier)
                           .setLatitude(value);
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -133,10 +126,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                           .read(appSettingsProvider.notifier)
                           .setLongitude(value);
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -154,11 +145,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                           .read(appSettingsProvider.notifier)
                           .setElevation(value);
                     },
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   ),
                   isLast: false,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -167,7 +156,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Fetch location from Headless Server',
                   trailing: IconButton(
                     icon: Icon(LucideIcons.downloadCloud,
-                        color: widget.colors.primary),
+                        color: NightshadeColors.of(context).primary),
                     onPressed: () async {
                       try {
                         final backend = ref.read(backendProvider);
@@ -195,7 +184,6 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     },
                   ),
                   isLast: false,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -204,7 +192,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   subtitle: 'Get location from GPS',
                   trailing: IconButton(
                     icon: Icon(LucideIcons.crosshair,
-                        color: widget.colors.primary),
+                        color: NightshadeColors.of(context).primary),
                     onPressed: () async {
                       try {
                         final location =
@@ -236,14 +224,12 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     },
                   ),
                   isLast: true,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Observing Environment',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
@@ -265,11 +251,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                             .setBortleClass(int.parse(value));
                       }
                     },
-                    colors: widget.colors,
                     width: widget.isMobile ? 200 : 280,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -279,20 +263,18 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                   trailing: Text(
                     '${BortleScale.limitingMagnitude(settings.bortleClass).toStringAsFixed(1)}m',
                     style: TextStyle(
-                      color: widget.colors.textPrimary,
+                      color: NightshadeColors.of(context).textPrimary,
                       fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   isLast: true,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Local Horizon Mask',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 Padding(
@@ -302,7 +284,7 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     'Objects below these altitudes are considered obstructed by terrain, '
                     'trees, or buildings.',
                     style: TextStyle(
-                      color: widget.colors.textSecondary,
+                      color: NightshadeColors.of(context).textSecondary,
                       fontSize: 12,
                     ),
                   ),
@@ -323,11 +305,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                       onChanged: (value) async {
                         _updateHorizonProfile();
                       },
-                      colors: widget.colors,
                       isMobile: widget.isMobile,
                     ),
                     isLast: i == horizonDirections.length - 1,
-                    colors: widget.colors,
                     isMobile: widget.isMobile,
                   );
                 }),
@@ -337,9 +317,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                     children: [
                       TextButton.icon(
                         icon: Icon(LucideIcons.rotateCcw, size: 14,
-                            color: widget.colors.primary),
+                            color: NightshadeColors.of(context).primary),
                         label: Text('Reset All to 0\u00B0',
-                            style: TextStyle(color: widget.colors.primary, fontSize: 12)),
+                            style: TextStyle(color: NightshadeColors.of(context).primary, fontSize: 12)),
                         onPressed: () {
                           for (final dir in horizonDirections) {
                             _horizonControllers[dir]!.text = '0';
@@ -354,7 +334,6 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
             ),
             SettingsSection(
               title: 'Time',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 SettingRow(
@@ -370,11 +349,9 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                             .setTimezone(value);
                       }
                     },
-                    colors: widget.colors,
                     width: widget.isMobile ? 160 : 200,
                     isMobile: widget.isMobile,
                   ),
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
                 SettingRow(
@@ -388,10 +365,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
                           .read(appSettingsProvider.notifier)
                           .setUseSystemTime(value);
                     },
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                   isMobile: widget.isMobile,
                 ),
               ],

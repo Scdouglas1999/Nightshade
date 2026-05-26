@@ -57,6 +57,21 @@ void main() {
       expect(body['error'], isA<String>());
     });
 
+    test('save framing malformed payload returns JSON error', () async {
+      final response = await translateHandlerErrors(handlers.handleSaveFraming(
+        Request(
+          'POST',
+          Uri.parse('http://localhost/api/framing/save'),
+          body: jsonEncode({'ra': 1.0}),
+        ),
+      ));
+
+      expect(response.statusCode,
+          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['error'], isA<String>());
+    });
+
     test('rotate to malformed payload returns JSON internal error', () async {
       final response = await translateHandlerErrors(handlers.handleRotateTo(
         Request(

@@ -210,10 +210,6 @@ impl AstroTime {
     }
 }
 
-/// SGP4 satellite propagation (TEME); see [`sgp4_prop`].
-#[path = "sgp4_prop.rs"]
-pub mod sgp4_prop;
-
 #[cfg(test)]
 mod tests {
     use super::*;

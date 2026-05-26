@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../theme/nightshade_colors.dart';
 
 enum ResizeSide { left, right }
 
@@ -41,6 +42,12 @@ class _ResizablePanelState extends State<ResizablePanel> {
 
   @override
   Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+    final idleHandleColor =
+        widget.handleColor ?? colors.border.withValues(alpha: 0.35);
+    final activeHandleColor =
+        widget.handleHoverColor ?? colors.borderHighlight;
+
     final handle = MouseRegion(
       cursor: SystemMouseCursors.resizeColumn,
       onEnter: (_) => setState(() => _isHovering = true),
@@ -51,10 +58,8 @@ class _ResizablePanelState extends State<ResizablePanel> {
         onHorizontalDragUpdate: (details) {
           setState(() {
             if (widget.side == ResizeSide.right) {
-              // If panel is on the left, resizing right edge increases width
               _width += details.delta.dx;
             } else {
-              // If panel is on the right, resizing left edge (dragging left) increases width
               _width -= details.delta.dx;
             }
             _width = _width.clamp(widget.minWidth, widget.maxWidth);
@@ -69,8 +74,8 @@ class _ResizablePanelState extends State<ResizablePanel> {
               width: 2,
               height: double.infinity,
               color: _isResizing || _isHovering
-                  ? (widget.handleHoverColor ?? Theme.of(context).primaryColor)
-                  : (widget.handleColor ?? Colors.transparent),
+                  ? activeHandleColor
+                  : idleHandleColor,
             ),
           ),
         ),
@@ -83,7 +88,6 @@ class _ResizablePanelState extends State<ResizablePanel> {
         children: [
           if (widget.side == ResizeSide.right) Expanded(child: widget.child),
           if (widget.side == ResizeSide.right) handle,
-          
           if (widget.side == ResizeSide.left) handle,
           if (widget.side == ResizeSide.left) Expanded(child: widget.child),
         ],

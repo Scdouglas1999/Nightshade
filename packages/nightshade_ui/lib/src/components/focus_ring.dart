@@ -2,13 +2,8 @@ import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 
-/// A wrapper that adds a custom focus ring with accent color glow.
-///
-/// Use this to wrap interactive elements for consistent accessibility
-/// styling across the app. The focus ring animates in smoothly and
-/// uses the theme's accent color.
-class FocusRing extends StatefulWidget {
-  /// The child widget to wrap
+/// A wrapper that adds a crisp focus ring for keyboard navigation.
+class FocusRing extends StatefulWidget {  /// The child widget to wrap
   final Widget child;
 
   /// Focus node to track (optional, creates one if not provided)
@@ -26,9 +21,8 @@ class FocusRing extends StatefulWidget {
   /// Padding between the child and the focus ring
   final double ringPadding;
 
-  /// Blur radius of the focus glow
+  /// Blur radius reserved for API compatibility (ring uses border only).
   final double glowRadius;
-
   const FocusRing({
     super.key,
     required this.child,
@@ -116,7 +110,7 @@ class _FocusRingState extends State<FocusRing>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final effectiveFocusColor = widget.focusColor ?? colors.primary;
     final effectiveRadius = widget.borderRadius ?? NightshadeTokens.borderRadiusMd;
 
@@ -132,19 +126,10 @@ class _FocusRingState extends State<FocusRing>
                     borderRadius: effectiveRadius,
                     border: Border.all(
                       color: effectiveFocusColor.withValues(
-                        alpha: _opacityAnimation.value * 0.6,
+                        alpha: _opacityAnimation.value * 0.75,
                       ),
                       width: 2,
                     ),
-                    boxShadow: [
-                      BoxShadow(
-                        color: effectiveFocusColor.withValues(
-                          alpha: _opacityAnimation.value * 0.3,
-                        ),
-                        blurRadius: widget.glowRadius,
-                        spreadRadius: 0,
-                      ),
-                    ],
                   )
                 : null,
             child: child,

@@ -17,7 +17,7 @@ GoRouter _buildRouter() {
       GoRoute(
         path: '/imaging',
         builder: (context, state) {
-          final colors = Theme.of(context).extension<NightshadeColors>()!;
+          final colors = NightshadeColors.of(context);
           return Scaffold(
             body: SingleChildScrollView(
               padding: const EdgeInsets.all(16),

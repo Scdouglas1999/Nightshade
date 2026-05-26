@@ -22,6 +22,16 @@ final locationSyncProvider = Provider<void>((ref) {
           elevation: settings.elevation,
         );
 
+        // Wave 1.5 Pack D: bridge effectiveHorizonDeg into the planetarium
+        // package. We can't make planetarium depend on nightshade_core
+        // (core already depends on planetarium for catalog access), so the
+        // app layer pumps the value across via this sync provider. The
+        // altitude card and rise/set times in object_details_panel read
+        // `effectiveHorizonDegProvider` from the planetarium package so
+        // they automatically pick up the new value.
+        ref.read(planetariumEffectiveHorizonDegProvider.notifier).state =
+            settings.effectiveHorizonDeg;
+
         // Also sync to Rust backend for astronomical calculations
         await _syncLocationToBackend(ref, settings.latitude, settings.longitude, settings.elevation);
       });
@@ -44,6 +54,12 @@ final locationSyncProvider = Provider<void>((ref) {
         await _syncLocationToBackend(ref, settings.latitude, settings.longitude, settings.elevation);
       });
     }
+    // Effective horizon must sync even when location is 0/0 (e.g. user
+    // hasn't set location yet but did set the horizon).
+    Future.microtask(() {
+      ref.read(planetariumEffectiveHorizonDegProvider.notifier).state =
+          settings.effectiveHorizonDeg;
+    });
   });
 });
 

@@ -268,6 +268,15 @@ struct SvbonySdk {
     get_sdk_version: SvbGetSdkVersion,
 }
 
+fn svb_control_value_to_i32(value: i64, label: &str) -> Result<i32, NativeError> {
+    i32::try_from(value).map_err(|_| {
+        NativeError::SdkError(format!(
+            "SVBony SDK returned out-of-range {} value: {}",
+            label, value
+        ))
+    })
+}
+
 impl SvbonySdk {
     /// Load the SDK from the default paths
     fn load() -> Result<Self, NativeError> {
@@ -413,6 +422,7 @@ pub struct SvbonyDiscoveryInfo {
     pub camera_id: i32,
     pub name: String,
     pub serial_number: Option<String>,
+    pub sdk_version: Option<String>,
     pub discovery_index: usize,
 }
 
@@ -426,6 +436,7 @@ pub async fn discover_devices() -> Result<Vec<SvbonyDiscoveryInfo>, NativeError>
 
     // Acquire mutex for SDK discovery operations
     let _lock = svbony_mutex().lock().await;
+    let sdk_version = sdk_version_from_sdk(sdk);
 
     // SAFETY: svbony_mutex held above (SVBony SDK is not thread-safe per module header); SVBGetNumOfConnectedCameras takes no arguments and returns a plain c_int count.
     let count = unsafe { (sdk.get_num_of_connected_cameras)() };
@@ -454,6 +465,7 @@ pub async fn discover_devices() -> Result<Vec<SvbonyDiscoveryInfo>, NativeError>
                 } else {
                     Some(serial)
                 },
+                sdk_version: sdk_version.clone(),
                 // Why: `i` ranges 0..count where count is c_int >= 0 (loop bound).
                 // Negative would not enter the loop. `as usize` is widening with verified
                 // non-negative value; total camera count tops out below double digits.
@@ -472,20 +484,29 @@ pub fn is_sdk_available() -> bool {
 /// Get SDK status for diagnostics
 pub fn get_sdk_status() -> (bool, String) {
     match get_sdk() {
-        Ok(sdk) => {
-            // SAFETY: SVBGetSDKVersion returns a pointer to a static, NUL-terminated C string baked into the SDK shared library (per SVBCameraSDK.h); the SDK library is owned by SDK::OnceLock so the pointer is valid for the program's lifetime. We explicitly null-check before reading.
-            let version = unsafe {
-                let ptr = (sdk.get_sdk_version)();
-                if ptr.is_null() {
-                    "unknown".to_string()
-                } else {
-                    CStr::from_ptr(ptr).to_string_lossy().to_string()
-                }
-            };
-            (true, format!("SVBony SDK v{}", version))
-        }
+        Ok(sdk) => (
+            true,
+            sdk_version_from_sdk(sdk).unwrap_or_else(|| "SVBony SDK vunknown".to_string()),
+        ),
         Err(e) => (false, format!("SDK not available: {}", e)),
     }
+}
+
+fn sdk_version_from_sdk(sdk: &SvbonySdk) -> Option<String> {
+    // SAFETY: SVBGetSDKVersion returns a pointer to a static, NUL-terminated C string baked into the SDK shared library (per SVBCameraSDK.h); the SDK library is owned by SDK::OnceLock so the pointer is valid for the program's lifetime. We explicitly null-check before reading.
+    let ptr = unsafe { (sdk.get_sdk_version)() };
+    if ptr.is_null() {
+        return None;
+    }
+    let version = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!version.is_empty()).then_some(format!("SVBony SDK v{version}"))
+}
+
+pub fn sdk_version() -> Option<String> {
+    get_sdk().ok().and_then(sdk_version_from_sdk)
 }
 
 // =============================================================================
@@ -639,6 +660,20 @@ impl SvbonyCamera {
         &self,
         target_type: SvbControlType,
     ) -> Result<(i64, i64), NativeError> {
+        let (min, max, _default) = self.get_control_caps_async(target_type).await?;
+        Ok((min, max))
+    }
+
+    /// Get full `(min, max, default)` caps for a control (mutex protected).
+    ///
+    /// SVBony's `SvbControlCaps` includes a per-control `default_value` field
+    /// (matching ZWO's layout). For the Gain control this is the value SVBony's
+    /// firmware reports as the recommended starting point — surfaced here so
+    /// the bridge can present a unity-gain recommendation when available.
+    async fn get_control_caps_async(
+        &self,
+        target_type: SvbControlType,
+    ) -> Result<(i64, i64, i64), NativeError> {
         if !self.connected {
             return Err(NativeError::NotConnected);
         }
@@ -662,9 +697,14 @@ impl SvbonyCamera {
             if SvbError::from_i32(result) == SvbError::Success
                 && caps.control_type == target_type as c_int
             {
-                // Why: caps.min_value/max_value are c_long; widening to i64 is value-preserving
-                // on every Tier 1 target (LP64: c_long == i64; LLP64 Windows: i32 -> i64).
-                return Ok((caps.min_value as i64, caps.max_value as i64));
+                // Why: caps.min_value/max_value/default_value are c_long; widening
+                // to i64 is value-preserving on every Tier 1 target
+                // (LP64: c_long == i64; LLP64 Windows: i32 -> i64).
+                return Ok((
+                    caps.min_value as i64,
+                    caps.max_value as i64,
+                    caps.default_value as i64,
+                ));
             }
         }
 
@@ -849,6 +889,19 @@ impl NativeDevice for SvbonyCamera {
             self.sensor_info.height
         );
 
+        // Drop the SDK mutex before applying post-connect settle.
+        drop(_lock);
+
+        let quirk_lookup_id = format!("native:svbony:{}", self.name);
+        if let Some(delay_ms) = crate::quirks::get_timing_delay(&quirk_lookup_id, "connect") {
+            tracing::debug!(
+                "Applying DelayAfterConnect quirk: sleeping {}ms after connecting to {}",
+                delay_ms,
+                self.name
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
+
         Ok(())
     }
 
@@ -918,6 +971,8 @@ impl NativeCamera for SvbonyCamera {
         } else {
             None
         };
+        let gain = self.get_gain().await?;
+        let offset = self.get_offset().await?;
 
         Ok(CameraStatus {
             state: self.state,
@@ -929,8 +984,8 @@ impl NativeCamera for SvbonyCamera {
                 None
             },
             cooler_on: self.cooler_on,
-            gain: self.current_gain,
-            offset: self.current_offset,
+            gain,
+            offset,
             bin_x: self.current_bin_x,
             bin_y: self.current_bin_y,
             exposure_remaining,
@@ -1109,11 +1164,16 @@ impl NativeCamera for SvbonyCamera {
         } else {
             None
         };
+        let gain = svb_control_value_to_i32(self.get_control_value(SvbControlType::Gain)?, "gain")?;
+        let offset = svb_control_value_to_i32(
+            self.get_control_value(SvbControlType::BlackLevel)?,
+            "offset",
+        )?;
 
         let metadata = ImageMetadata {
             exposure_time: self.exposure_duration,
-            gain: self.current_gain,
-            offset: self.current_offset,
+            gain,
+            offset,
             bin_x: self.current_bin_x,
             bin_y: self.current_bin_y,
             temperature,
@@ -1212,7 +1272,8 @@ impl NativeCamera for SvbonyCamera {
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        Ok(self.current_gain)
+        let value = self.get_control_value_async(SvbControlType::Gain).await?;
+        svb_control_value_to_i32(value, "gain")
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
@@ -1225,7 +1286,10 @@ impl NativeCamera for SvbonyCamera {
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        Ok(self.current_offset)
+        let value = self
+            .get_control_value_async(SvbControlType::BlackLevel)
+            .await?;
+        svb_control_value_to_i32(value, "offset")
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
@@ -1439,5 +1503,87 @@ impl NativeCamera for SvbonyCamera {
             .get_control_range_async(SvbControlType::BlackLevel)
             .await?;
         Ok((min as i32, max as i32))
+    }
+
+    /// Surface the SDK-advertised recommended settings.
+    ///
+    /// SVBony's `SvbControlCaps` includes a per-control `default_value` field.
+    /// For the Gain control this is the value the SDK's auto-exposure logic
+    /// starts at — SVBony's per-camera documentation lists this as the
+    /// recommended unity-gain starting point. For BlackLevel (offset) it is
+    /// the manufacturer-recommended bias value.
+    ///
+    /// SVBony does not expose an HCG transition through the SDK.
+    async fn get_recommended_settings(
+        &self,
+    ) -> Result<crate::camera::CameraRecommendedSettings, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let mut out = crate::camera::CameraRecommendedSettings::default();
+        let mut notes: Vec<String> = Vec::new();
+
+        match self.get_control_caps_async(SvbControlType::Gain).await {
+            Ok((_min, _max, default)) => {
+                // i64 -> i32 saturating: SVBony gain caps fit in i32 (<= ~720).
+                let gain = default.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+                out.unity_gain = Some(gain);
+                notes.push(format!("SVBony SDK reports default gain = {}", gain));
+            }
+            Err(NativeError::NotSupported) => {
+                // Camera doesn't expose this control. Honest "no recommendation".
+            }
+            Err(e) => {
+                tracing::warn!("SVBony: failed to query gain control caps: {:?}", e);
+            }
+        }
+
+        match self
+            .get_control_caps_async(SvbControlType::BlackLevel)
+            .await
+        {
+            Ok((_min, _max, default)) => {
+                let off = default.clamp(i32::MIN as i64, i32::MAX as i64) as i32;
+                out.default_offset = Some(off);
+                notes.push(format!("SVBony SDK reports default offset = {}", off));
+            }
+            Err(NativeError::NotSupported) => {
+                // Camera doesn't expose offset control.
+            }
+            Err(e) => {
+                tracing::warn!("SVBony: failed to query offset control caps: {:?}", e);
+            }
+        }
+
+        out.notes = notes.join("; ");
+        Ok(out)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn svbony_set_gain_error_does_not_mutate_cache() {
+        let mut camera = SvbonyCamera::new(0);
+        camera.current_gain = 12;
+
+        let err = camera.set_gain(48).await.unwrap_err();
+
+        assert!(matches!(err, NativeError::NotConnected));
+        assert_eq!(camera.current_gain, 12);
+    }
+
+    #[tokio::test]
+    async fn svbony_set_offset_error_does_not_mutate_cache() {
+        let mut camera = SvbonyCamera::new(0);
+        camera.current_offset = 8;
+
+        let err = camera.set_offset(22).await.unwrap_err();
+
+        assert!(matches!(err, NativeError::NotConnected));
+        assert_eq!(camera.current_offset, 8);
     }
 }

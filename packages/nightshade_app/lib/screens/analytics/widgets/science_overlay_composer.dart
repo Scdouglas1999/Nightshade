@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import 'science_overlay_legend.dart';
 
 class ScienceOverlayComposer extends ConsumerWidget {
   final NightshadeColors colors;
@@ -23,19 +26,32 @@ class ScienceOverlayComposer extends ConsumerWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Overlay Composer',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              children: [
+                Text(
+                  'Overlay Composer',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  'Tap ⓘ for what each layer means',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 10,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Wrap(
               spacing: 8,
               runSpacing: 8,
               children: [
                 _LayerChip(
+                  legendKey: 'uniformity',
                   label: 'Uniformity',
                   active: overlayState.showUniformityMap,
                   onTap: () {
@@ -46,6 +62,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   },
                 ),
                 _LayerChip(
+                  legendKey: 'clip_high',
                   label: 'Clip High',
                   active: overlayState.showClipHighMap,
                   onTap: () {
@@ -56,6 +73,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   },
                 ),
                 _LayerChip(
+                  legendKey: 'clip_low',
                   label: 'Clip Low',
                   active: overlayState.showClipLowMap,
                   onTap: () {
@@ -66,6 +84,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   },
                 ),
                 _LayerChip(
+                  legendKey: 'residuals',
                   label: 'Residual',
                   active: overlayState.showResidualVectors,
                   onTap: () {
@@ -76,6 +95,7 @@ class ScienceOverlayComposer extends ConsumerWidget {
                   },
                 ),
                 _LayerChip(
+                  legendKey: 'moving',
                   label: 'Moving Tracks',
                   active: overlayState.showMovingObjectTracks,
                   onTap: () {
@@ -113,6 +133,24 @@ class ScienceOverlayComposer extends ConsumerWidget {
                     .savePrefs(next);
               },
             ),
+            // Show the inline gradient legend for whichever quantitative
+            // overlay is currently active. This gives users immediate "color
+            // = meaning" guidance the moment they enable an overlay, instead
+            // of forcing them into the long-form info dialog.
+            if (overlayState.showUniformityMap ||
+                overlayState.showClipHighMap ||
+                overlayState.showClipLowMap)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: ScienceOverlayLegend.inlineFor(
+                  context,
+                  overlayState.showClipHighMap
+                      ? 'clip_high'
+                      : overlayState.showClipLowMap
+                          ? 'clip_low'
+                          : 'uniformity',
+                ),
+              ),
           ],
         ),
       ),
@@ -122,39 +160,61 @@ class ScienceOverlayComposer extends ConsumerWidget {
 
 class _LayerChip extends StatelessWidget {
   final String label;
+  final String legendKey;
   final bool active;
   final VoidCallback onTap;
 
   const _LayerChip({
     required this.label,
+    required this.legendKey,
     required this.active,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     return InkWell(
       onTap: onTap,
+      onLongPress: () => ScienceOverlayLegend.show(context, legendKey),
       borderRadius: BorderRadius.circular(8),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(8),
-          color: active
-              ? Theme.of(context).colorScheme.primary.withValues(alpha: 0.18)
-              : Theme.of(context).colorScheme.surfaceContainerHighest,
-          border: Border.all(
-            color: active
-                ? Theme.of(context).colorScheme.primary
-                : Theme.of(context).dividerColor,
-          ),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 11,
-            fontWeight: active ? FontWeight.w700 : FontWeight.w500,
-          ),
+        decoration: active
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(8),
+              )
+            : BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                color: colors.surfaceElevated,
+                border: Border.all(color: colors.border),
+              ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 11,
+                fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+              ),
+            ),
+            const SizedBox(width: 6),
+            InkWell(
+              onTap: () => ScienceOverlayLegend.show(context, legendKey),
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: Icon(
+                  LucideIcons.info,
+                  size: 11,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

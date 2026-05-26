@@ -20,8 +20,10 @@ class BatchOperationsToolbar extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.iconChip(
+        colors.primary,
+        borderRadius: BorderRadius.zero,
+      ).copyWith(
         border: Border(
           bottom: BorderSide(color: colors.primary.withValues(alpha: 0.3)),
         ),
@@ -31,9 +33,10 @@ class BatchOperationsToolbar extends ConsumerWidget {
           // Selection count
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              colors.primary,
               borderRadius: BorderRadius.circular(4),
+              bordered: false,
             ),
             child: Text(
               '$count selected',
@@ -147,9 +150,15 @@ class BatchOperationsToolbar extends ConsumerWidget {
           'Delete $count node(s)?',
           style: TextStyle(color: colors.textPrimary),
         ),
-        content: Text(
-          'This will remove the selected nodes and all their children. This action can be undone with Ctrl+Z.',
-          style: TextStyle(color: colors.textSecondary),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 440,
+          ),
+          child: Text(
+            'This will remove the selected nodes and all their children. This action can be undone with Ctrl+Z.',
+            style: TextStyle(color: colors.textSecondary),
+          ),
         ),
         actions: [
           NightshadeButton(

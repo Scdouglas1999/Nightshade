@@ -3,21 +3,79 @@ import 'dart:convert';
 import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
+import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
 import '../database/daos/sequences_dao.dart';
+import '../models/notification/notification_categories.dart'
+    show NotificationTransportKind;
 import '../models/sequence/sequence_models.dart';
+import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
 import '../utils/json_validation.dart';
+import 'sequence_file_service.dart';
 
 /// Repository for saving and loading sequences from the database
 class SequenceRepository {
-  final SequencesDao _dao;
+  final SequencesDao? _dao;
+  final NetworkBackend? _remote;
+  final SequenceFileService? _fileService;
 
-  SequenceRepository(this._dao);
+  SequenceRepository._({
+    SequencesDao? dao,
+    NetworkBackend? remote,
+    SequenceFileService? fileService,
+  })  : _dao = dao,
+        _remote = remote,
+        _fileService = fileService {
+    assert(
+      (dao != null && remote == null) || (dao == null && remote != null),
+      'SequenceRepository must be either local (dao) or remote (NetworkBackend)',
+    );
+    if (remote != null) {
+      assert(fileService != null,
+          'Remote SequenceRepository requires fileService');
+    }
+  }
+
+  factory SequenceRepository(SequencesDao dao) =>
+      SequenceRepository._(dao: dao);
+
+  factory SequenceRepository.remote(
+    NetworkBackend remote,
+    SequenceFileService fileService,
+  ) =>
+      SequenceRepository._(remote: remote, fileService: fileService);
+
+  bool get _isRemote => _remote != null;
+
+  Sequence _sequenceFromRemoteMap(Map<String, dynamic> map) {
+    final dbId = map.remove('databaseId');
+    final sequence = _fileService!.parseFromMap(map);
+    if (dbId is int) {
+      return sequence.copyWith(databaseId: dbId);
+    }
+    return sequence;
+  }
+
+  Map<String, dynamic> _sequenceToRemoteMap(Sequence sequence) {
+    final map = _fileService!.sequenceToMap(sequence);
+    if (sequence.databaseId != null) {
+      map['databaseId'] = sequence.databaseId;
+    }
+    return map;
+  }
 
   /// Save a sequence to the database
   /// Returns the database ID of the saved sequence
   Future<int> saveSequence(Sequence sequence, {bool isTemplate = false}) async {
+    if (_isRemote) {
+      return _remote!.saveFullSequence(
+        _sequenceToRemoteMap(sequence),
+        isTemplate: isTemplate,
+        databaseId: sequence.databaseId,
+      );
+    }
+
     // Check if this sequence already exists in database
     final existingId = sequence.databaseId;
 
@@ -32,8 +90,9 @@ class SequenceRepository {
   }
 
   Future<int> _createSequence(Sequence sequence, bool isTemplate) async {
+    final dao = _dao!;
     // Create the sequence record
-    final sequenceId = await _dao.createSequence(
+    final sequenceId = await dao.createSequence(
       db.SequencesCompanion.insert(
         name: sequence.name,
         description: Value(sequence.description),
@@ -54,13 +113,13 @@ class SequenceRepository {
   Future<void> _updateSequence(
       int sequenceId, Sequence sequence, bool isTemplate) async {
     // Get existing sequence
-    final existing = await _dao.getSequenceById(sequenceId);
+    final existing = await _dao!.getSequenceById(sequenceId);
     if (existing == null) {
       throw Exception('Sequence $sequenceId not found');
     }
 
     // Update sequence metadata
-    await _dao.updateSequence(
+    await _dao!.updateSequence(
       db.Sequence(
         id: sequenceId,
         name: sequence.name,
@@ -74,7 +133,7 @@ class SequenceRepository {
     );
 
     // Get existing nodes to diff against incoming nodes
-    final existingNodes = await _dao.getNodesForSequence(sequenceId);
+    final existingNodes = await _dao!.getNodesForSequence(sequenceId);
     final existingNodeIds = existingNodes.map((n) => n.nodeId).toSet();
     final incomingNodeIds = sequence.nodes.keys.toSet();
 
@@ -92,7 +151,7 @@ class SequenceRepository {
     for (final nodeId in toUpdate) {
       final node = sequence.nodes[nodeId]!;
       final dbNode = existingNodeMap[nodeId]!;
-      await _dao.updateNode(
+      await _dao!.updateNode(
         db.SequenceNode(
           id: dbNode.id,
           nodeId: node.id,
@@ -116,7 +175,7 @@ class SequenceRepository {
     // Insert new nodes
     for (final nodeId in toInsert) {
       final node = sequence.nodes[nodeId]!;
-      await _dao.createNode(
+      await _dao!.createNode(
         db.SequenceNodesCompanion.insert(
           nodeId: node.id,
           sequenceId: sequenceId,
@@ -134,14 +193,14 @@ class SequenceRepository {
     // Delete removed nodes
     for (final nodeId in toDelete) {
       final dbNode = existingNodeMap[nodeId]!;
-      await _dao.deleteNode(dbNode.id);
+      await _dao!.deleteNode(dbNode.id);
     }
   }
 
   Future<void> _saveNodes(
       int sequenceId, Map<String, SequenceNode> nodes) async {
     for (final node in nodes.values) {
-      await _dao.createNode(
+      await _dao!.createNode(
         db.SequenceNodesCompanion.insert(
           nodeId: node.id,
           sequenceId: sequenceId,
@@ -169,7 +228,9 @@ class SequenceRepository {
       LoopNode _ ||
       ParallelNode _ ||
       ConditionalNode _ ||
-      RecoveryNode _ =>
+      RecoveryNode _ ||
+      // Wave 3 Agent 1: TargetScheduler — logic-category container.
+      TargetSchedulerNode _ =>
         'logic',
       ExposureNode _ ||
       SlewNode _ ||
@@ -196,17 +257,40 @@ class SequenceRepository {
       OpenCoverNode _ ||
       CloseCoverNode _ ||
       CalibratorOnNode _ ||
-      CalibratorOffNode _ =>
+      CalibratorOffNode _ ||
+      // Wave 3 Agent 2: SmartExposure is an instruction (leaf, no children).
+      SmartExposureNode _ ||
+      // Wave 7 Agent 2: LiveStacking is a side-effect instruction (arms
+      // the broadcast service then returns immediately, no children).
+      LiveStackingNode _ ||
+      // Wave 7 Science: SciencePhotometry — instruction leaf.
+      SciencePhotometryNode _ ||
+      // Audit §11 — plugin-contributed instruction (leaf; plugin owns
+      // any internal fan-out).
+      PluginInstructionNode _ =>
         'instruction',
     };
   }
 
   /// Load a sequence from the database
   Future<Sequence?> loadSequence(int sequenceId) async {
-    final dbSequence = await _dao.getSequenceById(sequenceId);
+    if (_isRemote) {
+      final all = [
+        ...await _remote!.listFullSequences(),
+        ...await _remote!.listFullTemplates(),
+      ];
+      for (final map in all) {
+        if (map['databaseId'] == sequenceId) {
+          return _sequenceFromRemoteMap(Map<String, dynamic>.from(map));
+        }
+      }
+      return null;
+    }
+
+    final dbSequence = await _dao!.getSequenceById(sequenceId);
     if (dbSequence == null) return null;
 
-    final dbNodes = await _dao.getNodesForSequence(sequenceId);
+    final dbNodes = await _dao!.getNodesForSequence(sequenceId);
 
     // Convert database nodes to model nodes
     final nodes = <String, SequenceNode>{};
@@ -246,7 +330,14 @@ class SequenceRepository {
 
   /// Load all sequences from the database
   Future<List<Sequence>> loadAllSequences() async {
-    final dbSequences = await _dao.getAllSequences();
+    if (_isRemote) {
+      final maps = await _remote!.listFullSequences();
+      return maps
+          .map((map) => _sequenceFromRemoteMap(Map<String, dynamic>.from(map)))
+          .toList();
+    }
+
+    final dbSequences = await _dao!.getAllSequences();
     final sequences = <Sequence>[];
 
     for (final dbSequence in dbSequences) {
@@ -261,7 +352,14 @@ class SequenceRepository {
 
   /// Load all templates from the database
   Future<List<Sequence>> loadAllTemplates() async {
-    final dbTemplates = await _dao.getAllTemplates();
+    if (_isRemote) {
+      final maps = await _remote!.listFullTemplates();
+      return maps
+          .map((map) => _sequenceFromRemoteMap(Map<String, dynamic>.from(map)))
+          .toList();
+    }
+
+    final dbTemplates = await _dao!.getAllTemplates();
     final templates = <Sequence>[];
 
     for (final dbTemplate in dbTemplates) {
@@ -276,7 +374,11 @@ class SequenceRepository {
 
   /// Delete a sequence from the database
   Future<void> deleteSequence(int sequenceId) async {
-    await _dao.deleteSequence(sequenceId);
+    if (_isRemote) {
+      await _remote!.deleteSequence(sequenceId);
+      return;
+    }
+    await _dao!.deleteSequence(sequenceId);
   }
 
   /// Duplicate a sequence with fresh UUIDs for all nodes.
@@ -284,6 +386,11 @@ class SequenceRepository {
   /// Generates new UUIDs for every node and remaps all parent/child references
   /// so the duplicated sequence is fully independent from the original.
   Future<Sequence?> duplicateSequence(int sequenceId, String newName) async {
+    if (_isRemote) {
+      final newId = await _remote!.duplicateSequence(sequenceId, newName);
+      return loadSequence(newId);
+    }
+
     // Load the source sequence with its full node tree
     final source = await loadSequence(sequenceId);
     if (source == null) {
@@ -349,6 +456,17 @@ class SequenceRepository {
     switch (dbNode.specificType) {
       case 'exposure':
       case 'TakeExposure':
+        // Wave 5 Agent 2 — recover the adaptive-exposure block. Both
+        // camelCase (Dart canonical) and snake_case (Rust JSON shape)
+        // are honoured so legacy + future-saved JSON both load.
+        AdaptiveExposureConfig? adaptive;
+        final adaptiveRaw =
+            (props['adaptiveExposure'] ?? props['adaptive_exposure']) as Map?;
+        if (adaptiveRaw != null) {
+          adaptive = AdaptiveExposureConfig.fromJson(
+            adaptiveRaw.cast<String, dynamic>(),
+          );
+        }
         return ExposureNode(
           id: dbNode.nodeId,
           name: dbNode.name,
@@ -368,6 +486,7 @@ class SequenceRepository {
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
           comment: props['comment'] as String?,
+          adaptiveExposure: adaptive,
         );
 
       case 'slew':
@@ -432,6 +551,8 @@ class SequenceRepository {
           settleTime: (props['settleTime'] as num?)?.toDouble() ?? 30.0,
           settleTimeout: (props['settleTimeout'] as num?)?.toDouble() ?? 120.0,
           raOnly: props['raOnly'] as bool? ?? false,
+          pattern: _parseDitherPattern(props['pattern']),
+          gridSize: (props['gridSize'] as num?)?.toInt() ?? 3,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -548,6 +669,8 @@ class SequenceRepository {
           title: props['title'] as String? ?? '',
           message: props['message'] as String? ?? '',
           level: _stringToNotificationLevel(props['level'] as String?),
+          explicitTransports:
+              _parseExplicitTransports(props['explicitTransports']),
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -587,6 +710,22 @@ class SequenceRepository {
           endBefore: props['endBefore'] != null
               ? DateTime.fromMillisecondsSinceEpoch(props['endBefore'] as int)
               : null,
+          // Wave 3 Agent 3 — restore the integration budget. Absent
+          // field stays null (pre-budget sequences keep working).
+          integrationBudget: props['integrationBudget'] != null
+              ? IntegrationBudget.fromJson(
+                  props['integrationBudget'] as Map<String, dynamic>)
+              : null,
+          // Wave 4 — per-target altitude/time crossings.
+          startWhen: props['startWhen'] != null
+              ? TargetTrigger.fromJson(
+                  props['startWhen'] as Map<String, dynamic>)
+              : null,
+          endWhen: props['endWhen'] != null
+              ? TargetTrigger.fromJson(props['endWhen'] as Map<String, dynamic>)
+              : null,
+          triggerPollIntervalSecs:
+              (props['triggerPollIntervalSecs'] as num?)?.toInt() ?? 30,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -638,6 +777,10 @@ class SequenceRepository {
               ? DateTime.fromMillisecondsSinceEpoch(
                   props['thresholdTime'] as int)
               : null,
+          // Audit C2: optional per-monitor targeting for multi-safety
+          // setups. Absent on legacy sequences (deserialises to null,
+          // i.e. fall back to the aggregated check).
+          safetyMonitorId: props['safetyMonitorId'] as String?,
           parentId: dbNode.parentNodeId,
           orderIndex: dbNode.orderIndex,
           isEnabled: dbNode.isEnabled,
@@ -789,6 +932,123 @@ class SequenceRepository {
           comment: props['comment'] as String?,
         );
 
+      // Wave 3 Agent 1: TargetScheduler. Two case strings cover both the
+      // canonical Dart `nodeType` ('TargetScheduler') and the legacy
+      // snake_case sent by the bridge layer ('target_scheduler').
+      case 'targetScheduler':
+      case 'TargetScheduler':
+      case 'target_scheduler':
+        return TargetSchedulerNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          altitudeWeight: (props['altitudeWeight'] as num?)?.toDouble() ?? 0.25,
+          moonDistanceWeight:
+              (props['moonDistanceWeight'] as num?)?.toDouble() ?? 0.25,
+          transitProximityWeight:
+              (props['transitProximityWeight'] as num?)?.toDouble() ?? 0.20,
+          darknessWeight: (props['darknessWeight'] as num?)?.toDouble() ?? 0.15,
+          airmassWeight: (props['airmassWeight'] as num?)?.toDouble() ?? 0.15,
+          minScoreToRun: (props['minScoreToRun'] as num?)?.toDouble() ?? 30.0,
+          recomputeEveryNExposures:
+              (props['recomputeEveryNExposures'] as num?)?.toInt() ?? 0,
+          finishIterationOnSwitch:
+              props['finishIterationOnSwitch'] as bool? ?? true,
+          swapOnConditionsBelow:
+              (props['swapOnConditionsBelow'] as num?)?.toDouble() ??
+                  (props['swap_on_conditions_below'] as num?)?.toDouble(),
+          swapHysteresisSecs:
+              (props['swapHysteresisSecs'] as num?)?.toDouble() ??
+                  (props['swap_hysteresis_secs'] as num?)?.toDouble() ??
+                  180.0,
+          brightnessTierPreferences: _parseBrightnessTierPreferences(
+            props['brightnessTierPreferences'] ??
+                props['brightness_tier_preferences'],
+          ),
+          maxConditionsScoreAgeSecs:
+              (props['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
+                  (props['max_conditions_score_age_secs'] as num?)?.toInt() ??
+                  300,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      // Wave 3 Agent 2: SmartExposure. Mirrors the case-string convention
+      // above so DB rows written via `nodeType = 'SmartExposure'` or via
+      // the snake_case bridge form both deserialize correctly.
+      case 'smartExposure':
+      case 'SmartExposure':
+      case 'smart_exposure':
+        return SmartExposureNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          plans: ((props['plans'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((p) => FilterPlan.fromJson(p.cast<String, dynamic>()))
+              .toList(growable: false),
+          rotateFilters: props['rotateFilters'] as bool? ?? true,
+          ditherOnFilterChange: props['ditherOnFilterChange'] as bool? ?? false,
+          integrationBudgetSecs:
+              (props['integrationBudgetSecs'] as num?)?.toDouble() ?? 0.0,
+          batchSize: (props['batchSize'] as num?)?.toInt() ?? 1,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      // Audit §11 — plugin-contributed instruction. Persisted node-type
+      // string mirrors the Rust serde tag ("PluginNode"); we also accept
+      // lower / snake-case spellings for resilience against legacy DB
+      // rows. A persisted plugin node with no `pluginId`/`nodeTypeId`
+      // is unusable, but we still rehydrate it (with empty identifiers)
+      // so the editor can surface the broken node to the user rather
+      // than silently dropping it.
+      case 'pluginNode':
+      case 'PluginNode':
+      case 'plugin_node':
+        return PluginInstructionNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          pluginId: props['pluginId'] as String? ?? '',
+          nodeTypeId: props['nodeTypeId'] as String? ?? '',
+          configJson: props['configJson'] as String? ?? '{}',
+          timeoutSecs: (props['timeoutSecs'] as num?)?.toInt(),
+          pluginName: props['pluginName'] as String? ?? '',
+          iconHint: props['iconHint'] as String? ?? 'puzzle',
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
+      // Wave 7 Agent 2: LiveStacking. Same case-string convention as
+      // SmartExposure above so DB rows written via either spelling
+      // round-trip correctly.
+      case 'liveStacking':
+      case 'LiveStacking':
+      case 'live_stacking':
+        return LiveStackingNode(
+          id: dbNode.nodeId,
+          name: dbNode.name,
+          mode: LiveStackingMode.fromStorageKey(props['mode'] as String?),
+          stackMethod: LiveStackingMethod.fromStorageKey(
+              props['stackMethod'] as String?),
+          maxFramesToStack: (props['maxFramesToStack'] as num?)?.toInt() ?? 0,
+          broadcastEnabled: props['broadcastEnabled'] as bool? ?? true,
+          broadcastPort: (props['broadcastPort'] as num?)?.toInt() ?? 8081,
+          broadcastPath: props['broadcastPath'] as String? ?? '/broadcast',
+          authToken: props['authToken'] as String?,
+          watermarkText: props['watermarkText'] as String?,
+          thumbnailWidth: (props['thumbnailWidth'] as num?)?.toInt() ?? 1280,
+          thumbnailHeight: (props['thumbnailHeight'] as num?)?.toInt() ?? 720,
+          parentId: dbNode.parentNodeId,
+          orderIndex: dbNode.orderIndex,
+          isEnabled: dbNode.isEnabled,
+          comment: props['comment'] as String?,
+        );
+
       default:
         return null;
     }
@@ -809,6 +1069,11 @@ class SequenceRepository {
           'binning': _binningToString(node.binning),
           'ditherEvery': node.ditherEvery,
           'triggers': node.triggers,
+          // Wave 5 Agent 2 — per-node adaptive-exposure override. `null`
+          // means "inherit from global default"; we serialise `null` too
+          // so the absent-key vs. explicit-null distinction is
+          // preserved on reload.
+          'adaptiveExposure': node.adaptiveExposure?.toJson(),
         },
       SlewNode() => {
           'useTargetCoords': node.useTargetCoords,
@@ -838,6 +1103,8 @@ class SequenceRepository {
           'settleTime': node.settleTime,
           'settleTimeout': node.settleTimeout,
           'raOnly': node.raOnly,
+          'pattern': node.pattern.name,
+          'gridSize': node.gridSize,
         },
       FilterChangeNode() => {
           'filterName': node.filterName,
@@ -868,6 +1135,9 @@ class SequenceRepository {
           'title': node.title,
           'message': node.message,
           'level': _notificationLevelToString(node.level),
+          if (node.explicitTransports != null)
+            'explicitTransports':
+                node.explicitTransports!.map((t) => t.storageKey).toList(),
         },
       ScriptNode() => {
           'scriptPath': node.scriptPath,
@@ -884,6 +1154,17 @@ class SequenceRepository {
           'priority': node.priority,
           'startAfter': node.startAfter?.millisecondsSinceEpoch,
           'endBefore': node.endBefore?.millisecondsSinceEpoch,
+          // Wave 3 Agent 3 — persist the per-target integration budget
+          // when configured. `null`/absent means "no budget enforcement"
+          // — current default behaviour for existing sequences.
+          if (node.integrationBudget != null)
+            'integrationBudget': node.integrationBudget!.toJson(),
+          // Wave 4 — per-target altitude/time crossings. Both fields
+          // are optional; absent => no gate, which is the pre-Wave-4
+          // default for existing sequences.
+          if (node.startWhen != null) 'startWhen': node.startWhen!.toJson(),
+          if (node.endWhen != null) 'endWhen': node.endWhen!.toJson(),
+          'triggerPollIntervalSecs': node.triggerPollIntervalSecs,
         },
       LoopNode() => {
           'conditionType': _loopConditionToString(node.conditionType),
@@ -899,6 +1180,8 @@ class SequenceRepository {
           'conditionType': _conditionalTypeToString(node.conditionType),
           'thresholdValue': node.thresholdValue,
           'thresholdTime': node.thresholdTime?.millisecondsSinceEpoch,
+          // Audit C2 — per-monitor targeting for multi-safety setups.
+          'safetyMonitorId': node.safetyMonitorId,
         },
       RecoveryNode() => {
           'recoveryAction': _recoveryActionToString(node.recoveryAction),
@@ -950,6 +1233,79 @@ class SequenceRepository {
           'startFromCurrent': node.startFromCurrent,
           'isNorth': node.isNorth,
           'manualSlew': node.manualSlew,
+        },
+      // Wave 3 Agent 1: TargetScheduler — persist all eight knobs so reload
+      // round-trips structurally and the validator can re-check the weight
+      // sum / scheduler-children rules on load.
+      TargetSchedulerNode() => {
+          'altitudeWeight': node.altitudeWeight,
+          'moonDistanceWeight': node.moonDistanceWeight,
+          'transitProximityWeight': node.transitProximityWeight,
+          'darknessWeight': node.darknessWeight,
+          'airmassWeight': node.airmassWeight,
+          'minScoreToRun': node.minScoreToRun,
+          'recomputeEveryNExposures': node.recomputeEveryNExposures,
+          'finishIterationOnSwitch': node.finishIterationOnSwitch,
+          'swapOnConditionsBelow': node.swapOnConditionsBelow,
+          'swapHysteresisSecs': node.swapHysteresisSecs,
+          'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
+          'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+        },
+      // Wave 3 Agent 2: SmartExposure — plans are serialised as a list of
+      // FilterPlan JSON maps. We re-use FilterPlan.toJson() (which mirrors
+      // the Rust serde shape) so the same blob round-trips through both
+      // disk persistence and the executor's `_nodeToConfig` payload.
+      SmartExposureNode() => {
+          'plans': node.plans.map((p) => p.toJson()).toList(growable: false),
+          'rotateFilters': node.rotateFilters,
+          'ditherOnFilterChange': node.ditherOnFilterChange,
+          'integrationBudgetSecs': node.integrationBudgetSecs,
+          'batchSize': node.batchSize,
+        },
+      // Wave 7 Agent 2: LiveStacking — flat key/value persistence.
+      // `authToken` and `watermarkText` may be null; we keep them as
+      // distinct keys (versus omitting) so the load path always reads
+      // the same shape.
+      LiveStackingNode() => {
+          'mode': node.mode.storageKey,
+          'stackMethod': node.stackMethod.storageKey,
+          'maxFramesToStack': node.maxFramesToStack,
+          'broadcastEnabled': node.broadcastEnabled,
+          'broadcastPort': node.broadcastPort,
+          'broadcastPath': node.broadcastPath,
+          'authToken': node.authToken,
+          'watermarkText': node.watermarkText,
+          'thumbnailWidth': node.thumbnailWidth,
+          'thumbnailHeight': node.thumbnailHeight,
+        },
+      // Wave 7 Science: SciencePhotometry — cadence-enforced
+      // photometric capture node config.
+      SciencePhotometryNode() => {
+          'targetDesignation': node.targetDesignation,
+          'referenceStars': node.referenceStars,
+          'maxCadenceGapSecs': node.maxCadenceGapSecs,
+          'filter': node.filter,
+          'exposureSecs': node.exposureSecs,
+          'count': node.count,
+          'reduceLive': node.reduceLive,
+          'applyDifferential': node.applyDifferential,
+          'quality': node.quality.toJson(),
+          'gain': node.gain,
+          'offset': node.offset,
+          'binning': node.binning.name,
+        },
+      // Audit §11 — plugin-contributed instruction. Pin pluginId,
+      // nodeTypeId, opaque config blob, and friendly metadata so a
+      // sequence containing plugin nodes still round-trips when the
+      // plugin is temporarily unavailable (the editor surfaces a
+      // "plugin missing" notice rather than silently dropping the node).
+      PluginInstructionNode() => {
+          'pluginId': node.pluginId,
+          'nodeTypeId': node.nodeTypeId,
+          'configJson': node.configJson,
+          'timeoutSecs': node.timeoutSecs,
+          'pluginName': node.pluginName,
+          'iconHint': node.iconHint,
         },
       // Side-effect-only nodes have no extra properties to persist beyond
       // the base fields (id/name/parentId/orderIndex/isEnabled/comment).
@@ -1074,6 +1430,21 @@ class SequenceRepository {
     }
   }
 
+  /// Wave 5 Agent 5 — DB-side round-trip of NotificationNode's explicit
+  /// transports override. See [SequenceFileService._parseExplicitTransports]
+  /// for the equivalent file-side parser.
+  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) {
+    if (raw is! List) return null;
+    final out = <NotificationTransportKind>[];
+    for (final entry in raw) {
+      if (entry is String) {
+        final t = NotificationTransportKind.fromStorageKey(entry);
+        if (t != null) out.add(t);
+      }
+    }
+    return out.isEmpty ? null : out;
+  }
+
   String _loopConditionToString(LoopConditionType type) {
     switch (type) {
       case LoopConditionType.count:
@@ -1170,6 +1541,16 @@ class SequenceRepository {
         return 'parkAndAbort';
       case RecoveryActionType.customBranch:
         return 'customBranch';
+      // Wave 5 Agent 4 — cloud-motion-aware actions stored as
+      // camelCase identifiers so they round-trip through the SQLite
+      // sequence repository the same way every other recovery action does.
+      case RecoveryActionType.pauseAndWaitForClear:
+        return 'pauseAndWaitForClear';
+      case RecoveryActionType.slewToGapAndContinue:
+        return 'slewToGapAndContinue';
+      // Wave 7 Science — transparency-adaptive recovery.
+      case RecoveryActionType.switchTargetOrFilter:
+        return 'switchTargetOrFilter';
     }
   }
 
@@ -1187,6 +1568,14 @@ class SequenceRepository {
         return RecoveryActionType.parkAndAbort;
       case 'customBranch':
         return RecoveryActionType.customBranch;
+      // Wave 5 Agent 4 — cloud-motion-aware actions.
+      case 'pauseAndWaitForClear':
+        return RecoveryActionType.pauseAndWaitForClear;
+      case 'slewToGapAndContinue':
+        return RecoveryActionType.slewToGapAndContinue;
+      // Wave 7 Science — transparency-adaptive recovery.
+      case 'switchTargetOrFilter':
+        return RecoveryActionType.switchTargetOrFilter;
       default:
         return RecoveryActionType.continueExecution;
     }
@@ -1219,9 +1608,32 @@ class SequenceRepository {
     }
     return null;
   }
+
+  DitherPattern _parseDitherPattern(Object? raw) {
+    if (raw is String) {
+      final v = raw.toLowerCase();
+      if (v == 'grid') return DitherPattern.grid;
+      if (v == 'random') return DitherPattern.random;
+    }
+    return DitherPattern.random;
+  }
+}
+
+BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
+  if (value is Map) {
+    return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
+  }
+  return const BrightnessTierPreferences();
 }
 
 /// Provider for the sequence repository
 final sequenceRepositoryProvider = Provider<SequenceRepository>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return SequenceRepository.remote(
+      backend,
+      ref.watch(sequenceFileServiceProvider),
+    );
+  }
   return SequenceRepository(ref.watch(sequencesDaoProvider));
 });

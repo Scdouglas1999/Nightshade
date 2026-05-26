@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../framing/altitude_chart.dart';
+import 'notes_panel.dart';
 
 /// A rich card widget for displaying target header nodes in the sequencer.
 /// Shows coordinates, altitude chart, progress tracking, and mosaic panel info.
@@ -97,31 +98,25 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           margin: const EdgeInsets.symmetric(vertical: 4),
-          decoration: BoxDecoration(
-            color: widget.isSelected
-                ? categoryColor.withValues(alpha: 0.12)
-                : _isHovered
-                    ? categoryColor.withValues(alpha: 0.06)
-                    : widget.colors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: widget.isSelected
-                  ? categoryColor
-                  : isRunning
-                      ? widget.colors.info
-                      : categoryColor.withValues(alpha: 0.4),
-              width: widget.isSelected ? 2 : 1.5,
-            ),
-            boxShadow: widget.isSelected
-                ? [
-                    BoxShadow(
-                      color: categoryColor.withValues(alpha: 0.2),
-                      blurRadius: 8,
-                      offset: const Offset(0, 2),
-                    ),
-                  ]
-                : null,
-          ),
+          decoration: widget.isSelected
+              ? NightshadeDecorations.cardSelected(
+                  categoryColor,
+                  background: widget.colors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  borderWidth: 2,
+                )
+              : BoxDecoration(
+                  color: _isHovered
+                      ? categoryColor.withValues(alpha: 0.06)
+                      : widget.colors.surface,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isRunning
+                        ? widget.colors.info
+                        : categoryColor.withValues(alpha: 0.4),
+                    width: 1.5,
+                  ),
+                ),
           child: Opacity(
             opacity: isDisabled ? 0.5 : 1.0,
             child: Column(
@@ -145,6 +140,18 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
                 // ("24 planned exposures") or running ("12/24 done · 32m
                 // / 96m") states so we never stack two indicators.
                 _buildProgressRow(),
+
+                // Wave 6 Agent 5 — per-target notes journal. Renders
+                // the latest 2 notes for this target with a "View all"
+                // affordance opening the full list. Notes are keyed by
+                // [TargetHeaderNode.targetName] (display name; catalog
+                // id when available — same string the journal indexes
+                // on) so the entries survive renaming a sequence-side
+                // target object.
+                TargetNotesSection(
+                  targetId: widget.node.targetName,
+                  colors: widget.colors,
+                ),
               ],
             ),
           ),
@@ -161,8 +168,8 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
   ) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: categoryColor.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.tintedBadge(
+        categoryColor,
         borderRadius: const BorderRadius.vertical(top: Radius.circular(11)),
       ),
       child: Row(
@@ -184,9 +191,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
           Container(
             width: 36,
             height: 36,
-            decoration: BoxDecoration(
-              color: categoryColor.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              categoryColor,
               borderRadius: BorderRadius.circular(10),
+              bordered: false,
             ),
             child: isRunning
                 ? _SpinningIcon(
@@ -230,9 +238,10 @@ class _TargetHeaderCardState extends ConsumerState<TargetHeaderCard> {
           if (node.mosaicPanel != null)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: widget.colors.accent.withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.statusChip(
+                widget.colors.accent,
                 borderRadius: BorderRadius.circular(6),
+                bordered: false,
               ),
               child: Text(
                 node.mosaicPanel!.displayLabel,

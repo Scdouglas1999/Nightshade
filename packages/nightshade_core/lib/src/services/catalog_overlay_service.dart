@@ -16,6 +16,8 @@
 // purely-local visual overlay you can flip on/off from the preview
 // toolbar — no network, no DB write, no annotation snapshot mutation.
 
+import 'dart:math' as math;
+
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import 'wcs/gnomonic_projection.dart';
@@ -65,6 +67,9 @@ class CatalogOverlayObject {
   final double imageX;
   final double imageY;
 
+  /// Marker radius in image pixels at 1x zoom.
+  final double markerRadiusPx;
+
   /// Hit-radius for click / hover, in image pixels at zoom 1x.
   final double hitRadius;
 
@@ -83,6 +88,7 @@ class CatalogOverlayObject {
     required this.kind,
     required this.imageX,
     required this.imageY,
+    required this.markerRadiusPx,
     required this.hitRadius,
     required this.source,
   });
@@ -113,6 +119,10 @@ class CatalogOverlayResult {
   /// yet — the UI should explain that rather than just show nothing.
   final bool catalogAvailable;
 
+  /// Individual source availability for category-specific empty states.
+  final bool dsoCatalogAvailable;
+  final bool starCatalogAvailable;
+
   /// Wall-clock duration of the query, for UI HUD diagnostics.
   final Duration queryDuration;
 
@@ -122,6 +132,8 @@ class CatalogOverlayResult {
     required this.appliedMagnitudeLimit,
     required this.downsampleMagnitudeCutoff,
     required this.catalogAvailable,
+    required this.dsoCatalogAvailable,
+    required this.starCatalogAvailable,
     required this.queryDuration,
   });
 
@@ -135,6 +147,8 @@ class CatalogOverlayResult {
     appliedMagnitudeLimit: 10.0,
     downsampleMagnitudeCutoff: null,
     catalogAvailable: false,
+    dsoCatalogAvailable: false,
+    starCatalogAvailable: false,
     queryDuration: Duration.zero,
   );
 }
@@ -155,6 +169,12 @@ abstract class CatalogOverlaySource {
   /// service returns `catalogAvailable: false` so the UI can prompt
   /// the user to install catalogs from Settings.
   Future<bool> get isAvailable;
+
+  /// Whether the DSO catalog specifically exists on disk.
+  Future<bool> get dsoCatalogAvailable;
+
+  /// Whether the HYG star catalog specifically exists on disk.
+  Future<bool> get starCatalogAvailable;
 }
 
 /// Default catalog source backed by the planetarium package's OpenNGC
@@ -178,13 +198,19 @@ class PlanetariumCatalogOverlaySource implements CatalogOverlaySource {
 
   @override
   Future<bool> get isAvailable async {
-    final dsoOk = await _dso.isAvailable;
-    final starOk = await _star.isAvailable;
+    final dsoOk = await dsoCatalogAvailable;
+    final starOk = await starCatalogAvailable;
     // Why "or": the overlay is still useful with just one of the two
     // catalogs installed (Messier-only users get the DSO file but skip
     // the multi-MB HYG star list).
     return dsoOk || starOk;
   }
+
+  @override
+  Future<bool> get dsoCatalogAvailable => _dso.isAvailable;
+
+  @override
+  Future<bool> get starCatalogAvailable => _star.isAvailable;
 }
 
 /// Catalog overlay service.
@@ -227,7 +253,9 @@ class CatalogOverlayService {
     }
     final stopwatch = Stopwatch()..start();
 
-    final available = await source.isAvailable;
+    final dsoAvailable = await source.dsoCatalogAvailable;
+    final starAvailable = await source.starCatalogAvailable;
+    final available = dsoAvailable || starAvailable;
     if (!available) {
       stopwatch.stop();
       return CatalogOverlayResult(
@@ -236,6 +264,8 @@ class CatalogOverlayService {
         appliedMagnitudeLimit: magnitudeLimit,
         downsampleMagnitudeCutoff: null,
         catalogAvailable: false,
+        dsoCatalogAvailable: false,
+        starCatalogAvailable: false,
         queryDuration: stopwatch.elapsed,
       );
     }
@@ -247,7 +277,7 @@ class CatalogOverlayService {
     final hits = <_RankedHit>[];
     var totalInFov = 0;
 
-    if (includeDsos) {
+    if (includeDsos && dsoAvailable) {
       final dsos = await source.loadDsos();
       for (final dso in dsos) {
         if (!_dsoPassesMagnitudeFilter(dso, magnitudeLimit)) continue;
@@ -263,14 +293,19 @@ class CatalogOverlayService {
         totalInFov++;
         hits.add(
           _RankedHit(
-            object: _dsoToObject(dso, p.pixel.x, p.pixel.y),
+            object: _dsoToObject(
+              dso,
+              p.pixel.x,
+              p.pixel.y,
+              wcs.pixelScaleArcsec,
+            ),
             magForRank: dso.magnitude ?? magnitudeLimit + 1,
           ),
         );
       }
     }
 
-    if (includeStars) {
+    if (includeStars && starAvailable) {
       final stars = await source.loadStars();
       for (final star in stars) {
         // Stars without a magnitude are useless for an overlay — there's
@@ -315,6 +350,8 @@ class CatalogOverlayService {
       appliedMagnitudeLimit: magnitudeLimit,
       downsampleMagnitudeCutoff: cutoff,
       catalogAvailable: true,
+      dsoCatalogAvailable: dsoAvailable,
+      starCatalogAvailable: starAvailable,
       queryDuration: stopwatch.elapsed,
     );
   }
@@ -338,6 +375,7 @@ class CatalogOverlayService {
     DeepSkyObject dso,
     double imageX,
     double imageY,
+    double pixelScaleArcsec,
   ) {
     final messier = dso.messierNumber;
     final ngcIc = dso.ngcIcDesignation;
@@ -353,7 +391,11 @@ class CatalogOverlayService {
     // one. We translate arcminutes to a reasonable pixel hit-radius
     // assuming a typical 1.5"/px scale; the painter applies its own
     // size scaling.
-    final hitRadius = _hitRadiusForArcmin(dso.sizeArcMin);
+    final markerRadius = _markerRadiusForArcmin(
+      dso.sizeArcMin,
+      pixelScaleArcsec,
+    );
+    final hitRadius = math.max(18.0, markerRadius);
 
     return CatalogOverlayObject(
       id: preferredId,
@@ -366,6 +408,7 @@ class CatalogOverlayService {
       kind: _kindForDsoType(dso.type),
       imageX: imageX,
       imageY: imageY,
+      markerRadiusPx: markerRadius,
       hitRadius: hitRadius,
       source: messier != null ? 'Messier' : (ngcIc ?? 'OpenNGC'),
     );
@@ -380,8 +423,7 @@ class CatalogOverlayService {
     return CatalogOverlayObject(
       id: star.id,
       commonName: hasFancyName ? star.name : null,
-      alternateIds:
-          star.catalogIds.isEmpty ? null : star.catalogIds.join(', '),
+      alternateIds: star.catalogIds.isEmpty ? null : star.catalogIds.join(', '),
       raHours: star.coordinates.ra,
       decDegrees: star.coordinates.dec,
       magnitude: star.magnitude,
@@ -389,6 +431,7 @@ class CatalogOverlayService {
       kind: CatalogOverlayKind.star,
       imageX: imageX,
       imageY: imageY,
+      markerRadiusPx: 8,
       hitRadius: 18,
       source: 'HYG',
     );
@@ -428,15 +471,11 @@ class CatalogOverlayService {
     }
   }
 
-  static double _hitRadiusForArcmin(double? arcmin) {
+  static double _markerRadiusForArcmin(
+      double? arcmin, double pixelScaleArcsec) {
     if (arcmin == null || arcmin <= 0) return 24;
-    // Why this curve: a 1 arcmin planetary nebula needs only a 16-pixel
-    // click target; a 180 arcmin Andromeda needs hundreds. Square-root
-    // softens the growth so we don't end up with thousand-pixel hit
-    // boxes for the wide Milky Way HII regions.
-    const base = 18.0;
-    final scaled = base + 6.0 * (arcmin.clamp(0.0, 600.0));
-    return scaled.clamp(18.0, 320.0);
+    final diameterPx = arcmin * 60.0 / pixelScaleArcsec;
+    return (diameterPx / 2.0).clamp(8.0, 320.0);
   }
 
   static double _normaliseRaDeg(double raDeg) {

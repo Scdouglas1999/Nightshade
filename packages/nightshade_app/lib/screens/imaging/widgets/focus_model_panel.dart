@@ -23,7 +23,7 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final isMobile = Responsive.isMobile(context);
 
     final activeProfile = ref.watch(activeEquipmentProfileProvider);
@@ -343,12 +343,9 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.06),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.2),
-        ),
       ),
       child: Row(
         children: [
@@ -398,9 +395,8 @@ class _FocusModelPanelState extends ConsumerState<FocusModelPanel> {
           const SizedBox(width: 16),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-            decoration: BoxDecoration(
-              color: _confidenceColor(prediction.confidence, colors)
-                  .withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.tintedBadge(
+              _confidenceColor(prediction.confidence, colors),
               borderRadius: BorderRadius.circular(4),
             ),
             child: Text(
@@ -513,7 +509,7 @@ class _TempCompBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     String label;
     Color badgeColor;
@@ -534,8 +530,8 @@ class _TempCompBadge extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        badgeColor,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Text(
@@ -617,10 +613,9 @@ class _QualityBadge extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        badgeColor,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
       ),
       child: Text(
         label,
@@ -654,15 +649,17 @@ class _FilterChip extends StatelessWidget {
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(4),
+                fillAlpha: 0.1,
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: colors.border),
+              ),
         child: Text(
           label,
           style: TextStyle(

@@ -7,12 +7,15 @@ import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 
+import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
+import '../models/planning/target_suggestion.dart';
 import '../models/target/target_models.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
+import 'profiles_provider.dart';
 
 // =============================================================================
 // ASTRONOMY HTTP CLIENT
@@ -29,6 +32,11 @@ import 'equipment_provider.dart';
 class FramingState {
   /// Selected target information
   final FramingTarget? target;
+
+  /// Rich planning source for [target], when the target came from Plan Tonight
+  /// or suggestions. Preserved so Framing can round-trip into Smart Night
+  /// sequence generation without degrading to name/coordinate-only metadata.
+  final TargetSuggestion? sourceSuggestion;
 
   /// Survey source for background image
   final SurveySource surveySource;
@@ -98,6 +106,7 @@ class FramingState {
 
   const FramingState({
     this.target,
+    this.sourceSuggestion,
     this.surveySource = SurveySource.dss2Red,
     this.surveyImageBytes,
     this.surveyImage,
@@ -126,6 +135,7 @@ class FramingState {
 
   FramingState copyWith({
     FramingTarget? target,
+    TargetSuggestion? sourceSuggestion,
     SurveySource? surveySource,
     Uint8List? surveyImageBytes,
     ui.Image? surveyImage,
@@ -152,9 +162,13 @@ class FramingState {
     bool? showOpticalConfigPanel,
     bool clearImage = false,
     bool clearTarget = false,
+    bool clearSourceSuggestion = false,
   }) {
     return FramingState(
       target: clearTarget ? null : (target ?? this.target),
+      sourceSuggestion: clearTarget || clearSourceSuggestion
+          ? null
+          : (sourceSuggestion ?? this.sourceSuggestion),
       surveySource: surveySource ?? this.surveySource,
       surveyImageBytes:
           clearImage ? null : (surveyImageBytes ?? this.surveyImageBytes),
@@ -243,6 +257,20 @@ class FramingTarget {
       constellation: t.constellation,
     );
   }
+}
+
+TargetType? _targetTypeFromSuggestion(String? objectType) {
+  final normalized = objectType?.toLowerCase().trim();
+  if (normalized == null || normalized.isEmpty) return null;
+  if (normalized.contains('galaxy')) return TargetType.galaxy;
+  if (normalized.contains('nebula')) return TargetType.nebula;
+  if (normalized.contains('cluster')) return TargetType.cluster;
+  if (normalized.contains('star')) return TargetType.star;
+  if (normalized.contains('planet')) return TargetType.planet;
+  if (normalized.contains('moon')) return TargetType.moon;
+  if (normalized.contains('comet')) return TargetType.comet;
+  if (normalized.contains('asteroid')) return TargetType.asteroid;
+  return TargetType.other;
 }
 
 /// Custom equipment configuration for framing
@@ -486,20 +514,99 @@ class FramingNotifier extends StateNotifier<FramingState> {
   FramingNotifier(this._ref) : super(const FramingState());
 
   /// Set the target by coordinates
-  void setTargetCoordinates(double raHours, double decDegrees, {String? name}) {
+  void setTargetCoordinates(
+    double raHours,
+    double decDegrees, {
+    String? name,
+    bool fromRemoteSync = false,
+  }) {
+    final targetName = name ?? 'Custom Location';
     final target = FramingTarget(
-      name: name ?? 'Custom Location',
+      name: targetName,
       raHours: raHours,
       decDegrees: decDegrees,
     );
-    state = state.copyWith(target: target, clearImage: true);
+    state = state.copyWith(
+      target: target,
+      clearImage: true,
+      clearSourceSuggestion: true,
+    );
     loadSurveyImage();
+
+    if (fromRemoteSync) {
+      return;
+    }
+
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      unawaited(_pushTargetToHost(
+        backend,
+        raHours: raHours,
+        decDegrees: decDegrees,
+        name: targetName,
+      ));
+    }
+  }
+
+  /// Set the target from a planner/suggestion result while keeping the full
+  /// source suggestion around for Smart Night sequence generation.
+  void setTargetSuggestion(TargetSuggestion suggestion) {
+    final target = FramingTarget(
+      name: suggestion.targetName,
+      catalogId: suggestion.catalogId,
+      raHours: suggestion.raHours,
+      decDegrees: suggestion.decDegrees,
+      type: _targetTypeFromSuggestion(suggestion.objectType),
+      magnitude: suggestion.magnitude,
+      sizeArcmin: suggestion.sizeArcmin,
+      constellation: suggestion.constellation,
+    );
+    state = state.copyWith(
+      target: target,
+      sourceSuggestion: suggestion,
+      clearImage: true,
+    );
+    loadSurveyImage();
+  }
+
+  Future<void> _pushTargetToHost(
+    NetworkBackend backend, {
+    required double raHours,
+    required double decDegrees,
+    required String name,
+  }) async {
+    try {
+      await backend.framingSetTarget(
+        ra: raHours,
+        dec: decDegrees,
+        name: name,
+      );
+    } catch (e, stackTrace) {
+      developer.log(
+        'Failed to push framing target to host: $e',
+        name: 'FramingNotifier',
+        level: 1000,
+        error: e,
+        stackTrace: stackTrace,
+      );
+      rethrow;
+    }
   }
 
   /// Set the target from a catalog search result
   void setTarget(FramingTarget target) {
     state = state.copyWith(target: target, clearImage: true);
     loadSurveyImage();
+
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      unawaited(_pushTargetToHost(
+        backend,
+        raHours: target.raHours,
+        decDegrees: target.decDegrees,
+        name: target.name,
+      ));
+    }
   }
 
   /// Clear the current target
@@ -846,15 +953,17 @@ class FramingNotifier extends StateNotifier<FramingState> {
       );
     }
 
-    // Try to get from active equipment profile
+    // Try to get from active equipment profile (host or local).
     try {
-      final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-      final profile = await profilesDao.getActiveProfile();
+      final active = _ref.read(activeEquipmentProfileProvider);
+      if (active == null) {
+        return null;
+      }
 
-      if (profile != null && profile.focalLength > 0) {
-        if (profile.cameraId == null || profile.cameraId!.isEmpty) {
+      if (active.focalLength > 0) {
+        if (active.cameraId == null || active.cameraId!.isEmpty) {
           developer.log(
-            'Cannot compute profile FOV for "${profile.name}" without a configured camera.',
+            'Cannot compute profile FOV for "${active.name}" without a configured camera.',
             name: 'Framing',
             level: 900,
           );
@@ -864,7 +973,7 @@ class FramingNotifier extends StateNotifier<FramingState> {
         final cameraState = _ref.read(cameraStateProvider);
         if (cameraState.connectionState != DeviceConnectionState.connected) {
           developer.log(
-            'Cannot compute profile FOV for "${profile.name}" because the camera is not connected.',
+            'Cannot compute profile FOV for "${active.name}" because the camera is not connected.',
             name: 'Framing',
             level: 900,
           );
@@ -872,12 +981,12 @@ class FramingNotifier extends StateNotifier<FramingState> {
         }
 
         final backend = _ref.read(backendProvider);
-        final status = await backend.getCameraStatus(profile.cameraId!);
+        final status = await backend.getCameraStatus(active.cameraId!);
         if (status.sensorWidth <= 0 ||
             status.sensorHeight <= 0 ||
             status.pixelSizeX <= 0) {
           developer.log(
-            'Camera status lacks sensor dimensions for "${profile.name}" (width=${status.sensorWidth}, height=${status.sensorHeight}, pixelSize=${status.pixelSizeX}).',
+            'Camera status lacks sensor dimensions for "${active.name}" (width=${status.sensorWidth}, height=${status.sensorHeight}, pixelSize=${status.pixelSizeX}).',
             name: 'Framing',
             level: 1000,
           );
@@ -888,9 +997,9 @@ class FramingNotifier extends StateNotifier<FramingState> {
         final sensorHeight = (status.sensorHeight * status.pixelSizeY) / 1000.0;
 
         final fovWidthRad =
-            2 * FramingEquipment._atan(sensorWidth / (2 * profile.focalLength));
-        final fovHeightRad = 2 *
-            FramingEquipment._atan(sensorHeight / (2 * profile.focalLength));
+            2 * FramingEquipment._atan(sensorWidth / (2 * active.focalLength));
+        final fovHeightRad =
+            2 * FramingEquipment._atan(sensorHeight / (2 * active.focalLength));
 
         return (
           fovWidthRad * 180 / 3.14159265359,
@@ -1099,24 +1208,75 @@ class FramingNotifier extends StateNotifier<FramingState> {
   Future<void> saveTarget() async {
     if (state.target == null) return;
 
+    final target = state.target!;
+    final backend = _ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      await backend.createTarget({
+        'name': target.name,
+        if (target.catalogId != null) 'catalogId': target.catalogId,
+        'ra': target.raHours,
+        'dec': target.decDegrees,
+        'objectType': target.type?.name ?? 'other',
+        if (target.magnitude != null) 'magnitude': target.magnitude,
+        if (target.sizeArcmin != null) 'sizeArcmin': target.sizeArcmin,
+        if (target.constellation != null) 'constellation': target.constellation,
+      });
+      return;
+    }
+
     final targetsDao = _ref.read(targetsDaoProvider);
 
     await targetsDao.createTarget(TargetsCompanion.insert(
-      name: state.target!.name,
-      catalogId: Value(state.target!.catalogId),
-      ra: state.target!.raHours,
-      dec: state.target!.decDegrees,
-      objectType: Value(state.target!.type?.name ?? 'other'),
-      magnitude: Value(state.target!.magnitude),
-      sizeArcmin: Value(state.target!.sizeArcmin),
-      constellation: Value(state.target!.constellation),
+      name: target.name,
+      catalogId: Value(target.catalogId),
+      ra: target.raHours,
+      dec: target.decDegrees,
+      objectType: Value(target.type?.name ?? 'other'),
+      magnitude: Value(target.magnitude),
+      sizeArcmin: Value(target.sizeArcmin),
+      constellation: Value(target.constellation),
     ));
   }
 
   /// Load the most recent target from database (if any)
   Future<void> loadMostRecentTarget() async {
-    final targetsDao = _ref.read(targetsDaoProvider);
-    final allTargets = await targetsDao.getAllTargets();
+    final backend = _ref.read(backendProvider);
+    final List<Target> allTargets;
+    if (backend is NetworkBackend) {
+      final remoteTargets = await backend.getAllTargets();
+      allTargets = remoteTargets.map((json) {
+        return Target(
+          id: json['id'] as int,
+          name: json['name'] as String? ?? 'Untitled target',
+          catalogId: json['catalogId'] as String?,
+          objectType: json['objectType'] as String?,
+          ra: (json['ra'] as num?)?.toDouble() ?? 0.0,
+          dec: (json['dec'] as num?)?.toDouble() ?? 0.0,
+          positionAngle: (json['positionAngle'] as num?)?.toDouble(),
+          magnitude: (json['magnitude'] as num?)?.toDouble(),
+          constellation: json['constellation'] as String?,
+          sizeArcmin: (json['sizeArcmin'] as num?)?.toDouble(),
+          minAltitude: (json['minAltitude'] as num?)?.toDouble() ?? 30.0,
+          priority: json['priority'] as int? ?? 5,
+          totalPlannedSubs: json['totalPlannedSubs'] as int? ?? 0,
+          capturedSubs: json['capturedSubs'] as int? ?? 0,
+          totalIntegrationSecs:
+              (json['totalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+          goalIntegrationSecs:
+              (json['goalIntegrationSecs'] as num?)?.toDouble() ?? 0.0,
+          filterProgress: json['filterProgress'] as String?,
+          notes: json['notes'] as String?,
+          createdAt: DateTime.tryParse(json['createdAt']?.toString() ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0),
+          updatedAt: DateTime.tryParse(json['updatedAt']?.toString() ?? '') ??
+              DateTime.fromMillisecondsSinceEpoch(0),
+          isFavorite: json['isFavorite'] as bool? ?? false,
+        );
+      }).toList();
+    } else {
+      final targetsDao = _ref.read(targetsDaoProvider);
+      allTargets = await targetsDao.getAllTargets();
+    }
 
     if (allTargets.isEmpty) return;
 
@@ -1212,9 +1372,8 @@ final framingFOVProvider = FutureProvider<FramingEquipmentResult>((ref) async {
     );
   }
 
-  // Get from active profile
-  final profilesDao = ref.watch(equipmentProfilesDaoProvider);
-  final profile = await profilesDao.getActiveProfile();
+  // Get from active profile (host-authoritative when paired).
+  final profile = ref.watch(activeEquipmentProfileProvider);
 
   // Check if profile exists
   if (profile == null) {

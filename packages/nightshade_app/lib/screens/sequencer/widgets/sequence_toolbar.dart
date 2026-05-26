@@ -9,9 +9,11 @@ import '../../../models/command_action_result.dart';
 import '../../../services/sequence_action_service.dart';
 import '../../../utils/sequence_mutator_helper.dart';
 import '../../../utils/snackbar_helper.dart';
+import 'conversational_builder_dialog.dart';
 import 'preflight_validation_dialog.dart';
 import 'equipment_status_widget.dart';
 import 'quick_start_wizard_dialog.dart';
+import 'smart_night_dialog.dart';
 import 'trigger_configuration_dialog.dart';
 import '../import_sequence_dialog.dart';
 
@@ -51,13 +53,6 @@ class SequenceToolbar extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -70,6 +65,23 @@ class SequenceToolbar extends ConsumerWidget {
           void openWizard() => showDialog(
                 context: context,
                 builder: (_) => const QuickStartWizardDialog(),
+              );
+
+          // Wave 6 — Smart Night auto-builder. One-click "Plan tonight"
+          // entry point. Always reachable while the sequencer is idle so
+          // a user with a fully-connected rig can go from "I want to
+          // image something" to "press Run" in 6 clicks.
+          void openSmartNight() => showDialog(
+                context: context,
+                builder: (_) => const SmartNightDialog(),
+              );
+
+          // Wave 8 — Conversational sequence builder. Free-text → LLM →
+          // Sequence. The dialog itself handles the "no provider
+          // configured" empty state and the privacy disclosure.
+          void openConversationalBuilder() => showDialog(
+                context: context,
+                builder: (_) => const ConversationalBuilderDialog(),
               );
 
           List<ExposureTriggerConfig> currentExposureTriggers() {
@@ -101,8 +113,61 @@ class SequenceToolbar extends ConsumerWidget {
             for (final node in current.nodes.values.whereType<ExposureNode>()) {
               notifier.updateNode(node.copyWith(triggers: nativeTriggers));
             }
+            // The trigger update is in-memory only — `updateNode` mutates
+            // the editor state but doesn't write to disk. The toolbar's
+            // own Save action exports to a file via a picker dialog, so
+            // we can't silently persist here. Tell the user the truth:
+            // applied to the editor, not yet saved. Auto-save (when on)
+            // will pick it up on its next tick; otherwise the next Save
+            // Sequence press persists it.
             if (context.mounted) {
-              context.showSuccessSnackBar('Exposure triggers saved');
+              context.showInfoSnackBar(
+                'Exposure triggers applied — save sequence to persist.',
+              );
+            }
+          }
+
+          Future<void> createNewSequence() async {
+            final editor = ref.read(currentSequenceProvider.notifier);
+            try {
+              editor.createSequence();
+            } on UnsavedChangesException catch (e) {
+              // The editor has unsaved edits; ask the user before
+              // throwing them away to start a new sequence. Matches the
+              // Open / Import flows above so all three "clobber"
+              // entry-points behave identically (audit §B).
+              if (!context.mounted) return;
+              final discard = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Discard unsaved changes?'),
+                  content: ConstrainedBox(
+                    constraints: AdaptiveDialogConstraints.hybrid(
+                      ctx,
+                      designMaxWidth: 440,
+                    ),
+                    child: Text(
+                        '"${e.currentSequenceName}" has unsaved changes. '
+                        'Discard them and start a new sequence?'),
+                  ),
+                  actions: [
+                    NightshadeButton(
+                      label: 'Cancel',
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(ctx).pop(false),
+                    ),
+                    NightshadeButton(
+                      label: 'Discard',
+                      variant: ButtonVariant.destructive,
+                      size: ButtonSize.small,
+                      onPressed: () => Navigator.of(ctx).pop(true),
+                    ),
+                  ],
+                ),
+              );
+              if (discard != true) return;
+              editor.createSequence(discardUnsaved: true);
             }
           }
 
@@ -122,17 +187,27 @@ class SequenceToolbar extends ConsumerWidget {
                     context: context,
                     builder: (ctx) => AlertDialog(
                       title: const Text('Discard unsaved changes?'),
-                      content: Text(
-                          '"${e.currentSequenceName}" has unsaved changes. '
-                          'Open the loaded sequence anyway?'),
-                      actions: [
-                        TextButton(
-                          onPressed: () => Navigator.of(ctx).pop(false),
-                          child: const Text('Cancel'),
+                      content: ConstrainedBox(
+                        constraints: AdaptiveDialogConstraints.hybrid(
+                          ctx,
+                          designMaxWidth: 440,
                         ),
-                        FilledButton(
+                        child: Text(
+                            '"${e.currentSequenceName}" has unsaved changes. '
+                            'Open the loaded sequence anyway?'),
+                      ),
+                      actions: [
+                        NightshadeButton(
+                          label: 'Cancel',
+                          variant: ButtonVariant.ghost,
+                          size: ButtonSize.small,
+                          onPressed: () => Navigator.of(ctx).pop(false),
+                        ),
+                        NightshadeButton(
+                          label: 'Discard and open',
+                          variant: ButtonVariant.primary,
+                          size: ButtonSize.small,
                           onPressed: () => Navigator.of(ctx).pop(true),
-                          child: const Text('Discard and open'),
                         ),
                       ],
                     ),
@@ -243,12 +318,26 @@ class SequenceToolbar extends ConsumerWidget {
             _ToolbarAction(
               icon: LucideIcons.filePlus,
               label: 'New Sequence$lockedTooltipSuffix',
-              onPressed: canEdit ? notifier.createSequence : null,
+              onPressed: canEdit ? createNewSequence : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.wand2,
               label: 'Quick-Start Wizard$lockedTooltipSuffix',
               onPressed: canEdit ? openWizard : null,
+            ),
+            _ToolbarAction(
+              icon: LucideIcons.sparkles,
+              label: 'Plan Tonight (Smart Night)$lockedTooltipSuffix',
+              onPressed: canEdit ? openSmartNight : null,
+            ),
+            // Wave 8 — Conversational AI Builder. Sits next to Smart
+            // Night because both are "I want a sequence, fast" entry
+            // points; the wand icon distinguishes the LLM-driven path
+            // from the deterministic Smart Night wizard.
+            _ToolbarAction(
+              icon: LucideIcons.wand2,
+              label: 'Conversational Builder (AI)$lockedTooltipSuffix',
+              onPressed: canEdit ? openConversationalBuilder : null,
             ),
             _ToolbarAction(
               icon: LucideIcons.folderOpen,
@@ -369,11 +458,10 @@ class SequenceToolbar extends ConsumerWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: colors.warning.withValues(alpha: 0.15),
+                        decoration: NightshadeDecorations.kpiBadge(
+                          colors.warning,
                           borderRadius: BorderRadius.circular(4),
-                          border: Border.all(
-                              color: colors.warning.withValues(alpha: 0.4)),
+                          shape: BoxShape.rectangle,
                         ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
@@ -681,33 +769,8 @@ class _PlayButton extends StatefulWidget {
   State<_PlayButton> createState() => _PlayButtonState();
 }
 
-class _PlayButtonState extends State<_PlayButton>
-    with SingleTickerProviderStateMixin {
+class _PlayButtonState extends State<_PlayButton> {
   bool _isHovered = false;
-  late AnimationController _pulseController;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    )..repeat(reverse: true);
-  }
-
-  @override
-  void dispose() {
-    _pulseController.dispose();
-    super.dispose();
-  }
-
-  /// Creates a slightly darker shade of the given color
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -718,55 +781,33 @@ class _PlayButtonState extends State<_PlayButton>
       onExit: (_) => setState(() => _isHovered = false),
       child: GestureDetector(
         onTap: widget.onPressed,
-        child: AnimatedBuilder(
-          animation: _pulseController,
-          builder: (context, child) {
-            return AnimatedContainer(
-              duration: const Duration(milliseconds: 150),
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    widget.colors.success,
-                    _darkenColor(widget.colors.success, 0.08),
-                  ],
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 150),
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          decoration: NightshadeDecorations.filledButton(
+            widget.colors.success,
+            isHovered: _isHovered,
+            isDisabled: false,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                LucideIcons.play,
+                size: 16,
+                color: onPrimary,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                widget.label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: onPrimary,
                 ),
-                borderRadius: BorderRadius.circular(10),
-                boxShadow: [
-                  BoxShadow(
-                    color: widget.colors.success.withValues(
-                      alpha: _isHovered
-                          ? 0.3
-                          : 0.1 + _pulseController.value * 0.05,
-                    ),
-                    blurRadius: _isHovered ? 12 : 6,
-                    offset: const Offset(0, 2),
-                  ),
-                ],
               ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.play,
-                    size: 16,
-                    color: onPrimary,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: onPrimary,
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+            ],
+          ),
         ),
       ),
     );
@@ -1013,21 +1054,29 @@ class _StatusBadge extends StatelessWidget {
         label = 'Failed';
         icon = LucideIcons.xCircle;
         break;
+      case SequenceExecutionState.recovering:
+        // Wave 4 — Recovery is a distinct visible state; toolbar reads
+        // "Recovering" with the loop-arrow icon so the operator can see
+        // at a glance that the sequence is mid-recovery and not just
+        // running normally.
+        badgeColor = colors.error;
+        label = 'Recovering';
+        icon = LucideIcons.rotateCw;
+        break;
     }
 
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        badgeColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
           if (executionState == SequenceExecutionState.running)
-            _PulsingDot(color: badgeColor)
+            StatusDot(color: badgeColor)
           else
             Icon(icon, size: 12, color: badgeColor),
           const SizedBox(width: 6),
@@ -1041,60 +1090,6 @@ class _StatusBadge extends StatelessWidget {
           ),
         ],
       ),
-    );
-  }
-}
-
-class _PulsingDot extends StatefulWidget {
-  final Color color;
-
-  const _PulsingDot({required this.color});
-
-  @override
-  State<_PulsingDot> createState() => _PulsingDotState();
-}
-
-class _PulsingDotState extends State<_PulsingDot>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        return Container(
-          width: 8,
-          height: 8,
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            color: widget.color,
-            boxShadow: [
-              BoxShadow(
-                color: widget.color
-                    .withValues(alpha: 0.5 * (1 - _controller.value)),
-                blurRadius: 4 + _controller.value * 4,
-                spreadRadius: _controller.value * 2,
-              ),
-            ],
-          ),
-        );
-      },
     );
   }
 }

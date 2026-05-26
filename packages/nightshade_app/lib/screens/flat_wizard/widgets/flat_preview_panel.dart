@@ -55,7 +55,7 @@ class _ImagePreview extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Attempt to extract CapturedImageResult from the dynamic imageData field.
     // The flat wizard screen stores either a CapturedImageResult or raw Uint8List
@@ -362,7 +362,7 @@ class _StatsBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Get current filter info
     final currentFilter = state.filterSettings.isNotEmpty &&
@@ -586,7 +586,7 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (widget.state.exposureStartTime == null ||
         widget.state.currentExposureDuration == null) {
@@ -604,10 +604,9 @@ class _ExposureCountdownState extends State<_ExposureCountdown> {
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -641,7 +640,7 @@ class _VisualizationsSection extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Count visible visualizations
     final visibleCount = [
@@ -742,7 +741,7 @@ class _ToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return NightshadeTooltip(
       message: tooltip,
@@ -751,12 +750,14 @@ class _ToggleButton extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.all(6),
           margin: const EdgeInsets.only(left: 4),
-          decoration: BoxDecoration(
-            color: isActive
-                ? colors.primary.withValues(alpha: 0.1)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(6),
-          ),
+          decoration: isActive
+              ? NightshadeDecorations.tintedBadge(
+                  colors.primary,
+                  borderRadius: BorderRadius.circular(6),
+                )
+              : const BoxDecoration(
+                  borderRadius: BorderRadius.all(Radius.circular(6)),
+                ),
           child: Icon(
             icon,
             size: 16,
@@ -775,7 +776,7 @@ class _AduConvergenceGraph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Container(
       margin: const EdgeInsets.only(right: 8),
@@ -851,7 +852,7 @@ class _FilterCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final frameCount = filter.frameCountOverride ?? globalFrameCount;
     final progress = frameCount > 0 ? filter.capturedCount / frameCount : 0.0;
 

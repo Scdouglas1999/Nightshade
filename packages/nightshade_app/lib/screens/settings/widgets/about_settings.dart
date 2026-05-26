@@ -8,10 +8,9 @@ import 'package:url_launcher/url_launcher.dart';
 import 'settings_widgets.dart';
 
 class AboutSettings extends StatelessWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
-  const AboutSettings({super.key, required this.colors, this.isMobile = false});
+  const AboutSettings({super.key, this.isMobile = false});
 
   Future<void> _launchUrl(String url) async {
     final uri = Uri.parse(url);
@@ -22,13 +21,13 @@ class AboutSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final logoSize = isMobile ? 64.0 : 80.0;
     final logoIconSize = isMobile ? 32.0 : 40.0;
 
     return SettingsPage(
       title: 'About',
       description: 'Application information',
-      colors: colors,
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
@@ -38,18 +37,14 @@ class AboutSettings extends StatelessWidget {
               Container(
                 width: logoSize,
                 height: logoSize,
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [colors.primary, colors.accent],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
+                decoration: NightshadeDecorations.iconChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(isMobile ? 16 : 20),
                 ),
                 child: Icon(
                   LucideIcons.sparkles,
                   size: logoIconSize,
-                  color: colors.background,
+                  color: colors.primary,
                 ),
               ),
               SizedBox(height: isMobile ? 16 : 20),
@@ -89,7 +84,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'GitHub',
                           onTap: () =>
                               _launchUrl('https://github.com/nightshade-astro'),
-                          colors: colors,
                           compact: true,
                         ),
                         SettingsLinkButton(
@@ -97,7 +91,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'Docs',
                           onTap: () =>
                               _launchUrl('https://nightshade.astro/docs'),
-                          colors: colors,
                           compact: true,
                         ),
                         SettingsLinkButton(
@@ -105,7 +98,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'Discord',
                           onTap: () =>
                               _launchUrl('https://discord.gg/nightshade'),
-                          colors: colors,
                           compact: true,
                         ),
                       ],
@@ -118,7 +110,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'GitHub',
                           onTap: () =>
                               _launchUrl('https://github.com/nightshade-astro'),
-                          colors: colors,
                         ),
                         const SizedBox(width: 12),
                         SettingsLinkButton(
@@ -126,7 +117,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'Documentation',
                           onTap: () =>
                               _launchUrl('https://nightshade.astro/docs'),
-                          colors: colors,
                         ),
                         const SizedBox(width: 12),
                         SettingsLinkButton(
@@ -134,7 +124,6 @@ class AboutSettings extends StatelessWidget {
                           label: 'Discord',
                           onTap: () =>
                               _launchUrl('https://discord.gg/nightshade'),
-                          colors: colors,
                         ),
                       ],
                     ),
@@ -159,16 +148,13 @@ class AboutSettings extends StatelessWidget {
                     const SizedBox(height: 16),
                     SettingsInfoRow(
                         label: 'Platform',
-                        value: Platform.operatingSystem,
-                        colors: colors),
+                        value: Platform.operatingSystem),
                     SettingsInfoRow(
                         label: 'OS Version',
-                        value: Platform.operatingSystemVersion,
-                        colors: colors),
+                        value: Platform.operatingSystemVersion),
                     SettingsInfoRow(
                         label: 'Dart Version',
-                        value: Platform.version.split(' ').first,
-                        colors: colors),
+                        value: Platform.version.split(' ').first),
                   ],
                 ),
               ),

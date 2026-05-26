@@ -11,11 +11,10 @@ import '../../../widgets/remote_directory_picker_dialog.dart';
 import 'settings_widgets.dart';
 
 class Phd2GuidingSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const Phd2GuidingSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<Phd2GuidingSettings> createState() =>
@@ -77,11 +76,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -92,11 +89,9 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
         return SettingsPage(
           title: 'PHD2 Guiding',
           description: 'Configure PHD2 guiding software connection',
-          colors: widget.colors,
           children: [
             SettingsSection(
               title: 'PHD2 Connection',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.server,
@@ -108,9 +103,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                     onChanged: (value) {
                       ref.read(appSettingsProvider.notifier).setPhd2Host(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.network,
@@ -127,9 +120,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                           .read(appSettingsProvider.notifier)
                           .setPhd2Port(value.toInt());
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.folder,
@@ -140,16 +131,13 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                   trailing: SettingsPathInput(
                     path: settings.phd2Path,
                     onBrowse: _selectPhd2Path,
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Information',
-              colors: widget.colors,
               children: [
                 Padding(
                   padding: const EdgeInsets.all(16),
@@ -158,7 +146,7 @@ class _Phd2GuidingSettingsState extends ConsumerState<Phd2GuidingSettings> {
                     'The connection settings are used when connecting to PHD2 for guiding operations.',
                     style: TextStyle(
                       fontSize: 13,
-                      color: widget.colors.textSecondary,
+                      color: NightshadeColors.of(context).textSecondary,
                     ),
                   ),
                 ),

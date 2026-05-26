@@ -67,11 +67,10 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectGuider();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
@@ -80,11 +79,12 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName ?? state.deviceName ?? deviceId,
-      clearError: true,
     );
   }
 
@@ -96,7 +96,13 @@ class GuiderStateNotifier extends StateNotifier<GuiderState> {
   }
 
   void setDisconnected() {
-    state = const GuiderState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = GuiderState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the guider.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void setGuiding(bool guiding) {

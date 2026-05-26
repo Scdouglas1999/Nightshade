@@ -9,14 +9,14 @@ import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
 class HelpTutorialsSettings extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const HelpTutorialsSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final tutorialState = ref.watch(tutorialProvider);
     final notifier = ref.read(tutorialProvider.notifier);
 
@@ -24,11 +24,9 @@ class HelpTutorialsSettings extends ConsumerWidget {
       key: SettingsTutorialKeys.help,
       title: 'Help & Tutorials',
       description: 'Guided tours and learning resources',
-      colors: colors,
       children: [
         SettingsSection(
           title: 'First-Night Walkthrough',
-          colors: colors,
           children: [
             SettingRow(
               icon: LucideIcons.sparkles,
@@ -52,7 +50,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   context.go('/tutorial/first-night');
                 },
               ),
-              colors: colors,
             ),
             SettingRow(
               icon: LucideIcons.compass,
@@ -77,7 +74,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 },
               ),
               isLast: false,
-              colors: colors,
             ),
             SettingRow(
               icon: LucideIcons.archive,
@@ -93,13 +89,11 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 onPressed: () => context.go('/diagnostics/dump'),
               ),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
         SettingsSection(
           title: 'Tutorial Tours',
-          colors: colors,
           children: [
             _TutorialRow(
               icon: LucideIcons.sparkles,
@@ -119,7 +113,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   notifier.resumeTutorial(TutorialCategory.firstLight),
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.firstLight),
-              colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.boxes,
@@ -139,7 +132,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   notifier.resumeTutorial(TutorialCategory.equipmentSetup),
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.equipmentSetup),
-              colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.compass,
@@ -159,7 +151,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   notifier.resumeTutorial(TutorialCategory.targetPlanning),
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.targetPlanning),
-              colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.listOrdered,
@@ -179,7 +170,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   notifier.resumeTutorial(TutorialCategory.automatedImaging),
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.automatedImaging),
-              colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.sun,
@@ -199,7 +189,6 @@ class HelpTutorialsSettings extends ConsumerWidget {
                   notifier.resumeTutorial(TutorialCategory.calibrationFrames),
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.calibrationFrames),
-              colors: colors,
             ),
             _TutorialRow(
               icon: LucideIcons.barChart3,
@@ -220,13 +209,11 @@ class HelpTutorialsSettings extends ConsumerWidget {
               onRestart: () =>
                   notifier.restartTutorial(TutorialCategory.advancedFeatures),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
         SettingsSection(
           title: 'Reset Progress',
-          colors: colors,
           children: [
             SettingRow(
               icon: LucideIcons.refreshCw,
@@ -240,13 +227,11 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 onPressed: () => _showResetConfirmation(context, ref),
               ),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
         SettingsSection(
           title: 'Settings',
-          colors: colors,
           children: [
             SettingRow(
               icon: LucideIcons.toggleRight,
@@ -257,10 +242,8 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 onChanged: (value) {
                   notifier.setTutorialsEnabled(value);
                 },
-                colors: colors,
               ),
               isLast: true,
-              colors: colors,
             ),
           ],
         ),
@@ -271,7 +254,9 @@ class HelpTutorialsSettings extends ConsumerWidget {
   void _showResetConfirmation(BuildContext context, WidgetRef ref) {
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
+      builder: (ctx) {
+        final colors = NightshadeColors.of(ctx);
+        return AlertDialog(
         backgroundColor: colors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
@@ -281,8 +266,8 @@ class HelpTutorialsSettings extends ConsumerWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: colors.error.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.error,
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Icon(LucideIcons.alertTriangle,
@@ -323,7 +308,8 @@ class HelpTutorialsSettings extends ConsumerWidget {
             },
           ),
         ],
-      ),
+      );
+      },
     );
   }
 }
@@ -340,7 +326,6 @@ class _TutorialRow extends StatelessWidget {
   final VoidCallback onResume;
   final VoidCallback onRestart;
   final bool isLast;
-  final NightshadeColors colors;
 
   const _TutorialRow({
     required this.icon,
@@ -354,8 +339,7 @@ class _TutorialRow extends StatelessWidget {
     required this.onResume,
     required this.onRestart,
     this.isLast = false,
-    required this.colors,
-  });
+    });
 
   String get _statusText {
     if (isCompleted) {
@@ -389,6 +373,7 @@ class _TutorialRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Semantics(
       label: '$title tutorial, $_statusText',
       button: true,
@@ -408,12 +393,15 @@ class _TutorialRow extends StatelessWidget {
             Container(
               width: 36,
               height: 36,
-              decoration: BoxDecoration(
-                color: isCompleted
-                    ? colors.success.withValues(alpha: 0.1)
-                    : colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-              ),
+              decoration: isCompleted
+                  ? NightshadeDecorations.tintedBadge(
+                      colors.success,
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : BoxDecoration(
+                      color: colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
               child: Icon(
                 icon,
                 size: 16,

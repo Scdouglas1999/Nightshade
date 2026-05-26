@@ -4,6 +4,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'delete_node_confirmation.dart';
+
 /// Right-click / long-press context menu for nodes in the sequencer tree.
 ///
 /// This widget never *renders* the menu — it only wraps its [child] with a
@@ -47,10 +49,17 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     // selected node so this keeps state consistent.
     ref.read(selectedNodeIdProvider.notifier).state = nodeId;
 
-    final overlay = Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
     if (overlay == null) return;
 
     final canEdit = ref.read(canEditSequenceProvider);
+    // Wave 1.5 Pack A: "Skip to here" is only meaningful while the sequence
+    // is running/paused. canEdit is FALSE in those states — the inverse of
+    // what we need — so we read the live execution state directly.
+    final executionState = ref.read(sequenceExecutionStateProvider);
+    final isRunning = executionState == SequenceExecutionState.running ||
+        executionState == SequenceExecutionState.paused;
 
     final selected = await showMenu<_TreeMenuAction>(
       context: context,
@@ -61,7 +70,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
         Rect.fromLTWH(position.dx, position.dy, 1, 1),
         Offset.zero & overlay.size,
       ),
-      color: colors.surfaceAlt,
+      color: colors.surfaceElevated,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.border),
@@ -70,7 +79,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       // Container" and triggers Flex overflow warnings in tests on
       // narrow surfaces.
       constraints: const BoxConstraints(minWidth: 260, maxWidth: 320),
-      items: _buildMenuItems(node, canEdit: canEdit),
+      items: _buildMenuItems(node, canEdit: canEdit, isRunning: isRunning),
     );
 
     if (selected == null) return;
@@ -79,7 +88,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
   }
 
   List<PopupMenuEntry<_TreeMenuAction>> _buildMenuItems(SequenceNode node,
-      {required bool canEdit}) {
+      {required bool canEdit, required bool isRunning}) {
     // Same compact style as the existing more-actions menu in _NodeItem.
     // When `canEdit` is false (sequence is running/paused/stopping) we
     // gray out every mutating entry so the user sees them but can't fire
@@ -100,21 +109,17 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       final lockedByExecution = mutating && !canEdit;
       final disabled = structurallyDisabled || lockedByExecution;
 
-      final effectiveColor = disabled
-          ? colors.textMuted
-          : (labelColor ?? colors.textSecondary);
-      final effectiveLabel = disabled
-          ? colors.textMuted
-          : (labelColor ?? colors.textPrimary);
+      final effectiveColor =
+          disabled ? colors.textMuted : (labelColor ?? colors.textSecondary);
+      final effectiveLabel =
+          disabled ? colors.textMuted : (labelColor ?? colors.textPrimary);
 
       // Tooltip wins for the structural case (more informative than
       // "sequence is running"); falls back to the execution-state hint
       // otherwise.
       final tooltip = structurallyDisabled
           ? disabledReason
-          : (lockedByExecution
-              ? 'Sequence is running — stop it first.'
-              : null);
+          : (lockedByExecution ? 'Sequence is running — stop it first.' : null);
 
       final row = Row(
         children: [
@@ -160,17 +165,31 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     // For non-root nodes, the multi-select grouping helper validates that
     // the selection shares a parent; we don't need to pre-check that
     // here because the menu item is being opened on a single node.
-    final groupDisabledReason = isRoot
-        ? 'Cannot group the root sequence node into a container.'
-        : null;
+    final groupDisabledReason =
+        isRoot ? 'Cannot group the root sequence node into a container.' : null;
 
     // Duplicate / Delete also don't make sense for the root — the editor
     // ignores `removeNode(root)` silently which is the same audit
     // complaint. Surface the same way.
-    final rootOnlyDisabledReason =
-        isRoot ? 'This action is not available on the root sequence node.' : null;
+    final rootOnlyDisabledReason = isRoot
+        ? 'This action is not available on the root sequence node.'
+        : null;
 
     return [
+      // Wave 1.5 Pack A: "Skip to here" — only enabled while a sequence is
+      // running. Mutating: false because skipping does not edit the
+      // sequence definition; the disabledReason teaches the user the entry
+      // requires a live run when the executor is idle.
+      entry(
+        _TreeMenuAction.skipToHere,
+        LucideIcons.skipForward,
+        'Skip to here',
+        mutating: false,
+        disabledReason: isRunning
+            ? (isRoot ? 'Cannot skip to the root sequence node.' : null)
+            : 'Start the sequence to skip ahead to a specific node.',
+      ),
+      const PopupMenuDivider(height: 8),
       entry(
         _TreeMenuAction.insertAbove,
         LucideIcons.arrowUpToLine,
@@ -204,9 +223,7 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       ),
       const PopupMenuDivider(height: 8),
       entry(
-        node.isEnabled
-            ? _TreeMenuAction.disable
-            : _TreeMenuAction.enable,
+        node.isEnabled ? _TreeMenuAction.disable : _TreeMenuAction.enable,
         node.isEnabled ? LucideIcons.eyeOff : LucideIcons.eye,
         node.isEnabled ? 'Disable' : 'Enable',
       ),
@@ -265,6 +282,19 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       case _TreeMenuAction.delete:
         await _confirmAndDelete(context, ref, sequence, node);
         break;
+      case _TreeMenuAction.skipToHere:
+        // Wave 1.5 Pack A: route through SequenceExecutor.skipToNode which
+        // proxies to the backend `sequencerSkipToNode` method (the Rust side
+        // maps to the new api_sequencer_skip_to_node FRB binding). Errors
+        // surface as a snackbar so the user sees when the jump was rejected
+        // (e.g. executor not running, or backend not connected).
+        try {
+          await ref.read(sequenceExecutorProvider).skipToNode(node.id);
+        } catch (e) {
+          if (!context.mounted) return;
+          _showSnackBar(context, 'Failed to skip to "${node.name}": $e');
+        }
+        break;
     }
   }
 
@@ -309,13 +339,14 @@ class SequenceTreeContextMenu extends ConsumerWidget {
       if (p == null) {
         // The root node has no parent — wrapping the root is not a thing
         // we expose. Defensive: surface this rather than no-op.
-        _showSnackBar(context,
-            "Can't group the root sequence node into a container.");
+        _showSnackBar(
+            context, "Can't group the root sequence node into a container.");
         return;
       }
       sharedParent ??= p;
       if (sharedParent != p) {
-        _showSnackBar(context,
+        _showSnackBar(
+            context,
             'Selection spans multiple parents — move the selected nodes '
             'under one container before grouping.');
         return;
@@ -392,9 +423,12 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: colors.surface,
+      backgroundColor: Colors.transparent,
+      barrierColor: colors.background.withValues(alpha: 0.72),
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusMd),
+        ),
       ),
       builder: (sheetContext) {
         return _InsertNodePicker(
@@ -413,89 +447,13 @@ class SequenceTreeContextMenu extends ConsumerWidget {
     Sequence sequence,
     SequenceNode node,
   ) async {
-    await confirmAndDeleteNode(
+    await confirmAndDeleteSequenceNode(
       context: context,
       ref: ref,
-      sequence: sequence,
       nodeId: node.id,
       colors: colors,
     );
   }
-}
-
-/// Public helper used by the tree context menu *and* the screen-level
-/// Delete keyboard shortcut. Shows a confirmation when the node has
-/// descendants ("Delete 7 descendants?"), then removes it and clears
-/// selection. Returns `true` if the delete went through.
-///
-/// Why a top-level function instead of an instance method: the screen
-/// shortcut handler doesn't have a [SequenceTreeContextMenu] instance to
-/// call into; extracting the dialog here lets both surfaces reuse the
-/// same wording / safety rail.
-Future<bool> confirmAndDeleteNode({
-  required BuildContext context,
-  required WidgetRef ref,
-  required Sequence sequence,
-  required String nodeId,
-  required NightshadeColors colors,
-}) async {
-  final node = sequence.nodes[nodeId];
-  if (node == null) return false;
-
-  final descendants = sequence.countDescendants(nodeId);
-
-  void clearSelection() {
-    final selected = ref.read(selectedNodeIdProvider);
-    if (selected == nodeId) {
-      ref.read(selectedNodeIdProvider.notifier).state = null;
-    }
-  }
-
-  // Leaves delete without prompting — matches the inline trash button's
-  // behaviour and keeps single-key Delete from feeling sluggish.
-  if (descendants == 0) {
-    ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
-    clearSelection();
-    return true;
-  }
-
-  final confirmed = await showDialog<bool>(
-    context: context,
-    builder: (dialogContext) => AlertDialog(
-      backgroundColor: colors.surface,
-      title: Text(
-        'Delete "${node.name}"?',
-        style: TextStyle(color: colors.textPrimary),
-      ),
-      content: Text(
-        descendants == 1
-            ? 'This will also delete 1 child node.'
-            : 'This will also delete $descendants descendant nodes.',
-        style: TextStyle(color: colors.textSecondary),
-      ),
-      actions: [
-        NightshadeButton(
-          onPressed: () => Navigator.of(dialogContext).pop(false),
-          label: 'Cancel',
-          variant: ButtonVariant.ghost,
-          size: ButtonSize.small,
-        ),
-        NightshadeButton(
-          onPressed: () => Navigator.of(dialogContext).pop(true),
-          label: 'Delete',
-          variant: ButtonVariant.destructive,
-          size: ButtonSize.small,
-        ),
-      ],
-    ),
-  );
-
-  if (confirmed == true) {
-    ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
-    clearSelection();
-    return true;
-  }
-  return false;
 }
 
 enum _TreeMenuAction {
@@ -507,6 +465,8 @@ enum _TreeMenuAction {
   disable,
   enable,
   delete,
+  // Wave 1.5 Pack A
+  skipToHere,
 }
 
 /// Lightweight palette wrapper used by Insert Above / Insert Below.
@@ -540,8 +500,12 @@ class _InsertNodePicker extends ConsumerWidget {
       builder: (context, scrollController) {
         return Container(
           decoration: BoxDecoration(
-            color: colors.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
+            color: colors.surfaceElevated,
+            borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(NightshadeTokens.radiusMd),
+            ),
+            border: Border(top: BorderSide(color: colors.border)),
+            boxShadow: NightshadeTokens.shadowLg,
           ),
           child: Column(
             children: [
@@ -598,9 +562,8 @@ class _InsertNodePicker extends ConsumerWidget {
                                 notifier.addNode(c, parentId: newNode.id);
                               }
                             }
-                            ref
-                                .read(selectedNodeIdProvider.notifier)
-                                .state = newNode.id;
+                            ref.read(selectedNodeIdProvider.notifier).state =
+                                newNode.id;
                             onDismiss();
                           },
                           child: Padding(
@@ -612,8 +575,7 @@ class _InsertNodePicker extends ConsumerWidget {
                                   width: 28,
                                   height: 28,
                                   decoration: BoxDecoration(
-                                    color:
-                                        colors.surfaceAlt,
+                                    color: colors.surfaceAlt,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Icon(

@@ -4,9 +4,20 @@
 
 pub mod all_sky_polar;
 pub mod autofocus;
+// Wave 7 Agent 2: live-stacking broadcast service.
+pub mod broadcast;
 pub mod checkpoint;
+// Wave 8 — Replay Debug: structured decision logging that powers the
+// retrospective Replay view (every scheduler pick, trigger firing,
+// recovery transition, frame verdict, plugin invocation, manual action,
+// and system event).
+pub mod decision;
 mod device_ops;
 mod executor;
+// Wave 4: Variables / expression interpolation engine. Powers user-authored
+// templates in node names, notification text, RunScript args, and FITS save
+// paths. See `expressions/mod.rs` for syntax + variable catalog.
+pub mod expressions;
 pub mod flat_wizard;
 pub mod focus_prediction;
 pub mod instructions;
@@ -16,24 +27,57 @@ pub mod meridian_flip_executor;
 pub mod mosaic;
 mod node;
 mod polar_align;
+// Wave 3 Image Grading: per-frame Pass/Reject grading + reject-folder routing.
+pub mod quality;
+// Wave 4: Recovery Mode — first-class executor state machine wired up so the
+// UI can render a visible "Recovering" LED + banner + Try Now/Abort controls
+// instead of users having to guess whether a stalled sequence is broken or
+// retrying. Types live here so they are reachable from the executor, the
+// bridge, and downstream wire formats.
+pub mod recovery;
+// Wave 3 Agent 1: TargetScheduler — native port of the planetarium scoring math
+// so the executor has a runtime authority for scheduling decisions.
+pub mod scheduling;
 pub mod temperature_compensation;
 mod triggers;
 pub mod wizard;
 
 pub use all_sky_polar::*;
 pub use checkpoint::*;
+// Wave 8 Replay Debug — hoist the decision types so the bridge can use
+// them without pathing through `nightshade_sequencer::decision::…`.
+pub use decision::{
+    emit_decision, DecisionCategory, DecisionEvent, DecisionReceiver, DecisionSender,
+    DEFAULT_DECISION_CHANNEL_CAPACITY,
+};
 pub use device_ops::*;
 pub use executor::*;
+// Wave 4: interpolation engine — surface the most common entry points so
+// callers outside the sequencer (bridge, integration tests) can build
+// templates without pathing through `expressions::resolver`.
+pub use expressions::{
+    catalog::catalog_json, interpolate, interpolate_optional, EvaluationFrame, InterpolationError,
+    TemplatePart, VariableEntry, VariableGroup, VariableValue,
+};
 pub use instructions::*;
 pub use meridian_events::*;
 pub use meridian_flip_executor::*;
 pub use mosaic::*;
 pub use node::*;
 pub use polar_align::*;
+// Wave 4: hoist the recovery types so the bridge can use them without
+// pathing through `nightshade_sequencer::recovery::…`.
+pub use recovery::{
+    compute_max_attempts, AttemptOutcome, RecoveryCause, RecoveryContext, RecoveryHistoryEntry,
+    RecoveryPhase, RecoveryRuntimeConfig, RecoverySignals,
+};
 pub use triggers::*;
 
 // Re-export focus prediction types
-pub use focus_prediction::{FilterOffset, FocusModel, FocusPredictionEngine, PredictionResult};
+pub use focus_prediction::{
+    DriftStatus, FilterOffset, FocusModel, FocusPredictionEngine, FocusTrainingSample,
+    PersistedFocusModel, PredictionResult, PredictiveAfConfig, PredictiveAfDecision,
+};
 
 // Re-export autofocus types (with alias to avoid conflict)
 pub use autofocus::{
@@ -177,6 +221,901 @@ pub enum NodeType {
     CloseCover(CoverCalibratorConfig),
     CalibratorOn(CalibratorOnConfig),
     CalibratorOff(CoverCalibratorConfig),
+
+    // Wave 3 Agent 1: TargetScheduler — dynamic target picker. Container
+    // node whose children MUST be `TargetHeader` variants; at each scheduling
+    // decision point the highest-scoring runnable child is executed.
+    TargetScheduler(TargetSchedulerConfig),
+
+    // Wave 3 Agent 2: SmartExposure — one row per filter, container-style
+    // instruction. Internally delegates to ChangeFilter + TakeExposure via
+    // the InstructionRegistry; per-filter completed counts and the current
+    // plan index are persisted to `SessionCheckpoint::wizard_states` so a
+    // sequence killed mid-rotation resumes on the right filter at the
+    // right frame index.
+    SmartExposure(SmartExposureConfig),
+
+    // Wave 6 Pack P: PluginNode — a plugin-contributed instruction whose
+    // execution is dispatched into the Dart side via a request/response
+    // protocol. The Rust executor knows only the identifiers
+    // (`plugin_id`/`node_type_id`) and the opaque `config_json` blob; the
+    // Dart `PluginNodeExecutor` is the one that resolves the registration
+    // and runs `PluginSequenceNode.execute`.
+    //
+    // The runtime contract is:
+    //   1. The executor emits `ExecutorEvent::PluginNodeRequested {…}`.
+    //   2. Dart picks the event up via the typed sequencer-event stream,
+    //      runs the plugin, and sends
+    //      `ExecutorCommand::PluginNodeFinished {…}` back through the
+    //      bridge.
+    //   3. The Rust instruction node blocks on a oneshot keyed by node id
+    //      and returns Success/Failure based on the reply.
+    //
+    // A timeout (default 10 minutes; overridable via `timeout_secs`) fails
+    // the node loudly per CLAUDE.md when no reply arrives.
+    PluginNode {
+        plugin_id: String,
+        node_type_id: String,
+        /// Opaque JSON payload that the plugin author authored on the Dart
+        /// side. Rust never deserialises this — it only forwards the
+        /// string verbatim. Defaults to empty string.
+        #[serde(default)]
+        config_json: String,
+        /// Optional human-readable label surfaced in logs. The display
+        /// name on `NodeDefinition` still wins for UI; this is only used
+        /// when log lines need a friendlier label than the raw type id.
+        #[serde(default)]
+        display_name: Option<String>,
+        /// Optional per-node timeout in seconds. None falls back to the
+        /// executor default (600 s). `Some(0)` is treated the same as
+        /// `None` (use default) rather than zero-second-fail-now, because
+        /// a zero-second timeout would be a configuration bug.
+        #[serde(default)]
+        timeout_secs: Option<u32>,
+    },
+
+    // Wave 7 Agent 2: LiveStacking — EAA / outreach broadcast node.
+    // When entered, this node arms a frame-level subscription that pipes
+    // each newly-captured sub into the live-stacking engine (sigma-clipped
+    // average / median rejection / pure average depending on
+    // `stack_method`). The latest stacked JPEG + telemetry is published
+    // to the broadcast service so a phone client on the LAN (or a public
+    // outreach URL) can watch the image build up frame-by-frame.
+    //
+    // The node itself is asynchronous: it does NOT block the sequence.
+    // The sequencer enters the node, registers the broadcast intent with
+    // `BroadcastService`, and returns Success once the listener is
+    // installed. The listener keeps stacking on every successful exposure
+    // until the parent target/loop exits — at which point the node's
+    // sibling exposures naturally stop producing frames and the stacker
+    // is reset on the next start.
+    LiveStacking(LiveStackingConfig),
+
+    // Wave 7 Science: SciencePhotometryNode — cadence-enforced photometric
+    // capture for variable-star / exoplanet timing. Inherits the standard
+    // expose pipeline (camera + grading + FITS save) and layers in:
+    //   * Per-frame instrumental + (optionally) differential magnitude
+    //     extraction from `target_designation` + `reference_stars`.
+    //   * A photometry-specific `PhotometryQualityGates` step that re-uses
+    //     Wave 3 Image Grading's reject path for frames that fail SNR /
+    //     FWHM / airmass / reference-visibility thresholds.
+    //   * Cadence enforcement: if the gap between consecutive exposure
+    //     starts exceeds `max_cadence_gap_secs`, the executor emits a
+    //     `ProgressDetail::PhotometryCadenceBroken` warning (does NOT
+    //     abort — partial cadence-broken data is still useful for offline
+    //     re-analysis).
+    //   * Photometric FITS keywords: `OBJCAT`, `REFSTARS`, `AIRMASS`,
+    //     `MJD-OBS`, `INSTRMAG`, `DIFFMAG`, `FWHM`, `SNR`.
+    //
+    // See `node/instructions/science_photometry.rs` for the execution
+    // flow. The Dart layer subscribes to `ProgressDetail::PhotometryFrame`
+    // for live light-curve updates.
+    SciencePhotometry(SciencePhotometryConfig),
+}
+
+// =============================================================================
+// Wave 7 Science: SciencePhotometry configuration
+// =============================================================================
+
+/// Configuration for the [`NodeType::SciencePhotometry`] instruction.
+///
+/// Differential photometry workflow: the user picks a target (variable
+/// star, exoplanet host, etc.) and one or more reference stars in the same
+/// field, points the rig, and lets a long burst run at constant cadence.
+/// Each frame yields one `photometry_measurements` row containing the
+/// instrumental magnitude of the target + (when `apply_differential` is
+/// true) the differential magnitude against the average reference star
+/// flux.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SciencePhotometryConfig {
+    /// Target object identifier in the catalogue used by the science
+    /// pipeline (e.g. `"V0376 Per"`, `"KIC-9832227"`, `"TIC-25155310"`).
+    /// Surfaced as the FITS `OBJCAT` keyword.
+    pub target_designation: String,
+    /// Reference stars (catalogue IDs) used for differential photometry.
+    /// Empty when `apply_differential` is false. Surfaced as the FITS
+    /// `REFSTARS` keyword (comma-separated).
+    #[serde(default)]
+    pub reference_stars: Vec<String>,
+    /// Maximum gap (seconds) allowed between consecutive exposure starts.
+    /// If exceeded — usually due to a mid-burst autofocus or dither — the
+    /// node emits a `ProgressDetail::PhotometryCadenceBroken` warning.
+    /// 0.0 disables cadence checking; values below `exposure_secs` are
+    /// physically impossible and rejected by the validator.
+    #[serde(default = "default_photometry_cadence_gap")]
+    pub max_cadence_gap_secs: f64,
+    /// Photometric filter (one of `V`, `B`, `R`, `I`, `g`, `r`, `i`, `z`,
+    /// `Clear`, `CV`). Non-photometric filters are flagged by the
+    /// validator.
+    pub filter: String,
+    /// Per-frame exposure duration in seconds. Constant cadence requires
+    /// this to be uniform across the burst.
+    pub exposure_secs: f64,
+    /// Number of frames to capture in the burst.
+    pub count: u32,
+    /// When true, the science pipeline extracts the target's instrumental
+    /// magnitude from each captured frame in real time and writes a row
+    /// to `photometry_measurements`. When false the frames are captured
+    /// "raw" and the science pipeline does the extraction offline.
+    #[serde(default = "default_photometry_reduce_live")]
+    pub reduce_live: bool,
+    /// When true (and `reduce_live` is true), the runtime additionally
+    /// computes the differential magnitude against `reference_stars` and
+    /// stamps `DIFFMAG` into the FITS header. Requires non-empty
+    /// `reference_stars`.
+    #[serde(default = "default_photometry_apply_differential")]
+    pub apply_differential: bool,
+    /// Per-frame quality gates. Frames that fail are rejected via the
+    /// Wave 3 Image Grading reject path; the photometry row is still
+    /// written (with `is_outlier = true`) so the offline pipeline has
+    /// the full chronological record.
+    #[serde(default)]
+    pub quality: PhotometryQualityGates,
+    /// Optional gain override. None falls back to the camera's profile
+    /// default; matches `ExposureConfig::gain`.
+    #[serde(default)]
+    pub gain: Option<i32>,
+    /// Optional offset override.
+    #[serde(default)]
+    pub offset: Option<i32>,
+    /// Binning. Photometry typically wants 1x1 to preserve PSF sampling;
+    /// the validator warns when binning != 1x1 for photometric filters.
+    #[serde(default)]
+    pub binning: Binning,
+}
+
+fn default_photometry_cadence_gap() -> f64 {
+    2.0
+}
+
+fn default_photometry_reduce_live() -> bool {
+    true
+}
+
+fn default_photometry_apply_differential() -> bool {
+    true
+}
+
+impl Default for SciencePhotometryConfig {
+    fn default() -> Self {
+        Self {
+            target_designation: String::new(),
+            reference_stars: Vec::new(),
+            max_cadence_gap_secs: default_photometry_cadence_gap(),
+            filter: "Clear".to_string(),
+            exposure_secs: 60.0,
+            count: 60,
+            reduce_live: default_photometry_reduce_live(),
+            apply_differential: default_photometry_apply_differential(),
+            quality: PhotometryQualityGates::default(),
+            gain: None,
+            offset: None,
+            binning: Binning::One,
+        }
+    }
+}
+
+impl SciencePhotometryConfig {
+    /// True when the configured `filter` is one of the standard
+    /// photometric bands. Used by validation and by the FITS header
+    /// writer to gate the `INSTRMAG`/`DIFFMAG` keywords (we refuse to
+    /// stamp photometric magnitudes on frames captured through a
+    /// non-photometric filter).
+    pub fn is_photometric_filter(&self) -> bool {
+        Self::is_photometric_filter_name(&self.filter)
+    }
+
+    /// Static check usable in validation without constructing a config.
+    pub fn is_photometric_filter_name(name: &str) -> bool {
+        // Accept the standard Johnson-Cousins (V, B, R, I), Sloan/SDSS
+        // (g, r, i, z), Clear, and the CV (clear with V-band photometric
+        // transformation) labels used by AAVSO observers.
+        let n = name.trim();
+        matches!(
+            n,
+            "V" | "B"
+                | "R"
+                | "I"
+                | "U"
+                | "g"
+                | "r"
+                | "i"
+                | "z"
+                | "g'"
+                | "r'"
+                | "i'"
+                | "z'"
+                | "Clear"
+                | "CV"
+                | "CR"
+                | "CB"
+        )
+    }
+}
+
+/// Per-frame quality gates for photometric capture.
+///
+/// All thresholds are honoured by the runtime when
+/// `SciencePhotometryConfig::reduce_live` is true. A frame failing any
+/// gate is routed to the Wave 3 Image Grading reject folder and its
+/// `photometry_measurements` row is marked `is_outlier = true` (so the
+/// offline pipeline can still re-analyse the data if desired).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct PhotometryQualityGates {
+    /// Minimum target SNR to accept. AAVSO publishes per-band SNR
+    /// thresholds (V: 50, B: 30, etc.); the default here matches the
+    /// "research-grade transit" threshold from the AAVSO Observer
+    /// Manual.
+    #[serde(default = "default_photometry_min_snr")]
+    pub min_snr: f64,
+    /// Maximum acceptable FWHM in arcseconds. Frames blurrier than this
+    /// are usually wind-affected or out-of-focus; rejecting them
+    /// preserves the light curve's noise floor.
+    #[serde(default = "default_photometry_max_fwhm_arcsec")]
+    pub max_fwhm_arcsec: f64,
+    /// When true, frames where ANY reference star failed to extract are
+    /// rejected (differential magnitude is unreliable). When false,
+    /// missing references are tolerated and the runtime falls back to
+    /// per-frame instrumental magnitude.
+    #[serde(default = "default_photometry_require_all_refs_visible")]
+    pub require_all_refs_visible: bool,
+    /// Maximum airmass. Frames captured too close to the horizon suffer
+    /// large extinction errors; default 2.5 (~24° altitude) matches the
+    /// AAVSO Bright Star Monitor cut-off.
+    #[serde(default = "default_photometry_max_airmass")]
+    pub max_airmass: f64,
+}
+
+fn default_photometry_min_snr() -> f64 {
+    50.0
+}
+
+fn default_photometry_max_fwhm_arcsec() -> f64 {
+    5.0
+}
+
+fn default_photometry_require_all_refs_visible() -> bool {
+    true
+}
+
+fn default_photometry_max_airmass() -> f64 {
+    2.5
+}
+
+impl Default for PhotometryQualityGates {
+    fn default() -> Self {
+        Self {
+            min_snr: default_photometry_min_snr(),
+            max_fwhm_arcsec: default_photometry_max_fwhm_arcsec(),
+            require_all_refs_visible: default_photometry_require_all_refs_visible(),
+            max_airmass: default_photometry_max_airmass(),
+        }
+    }
+}
+
+/// One outcome of evaluating [`PhotometryQualityGates`] against a frame.
+///
+/// `Pass` means every gate passed; `Reject` carries the failure reason so
+/// the Wave 3 Image Grading reject path can stamp it into the
+/// `FrameRejected` progress event.
+#[derive(Debug, Clone, PartialEq)]
+pub enum PhotometryFrameVerdict {
+    Pass,
+    Reject { reason: String },
+}
+
+impl PhotometryQualityGates {
+    /// Apply the gates to a measured frame. `snr`, `fwhm_arcsec`,
+    /// `airmass`, and `refs_visible` are all `Option` because the
+    /// extractor may not have produced the corresponding measurement
+    /// (e.g. no plate-solve => no airmass). Per CLAUDE.md's
+    /// "errors are a feature" rule: a missing measurement is treated
+    /// as a Reject when the corresponding gate is active, NOT silently
+    /// passed.
+    pub fn evaluate(
+        &self,
+        snr: Option<f64>,
+        fwhm_arcsec: Option<f64>,
+        airmass: Option<f64>,
+        refs_total: usize,
+        refs_visible: usize,
+    ) -> PhotometryFrameVerdict {
+        if self.min_snr > 0.0 {
+            let measured = match snr {
+                Some(v) => v,
+                None => {
+                    return PhotometryFrameVerdict::Reject {
+                        reason: "SNR not measured (no stars detected?)".to_string(),
+                    };
+                }
+            };
+            if measured < self.min_snr {
+                return PhotometryFrameVerdict::Reject {
+                    reason: format!("SNR {:.1} below threshold {:.1}", measured, self.min_snr),
+                };
+            }
+        }
+        if self.max_fwhm_arcsec > 0.0 {
+            let measured = match fwhm_arcsec {
+                Some(v) => v,
+                None => {
+                    return PhotometryFrameVerdict::Reject {
+                        reason: "FWHM not measured (no stars detected?)".to_string(),
+                    };
+                }
+            };
+            if measured > self.max_fwhm_arcsec {
+                return PhotometryFrameVerdict::Reject {
+                    reason: format!(
+                        "FWHM {:.2}\" above threshold {:.2}\"",
+                        measured, self.max_fwhm_arcsec
+                    ),
+                };
+            }
+        }
+        if self.max_airmass > 0.0 {
+            let measured = match airmass {
+                Some(v) => v,
+                None => {
+                    return PhotometryFrameVerdict::Reject {
+                        reason: "Airmass not computed (no altitude?)".to_string(),
+                    };
+                }
+            };
+            if measured > self.max_airmass {
+                return PhotometryFrameVerdict::Reject {
+                    reason: format!(
+                        "Airmass {:.2} above threshold {:.2}",
+                        measured, self.max_airmass
+                    ),
+                };
+            }
+        }
+        if self.require_all_refs_visible && refs_total > 0 && refs_visible < refs_total {
+            return PhotometryFrameVerdict::Reject {
+                reason: format!(
+                    "Only {}/{} reference stars visible",
+                    refs_visible, refs_total
+                ),
+            };
+        }
+        PhotometryFrameVerdict::Pass
+    }
+}
+
+// =============================================================================
+// Wave 7 Agent 2: LiveStacking configuration
+// =============================================================================
+
+/// Stacking method used by the LiveStacking node.
+///
+/// The names are kebab-cased on the wire (so the same JSON loads on Dart
+/// without bespoke conversion) and match the brief's enum.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum StackMethod {
+    /// Pure mean of accepted frames. Cheapest, but does not reject outliers.
+    #[default]
+    Average,
+    /// Median with sigma rejection. Best for hot-pixel / satellite-trail
+    /// suppression at the cost of a slightly noisier-looking preview at
+    /// low frame counts.
+    MedianRej,
+    /// Sigma-clipped mean. Compromise between Average and MedianRej —
+    /// rejects outliers but converges faster than median for the same
+    /// frame count.
+    Sigma,
+}
+
+impl StackMethod {
+    /// Lower-case stable string for the bridge layer and tracing logs.
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            StackMethod::Average => "average",
+            StackMethod::MedianRej => "median_rej",
+            StackMethod::Sigma => "sigma",
+        }
+    }
+}
+
+/// Operating mode for the LiveStacking node.
+///
+/// `BroadcastOnly` keeps the on-disk captured sub completely untouched —
+/// the stack lives only in memory and is published to the broadcast
+/// service. `RecordAndBroadcast` additionally writes the stacked JPEG
+/// snapshot to the session's save directory on every frame so the user
+/// keeps a record of the building image alongside the regular FITS.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum LiveStackingMode {
+    #[default]
+    BroadcastOnly,
+    RecordAndBroadcast,
+}
+
+impl LiveStackingMode {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            LiveStackingMode::BroadcastOnly => "broadcast_only",
+            LiveStackingMode::RecordAndBroadcast => "record_and_broadcast",
+        }
+    }
+}
+
+/// Configuration for the [`NodeType::LiveStacking`] node.
+///
+/// All ports / paths are validated by the editor-side validation rules
+/// (see Dart `LiveStackingPortClashRule` / `LiveStackingNoExposureRule`).
+/// The Rust runtime does not re-validate — invalid configs are caught
+/// before the sequence starts.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct LiveStackingConfig {
+    /// `BroadcastOnly` or `RecordAndBroadcast`.
+    #[serde(default)]
+    pub mode: LiveStackingMode,
+    /// Stacking method (average / median+rej / sigma-clipped).
+    #[serde(default)]
+    pub stack_method: StackMethod,
+    /// Hard cap on number of frames added to the stack. `0` = unlimited.
+    /// Useful at long outreach events to keep memory bounded.
+    #[serde(default)]
+    pub max_frames_to_stack: u32,
+    /// Whether the broadcast endpoint is enabled. When `false` the
+    /// stacker still runs (for the local preview), but the HTTP endpoint
+    /// returns 404 on `/api/broadcast/live-stack`. The user can flip
+    /// this mid-sequence by editing the node when paused.
+    #[serde(default = "default_broadcast_enabled")]
+    pub broadcast_enabled: bool,
+    /// TCP port the broadcast service binds. Defaults to 8081 to stay
+    /// out of the headless API server (default 8080) and the Wave 6 web
+    /// dashboard. The Dart `LiveStackingPortClashRule` errors if this
+    /// matches the headless API port.
+    #[serde(default = "default_broadcast_port")]
+    pub broadcast_port: u16,
+    /// HTTP path prefix the broadcast service serves under. Default
+    /// `/broadcast`. Allows the user to host the broadcast under a
+    /// vanity prefix at outreach events.
+    #[serde(default = "default_broadcast_path")]
+    pub broadcast_path: String,
+    /// Optional shared secret. When `Some` and non-empty, every
+    /// broadcast endpoint requires `?token=…` matching this value.
+    /// `None` (or `Some("")`) = public access.
+    #[serde(default)]
+    pub auth_token: Option<String>,
+    /// Optional watermark text rendered on the broadcast JPEG. Supports
+    /// the Wave 4 variable interpolation engine — e.g. `"M42 — L
+    /// ${integration.hms}"`. `None` disables the watermark entirely.
+    #[serde(default)]
+    pub watermark_text: Option<String>,
+    /// Output thumbnail size (width × height) for the broadcast JPEG.
+    /// Larger sizes give a more detailed preview at the cost of LAN
+    /// bandwidth. Default 1280×720 (HD).
+    #[serde(default = "default_thumbnail_width")]
+    pub thumbnail_width: u32,
+    #[serde(default = "default_thumbnail_height")]
+    pub thumbnail_height: u32,
+}
+
+fn default_broadcast_enabled() -> bool {
+    true
+}
+
+fn default_broadcast_port() -> u16 {
+    8081
+}
+
+fn default_broadcast_path() -> String {
+    "/broadcast".to_string()
+}
+
+fn default_thumbnail_width() -> u32 {
+    1280
+}
+
+fn default_thumbnail_height() -> u32 {
+    720
+}
+
+impl Default for LiveStackingConfig {
+    fn default() -> Self {
+        Self {
+            mode: LiveStackingMode::default(),
+            stack_method: StackMethod::default(),
+            max_frames_to_stack: 0,
+            broadcast_enabled: default_broadcast_enabled(),
+            broadcast_port: default_broadcast_port(),
+            broadcast_path: default_broadcast_path(),
+            auth_token: None,
+            watermark_text: None,
+            thumbnail_width: default_thumbnail_width(),
+            thumbnail_height: default_thumbnail_height(),
+        }
+    }
+}
+
+// =============================================================================
+// Wave 3 Agent 2: SmartExposure configuration
+// =============================================================================
+
+/// Configuration for the SmartExposure container instruction.
+///
+/// SmartExposure is the "one row per filter" automation users expect from
+/// modern sequencers: instead of authoring `FilterChange → Loop(N) →
+/// TakeExposure` chains by hand for L/R/G/B, the user lists one
+/// [`FilterPlan`] per filter and SmartExposure handles filter changes,
+/// dither cadence, and rotation order itself.
+///
+/// Per-filter progress is checkpointed (see [`SmartExposureCheckpoint`]) so
+/// a sequence killed mid-rotation resumes on the correct filter at the
+/// correct exposure count.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartExposureConfig {
+    /// Ordered list of per-filter plans. Order is the rotation order when
+    /// [`Self::rotate_filters`] is true. Editable mid-run when the sequence
+    /// is paused (Wave 1.5 Pack B canEdit gating).
+    pub plans: Vec<FilterPlan>,
+    /// If true, take one batch from each plan in `plans` order before
+    /// repeating (RGRGRG …). If false, exhaust each plan in turn before
+    /// moving to the next (RRRRRGGG …). Default true (rotation).
+    #[serde(default = "default_rotate_filters")]
+    pub rotate_filters: bool,
+    /// If true, run a dither between filter changes in addition to the
+    /// per-plan `dither_every`. Default false because a filter change
+    /// itself shifts the field slightly; an explicit dither is cheap
+    /// insurance but not always wanted.
+    #[serde(default)]
+    pub dither_on_filter_change: bool,
+    /// Global integration budget cap in seconds. When > 0 and the
+    /// SmartExposure-local accumulated exposure time exceeds this value,
+    /// SmartExposure returns `Success` even if some plans have unfilled
+    /// counts. 0 = no cap (run every plan to completion).
+    ///
+    /// Useful for "shoot whatever fits in 4 hours" runs where the user
+    /// cares about wall-clock more than per-filter completeness.
+    #[serde(default)]
+    pub integration_budget_secs: f64,
+    /// Number of exposures to take per filter before rotating to the next
+    /// filter (only meaningful when `rotate_filters` is true). Default 1 —
+    /// matches the classical "one sub then rotate" behaviour. Increasing
+    /// this batches multiple subs per filter visit, which reduces filter
+    /// wheel wear at the cost of slightly less even temporal sampling.
+    #[serde(default = "default_smart_exposure_batch_size")]
+    pub batch_size: u32,
+}
+
+fn default_rotate_filters() -> bool {
+    true
+}
+
+fn default_smart_exposure_batch_size() -> u32 {
+    1
+}
+
+impl Default for SmartExposureConfig {
+    fn default() -> Self {
+        Self {
+            plans: Vec::new(),
+            rotate_filters: default_rotate_filters(),
+            dither_on_filter_change: false,
+            integration_budget_secs: 0.0,
+            batch_size: default_smart_exposure_batch_size(),
+        }
+    }
+}
+
+/// One per-filter row in a [`SmartExposureConfig`]. Conceptually equivalent
+/// to a `FilterChange → Loop(count) → TakeExposure` chain, but stored as a
+/// single data row so the UI can present a tabular editor.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FilterPlan {
+    /// Filter wheel slot name (e.g. "L", "Ha"). Matched against the
+    /// connected filter wheel's name list when `filter_index` is None.
+    pub filter_name: String,
+    /// 0-based filter wheel index. Preferred over `filter_name` for
+    /// reliability — matches `FilterConfig::filter_index`. None falls back
+    /// to name matching.
+    #[serde(default)]
+    pub filter_index: Option<i32>,
+    /// Total number of exposures to take for this filter. Used together
+    /// with the per-filter completed count in
+    /// [`SmartExposureCheckpoint`] to decide when this plan is done.
+    pub count: u32,
+    /// Sub-exposure duration in seconds.
+    pub duration_secs: f64,
+    /// Optional gain override. None means "use camera/profile default".
+    #[serde(default)]
+    pub gain: Option<i32>,
+    /// Optional offset override.
+    #[serde(default)]
+    pub offset: Option<i32>,
+    /// Binning for this filter. Defaults to 1x1.
+    #[serde(default)]
+    pub binning: Binning,
+    /// Per-plan dither cadence (every N frames). None disables dithering
+    /// for this filter regardless of any global default. Some(0) is
+    /// treated as "no dither" — matches `ExposureConfig::dither_every`.
+    #[serde(default)]
+    pub dither_every: Option<u32>,
+}
+
+impl Default for FilterPlan {
+    fn default() -> Self {
+        Self {
+            filter_name: String::new(),
+            filter_index: None,
+            count: 10,
+            duration_secs: 60.0,
+            gain: None,
+            offset: None,
+            binning: Binning::default(),
+            dither_every: None,
+        }
+    }
+}
+
+/// Per-filter progress record persisted in
+/// [`crate::checkpoint::SessionCheckpoint::wizard_states`] under the key
+/// [`smart_exposure_checkpoint_key`]. Old sequences without this entry
+/// resume from a fresh state (all counts zero, plan index 0) — the
+/// `#[serde(default)]` on `wizard_states` already guarantees this.
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct SmartExposureCheckpoint {
+    /// completed_count keyed by filter name. We key by name (not index)
+    /// because the user might re-order plans between runs; resuming on
+    /// the "L" plan should still see "L" frames already taken even if it
+    /// moved from index 0 to index 2.
+    pub per_filter_completed: HashMap<String, u32>,
+    /// Index of the plan currently being executed (so resume returns to
+    /// the right row, not necessarily the first incomplete plan when
+    /// `rotate_filters` is false).
+    pub current_plan_index: usize,
+    /// Accumulated integration seconds attributed to this SmartExposure
+    /// node, used for the per-node `integration_budget_secs` cap. The
+    /// global `completed_integration_secs` on ExecutionContext is shared
+    /// across the whole sequence, so SmartExposure tracks its own slice
+    /// here for the budget comparison.
+    pub completed_integration_secs: f64,
+}
+
+/// Stable checkpoint key for SmartExposure resume state. Re-uses the
+/// `wizard_states` slot on `SessionCheckpoint` so a single map covers
+/// every kind of step-level resume state — but the key namespace is
+/// distinct (`smart_exposure:<node_id>`) so two SmartExposure nodes in the
+/// same sequence don't clobber each other's state.
+pub fn smart_exposure_checkpoint_key(node_id: &NodeId) -> String {
+    format!("smart_exposure:{}", node_id)
+}
+
+// Wave 3 Agent 1: TargetScheduler ----------------------------------------------
+
+/// Audit §15 — how the scheduler should drive multi-filter cycling within a
+/// single dispatch on a target whose subtree contains a [`SmartExposureConfig`]
+/// (typical for mosaic panels with LRGB / SHO plans).
+///
+/// The pre-§15 behaviour was effectively `SingleFilter`: the scheduler picked
+/// a target, executed its subtree, and the SmartExposure node inside that
+/// subtree used whatever `rotate_filters` / `batch_size` it was authored with.
+/// In the mosaic + scheduler composition that meant one panel got one filter
+/// burst per dispatch — a 4-panel LRGB mosaic of 50/50/50/50 frames required
+/// 200 separate scheduler ticks instead of interleaving filters within the
+/// panel visit, wasting meridian-flip headroom and producing uneven coverage.
+///
+/// `RoundRobin { frames_per_burst }` overrides each `SmartExposure` node in
+/// the picked subtree for the duration of that dispatch: the rotation flag is
+/// forced on and the per-visit batch size is set to `frames_per_burst`. The
+/// override is installed on `ExecutionContext` immediately before the picked
+/// child executes and cleared on return, so it does NOT leak into sibling
+/// dispatches and does NOT mutate the saved sequence definition on disk.
+///
+/// Default is `SingleFilter` to preserve backward compatibility with every
+/// existing sequence (the new field is `#[serde(default)]` so legacy JSON
+/// continues to deserialise unchanged).
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Default)]
+#[serde(tag = "mode", rename_all = "snake_case")]
+pub enum FilterCycleMode {
+    /// The historical behaviour — the scheduler does NOT override the picked
+    /// subtree's SmartExposure config. Whatever the node was authored with
+    /// (`rotate_filters` / `batch_size`) wins, and a single dispatch typically
+    /// produces a burst of one filter.
+    #[default]
+    SingleFilter,
+    /// Force each `SmartExposure` node in the picked subtree to rotate
+    /// across all filters with `batch_size = frames_per_burst`. The dispatch
+    /// continues until either: (a) every plan in that SmartExposure node is
+    /// exhausted, (b) the SmartExposure node's own `integration_budget_secs`
+    /// (if set) fires, or (c) the scheduler's recompute cadence yields the
+    /// dispatch back so the surrounding loop can re-rank targets.
+    RoundRobin {
+        /// Frames per filter visit before rotating. Must be >= 1 — values of
+        /// 0 are clamped to 1 by [`FilterCycleMode::frames_per_burst_clamped`]
+        /// because rotating after zero frames is a no-op infinite loop.
+        frames_per_burst: u32,
+    },
+}
+
+impl FilterCycleMode {
+    /// True when the mode is anything other than `SingleFilter`. The
+    /// dispatch path skips its subtree-walk entirely when this returns false.
+    pub fn is_active(&self) -> bool {
+        !matches!(self, FilterCycleMode::SingleFilter)
+    }
+
+    /// Clamp `frames_per_burst` to the legal `>= 1` band. SingleFilter
+    /// returns `None` (no override applies).
+    pub fn frames_per_burst_clamped(&self) -> Option<u32> {
+        match self {
+            FilterCycleMode::SingleFilter => None,
+            FilterCycleMode::RoundRobin { frames_per_burst } => Some((*frames_per_burst).max(1)),
+        }
+    }
+}
+
+/// Configuration for the [`NodeType::TargetScheduler`] container node.
+///
+/// Mirrors the Dart-side `TargetSchedulerNode` config. Default values match
+/// the brief — `0.25 / 0.25 / 0.20 / 0.15 / 0.15` weights, 30-point minimum
+/// score, no automatic recompute mid-target, and the "finish the current loop
+/// iteration before switching" guard turned on so a partially-finished
+/// exposure burst is not abandoned mid-frame.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct TargetSchedulerConfig {
+    /// Per-axis weights passed through to the scheduling::scoring layer.
+    #[serde(default = "default_scheduler_altitude_weight")]
+    pub altitude_weight: f64,
+    #[serde(default = "default_scheduler_moon_distance_weight")]
+    pub moon_distance_weight: f64,
+    #[serde(default = "default_scheduler_transit_proximity_weight")]
+    pub transit_proximity_weight: f64,
+    #[serde(default = "default_scheduler_darkness_weight")]
+    pub darkness_weight: f64,
+    #[serde(default = "default_scheduler_airmass_weight")]
+    pub airmass_weight: f64,
+    /// Minimum total score (0..=100) below which the scheduler treats every
+    /// target as unrunnable. When no child clears the floor the node returns
+    /// `Skipped`.
+    #[serde(default = "default_scheduler_min_score_to_run")]
+    pub min_score_to_run: f64,
+    /// Recompute the schedule every N exposures completed inside the
+    /// currently-running target's subtree. `0` means "only re-decide when the
+    /// current target finishes" (boundary-only mode).
+    #[serde(default)]
+    pub recompute_every_n_exposures: u32,
+    /// Once a target's subtree starts, finish its current `Loop` iteration
+    /// before switching even if a recompute would otherwise pick someone else.
+    /// Prevents abandoning a partially-completed exposure burst.
+    #[serde(default = "default_scheduler_finish_iteration_on_switch")]
+    pub finish_iteration_on_switch: bool,
+
+    // -----------------------------------------------------------------------
+    // Wave 8 — Sky-conditions-aware adaptive target swap.
+    //
+    // When `swap_on_conditions_below` is `Some(threshold)`, the scheduler
+    // consults `crate::scheduling::adaptive_swap::pick_target_for_conditions`
+    // at every decision point. If the live composite ConditionsScore is at
+    // or below the threshold AND the currently-running target's
+    // brightness_tier_hint no longer accepts the score, the scheduler swaps
+    // to the highest-scoring brighter backup. `None` => adaptive swap is
+    // disabled (the ordinary ranking runs unchanged).
+    // -----------------------------------------------------------------------
+    /// Conditions-score floor below which adaptive swap engages. `None`
+    /// disables the feature for this scheduler instance.
+    #[serde(default)]
+    pub swap_on_conditions_below: Option<f64>,
+
+    /// Minimum seconds between consecutive adaptive swaps. Stops the
+    /// scheduler from thrashing between targets when conditions hover
+    /// around the threshold. Default 180s (3 minutes).
+    #[serde(default = "default_scheduler_swap_hysteresis_secs")]
+    pub swap_hysteresis_secs: f64,
+
+    /// Tier preferences (per-tier conditions-score floors). Defaults
+    /// follow the brief (faint ≥ 70, medium ≥ 50, bright ≥ 30).
+    #[serde(default)]
+    pub brightness_tier_preferences: crate::scheduling::BrightnessTierPreferences,
+
+    /// Score readings older than this are treated as "telemetry missing"
+    /// and the scheduler falls back to the ordinary ranking. Default 300s.
+    #[serde(default = "default_scheduler_max_score_age_secs")]
+    pub max_conditions_score_age_secs: i64,
+
+    /// Audit §15 — multi-filter cycle mode for SmartExposure-bearing
+    /// children. `SingleFilter` (the default) preserves the historical
+    /// "one filter per dispatch" behaviour; `RoundRobin { frames_per_burst }`
+    /// overrides each `SmartExposure` in the picked subtree to rotate
+    /// across all filters with the given batch size, so a mosaic panel
+    /// visit produces an LRGB cycle within one dispatch instead of one
+    /// dispatch per (panel, filter) pair.
+    #[serde(default)]
+    pub filter_cycle_mode: FilterCycleMode,
+}
+
+impl Default for TargetSchedulerConfig {
+    fn default() -> Self {
+        Self {
+            altitude_weight: default_scheduler_altitude_weight(),
+            moon_distance_weight: default_scheduler_moon_distance_weight(),
+            transit_proximity_weight: default_scheduler_transit_proximity_weight(),
+            darkness_weight: default_scheduler_darkness_weight(),
+            airmass_weight: default_scheduler_airmass_weight(),
+            min_score_to_run: default_scheduler_min_score_to_run(),
+            recompute_every_n_exposures: 0,
+            finish_iteration_on_switch: default_scheduler_finish_iteration_on_switch(),
+            swap_on_conditions_below: None,
+            swap_hysteresis_secs: default_scheduler_swap_hysteresis_secs(),
+            brightness_tier_preferences: crate::scheduling::BrightnessTierPreferences::default(),
+            max_conditions_score_age_secs: default_scheduler_max_score_age_secs(),
+            filter_cycle_mode: FilterCycleMode::default(),
+        }
+    }
+}
+
+impl TargetSchedulerConfig {
+    /// Construct a `ScoringWeights` view for the scheduling layer.
+    pub fn weights(&self) -> crate::scheduling::ScoringWeights {
+        crate::scheduling::ScoringWeights {
+            altitude_weight: self.altitude_weight,
+            moon_distance_weight: self.moon_distance_weight,
+            transit_proximity_weight: self.transit_proximity_weight,
+            darkness_weight: self.darkness_weight,
+            airmass_weight: self.airmass_weight,
+        }
+    }
+
+    /// True when the weights sum to ~1.0 (validator warning rule). Returns
+    /// `true` for sums in `[0.95, 1.05]` to leave headroom for floating-point
+    /// rounding from UI sliders.
+    pub fn weights_normalised(&self) -> bool {
+        let sum = self.weights().sum();
+        (0.95..=1.05).contains(&sum)
+    }
+}
+
+fn default_scheduler_altitude_weight() -> f64 {
+    0.25
+}
+fn default_scheduler_moon_distance_weight() -> f64 {
+    0.25
+}
+fn default_scheduler_transit_proximity_weight() -> f64 {
+    0.20
+}
+fn default_scheduler_darkness_weight() -> f64 {
+    0.15
+}
+fn default_scheduler_airmass_weight() -> f64 {
+    0.15
+}
+fn default_scheduler_min_score_to_run() -> f64 {
+    30.0
+}
+fn default_scheduler_finish_iteration_on_switch() -> bool {
+    true
+}
+fn default_scheduler_swap_hysteresis_secs() -> f64 {
+    180.0
+}
+fn default_scheduler_max_score_age_secs() -> i64 {
+    300
 }
 
 // Configuration structs for each node type
@@ -199,24 +1138,239 @@ impl MosaicPanelInfo {
 
 /// Target header configuration - the root node for each target in the sequence.
 /// Contains coordinates, scheduling constraints, and optional mosaic panel info.
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TargetHeaderConfig {
     pub target_name: String,
     pub ra_hours: f64,
     pub dec_degrees: f64,
     pub rotation: Option<f64>,
     pub priority: i32,
+    /// **Deprecated as a runtime input** — kept for serialization back-compat.
+    /// Pre-Wave 4 sequences populate this; the runtime now translates it
+    /// (via [`crate::scheduling::legacy_to_triggers`]) into a
+    /// `TargetTrigger::AltitudeAbove` term inside the effective `start_when`.
+    /// New sequences should leave this `None` and set `start_when` directly.
     pub min_altitude: Option<f64>,
+    /// **Deprecated as a runtime input** — kept for serialization back-compat.
+    /// Translated into a `TargetTrigger::AltitudeAbove(N)` term inside
+    /// `end_when` at load time.
     pub max_altitude: Option<f64>,
-    /// Time constraint: don't start imaging before this Unix timestamp
+    /// **Deprecated** — Time constraint: don't start imaging before this
+    /// Unix timestamp. Kept for back-compat; translated into a
+    /// `TargetTrigger::TimeAfter` inside `start_when` when no explicit
+    /// `start_when` is present.
     #[serde(default)]
     pub start_after: Option<i64>,
-    /// Time constraint: stop imaging by this Unix timestamp
+    /// **Deprecated** — Time constraint: stop imaging by this Unix
+    /// timestamp. Translated into a `TargetTrigger::TimeAfter` inside
+    /// `end_when` when no explicit `end_when` is present.
     #[serde(default)]
     pub end_before: Option<i64>,
     /// Mosaic panel info if this target is part of a mosaic
     #[serde(default)]
     pub mosaic_panel: Option<MosaicPanelInfo>,
+    // -----------------------------------------------------------------------
+    // Wave 4 — per-target altitude crossings (SGP-style).
+    //
+    // `start_when` is a wait condition: TargetHeader doesn't begin executing
+    // children until it becomes true. If already true at sequence start, no
+    // wait. `end_when` is a stop condition: as soon as it becomes true,
+    // remaining children are Skipped and the target returns Success.
+    //
+    // Both are optional and serialise with `#[serde(default)]` so
+    // pre-Wave-4 sequences (which don't carry these fields) load identically.
+    //
+    // When BOTH the new fields and the legacy `min_altitude`/`start_after`
+    // / `max_altitude`/`end_before` fields are present, the explicit
+    // `start_when`/`end_when` wins. When only the legacy fields are
+    // present, [`Self::effective_start_when`]/[`Self::effective_end_when`]
+    // synthesise an equivalent trigger via
+    // [`crate::scheduling::legacy_to_triggers`].
+    // -----------------------------------------------------------------------
+    /// Wave 4 — wait condition: target only starts once this becomes true.
+    #[serde(default)]
+    pub start_when: Option<crate::scheduling::TargetTrigger>,
+    /// Wave 4 — stop condition: target ends as soon as this becomes true.
+    #[serde(default)]
+    pub end_when: Option<crate::scheduling::TargetTrigger>,
+    /// Wave 4 — how often (seconds) the runtime re-evaluates `start_when`
+    /// and `end_when` while imaging. Default 30s. Setting this very low
+    /// will burn CPU; setting it very high will delay reacting to the
+    /// crossing.
+    #[serde(default = "default_trigger_poll_interval_secs")]
+    pub trigger_poll_interval_secs: u32,
+    // -----------------------------------------------------------------------
+    // Wave 3 Agent 3 — Per-target integration budget. See
+    // `scheduling::integration_budget`. `#[serde(default)]` keeps backward
+    // compatibility with previously-saved sequences that lack the field.
+    //
+    // The Smart Exposure (Wave 3 Agent 2) and Target Scheduler (Wave 3 Agent 1)
+    // nodes both read this struct via `TargetHeaderConfig::integration_budget()`
+    // and consult the per-run `BudgetState` cache that `target_header.rs`
+    // installs on the ExecutionContext.
+    // -----------------------------------------------------------------------
+    #[serde(default)]
+    pub integration_budget: Option<IntegrationBudget>,
+
+    // -----------------------------------------------------------------------
+    // Wave 8 — adaptive sky-conditions target swap.
+    //
+    // Brightness tier hint consulted by the TargetScheduler's adaptive-swap
+    // logic when live conditions drop. `None` => the scheduler infers from
+    // object type / magnitude (currently treated as `Medium`); `Some(tier)`
+    // pins the target to the user's choice. `#[serde(default)]` keeps the
+    // field absent from existing JSON checkpoints (back-compat).
+    // -----------------------------------------------------------------------
+    #[serde(default)]
+    pub brightness_tier_hint: Option<crate::scheduling::BrightnessTier>,
+}
+
+fn default_trigger_poll_interval_secs() -> u32 {
+    30
+}
+
+impl Default for TargetHeaderConfig {
+    fn default() -> Self {
+        Self {
+            target_name: String::new(),
+            ra_hours: 0.0,
+            dec_degrees: 0.0,
+            rotation: None,
+            priority: 0,
+            min_altitude: None,
+            max_altitude: None,
+            start_after: None,
+            end_before: None,
+            mosaic_panel: None,
+            start_when: None,
+            end_when: None,
+            trigger_poll_interval_secs: default_trigger_poll_interval_secs(),
+            integration_budget: None,
+            brightness_tier_hint: None,
+        }
+    }
+}
+
+/// Per-target integration budget (Wave 3 Agent 3).
+///
+/// Users can specify either:
+/// * an absolute total wall-clock integration cap (`total_secs > 0`), OR
+/// * a per-filter breakdown (`per_filter`) — each entry is either an
+///   [`FilterBudgetEntry::Absolute`] cap in seconds, or a [`FilterBudgetEntry::Ratio`]
+///   that is normalised against the other ratios in the same target to
+///   carve up `total_secs`.
+///
+/// Both can be combined: "8h LRGB at 4:1:1:1" sets `total_secs = 28_800`
+/// and four ratio entries. The runtime computes the per-filter absolute
+/// cap from the ratio at first use.
+///
+/// When the budget is hit the [`crate::node::logic::target_header`] runtime
+/// marks the target Success (not Failure) and execution proceeds to the next
+/// sibling. See also [`LoopCondition::IntegrationTime`] — when both are set
+/// on the same subtree the BUDGET wins (it's the more specific constraint).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub struct IntegrationBudget {
+    /// Total wall-clock integration cap across all filters (seconds).
+    /// `0.0` means "no overall cap"; only `per_filter` entries apply.
+    #[serde(default)]
+    pub total_secs: f64,
+    /// Per-filter budgets. Filter name -> entry. Empty map means
+    /// "only `total_secs` applies" (no per-filter caps).
+    #[serde(default)]
+    pub per_filter: HashMap<String, FilterBudgetEntry>,
+    /// When the budget is hit, the TargetHeader returns Success and the
+    /// executor advances to the next sibling. Default true. When false,
+    /// the budget is purely informational (UI surfaces progress but
+    /// does not gate execution).
+    #[serde(default = "default_stop_on_budget_met")]
+    pub stop_on_budget_met: bool,
+}
+
+fn default_stop_on_budget_met() -> bool {
+    true
+}
+
+impl Default for IntegrationBudget {
+    fn default() -> Self {
+        Self {
+            total_secs: 0.0,
+            per_filter: HashMap::new(),
+            stop_on_budget_met: default_stop_on_budget_met(),
+        }
+    }
+}
+
+/// One entry in [`IntegrationBudget::per_filter`].
+///
+/// `#[serde(tag = "kind", content = "value")]` keeps the JSON shape
+/// `{"kind":"Absolute","value":3600.0}` / `{"kind":"Ratio","value":4.0}` so
+/// the Dart side can round-trip without a custom deserializer.
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq)]
+#[serde(tag = "kind", content = "value")]
+pub enum FilterBudgetEntry {
+    /// Absolute time in this filter (seconds).
+    Absolute(f64),
+    /// Ratio relative to other filters in the same target. Normalised at
+    /// runtime: each ratio gets `(ratio / sum_of_ratios) * total_secs`.
+    Ratio(f64),
+}
+
+impl IntegrationBudget {
+    /// Resolve the absolute per-filter cap (seconds) for a single filter
+    /// given the budget's totals and ratio entries. Returns `None` when
+    /// the filter has no entry AND no overall total applies to it. This
+    /// is the single source of truth — both the runtime and the
+    /// dry-run preview UI must read from here.
+    pub fn resolved_filter_cap(&self, filter: &str) -> Option<f64> {
+        match self.per_filter.get(filter) {
+            Some(FilterBudgetEntry::Absolute(secs)) if *secs > 0.0 => Some(*secs),
+            Some(FilterBudgetEntry::Ratio(r)) if *r > 0.0 => {
+                let total = self.total_secs;
+                if total <= 0.0 {
+                    // Ratio entries without a total can't be turned into
+                    // absolute caps. The validator rules surface this as
+                    // an error; here we fail closed.
+                    None
+                } else {
+                    let sum: f64 = self
+                        .per_filter
+                        .values()
+                        .filter_map(|e| match e {
+                            FilterBudgetEntry::Ratio(r) if *r > 0.0 => Some(*r),
+                            _ => None,
+                        })
+                        .sum();
+                    if sum <= 0.0 {
+                        None
+                    } else {
+                        Some((*r / sum) * total)
+                    }
+                }
+            }
+            // `Absolute(0.0)`, `Ratio(0.0)`, missing entry: no cap.
+            _ => None,
+        }
+    }
+
+    /// Resolved absolute caps for every filter mentioned in `per_filter`,
+    /// keyed by filter name. Filters with `None` cap are omitted.
+    pub fn resolved_caps(&self) -> HashMap<String, f64> {
+        self.per_filter
+            .keys()
+            .filter_map(|f| self.resolved_filter_cap(f).map(|cap| (f.clone(), cap)))
+            .collect()
+    }
+
+    /// True iff the budget is meaningful (at least one cap that can ever
+    /// fire). Used by [`TargetHeaderConfig::integration_budget`] to
+    /// suppress no-op budget UI/runtime work.
+    pub fn is_active(&self) -> bool {
+        self.total_secs > 0.0
+            || self.per_filter.values().any(|e| match e {
+                FilterBudgetEntry::Absolute(s) => *s > 0.0,
+                FilterBudgetEntry::Ratio(r) => *r > 0.0,
+            })
+    }
 }
 
 impl TargetHeaderConfig {
@@ -237,6 +1391,59 @@ impl TargetHeaderConfig {
         } else {
             self.target_name.clone()
         }
+    }
+
+    /// Wave 3 Agent 3 — explicit accessor so Smart Exposure (Wave 3 Agent 2)
+    /// and Target Scheduler (Wave 3 Agent 1) can read the budget without
+    /// coupling to the field layout. Returns `None` when no budget is
+    /// configured or when the budget is structurally inactive
+    /// (every cap is zero).
+    pub fn integration_budget(&self) -> Option<&IntegrationBudget> {
+        self.integration_budget.as_ref().filter(|b| b.is_active())
+    }
+
+    /// Wave 4 — effective start-when trigger for this target.
+    ///
+    /// Returns:
+    /// * `Some(start_when)` if the user explicitly set one — the explicit
+    ///   field wins over any legacy fields.
+    /// * Otherwise, synthesises a trigger from the legacy
+    ///   `start_after` / `min_altitude` fields via
+    ///   [`crate::scheduling::legacy_to_triggers`].
+    /// * `None` when both the explicit and legacy slots are empty —
+    ///   "no start gate".
+    pub fn effective_start_when(&self) -> Option<crate::scheduling::TargetTrigger> {
+        if self.start_when.is_some() {
+            return self.start_when.clone();
+        }
+        crate::scheduling::legacy_to_triggers(
+            self.start_after,
+            self.end_before,
+            self.min_altitude,
+            self.max_altitude,
+        )
+        .0
+    }
+
+    /// Wave 4 — effective end-when trigger. Same precedence as
+    /// [`Self::effective_start_when`].
+    pub fn effective_end_when(&self) -> Option<crate::scheduling::TargetTrigger> {
+        if self.end_when.is_some() {
+            return self.end_when.clone();
+        }
+        crate::scheduling::legacy_to_triggers(
+            self.start_after,
+            self.end_before,
+            self.min_altitude,
+            self.max_altitude,
+        )
+        .1
+    }
+
+    /// Wave 4 — poll interval (seconds) honouring zero / pathological
+    /// inputs by clamping to at least 1s.
+    pub fn effective_poll_interval_secs(&self) -> u32 {
+        self.trigger_poll_interval_secs.max(1)
     }
 }
 
@@ -404,12 +1611,23 @@ pub struct ParallelConfig {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConditionalConfig {
     pub condition: ConditionalCheck,
+    /// Audit C2 — target a specific safety monitor when the condition is
+    /// [`ConditionalCheck::SafetyMonitorSafe`]. `None` falls back to the
+    /// profile-default / aggregated safety monitor (current behaviour for
+    /// single-monitor setups). When set, the value is passed through to
+    /// [`crate::device_ops::DeviceOps::safety_is_safe`] as
+    /// `Some(safety_id)` so multi-safety-monitor configurations can wire a
+    /// conditional branch to one specific device. Ignored for any other
+    /// `ConditionalCheck` variant.
+    #[serde(default)]
+    pub safety_monitor_id: Option<String>,
 }
 
 impl Default for ConditionalConfig {
     fn default() -> Self {
         Self {
             condition: ConditionalCheck::Always,
+            safety_monitor_id: None,
         }
     }
 }
@@ -499,6 +1717,22 @@ pub struct ExposureConfig {
     pub save_to: Option<String>,
     #[serde(default)]
     pub triggers: Vec<ExposureTrigger>,
+    /// Wave 3 Image Grading: per-node image-quality thresholds. When
+    /// `None`, the executor falls back to the global grading settings
+    /// installed in the runtime config (`RuntimeConfig::default_quality_check`).
+    /// `#[serde(default)]` keeps old sequence JSON loadable.
+    #[serde(default)]
+    pub quality_check: Option<crate::quality::ImageQualityCheck>,
+    /// Wave 5 Agent 2 — sky-brightness adaptive exposure config. When
+    /// `Some(...)`, the executor consults the live sky-brightness
+    /// reading at capture time and may extend (or shrink) the burst's
+    /// per-frame duration to keep SNR roughly constant across changing
+    /// sky conditions. `None` falls back to the runtime default
+    /// (`RuntimeConfig::default_adaptive_exposure`) and finally to using
+    /// `duration_secs` as-is. `#[serde(default)]` keeps old JSON
+    /// loadable without an adaptive section.
+    #[serde(default)]
+    pub adaptive_exposure: Option<crate::scheduling::AdaptiveExposureConfig>,
 }
 
 impl Default for ExposureConfig {
@@ -519,6 +1753,8 @@ impl Default for ExposureConfig {
             dither_ra_only: false,
             save_to: None,
             triggers: Vec::new(),
+            quality_check: None,
+            adaptive_exposure: None,
         }
     }
 }
@@ -717,6 +1953,37 @@ pub struct StartGuidingConfig {
     pub settle_timeout: f64,
     /// Whether to auto-select a guide star if none selected
     pub auto_select_star: bool,
+    /// P3-7 (calibration quality gate): maximum allowable deviation of
+    /// `|ra_angle - dec_angle|` from 90° before we fail the StartGuiding
+    /// instruction. A wildly off-perpendicular calibration is a strong
+    /// signal that the mount pulse responses were wrong (mirror flip,
+    /// wrong direction wiring, etc.) and that the night's guiding will
+    /// drift instead of correct.
+    #[serde(default = "default_max_cal_axis_error_deg")]
+    pub max_calibration_axis_error_deg: f64,
+    /// P3-7: ceiling on guiding RMS sampled over the post-settle window.
+    /// Defaults to 3.0 pixels — well above any reasonable rig but low
+    /// enough to catch outright broken calibrations that nevertheless
+    /// passed settle (e.g. settle_pixels was set permissively high).
+    #[serde(default = "default_max_post_settle_rms_pixels")]
+    pub max_post_settle_rms_pixels: f64,
+    /// Allow the user to skip post-start validation if needed (legacy
+    /// drivers that don't report calibration angles, for example).
+    /// Default `true`: validation always runs.
+    #[serde(default = "default_validate_calibration")]
+    pub validate_calibration: bool,
+}
+
+fn default_max_cal_axis_error_deg() -> f64 {
+    20.0
+}
+
+fn default_max_post_settle_rms_pixels() -> f64 {
+    3.0
+}
+
+fn default_validate_calibration() -> bool {
+    true
 }
 
 impl Default for StartGuidingConfig {
@@ -726,6 +1993,9 @@ impl Default for StartGuidingConfig {
             settle_time: 10.0,
             settle_timeout: 60.0,
             auto_select_star: true,
+            max_calibration_axis_error_deg: default_max_cal_axis_error_deg(),
+            max_post_settle_rms_pixels: default_max_post_settle_rms_pixels(),
+            validate_calibration: default_validate_calibration(),
         }
     }
 }
@@ -833,6 +2103,12 @@ pub struct NotificationConfig {
     pub title: String,
     pub message: String,
     pub level: NotificationLevel,
+    /// Wave 5.5 Pack M follow-up — per-node override list of NotificationTransportKind
+    /// names (Dart-side enum, serialised as string). When set, the Dart
+    /// NotificationRouter dispatches via these transports instead of the
+    /// matrix's `custom` rule. `None` (or empty) = inherit matrix routing.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub explicit_transports: Option<Vec<String>>,
 }
 
 #[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq, Default)]
@@ -1029,8 +2305,32 @@ pub enum LoopCondition {
     WhileDark,
 }
 
-/// Conditions for conditional nodes
+/// Conditions for conditional nodes.
+///
+/// Audit #24 — wire format:
+///
+/// The Dart sequence executor emits the conditional payload as
+/// `{"type": "<Variant>", "value": <data>}` (see
+/// `sequence_executor.dart::ConditionalNode` case in the build-payload
+/// switch). With the default externally-tagged serde representation the
+/// non-unit variants (HfrBelow, GuidingRmsBelow, AltitudeAbove,
+/// MoonSeparationAbove, TimeAfter) failed to deserialize at the FFI
+/// boundary — Dart sent `{"type":"HfrBelow","value":1.5}` and serde
+/// expected `{"HfrBelow":1.5}`. Every non-`Always` conditional was
+/// silently broken at runtime.
+///
+/// Resolution: adopt `#[serde(tag = "type", content = "value")]` so the
+/// Rust struct matches the Dart wire format. Unit variants serialise as
+/// `{"type":"Always"}` (the content tag is omitted for unit variants);
+/// tuple variants serialise as `{"type":"HfrBelow","value":1.5}`. The
+/// `#[serde(default)]` on `ConditionalConfig.safety_monitor_id` is
+/// unaffected — it lives on the containing struct.
+///
+/// All Rust-side construction goes through the typed enum (grep:
+/// `ConditionalCheck::`); no JSON literal in the Rust tree depends on
+/// the previous externally-tagged shape outside the unit-tests below.
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(tag = "type", content = "value")]
 pub enum ConditionalCheck {
     /// Always execute
     Always,
@@ -1135,6 +2435,81 @@ pub enum TriggerType {
         /// Maximum drift in pixels before the trigger fires.
         max_pixels: f64,
     },
+    /// Wave 5 Agent 4 — cloud-motion-aware trigger.
+    ///
+    /// Fires when the live cloud-motion analyzer predicts that significant
+    /// cloud cover will arrive at the user's location within `minutes_before`
+    /// minutes AND the predicted coverage exceeds `coverage_threshold` percent.
+    /// The novelty over the legacy `WeatherUnsafe` boolean is that this fires
+    /// *before* clouds arrive, giving the recovery layer enough lead time to
+    /// pause-and-track or slew to a clear gap rather than abort mid-exposure.
+    ///
+    /// The trigger is fed by Dart's `CloudMotionAnalyzer` (see
+    /// `packages/nightshade_core/lib/src/services/weather/cloud_motion_analyzer.dart`)
+    /// pushed via `ExecutorCommand::UpdateCloudMotion`. When the analyzer is
+    /// unavailable (e.g. no radar fetch yet) the trigger stays quiescent —
+    /// `state.predicted_cloud_arrival_minutes` is `None` and the evaluator
+    /// returns false.
+    CloudArrivingIn {
+        /// Fire when arrival time is at or below this many minutes.
+        minutes_before: f64,
+        /// Only fire when predicted coverage exceeds this percentage (0-100).
+        coverage_threshold: f64,
+    },
+    /// Wave 5 Agent 4 — positive cloud-motion trigger.
+    ///
+    /// Fires when the analyzer predicts a clear opening (gap in the cloud
+    /// field) within `minutes_before` minutes whose duration is at least
+    /// `minimum_duration_secs`. Used in combination with
+    /// `RecoveryAction::PauseAndWaitForClear` so a paused sequence resumes
+    /// once the clear window is imminent.
+    ///
+    /// Edge-triggered: fires once when the predicted opening crosses the
+    /// threshold; the cooldown prevents a noisy analyzer from re-firing the
+    /// same opening over and over.
+    CloudOpeningIn {
+        /// Fire when the opening is within this many minutes.
+        minutes_before: f64,
+        /// Reject openings shorter than this (a 30-second hole in the clouds
+        /// is not useful for imaging — the sequence would slew, settle, and
+        /// expose into the next cloud cell).
+        minimum_duration_secs: f64,
+    },
+    /// Wave 5 Agent 4 — current cloud cover threshold.
+    ///
+    /// Fires when the live cloud cover (from `CloudMotionAnalyzer` or the
+    /// Open-Meteo cloud-cover provider) exceeds `max_percent` for at least
+    /// `duration_secs` consecutive seconds. The duration acts as a debounce
+    /// so a single noisy reading does not force a recovery.
+    CloudCoverThreshold {
+        /// Maximum allowed cloud coverage percentage (0-100).
+        max_percent: f64,
+        /// Required duration (seconds) above the threshold before firing.
+        /// Zero is allowed and means "fire immediately on the first sample".
+        duration_secs: f64,
+    },
+    /// Wave 7 Science — transparency-adaptive trigger.
+    ///
+    /// Fires when the live sky transparency reading (pushed in via
+    /// `ExecutorCommand::UpdateTransparency` from the Dart science
+    /// pipeline) drops below `below_threshold` (fraction of clear-sky
+    /// reference; 1.0 = perfectly clear, 0.0 = totally opaque) for at
+    /// least `duration_secs` consecutive seconds. The duration acts as
+    /// a debounce so a brief gust of haze does not force a target swap.
+    ///
+    /// Paired with [`RecoveryAction::SwitchTargetOrFilter`] for the
+    /// "swap from RGB faint target to Lum bright backup" workflow
+    /// described in the Wave 7 brief.
+    TransparencyDropped {
+        /// Trip threshold as a fraction of clear-sky reference (0.0..=1.0).
+        /// A common operator default is 0.7 — "drop more than 30% from
+        /// best".
+        below_threshold: f64,
+        /// Required duration (seconds) at or below the threshold before
+        /// firing. Zero is allowed for tests; production sequences should
+        /// use at least 30s to debounce single-frame haze samples.
+        duration_secs: f64,
+    },
 }
 
 fn default_consecutive_frames() -> u32 {
@@ -1220,4 +2595,38 @@ pub enum RecoveryAction {
     /// (audit §1.11) when accumulated drift exceeds the configured pixel
     /// budget — a recenter is the lowest-risk recovery (no flip, no abort).
     Recenter,
+    /// Wave 5 Agent 4 — pause the sequence and wait for a cloud-opening
+    /// trigger (or operator) to resume. Distinct from generic `Pause` because
+    /// the cloud-aware recovery layer keeps polling the analyzer in the
+    /// background; when `CloudOpeningIn` fires the executor auto-resumes.
+    /// Mounted with `RecoveryCause::WeatherUnsafe` so the Wave 4 Recovery
+    /// Mode banner / audible alert fires as well.
+    PauseAndWaitForClear,
+    /// Wave 5 Agent 4 — re-slew to a target in a clear sky direction.
+    ///
+    /// Uses `ExecutionContext::predicted_clear_sky_direction` (populated by
+    /// the most recent `UpdateCloudMotion` command) to choose a (alt, az)
+    /// destination. Falls back to `PauseAndWaitForClear` when no clear
+    /// direction is reported — silently ignoring the request would be the
+    /// "silent fallback" CLAUDE.md forbids.
+    SlewToGapAndContinue,
+    /// Wave 7 Science — transparency-adaptive sequence swap.
+    ///
+    /// Paired with [`TriggerType::TransparencyDropped`] to implement the
+    /// "switch from faint RGB target to a brighter Lum-tolerant backup
+    /// when the sky goes hazy" workflow. The runtime reads
+    /// `ExecutionContext::transparency_backup_plan` (populated by the
+    /// Dart layer at sequence start) and:
+    ///   1. If a `backup_filter` is set, issues a single ChangeFilter to
+    ///      that filter (the user typically picks Lum/Clear here because
+    ///      those bands tolerate haze better than narrowband).
+    ///   2. If a `backup_target_id` is set, requests a `skip_to_node` to
+    ///      that node id so the executor jumps to a brighter backup
+    ///      target's subtree.
+    ///   3. If BOTH are set, the filter swap is applied to the new
+    ///      target after the skip.
+    ///   4. If NEITHER is set (no operator-configured fallback), the
+    ///      action falls back to `PauseAndWaitForClear` rather than
+    ///      silently no-oping — CLAUDE.md forbids silent fallbacks.
+    SwitchTargetOrFilter,
 }

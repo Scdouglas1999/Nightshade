@@ -28,7 +28,7 @@ class SuggestionCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
 
@@ -103,8 +103,8 @@ class SuggestionCard extends ConsumerWidget {
         Container(
           width: isCompact ? 28 : 36,
           height: isCompact ? 28 : 36,
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.primary,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
           ),
           child: Icon(

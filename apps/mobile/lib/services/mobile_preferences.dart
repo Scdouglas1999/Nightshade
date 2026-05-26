@@ -12,6 +12,14 @@ class MobilePreferences {
 
   static const _kAndroidImmersiveSticky = 'mobile.androidImmersiveSticky';
 
+  // Wave 6D / P2-12 — sticky first-run-setup completion flag. When set, the
+  // app skips the first-run wizard even if the server later loses its
+  // profiles/catalogs/imageOutputPath (e.g. the operator manually wipes
+  // the data dir on the desktop). Without this latch, the wizard would
+  // re-appear every time a freshly-installed server is reconnected, which
+  // is jarring once the user has completed setup on a different rig.
+  static const _kFirstRunCompleted = 'mobile.firstRunCompleted';
+
   // Per-category notification mute toggles. All default to true (enabled)
   // because v2.5 ships with notifications opt-out; the mobile companion is
   // useless during an unattended sequence if the operator can't be paged.
@@ -95,6 +103,20 @@ class MobilePreferences {
   bool get notifyBattery => _prefs.getBool(_kNotifyBattery) ?? true;
   Future<void> setNotifyBattery(bool value) =>
       _prefs.setBool(_kNotifyBattery, value);
+
+  // ---------------------------------------------------------------------------
+  // First-run setup latch
+  //
+  // Set to true once the user finishes (or explicitly skips) the first-run
+  // setup wizard. Read once during dashboard bootstrap; never read by any
+  // other surface. The flag is intentionally per-device (not synced to the
+  // server) because the wizard exists to bridge new-mobile→fresh-server,
+  // not new-mobile→already-configured-server.
+  // ---------------------------------------------------------------------------
+
+  bool get firstRunCompleted => _prefs.getBool(_kFirstRunCompleted) ?? false;
+  Future<void> setFirstRunCompleted(bool value) =>
+      _prefs.setBool(_kFirstRunCompleted, value);
 }
 
 /// Async provider that resolves once SharedPreferences is loaded.

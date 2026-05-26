@@ -4,11 +4,13 @@
 //! Rust types and the COM `VARIANT` / `SAFEARRAY` representations that
 //! ASCOM drivers exchange via `IDispatch`.
 
+use windows::core::BSTR;
 use windows::Win32::Foundation::VARIANT_BOOL;
 use windows::Win32::System::{
     Com::{EXCEPINFO, SAFEARRAY},
     Variant::{
-        VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_I2, VT_I4, VT_R8, VT_UI2, VT_VARIANT,
+        VARIANT, VT_ARRAY, VT_BOOL, VT_BSTR, VT_BYREF, VT_DATE, VT_I2, VT_I4, VT_R8, VT_UI2,
+        VT_VARIANT,
     },
 };
 
@@ -34,6 +36,60 @@ extern "system" {
 }
 
 pub(super) const DISPID_PROPERTYPUT: i32 = -3;
+
+/// Maximum pixel count accepted from ASCOM camera image SAFEARRAYs (~600 MiB as i32).
+pub(super) const SAFEARRAY_I32_MAX_ELEMENTS: usize = 150_000_000;
+
+/// Compute element count for a 1D or 2D SAFEARRAY from inclusive COM bounds.
+pub(super) fn safearray_i32_element_count(
+    lower1: i32,
+    upper1: i32,
+    lower2: Option<i32>,
+    upper2: Option<i32>,
+) -> Result<(usize, usize, usize), String> {
+    if upper1 < lower1 {
+        return Err(format!(
+            "Invalid bounds: upper1 ({upper1}) < lower1 ({lower1})"
+        ));
+    }
+
+    let dim1_diff = upper1.saturating_sub(lower1);
+    let dim1_size = dim1_diff
+        .checked_add(1)
+        .and_then(|n| usize::try_from(n).ok())
+        .ok_or_else(|| format!("Dimension 1 size overflow: {dim1_diff} + 1"))?;
+
+    let (dim2_size, size) = if let (Some(lower2), Some(upper2)) = (lower2, upper2) {
+        if upper2 < lower2 {
+            return Err(format!(
+                "Invalid bounds: upper2 ({upper2}) < lower2 ({lower2})"
+            ));
+        }
+        let dim2_diff = upper2.saturating_sub(lower2);
+        let dim2_size = dim2_diff
+            .checked_add(1)
+            .and_then(|n| usize::try_from(n).ok())
+            .ok_or_else(|| format!("Dimension 2 size overflow: {dim2_diff} + 1"))?;
+        let size = dim1_size.checked_mul(dim2_size).ok_or_else(|| {
+            format!(
+                "Array size overflow: {dim1_size} x {dim2_size} exceeds maximum computable size"
+            )
+        })?;
+        (dim2_size, size)
+    } else {
+        (1, dim1_size)
+    };
+
+    if size > SAFEARRAY_I32_MAX_ELEMENTS {
+        return Err(format!(
+            "Array size {size} elements ({dim1_size} x {dim2_size}) exceeds maximum {} elements (~{}MB)",
+            SAFEARRAY_I32_MAX_ELEMENTS,
+            SAFEARRAY_I32_MAX_ELEMENTS * 4 / (1024 * 1024)
+        ));
+    }
+
+    Ok((dim1_size, dim2_size, size))
+}
 
 /// Create a VARIANT with a boolean value
 pub(super) fn variant_bool(value: bool) -> VARIANT {
@@ -62,6 +118,32 @@ pub(super) fn variant_f64(value: f64) -> VARIANT {
         let mut var = VARIANT::default();
         (*var.Anonymous.Anonymous).vt = VT_R8;
         (*var.Anonymous.Anonymous).Anonymous.dblVal = value;
+        var
+    }
+}
+
+/// Create a VARIANT with an OLE Automation date value.
+pub(super) fn variant_date(value: f64) -> VARIANT {
+    // SAFETY: same VARIANT-union initialization pattern as `variant_f64`; ASCOM
+    // DateTime properties are exposed over IDispatch as VT_DATE (OLE Automation
+    // days), which is stored in the `date` f64 union arm.
+    unsafe {
+        let mut var = VARIANT::default();
+        (*var.Anonymous.Anonymous).vt = VT_DATE;
+        (*var.Anonymous.Anonymous).Anonymous.date = value;
+        var
+    }
+}
+
+/// Create a VARIANT with a BSTR value (for indexed ASCOM property access).
+pub(super) fn variant_bstr(value: &str) -> VARIANT {
+    // SAFETY: VARIANT::default() zero-initializes the union; we set `vt = VT_BSTR`
+    // and assign a `BSTR` owned by the VARIANT (COM rules for invoke arguments).
+    unsafe {
+        let mut var = VARIANT::default();
+        (*var.Anonymous.Anonymous).vt = VT_BSTR;
+        (*var.Anonymous.Anonymous).Anonymous.bstrVal =
+            std::mem::ManuallyDrop::new(BSTR::from(value));
         var
     }
 }
@@ -114,6 +196,19 @@ pub(super) fn variant_to_f64(var: &VARIANT) -> Option<f64> {
             Some(f64::from((*var.Anonymous.Anonymous).Anonymous.uiVal))
         } else {
             tracing::warn!("variant_to_f64: unexpected VARIANT type {}", vt.0);
+            None
+        }
+    }
+}
+
+/// Extract an OLE Automation date from a VARIANT.
+pub(super) fn variant_to_date(var: &VARIANT) -> Option<f64> {
+    // SAFETY: `var` is a borrowed VARIANT (well-aligned). The `date` union arm
+    // is read only after confirming the VT_DATE discriminant.
+    unsafe {
+        if (*var.Anonymous.Anonymous).vt == VT_DATE {
+            Some((*var.Anonymous.Anonymous).Anonymous.date)
+        } else {
             None
         }
     }
@@ -251,23 +346,7 @@ pub(super) unsafe fn extract_safearray_i32(
         ));
     }
 
-    // Check for reasonable dimension size (individual dimension up to 15000 pixels is generous)
-    // This prevents overflow when multiplying dimensions while still supporting large sensors
-    let dim1_diff = upper1.saturating_sub(lower1);
-    if dim1_diff > 15_000 {
-        return Err(format!(
-            "Dimension 1 size {} exceeds maximum 15000 pixels per dimension",
-            dim1_diff + 1
-        ));
-    }
-
-    // Why (audit-rust §1.4): `dim1_diff` is already bounded ≤ 15_000 by the
-    // explicit check above; the `+1` is at most 15_001, which fits any
-    // supported usize (≥ 32-bit).
-    let dim1_size = (dim1_diff + 1) as usize;
-    let mut dim2_size = 1;
-
-    if dims == 2 {
+    let (lower2, upper2) = if dims == 2 {
         let mut lower2: i32 = 0;
         let mut upper2: i32 = 0;
         if SafeArrayGetLBound(psa, 2, &mut lower2).is_err() {
@@ -276,52 +355,12 @@ pub(super) unsafe fn extract_safearray_i32(
         if SafeArrayGetUBound(psa, 2, &mut upper2).is_err() {
             return Err("Failed to get upper bound for dimension 2".to_string());
         }
+        (Some(lower2), Some(upper2))
+    } else {
+        (None, None)
+    };
 
-        // Validate bounds for dimension 2
-        if upper2 < lower2 {
-            return Err(format!(
-                "Invalid bounds: upper2 ({}) < lower2 ({})",
-                upper2, lower2
-            ));
-        }
-
-        let dim2_diff = upper2.saturating_sub(lower2);
-        if dim2_diff > 15_000 {
-            return Err(format!(
-                "Dimension 2 size {} exceeds maximum 15000 pixels per dimension",
-                dim2_diff + 1
-            ));
-        }
-
-        // Why (audit-rust §1.4): same bound as dim1_size — `dim2_diff` is
-        // explicitly checked ≤ 15_000 immediately above.
-        dim2_size = (dim2_diff + 1) as usize;
-    }
-
-    // Validate total size to prevent stack overflow and excessive memory allocation
-    // Support large camera sensors (e.g., 100MP = 10000x10000 = 100M pixels)
-    // At 4 bytes per i32, 100M elements = 400MB which is reasonable for modern systems
-    // For 16-bit sensors, we can support up to ~150M pixels (600MB)
-    const MAX_ELEMENTS: usize = 150_000_000; // ~600MB for i32, supports very large sensors
-
-    // Use checked arithmetic to prevent overflow
-    let size = dim1_size.checked_mul(dim2_size).ok_or_else(|| {
-        format!(
-            "Array size overflow: {} x {} exceeds maximum computable size",
-            dim1_size, dim2_size
-        )
-    })?;
-
-    if size > MAX_ELEMENTS {
-        return Err(format!(
-            "Array size {} elements ({} x {}) exceeds maximum {} elements (~{}MB)",
-            size,
-            dim1_size,
-            dim2_size,
-            MAX_ELEMENTS,
-            MAX_ELEMENTS * 4 / (1024 * 1024)
-        ));
-    }
+    let (dim1_size, dim2_size, size) = safearray_i32_element_count(lower1, upper1, lower2, upper2)?;
 
     // Access the raw data
     let mut data_ptr: *mut std::ffi::c_void = std::ptr::null_mut();
@@ -354,7 +393,7 @@ pub(super) unsafe fn extract_safearray_i32(
         // Array of variants - need to extract each one
         let slice = std::slice::from_raw_parts(data_ptr as *const VARIANT, size);
         let mut result = Vec::with_capacity(size);
-        for variant in slice {
+        for (index, variant) in slice.iter().enumerate() {
             if let Some(val) = variant_to_i32(variant) {
                 result.push(val);
             } else if let Some(val) = variant_to_f64(variant) {
@@ -365,8 +404,11 @@ pub(super) unsafe fn extract_safearray_i32(
                 // SAFEARRAY; saturation preserves a recoverable value.
                 result.push(val as i32);
             } else {
-                // Skip invalid values or use 0
-                result.push(0);
+                let _ = SafeArrayUnaccessData(psa);
+                let element_vt = unsafe { (*variant.Anonymous.Anonymous).vt.0 };
+                return Err(format!(
+                    "SAFEARRAY VT_VARIANT element {index} could not be coerced to i32 (vt={element_vt})"
+                ));
             }
         }
         Ok(result)
@@ -526,4 +568,38 @@ pub(super) unsafe fn extract_safearray_string(var: &VARIANT) -> Result<Vec<Strin
     let _ = SafeArrayUnaccessData(psa);
 
     result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn safearray_i32_element_count_accepts_100mp_sensor() {
+        let (w, h, n) = safearray_i32_element_count(0, 9_999, Some(0), Some(9_999))
+            .expect("10000x10000 should fit");
+        assert_eq!(w, 10_000);
+        assert_eq!(h, 10_000);
+        assert_eq!(n, 100_000_000);
+    }
+
+    #[test]
+    fn safearray_i32_element_count_rejects_oversized_total() {
+        let err = safearray_i32_element_count(0, 12_999, Some(0), Some(12_999))
+            .expect_err("169M pixels exceeds 150M cap");
+        assert!(err.contains("exceeds maximum"));
+    }
+
+    #[test]
+    fn safearray_i32_element_count_rejects_invalid_bounds() {
+        safearray_i32_element_count(10, 5, None, None).expect_err("upper < lower");
+    }
+
+    #[test]
+    fn variant_date_round_trips_ole_automation_value() {
+        let value = 45_000.25;
+        let var = variant_date(value);
+        assert_eq!(variant_to_date(&var), Some(value));
+        assert_eq!(variant_to_f64(&var), None);
+    }
 }

@@ -116,7 +116,7 @@ class _TransientAlertBadgeState extends ConsumerState<TransientAlertBadge>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final unacknowledgedCount = ref.watch(unacknowledgedAlertCountProvider);
 
@@ -308,13 +308,18 @@ class _TransientAlertDropdownContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final states = ref.watch(transientAlertStatesProvider);
+    final dropdownConstraints = AdaptiveDialogConstraints.hybrid(
+      context,
+      designMaxWidth: 300,
+      designMaxHeight: 400,
+    );
 
     return Container(
-      width: 300,
-      constraints: const BoxConstraints(maxHeight: 400),
+      width: dropdownConstraints.maxWidth,
+      constraints: BoxConstraints(maxHeight: dropdownConstraints.maxHeight),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'adaptive_chart_container.dart';
+
 class ScienceSurfaceExplorer extends StatefulWidget {
   final NightshadeColors colors;
   final List<ScienceTileMetricRow> tiles;
@@ -76,35 +78,54 @@ class _ScienceSurfaceExplorerState extends State<ScienceSurfaceExplorer> {
               ],
             ),
             const SizedBox(height: 8),
-            SizedBox(
-              height: 240,
-              child: selectedTiles.isEmpty
-                  ? Center(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                if (selectedTiles.isEmpty) {
+                  return AdaptiveChartContainer.fixed(
+                    height: 240,
+                    child: Center(
                       child: Text(
                         'No tile metrics available for this frame.',
                         style: TextStyle(color: widget.colors.textMuted),
                       ),
-                    )
-                  : GestureDetector(
-                      onPanUpdate: (details) {
-                        setState(() {
-                          _yaw += details.delta.dx * 0.01;
-                          _pitch = (_pitch - details.delta.dy * 0.01)
-                              .clamp(0.1, 1.45);
-                        });
-                      },
-                      child: CustomPaint(
-                        painter: _SurfacePainter(
-                          tiles: selectedTiles,
-                          yaw: _yaw,
-                          pitch: _pitch,
-                          zExaggeration: _zExaggeration,
-                          showContour: _showContour,
-                          colors: widget.colors,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
                     ),
+                  );
+                }
+
+                final useAspect = constraints.maxWidth >= 520;
+                final plot = GestureDetector(
+                  onPanUpdate: (details) {
+                    setState(() {
+                      _yaw += details.delta.dx * 0.01;
+                      _pitch = (_pitch - details.delta.dy * 0.01)
+                          .clamp(0.1, 1.45);
+                    });
+                  },
+                  child: CustomPaint(
+                    painter: _SurfacePainter(
+                      tiles: selectedTiles,
+                      yaw: _yaw,
+                      pitch: _pitch,
+                      zExaggeration: _zExaggeration,
+                      showContour: _showContour,
+                      colors: widget.colors,
+                    ),
+                    child: const SizedBox.expand(),
+                  ),
+                );
+
+                if (useAspect) {
+                  return AspectRatio(
+                    aspectRatio: 16 / 9,
+                    child: plot,
+                  );
+                }
+
+                return AdaptiveChartContainer(
+                  preferredHeight: 240,
+                  child: plot,
+                );
+              },
             ),
             const SizedBox(height: 10),
             Row(

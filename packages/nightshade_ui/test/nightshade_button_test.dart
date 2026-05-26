@@ -8,9 +8,6 @@ Widget _wrap(Widget child) => MaterialApp(
       home: Scaffold(body: Center(child: child)),
     );
 
-/// Walks the rendered tree under [finder] and returns the
-/// [BoxDecoration] of the AnimatedContainer with a non-null gradient or
-/// non-null color. Used to assert filled-button visuals.
 BoxDecoration _decorationOf(WidgetTester tester, Finder finder) {
   final container =
       tester.widget<AnimatedContainer>(find.descendant(
@@ -21,7 +18,7 @@ BoxDecoration _decorationOf(WidgetTester tester, Finder finder) {
 }
 
 void main() {
-  testWidgets('primary button uses gradient fill (not flat translucent)',
+  testWidgets('primary button uses solid fill with subtle border',
       (tester) async {
     await tester.pumpWidget(_wrap(NightshadeButton(
       label: 'Save',
@@ -30,19 +27,13 @@ void main() {
     await tester.pump();
 
     final deco = _decorationOf(tester, find.byType(NightshadeButton));
-    expect(deco.gradient, isA<LinearGradient>(),
-        reason: 'design doc requires LinearGradient on primary buttons');
-    final lg = deco.gradient! as LinearGradient;
-    expect(lg.begin, Alignment.topCenter);
-    expect(lg.end, Alignment.bottomCenter);
-    expect(lg.colors.length, 2);
-    // Top color must be lighter than bottom (lighten(5) → primary).
-    final topL = HSLColor.fromColor(lg.colors[0]).lightness;
-    final bottomL = HSLColor.fromColor(lg.colors[1]).lightness;
-    expect(topL, greaterThan(bottomL));
+    expect(deco.gradient, isNull);
+    expect(deco.color, isNotNull);
+    final border = deco.border! as Border;
+    expect(border.top.color.a, greaterThan(0));
   });
 
-  testWidgets('disabled primary button has no gradient', (tester) async {
+  testWidgets('disabled primary button uses flat surface fill', (tester) async {
     await tester.pumpWidget(_wrap(const NightshadeButton(
       label: 'Save',
       onPressed: null,
@@ -53,7 +44,7 @@ void main() {
     expect(deco.color, isNotNull);
   });
 
-  testWidgets('hover state changes synchronously and adds glow shadow',
+  testWidgets('hover state changes synchronously without glow shadow',
       (tester) async {
     await tester.pumpWidget(_wrap(NightshadeButton(
       label: 'Hover me',
@@ -61,11 +52,9 @@ void main() {
     )));
     await tester.pump();
 
-    // Pre-hover: no glow.
     var deco = _decorationOf(tester, find.byType(NightshadeButton));
-    expect(deco.boxShadow, anyOf(isNull, isEmpty));
+    final defaultColor = deco.color;
 
-    // Simulate hover via the mouse-region gesture.
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
     addTearDown(gesture.removePointer);
     await gesture.addPointer(location: Offset.zero);
@@ -73,9 +62,8 @@ void main() {
     await tester.pump();
 
     deco = _decorationOf(tester, find.byType(NightshadeButton));
-    expect(deco.boxShadow, isNotNull);
-    expect(deco.boxShadow!, isNotEmpty,
-        reason: 'hover should add the soft accent glow');
+    expect(deco.boxShadow, anyOf(isNull, isEmpty));
+    expect(deco.color, isNot(equals(defaultColor)));
   });
 
   testWidgets('onPressed fires on tap', (tester) async {
@@ -97,10 +85,8 @@ void main() {
       onPressed: () => taps++,
     )));
     await tester.tap(find.byType(NightshadeButton));
-    // Don't pumpAndSettle — the indeterminate progress indicator never settles.
     await tester.pump();
     expect(taps, 0);
-    // Loading indicator visible.
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
   });
 

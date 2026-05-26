@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'adaptive_chart_container.dart';
+
 class ScienceTimelineScrubber extends StatefulWidget {
   final NightshadeColors colors;
   final List<ScienceFrameQualityMetricsRow> frameMetrics;
@@ -48,7 +50,7 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
             ),
             const SizedBox(height: 10),
             if (!hasData)
-              SizedBox(
+              AdaptiveChartContainer.fixed(
                 height: 100,
                 child: Center(
                   child: Text(
@@ -58,28 +60,38 @@ class _ScienceTimelineScrubberState extends State<ScienceTimelineScrubber> {
                 ),
               )
             else ...[
-              SizedBox(
-                height: 54,
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.end,
-                  children: [
-                    for (var i = 0; i < metrics.length; i++)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 1.5),
-                          child: Container(
-                            height: 8 + _normalized(metrics[i].snr) * 36,
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(3),
-                              color: i == selectedIndex
-                                  ? const Color(0xFF22C55E)
-                                  : const Color(0xFF2563EB)
-                                      .withValues(alpha: 0.65),
+              AdaptiveChartContainer(
+                minHeight: 48,
+                preferredHeight: 54,
+                maxHeight: 72,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final plotHeight = constraints.maxHeight;
+                    final barSpan = math.max(8.0, plotHeight - 10);
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        for (var i = 0; i < metrics.length; i++)
+                          Expanded(
+                            child: Padding(
+                              padding:
+                                  const EdgeInsets.symmetric(horizontal: 1.5),
+                              child: Container(
+                                height:
+                                    8 + _normalized(metrics[i].snr) * barSpan,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(3),
+                                  color: i == selectedIndex
+                                      ? NightshadeChartColors.selectedFrame(
+                                          widget.colors)
+                                      : NightshadeChartColors.unselectedFrame(),
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                  ],
+                      ],
+                    );
+                  },
                 ),
               ),
               Slider(

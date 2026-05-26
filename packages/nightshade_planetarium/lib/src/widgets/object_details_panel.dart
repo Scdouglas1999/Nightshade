@@ -504,6 +504,11 @@ class ObjectDetailsPanel extends ConsumerWidget {
               lineColor: accent,
               gridColor: txtColor.withValues(alpha: 0.2),
               cloudCoverPercent: cloudCoverPercent,
+              // Watch (not read): if the user changes their effective
+              // horizon mid-session the painter must rebuild — passing
+              // the value as a constructor field combined with
+              // shouldRepaint comparing it gives Flutter the trigger.
+              effectiveHorizonDeg: ref.watch(planetariumEffectiveHorizonDegProvider),
             ),
           ),
         ),
@@ -581,12 +586,18 @@ class ObjectDetailsPanel extends ConsumerWidget {
   Widget _buildRiseTransitSetSection(WidgetRef ref, Color txtColor) {
     final location = ref.watch(observerLocationProvider);
     final obsTime = ref.watch(observationTimeProvider);
+    // Wave 1.5 Pack D: rise/set computed against the user's effective
+    // horizon (e.g. 20° to clear trees), not the mathematical 0°. The same
+    // value drives the Run Dashboard time-to-set stat so the two surfaces
+    // agree to the second.
+    final horizonDeg = ref.watch(planetariumEffectiveHorizonDegProvider);
     final visibility = AstronomyCalculations.calculateObjectVisibility(
       raDeg: object.coordinates.ra * 15,
       decDeg: object.coordinates.dec,
       date: obsTime.time,
       latitudeDeg: location.latitude,
       longitudeDeg: location.longitude,
+      minAltitude: horizonDeg,
     );
 
     var riseText = _formatTime(visibility.riseTime);
@@ -601,11 +612,17 @@ class ObjectDetailsPanel extends ConsumerWidget {
       setText = 'Always';
     }
 
+    // Label hint: when the user has set a non-zero horizon, surface it so
+    // the displayed times aren't mistaken for the mathematical horizon.
+    final headerLabel = horizonDeg > 0
+        ? 'Rise / Transit / Set (≥${horizonDeg.toStringAsFixed(0)}°)'
+        : 'Rise / Transit / Set';
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Rise / Transit / Set',
+          headerLabel,
           style: TextStyle(
             color: txtColor.withValues(alpha: 0.7),
             fontSize: 11,
@@ -1123,12 +1140,19 @@ class _AltitudeGraphPainter extends CustomPainter {
   /// green (<20%), yellow (20-60%), red (>60%).
   final double? cloudCoverPercent;
 
+  /// The user-configured effective horizon in degrees (e.g. 20° to clear
+  /// trees). 0 = no shading. Wave 1.5 Pack D: sourced from
+  /// `planetariumEffectiveHorizonDegProvider`, which the app layer overrides to
+  /// pull from `nightshade_core`'s persisted setting.
+  final double effectiveHorizonDeg;
+
   _AltitudeGraphPainter({
     required this.object,
     required this.ref,
     required this.lineColor,
     required this.gridColor,
     this.cloudCoverPercent,
+    this.effectiveHorizonDeg = 0.0,
   });
 
   @override
@@ -1188,12 +1212,42 @@ class _AltitudeGraphPainter extends CustomPainter {
       ..color = gridColor
       ..strokeWidth = 1;
 
-    // Horizon line
+    // Horizon line at 0° (centre of chart).
     canvas.drawLine(
       Offset(0, size.height / 2),
       Offset(size.width, size.height / 2),
       gridPaint,
     );
+
+    // Effective-horizon shading: paint the unreachable band (0° to the
+    // user's effective horizon) so the user can see at a glance when a
+    // target clears the trees. We render it AFTER the cloud band but
+    // BEFORE the altitude curve so the curve stays on top.
+    if (effectiveHorizonDeg > 0) {
+      // Top of "below-effective-horizon" band is the effective horizon,
+      // bottom is the 0° line. y = (height/2) - (alt/90) * (height/2).
+      final horizonY =
+          size.height / 2 - (effectiveHorizonDeg / 90) * (size.height / 2);
+      canvas.drawRect(
+        Rect.fromLTRB(0, horizonY, size.width, size.height / 2),
+        Paint()..color = const Color(0xFFFF9800).withValues(alpha: 0.10),
+      );
+      // Effective-horizon dashed line so the boundary is unambiguous.
+      final dashPaint = Paint()
+        ..color = const Color(0xFFFF9800).withValues(alpha: 0.6)
+        ..strokeWidth = 1;
+      const double dashWidth = 4;
+      const double dashGap = 3;
+      double x = 0;
+      while (x < size.width) {
+        canvas.drawLine(
+          Offset(x, horizonY),
+          Offset((x + dashWidth).clamp(0, size.width), horizonY),
+          dashPaint,
+        );
+        x += dashWidth + dashGap;
+      }
+    }
 
     // Calculate altitudes over 24 hours
     final points = <Offset>[];
@@ -1242,7 +1296,8 @@ class _AltitudeGraphPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _AltitudeGraphPainter oldDelegate) {
     return object != oldDelegate.object ||
-        cloudCoverPercent != oldDelegate.cloudCoverPercent;
+        cloudCoverPercent != oldDelegate.cloudCoverPercent ||
+        effectiveHorizonDeg != oldDelegate.effectiveHorizonDeg;
   }
 }
 

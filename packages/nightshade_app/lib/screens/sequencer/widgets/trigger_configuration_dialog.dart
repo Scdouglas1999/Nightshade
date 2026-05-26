@@ -6,9 +6,54 @@ enum TriggerConditionType { guidingRms, hfr, drift }
 
 enum TriggerActionType { pauseAndRecalibrate, autofocus, abort }
 
+/// Default threshold for each condition type. Switching condition type in the
+/// editor MUST reset the active threshold to the matching default, because the
+/// underlying physical unit changes (arcseconds for guiding RMS, pixels for
+/// HFR, pixels per axis for drift). Silently reusing the prior numeric value
+/// across unit boundaries is a J-X3 class bug.
+///
+/// Sources:
+///   * `guidingRms` 2.0″ matches the historical default used everywhere in the
+///     codebase (see `ExposureTriggerConfig.fromNativeJson` fallback below).
+///   * `hfr` 4.0 px is the conservative mid-range default for "elongated /
+///     soft" focus; matches `default_hfr_threshold` in the Rust quality module.
+///   * `drift` 3.0 px (per axis) is the in-exposure drift threshold; the
+///     Rust executor (`TriggerCondition::DriftAbove`) compares each axis
+///     independently with OR semantics, so per-axis values of 3 px catch
+///     real tracking drift without firing on guider jitter.
+const double _kDefaultGuidingRmsArcsec = 2.0;
+const double _kDefaultHfrPixels = 4.0;
+const double _kDefaultDriftRaPixels = 3.0;
+const double _kDefaultDriftDecPixels = 3.0;
+
+double _defaultThresholdFor(TriggerConditionType c) {
+  switch (c) {
+    case TriggerConditionType.guidingRms:
+      return _kDefaultGuidingRmsArcsec;
+    case TriggerConditionType.hfr:
+      return _kDefaultHfrPixels;
+    case TriggerConditionType.drift:
+      return _kDefaultDriftRaPixels;
+  }
+}
+
 class ExposureTriggerConfig {
   final TriggerConditionType condition;
+
+  /// Threshold for guiding RMS (arcsec) or HFR (pixels). Unused — and
+  /// intentionally NOT round-tripped — for drift conditions.
   final double threshold;
+
+  /// RA-axis drift threshold (pixels). Only meaningful when
+  /// `condition == TriggerConditionType.drift`.
+  final double driftRaPx;
+
+  /// Dec-axis drift threshold (pixels). Only meaningful when
+  /// `condition == TriggerConditionType.drift`. The Rust executor
+  /// (`TriggerCondition::DriftAbove`) compares this independently against the
+  /// measured Dec drift, so this MUST round-trip separately from the RA value.
+  final double driftDecPx;
+
   final TriggerActionType action;
   final double debounceSecs;
 
@@ -17,14 +62,39 @@ class ExposureTriggerConfig {
     required this.threshold,
     required this.action,
     this.debounceSecs = 10.0,
-  });
+    double? driftRaPx,
+    double? driftDecPx,
+  })  : driftRaPx = driftRaPx ?? _kDefaultDriftRaPixels,
+        driftDecPx = driftDecPx ?? _kDefaultDriftDecPixels;
+
+  ExposureTriggerConfig copyWith({
+    TriggerConditionType? condition,
+    double? threshold,
+    double? driftRaPx,
+    double? driftDecPx,
+    TriggerActionType? action,
+    double? debounceSecs,
+  }) {
+    return ExposureTriggerConfig(
+      condition: condition ?? this.condition,
+      threshold: threshold ?? this.threshold,
+      driftRaPx: driftRaPx ?? this.driftRaPx,
+      driftDecPx: driftDecPx ?? this.driftDecPx,
+      action: action ?? this.action,
+      debounceSecs: debounceSecs ?? this.debounceSecs,
+    );
+  }
 
   Map<String, dynamic> toNativeJson() {
     final conditionJson = switch (condition) {
       TriggerConditionType.guidingRms => {'GuidingRmsAbove': threshold},
       TriggerConditionType.hfr => {'HfrAbove': threshold},
       TriggerConditionType.drift => {
-          'DriftAbove': {'ra_px': threshold, 'dec_px': threshold},
+          // J-X2: RA and Dec are serialised independently to match the Rust
+          // `TriggerCondition::DriftAbove { ra_px, dec_px }` shape, which
+          // compares each axis with its own threshold (OR semantics, see
+          // sequencer/src/node/instructions/expose.rs).
+          'DriftAbove': {'ra_px': driftRaPx, 'dec_px': driftDecPx},
         },
     };
     final actionJson = switch (action) {
@@ -51,11 +121,29 @@ class ExposureTriggerConfig {
       'DriftAbove' => TriggerConditionType.drift,
       _ => TriggerConditionType.guidingRms,
     };
-    final threshold = switch (conditionKey) {
-      'DriftAbove' =>
-        ((conditionValue as Map?)?['ra_px'] as num?)?.toDouble() ?? 2.0,
-      _ => (conditionValue as num?)?.toDouble() ?? 2.0,
-    };
+
+    // J-X2: parse RA and Dec separately, tolerating older payloads that
+    // only included one of the two fields by falling back to the per-axis
+    // default. The general `threshold` field is only meaningful for guiding
+    // RMS / HFR conditions.
+    double driftRa = _kDefaultDriftRaPixels;
+    double driftDec = _kDefaultDriftDecPixels;
+    double threshold;
+    if (conditionKey == 'DriftAbove') {
+      final driftMap = conditionValue as Map?;
+      driftRa = (driftMap?['ra_px'] as num?)?.toDouble() ??
+          _kDefaultDriftRaPixels;
+      driftDec = (driftMap?['dec_px'] as num?)?.toDouble() ??
+          _kDefaultDriftDecPixels;
+      // Keep `threshold` populated with the RA value for any consumer that
+      // still reads the legacy scalar (e.g. labels with a single number);
+      // the canonical drift values live in driftRaPx/driftDecPx.
+      threshold = driftRa;
+    } else {
+      threshold = (conditionValue as num?)?.toDouble() ??
+          _defaultThresholdFor(condition);
+    }
+
     final action = switch (json['action'] as String?) {
       'Autofocus' => TriggerActionType.autofocus,
       'Abort' => TriggerActionType.abort,
@@ -64,6 +152,8 @@ class ExposureTriggerConfig {
     return ExposureTriggerConfig(
       condition: condition,
       threshold: threshold,
+      driftRaPx: driftRa,
+      driftDecPx: driftDec,
       action: action,
       debounceSecs: (json['debounce_secs'] as num?)?.toDouble() ?? 10.0,
     );
@@ -76,7 +166,12 @@ class ExposureTriggerConfig {
       case TriggerConditionType.hfr:
         return 'HFR > $threshold px';
       case TriggerConditionType.drift:
-        return 'Drift > $threshold px';
+        // J-X2: show both thresholds so a user with asymmetric values can
+        // tell at a glance which axis would fire first.
+        if (driftRaPx == driftDecPx) {
+          return 'Drift > $driftRaPx px (both axes)';
+        }
+        return 'Drift > RA $driftRaPx px / Dec $driftDecPx px';
     }
   }
 
@@ -141,7 +236,7 @@ class _TriggerConfigurationDialogState
     setState(() {
       _triggers.add(ExposureTriggerConfig(
         condition: TriggerConditionType.guidingRms,
-        threshold: 2.0,
+        threshold: _kDefaultGuidingRmsArcsec,
         action: TriggerActionType.pauseAndRecalibrate,
       ));
     });
@@ -167,7 +262,7 @@ class _TriggerConfigurationDialogState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Footer needs custom alignment (Add Trigger left, Cancel/Save right), so
     // we pass a single Row as the action slot and let NightshadeDialog's
@@ -261,8 +356,8 @@ class _TriggerConfigurationDialogState
       child: ListTile(
         leading: Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: trigger.conditionColor(colors).withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            trigger.conditionColor(colors),
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(
@@ -312,100 +407,52 @@ class _TriggerEditDialog extends StatefulWidget {
 class _TriggerEditDialogState extends State<_TriggerEditDialog> {
   late TriggerConditionType _condition;
   late double _threshold;
+  late double _driftRaPx;
+  late double _driftDecPx;
   late TriggerActionType _action;
   late double _debounce;
+
+  /// Set to a human-readable message when the threshold(s) were auto-reset
+  /// because the user switched condition type. Displayed below the field
+  /// until the next mutation. J-X3.
+  String? _resetHint;
 
   @override
   void initState() {
     super.initState();
     _condition = widget.trigger.condition;
     _threshold = widget.trigger.threshold;
+    _driftRaPx = widget.trigger.driftRaPx;
+    _driftDecPx = widget.trigger.driftDecPx;
     _action = widget.trigger.action;
     _debounce = widget.trigger.debounceSecs;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return NightshadeDialog(
-      title: 'Edit Trigger',
-      icon: Icons.edit,
-      width: 440,
-      actions: [
-        NightshadeButton(
-          onPressed: () => Navigator.of(context).pop(),
-          label: 'Cancel',
-          variant: ButtonVariant.ghost,
-        ),
-        NightshadeButton(
-          onPressed: () {
-            widget.onSave(ExposureTriggerConfig(
-              condition: _condition,
-              threshold: _threshold,
-              action: _action,
-              debounceSecs: _debounce,
-            ));
-          },
-          label: 'Save',
-          variant: ButtonVariant.primary,
-        ),
-      ],
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          DropdownButtonFormField<TriggerConditionType>(
-            initialValue: _condition,
-            decoration: const InputDecoration(labelText: 'Condition'),
-            items: TriggerConditionType.values.map((c) {
-              return DropdownMenuItem(
-                value: c,
-                child: Text(_conditionName(c)),
-              );
-            }).toList(),
-            onChanged: (v) => setState(() => _condition = v!),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: TextEditingController(text: _threshold.toString()),
-            decoration: InputDecoration(
-              labelText: 'Threshold',
-              suffix: Text(_getThresholdUnit()),
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (v) {
-              final parsed = double.tryParse(v);
-              if (parsed != null) _threshold = parsed;
-            },
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<TriggerActionType>(
-            initialValue: _action,
-            decoration: const InputDecoration(labelText: 'Action'),
-            items: TriggerActionType.values.map((a) {
-              return DropdownMenuItem(
-                value: a,
-                child: Text(_actionName(a)),
-              );
-            }).toList(),
-            onChanged: (v) => setState(() => _action = v!),
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: TextEditingController(text: _debounce.toString()),
-            decoration: const InputDecoration(
-              labelText: 'Debounce Time',
-              suffix: Text('seconds'),
-              helperText: 'Wait time before triggering again',
-            ),
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-            onChanged: (v) {
-              final parsed = double.tryParse(v);
-              if (parsed != null) _debounce = parsed;
-            },
-          ),
-        ],
-      ),
-    );
+  void _onConditionChanged(TriggerConditionType? next) {
+    if (next == null || next == _condition) return;
+    setState(() {
+      _condition = next;
+      // J-X3: the threshold's *unit* changes with the condition (arcsec /
+      // pixels / pixels-per-axis). Carrying over the raw numeric value would
+      // silently reinterpret 2.0″ as 2.0px (or worse). Reset to the new
+      // type's sensible default and tell the user we did so.
+      switch (next) {
+        case TriggerConditionType.guidingRms:
+          _threshold = _kDefaultGuidingRmsArcsec;
+          break;
+        case TriggerConditionType.hfr:
+          _threshold = _kDefaultHfrPixels;
+          break;
+        case TriggerConditionType.drift:
+          _driftRaPx = _kDefaultDriftRaPixels;
+          _driftDecPx = _kDefaultDriftDecPixels;
+          // Keep `_threshold` in sync with RA for any legacy consumer; the
+          // executor reads driftRaPx/driftDecPx specifically.
+          _threshold = _kDefaultDriftRaPixels;
+          break;
+      }
+      _resetHint = 'Threshold reset for ${_conditionName(next)}.';
+    });
   }
 
   String _conditionName(TriggerConditionType c) {
@@ -438,5 +485,250 @@ class _TriggerEditDialogState extends State<_TriggerEditDialog> {
       case TriggerConditionType.drift:
         return 'pixels';
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
+    return NightshadeDialog(
+      title: 'Edit Trigger',
+      icon: Icons.edit,
+      width: 440,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.of(context).pop(),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+        ),
+        NightshadeButton(
+          onPressed: () {
+            widget.onSave(ExposureTriggerConfig(
+              condition: _condition,
+              threshold: _threshold,
+              driftRaPx: _driftRaPx,
+              driftDecPx: _driftDecPx,
+              action: _action,
+              debounceSecs: _debounce,
+            ));
+          },
+          label: 'Save',
+          variant: ButtonVariant.primary,
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          DropdownButtonFormField<TriggerConditionType>(
+            key: const ValueKey('trigger_condition_dropdown'),
+            initialValue: _condition,
+            decoration: const InputDecoration(labelText: 'Condition'),
+            items: TriggerConditionType.values.map((c) {
+              return DropdownMenuItem(
+                value: c,
+                child: Text(_conditionName(c)),
+              );
+            }).toList(),
+            onChanged: _onConditionChanged,
+          ),
+          const SizedBox(height: 16),
+          // Threshold field(s): drift uses two side-by-side inputs (RA / Dec),
+          // every other condition uses the single `_threshold` field.
+          if (_condition == TriggerConditionType.drift) ...[
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(
+                  child: _StableNumberField(
+                    key: const ValueKey('trigger_drift_ra_field'),
+                    value: _driftRaPx,
+                    label: 'RA drift threshold',
+                    suffix: 'pixels',
+                    onChanged: (v) {
+                      _driftRaPx = v;
+                      if (_resetHint != null) {
+                        setState(() => _resetHint = null);
+                      }
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _StableNumberField(
+                    key: const ValueKey('trigger_drift_dec_field'),
+                    value: _driftDecPx,
+                    label: 'Dec drift threshold',
+                    suffix: 'pixels',
+                    onChanged: (v) {
+                      _driftDecPx = v;
+                      if (_resetHint != null) {
+                        setState(() => _resetHint = null);
+                      }
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ] else
+            _StableNumberField(
+              key: const ValueKey('trigger_threshold_field'),
+              value: _threshold,
+              label: 'Threshold',
+              suffix: _getThresholdUnit(),
+              onChanged: (v) {
+                _threshold = v;
+                if (_resetHint != null) {
+                  setState(() => _resetHint = null);
+                }
+              },
+            ),
+          if (_resetHint != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _resetHint!,
+              key: const ValueKey('trigger_threshold_reset_hint'),
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.warning,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          DropdownButtonFormField<TriggerActionType>(
+            initialValue: _action,
+            decoration: const InputDecoration(labelText: 'Action'),
+            items: TriggerActionType.values.map((a) {
+              return DropdownMenuItem(
+                value: a,
+                child: Text(_actionName(a)),
+              );
+            }).toList(),
+            onChanged: (v) => setState(() => _action = v!),
+          ),
+          const SizedBox(height: 16),
+          _StableNumberField(
+            key: const ValueKey('trigger_debounce_field'),
+            value: _debounce,
+            label: 'Debounce Time',
+            suffix: 'seconds',
+            helperText: 'Wait time before triggering again',
+            onChanged: (v) => _debounce = v,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Numeric `TextField` whose controller survives rebuilds — fixes J-X1.
+///
+/// A fresh `TextEditingController(text: ...)` constructed inline in `build()`
+/// destroys the cursor position and drops characters during fast typing,
+/// because every rebuild swaps the controller and the framework treats the
+/// new instance as a clean slate. This widget owns the controller across
+/// rebuilds and only resynchronises `.text` from the externally-supplied
+/// `value` when (a) the field doesn't have focus, i.e. the user isn't
+/// actively editing, and (b) the new value actually differs from the parsed
+/// current text.
+///
+/// Modelled on `_NumberInput` in
+/// `packages/nightshade_app/lib/screens/sequencer/widgets/node_properties_panel.dart`.
+class _StableNumberField extends StatefulWidget {
+  final double value;
+  final String label;
+  final String suffix;
+  final String? helperText;
+  final ValueChanged<double> onChanged;
+
+  const _StableNumberField({
+    required this.value,
+    required this.label,
+    required this.suffix,
+    required this.onChanged,
+    this.helperText,
+    super.key,
+  });
+
+  @override
+  State<_StableNumberField> createState() => _StableNumberFieldState();
+}
+
+class _StableNumberFieldState extends State<_StableNumberField> {
+  late final TextEditingController _controller;
+  late final FocusNode _focusNode;
+  bool _hasFocus = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _format(widget.value));
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  static String _format(double v) {
+    // Render integers without a trailing ".0" and other values with up to
+    // ~3 significant fractional digits. Keeping the formatting tight avoids
+    // jarring "2.0" -> "2.000000000000004" round-trips when the user only
+    // wanted an integer threshold.
+    if (v == v.roundToDouble()) {
+      return v.toStringAsFixed(1); // "2.0" — preserves "this is a double".
+    }
+    return v.toString();
+  }
+
+  void _onFocusChange() {
+    final hadFocus = _hasFocus;
+    _hasFocus = _focusNode.hasFocus;
+    // When the user leaves the field, re-canonicalise the displayed text so a
+    // partially-typed value like "2." snaps back to a parseable form.
+    if (hadFocus && !_hasFocus) {
+      final canonical = _format(widget.value);
+      if (_controller.text != canonical) {
+        _controller.text = canonical;
+      }
+    }
+  }
+
+  @override
+  void didUpdateWidget(_StableNumberField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Only resynchronise from the parent when the field is NOT focused — if
+    // it IS focused, the user is mid-keystroke and overwriting their input
+    // would re-introduce the original J-X1 bug.
+    if (!_hasFocus && oldWidget.value != widget.value) {
+      final newText = _format(widget.value);
+      final parsedCurrent = double.tryParse(_controller.text);
+      if (parsedCurrent == null || parsedCurrent != widget.value) {
+        _controller.text = newText;
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: _controller,
+      focusNode: _focusNode,
+      decoration: InputDecoration(
+        labelText: widget.label,
+        suffix: Text(widget.suffix),
+        helperText: widget.helperText,
+      ),
+      keyboardType: const TextInputType.numberWithOptions(decimal: true),
+      onChanged: (v) {
+        final parsed = double.tryParse(v);
+        if (parsed != null) widget.onChanged(parsed);
+      },
+    );
   }
 }

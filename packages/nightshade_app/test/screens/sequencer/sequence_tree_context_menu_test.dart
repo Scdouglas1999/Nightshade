@@ -56,7 +56,7 @@ Future<void> _pump(
 }
 
 NightshadeColors _colors() {
-  return NightshadeTheme.dark.extension<NightshadeColors>()!;
+  return NightshadeColors.dark;
 }
 
 /// Open the context menu via long-press. The wrapper exposes both
@@ -208,7 +208,50 @@ void main() {
     expect(find.text('Enable'), findsOneWidget);
   });
 
-  testWidgets('Delete on a leaf removes it without confirmation',
+  testWidgets('Delete on a leaf prompts for confirmation, then removes',
+      (tester) async {
+    // Post-consolidation: every user-initiated delete surface (Properties
+    // panel, targets tab, tree trash, right-click Delete, Delete key)
+    // funnels through `confirmAndDeleteSequenceNode`, which always
+    // prompts. Leaves get a simpler "removed from sequence" body without
+    // a descendant count.
+    final t = _containerWithOneChild();
+    final container = _seed(t.sequence);
+
+    await _pump(
+      tester,
+      container,
+      SequenceTreeContextMenu(
+        nodeId: t.childId,
+        colors: _colors(),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
+      ),
+    );
+
+    await _openMenu(tester, find.text('row'));
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    // Confirmation dialog is on screen and the leaf is still alive.
+    expect(find.text('Cancel'), findsOneWidget);
+    expect(
+        container.read(currentSequenceProvider)!.nodes.containsKey(t.childId),
+        isTrue);
+
+    // Confirm — the "Delete" action button (not the menu entry which
+    // closed when we tapped it). The dialog uses a NightshadeButton with
+    // text "Delete".
+    await tester.tap(find.text('Delete'));
+    await tester.pumpAndSettle();
+
+    expect(
+        container.read(currentSequenceProvider)!.nodes.containsKey(t.childId),
+        isFalse);
+  });
+
+  testWidgets(
+      'Delete on a leaf can be cancelled and leaves the node in place',
       (tester) async {
     final t = _containerWithOneChild();
     final container = _seed(t.sequence);
@@ -219,7 +262,8 @@ void main() {
       SequenceTreeContextMenu(
         nodeId: t.childId,
         colors: _colors(),
-        child: const SizedBox(width: 200, height: 40, child: Center(child: Text('row'))),
+        child: const SizedBox(
+            width: 200, height: 40, child: Center(child: Text('row'))),
       ),
     );
 
@@ -227,10 +271,13 @@ void main() {
     await tester.tap(find.text('Delete'));
     await tester.pumpAndSettle();
 
-    // Leaf: no confirmation dialog should appear and the node should be gone.
-    expect(find.text('Delete'), findsNothing);
-    expect(container.read(currentSequenceProvider)!.nodes.containsKey(t.childId),
-        isFalse);
+    expect(find.text('Cancel'), findsOneWidget);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+
+    expect(
+        container.read(currentSequenceProvider)!.nodes.containsKey(t.childId),
+        isTrue);
   });
 
   testWidgets('Delete on a container with descendants asks for confirmation',

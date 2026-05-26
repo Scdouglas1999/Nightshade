@@ -294,9 +294,10 @@ class TargetPreviewTooltip extends ConsumerWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.warning.withValues(alpha: 0.15),
+                    decoration: NightshadeDecorations.statusChip(
+                      colors.warning,
                       borderRadius: BorderRadius.circular(8),
+                      bordered: false,
                     ),
                     child: Icon(
                       LucideIcons.target,
@@ -479,9 +480,10 @@ class TargetPreviewTooltip extends ConsumerWidget {
                             if (data.hoursAboveHorizon > 0)
                               Container(
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                                decoration: BoxDecoration(
-                                  color: colors.primary.withValues(alpha: 0.15),
+                                decoration: NightshadeDecorations.statusChip(
+                                  colors.primary,
                                   borderRadius: BorderRadius.circular(4),
+                                  bordered: false,
                                 ),
                                 child: Text(
                                   '${data.hoursAboveHorizon.toStringAsFixed(1)}h',
@@ -630,10 +632,9 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

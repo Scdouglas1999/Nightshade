@@ -37,8 +37,8 @@ class AlertsCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.warning,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(

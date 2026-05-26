@@ -428,7 +428,17 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
     // checks below then cap the loop range to in-image pixels.
     let radius = i32::try_from(ctx.config.hfr_radius).unwrap_or(i32::MAX);
 
-    // First pass: Calculate centroid using intensity-weighted center
+    // First pass: Calculate centroid using intensity-weighted center.
+    //
+    // Why we no longer mark visited here (audit IMG-P1-3): the previous
+    // implementation stamped the entire `(2·hfr_radius+1)²` search window
+    // as visited, which with the default `hfr_radius=20` is a 41×41
+    // forbidden zone after each detection. In dense fields (M13, M11
+    // cores, Pleiades) two real stars within ~40 px would not both be
+    // detected — the second one was masked out before its centroid was
+    // ever computed. We now defer visited marking until *after* HFR is
+    // known, then stamp only the actual star aperture (an HFR-derived
+    // disk). See the stamp at the bottom of this function.
     let mut sum_x = 0.0;
     let mut sum_y = 0.0;
     let mut sum_flux = 0.0;
@@ -453,12 +463,16 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
                 sum_flux += val;
                 peak = peak.max(ctx.pixels[idx]);
                 pixel_count += 1;
-                ctx.visited[idx] = true;
             }
         }
     }
 
     if sum_flux <= 0.0 || pixel_count == 0 {
+        // Centroid failed (no positive pixels in the search window). Stamp
+        // a tiny disk around the seed so the outer loop doesn't re-trigger
+        // on the same local maximum. Keep this disk small enough that real
+        // neighbouring stars are not excluded.
+        stamp_visited_disk(ctx, cx as f64, cy as f64, fallback_visited_radius(radius));
         return None;
     }
 
@@ -554,6 +568,27 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
         1.0 // Default to high sharpness (reject) if can't calculate
     };
 
+    // Stamp the visited mask as the actual star aperture (audit IMG-P1-3).
+    //
+    // Why `2·HFR`: for a Gaussian PSF the encircled-energy radius at 95%
+    // of total flux is r_95 ≈ 2.45σ ≈ 2.08·HFR (HFR = σ·√(2 ln 2) ≈
+    // 1.177σ). Using `2·HFR` therefore covers ~94–95% of the star's
+    // flux — comfortably past the radius at which one star's wings
+    // overlap a neighbour's centroid contribution while staying well
+    // inside the search window for tightly packed fields.
+    //
+    // Why the `hfr_radius` cap: a saturated or blooming core can produce
+    // a pathologically large encircled-energy radius (the wings carry as
+    // much area as the core). Capping the visited disk at `hfr_radius`
+    // (the same bound the search window already uses) prevents one
+    // saturated detection from blanking an entire region.
+    //
+    // The disk uses the sub-pixel centroid so the mask is centred on the
+    // true star, not the (possibly off-centre) seed local maximum.
+    let radius_f = radius as f64;
+    let visited_radius = (2.0 * hfr).min(radius_f).max(1.0);
+    stamp_visited_disk(ctx, centroid_x, centroid_y, visited_radius);
+
     Some(DetectedStar {
         x: centroid_x,
         y: centroid_y,
@@ -566,6 +601,58 @@ fn measure_star(ctx: &mut StarMeasurementContext, cx: usize, cy: usize) -> Optio
         eccentricity,
         sharpness,
     })
+}
+
+/// Fallback visited radius when centroid computation fails.
+///
+/// Why `hfr_radius / 4` (min 1): we only need to prevent the outer
+/// detection loop from re-triggering on the same seed pixel and its
+/// immediate hot-pixel neighbourhood. A radius smaller than this risks
+/// duplicate detections from the 8-connected local-max test; larger
+/// would excuse the visited-mask bug we're fixing.
+fn fallback_visited_radius(hfr_radius: i32) -> f64 {
+    ((hfr_radius / 4).max(1)) as f64
+}
+
+/// Mark a disk of pixels as visited.
+///
+/// Why a disk and not a square: stars are circular (or near-circular)
+/// in well-tracked frames, so a disk mask matches the actual star
+/// aperture. The check `dx² + dy² ≤ r²` is the same `O(r²)` cost as
+/// the previous full-square stamp — the inner loop body is cheaper
+/// (one fused-multiply-add comparison vs an unconditional store) so
+/// total work is the same order or less.
+fn stamp_visited_disk(ctx: &mut StarMeasurementContext, cx: f64, cy: f64, radius: f64) {
+    if radius <= 0.0 {
+        return;
+    }
+    let r_ceil = radius.ceil() as i32;
+    let r_sq = radius * radius;
+    let cx_round = cx.round() as i32;
+    let cy_round = cy.round() as i32;
+
+    for dy in -r_ceil..=r_ceil {
+        let y = cy_round + dy;
+        if y < 0 || y >= ctx.height as i32 {
+            continue;
+        }
+        let y_us = y as usize;
+        // Tight x-bound per row from the disk equation: |dx| ≤ √(r² − dy²).
+        let dy_sq = (dy * dy) as f64;
+        if dy_sq > r_sq {
+            continue;
+        }
+        let dx_max = (r_sq - dy_sq).sqrt().floor() as i32;
+        let x_start = (cx_round - dx_max).max(0);
+        let x_end = (cx_round + dx_max).min(ctx.width as i32 - 1);
+        if x_start > x_end {
+            continue;
+        }
+        let row = y_us * ctx.width;
+        for x in x_start..=x_end {
+            ctx.visited[row + x as usize] = true;
+        }
+    }
 }
 
 /// Compute the true encircled-energy 50% half-flux radius (HFR).
@@ -1242,5 +1329,241 @@ mod tests {
     fn snr_returns_zero_for_invalid_inputs() {
         assert_eq!(compute_snr(0.0, 10.0, 2.0, None), 0.0);
         assert_eq!(compute_snr(100.0, 0.0, 2.0, None), 0.0);
+    }
+
+    // -----------------------------------------------------------------
+    // Audit IMG-P1-3: visited-mask = star aperture, not search window.
+    // -----------------------------------------------------------------
+
+    /// Render `n` Gaussian PSFs at the supplied (cx, cy) coordinates.
+    fn render_multi_gaussian_u16(
+        width: u32,
+        height: u32,
+        centers: &[(f64, f64)],
+        sigma: f64,
+    ) -> ImageData {
+        const BACKGROUND: f64 = 1000.0;
+        const PEAK: f64 = 30000.0;
+        let mut data = vec![BACKGROUND as u16; (width * height) as usize];
+        let two_sigma_sq = 2.0 * sigma * sigma;
+        for y in 0..height {
+            for x in 0..width {
+                let mut v = BACKGROUND;
+                for &(cx, cy) in centers {
+                    let dx = x as f64 - cx;
+                    let dy = y as f64 - cy;
+                    let r2 = dx * dx + dy * dy;
+                    v += PEAK * (-r2 / two_sigma_sq).exp();
+                }
+                data[(y * width + x) as usize] = v.clamp(0.0, 65535.0) as u16;
+            }
+        }
+        ImageData::from_u16(width, height, 1, &data)
+    }
+
+    /// `sigma = FWHM / (2·√(2 ln 2))` — the standard Gaussian conversion.
+    fn sigma_for_fwhm(fwhm: f64) -> f64 {
+        fwhm / (2.0 * (2.0_f64 * 2.0_f64.ln()).sqrt())
+    }
+
+    fn detection_config_for_aperture_tests() -> StarDetectionConfig {
+        StarDetectionConfig {
+            // Lower min_area: small (FWHM=4) Gaussians can have ~10–20
+            // pixels above background; we want both stars detected.
+            min_area: 5,
+            min_hfr: 0.5,
+            min_snr: 1.0,
+            max_sharpness: 1.0,
+            // Default hfr_radius=20 reproduces the bug: 41×41 forbidden
+            // zone after each detection ⇒ stars 25 px apart hidden by
+            // the old square-stamp implementation.
+            hfr_radius: 20,
+            ..Default::default()
+        }
+    }
+
+    /// Two stars 25 px apart with FWHM=4 must both be detected.
+    ///
+    /// Pre-fix (visited = full 41×41 search window): only one was found.
+    /// Post-fix (visited = 2·HFR disk ≈ 5 px radius): both detected.
+    #[test]
+    fn two_neighbouring_stars_are_both_detected_after_aperture_visited_fix() {
+        let fwhm = 4.0;
+        let sigma = sigma_for_fwhm(fwhm);
+        let centers = [(30.0, 32.0), (55.0, 32.0)]; // 25 px apart
+        let image = render_multi_gaussian_u16(96, 64, &centers, sigma);
+
+        let config = detection_config_for_aperture_tests();
+        let stars = detect_stars(&image, &config);
+
+        assert!(
+            stars.len() >= 2,
+            "expected ≥2 stars for two PSFs 25 px apart, got {} ({:?})",
+            stars.len(),
+            stars.iter().map(|s| (s.x, s.y)).collect::<Vec<_>>()
+        );
+
+        // Each expected centre should have a detection within ~2 px.
+        for &(cx, cy) in &centers {
+            let matched = stars
+                .iter()
+                .any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
+            assert!(
+                matched,
+                "no detection within 2 px of expected centre ({cx}, {cy}); detections = {:?}",
+                stars.iter().map(|s| (s.x, s.y)).collect::<Vec<_>>()
+            );
+        }
+    }
+
+    /// Three stars in a row 30 px apart must all be detected.
+    #[test]
+    fn three_neighbouring_stars_are_all_detected_after_aperture_visited_fix() {
+        let fwhm = 4.0;
+        let sigma = sigma_for_fwhm(fwhm);
+        let centers = [(20.0, 32.0), (50.0, 32.0), (80.0, 32.0)]; // 30 px spacing
+        let image = render_multi_gaussian_u16(120, 64, &centers, sigma);
+
+        let config = detection_config_for_aperture_tests();
+        let stars = detect_stars(&image, &config);
+
+        assert!(
+            stars.len() >= 3,
+            "expected ≥3 stars for three PSFs 30 px apart, got {} ({:?})",
+            stars.len(),
+            stars.iter().map(|s| (s.x, s.y)).collect::<Vec<_>>()
+        );
+
+        for &(cx, cy) in &centers {
+            let matched = stars
+                .iter()
+                .any(|s| (s.x - cx).hypot(s.y - cy) < 2.0);
+            assert!(
+                matched,
+                "no detection within 2 px of expected centre ({cx}, {cy})"
+            );
+        }
+    }
+
+    /// A single PSF must be detected exactly once — the visited disk
+    /// (even at minimum radius) must cover the star itself so the outer
+    /// loop does not re-trigger on neighbouring pixels of the same
+    /// detection.
+    #[test]
+    fn single_star_is_not_self_redetected() {
+        let sigma = sigma_for_fwhm(4.0);
+        let image = render_multi_gaussian_u16(64, 64, &[(32.0, 32.0)], sigma);
+
+        let config = detection_config_for_aperture_tests();
+        let stars = detect_stars(&image, &config);
+
+        assert_eq!(
+            stars.len(),
+            1,
+            "single PSF should produce exactly one detection, got {} ({:?})",
+            stars.len(),
+            stars.iter().map(|s| (s.x, s.y)).collect::<Vec<_>>()
+        );
+    }
+
+    /// A saturated PSF whose encircled-energy HFR exceeds the search
+    /// window must NOT mask the entire frame: the visited disk is
+    /// capped at `hfr_radius`, so a faint star just outside that cap
+    /// remains detectable.
+    ///
+    /// We directly exercise `stamp_visited_disk` plus the cap formula
+    /// rather than running `detect_stars` end-to-end. End-to-end is
+    /// the wrong test surface here: a saturated PSF wide enough to
+    /// report `HFR > hfr_radius` also dominates global background
+    /// estimation, which interferes with detection thresholds and
+    /// muddies the unit-test signal. The post-HFR cap behaviour is
+    /// what matters — and it is a pure function of the formula.
+    #[test]
+    fn saturated_psf_visited_disk_is_capped_at_hfr_radius() {
+        let width = 200usize;
+        let height = 100usize;
+        let mut visited = vec![false; width * height];
+        let pixels = vec![0.0; width * height];
+        let config = StarDetectionConfig {
+            hfr_radius: 20,
+            ..StarDetectionConfig::default()
+        };
+        let mut ctx = StarMeasurementContext {
+            pixels: &pixels,
+            width,
+            height,
+            background: 0.0,
+            noise: 1.0,
+            config: &config,
+            visited: &mut visited,
+        };
+
+        // Simulate a saturated/extended detection: HFR = 100 px (way
+        // larger than hfr_radius = 20). The cap formula is
+        // `min(2·HFR, hfr_radius).max(1)` = `min(200, 20)` = 20.
+        let hfr: f64 = 100.0;
+        let radius_f = config.hfr_radius as f64;
+        let visited_radius = (2.0 * hfr).min(radius_f).max(1.0);
+        assert_eq!(
+            visited_radius, 20.0,
+            "cap formula must yield hfr_radius, not 2·HFR, when HFR is huge"
+        );
+
+        let centre = (50.0, 50.0);
+        stamp_visited_disk(&mut ctx, centre.0, centre.1, visited_radius);
+
+        // Inside the cap (≤ 20 px from centre): marked.
+        assert!(visited[50 * width + 50], "centre must be marked");
+        assert!(visited[50 * width + 70], "(70, 50) at r=20 must be marked");
+
+        // Just outside the cap (> 20 px from centre): NOT marked. This
+        // is the property under test: a saturated detection with
+        // unbounded HFR still leaves the rest of the frame available
+        // for further star detection.
+        let far_point_idx = 50 * width + 75; // (75, 50): 25 px from centre
+        assert!(
+            !visited[far_point_idx],
+            "(75, 50) at r=25 (>cap) must NOT be marked — the cap protects far-field stars"
+        );
+        // A pixel at the opposite end of the wide image: well outside.
+        assert!(!visited[50 * width + 180]);
+        // And a corner-ish pixel.
+        assert!(!visited[10 * width + 100]);
+    }
+
+    /// `stamp_visited_disk` marks pixels inside the disk and leaves
+    /// pixels outside untouched.
+    #[test]
+    fn stamp_visited_disk_marks_disk_pixels_only() {
+        let width = 21usize;
+        let height = 21usize;
+        let mut visited = vec![false; width * height];
+        let pixels = vec![0.0; width * height];
+        let config = StarDetectionConfig::default();
+        let mut ctx = StarMeasurementContext {
+            pixels: &pixels,
+            width,
+            height,
+            background: 0.0,
+            noise: 1.0,
+            config: &config,
+            visited: &mut visited,
+        };
+
+        let cx = 10.0_f64;
+        let cy = 10.0_f64;
+        let r = 4.0_f64;
+        stamp_visited_disk(&mut ctx, cx, cy, r);
+
+        // Inside-the-disk pixel: (10, 10) — the centre.
+        assert!(visited[10 * width + 10]);
+        // Inside-the-disk pixel at r=4 exactly (10+4, 10).
+        assert!(visited[10 * width + 14]);
+        // Outside-the-disk pixel: (10+5, 10) — distance 5 > 4.
+        assert!(!visited[10 * width + 15]);
+        // Outside-the-disk corner: (10+4, 10+4) — distance √32 ≈ 5.66 > 4.
+        assert!(!visited[14 * width + 14]);
+        // Inside on the diagonal: (10+2, 10+2) — distance √8 ≈ 2.83 < 4.
+        assert!(visited[12 * width + 12]);
     }
 }

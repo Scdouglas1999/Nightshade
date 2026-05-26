@@ -22,6 +22,12 @@ class _FakeCatalogOverlaySource implements CatalogOverlaySource {
 
   @override
   Future<bool> get isAvailable async => available;
+
+  @override
+  Future<bool> get dsoCatalogAvailable async => available && dsos.isNotEmpty;
+
+  @override
+  Future<bool> get starCatalogAvailable async => available && stars.isNotEmpty;
 }
 
 DeepSkyObject _dso({
@@ -69,7 +75,8 @@ const _wcs = SolvedWcs(
 
 void main() {
   group('CatalogOverlayService.queryFov', () {
-    test('returns empty + catalogAvailable=false when WCS is invalid', () async {
+    test('returns empty + catalogAvailable=false when WCS is invalid',
+        () async {
       final svc = CatalogOverlayService(source: _FakeCatalogOverlaySource());
       const badWcs = SolvedWcs(
         raHours: 0,
@@ -89,7 +96,8 @@ void main() {
       expect(result.catalogAvailable, isFalse);
     });
 
-    test('flags catalog unavailable when source.isAvailable is false', () async {
+    test('flags catalog unavailable when source.isAvailable is false',
+        () async {
       final svc = CatalogOverlayService(
         source: _FakeCatalogOverlaySource(available: false),
       );
@@ -152,6 +160,51 @@ void main() {
       expect(result.objects.length, 1);
       expect(result.objects.first.imageX, closeTo(1024, 1e-3));
       expect(result.objects.first.imageY, closeTo(1024, 1e-3));
+    });
+
+    test('derives DSO marker radius from angular size and plate scale',
+        () async {
+      final svc = CatalogOverlayService(
+        source: _FakeCatalogOverlaySource(
+          dsos: [
+            _dso(
+              id: 'M31',
+              raHours: 5.5,
+              decDeg: -5.0,
+              magnitude: 4.0,
+              sizeArcMin: 2.0,
+            ),
+          ],
+        ),
+      );
+
+      final result = await svc.queryFov(wcs: _wcs, magnitudeLimit: 10);
+
+      expect(result.objects.single.markerRadiusPx, closeTo(40.0, 1e-6));
+      expect(result.objects.single.hitRadius, closeTo(40.0, 1e-6));
+    });
+
+    test('does not load a selected source when that catalog is unavailable',
+        () async {
+      final svc = CatalogOverlayService(
+        source: _FakeCatalogOverlaySource(
+          dsos: [
+            _dso(id: 'M99', raHours: 5.5, decDeg: -5.0, magnitude: 9.0),
+          ],
+        ),
+      );
+
+      final result = await svc.queryFov(
+        wcs: _wcs,
+        magnitudeLimit: 10,
+        includeDsos: false,
+        includeStars: true,
+      );
+
+      expect(result.catalogAvailable, isTrue);
+      expect(result.dsoCatalogAvailable, isTrue);
+      expect(result.starCatalogAvailable, isFalse);
+      expect(result.objects, isEmpty);
     });
 
     test('drops objects projecting outside the image bounds', () async {
@@ -218,8 +271,7 @@ void main() {
           ],
         ),
       );
-      final result =
-          await svc.queryFov(wcs: wrapWcs, magnitudeLimit: 10);
+      final result = await svc.queryFov(wcs: wrapWcs, magnitudeLimit: 10);
 
       final ids = result.objects.map((o) => o.id).toSet();
       expect(ids, containsAll(<String>['east', 'west']));

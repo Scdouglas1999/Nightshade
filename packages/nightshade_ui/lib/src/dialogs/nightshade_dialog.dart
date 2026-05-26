@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import '../utils/adaptive_dialog_constraints.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
@@ -97,7 +98,12 @@ class NightshadeDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: width,
+      designHeight: height,
+    );
 
     final body = Padding(
       padding: bodyPadding,
@@ -108,13 +114,13 @@ class NightshadeDialog extends StatelessWidget {
       backgroundColor: Colors.transparent,
       insetPadding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       child: Container(
-        width: width,
-        height: height,
+        width: dialogSize.width,
+        height: dialogSize.height,
         decoration: BoxDecoration(
-          color: colors.background,
+          color: colors.surfaceElevated,
           borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(color: colors.border),
-          boxShadow: NightshadeTokens.elevationLevel3(colors.primary),
+          boxShadow: NightshadeTokens.shadowLg,
         ),
         child: ClipRRect(
           borderRadius: NightshadeTokens.borderRadiusMd,
@@ -169,12 +175,13 @@ class _Header extends StatelessWidget {
         vertical: NightshadeTokens.spaceMd + 2,
       ),
       decoration: BoxDecoration(
+        color: colors.surfaceAlt,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
       child: Row(
         children: [
           if (icon != null) ...[
-            Icon(icon, color: colors.textPrimary, size: NightshadeTokens.iconMd),
+            Icon(icon, color: colors.textSecondary, size: NightshadeTokens.iconMd),
             const SizedBox(width: NightshadeTokens.spaceMd),
           ],
           Expanded(
@@ -216,6 +223,7 @@ class _Footer extends StatelessWidget {
         vertical: NightshadeTokens.spaceMd,
       ),
       decoration: BoxDecoration(
+        color: colors.surfaceAlt,
         border: Border(top: BorderSide(color: colors.border)),
       ),
       child: Row(

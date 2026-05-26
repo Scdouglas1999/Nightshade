@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -111,8 +112,18 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
 
     final overlay = Overlay.of(context);
     _overlayEntry = OverlayEntry(
-      builder: (context) => Positioned(
-        width: 308, // Match container width minus padding
+      builder: (context) {
+        final overlayWidth = _layerLink.leaderSize?.width ??
+            Responsive.previewOverlayMaxWidth(
+              MediaQuery.sizeOf(context).width,
+              maxAbsolute: 308,
+            );
+        final maxOverlayHeight = math.min(
+          450.0,
+          MediaQuery.sizeOf(context).height * 0.45,
+        );
+        return Positioned(
+        width: overlayWidth,
         child: CompositedTransformFollower(
           link: _layerLink,
           showWhenUnlinked: false,
@@ -127,7 +138,7 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
                 borderRadius: BorderRadius.circular(8),
                 color: widget.colors.surface,
               ),
-              constraints: const BoxConstraints(maxHeight: 450),
+              constraints: BoxConstraints(maxHeight: maxOverlayHeight),
               child: Consumer(
                 builder: (context, ref, child) {
                   // Check for parsed coordinates first
@@ -337,7 +348,8 @@ class _SearchHeaderState extends ConsumerState<SearchHeader> {
             ),
           ),
         ),
-      ),
+      );
+      },
     );
 
     overlay.insert(_overlayEntry!);

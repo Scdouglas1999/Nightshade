@@ -23,17 +23,17 @@ class AnnotationQuickSettingChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(4),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.18)
-              : colors.surfaceAlt.withValues(alpha: 0.85),
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected
-                ? colors.primary.withValues(alpha: 0.55)
-                : colors.border,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(4),
+                fillAlpha: 0.18,
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: colors.border),
+              ),
         child: Text(
           label,
           style: TextStyle(

@@ -26,14 +26,18 @@ void main() {
     await pumpGallery(
       tester,
       theme: NightshadeTheme.dark,
-      size: const Size(1280, 1000),
+      size: const Size(1280, 1500),
     );
 
     expect(find.text('Design System Gallery'), findsOneWidget);
+    expect(find.text('Color Palette'), findsOneWidget);
+    expect(find.text('Typography'), findsOneWidget);
+    expect(find.text('Telemetry Lg — Hero live values'), findsOneWidget);
     expect(find.text('Buttons'), findsOneWidget);
     expect(find.text('Cards'), findsOneWidget);
     expect(find.text('Inputs'), findsOneWidget);
     expect(find.text('Tabs'), findsOneWidget);
+    expect(find.text('Navigation'), findsOneWidget);
     expect(find.text('Chips and Status Pills'), findsOneWidget);
     expect(find.text('Alerts'), findsOneWidget);
     expect(
@@ -81,7 +85,7 @@ void main() {
     await pumpGallery(
       tester,
       theme: NightshadeTheme.dark,
-      size: const Size(1280, 1000),
+      size: const Size(1280, 2200),
     );
 
     expect(find.text('Sample actions: 0'), findsOneWidget);
@@ -146,13 +150,21 @@ void main() {
     );
 
     expect(
-      tester.widget<NightshadeSwitch>(find.byType(NightshadeSwitch)).value,
+      tester
+          .widget<NightshadeSwitch>(
+            find.byKey(const ValueKey('gallery-switch')),
+          )
+          .value,
       isTrue,
     );
-    await tester.tap(find.byType(NightshadeSwitch));
+    await tester.tap(find.byKey(const ValueKey('gallery-switch')));
     await tester.pump();
     expect(
-      tester.widget<NightshadeSwitch>(find.byType(NightshadeSwitch)).value,
+      tester
+          .widget<NightshadeSwitch>(
+            find.byKey(const ValueKey('gallery-switch')),
+          )
+          .value,
       isFalse,
     );
     expect(tester.takeException(), isNull);

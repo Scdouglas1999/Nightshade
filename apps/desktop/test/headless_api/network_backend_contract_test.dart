@@ -78,13 +78,16 @@ Set<String> _registeredApiRoutes(String source) {
       .allMatches(source)
       .map((match) {
         final path = match.group(2)!;
-        if (!path.startsWith('/api/') && path != '/events') {
+        // P2-10: also surface `/ws/*` upgrade routes (e.g. /ws/live-view)
+        // so the advertised-vs-registered diff catches typos in either
+        // place.
+        final isWsRoute =
+            path == '/api/ws' || path == '/events' || path.startsWith('/ws/');
+        if (!path.startsWith('/api/') && !isWsRoute) {
           return null;
         }
 
-        final method = path == '/api/ws' || path == '/events'
-            ? 'WS'
-            : match.group(1)!.toUpperCase();
+        final method = isWsRoute ? 'WS' : match.group(1)!.toUpperCase();
         return '$method ${_normalizeRoute(path)}';
       })
       .whereType<String>()

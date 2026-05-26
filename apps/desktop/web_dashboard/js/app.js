@@ -8,6 +8,11 @@
 (function () {
   'use strict';
 
+  /** Read a CSS custom property from :root (keeps canvas/SVG in sync with dashboard.css). */
+  function themeColor(varName) {
+    return getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  }
+
   // =========================================================================
   // State
   // =========================================================================
@@ -22,6 +27,11 @@
     filterWheelDeviceId: '',
     rotatorDeviceId: '',
     lastImage: null,
+    lastImagePreviewUrl: null,
+    lastImageRawU16: null,
+    rawLoadStatus: 'idle', // idle | loading | ready | failed
+    rawLoadGeneration: 0,
+    imagePreviewLoading: false,
     mountStatus: null,
     cameraStatus: null,
     sequencerStatus: null,
@@ -159,6 +169,7 @@
   const PHONE_TAB_EXTRA_PANELS = {
     'panel-devices': [
       'panel-filter-wheel', 'panel-focuser', 'panel-rotator',
+      'panel-planetarium', 'panel-settings',
       'ops-weather-panel', 'ops-dome-panel', 'ops-profile-panel',
     ],
     'panel-sequencer': [
@@ -303,6 +314,16 @@
     // Guiding controls
     document.getElementById('btn-guide-start').addEventListener('click', handleGuideStart);
     document.getElementById('btn-guide-stop').addEventListener('click', handleGuideStop);
+    const btnGuideConnect = document.getElementById('btn-guide-connect');
+    if (btnGuideConnect) btnGuideConnect.addEventListener('click', handleGuideConnect);
+    const btnGuideDither = document.getElementById('btn-guide-dither');
+    if (btnGuideDither) btnGuideDither.addEventListener('click', handleGuideDither);
+    const btnGuidePause = document.getElementById('btn-guide-pause');
+    if (btnGuidePause) btnGuidePause.addEventListener('click', handleGuidePauseToggle);
+
+    setupCapabilityNav();
+    setupPlanetariumPanel();
+    setupSettingsPanel();
 
     // Log controls
     document.getElementById('btn-clear-log').addEventListener('click', clearLog);
@@ -944,6 +965,8 @@
       fetchOpsCheckpoints(),
       fetchOpsProfiles(),
       fetchOpsAnalyticsSummary(),
+      refreshPlanetariumPanel(),
+      refreshSettingsPanel(),
     ]);
   }
 
@@ -1317,6 +1340,7 @@
       state.pendingImageFetchTimer = null;
     }
     state.pendingExposureExpectedBy = 0;
+    cancelRawBackgroundFetch();
   }
 
   async function handleAbortExpose() {
@@ -1330,16 +1354,142 @@
     }
   }
 
-  async function fetchLastImage() {
+  function cancelRawBackgroundFetch() {
+    state.rawLoadGeneration += 1;
+    state.lastImageRawU16 = null;
+    if (state.rawLoadStatus !== 'idle') {
+      state.rawLoadStatus = 'idle';
+      updatePreviewBadge();
+    }
+  }
+
+  function setImagePreviewLoading(loading) {
+    state.imagePreviewLoading = !!loading;
+    const container = document.getElementById('image-preview');
+    if (container) {
+      container.classList.toggle('is-loading', state.imagePreviewLoading);
+    }
+    updatePreviewBadge();
+  }
+
+  /**
+   * Overlay badge on the camera preview (matches mobile _RawPreviewBadge).
+   */
+  function updatePreviewBadge() {
+    const badge = document.getElementById('preview-badge');
+    if (!badge) return;
+    const labelEl = badge.querySelector('.preview-badge-label');
+    const spinner = badge.querySelector('.spinner');
+
+    badge.classList.remove(
+      'preview-badge--loading',
+      'preview-badge--ready',
+      'preview-badge--failed',
+    );
+    badge.hidden = true;
+
+    if (state.imagePreviewLoading) {
+      badge.hidden = false;
+      badge.classList.add('preview-badge--loading');
+      if (labelEl) labelEl.textContent = 'Loading preview…';
+      if (spinner) spinner.hidden = false;
+      return;
+    }
+
+    if (!state.lastImage) return;
+
+    if (state.rawLoadStatus === 'loading') {
+      badge.hidden = false;
+      badge.classList.add('preview-badge--loading');
+      if (labelEl) labelEl.textContent = 'Loading HQ…';
+      if (spinner) spinner.hidden = false;
+    } else if (state.rawLoadStatus === 'ready') {
+      badge.hidden = false;
+      badge.classList.add('preview-badge--ready');
+      if (labelEl) labelEl.textContent = 'HQ ready';
+      if (spinner) spinner.hidden = true;
+    } else if (state.rawLoadStatus === 'failed') {
+      badge.hidden = false;
+      badge.classList.add('preview-badge--failed');
+      if (labelEl) labelEl.textContent = 'Preview only';
+      if (spinner) spinner.hidden = true;
+    }
+  }
+
+  function rawStatLabel() {
+    if (state.rawLoadStatus === 'ready') return 'HQ ready';
+    if (state.rawLoadStatus === 'loading') return 'Loading HQ…';
+    if (state.rawLoadStatus === 'failed') return 'Preview only';
+    return '--';
+  }
+
+  function rawStatClass() {
+    if (state.rawLoadStatus === 'ready') return 'raw-ready';
+    if (state.rawLoadStatus === 'loading') return 'raw-loading';
+    if (state.rawLoadStatus === 'failed') return 'raw-failed';
+    return '';
+  }
+
+  async function fetchRawInBackground(captureGeneration) {
     if (!state.cameraDeviceId) return;
+    state.rawLoadStatus = 'loading';
+    updatePreviewBadge();
+    await renderImagePreview();
     try {
-      const result = await api.cameraGetLastImage(state.cameraDeviceId);
-      if (result && result.image) {
-        state.lastImage = result.image;
-        await renderImagePreview();
+      const raw = await api.getLastRawImageData(state.cameraDeviceId);
+      if (captureGeneration !== state.rawLoadGeneration) return;
+      const img = state.lastImage;
+      if (!img) return;
+      const expected = img.width * img.height;
+      if (raw.length !== expected) {
+        state.rawLoadStatus = 'failed';
+        addLogEntry(
+          'camera',
+          'Raw size mismatch (' + raw.length + ' vs ' + expected + ' pixels)',
+        );
+      } else {
+        state.lastImageRawU16 = raw;
+        state.rawLoadStatus = 'ready';
       }
     } catch (e) {
+      if (captureGeneration !== state.rawLoadGeneration) return;
+      state.rawLoadStatus = 'failed';
+      addLogEntry('camera', 'Raw preview unavailable: ' + e.message);
+    }
+    updatePreviewBadge();
+    await renderImagePreview();
+  }
+
+  async function fetchLastImage() {
+    if (!state.cameraDeviceId) return;
+    cancelRawBackgroundFetch();
+    const captureGeneration = state.rawLoadGeneration;
+    setImagePreviewLoading(true);
+    try {
+      const result = await api.cameraGetLastImageJpeg(state.cameraDeviceId, {
+        maxWidth: 1024,
+        quality: 85,
+      });
+      if (result && result.blob && result.meta) {
+        if (state.lastImagePreviewUrl) {
+          URL.revokeObjectURL(state.lastImagePreviewUrl);
+        }
+        state.lastImage = result.meta;
+        state.lastImagePreviewUrl = URL.createObjectURL(result.blob);
+        await renderImagePreview();
+        void fetchRawInBackground(captureGeneration);
+        return;
+      }
+      state.lastImage = null;
+      if (state.lastImagePreviewUrl) {
+        URL.revokeObjectURL(state.lastImagePreviewUrl);
+        state.lastImagePreviewUrl = null;
+      }
+      await renderImagePreview();
+    } catch (e) {
       addLogEntry('error', 'Failed to fetch last image: ' + e.message);
+    } finally {
+      setImagePreviewLoading(false);
     }
   }
 
@@ -1578,6 +1728,52 @@
     } catch (e) {
       showToast('Guide stop failed: ' + e.message, 'error');
     }
+  }
+
+  async function handleGuideConnect() {
+    try {
+      await api.phd2Connect('localhost', 4400);
+      addLogEntry('guiding', 'PHD2 connect requested');
+      showToast('Connecting to PHD2');
+      await refreshGuidingStatus();
+    } catch (e) {
+      showToast('PHD2 connect failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleGuideDither() {
+    const amount = parseFloat(
+      (document.getElementById('guide-dither-amount') || {}).value,
+    );
+    try {
+      await api.phd2Dither(isFinite(amount) ? amount : 5.0);
+      addLogEntry('guiding', 'Dither requested');
+      showToast('Dither sent');
+    } catch (e) {
+      showToast('Dither failed: ' + e.message, 'error');
+    }
+  }
+
+  async function handleGuidePauseToggle() {
+    const g = state.guidingStatus;
+    const paused = g && (g.paused === true || String(g.state || '').toLowerCase() === 'paused');
+    try {
+      await api.phd2SetPaused(!paused);
+      addLogEntry('guiding', paused ? 'Guiding resumed (PHD2)' : 'Guiding paused (PHD2)');
+      showToast(paused ? 'PHD2 resumed' : 'PHD2 paused');
+      await refreshGuidingStatus();
+    } catch (e) {
+      showToast('PHD2 pause toggle failed: ' + e.message, 'error');
+    }
+  }
+
+  async function refreshGuidingStatus() {
+    try {
+      const status = await api.phd2GetStatus();
+      state.guidingStatus = status;
+      renderGuidingPanel();
+      markPanelFresh('guiding');
+    } catch (_) { /* panel stays stale */ }
   }
 
   // =========================================================================
@@ -2319,46 +2515,63 @@
     const statsContainer = document.getElementById('image-stats');
     if (!container || !statsContainer) return;
 
+    const previewBadge = document.getElementById('preview-badge');
+    if (previewBadge && previewBadge.parentNode === container) {
+      previewBadge.remove();
+    }
     clearElement(container);
+    if (previewBadge) {
+      container.appendChild(previewBadge);
+    }
     clearElement(statsContainer);
 
     if (!state.lastImage) {
       container.appendChild(createImagePlaceholder('No image captured yet'));
+      updatePreviewBadge();
       return;
     }
 
     const img = state.lastImage;
 
-    // §2.11 — cap base64 image at 2 MiB and decode off the main thread with
-    // createImageBitmap. Larger preview blobs would pin the main thread for
-    // tens to hundreds of milliseconds on phones.
-    const blob = decodeBase64ImageWithCap(img.displayData);
-    if (!blob) {
-      const placeholder = createImagePlaceholder(
-        img.displayData && img.displayData.length
-          ? 'Image too large for preview (max 2 MiB). Request a downsampled variant from the server.'
-          : 'Image data not available',
-      );
-      container.appendChild(placeholder);
-    } else {
-      try {
-        const bitmap = await createImageBitmap(blob);
-        const canvas = document.createElement('canvas');
-        canvas.width = bitmap.width;
-        canvas.height = bitmap.height;
-        canvas.style.maxWidth = '100%';
-        canvas.style.maxHeight = '200px';
-        canvas.style.objectFit = 'contain';
-        canvas.setAttribute('aria-label', 'Last capture preview');
-        const ctx = canvas.getContext('2d');
-        ctx.drawImage(bitmap, 0, 0);
-        bitmap.close();
-        container.appendChild(canvas);
-      } catch (e) {
-        addLogEntry('error', 'Image decode failed: ' + e.message);
-        container.appendChild(createImagePlaceholder('Failed to decode image'));
+    if (state.lastImagePreviewUrl) {
+      const el = document.createElement('img');
+      el.src = state.lastImagePreviewUrl;
+      el.alt = 'Last capture preview';
+      el.style.maxWidth = '100%';
+      el.style.maxHeight = '200px';
+      el.style.objectFit = 'contain';
+      container.appendChild(el);
+    } else if (img.displayData) {
+      // Legacy JSON path (base64 RGBA) — capped at 2 MiB decoded.
+      const blob = decodeBase64ImageWithCap(img.displayData);
+      if (!blob) {
+        container.appendChild(createImagePlaceholder(
+          'Image too large for preview (max 2 MiB). Use JPEG preview.',
+        ));
+      } else {
+        try {
+          const bitmap = await createImageBitmap(blob);
+          const canvas = document.createElement('canvas');
+          canvas.width = bitmap.width;
+          canvas.height = bitmap.height;
+          canvas.style.maxWidth = '100%';
+          canvas.style.maxHeight = '200px';
+          canvas.style.objectFit = 'contain';
+          canvas.setAttribute('aria-label', 'Last capture preview');
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(bitmap, 0, 0);
+          bitmap.close();
+          container.appendChild(canvas);
+        } catch (e) {
+          addLogEntry('error', 'Image decode failed: ' + e.message);
+          container.appendChild(createImagePlaceholder('Failed to decode image'));
+        }
       }
+    } else {
+      container.appendChild(createImagePlaceholder('Preview unavailable'));
     }
+
+    updatePreviewBadge();
 
     // Render image stats
     if (img.stats) {
@@ -2369,6 +2582,7 @@
         { label: 'Median', value: img.stats.median != null ? img.stats.median.toFixed(0) : '--' },
         { label: 'StdDev', value: img.stats.stdDev != null ? img.stats.stdDev.toFixed(0) : '--' },
         { label: 'Size', value: img.width + 'x' + img.height },
+        { label: 'Raw', value: rawStatLabel(), valueClass: rawStatClass() },
       ];
       for (const s of stats) {
         const itemEl = document.createElement('div');
@@ -2377,7 +2591,7 @@
         labelEl.className = 'image-stat-label';
         labelEl.textContent = s.label;
         const valueEl = document.createElement('span');
-        valueEl.className = 'image-stat-value';
+        valueEl.className = 'image-stat-value' + (s.valueClass ? ' ' + s.valueClass : '');
         valueEl.textContent = String(s.value);
         itemEl.appendChild(labelEl);
         itemEl.appendChild(valueEl);
@@ -2629,10 +2843,10 @@
     const w = canvas.width;
     const h = canvas.height;
 
-    ctx.fillStyle = '#0d1117';
+    ctx.fillStyle = themeColor('--color-background');
     ctx.fillRect(0, 0, w, h);
 
-    ctx.strokeStyle = '#21262d';
+    ctx.strokeStyle = themeColor('--color-surface-alt');
     ctx.lineWidth = 1;
     const midY = h / 2;
 
@@ -2641,7 +2855,7 @@
     ctx.lineTo(w, midY);
     ctx.stroke();
 
-    ctx.strokeStyle = '#161b22';
+    ctx.strokeStyle = themeColor('--color-surface');
     for (const frac of [0.25, 0.75]) {
       ctx.beginPath();
       ctx.moveTo(0, h * frac);
@@ -2661,7 +2875,7 @@
 
     const xStep = w / (state.maxGuidePoints - 1);
 
-    ctx.strokeStyle = '#58a6ff';
+    ctx.strokeStyle = themeColor('--color-primary');
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i < raData.length; i++) {
@@ -2672,7 +2886,7 @@
     }
     ctx.stroke();
 
-    ctx.strokeStyle = '#f85149';
+    ctx.strokeStyle = themeColor('--color-error');
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i < decData.length; i++) {
@@ -2683,7 +2897,7 @@
     }
     ctx.stroke();
 
-    ctx.fillStyle = '#484f58';
+    ctx.fillStyle = themeColor('--color-text-muted');
     ctx.font = '10px sans-serif';
     ctx.fillText('+' + maxVal.toFixed(1) + '"', 4, 12);
     ctx.fillText('-' + maxVal.toFixed(1) + '"', 4, h - 4);
@@ -3317,8 +3531,7 @@
     if (alertEl) alertEl.textContent = w ? (w.alertLevel || 'none') : '--';
     if (msgEl) msgEl.textContent = w && w.message ? w.message : '--';
 
-    // Telemetry rows — these are explicitly null until a /api/weather/current
-    // endpoint is added (see TODO in api.js). Render '--' rather than 0.
+    // Telemetry from /api/weather/current — null when no hardware device.
     setOpsTelemetry(tempEl, w && w.temperature, (v) => v.toFixed(1) + ' °C');
     setOpsTelemetry(humEl, w && w.humidity, (v) => v.toFixed(0) + ' %');
     setOpsTelemetry(cloudEl, w && w.cloudCover, (v) => v.toFixed(0) + ' %');
@@ -3821,7 +4034,7 @@
     ctx.clearRect(0, 0, cssW, cssH);
 
     if (!values || values.length < 2) {
-      ctx.fillStyle = '#484f58';
+      ctx.fillStyle = themeColor('--color-text-muted');
       ctx.font = '11px sans-serif';
       ctx.fillText(values && values.length === 1
         ? '1 sample (need >= 2 for trend)' : 'no transparency samples',
@@ -3844,7 +4057,7 @@
     const innerW = cssW - pad * 2;
     const innerH = cssH - pad * 2;
     const xStep = innerW / (values.length - 1);
-    ctx.strokeStyle = '#58a6ff';
+    ctx.strokeStyle = themeColor('--color-primary');
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     for (let i = 0; i < values.length; i++) {
@@ -3860,7 +4073,7 @@
     const last = values[values.length - 1];
     const lastX = pad + (values.length - 1) * xStep;
     const lastY = pad + (1 - (last - min) / (max - min)) * innerH;
-    ctx.fillStyle = '#58a6ff';
+    ctx.fillStyle = themeColor('--color-primary');
     ctx.beginPath();
     ctx.arc(lastX, lastY, 2.5, 0, Math.PI * 2);
     ctx.fill();
@@ -4184,11 +4397,12 @@
         rotateEast: rotateDir === 'east',
       };
       if (mode === 'all_sky') {
-        // TODO[W5-BACKEND-EXTEND]: /api/polar-alignment/start-all-sky doesn't
-        // exist yet; api.polarAlignmentStartAllSky currently routes to the
-        // TPPA path. When the backend gains a dedicated endpoint this call
-        // will start using it transparently.
-        await api.polarAlignmentStartAllSky(opts);
+        await api.polarAlignmentStartAllSky({
+          exposureTime: exposure,
+          binning: binning || 2,
+          isNorth: hemi === 'north',
+          solveTimeout: 60.0,
+        });
       } else {
         await api.polarAlignmentStart(opts);
       }
@@ -4450,6 +4664,40 @@
     }
 
     openWizardModal('mosaic-modal');
+    applyMosaicRecommendedExposure().catch((e) => {
+      addLogEntry('warning', 'Mosaic exposure recommendation unavailable: ' + e.message);
+    });
+  }
+
+  async function applyMosaicRecommendedExposure() {
+    const recommendation = await api.mosaicRecommendedExposure();
+    if (!recommendation) return;
+
+    const seconds = Number(recommendation.exposureSeconds);
+    const count = parseInt(recommendation.exposuresPerPanel, 10);
+    const binning = parseInt(recommendation.binning, 10);
+    const exposureInput = document.getElementById('mosaic-exp-sec');
+    const countInput = document.getElementById('mosaic-exp-count');
+    const filterInput = document.getElementById('mosaic-exp-filter');
+    const binInput = document.getElementById('mosaic-exp-bin');
+
+    if (exposureInput && isFinite(seconds) && seconds > 0) {
+      exposureInput.value = formatNumberForInput(seconds);
+    }
+    if (countInput && isFinite(count) && count > 0) {
+      countInput.value = String(count);
+    }
+    if (filterInput && recommendation.filterName != null) {
+      filterInput.value = recommendation.filterName || '';
+    }
+    if (binInput && isFinite(binning) && binning > 0) {
+      binInput.value = String(binning);
+    }
+  }
+
+  function formatNumberForInput(value) {
+    const rounded = Math.round(value);
+    return Math.abs(value - rounded) < 0.05 ? String(rounded) : value.toFixed(1);
   }
 
   function handleMosaicUseMountPosition() {
@@ -4763,13 +5011,13 @@
     svg.setAttribute('viewBox', '0 0 100 100');
     svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
 
-    // Sky background gradient hint (corners darker).
+    // Sky background fill.
     const bg = document.createElementNS(svgNS, 'rect');
     bg.setAttribute('x', '0');
     bg.setAttribute('y', '0');
     bg.setAttribute('width', '100');
     bg.setAttribute('height', '100');
-    bg.setAttribute('fill', '#050810');
+    bg.setAttribute('fill', themeColor('--color-background'));
     svg.appendChild(bg);
 
     // Target marker (cross).
@@ -4781,7 +5029,7 @@
       line.setAttribute('y1', off.y1);
       line.setAttribute('x2', off.x2);
       line.setAttribute('y2', off.y2);
-      line.setAttribute('stroke', '#d29922');
+      line.setAttribute('stroke', themeColor('--color-warning'));
       line.setAttribute('stroke-width', '0.6');
       svg.appendChild(line);
     }
@@ -4800,7 +5048,7 @@
     rect.setAttribute('width', String(boxW));
     rect.setAttribute('height', String(boxH));
     rect.setAttribute('fill', 'none');
-    rect.setAttribute('stroke', '#58a6ff');
+    rect.setAttribute('stroke', themeColor('--color-primary'));
     rect.setAttribute('stroke-width', '0.8');
     rect.setAttribute('transform', 'rotate(' + (-state.framing.rotation) + ' ' + cx + ' ' + cy + ')');
     svg.appendChild(rect);
@@ -4811,7 +5059,7 @@
     upLine.setAttribute('y1', String(cy));
     upLine.setAttribute('x2', String(cx));
     upLine.setAttribute('y2', String(cy - boxH / 2));
-    upLine.setAttribute('stroke', '#3fb950');
+    upLine.setAttribute('stroke', themeColor('--color-success'));
     upLine.setAttribute('stroke-width', '0.5');
     upLine.setAttribute('transform', 'rotate(' + (-state.framing.rotation) + ' ' + cx + ' ' + cy + ')');
     svg.appendChild(upLine);
@@ -4820,7 +5068,7 @@
     const label = document.createElementNS(svgNS, 'text');
     label.setAttribute('x', '4');
     label.setAttribute('y', '8');
-    label.setAttribute('fill', '#e6edf3');
+    label.setAttribute('fill', themeColor('--color-text-primary'));
     label.setAttribute('font-size', '4');
     label.setAttribute('font-family', 'monospace');
     label.textContent = target.name || '(target)';
@@ -4902,20 +5150,10 @@
         dec,
         positionAngle,
       };
-      // TODO[W5-BACKEND-EXTEND]: there's no dedicated /api/framing/save
-      // endpoint on the headless server today. Per the audit brief, the
-      // intent is "send the chosen framing back". The closest existing
-      // surface is the targets CRUD: if we have a target.id from the search
-      // we PUT the framing onto that row; otherwise we POST a new target
-      // carrying the chosen ra/dec/positionAngle. A dedicated save endpoint
-      // would let us update just the framing fields without re-validating
-      // the entire target record.
-      let resp;
       if (state.framing.target && state.framing.target.id) {
-        resp = await api.targetsUpdate(state.framing.target.id, payload);
-      } else {
-        resp = await api.targetsCreate(payload);
+        payload.targetId = state.framing.target.id;
       }
+      const resp = await api.framingSave(payload);
       document.getElementById('framing-action-status').textContent =
         'Saved framing (PA ' + positionAngle.toFixed(2) + '°)';
       document.getElementById('framing-wizard-result').textContent =
@@ -4941,6 +5179,142 @@
     if (h > 0) return h + 'h ' + m + 'm';
     if (m > 0) return m + 'm ' + s + 's';
     return s + 's';
+  }
+
+  // ===========================================================================
+  // Capability navigation + auxiliary panels
+  // ===========================================================================
+
+  function scrollToPanel(panelId) {
+    const el = document.getElementById(panelId);
+    if (!el) return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    if (document.body.classList.contains('layout--phone')) {
+      for (const tab of document.querySelectorAll('.phone-tab')) {
+        const extras = PHONE_TAB_EXTRA_PANELS[tab.dataset.target] || [];
+        if (tab.dataset.target === panelId || extras.includes(panelId)) {
+          activatePhoneTab(tab.dataset.target);
+          break;
+        }
+      }
+    }
+  }
+
+  function setupCapabilityNav() {
+    for (const btn of document.querySelectorAll('[data-scroll-panel]')) {
+      btn.addEventListener('click', () => {
+        scrollToPanel(btn.getAttribute('data-scroll-panel'));
+      });
+    }
+    const runWatch = document.getElementById('nav-run-watch');
+    if (runWatch) {
+      runWatch.addEventListener('click', (e) => {
+        e.preventDefault();
+        window.location.href = '/run-watch/';
+      });
+    }
+    updateParityBanner();
+  }
+
+  function updateParityBanner() {
+    const banner = document.getElementById('parity-banner');
+    if (!banner) return;
+    // Only surface the Flutter-app nudge for GPU planetarium rendering — the
+    // web dashboard implements REST-backed slew/FOV; full sky GPU view stays
+    // on desktop/mobile clients.
+    banner.classList.toggle('hidden', true);
+  }
+
+  function setupPlanetariumPanel() {
+    const btnSlew = document.getElementById('btn-planetarium-slew');
+    const btnRefresh = document.getElementById('btn-planetarium-refresh-mount');
+    if (btnSlew) {
+      btnSlew.addEventListener('click', async () => {
+        const ra = parseFloat(document.getElementById('planetarium-ra').value);
+        const dec = parseFloat(document.getElementById('planetarium-dec').value);
+        if (!isFinite(ra) || !isFinite(dec)) {
+          showToast('Enter valid RA (hours) and Dec (degrees)', 'error');
+          return;
+        }
+        try {
+          await api.planetariumSlewTo(ra, dec);
+          showToast('Slew started');
+          addLogEntry('mount', 'Planetarium slew to RA ' + ra + ' Dec ' + dec);
+        } catch (e) {
+          showToast('Slew failed: ' + e.message, 'error');
+        }
+      });
+    }
+    if (btnRefresh) {
+      btnRefresh.addEventListener('click', () => refreshPlanetariumPanel());
+    }
+  }
+
+  async function refreshPlanetariumPanel() {
+    const raEl = document.getElementById('planetarium-mount-ra');
+    const decEl = document.getElementById('planetarium-mount-dec');
+    const fovEl = document.getElementById('planetarium-fov-text');
+    if (!api.isConnected) return;
+    try {
+      const [pos, fov] = await Promise.all([
+        api.planetariumGetMountPosition(),
+        api.getFovConfig(),
+      ]);
+      const raH = pos.raHours != null ? pos.raHours : pos.ra;
+      const decD = pos.decDegrees != null ? pos.decDegrees : pos.dec;
+      if (raEl && raH != null) raEl.textContent = formatRA(raH);
+      if (decEl && decD != null) decEl.textContent = formatDec(decD);
+      if (fovEl && fov) {
+        const w = fov.fovWidthDegrees != null ? fov.fovWidthDegrees : fov.widthDegrees;
+        const h = fov.fovHeightDegrees != null ? fov.fovHeightDegrees : fov.heightDegrees;
+        fovEl.textContent = (w != null && h != null)
+          ? w.toFixed(2) + '° × ' + h.toFixed(2) + '°'
+          : '--';
+      }
+    } catch (e) {
+      if (fovEl) fovEl.textContent = '--';
+    }
+  }
+
+  function setupSettingsPanel() {
+    const btn = document.getElementById('btn-settings-refresh');
+    if (btn) btn.addEventListener('click', () => refreshSettingsPanel());
+  }
+
+  async function refreshSettingsPanel() {
+    if (!api.isConnected) return;
+    const setEl = (id, text) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = text;
+    };
+    try {
+      const [settingsResp, locResp] = await Promise.all([
+        api.getSettings(),
+        api.getLocation(),
+      ]);
+      const settings = settingsResp && settingsResp.settings;
+      const loc = locResp && locResp.location;
+      setEl('settings-observatory-name',
+        settings && settings.observatoryName ? settings.observatoryName : '--');
+      setEl('settings-save-path',
+        settings && settings.defaultSavePath ? settings.defaultSavePath : '--');
+      setEl('settings-plate-solver',
+        settings && settings.plateSolveSolver ? settings.plateSolveSolver : '--');
+      if (loc) {
+        setEl('settings-latitude',
+          loc.latitude != null ? loc.latitude.toFixed(4) + '°' : '--');
+        setEl('settings-longitude',
+          loc.longitude != null ? loc.longitude.toFixed(4) + '°' : '--');
+        setEl('settings-elevation',
+          loc.elevationMeters != null ? loc.elevationMeters.toFixed(0) + ' m' : '--');
+      } else {
+        setEl('settings-latitude', '--');
+        setEl('settings-longitude', '--');
+        setEl('settings-elevation', '--');
+      }
+    } catch (e) {
+      addLogEntry('error', 'Settings fetch failed: ' + e.message);
+    }
   }
 
 })();

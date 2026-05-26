@@ -13,6 +13,15 @@ import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../planetarium_screen.dart';
 import '../providers/device_orientation_provider.dart';
 
+double _mobileTouchOuter(BuildContext context) =>
+    AdaptiveSizing.of(context).minTouchTarget;
+
+double _mobileTouchInner(BuildContext context) =>
+    (_mobileTouchOuter(context) * 0.64).clamp(24.0, 30.0);
+
+double _mobileSearchTileExtent(BuildContext context) =>
+    _mobileTouchOuter(context) + 24;
+
 /// Compact top overlay for mobile screens
 /// Adapts layout for very narrow screens (below 360px)
 class MobileTopOverlay extends ConsumerWidget {
@@ -29,16 +38,6 @@ class MobileTopOverlay extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.8),
-            Colors.transparent,
-          ],
-        ),
-      ),
       child: SafeArea(
         bottom: false,
         child: Row(
@@ -48,15 +47,15 @@ class MobileTopOverlay extends ConsumerWidget {
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                 decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.5),
+                  color: colors.surfaceOverlay.withValues(alpha: 0.85),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
                   DateFormat('HH:mm').format(time.time),
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 11,
-                    color: Colors.white70,
-                    fontFeatures: [ui.FontFeature.tabularFigures()],
+                    color: colors.textSecondary,
+                    fontFeatures: const [ui.FontFeature.tabularFigures()],
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -71,15 +70,15 @@ class MobileTopOverlay extends ConsumerWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
+                    color: colors.surfaceOverlay.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Text(
                     'LST ${_formatHours(lst)}',
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white70,
-                      fontFeatures: [ui.FontFeature.tabularFigures()],
+                      color: colors.textSecondary,
+                      fontFeatures: const [ui.FontFeature.tabularFigures()],
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -130,16 +129,19 @@ class MobileToggleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final outer = _mobileTouchOuter(context);
+    final inner = _mobileTouchInner(context);
+
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: onTap,
-      child: Container(
-        width: 44, // Minimum touch target
-        height: 44, // Minimum touch target
-        alignment: Alignment.center,
-        child: Container(
-          width: 28,
-          height: 28,
+      child: SizedBox(
+        width: outer,
+        height: outer,
+        child: Center(
+          child: Container(
+          width: inner,
+          height: inner,
           decoration: BoxDecoration(
             color: isActive
                 ? Colors.white.withValues(alpha: 0.2)
@@ -148,9 +150,10 @@ class MobileToggleButton extends StatelessWidget {
           ),
           child: Icon(
             icon,
-            size: 14,
+            size: inner * 0.5,
             color: isActive ? Colors.white : Colors.white70,
           ),
+        ),
         ),
       ),
     );
@@ -173,6 +176,7 @@ class MobileViewControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final viewState = ref.watch(skyViewStateProvider);
+    final dividerWidth = _mobileTouchInner(context) * 0.75;
 
     return Container(
       padding: const EdgeInsets.all(6),
@@ -204,7 +208,7 @@ class MobileViewControls extends ConsumerWidget {
           ),
           Container(
             height: 1,
-            width: 20,
+            width: dividerWidth,
             margin: const EdgeInsets.symmetric(vertical: 6),
             color: Colors.white24,
           ),
@@ -227,13 +231,15 @@ class MobileViewControls extends ConsumerWidget {
               defaultTargetPlatform == TargetPlatform.android) ...[
             Container(
               height: 1,
-              width: 20,
+              width: dividerWidth,
               margin: const EdgeInsets.symmetric(vertical: 6),
               color: Colors.white24,
             ),
             Consumer(
               builder: (context, ref, _) {
                 final isEnabled = ref.watch(gyroscopeAimingEnabledProvider);
+                final gyroOuter = _mobileTouchOuter(context) * 0.82;
+                final gyroInner = _mobileTouchInner(context);
                 final orientation = ref.watch(deviceOrientationProvider);
                 final mountSyncActive = ref.watch(gyroscopeMountSyncProvider);
                 final mountConnected =
@@ -247,31 +253,27 @@ class MobileViewControls extends ConsumerWidget {
                     GestureDetector(
                       behavior: HitTestBehavior.opaque,
                       onTap: () => _handleGyroscopeToggle(context, ref),
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        alignment: Alignment.center,
-                        child: Container(
-                          width: 26,
-                          height: 26,
-                          decoration: BoxDecoration(
-                            color: isEnabled
-                                ? const Color(0xFF2196F3).withValues(alpha: 0.2)
-                                : Colors.transparent,
-                            borderRadius: BorderRadius.circular(4),
-                            border: isEnabled
-                                ? Border.all(
-                                    color: const Color(0xFF2196F3), width: 1)
-                                : null,
-                          ),
+                      child: SizedBox(
+                        width: gyroOuter,
+                        height: gyroOuter,
+                        child: Center(
+                          child: Container(
+                          width: gyroInner,
+                          height: gyroInner,
+                          decoration: isEnabled
+                              ? NightshadeDecorations.selectedSurface(
+                                  colors.info,
+                                  borderRadius: BorderRadius.circular(4),
+                                )
+                              : null,
                           child: Stack(
                             alignment: Alignment.center,
                             children: [
                               Icon(
                                 LucideIcons.compass,
-                                size: 14,
+                                size: gyroInner * 0.54,
                                 color: isEnabled
-                                    ? const Color(0xFF2196F3)
+                                    ? colors.info
                                     : Colors.white70,
                               ),
                               // Compass accuracy indicator dot
@@ -285,12 +287,15 @@ class MobileViewControls extends ConsumerWidget {
                                     decoration: BoxDecoration(
                                       shape: BoxShape.circle,
                                       color: _accuracyColor(
-                                          orientation.compassAccuracy),
+                                        orientation.compassAccuracy,
+                                        colors,
+                                      ),
                                     ),
                                   ),
                                 ),
                             ],
                           ),
+                        ),
                         ),
                       ),
                     ),
@@ -304,31 +309,27 @@ class MobileViewControls extends ConsumerWidget {
                           ref.read(gyroscopeMountSyncProvider.notifier).state =
                               !mountSyncActive;
                         },
-                        child: Container(
-                          width: 36,
-                          height: 36,
-                          alignment: Alignment.center,
-                          child: Container(
-                            width: 26,
-                            height: 26,
-                            decoration: BoxDecoration(
-                              color: mountSyncActive
-                                  ? const Color(0xFFFF9800)
-                                      .withValues(alpha: 0.2)
-                                  : Colors.transparent,
-                              borderRadius: BorderRadius.circular(4),
-                              border: mountSyncActive
-                                  ? Border.all(
-                                      color: const Color(0xFFFF9800), width: 1)
-                                  : null,
-                            ),
+                        child: SizedBox(
+                          width: gyroOuter,
+                          height: gyroOuter,
+                          child: Center(
+                            child: Container(
+                            width: gyroInner,
+                            height: gyroInner,
+                            decoration: mountSyncActive
+                                ? NightshadeDecorations.selectedSurface(
+                                    colors.warning,
+                                    borderRadius: BorderRadius.circular(4),
+                                  )
+                                : null,
                             child: Icon(
                               LucideIcons.star,
-                              size: 14,
+                              size: gyroInner * 0.54,
                               color: mountSyncActive
-                                  ? const Color(0xFFFF9800)
+                                  ? colors.warning
                                   : Colors.white70,
                             ),
+                          ),
                           ),
                         ),
                       ),
@@ -373,18 +374,21 @@ class MobileViewControls extends ConsumerWidget {
     });
   }
 
-  static Color _accuracyColor(CompassAccuracy accuracy) {
+  static Color _accuracyColor(
+    CompassAccuracy accuracy,
+    NightshadeColors colors,
+  ) {
     switch (accuracy) {
       case CompassAccuracy.high:
-        return const Color(0xFF00E676);
+        return colors.success;
       case CompassAccuracy.medium:
-        return const Color(0xFFFFEB3B);
+        return colors.warning;
       case CompassAccuracy.low:
-        return const Color(0xFFFF9800);
+        return colors.warning;
       case CompassAccuracy.unreliable:
-        return const Color(0xFFE53935);
+        return colors.error;
       case CompassAccuracy.unknown:
-        return const Color(0xFF9E9E9E);
+        return colors.textMuted;
     }
   }
 }
@@ -417,7 +421,7 @@ class MobileSlewControls extends ConsumerWidget {
         color: Colors.black.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(8),
         border: slewMode
-            ? Border.all(color: const Color(0xFFFF9800), width: 2)
+            ? Border.all(color: colors.warning, width: 2)
             : null,
       ),
       child: Column(
@@ -429,14 +433,14 @@ class MobileSlewControls extends ConsumerWidget {
             isActive: slewMode,
             isEnabled: isConnected,
             onTap: isConnected ? onToggleSlewMode : null,
-            activeColor: const Color(0xFFFF9800),
+            activeColor: colors.warning,
           ),
           const SizedBox(height: 4),
           MobileControlButton(
             icon: LucideIcons.octagon,
             isEnabled: isConnected && isSlewing,
             onTap: isConnected && isSlewing ? onStopSlew : null,
-            activeColor: const Color(0xFFE53935),
+            activeColor: colors.error,
           ),
         ],
       ),
@@ -464,28 +468,33 @@ class MobileControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color =
-        isActive ? (activeColor ?? const Color(0xFF00E676)) : Colors.white70;
+    final colors = NightshadeColors.of(context);
+    final color = isActive
+        ? (activeColor ?? colors.success)
+        : Colors.white70;
+    final outer = _mobileTouchOuter(context) * 0.82;
+    final inner = _mobileTouchInner(context);
 
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
       onTap: isEnabled ? onTap : null,
-      child: Container(
-        width: 36, // Larger touch target
-        height: 36, // Larger touch target
-        alignment: Alignment.center,
-        child: Container(
-          width: 26,
-          height: 26,
+      child: SizedBox(
+        width: outer,
+        height: outer,
+        child: Center(
+          child: Container(
+          width: inner,
+          height: inner,
           decoration: BoxDecoration(
             color: isActive ? color.withValues(alpha: 0.2) : Colors.transparent,
             borderRadius: BorderRadius.circular(4),
           ),
           child: Icon(
             icon,
-            size: 14,
+            size: inner * 0.54,
             color: isEnabled ? color : Colors.white24,
           ),
+        ),
         ),
       ),
     );
@@ -505,16 +514,6 @@ class MobileBottomInfoBar extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.bottomCenter,
-          end: Alignment.topCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.8),
-            Colors.transparent,
-          ],
-        ),
-      ),
       child: SafeArea(
         top: false,
         child: FittedBox(
@@ -1018,22 +1017,20 @@ class MobileActionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
         decoration: BoxDecoration(
-          gradient: isPrimary
-              ? LinearGradient(
-                  colors: [
-                    colors.primary,
-                    colors.primary.withValues(alpha: 0.8)
-                  ],
-                )
-              : null,
-          color: isPrimary ? null : colors.surfaceAlt,
+          color: isPrimary ? colors.primary : colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
-          border: isPrimary ? null : Border.all(color: colors.border),
+          border: Border.all(
+            color: isPrimary
+                ? colors.primary.withValues(alpha: 0.85)
+                : colors.border,
+          ),
         ),
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1041,7 +1038,7 @@ class MobileActionButton extends StatelessWidget {
             Icon(
               icon,
               size: 16,
-              color: isPrimary ? Colors.white : colors.textPrimary,
+              color: isPrimary ? onPrimary : colors.textPrimary,
             ),
             const SizedBox(width: 8),
             Flexible(
@@ -1052,7 +1049,7 @@ class MobileActionButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
-                  color: isPrimary ? Colors.white : colors.textPrimary,
+                  color: isPrimary ? onPrimary : colors.textPrimary,
                 ),
               ),
             ),
@@ -1184,11 +1181,12 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
       );
     }
 
+    final tileExtent = _mobileSearchTileExtent(context);
+
     return ListView.builder(
       controller: widget.scrollController,
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      // MobileSearchResultTile: 36 icon + 12*2 padding + 8 bottom margin = 68.
-      itemExtent: 68,
+      itemExtent: tileExtent,
       itemCount: searchState.results.length,
       itemBuilder: (context, index) {
         final obj = searchState.results[index];
@@ -1251,7 +1249,7 @@ class _MobileSearchSheetState extends ConsumerState<MobileSearchSheet> {
                 padding: const EdgeInsets.only(bottom: 6),
                 child: ShimmerLoading(
                   child: Container(
-                    height: 56,
+                    height: _mobileSearchTileExtent(context) - 12,
                     decoration: BoxDecoration(
                       color: widget.colors.surfaceAlt,
                       borderRadius: BorderRadius.circular(6),
@@ -1286,6 +1284,8 @@ class MobileSearchResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final avatarSize = _mobileTouchOuter(context) * 0.82;
+
     String displayName;
     String catalogTag;
     String typeName;
@@ -1318,8 +1318,8 @@ class MobileSearchResultTile extends StatelessWidget {
         child: Row(
           children: [
             Container(
-              width: 36,
-              height: 36,
+              width: avatarSize,
+              height: avatarSize,
               alignment: Alignment.center,
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.15),
@@ -1328,7 +1328,7 @@ class MobileSearchResultTile extends StatelessWidget {
               child: Text(
                 catalogTag,
                 style: TextStyle(
-                  fontSize: 9,
+                  fontSize: avatarSize * 0.25,
                   fontWeight: FontWeight.bold,
                   color: colors.primary,
                 ),
@@ -1386,41 +1386,48 @@ class CompassCalibrationDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Tokenized surface so this dialog respects Red Night theme — audit §4.15.
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return AlertDialog(
       backgroundColor: colors.surfaceOverlay,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      title: const Row(
+      title: Row(
         children: [
-          Icon(LucideIcons.compass, color: Color(0xFF2196F3), size: 24),
-          SizedBox(width: 12),
+          Icon(LucideIcons.compass, color: colors.info, size: 24),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               'Compass Calibration',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+                color: colors.textPrimary,
+              ),
             ),
           ),
         ],
       ),
-      content: Column(
+      content: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 400,
+        ),
+        child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'For accurate sky aiming, calibrate your compass by moving your device in a figure-8 pattern several times.',
-            style: TextStyle(fontSize: 14, height: 1.4),
+            style: TextStyle(
+              fontSize: 14,
+              height: 1.4,
+              color: colors.textPrimary,
+            ),
           ),
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: const Color(0xFF2196F3).withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: const Color(0xFF2196F3).withValues(alpha: 0.3),
-              ),
-            ),
-            child: const Column(
+            decoration: NightshadeDecorations.emphasisSurface(colors.info),
+            child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
@@ -1428,27 +1435,32 @@ class CompassCalibrationDialog extends StatelessWidget {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Color(0xFF2196F3),
+                    color: colors.info,
                   ),
                 ),
-                SizedBox(height: 8),
-                _CalibrationTip(
+                const SizedBox(height: 8),
+                const _CalibrationTip(
                     text: 'Move away from metal objects and magnets'),
-                _CalibrationTip(
+                const _CalibrationTip(
                     text: 'Remove phone cases with magnetic clasps'),
-                _CalibrationTip(text: 'Rotate device slowly in all three axes'),
-                _CalibrationTip(
+                const _CalibrationTip(text: 'Rotate device slowly in all three axes'),
+                const _CalibrationTip(
                     text:
                         'A colored dot shows accuracy: green = good, red = poor'),
               ],
             ),
           ),
           const SizedBox(height: 12),
-          const Text(
+          Text(
             'Accuracy of a few degrees is typical for phone compasses. This mode is best for quick sky orientation, not precision pointing.',
-            style: TextStyle(fontSize: 11, color: Colors.white54, height: 1.3),
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textMuted,
+              height: 1.3,
+            ),
           ),
         ],
+      ),
       ),
       actions: [
         NightshadeButton(
@@ -1472,14 +1484,15 @@ class _CalibrationTip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final accent = NightshadeColors.of(context).info;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.only(top: 4),
-            child: Icon(LucideIcons.check, size: 12, color: Color(0xFF2196F3)),
+          Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: Icon(LucideIcons.check, size: 12, color: accent),
           ),
           const SizedBox(width: 8),
           Expanded(

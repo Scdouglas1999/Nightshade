@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:collection';
-import 'dart:io';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart'
@@ -9,14 +8,53 @@ import 'package:nightshade_bridge/nightshade_bridge.dart'
         EventCategory,
         Phd2GuideStats,
         Phd2StarImage,
-        Phd2CalibrationData;
+        Phd2CalibrationData,
+        NightshadeEvent;
+import '../backend/ffi_backend.dart';
+import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/phd2_models.dart';
+import '../services/device_service.dart';
 import '../services/logging_service.dart';
+import '../services/phd2_status_poll.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
-import 'settings_provider.dart';
+
+double _guideAxisPixels(Map<String, dynamic> json, {required bool isRa}) {
+  if (isRa) {
+    final raw = json['RADistanceRaw'] ?? json['raPx'];
+    return (raw ?? 0).toDouble();
+  }
+  final raw = json['DECDistanceRaw'] ?? json['decPx'];
+  return (raw ?? 0).toDouble();
+}
+
+/// Listens to [backendProvider.eventStream] and re-binds when the backend
+/// instance changes (e.g. mobile companion connects via [NetworkBackend]).
+class _BackendGuidingEventBinding {
+  _BackendGuidingEventBinding(this._ref, this._onEvent);
+
+  final Ref _ref;
+  final void Function(NightshadeEvent event) _onEvent;
+  StreamSubscription<NightshadeEvent>? _sub;
+
+  void start() {
+    _bind(_ref.read(backendProvider));
+    _ref.listen<NightshadeBackend>(backendProvider, (previous, next) {
+      _bind(next);
+    });
+  }
+
+  void _bind(NightshadeBackend backend) {
+    _sub?.cancel();
+    _sub = backend.eventStream.listen(_onEvent);
+  }
+
+  void dispose() {
+    _sub?.cancel();
+  }
+}
 
 /// Provider for PHD2 connection status - derived from guiderStateProvider
 /// This is a computed provider that automatically stays in sync
@@ -40,7 +78,7 @@ final guideStatsProvider =
 /// Notifier that maintains rolling RMS statistics
 class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
   final Ref ref;
-  StreamSubscription? _sub;
+  late final _BackendGuidingEventBinding _events;
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   // Rolling RMS calculators for accurate statistics
@@ -57,38 +95,34 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
           starMass: 0,
           frameCount: 0,
         )) {
-    _init();
+    _events = _BackendGuidingEventBinding(ref, _onBackendEvent);
+    _events.start();
   }
 
-  void _init() {
-    final backend = ref.read(backendProvider);
-    _sub = backend.eventStream.listen((event) {
-      if (!mounted) return; // Guard against updates after disposal
-      if (event.category == EventCategory.guiding) {
-        if (event.eventType == 'GuideStep') {
-          _logger.debug('Received GuideStep event',
-              source: 'GuideStatsNotifier');
-          _handleGuideStep(event.data);
-        } else if (event.eventType == 'GuideStats') {
-          // Update SNR and star mass from separate stats event
-          final snr = (event.data['SNR'] ?? 0).toDouble();
-          final starMass = (event.data['StarMass'] ?? 0).toDouble();
-          _logger.debug('Received GuideStats: SNR=$snr, StarMass=$starMass',
-              source: 'GuideStatsNotifier');
-          updateStarData(snr, starMass);
-        } else if (event.eventType == 'GuidingStopped') {
-          _logger.debug('Received GuidingStopped',
-              source: 'GuideStatsNotifier');
-          reset();
-        }
+  void _onBackendEvent(NightshadeEvent event) {
+    if (!mounted) return;
+    if (event.category == EventCategory.guiding) {
+      if (event.eventType == 'GuideStep') {
+        _logger.debug('Received GuideStep event',
+            source: 'GuideStatsNotifier');
+        _handleGuideStep(event.data);
+      } else if (event.eventType == 'GuideStats') {
+        final snr = (event.data['SNR'] ?? 0).toDouble();
+        final starMass = (event.data['StarMass'] ?? 0).toDouble();
+        _logger.debug('Received GuideStats: SNR=$snr, StarMass=$starMass',
+            source: 'GuideStatsNotifier');
+        updateStarData(snr, starMass);
+      } else if (event.eventType == 'GuidingStopped') {
+        _logger.debug('Received GuidingStopped',
+            source: 'GuideStatsNotifier');
+        reset();
       }
-    });
+    }
   }
 
   void _handleGuideStep(Map<String, dynamic> json) {
-    // Get raw distance values from PHD2
-    final raDistance = (json['RADistanceRaw'] ?? 0).toDouble();
-    final decDistance = (json['DECDistanceRaw'] ?? 0).toDouble();
+    final raDistance = _guideAxisPixels(json, isRa: true);
+    final decDistance = _guideAxisPixels(json, isRa: false);
 
     // Add values to rolling RMS calculators
     _rmsRaCalculator.add(raDistance);
@@ -150,7 +184,7 @@ class GuideStatsNotifier extends StateNotifier<Phd2GuideStats> {
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _events.dispose();
     super.dispose();
   }
 }
@@ -172,35 +206,36 @@ final guideGraphProvider =
 
 class GuideGraphNotifier extends StateNotifier<List<GuideGraphPoint>> {
   final Ref ref;
-  StreamSubscription? _sub;
+  late final _BackendGuidingEventBinding _events;
   static const int maxPoints = 100;
   final Queue<GuideGraphPoint> _buffer = Queue<GuideGraphPoint>();
   LoggingService get _logger => ref.read(loggingServiceProvider);
 
   GuideGraphNotifier(this.ref) : super([]) {
-    final backend = ref.read(backendProvider);
-    _sub = backend.eventStream.listen((event) {
-      if (!mounted) return; // Guard against updates after disposal
-      if (event.category == EventCategory.guiding &&
-          event.eventType == 'GuideStep') {
-        final json = event.data;
-        final ra = (json['RADistanceRaw'] ?? 0).toDouble();
-        final dec = (json['DECDistanceRaw'] ?? 0).toDouble();
-        _logger.debug('Adding point: RA=$ra, Dec=$dec',
-            source: 'GuideGraphNotifier');
-        addPoint(ra, dec);
-      } else if (event.eventType == 'GuidingStopped') {
-        // Clear graph when guiding stops for fresh start
-        clear();
-      }
-    });
+    _events = _BackendGuidingEventBinding(ref, _onBackendEvent);
+    _events.start();
 
-    // Clear graph when PHD2 disconnects
     ref.listen<GuiderState>(guiderStateProvider, (previous, next) {
       if (next.connectionState == DeviceConnectionState.disconnected) {
         clear();
       }
     });
+  }
+
+  void _onBackendEvent(NightshadeEvent event) {
+    if (!mounted) return;
+    if (event.category == EventCategory.guiding &&
+        event.eventType == 'GuideStep') {
+      final json = event.data;
+      final ra = _guideAxisPixels(json, isRa: true);
+      final dec = _guideAxisPixels(json, isRa: false);
+      _logger.debug('Adding point: RA=$ra, Dec=$dec',
+          source: 'GuideGraphNotifier');
+      addPoint(ra, dec);
+    } else if (event.category == EventCategory.guiding &&
+        event.eventType == 'GuidingStopped') {
+      clear();
+    }
   }
 
   void addPoint(double ra, double dec) {
@@ -219,7 +254,7 @@ class GuideGraphNotifier extends StateNotifier<List<GuideGraphPoint>> {
 
   @override
   void dispose() {
-    _sub?.cancel();
+    _events.dispose();
     super.dispose();
   }
 }
@@ -243,6 +278,25 @@ class Phd2Controller {
     _init();
   }
 
+  /// PHD2 closed externally (EOF) or bridge published [Disconnected].
+  void _handlePhd2LinkLost() {
+    ref.read(phd2StateProvider.notifier).state = Phd2State.stopped;
+    unawaited(_syncPhd2BackendAfterLinkLost());
+    ref.read(guiderStateProvider.notifier).setDisconnected();
+  }
+
+  /// Clear Rust registration/storage so status polls and device lists match UI.
+  Future<void> _syncPhd2BackendAfterLinkLost() async {
+    try {
+      await backend.phd2Disconnect();
+    } catch (e, st) {
+      _logger.debug(
+        'PHD2 backend cleanup after link loss: $e\n$st',
+        source: 'Phd2Controller',
+      );
+    }
+  }
+
   void _init() {
     // Listen to backend events
     _eventSub = backend.eventStream.listen((event) {
@@ -256,6 +310,12 @@ class Phd2Controller {
       final guiderNotifier = ref.read(guiderStateProvider.notifier);
 
       switch (event.eventType) {
+        case 'Connected':
+          ref.read(guiderStateProvider.notifier).setConnected();
+          break;
+        case 'Disconnected':
+          _handlePhd2LinkLost();
+          return;
         case 'AppState':
           _updateStateFromString(event.data['State']);
           break;
@@ -312,14 +372,15 @@ class Phd2Controller {
         // Note: StarSelected is handled by LockPositionNotifier's own event listener
       }
 
-      // Treat active event flow as a connection heartbeat.
-      if (ref.read(guiderStateProvider).connectionState !=
-          DeviceConnectionState.connected) {
+      // Liveness traffic only — never promote back to connected after Disconnected.
+      if (isPhd2GuidingHeartbeatEvent(event.eventType) &&
+          ref.read(guiderStateProvider).connectionState !=
+              DeviceConnectionState.connected) {
         guiderNotifier.setConnected();
       }
     }, onError: (err) {
       _logger.error('Controller Event Error: $err', source: 'PHD2');
-      ref.read(guiderStateProvider.notifier).setDisconnected();
+      _handlePhd2LinkLost();
     });
   }
 
@@ -398,28 +459,27 @@ class Phd2Controller {
   }
 
   Future<void> connect(String host, int port) async {
+    if (backend is FfiBackend) {
+      // Desktop owns launch + socket connect via DeviceService (polls port,
+      // uses configured path or Rust registry discovery).
+      await ref.read(deviceServiceProvider).connectGuider('phd2_guider');
+      return;
+    }
+
     const deviceId = 'phd2_guider';
-    ref.read(guiderStateProvider.notifier).setConnecting(deviceId, 'PHD2');
+    ref
+        .read(guiderStateProvider.notifier)
+        .setConnecting(deviceId, 'Connecting to PHD2');
     try {
-      final phd2Path =
-          ref.read(appSettingsProvider).valueOrNull?.phd2Path.trim() ?? '';
-      if (phd2Path.isNotEmpty) {
-        ref
-            .read(guiderStateProvider.notifier)
-            .setConnecting(deviceId, 'Launching PHD2');
-        _logger.info('Launching PHD2 from configured path: $phd2Path',
-            source: 'PHD2');
-        await Process.start(
-          phd2Path,
-          const <String>[],
-          mode: ProcessStartMode.detached,
-        );
-        await Future<void>.delayed(const Duration(seconds: 2));
-      }
-      ref
-          .read(guiderStateProvider.notifier)
-          .setConnecting(deviceId, 'Connecting to PHD2');
+      // Remote companions delegate launch + socket connect to the imaging host
+      // via POST /api/phd2/connect. Never spawn PHD2 locally on mobile.
       await backend.phd2Connect(host: host, port: port);
+      final status = await pollPhd2Connected(backend);
+      if (!status.connected) {
+        throw StateError(
+          'Imaging host did not report a PHD2 connection after connect request.',
+        );
+      }
       ref.read(guiderStateProvider.notifier).setConnected();
     } catch (e) {
       _logger.error('Failed to connect to PHD2 at $host:$port: $e',

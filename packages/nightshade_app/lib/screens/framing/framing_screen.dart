@@ -6,7 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
-import 'package:nightshade_app/utils/add_target_header_helper.dart';
+import 'package:nightshade_app/utils/plan_tonight_sequencer_helper.dart';
 import 'framing_altaz.dart';
 import 'framing_search_provider.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
@@ -142,7 +142,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final framingState = ref.watch(framingProvider);
     final searchState = ref.watch(targetSearchProvider);
     final equipmentResult = ref.watch(framingFOVProvider);
@@ -374,8 +374,10 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                           FramingActionsPanel(
                             colors: colors,
                             framingState: framingState,
-                            onAddToSequence: () =>
-                                _addToSequence(framingState.target!),
+                            onAddToSequence: () => _addToSequence(
+                              framingState.target!,
+                              framingState.rotation,
+                            ),
                             onSaveTarget: _saveTarget,
                             onCacheImage: _cacheImage,
                           ),
@@ -410,11 +412,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
   }
 
   void _navigateToFramingWithTarget(TargetSuggestion suggestion) {
-    ref.read(framingProvider.notifier).setTargetCoordinates(
-          suggestion.raHours,
-          suggestion.decDegrees,
-          name: suggestion.targetName,
-        );
+    ref.read(framingProvider.notifier).setTargetSuggestion(suggestion);
 
     _tabController.animateTo(0);
     setState(() => _currentTabIndex = 0);
@@ -466,20 +464,14 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     }
   }
 
-  Future<void> _addToSequence(FramingTarget target) async {
-    final targetNode = TargetHeaderNode(
-      targetName: target.name,
-      raHours: target.raHours,
-      decDegrees: target.decDegrees,
-    );
-
-    // addTargetHeaderWithPrompt centralises the no-active-sequence
-    // prompt + sequence-locked handling so every "Add to sequence"
-    // entry point behaves identically.
-    final added = await addTargetHeaderWithPrompt(
+  Future<void> _addToSequence(FramingTarget target, double rotation) async {
+    final framingState = ref.read(framingProvider);
+    final added = await addFramedTargetToSequencer(
       context: context,
       ref: ref,
-      targetNode: targetNode,
+      target: target,
+      sourceSuggestion: framingState.sourceSuggestion,
+      rotationDegrees: rotation,
     );
     if (added && mounted) {
       context.showInfoSnackBar('Added ${target.name} to sequence');
@@ -497,8 +489,37 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
     }
   }
 
-  void _cacheImage() {
-    // Would save image to local cache
-    context.showInfoSnackBar('Image cached locally');
+  Future<void> _cacheImage() async {
+    final framingState = ref.read(framingProvider);
+    final bytes = framingState.surveyImageBytes;
+    final target = framingState.target;
+
+    if (target == null) {
+      context.showInfoSnackBar('No target framed — pick a target first.');
+      return;
+    }
+    if (bytes == null || bytes.isEmpty) {
+      context.showInfoSnackBar(
+        'No survey image loaded yet — wait for the preview to finish loading.',
+      );
+      return;
+    }
+
+    final service = FramingImageCacheService();
+    try {
+      final entry = await service.saveSurveyImage(
+        bytes: bytes,
+        raHours: target.raHours,
+        decDegrees: target.decDegrees,
+        source: framingState.surveySource,
+        targetName: target.name,
+        catalogId: target.catalogId,
+      );
+      if (!mounted) return;
+      context.showSuccessSnackBar('Cached at ${entry.filePath}');
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Failed to cache survey image: $e');
+    }
   }
 }

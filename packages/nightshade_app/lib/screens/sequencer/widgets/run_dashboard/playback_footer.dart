@@ -21,7 +21,7 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final progress = ref.watch(sequenceProgressProvider);
     final actionService = ref.read(sequenceActionServiceProvider);
@@ -46,9 +46,8 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
     return Container(
       padding: EdgeInsets.symmetric(
         horizontal: NightshadeTokens.space2xl,
-        vertical: isMobile
-            ? NightshadeTokens.spaceMd
-            : NightshadeTokens.spaceLg,
+        vertical:
+            isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg,
       ),
       decoration: BoxDecoration(
         color: colors.surface,
@@ -110,11 +109,11 @@ class RunDashboardPlaybackFooter extends ConsumerWidget {
             const SizedBox(width: NightshadeTokens.spaceSm),
             Text(
               etaText,
-              style: TextStyle(
-                fontSize: 14,
-                color: colors.textSecondary,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
+              style: NightshadeTypography.withTabular(
+                NightshadeTypography.label.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
             ),
           ],
@@ -155,17 +154,17 @@ class _BigButtonState extends State<_BigButton> {
 
     final (fg, bgBase, borderColor) = switch (widget.variant) {
       _BigButtonVariant.primary => (
-          Colors.white,
+          widget.colors.onPrimary,
           widget.colors.primary,
           widget.colors.primary,
         ),
       _BigButtonVariant.warning => (
-          Colors.white,
+          widget.colors.onPrimary,
           widget.colors.warning,
           widget.colors.warning,
         ),
       _BigButtonVariant.danger => (
-          Colors.white,
+          widget.colors.onPrimary,
           widget.colors.error,
           widget.colors.error,
         ),
@@ -175,40 +174,41 @@ class _BigButtonState extends State<_BigButton> {
           widget.colors.border,
         ),
     };
+    final filledColors = widget.variant == _BigButtonVariant.outline
+        ? null
+        : NightshadeDecorations.filledButtonColors(
+            bgBase,
+            isHovered: _hovered,
+            isDisabled: !enabled,
+          );
 
     final fgFinal = enabled ? fg : widget.colors.textMuted;
     final bgFinal = enabled
-        ? (_hovered
-            ? Color.lerp(bgBase, Colors.white, 0.1) ?? bgBase
-            : bgBase)
+        ? (filledColors?.background ?? bgBase)
         : widget.colors.surfaceAlt;
-    final borderFinal = enabled ? borderColor : widget.colors.border;
+    final borderFinal =
+        enabled ? (filledColors?.border ?? borderColor) : widget.colors.border;
 
     return MouseRegion(
       onEnter: enabled ? (_) => setState(() => _hovered = true) : null,
       onExit: enabled ? (_) => setState(() => _hovered = false) : null,
-      cursor: enabled
-          ? SystemMouseCursors.click
-          : SystemMouseCursors.forbidden,
+      cursor: enabled ? SystemMouseCursors.click : SystemMouseCursors.forbidden,
       child: GestureDetector(
         onTap: widget.onPressed,
         child: AnimatedContainer(
           duration: NightshadeTokens.durationNormal,
           curve: NightshadeTokens.curveSnappy,
           padding: EdgeInsets.symmetric(
-            horizontal: isMobile
-                ? NightshadeTokens.spaceLg
-                : NightshadeTokens.space2xl,
-            vertical: isMobile
-                ? NightshadeTokens.spaceMd
-                : NightshadeTokens.spaceLg,
+            horizontal:
+                isMobile ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl,
+            vertical:
+                isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg,
           ),
           decoration: BoxDecoration(
             color: bgFinal,
             borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
             border: Border.all(color: borderFinal),
-            boxShadow: enabled &&
-                    widget.variant != _BigButtonVariant.outline
+            boxShadow: enabled && widget.variant != _BigButtonVariant.outline
                 ? NightshadeTokens.shadowMd
                 : null,
           ),

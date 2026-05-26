@@ -26,7 +26,7 @@ class _ObservationLogSettingsState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final logsAsync = ref.watch(observationLogsProvider);
     final statsAsync = ref.watch(observationLogStatsProvider);
 
@@ -212,13 +212,11 @@ class _ObservationLogSettingsState
           _StatChip(
             label: 'Total',
             value: '${stats.totalObservations}',
-            colors: colors,
           ),
           const SizedBox(width: 16),
           _StatChip(
             label: 'Objects',
             value: '${stats.uniqueObjects}',
-            colors: colors,
           ),
           const SizedBox(width: 16),
           _StatChip(
@@ -226,14 +224,12 @@ class _ObservationLogSettingsState
             value: stats.averageRating > 0
                 ? stats.averageRating.toStringAsFixed(1)
                 : '-',
-            colors: colors,
           ),
           if (stats.firstObservation != null) ...[
             const SizedBox(width: 16),
             _StatChip(
               label: 'Since',
               value: _formatDate(stats.firstObservation!),
-              colors: colors,
             ),
           ],
         ],
@@ -293,9 +289,10 @@ class _ObservationLogSettingsState
                       Container(
                         padding: const EdgeInsets.symmetric(
                             horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: colors.primary.withValues(alpha: 0.15),
+                        decoration: NightshadeDecorations.statusChip(
+                          colors.primary,
                           borderRadius: BorderRadius.circular(4),
+                          bordered: false,
                         ),
                         child: Text(
                           log.catalogId!,
@@ -464,16 +461,15 @@ class _ObservationLogSettingsState
 class _StatChip extends StatelessWidget {
   final String label;
   final String value;
-  final NightshadeColors colors;
 
   const _StatChip({
     required this.label,
     required this.value,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [

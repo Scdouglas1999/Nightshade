@@ -170,7 +170,7 @@ class _ContextualTourPromptState extends ConsumerState<ContextualTourPrompt>
   }
 
   Widget _buildPrompt(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Positioned(
       left: widget.alignment == Alignment.bottomLeft ||
@@ -225,88 +225,60 @@ class _PromptCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      constraints: const BoxConstraints(maxWidth: 280),
+      constraints: const BoxConstraints(maxWidth: 240),
       decoration: BoxDecoration(
         color: colors.surfaceElevated,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border.withValues(alpha: 0.7)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withValues(alpha: 0.2),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
+            color: Colors.black.withValues(alpha: 0.12),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(12),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header with icon
-            Row(
-              children: [
-                Container(
-                  width: 28,
-                  height: 28,
-                  decoration: BoxDecoration(
-                    color: colors.info.withValues(alpha: 0.15),
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      LucideIcons.lightbulb,
-                      size: 16,
-                      color: colors.info,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
+            Text(
+              title,
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 6),
 
-            // Description
             Text(
               description,
-              style: TextStyle(
+              style: NightshadeTypography.caption.copyWith(
                 color: colors.textSecondary,
-                fontSize: 13,
                 height: 1.4,
               ),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 12),
 
-            // Action buttons
             Row(
               children: [
-                // Maybe Later button - 48px touch target
                 Expanded(
                   child: NightshadeButton(
                     onPressed: onDismiss,
                     label: 'Maybe Later',
                     variant: ButtonVariant.ghost,
-                    size: ButtonSize.medium,
+                    size: ButtonSize.small,
                   ),
                 ),
                 const SizedBox(width: 8),
 
-                // Start Tour button - 48px touch target
                 NightshadeButton(
                   onPressed: onStartTour,
                   label: 'Start Tour',
                   icon: LucideIcons.arrowRight,
+                  size: ButtonSize.small,
                 ),
               ],
             ),
@@ -435,7 +407,7 @@ class _ContextualTourPromptOverlayState
   void _showOverlay() {
     _removeOverlay();
 
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     Rect? targetRect;
 
     if (widget.targetKey?.currentContext != null) {
@@ -531,8 +503,8 @@ class _OverlayPrompt extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final screenSize = MediaQuery.sizeOf(context);
-    const promptWidth = 280.0;
-    const promptHeight = 160.0;
+    const promptWidth = 240.0;
+    const promptHeight = 140.0;
     const padding = 16.0;
 
     double? left, top, right, bottom;

@@ -12,8 +12,8 @@ use windows::{
             DISPATCH_PROPERTYPUT, DISPPARAMS, EXCEPINFO,
         },
         Registry::{
-            RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE,
-            KEY_READ, REG_SZ, REG_VALUE_TYPE,
+            RegCloseKey, RegEnumKeyExW, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_CURRENT_USER,
+            HKEY_LOCAL_MACHINE, KEY_READ, REG_SZ, REG_VALUE_TYPE,
         },
         Variant::VARIANT,
     },
@@ -21,8 +21,9 @@ use windows::{
 
 use super::health::{ConnectionHealth, HealthMonitor};
 use super::variant::{
-    excepinfo_to_string, extract_safearray_string, variant_bool, variant_f64, variant_i32,
-    variant_to_bool, variant_to_f64, variant_to_i32, variant_to_string, DISPID_PROPERTYPUT,
+    excepinfo_to_string, extract_safearray_i32, extract_safearray_string, variant_bool,
+    variant_bstr, variant_date, variant_f64, variant_i32, variant_to_bool, variant_to_date,
+    variant_to_f64, variant_to_i32, variant_to_string, DISPID_PROPERTYPUT,
 };
 
 /// Initialize COM for the current thread
@@ -52,18 +53,15 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
     let mut devices = Vec::new();
 
     let reg_path = format!("SOFTWARE\\ASCOM\\{} Drivers", device_type);
-    tracing::debug!("Scanning ASCOM registry: {}", reg_path);
-
-    if let Some(found) = scan_registry_path(&reg_path) {
-        devices.extend(found);
-    }
-
-    // Also try WOW6432Node for 32-bit drivers on 64-bit Windows
     let reg_path_wow = format!("SOFTWARE\\WOW6432Node\\ASCOM\\{} Drivers", device_type);
-    if let Some(found) = scan_registry_path(&reg_path_wow) {
-        for dev in found {
-            if !devices.iter().any(|d| d.prog_id == dev.prog_id) {
-                devices.push(dev);
+
+    for (root, root_name) in [(HKEY_LOCAL_MACHINE, "HKLM"), (HKEY_CURRENT_USER, "HKCU")] {
+        for path in [&reg_path, &reg_path_wow] {
+            tracing::debug!("Scanning ASCOM registry: {}\\{}", root_name, path);
+            if let Some(found) = scan_registry_path(root, root_name, path) {
+                for dev in found {
+                    push_unique_device(&mut devices, dev);
+                }
             }
         }
     }
@@ -72,7 +70,50 @@ pub fn discover_devices(device_type: &str) -> Vec<AscomDevice> {
     devices
 }
 
-fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
+fn push_unique_device(devices: &mut Vec<AscomDevice>, device: AscomDevice) -> bool {
+    if devices
+        .iter()
+        .any(|existing| existing.prog_id == device.prog_id)
+    {
+        return false;
+    }
+
+    devices.push(device);
+    true
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn ascom_device(prog_id: &str, name: &str) -> AscomDevice {
+        AscomDevice {
+            prog_id: prog_id.to_string(),
+            name: name.to_string(),
+            description: name.to_string(),
+        }
+    }
+
+    #[test]
+    fn push_unique_device_deduplicates_by_prog_id() {
+        let mut devices = vec![ascom_device("ASCOM.Camera.Driver", "Machine install")];
+
+        assert!(!push_unique_device(
+            &mut devices,
+            ascom_device("ASCOM.Camera.Driver", "User install")
+        ));
+        assert_eq!(devices.len(), 1);
+        assert_eq!(devices[0].name, "Machine install");
+
+        assert!(push_unique_device(
+            &mut devices,
+            ascom_device("ASCOM.OtherCamera.Driver", "Other")
+        ));
+        assert_eq!(devices.len(), 2);
+    }
+}
+
+fn scan_registry_path(root: HKEY, root_name: &str, reg_path: &str) -> Option<Vec<AscomDevice>> {
     let mut devices = Vec::new();
 
     // SAFETY: All Win32 registry APIs (`RegOpenKeyExW`, `RegEnumKeyExW`, `RegCloseKey`)
@@ -86,7 +127,7 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
         let reg_path_wide: Vec<u16> = reg_path.encode_utf16().chain(std::iter::once(0)).collect();
 
         let result = RegOpenKeyExW(
-            HKEY_LOCAL_MACHINE,
+            root,
             PCWSTR::from_raw(reg_path_wide.as_ptr()),
             0,
             KEY_READ,
@@ -94,6 +135,7 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
         );
 
         if result.is_err() {
+            tracing::debug!("ASCOM registry key not found: {}\\{}", root_name, reg_path);
             return None;
         }
 
@@ -148,7 +190,13 @@ fn scan_registry_path(reg_path: &str) -> Option<Vec<AscomDevice>> {
                     registry_description.clone()
                 };
 
-                tracing::debug!("Found ASCOM driver: {} - {}", prog_id, registry_description);
+                tracing::debug!(
+                    "Found ASCOM driver in {}\\{}: {} - {}",
+                    root_name,
+                    reg_path,
+                    prog_id,
+                    registry_description
+                );
 
                 devices.push(AscomDevice {
                     prog_id: prog_id.clone(),
@@ -428,6 +476,99 @@ impl AscomDeviceConnection {
         }
     }
 
+    /// Get an i32 SAFEARRAY property (e.g. IFilterWheelV2 `FocusOffsets`).
+    pub fn get_int_array_property(&self, name: &str) -> Result<Vec<i32>, String> {
+        // SAFETY: DISPATCH_PROPERTYGET — same shape as `get_string_array_property`;
+        // result is passed to `extract_safearray_i32` which validates bounds before reads.
+        unsafe {
+            let dispid = self.get_dispid(name)?;
+            let mut result = VARIANT::default();
+            let params = DISPPARAMS::default();
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
+            extract_safearray_i32(&result)
+                .map(|(data, _, _)| data)
+                .map_err(|e| format!("Property {} is not an int array: {}", name, e))
+        }
+    }
+
+    /// Read an indexed double property (e.g. IObservingConditions `TimeSinceLastUpdate`).
+    pub fn get_double_property_indexed(&self, name: &str, index: &str) -> Result<f64, String> {
+        // SAFETY: DISPATCH_PROPERTYGET with one VT_BSTR index argument — standard
+        // IDispatch shape for ASCOM indexed properties.
+        unsafe {
+            let dispid = self.get_dispid(name)?;
+            let mut arg = variant_bstr(index);
+
+            let params = DISPPARAMS {
+                rgvarg: &mut arg,
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
+            variant_to_f64(&result).ok_or_else(|| format!("Property {} is not a double", name))
+        }
+    }
+
+    /// Read an indexed string property (e.g. IObservingConditions `SensorDescription`).
+    pub fn get_string_property_indexed(&self, name: &str, index: &str) -> Result<String, String> {
+        // SAFETY: DISPATCH_PROPERTYGET with one VT_BSTR index argument.
+        unsafe {
+            let dispid = self.get_dispid(name)?;
+            let mut arg = variant_bstr(index);
+
+            let params = DISPPARAMS {
+                rgvarg: &mut arg,
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
+            variant_to_string(&result).ok_or_else(|| format!("Property {} is not a string", name))
+        }
+    }
+
     pub fn get_bool_property(&self, name: &str) -> Result<bool, String> {
         // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_string_property` — empty
         // DISPPARAMS, stack VARIANT out-pointer, zeroed reserved GUID. `variant_to_bool`
@@ -520,6 +661,63 @@ impl AscomDeviceConnection {
         unsafe {
             let dispid = self.get_dispid(name)?;
             let mut arg = variant_f64(value);
+            let mut dispid_named = DISPID_PROPERTYPUT;
+
+            let params = DISPPARAMS {
+                rgvarg: &mut arg,
+                rgdispidNamedArgs: &mut dispid_named,
+                cArgs: 1,
+                cNamedArgs: 1,
+            };
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYPUT,
+                    &params,
+                    None,
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to set property {}: {}", name, e))?;
+
+            Ok(())
+        }
+    }
+
+    pub fn get_date_property(&self, name: &str) -> Result<f64, String> {
+        // SAFETY: Same DISPATCH_PROPERTYGET pattern as `get_double_property`; the result
+        // VARIANT is read by `variant_to_date` after verifying VT_DATE.
+        unsafe {
+            let dispid = self.get_dispid(name)?;
+            let mut result = VARIANT::default();
+            let params = DISPPARAMS::default();
+
+            self.dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_PROPERTYGET,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to get property {}: {}", name, e))?;
+
+            variant_to_date(&result).ok_or_else(|| format!("Property {} is not a VT_DATE", name))
+        }
+    }
+
+    pub fn set_date_property(&self, name: &str, value: f64) -> Result<(), String> {
+        // SAFETY: Same DISPATCH_PROPERTYPUT pattern as `set_double_property`, but the
+        // argument is tagged as VT_DATE for ASCOM DateTime properties.
+        unsafe {
+            let dispid = self.get_dispid(name)?;
+            let mut arg = variant_date(value);
             let mut dispid_named = DISPID_PROPERTYPUT;
 
             let params = DISPPARAMS {

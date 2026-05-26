@@ -137,53 +137,54 @@ class LanPushReceiver {
   /// Handle incoming connection from push tool.
   /// Requires the client to send an authentication message as the first frame:
   ///   4 bytes (big-endian): length of auth JSON
-  ///   N bytes: JSON with {"secret": "<push_secret>"}
+  ///   N bytes: JSON with `{"secret": "<push_secret>"}`
   /// The server responds with {"auth": "ok"} or {"auth": "rejected"} and closes.
   void _handleConnection(Socket socket) async {
     final remoteAddress = socket.remoteAddress.address;
     developer.log('Connection from $remoteAddress',
         name: 'LanPushReceiver', level: 800);
 
-    if (_receiveState != _ReceiveState.idle) {
+    if (!_tryReserveReceiveSlot()) {
       socket.write(jsonEncode({'error': 'Already receiving update'}));
       await socket.close();
       return;
     }
 
-    _receiveState = _ReceiveState.authenticating;
-
-    // --- Authentication phase ---
     try {
+      // --- Authentication phase ---
       final authenticated = await _authenticateClient(socket, remoteAddress);
       if (!authenticated) {
         return; // socket already closed by _authenticateClient
       }
-    } catch (e) {
-      developer.log(
-        'Auth error from $remoteAddress: $e',
-        name: 'LanPushReceiver',
-        level: 1000,
-      );
-      try {
-        socket.write(jsonEncode({'auth': 'rejected', 'reason': 'auth error'}));
-        await socket.close();
-      } catch (_) {}
-      return;
-    }
 
-    _receiveState = _ReceiveState.receiving;
-    onProgress?.call(0, 0, 0, 'Authenticated connection from $remoteAddress');
+      _receiveState = _ReceiveState.receiving;
+      onProgress?.call(0, 0, 0, 'Authenticated connection from $remoteAddress');
 
-    try {
       await _receiveUpdate(socket);
     } catch (e) {
       developer.log('Error receiving update: $e',
           name: 'LanPushReceiver', level: 1000);
       onError?.call(e.toString());
     } finally {
-      _receiveState = _ReceiveState.idle;
+      _releaseReceiveSlot();
       await socket.close();
     }
+  }
+
+  bool _tryReserveReceiveSlot() {
+    // Dart isolates run this compare+set synchronously until the first await,
+    // giving us the CAS-like single-writer gate this receiver needs: only one
+    // connection may progress into auth/receive, and every path releases it in
+    // _handleConnection's finally block.
+    if (_receiveState != _ReceiveState.idle) {
+      return false;
+    }
+    _receiveState = _ReceiveState.authenticating;
+    return true;
+  }
+
+  void _releaseReceiveSlot() {
+    _receiveState = _ReceiveState.idle;
   }
 
   /// Authenticate an incoming client connection.

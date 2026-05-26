@@ -16,7 +16,7 @@ import '../sequence_validation.dart';
 
 /// Errors out when a [RecoveryNode] is misconfigured for runtime.
 ///
-/// Two failure modes:
+/// Three failure modes:
 ///   1. No [TriggerType] set — there is nothing to trigger the recovery
 ///      action, so the node can never fire. (Distinct from the executor's
 ///      missing-trigger fallback: the executor used to silently treat an
@@ -25,7 +25,7 @@ import '../sequence_validation.dart';
 ///      child branch — the executor would have nothing to execute when the
 ///      trigger fires.
 ///
-/// Both fire as ERROR severity because the node is structurally broken,
+/// All fire as ERROR severity because the node is structurally broken,
 /// not just suboptimal.
 class RecoveryNodeConfigRule implements SequenceValidator {
   @override
@@ -66,6 +66,133 @@ class RecoveryNodeConfigRule implements SequenceValidator {
               'Add child nodes describing the recovery sequence, or change '
               'the recovery action to a built-in (Retry, Pause, etc.).',
         ));
+      }
+
+    }
+    return issues;
+  }
+}
+
+/// Wave 5 Agent 4 — validation rules for cloud-motion-aware triggers.
+///
+/// Three failure modes, all surfaced as ERROR because the trigger could
+/// not fire correctly at runtime (or would fire with degenerate config):
+///   1. `CloudCoverThreshold` with max_percent outside [0, 100].
+///   2. `CloudOpeningIn` with minimum_duration_secs <= 0 — a zero-length
+///      opening is meaningless and the recovery layer would slew into a
+///      gap that closes before settle.
+///   3. The Dart-side cloud motion analyzer (`cloudMotionAnalyzerProvider`)
+///      is always wired in `weather_providers.dart`, so the
+///      "trigger configured but no analyzer enabled" check is structural —
+///      we just need the user to have weather safety enabled. We treat
+///      `weatherSafetyEnabled == false` paired with any cloud trigger as
+///      a warning rather than an error so the user can still edit the
+///      sequence offline.
+class CloudTriggerConfigRule implements SequenceValidator {
+  @override
+  String get name => 'CloudTriggerConfig';
+
+  @override
+  List<ValidationIssue> validate(Sequence sequence) {
+    final issues = <ValidationIssue>[];
+    for (final node in sequence.nodes.values) {
+      if (node is! RecoveryNode) continue;
+      final type = node.triggerType;
+      if (type == null) continue;
+
+      switch (type) {
+        case TriggerType.cloudCoverThreshold:
+          if (node.cloudCoverMaxPercent < 0 ||
+              node.cloudCoverMaxPercent > 100) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Invalid Cloud Cover Threshold',
+              description:
+                  'Recovery node "${node.name}" has a max cloud cover of '
+                  '${node.cloudCoverMaxPercent}%, which is outside the '
+                  'valid range [0, 100].',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set a Max Cloud Cover value between 0 and 100 percent.',
+            ));
+          }
+          if (node.cloudCoverDurationSecs < 0) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Negative Cloud Cover Duration',
+              description:
+                  'Recovery node "${node.name}" has a negative cloud-cover '
+                  'duration (${node.cloudCoverDurationSecs}s). Use 0 to '
+                  'fire immediately.',
+              affectedNodeId: node.id,
+              resolutionHint: 'Set a non-negative duration in seconds.',
+            ));
+          }
+          break;
+        case TriggerType.cloudOpeningIn:
+          if (node.cloudOpeningMinDurationSecs <= 0) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Invalid Cloud Opening Duration',
+              description:
+                  'Recovery node "${node.name}" requires a positive minimum '
+                  'opening duration but is set to '
+                  '${node.cloudOpeningMinDurationSecs}s. The trigger would '
+                  'never fire (or fire on every tick).',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set Minimum Opening Duration to at least a few minutes '
+                  '(e.g. 300s) so the recovery has enough clear sky to '
+                  'image before the next cloud cell arrives.',
+            ));
+          }
+          if (node.cloudMinutesBefore <= 0) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Invalid Cloud Lead Time',
+              description:
+                  'Recovery node "${node.name}" has a non-positive '
+                  'minutes-before value (${node.cloudMinutesBefore}).',
+              affectedNodeId: node.id,
+              resolutionHint: 'Set Minutes Before to a positive value.',
+            ));
+          }
+          break;
+        case TriggerType.cloudArrivingIn:
+          if (node.cloudMinutesBefore <= 0) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Invalid Cloud Lead Time',
+              description:
+                  'Recovery node "${node.name}" has a non-positive '
+                  'minutes-before value (${node.cloudMinutesBefore}).',
+              affectedNodeId: node.id,
+              resolutionHint: 'Set Minutes Before to a positive value.',
+            ));
+          }
+          if (node.cloudCoverageThresholdPercent < 0 ||
+              node.cloudCoverageThresholdPercent > 100) {
+            issues.add(ValidationIssue(
+              severity: ValidationSeverity.error,
+              category: ValidationCategory.structure,
+              title: 'Invalid Cloud Coverage Threshold',
+              description:
+                  'Recovery node "${node.name}" has a coverage threshold of '
+                  '${node.cloudCoverageThresholdPercent}%, which is outside '
+                  'the valid range [0, 100].',
+              affectedNodeId: node.id,
+              resolutionHint:
+                  'Set Min Predicted Coverage between 0 and 100 percent.',
+            ));
+          }
+          break;
+        default:
+          break;
       }
     }
     return issues;

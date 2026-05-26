@@ -189,7 +189,7 @@ class _OnboardingOverlayState extends ConsumerState<OnboardingOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final notifier = ref.watch(onboardingTourProvider.notifier);
     // Watch the int state so the overlay rebuilds when the step changes.
     ref.watch(onboardingTourProvider);

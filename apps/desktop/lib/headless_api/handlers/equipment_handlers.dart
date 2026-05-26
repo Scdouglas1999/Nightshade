@@ -3,6 +3,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import '../response_helpers.dart';
+import '../utils/device_type_parser.dart';
 import '../validation.dart';
 
 /// Handlers for equipment status and capabilities endpoints
@@ -129,7 +130,7 @@ class EquipmentHandlers {
     final deviceId = requireString(payload, 'device_id');
     final intervalMs = requireInt(payload, 'interval_ms');
 
-    final deviceType = _parseDeviceType(deviceTypeStr);
+    final deviceType = parseDeviceType(deviceTypeStr);
     if (deviceType == null) {
       throw BadRequestError(
         field: 'device_type',
@@ -167,16 +168,4 @@ class EquipmentHandlers {
     });
   }
 
-  DeviceType? _parseDeviceType(String type) {
-    try {
-      return DeviceType.values
-          .firstWhere((e) => e.name.toLowerCase() == type.toLowerCase());
-    } on StateError {
-      // Why: `firstWhere` throws StateError on no-match. We deliberately
-      // return null so the caller can produce a structured 400 with the
-      // accepted device-type list, rather than letting the exception
-      // bubble as a generic 500.
-      return null;
-    }
-  }
 }

@@ -13,7 +13,7 @@ class RunDashboardGuidingCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final guider = ref.watch(guiderStateProvider);
     final graphData = ref.watch(guideGraphProvider);
     final isConnected =
@@ -42,13 +42,11 @@ class RunDashboardGuidingCard extends ConsumerWidget {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: (guider.isGuiding
-                            ? colors.success
-                            : colors.textMuted)
-                        .withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.statusChip(
+                    guider.isGuiding ? colors.success : colors.textMuted,
                     borderRadius:
                         BorderRadius.circular(NightshadeTokens.radiusXs),
+                    bordered: false,
                   ),
                   child: Text(
                     guider.isGuiding
@@ -141,11 +139,12 @@ class _RmsStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value != null ? '${value!.toStringAsFixed(2)}"' : '—',
-          style: TextStyle(
-            fontSize: isTotal ? 14 : 12,
-            fontWeight: FontWeight.w700,
-            color: _color(),
-            fontFeatures: const [FontFeature.tabularFigures()],
+          style: NightshadeTypography.withTabular(
+            TextStyle(
+              fontSize: isTotal ? 14 : 12,
+              fontWeight: FontWeight.w700,
+              color: _color(),
+            ),
           ),
         ),
       ],

@@ -100,10 +100,9 @@ class FramingEquipmentWarningCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.warning,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

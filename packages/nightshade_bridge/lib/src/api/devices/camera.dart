@@ -4,6 +4,7 @@
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../../device.dart';
+import '../../device_capabilities.dart';
 import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
@@ -55,3 +56,28 @@ Future<void> apiSetCameraBinning(
         {required String deviceId, required int binX, required int binY}) =>
     RustLib.instance.api.crateApiDevicesCameraApiSetCameraBinning(
         deviceId: deviceId, binX: binX, binY: binY);
+
+/// Capture a live-view / preview JPEG frame when the driver supports it.
+Future<Uint8List> apiCameraCapturePreview({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDevicesCameraApiCameraCapturePreview(deviceId: deviceId);
+
+/// Query the camera SDK for manufacturer-recommended gain/offset values.
+///
+/// Returns a [`CameraRecommendedSettings`] with whatever the vendor SDK
+/// actually reports:
+/// - ZWO: `default_value` from `ASIGetControlCaps` for gain and offset.
+/// - QHY: `DefaultGain` / `DefaultOffset` dedicated control IDs (probed
+///   via `IsQHYCCDControlAvailable`).
+/// - SVBony: `default_value` from `SVBGetControlCaps` for Gain and BlackLevel.
+/// - All other drivers: empty struct (every field `None`) — the vendor SDK
+///   does not expose this and we will NEVER fabricate a recommendation.
+///
+/// On the Dart side this is called right after camera connect; the active
+/// equipment profile's `defaultGain` / `defaultOffset` are populated from
+/// the result IFF they are currently `null` (user-set values are never
+/// overwritten).
+Future<CameraRecommendedSettings> apiCameraGetRecommendedSettings(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiDevicesCameraApiCameraGetRecommendedSettings(
+        deviceId: deviceId);

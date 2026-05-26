@@ -211,7 +211,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final padding = widget.isMobile ? 16.0 : 24.0;
 
     // On mobile, skip Scaffold since parent provides structure
@@ -220,7 +220,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: EdgeInsets.all(padding),
-              child: _buildContent(context, colors),
+              child: _buildContent(context),
             );
     }
 
@@ -234,12 +234,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ? const Center(child: CircularProgressIndicator())
           : SingleChildScrollView(
               padding: EdgeInsets.all(padding),
-              child: _buildContent(context, colors),
+              child: _buildContent(context),
             ),
     );
   }
 
-  Widget _buildContent(BuildContext context, NightshadeColors colors) {
+  Widget _buildContent(BuildContext context) {
+    final colors = context.nightshadeColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -263,13 +264,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
 
         // Download progress
         if (_isDownloading) ...[
-          _buildDownloadProgress(colors),
+          _buildDownloadProgress(context),
           const SizedBox(height: 32),
         ],
 
         // Star catalog card
         _buildCatalogCard(
-          colors: colors,
+          context: context,
           title: 'HYG Star Database',
           description:
               'Combined Hipparcos, Yale, and Gliese star catalogs with ~120,000 stars',
@@ -282,7 +283,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
 
         // DSO catalog card
         _buildCatalogCard(
-          colors: colors,
+          context: context,
           title: 'OpenNGC',
           description:
               'Open source NGC/IC deep sky catalog with ~13,000 objects',
@@ -294,20 +295,21 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         const SizedBox(height: 32),
 
         // Annotation catalog section
-        _buildAnnotationCatalogSection(colors),
+        _buildAnnotationCatalogSection(context),
         const SizedBox(height: 32),
 
         // Download section
-        _buildDownloadSection(colors),
+        _buildDownloadSection(context),
         const SizedBox(height: 32),
 
         // Actions
-        _buildActionsSection(colors),
+        _buildActionsSection(context),
       ],
     );
   }
 
-  Widget _buildDownloadProgress(NightshadeColors colors) {
+  Widget _buildDownloadProgress(BuildContext context) {
+    final colors = context.nightshadeColors;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -362,7 +364,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Widget _buildCatalogCard({
-    required NightshadeColors colors,
+    required BuildContext context,
     required String title,
     required String description,
     required String sourceUrl,
@@ -370,6 +372,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     required String type,
     required IconData icon,
   }) {
+    final colors = context.nightshadeColors;
     final isInstalled = status?.isInstalled ?? false;
 
     return Container(
@@ -378,8 +381,9 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
-          color:
-              isInstalled ? Colors.green.withValues(alpha: 0.3) : colors.border,
+          color: isInstalled
+              ? colors.success.withValues(alpha: 0.3)
+              : colors.border,
         ),
       ),
       child: Column(
@@ -389,8 +393,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.iconChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(icon, color: colors.primary, size: 24),
@@ -469,18 +473,18 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                     runSpacing: 8,
                     children: [
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Objects',
                         value: status.objectCount?.toString() ?? 'Unknown',
                       ),
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Package',
                         value: status.installedPackage?.displayName ?? 'Custom',
                       ),
                       if (status.installedDate != null)
                         _buildStatusChip(
-                          colors: colors,
+                          context: context,
                           label: 'Installed',
                           value: _formatDate(status.installedDate!),
                         ),
@@ -489,20 +493,20 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                 : Row(
                     children: [
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Objects',
                         value: status.objectCount?.toString() ?? 'Unknown',
                       ),
                       const SizedBox(width: 16),
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Package',
                         value: status.installedPackage?.displayName ?? 'Custom',
                       ),
                       const SizedBox(width: 16),
                       if (status.installedDate != null)
                         _buildStatusChip(
-                          colors: colors,
+                          context: context,
                           label: 'Installed',
                           value: _formatDate(status.installedDate!),
                         ),
@@ -515,10 +519,11 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Widget _buildStatusChip({
-    required NightshadeColors colors,
+    required BuildContext context,
     required String label,
     required String value,
   }) {
+    final colors = context.nightshadeColors;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -530,19 +535,28 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ),
         ),
         const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            color: colors.textPrimary,
-            fontWeight: FontWeight.w500,
-            fontSize: 13,
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: NightshadeDecorations.statusChip(
+            colors.textPrimary,
+            borderRadius: BorderRadius.circular(6),
+            bordered: false,
+          ),
+          child: Text(
+            value,
+            style: TextStyle(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w500,
+              fontSize: 13,
+            ),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildDownloadSection(NightshadeColors colors) {
+  Widget _buildDownloadSection(BuildContext context) {
+    final colors = context.nightshadeColors;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -570,7 +584,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
           ),
           const SizedBox(height: 16),
           ...CatalogPackage.values.map((package) => _buildPackageOption(
-                colors: colors,
+                context: context,
                 package: package,
               )),
           const SizedBox(height: 24),
@@ -591,9 +605,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Widget _buildPackageOption({
-    required NightshadeColors colors,
+    required BuildContext context,
     required CatalogPackage package,
   }) {
+    final colors = context.nightshadeColors;
     final isSelected = _selectedPackage == package;
 
     return GestureDetector(
@@ -681,7 +696,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     );
   }
 
-  Widget _buildActionsSection(NightshadeColors colors) {
+  Widget _buildActionsSection(BuildContext context) {
+    final colors = context.nightshadeColors;
     final hasInstalledCatalogs = (_starStatus?.isInstalled ?? false) ||
         (_dsoStatus?.isInstalled ?? false);
 
@@ -740,7 +756,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
     );
   }
 
-  Widget _buildAnnotationCatalogSection(NightshadeColors colors) {
+  Widget _buildAnnotationCatalogSection(BuildContext context) {
+    final colors = context.nightshadeColors;
     final isInstalled = _annotationStatus?.isInstalled ?? false;
 
     return Container(
@@ -750,7 +767,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isInstalled
-              ? Colors.green.withValues(alpha: 0.3)
+              ? colors.success.withValues(alpha: 0.3)
               : colors.primary.withValues(alpha: 0.3),
         ),
       ),
@@ -761,8 +778,8 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             children: [
               Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.iconChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child:
@@ -837,13 +854,13 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                     runSpacing: 8,
                     children: [
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Objects',
                         value: _annotationStatus!.objectCount?.toString() ??
                             'Unknown',
                       ),
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Package',
                         value:
                             _annotationStatus!.installedPackage?.displayName ??
@@ -851,7 +868,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                       ),
                       if (_annotationStatus!.installedDate != null)
                         _buildStatusChip(
-                          colors: colors,
+                          context: context,
                           label: 'Installed',
                           value: _formatDate(_annotationStatus!.installedDate!),
                         ),
@@ -860,14 +877,14 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                 : Row(
                     children: [
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Objects',
                         value: _annotationStatus!.objectCount?.toString() ??
                             'Unknown',
                       ),
                       const SizedBox(width: 16),
                       _buildStatusChip(
-                        colors: colors,
+                        context: context,
                         label: 'Package',
                         value:
                             _annotationStatus!.installedPackage?.displayName ??
@@ -876,7 +893,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
                       const SizedBox(width: 16),
                       if (_annotationStatus!.installedDate != null)
                         _buildStatusChip(
-                          colors: colors,
+                          context: context,
                           label: 'Installed',
                           value: _formatDate(_annotationStatus!.installedDate!),
                         ),
@@ -896,7 +913,7 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
             const SizedBox(height: 12),
             ...AnnotationPackage.values
                 .map((package) => _buildAnnotationPackageOption(
-                      colors: colors,
+                      context: context,
                       package: package,
                     )),
             const SizedBox(height: 16),
@@ -938,9 +955,10 @@ class _CatalogSettingsScreenState extends ConsumerState<CatalogSettingsScreen> {
   }
 
   Widget _buildAnnotationPackageOption({
-    required NightshadeColors colors,
+    required BuildContext context,
     required AnnotationPackage package,
   }) {
+    final colors = context.nightshadeColors;
     final isSelected = _selectedAnnotationPackage == package;
 
     return GestureDetector(

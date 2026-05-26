@@ -7,6 +7,8 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show CatalogManager, CatalogSearchResult;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../utils/error_snackbar.dart';
+
 /// Mount tab — phone-native mount control:
 ///   * Live RA/Dec/Alt/Az from `mountStateProvider`.
 ///   * Press-and-hold d-pad (port of the §2.7 web dashboard pattern).
@@ -84,8 +86,7 @@ class _MountTabState extends ConsumerState<MountTab> {
   }
 
   void _showMessage(String text) {
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(text)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(text)));
   }
 
   @override
@@ -165,7 +166,7 @@ class _PositionCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         children: [
@@ -244,8 +245,7 @@ class _MetricCell extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.textMuted)),
         const SizedBox(height: 4),
         Text(
           value,
@@ -270,8 +270,8 @@ class _StatusBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -402,7 +402,7 @@ class _Dpad extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         children: [
@@ -593,10 +593,10 @@ class _StopButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
           ),
           alignment: Alignment.center,
-          child: const Text(
+          child: Text(
             'STOP',
             style: TextStyle(
-              color: Colors.white,
+              color: colors.onPrimary,
               fontWeight: FontWeight.w800,
               fontSize: 14,
               letterSpacing: 1.2,
@@ -621,8 +621,10 @@ class _ControlsRow extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('$e')));
+          // [Wave 6D error parsing] — typed envelope so park/unpark/track
+          // failures surface the server's machine code (e.g.
+          // "Mount is currently slewing (mount_busy)").
+          showApiError(context, e);
         }
       }
     }
@@ -695,8 +697,8 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
       setState(() => _hits = hits.take(8).toList());
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Search failed: $e')));
+        // [Wave 6D error parsing]
+        showApiErrorWithPrefix(context, 'Search failed', e);
       }
     } finally {
       if (mounted) setState(() => _searching = false);
@@ -734,8 +736,8 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Slew failed: $e')));
+        // [Wave 6D error parsing]
+        showApiErrorWithPrefix(context, 'Slew failed', e);
       }
     } finally {
       if (mounted) setState(() => _slewing = false);
@@ -750,7 +752,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

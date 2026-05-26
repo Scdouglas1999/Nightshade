@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../sequencer/widgets/session_report_dialog.dart';
+import 'adaptive_chart_container.dart';
 
 /// Multi-night campaign rollup dialog (Feature B).
 ///
@@ -26,7 +27,7 @@ class CampaignRollupDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final rollupAsync = ref.watch(campaignRollupProvider(targetId));
 
     return Dialog(
@@ -36,13 +37,18 @@ class CampaignRollupDialog extends ConsumerWidget {
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 720,
+          designMaxHeight: 760,
+        ),
         child: rollupAsync.when(
           data: (rollup) => _Body(rollup: rollup, colors: colors),
-          loading: () => SizedBox(
+          loading: () => AdaptiveChartContainer.fixed(
             height: 200,
             child: Center(
-                child: CircularProgressIndicator(color: colors.primary)),
+              child: CircularProgressIndicator(color: colors.primary),
+            ),
           ),
           error: (err, _) => Padding(
             padding: const EdgeInsets.all(24),
@@ -317,8 +323,9 @@ class _SummaryTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 160,
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minWidth: 140),
+      child: Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
@@ -340,6 +347,7 @@ class _SummaryTile extends StatelessWidget {
           ),
         ],
       ),
+    ),
     );
   }
 }

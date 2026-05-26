@@ -1,18 +1,29 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/nightshade_app.dart'
+    show RunDashboardWeatherSafetyCard;
+import 'package:nightshade_app/screens/sequencer/mobile_sequence_editor.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Sequencer tab — phone-native run controller:
-///   * Top half: node list with status icons (current/next/completed)
-///   * Bottom 1/3: sticky strip with current target, ETA, and start/stop
-///   * Load-sequence picker opens a `NightshadeDialog` listing saved
-///     sequences from the database.
+import '../../../utils/error_snackbar.dart';
+
+/// Sequencer tab — phone-native run controller AND authoring surface.
 ///
-/// All work flows through the existing `sequenceExecutorProvider` and
-/// `currentSequenceProvider` so behaviour stays identical to the desktop
-/// sequencer.
+///   * Top: [MobileSequenceEditor] — touch-friendly node list with
+///     long-press-to-reorder, swipe-to-delete, tap-to-edit, and a FAB
+///     for adding nodes. Replaces the legacy read-only `_NodeList` view
+///     (audit P1-9 — phone sequencer authoring parity).
+///   * Mid: [SequencerRecoveryActionsBanner] — exposed only while the
+///     executor is in `recovering`; surfaces the three operator actions
+///     (Try Now / Skip Node / Abort) the desktop dashboard provides
+///     (audit P1-8 — recovery actions on mobile).
+///   * Bottom 1/3: sticky strip with current target, ETA, and start/stop.
+///
+/// All work flows through the existing `sequenceExecutorProvider`,
+/// `currentSequenceProvider`, and `recoveryControlProvider` so behaviour
+/// stays identical to the desktop sequencer.
 class SequencerTab extends ConsumerWidget {
   const SequencerTab({super.key});
 
@@ -26,11 +37,21 @@ class SequencerTab extends ConsumerWidget {
       children: [
         // Sticky header — current sequence name + load button.
         _Header(sequence: sequence),
+        // [Wave 5A — weather/safety surface] Collapsed-by-default
+        // expansion tile so the operator can glance at the current
+        // weather-safety state without losing editor real-estate. The
+        // tile collapses to a single ~48dp row; expanded it shows the
+        // full RunDashboardWeatherSafetyCard which reads the existing
+        // `weatherSafetyProvider` and never re-evaluates conditions on
+        // its own. [Wave 5A end]
+        const _WeatherSafetyExpansion(),
         Expanded(
           child: sequence == null
               ? const _NoSequenceState()
-              : _NodeList(sequence: sequence, progress: progress),
+              : const MobileSequenceEditor(),
         ),
+        // Mid: recovery action surface (only renders when recovering).
+        const SequencerRecoveryActionsBanner(),
         // Bottom strip — "current target + ETA" + start/stop controls.
         // Keeping it sticky means the user can run/halt from any scroll
         // position, which matches the desktop sequence-controls bar.
@@ -101,8 +122,11 @@ Future<void> _showLoadPicker(BuildContext context, WidgetRef ref) async {
     all = await repo.loadAllSequences();
   } catch (e) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(SnackBar(content: Text('Could not load sequences: $e')));
+      // [Wave 6D error parsing] — prefer the typed envelope so the
+      // operator sees the server-supplied reason (e.g. "Could not
+      // load sequences: pairing_required") instead of an opaque
+      // "Exception: 401 status code".
+      showApiErrorWithPrefix(context, 'Could not load sequences', e);
     }
     return;
   }
@@ -113,11 +137,16 @@ Future<void> _showLoadPicker(BuildContext context, WidgetRef ref) async {
   await showDialog<void>(
     context: context,
     builder: (dialogCtx) {
+      final dialogSize = AdaptiveDialogConstraints.dialogSize(
+        dialogCtx,
+        designWidth: 360,
+        designHeight: 480,
+      );
       return NightshadeDialog(
         title: 'Load sequence',
         icon: LucideIcons.folderOpen,
-        width: 360,
-        height: 480,
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: all.isEmpty
             ? const EmptyState(
                 icon: LucideIcons.fileX,
@@ -166,142 +195,10 @@ class _NoSequenceState extends StatelessWidget {
   }
 }
 
-class _NodeList extends StatelessWidget {
-  final Sequence sequence;
-  final SequenceProgress progress;
-  const _NodeList({required this.sequence, required this.progress});
-
-  @override
-  Widget build(BuildContext context) {
-    // Walk the sequence tree in display order so the list mirrors the
-    // desktop sequencer view. We do a simple DFS from the root node and
-    // indent children by depth.
-    final rows = <_NodeRow>[];
-    final root = sequence.rootNode;
-    if (root != null) {
-      _walk(sequence, root, 0, rows);
-    }
-
-    if (rows.isEmpty) {
-      return const EmptyState(
-        icon: LucideIcons.fileWarning,
-        title: 'Sequence is empty',
-        body: 'Add at least one instruction on the desktop and reload.',
-      );
-    }
-
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: rows.length,
-      itemBuilder: (context, i) {
-        final row = rows[i];
-        return _NodeTile(
-          row: row,
-          status: progress.nodeStatuses[row.node.id],
-          isCurrent: progress.currentNodeId == row.node.id,
-          progressPct: progress.nodeProgressPercent[row.node.id],
-        );
-      },
-    );
-  }
-
-  void _walk(Sequence seq, SequenceNode node, int depth, List<_NodeRow> out) {
-    out.add(_NodeRow(node: node, depth: depth));
-    for (final childId in node.childIds) {
-      final child = seq.nodes[childId];
-      if (child != null) {
-        _walk(seq, child, depth + 1, out);
-      }
-    }
-  }
-}
-
-class _NodeRow {
-  final SequenceNode node;
-  final int depth;
-  _NodeRow({required this.node, required this.depth});
-}
-
-class _NodeTile extends StatelessWidget {
-  final _NodeRow row;
-  final NodeStatus? status;
-  final bool isCurrent;
-  final double? progressPct;
-
-  const _NodeTile({
-    required this.row,
-    required this.status,
-    required this.isCurrent,
-    required this.progressPct,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final (icon, color) = _statusVisual(status, isCurrent, colors);
-    return Container(
-      margin: EdgeInsets.fromLTRB(16 + row.depth * 16.0, 4, 16, 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-      decoration: BoxDecoration(
-        color: isCurrent ? colors.primary.withValues(alpha: 0.1) : colors.surface,
-        border: Border.all(
-          color: isCurrent ? colors.primary : colors.border,
-        ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: Row(
-        children: [
-          Icon(icon, size: 18, color: color),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  row.node.name,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
-                    color: colors.textPrimary,
-                  ),
-                  overflow: TextOverflow.ellipsis,
-                ),
-                if (progressPct != null && isCurrent && progressPct! > 0) ...[
-                  const SizedBox(height: 4),
-                  NightshadeProgressBar(
-                    value: (progressPct! / 100.0).clamp(0.0, 1.0),
-                    height: 4,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (!row.node.isEnabled)
-            Icon(LucideIcons.eyeOff, size: 14, color: colors.textMuted),
-        ],
-      ),
-    );
-  }
-
-  (IconData, Color) _statusVisual(
-    NodeStatus? s,
-    bool isCurrent,
-    NightshadeColors colors,
-  ) {
-    if (isCurrent) {
-      return (LucideIcons.loader, colors.primary);
-    }
-    return switch (s) {
-      NodeStatus.success => (LucideIcons.checkCircle2, colors.success),
-      NodeStatus.failure => (LucideIcons.xCircle, colors.error),
-      NodeStatus.running => (LucideIcons.loader, colors.primary),
-      NodeStatus.skipped => (LucideIcons.skipForward, colors.textMuted),
-      NodeStatus.cancelled => (LucideIcons.ban, colors.warning),
-      NodeStatus.pending => (LucideIcons.circle, colors.textMuted),
-      null => (LucideIcons.circle, colors.textMuted),
-    };
-  }
-}
+// _NodeList / _NodeRow / _NodeTile have moved to MobileSequenceEditor in
+// packages/nightshade_app/lib/screens/sequencer/mobile_sequence_editor.dart
+// so the touch-friendly authoring surface and the visual mapping live in
+// one place (audit P1-9 — phone sequencer authoring parity).
 
 class _StickyFooter extends ConsumerWidget {
   final Sequence? sequence;
@@ -420,11 +317,16 @@ class _ExecBadge extends StatelessWidget {
       SequenceExecutionState.stopping => ('Stopping', colors.warning),
       SequenceExecutionState.completed => ('Done', colors.success),
       SequenceExecutionState.failed => ('Failed', colors.error),
+      // Wave 4: executor is mid-recovery (auto-retry after a recoverable
+      // failure such as guide-star lost or weather unsafe). Use the
+      // warning palette so the user sees something is wrong but the run
+      // isn't dead yet.
+      SequenceExecutionState.recovering => ('Recovering', colors.warning),
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -487,8 +389,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).start();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        showApiError(context, e);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -501,8 +403,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).stop();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        showApiError(context, e);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -515,8 +417,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).pause();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        showApiError(context, e);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -529,8 +431,8 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
       await ref.read(sequenceExecutorProvider).resume();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('$e')));
+        // [Wave 6D error parsing] — typed envelope, severity-tinted snack.
+        showApiError(context, e);
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -566,15 +468,162 @@ class _ControlButtonsState extends ConsumerState<_ControlButtons> {
         ),
         const SizedBox(width: 8),
         Expanded(
-          child: NightshadeButton(
-            label: 'Stop',
-            icon: LucideIcons.square,
-            size: ButtonSize.large,
-            variant: ButtonVariant.destructive,
-            onPressed: (_busy || (!isRunning && !isPaused)) ? null : _stop,
+          child: _HoldToStopButton(
+            enabled: !_busy && (isRunning || isPaused),
+            onConfirmed: _stop,
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Wraps a destructive Stop button in a [HoldToConfirmButton] so a
+/// thumb-slip during a multi-hour overnight imaging session can't abort
+/// the run with a single tap. The user must hold for 1.5s; a circular
+/// progress ring tracks the hold.
+class _HoldToStopButton extends StatelessWidget {
+  final bool enabled;
+  final VoidCallback onConfirmed;
+
+  const _HoldToStopButton({
+    required this.enabled,
+    required this.onConfirmed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+
+    // Visual mirrors the destructive variant of NightshadeButton (filled
+    // error background, onError foreground, large size). Rendered as a
+    // passive Container so the HoldToConfirmButton GestureDetector has
+    // exclusive ownership of touch input — no inner onTap to race with
+    // the long-press recognizer.
+    final stopVisual = Container(
+      height: 44,
+      decoration: BoxDecoration(
+        color: enabled ? colors.error : colors.surfaceAlt,
+        borderRadius: NightshadeTokens.borderRadiusSm,
+        border: Border.all(
+          color: enabled ? colors.error : colors.border,
+        ),
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceLg + 2,
+        vertical: NightshadeTokens.spaceMd + 2,
+      ),
+      alignment: Alignment.center,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            LucideIcons.square,
+            size: NightshadeTokens.iconSm,
+            color: enabled
+                ? Theme.of(context).colorScheme.onError
+                : colors.textMuted,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm - 2),
+          Flexible(
+            child: Text(
+              'Stop',
+              style: NightshadeTypography.button.copyWith(
+                color: enabled
+                    ? Theme.of(context).colorScheme.onError
+                    : colors.textMuted,
+              ),
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return HoldToConfirmButton(
+      enabled: enabled,
+      onConfirmed: onConfirmed,
+      holdColor: Theme.of(context).colorScheme.onError,
+      confirmText: 'Hold to stop',
+      semanticsLabel: 'Press and hold to stop the sequence',
+      child: stopVisual,
+    );
+  }
+}
+
+/// Compact wrapper around [RunDashboardWeatherSafetyCard] for the mobile
+/// sequencer tab. The underlying card was sized for the desktop run
+/// dashboard column; on a phone we collapse it behind an [ExpansionTile]
+/// so it doesn't crowd the editor. The status pill still reads via the
+/// header label (Safe/Unsafe/Snoozed) because the card itself is the
+/// authority on that state — we only mirror the label here for the
+/// collapsed surface, the colour is rendered by the card on expand.
+class _WeatherSafetyExpansion extends ConsumerWidget {
+  const _WeatherSafetyExpansion();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final safety = ref.watch(weatherSafetyProvider);
+    final (label, tint, icon) = switch (safety.status) {
+      WeatherSafetyStatus.safe => ('Safe', colors.success, LucideIcons.check),
+      WeatherSafetyStatus.unsafe => (
+          'Unsafe',
+          colors.error,
+          LucideIcons.alertTriangle,
+        ),
+      WeatherSafetyStatus.snoozed => (
+          'Snoozed',
+          colors.warning,
+          LucideIcons.bellOff,
+        ),
+    };
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: Theme(
+        // Strip the default ExpansionTile divider so the header reads as
+        // part of the sticky header strip rather than a floating tile.
+        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+        child: ExpansionTile(
+          tilePadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 0),
+          childrenPadding:
+              const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          leading: Icon(LucideIcons.shield, size: 18, color: colors.primary),
+          title: Text(
+            'Weather safety',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 12, color: tint),
+              const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 11,
+                  color: tint,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              const SizedBox(width: 6),
+              Icon(LucideIcons.chevronDown,
+                  size: 16, color: colors.textSecondary),
+            ],
+          ),
+          children: const [RunDashboardWeatherSafetyCard()],
+        ),
+      ),
     );
   }
 }

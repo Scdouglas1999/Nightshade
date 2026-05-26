@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/import/canonical_sequence_node.dart';
 import 'package:nightshade_core/src/models/import/import_result.dart';
+import 'package:nightshade_core/src/providers/sequence/sequence_validation.dart';
 import 'package:nightshade_core/src/services/import/sequence_importer.dart';
 
 void main() {
@@ -133,6 +134,87 @@ void main() {
         ),
         throwsA(isA<MalformedSourceError>()),
       );
+    });
+
+    test(
+        'importFromString throws SequenceImportValidationFailedException '
+        'when validator reports ERROR-severity issues', () async {
+      final content =
+          await File('test/services/import/fixtures/nina_basic.json')
+              .readAsString();
+
+      // Stub validator returns one fake ERROR — confirms wiring without
+      // depending on which built-in rule the fixture would happen to fail.
+      final importer = SequenceImporter(
+        validateSequenceFn: (_) => const [
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Stubbed error',
+            description: 'Test-only',
+          ),
+        ],
+      );
+
+      expect(
+        () => importer.importFromString(
+          content,
+          forceUnsupported: false,
+          sequenceName: 'M31 run',
+        ),
+        throwsA(isA<SequenceImportValidationFailedException>()
+            .having((e) => e.errors, 'errors', hasLength(1))
+            .having((e) => e.parsed.sequence.nodes, 'parsed.nodes',
+                isNotEmpty)),
+      );
+    });
+
+    test(
+        'importFromString with forceImport=true bypasses the validation gate',
+        () async {
+      final content =
+          await File('test/services/import/fixtures/nina_basic.json')
+              .readAsString();
+
+      final importer = SequenceImporter(
+        validateSequenceFn: (_) => const [
+          ValidationIssue(
+            severity: ValidationSeverity.error,
+            category: ValidationCategory.structure,
+            title: 'Stubbed error',
+            description: 'Test-only',
+          ),
+        ],
+      );
+
+      // forceImport: true must not throw, AND must surface the issue list
+      // via ImportResult.validationIssues so the UI can show it.
+      final result = importer.importFromString(
+        content,
+        forceUnsupported: false,
+        forceImport: true,
+        sequenceName: 'M31 run',
+      );
+
+      expect(result.validationIssues, hasLength(1));
+      expect(result.hasValidationErrors, isTrue);
+      expect(result.sequence.nodes, isNotEmpty);
+    });
+
+    test('clean import attaches an empty validationIssues list', () async {
+      final content =
+          await File('test/services/import/fixtures/nina_basic.json')
+              .readAsString();
+      final importer = SequenceImporter(
+        validateSequenceFn: (_) => const [],
+      );
+      final result = importer.importFromString(
+        content,
+        forceUnsupported: false,
+        sequenceName: 'M31 run',
+      );
+      expect(result.validationIssues, isEmpty);
+      expect(result.hasValidationErrors, isFalse);
     });
   });
 }

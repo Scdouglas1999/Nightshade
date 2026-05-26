@@ -40,12 +40,20 @@ class TargetProgressService {
   ///
   /// Issues one query for the goals plus one aggregated capture query —
   /// fast even for targets with hundreds of frames.
+  ///
+  /// When [capturedImages] is supplied (remote companion path), aggregates
+  /// are derived from the host-backed image list instead of local SQLite.
   Future<TargetProgress> forTarget({
     required int targetId,
     required String targetName,
+    List<db.CapturedImage>? capturedImages,
   }) async {
     final goals = await _goalService.listForTarget(targetId);
-    final aggregates = await _captureAggregatesForTarget(targetId);
+    final aggregates = capturedImages != null
+        ? _captureAggregatesFromImageList(
+            capturedImages.where((i) => i.targetId == targetId).toList(),
+          )
+        : await _captureAggregatesForTarget(targetId);
     return _assemble(
       targetId: targetId,
       targetName: targetName,
@@ -59,11 +67,16 @@ class TargetProgressService {
   /// callers that need many should still prefer this entry point because
   /// the per-target queries run sequentially against the same connection.
   Future<Map<int, TargetProgress>> forTargets(
-    List<({int id, String name})> targets,
-  ) async {
+    List<({int id, String name})> targets, {
+    List<db.CapturedImage>? capturedImages,
+  }) async {
     final out = <int, TargetProgress>{};
     for (final t in targets) {
-      out[t.id] = await forTarget(targetId: t.id, targetName: t.name);
+      out[t.id] = await forTarget(
+        targetId: t.id,
+        targetName: t.name,
+        capturedImages: capturedImages,
+      );
     }
     return out;
   }
@@ -133,6 +146,51 @@ class TargetProgressService {
       avgFramesPerNight: avgFramesPerNight,
       estimatedNightsRemaining: eta,
       lastImagedAt: aggregates.lastImagedAt,
+    );
+  }
+
+  /// Build capture aggregates from an in-memory image list (host catalog).
+  _CaptureAggregates _captureAggregatesFromImageList(
+    List<db.CapturedImage> images,
+  ) {
+    final now = _now();
+    final windowStart = _nightStart(now).subtract(
+      const Duration(days: TargetProgress.etaWindowNights),
+    );
+
+    final framesByFilterLower = <String, int>{};
+    var totalCapturedAny = 0;
+    DateTime? lastImagedAt;
+    final distinctNights = <DateTime>{};
+    var windowFrameCount = 0;
+
+    for (final frame in images) {
+      if (frame.frameType.toLowerCase() != 'light') continue;
+      if (!frame.isAccepted) continue;
+
+      final filter = frame.filter;
+      if (filter == null || filter.isEmpty) continue;
+      final key = filter.toLowerCase();
+      framesByFilterLower[key] = (framesByFilterLower[key] ?? 0) + 1;
+      totalCapturedAny += 1;
+
+      final capturedAt = frame.capturedAt;
+      if (lastImagedAt == null || capturedAt.isAfter(lastImagedAt)) {
+        lastImagedAt = capturedAt;
+      }
+
+      if (!capturedAt.isBefore(windowStart)) {
+        windowFrameCount += 1;
+        distinctNights.add(_nightStart(capturedAt));
+      }
+    }
+
+    return _CaptureAggregates(
+      framesByFilterLower: framesByFilterLower,
+      totalCapturedAny: totalCapturedAny,
+      lastImagedAt: lastImagedAt,
+      windowFrameCount: windowFrameCount,
+      windowDistinctNights: distinctNights.length,
     );
   }
 

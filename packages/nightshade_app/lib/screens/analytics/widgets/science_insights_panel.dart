@@ -1,14 +1,30 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-class ScienceInsightsPanel extends StatelessWidget {
+/// Plain-language guidance for the current session.
+///
+/// All rules live in [ScienceInsightsEngine] so the same set drives the
+/// Analytics insights panel, the Imaging HUD, and any push notifications
+/// we wire up later. The widget itself only renders the result.
+class ScienceInsightsPanel extends ConsumerWidget {
   final NightshadeColors colors;
   final ScienceFrameQualityMetricsRow? frameMetrics;
   final FramePhotometricCalibrationRow? latestCalibration;
   final TransparencySampleRow? latestTransparency;
   final OpticalTrainDiagnostics? diagnostics;
   final EquipmentHealthReport? healthReport;
+
+  /// Number of calibrated frames in this session — used by the engine to
+  /// surface the "transparency unlocks after N more frames" hint.
+  final int calibratedFrameCount;
+
+  /// Processed and solved frame counts so the engine can surface plate-solve
+  /// guidance when the rate is low.
+  final int processedFrameCount;
+  final int solvedFrameCount;
 
   const ScienceInsightsPanel({
     super.key,
@@ -18,11 +34,32 @@ class ScienceInsightsPanel extends StatelessWidget {
     required this.latestTransparency,
     this.diagnostics,
     this.healthReport,
+    this.calibratedFrameCount = 0,
+    this.processedFrameCount = 0,
+    this.solvedFrameCount = 0,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final insights = _buildInsights();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final lastFailure = ref
+        .watch(scienceProcessingStatusProvider)
+        .valueOrNull
+        ?.lastFailure;
+
+    const engine = ScienceInsightsEngine();
+    final insights = engine.evaluate(
+      ScienceInsightsInputs(
+        latestFrameQuality: frameMetrics,
+        latestCalibration: latestCalibration,
+        latestTransparency: latestTransparency,
+        diagnostics: diagnostics,
+        healthReport: healthReport,
+        calibratedFrameCount: calibratedFrameCount,
+        processedFrameCount: processedFrameCount,
+        solvedFrameCount: solvedFrameCount,
+        lastFailure: lastFailure,
+      ),
+    );
 
     return NightshadeCard(
       child: Padding(
@@ -30,14 +67,31 @@ class ScienceInsightsPanel extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Insights',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontWeight: FontWeight.w700,
-              ),
+            Row(
+              children: [
+                Icon(LucideIcons.lightbulb,
+                    size: 14, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Insights',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const Spacer(),
+                if (insights.isNotEmpty)
+                  Text(
+                    '${insights.length}',
+                    style: TextStyle(
+                      color: colors.textMuted,
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+              ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             if (insights.isEmpty)
               Text(
                 'No actionable insights yet. Keep capturing frames.',
@@ -45,149 +99,93 @@ class ScienceInsightsPanel extends StatelessWidget {
               )
             else
               ...insights.map(
-                (insight) => Padding(
-                  padding: const EdgeInsets.only(bottom: 6),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 3),
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          color: insight.color,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          insight.message,
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 12,
-                            height: 1.32,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
+                (insight) => _InsightRow(insight: insight, colors: colors),
               ),
           ],
         ),
       ),
     );
   }
-
-  List<_Insight> _buildInsights() {
-    final output = <_Insight>[];
-    final fm = frameMetrics;
-    if (fm != null) {
-      if (fm.highClipPercent > 1.5) {
-        output.add(
-          const _Insight(
-            message:
-                'High clipping is elevated. Reduce exposure or gain to protect highlights.',
-            color: Color(0xFFEF4444),
-          ),
-        );
-      }
-      if (fm.lowClipPercent > 1.5) {
-        output.add(
-          const _Insight(
-            message:
-                'Shadow clipping is elevated. Consider longer exposure or less aggressive black point.',
-            color: Color(0xFF3B82F6),
-          ),
-        );
-      }
-      if (fm.uniformityCv > 0.28) {
-        output.add(
-          const _Insight(
-            message:
-                'Brightness uniformity is uneven. Check gradients, flats, and optical tilt.',
-            color: Color(0xFFF59E0B),
-          ),
-        );
-      }
-      if (fm.snr < 10) {
-        output.add(
-          const _Insight(
-            message:
-                'Frame SNR is low. Stack more frames or increase exposure length.',
-            color: Color(0xFF22C55E),
-          ),
-        );
-      }
-    }
-
-    final transparency = latestTransparency;
-    if (transparency != null && transparency.transparencyPercent < 75) {
-      output.add(
-        _Insight(
-          message:
-              'Sky transparency is ${transparency.transparencyPercent.toStringAsFixed(1)}%. Quality frames may vary; prioritize best windows.',
-          color: const Color(0xFF06B6D4),
-        ),
-      );
-    }
-
-    final calibration = latestCalibration;
-    if (calibration != null &&
-        calibration.isCalibrated &&
-        calibration.calibrationRms > 0.2) {
-      output.add(
-        _Insight(
-          message:
-              'Photometric fit RMS is ${calibration.calibrationRms.toStringAsFixed(2)}. Verify focus and plate-solve inputs.',
-          color: const Color(0xFFA855F7),
-        ),
-      );
-    }
-
-    final opticalDiagnostics = diagnostics;
-    if (opticalDiagnostics != null) {
-      for (final issue in opticalDiagnostics.issues.take(2)) {
-        output.add(
-          _Insight(
-            message: '${issue.title}: ${issue.detail}',
-            color: switch (issue.severity) {
-              OpticalIssueSeverity.info => const Color(0xFF10B981),
-              OpticalIssueSeverity.warning => const Color(0xFFF59E0B),
-              OpticalIssueSeverity.critical => const Color(0xFFEF4444),
-            },
-          ),
-        );
-      }
-    }
-
-    final equipmentHealth = healthReport;
-    if (equipmentHealth != null) {
-      for (final insight in equipmentHealth.insights.take(2)) {
-        output.add(
-          _Insight(
-            message: '${insight.title}: ${insight.message}',
-            color: switch (insight.severity) {
-              EquipmentHealthSeverity.info => const Color(0xFF10B981),
-              EquipmentHealthSeverity.warning => const Color(0xFFF59E0B),
-              EquipmentHealthSeverity.critical => const Color(0xFFEF4444),
-            },
-          ),
-        );
-      }
-    }
-
-    return output;
-  }
 }
 
-class _Insight {
-  final String message;
-  final Color color;
+class _InsightRow extends StatelessWidget {
+  final ScienceInsight insight;
+  final NightshadeColors colors;
 
-  const _Insight({
-    required this.message,
-    required this.color,
-  });
+  const _InsightRow({required this.insight, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final accent = _colorFor(insight.severity, colors);
+    final icon = _iconFor(insight.severity);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 1),
+            child: Icon(icon, size: 14, color: accent),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  insight.headline,
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    height: 1.3,
+                  ),
+                ),
+                if (insight.body != null && insight.body!.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(
+                      insight.body!,
+                      style: TextStyle(
+                        color: colors.textSecondary,
+                        fontSize: 11,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  static Color _colorFor(ScienceInsightSeverity s, NightshadeColors c) {
+    switch (s) {
+      case ScienceInsightSeverity.success:
+        return c.success;
+      case ScienceInsightSeverity.info:
+        return c.info;
+      case ScienceInsightSeverity.warning:
+        return c.warning;
+      case ScienceInsightSeverity.error:
+        return c.error;
+    }
+  }
+
+  static IconData _iconFor(ScienceInsightSeverity s) {
+    switch (s) {
+      case ScienceInsightSeverity.success:
+        return LucideIcons.checkCircle;
+      case ScienceInsightSeverity.info:
+        return LucideIcons.info;
+      case ScienceInsightSeverity.warning:
+        return LucideIcons.alertTriangle;
+      case ScienceInsightSeverity.error:
+        return LucideIcons.alertOctagon;
+    }
+  }
 }

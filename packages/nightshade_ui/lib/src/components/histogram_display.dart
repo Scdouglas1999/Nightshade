@@ -1,6 +1,13 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
+
+/// Standard RGB channel colors for histogram visualization.
+const _histogramRed = Color(0xFFE05050);
+const _histogramGreen = Color(0xFF50C878);
+const _histogramBlue = Color(0xFF5080E0);
 
 /// A histogram display widget for showing image brightness distribution
 class HistogramDisplay extends StatefulWidget {
@@ -76,10 +83,8 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>();
-    final colorScheme = theme.colorScheme;
-    final primaryColor = colors?.primary ?? colorScheme.primary;
+    final colors = context.nightshadeColors;
+    final primaryColor = colors.primary;
 
     final effectiveHistogram = widget.histogram;
     final hasData = effectiveHistogram != null && effectiveHistogram.isNotEmpty;
@@ -92,8 +97,7 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
           if (widget.showGrid && hasData)
             CustomPaint(
               painter: _GridPainter(
-                gridColor: (colors?.border ?? colorScheme.outlineVariant)
-                    .withValues(alpha: 0.3),
+                gridColor: colors.border.withValues(alpha: 0.3),
               ),
               size: Size.infinite,
             ),
@@ -116,7 +120,7 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
                       color: widget.barColor ?? primaryColor,
                       logarithmic: _isLogarithmic,
                       showClipping: widget.showClipping,
-                      clippingColor: colors?.error ?? colorScheme.error,
+                      clippingColor: colors.error,
                     ),
                     size: Size.infinite,
                   )
@@ -124,9 +128,8 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
             Center(
               child: Text(
                 'No data',
-                style: TextStyle(
-                  fontSize: 10,
-                  color: colors?.textMuted ?? colorScheme.onSurfaceVariant,
+                style: NightshadeTypography.captionSm.copyWith(
+                  color: colors.textMuted,
                 ),
               ),
             ),
@@ -144,18 +147,24 @@ class _HistogramDisplayState extends State<HistogramDisplay> {
                   widget.onLogToggled?.call(_isLogarithmic);
                 },
                 child: Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: NightshadeTokens.spaceXs,
+                    vertical: NightshadeTokens.spaceXs - 2,
+                  ),
                   decoration: BoxDecoration(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    borderRadius: BorderRadius.circular(3),
+                    color: colors.surfaceOverlay.withValues(alpha: 0.92),
+                    borderRadius: NightshadeTokens.borderRadiusXs,
+                    border: Border.all(
+                      color: colors.border.withValues(alpha: 0.5),
+                    ),
                   ),
                   child: Text(
                     _isLogarithmic ? 'LOG' : 'LIN',
-                    style: TextStyle(
+                    style: NightshadeTypography.overline.copyWith(
                       fontSize: 8,
-                      fontWeight: FontWeight.bold,
-                      color: _isLogarithmic ? primaryColor : Colors.white70,
+                      color: _isLogarithmic
+                          ? primaryColor
+                          : colors.textSecondary,
                     ),
                   ),
                 ),
@@ -298,12 +307,12 @@ class _RgbHistogramPainter extends CustomPainter {
     final barWidth = size.width / bins;
 
     // Draw each channel with additive blending
-    _drawChannel(canvas, size, redHistogram, Colors.red.withValues(alpha: 0.5),
+    _drawChannel(canvas, size, redHistogram, _histogramRed.withValues(alpha: 0.5),
         barWidth, maxVal);
     _drawChannel(canvas, size, greenHistogram,
-        Colors.green.withValues(alpha: 0.5), barWidth, maxVal);
+        _histogramGreen.withValues(alpha: 0.5), barWidth, maxVal);
     _drawChannel(canvas, size, blueHistogram,
-        Colors.blue.withValues(alpha: 0.5), barWidth, maxVal);
+        _histogramBlue.withValues(alpha: 0.5), barWidth, maxVal);
   }
 
   void _drawChannel(Canvas canvas, Size size, List<int> histogram, Color color,
@@ -365,17 +374,18 @@ class CompactHistogramDisplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>();
+    final colors = context.nightshadeColors;
+    final overlayBackground = colors.surfaceOverlay;
+    final overlayBorder = colors.border;
 
     return Container(
       width: width,
       height: height + (title != null ? 20 : 0),
-      padding: const EdgeInsets.all(8),
+      padding: NightshadeTokens.paddingSm,
       decoration: BoxDecoration(
-        color: Colors.black.withValues(alpha: 0.7),
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.white.withValues(alpha: 0.1)),
+        color: overlayBackground.withValues(alpha: 0.92),
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        border: Border.all(color: overlayBorder.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -383,13 +393,11 @@ class CompactHistogramDisplay extends StatelessWidget {
           if (title != null) ...[
             Text(
               title!,
-              style: TextStyle(
-                fontSize: 10,
-                fontWeight: FontWeight.w500,
-                color: colors?.textMuted ?? theme.colorScheme.onSurfaceVariant,
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: NightshadeTokens.spaceXs),
           ],
           Expanded(
             child: HistogramDisplay(

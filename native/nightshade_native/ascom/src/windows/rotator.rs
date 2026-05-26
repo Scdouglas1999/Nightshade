@@ -23,6 +23,19 @@ impl AscomRotator {
         self.device.disconnect()
     }
 
+    /// Query the underlying ASCOM driver for its current `Connected` state.
+    ///
+    /// Used by capability probes that must NOT kick an active UI connection:
+    /// if the driver reports `Ok(true)`, the probe reuses the connection
+    /// instead of opening/closing its own session.
+    pub fn is_connected(&self) -> Result<bool, String> {
+        self.device.is_connected()
+    }
+
+    pub fn name(&self) -> Result<String, String> {
+        self.device.get_string_property("Name")
+    }
+
     /// Get the interface version number
     pub fn interface_version(&self) -> Result<i32, String> {
         self.device.get_int_property("InterfaceVersion")
@@ -55,6 +68,31 @@ impl AscomRotator {
         self.device.get_bool_property("IsMoving")
     }
 
+    /// Whether the rotator can reverse direction (IRotatorV3 `CanReverse`).
+    pub fn can_reverse(&self) -> Result<bool, String> {
+        self.device.get_bool_property("CanReverse")
+    }
+
+    /// Current reverse setting (IRotatorV3 `Reverse`).
+    pub fn reverse(&self) -> Result<bool, String> {
+        self.device.get_bool_property("Reverse")
+    }
+
+    /// Set reverse direction (IRotatorV3 `Reverse` write).
+    pub fn set_reverse(&mut self, reverse: bool) -> Result<(), String> {
+        self.device.set_bool_property("Reverse", reverse)
+    }
+
+    /// Target position in degrees (IRotatorV3 `TargetPosition`).
+    pub fn target_position(&self) -> Result<f64, String> {
+        self.device.get_double_property("TargetPosition")
+    }
+
+    /// Minimum step size in degrees (IRotatorV3 `StepSize`).
+    pub fn step_size(&self) -> Result<f64, String> {
+        self.device.get_double_property("StepSize")
+    }
+
     pub fn move_to(&mut self, position: f64) -> Result<(), String> {
         self.device.call_method_1_double("Move", position)
     }
@@ -83,9 +121,14 @@ impl AscomRotator {
     /// Get complete rotator status in a single batch operation
     pub fn get_full_status(&self) -> RotatorFullStatus {
         RotatorFullStatus {
+            name: self.name().ok(),
             position: self.position().ok(),
             mechanical_position: self.mechanical_position().ok(),
+            target_position: self.target_position().ok(),
+            step_size: self.step_size().ok(),
             is_moving: self.is_moving().ok(),
+            can_reverse: self.can_reverse().ok(),
+            reverse: self.reverse().ok(),
         }
     }
 
@@ -103,7 +146,37 @@ impl AscomRotator {
 /// Full rotator status
 #[derive(Debug, Clone, Default)]
 pub struct RotatorFullStatus {
+    pub name: Option<String>,
     pub position: Option<f64>,
     pub mechanical_position: Option<f64>,
+    pub target_position: Option<f64>,
+    pub step_size: Option<f64>,
     pub is_moving: Option<bool>,
+    pub can_reverse: Option<bool>,
+    pub reverse: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::RotatorFullStatus;
+
+    #[test]
+    fn full_status_includes_v3_fields() {
+        let status = RotatorFullStatus {
+            name: Some("Field Rotator".into()),
+            position: Some(45.0),
+            mechanical_position: Some(44.5),
+            target_position: Some(90.0),
+            step_size: Some(0.1),
+            is_moving: Some(true),
+            can_reverse: Some(true),
+            reverse: Some(false),
+        };
+
+        assert_eq!(status.name.as_deref(), Some("Field Rotator"));
+        assert_eq!(status.target_position, Some(90.0));
+        assert_eq!(status.step_size, Some(0.1));
+        assert_eq!(status.can_reverse, Some(true));
+        assert_eq!(status.reverse, Some(false));
+    }
 }

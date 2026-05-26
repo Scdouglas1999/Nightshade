@@ -190,7 +190,8 @@ docs/               # Documentation
 
 **State Management**: Riverpod providers throughout. Provider hierarchy:
 - Backend provider (FfiBackend for local Rust, NetworkBackend for remote, DisconnectedBackend for offline)
-- Database provider (Drift SQLite instance, schema version 14)
+- Database provider (Drift SQLite instance, schema version 36; keep this in
+  sync with `NightshadeDatabase.schemaVersion`)
 - Equipment/Imaging/Sequence/Settings providers (35+ provider files)
 - Session management with checkpoint recovery
 

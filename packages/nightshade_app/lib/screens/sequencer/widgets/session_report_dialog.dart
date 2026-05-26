@@ -10,6 +10,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 
+import 'notes_panel.dart';
+
 /// Rich end-of-session report dialog (Feature A).
 ///
 /// Opens automatically after a sequence run completes (or aborts / errors)
@@ -33,7 +35,7 @@ class SessionReportDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final reportAsync = ref.watch(sessionReportProvider(sessionId));
 
     return Dialog(
@@ -43,7 +45,11 @@ class SessionReportDialog extends ConsumerWidget {
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 720, maxHeight: 760),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 720,
+          designMaxHeight: 760,
+        ),
         child: reportAsync.when(
           data: (report) => _ReportBody(report: report, colors: colors),
           loading: () => SizedBox(
@@ -57,8 +63,7 @@ class SessionReportDialog extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(LucideIcons.alertTriangle,
-                    size: 32, color: colors.error),
+                Icon(LucideIcons.alertTriangle, size: 32, color: colors.error),
                 const SizedBox(height: 12),
                 Text(
                   'Could not build session report',
@@ -137,9 +142,7 @@ class _ReportBody extends ConsumerWidget {
                 ],
                 const SizedBox(height: 20),
                 _SectionTitle(
-                    title: 'Targets',
-                    icon: LucideIcons.target,
-                    colors: colors),
+                    title: 'Targets', icon: LucideIcons.target, colors: colors),
                 if (report.targets.isEmpty)
                   _muted('No accepted light frames recorded.'),
                 for (final target in report.targets) ...[
@@ -169,18 +172,190 @@ class _ReportBody extends ConsumerWidget {
                       titleColor: colors.warning),
                   ..._buildWarningList(),
                 ],
+                // Wave 4 Recovery Mode — list every recovery loop that
+                // fired during the run with its cause, attempt count,
+                // duration, and outcome. Pulled from the
+                // `recoveryHistoryProvider` populated in real time by
+                // `recoveryEventBridgeProvider`.
+                Consumer(builder: (context, ref, _) {
+                  final recoveries = ref.watch(recoveryHistoryProvider);
+                  if (recoveries.isEmpty) return const SizedBox.shrink();
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      _SectionTitle(
+                          title: 'Recoveries',
+                          icon: LucideIcons.rotateCw,
+                          colors: colors,
+                          titleColor: colors.error),
+                      for (final entry in recoveries) ...[
+                        _RecoveryHistoryTile(entry: entry, colors: colors),
+                        const SizedBox(height: 4),
+                      ],
+                    ],
+                  );
+                }),
+                // Wave 5 Agent 3 — Diagnostics section. Rendered last,
+                // after warnings + recoveries. Combines the
+                // optical-train drift comparison (pre/post snapshot)
+                // with the equipment-health summary (USB disconnects,
+                // cooler stability, focuser moves, sky brightness,
+                // noticed concerns).
+                Consumer(builder: (context, ref, _) {
+                  final settingsAsync = ref.watch(appSettingsProvider);
+                  final settings = settingsAsync.valueOrNull;
+                  if (settings == null) return const SizedBox.shrink();
+
+                  final baseline = ref.watch(opticalTrainBaselineProvider);
+                  final current =
+                      ref.watch(opticalTrainCurrentSnapshotProvider);
+                  final healthSummary = ref.watch(
+                      postSessionHealthSummaryProvider(report.sessionId));
+
+                  // Synthesize an OpticalTrainDiagnostics from the
+                  // current snapshot so the helper can compute drift.
+                  // We only have score values in the snapshot; the
+                  // helper treats absent issues as benign.
+                  OpticalTrainDiagnostics? currentDiag;
+                  if (current != null) {
+                    currentDiag = OpticalTrainDiagnostics(
+                      tiltScore: current.tiltScore,
+                      collimationScore: current.collimationScore,
+                      dominantTiltDirection: 'unknown',
+                      issues: const [],
+                    );
+                  }
+
+                  final diagnostics = PostSessionDiagnostics.build(
+                    preSession: baseline,
+                    postSession: currentDiag,
+                    healthSummary: healthSummary,
+                    opticalTrainDriftThreshold:
+                        settings.opticalTrainDriftThreshold,
+                  );
+
+                  if (diagnostics.isEmpty) return const SizedBox.shrink();
+
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const SizedBox(height: 20),
+                      _SectionTitle(
+                          title: 'Diagnostics',
+                          icon: LucideIcons.stethoscope,
+                          colors: colors,
+                          titleColor: colors.primary),
+                      for (final issue in diagnostics.all) ...[
+                        _DiagnosticIssueTile(
+                          issue: issue,
+                          colors: colors,
+                        ),
+                        const SizedBox(height: 6),
+                      ],
+                    ],
+                  );
+                }),
+                // Wave 7 — Post-session retrospective insights. Renders
+                // after Diagnostics so the operator sees raw observations
+                // first, then "what to change next time" last. Each insight
+                // exposes Apply (when actionable) + Dismiss + sticky
+                // "Don't suggest this again".
+                Consumer(builder: (context, ref, _) {
+                  final insightsAsync =
+                      ref.watch(sessionInsightsProvider(report.sessionId));
+                  return insightsAsync.maybeWhen(
+                    data: (insights) {
+                      if (insights.isEmpty) return const SizedBox.shrink();
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 20),
+                          _SectionTitle(
+                            title: 'Suggestions',
+                            icon: LucideIcons.lightbulb,
+                            colors: colors,
+                            titleColor: colors.primary,
+                          ),
+                          for (final insight in insights) ...[
+                            _SessionInsightTile(
+                              insight: insight,
+                              colors: colors,
+                            ),
+                            const SizedBox(height: 6),
+                          ],
+                        ],
+                      );
+                    },
+                    orElse: () => const SizedBox.shrink(),
+                  );
+                }),
                 if (report.notes != null && report.notes!.isNotEmpty) ...[
                   const SizedBox(height: 20),
                   _SectionTitle(
-                      title: 'Notes',
+                      title: 'Session Notes',
                       icon: LucideIcons.fileText,
                       colors: colors),
                   Text(
                     report.notes!,
-                    style:
-                        TextStyle(fontSize: 13, color: colors.textSecondary),
+                    style: TextStyle(fontSize: 13, color: colors.textSecondary),
                   ),
                 ],
+                // Wave 6 Agent 5 — Journal notes attached to either
+                // this session's run or its primary target. Renders
+                // the same `_NoteTile` rows the History tab and
+                // target card use, so an edit propagates everywhere.
+                Consumer(builder: (context, ref, _) {
+                  final runId = ref.watch(currentRunIdProvider);
+                  // Prefer run-scoped notes when we have a run id; fall
+                  // back to per-target notes via the first target in the
+                  // report (most common: a sequence images one target
+                  // per session).
+                  if (runId != null) {
+                    final primaryTarget = report.targets.isNotEmpty
+                        ? report.targets.first.targetName
+                        : (report.sessionName);
+                    return Padding(
+                      padding: const EdgeInsets.only(top: 20),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          _SectionTitle(
+                            title: 'Journal',
+                            icon: LucideIcons.bookOpen,
+                            colors: colors,
+                          ),
+                          RunNotesSection(
+                            sequenceRunId: runId,
+                            targetId: primaryTarget,
+                            colors: colors,
+                            embedded: true,
+                          ),
+                        ],
+                      ),
+                    );
+                  }
+                  if (report.targets.isEmpty) return const SizedBox.shrink();
+                  final primaryTarget = report.targets.first.targetName;
+                  return Padding(
+                    padding: const EdgeInsets.only(top: 20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _SectionTitle(
+                          title: 'Journal',
+                          icon: LucideIcons.bookOpen,
+                          colors: colors,
+                        ),
+                        TargetNotesSection(
+                          targetId: primaryTarget,
+                          colors: colors,
+                          embedded: true,
+                        ),
+                      ],
+                    ),
+                  );
+                }),
               ],
             ),
           ),
@@ -278,8 +453,10 @@ class _ReportBody extends ConsumerWidget {
           .replaceAll(':', '-')
           .split('.')
           .first;
-      final safeName = report.sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
-      final file = File(p.join(dir.path, '${safeName}_${report.sessionId}_$ts.txt'));
+      final safeName =
+          report.sessionName.replaceAll(RegExp(r'[^A-Za-z0-9_-]'), '_');
+      final file =
+          File(p.join(dir.path, '${safeName}_${report.sessionId}_$ts.txt'));
       await file.writeAsString(text);
       if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -337,14 +514,12 @@ class _Header extends StatelessWidget {
                 ),
                 Text(
                   '${report.sessionName} - ${report.status}',
-                  style:
-                      TextStyle(fontSize: 13, color: colors.textMuted),
+                  style: TextStyle(fontSize: 13, color: colors.textMuted),
                 ),
                 if (report.endTime != null)
                   Text(
                     '${dateFormat.format(report.startTime)} - ${dateFormat.format(report.endTime!)}',
-                    style:
-                        TextStyle(fontSize: 11, color: colors.textMuted),
+                    style: TextStyle(fontSize: 11, color: colors.textMuted),
                   ),
               ],
             ),
@@ -414,16 +589,14 @@ class _OverviewGrid extends StatelessWidget {
         ),
         _OverviewTile(
           label: 'Frames accepted',
-          value:
-              '${report.totalFramesAccepted}/${report.totalFramesAttempted}',
+          value: '${report.totalFramesAccepted}/${report.totalFramesAttempted}',
           colors: colors,
         ),
         _OverviewTile(
           label: 'Frames rejected',
           value: report.totalFramesRejected.toString(),
           colors: colors,
-          valueColor:
-              report.totalFramesRejected > 0 ? colors.warning : null,
+          valueColor: report.totalFramesRejected > 0 ? colors.warning : null,
         ),
       ],
     );
@@ -524,10 +697,20 @@ class _MountStatsRow extends StatelessWidget {
       spacing: 16,
       runSpacing: 6,
       children: [
-        _StatChip(label: 'Autofocus runs', value: '${mount.autofocusRuns}', colors: colors),
-        _StatChip(label: 'Meridian flips', value: '${mount.meridianFlips}', colors: colors),
-        _StatChip(label: 'Dithers', value: '${mount.ditherCount}', colors: colors),
-        _StatChip(label: 'Trigger fires', value: '${mount.triggerFires}', colors: colors),
+        _StatChip(
+            label: 'Autofocus runs',
+            value: '${mount.autofocusRuns}',
+            colors: colors),
+        _StatChip(
+            label: 'Meridian flips',
+            value: '${mount.meridianFlips}',
+            colors: colors),
+        _StatChip(
+            label: 'Dithers', value: '${mount.ditherCount}', colors: colors),
+        _StatChip(
+            label: 'Trigger fires',
+            value: '${mount.triggerFires}',
+            colors: colors),
       ],
     );
   }
@@ -539,8 +722,7 @@ class _GuideStatsBlock extends StatelessWidget {
 
   const _GuideStatsBlock({required this.report, required this.colors});
 
-  String _arcsec(double? v) =>
-      v == null ? '-' : '${v.toStringAsFixed(2)}"';
+  String _arcsec(double? v) => v == null ? '-' : '${v.toStringAsFixed(2)}"';
 
   @override
   Widget build(BuildContext context) {
@@ -551,19 +733,37 @@ class _GuideStatsBlock extends StatelessWidget {
         style: TextStyle(fontSize: 13, color: colors.textMuted),
       );
     }
-    final unguidedPct =
-        (gs.percentUnguidedFrames * 100).toStringAsFixed(1);
+    final unguidedPct = (gs.percentUnguidedFrames * 100).toStringAsFixed(1);
     return Wrap(
       spacing: 16,
       runSpacing: 6,
       children: [
-        _StatChip(label: 'Mean RA RMS', value: _arcsec(gs.meanRmsRaArcsec), colors: colors),
-        _StatChip(label: 'Mean Dec RMS', value: _arcsec(gs.meanRmsDecArcsec), colors: colors),
-        _StatChip(label: 'Mean total RMS', value: _arcsec(gs.meanRmsTotalArcsec), colors: colors),
-        _StatChip(label: 'Max RA RMS', value: _arcsec(gs.maxRmsRaArcsec), colors: colors),
-        _StatChip(label: 'Max Dec RMS', value: _arcsec(gs.maxRmsDecArcsec), colors: colors),
-        _StatChip(label: 'Max total RMS', value: _arcsec(gs.maxRmsTotalArcsec), colors: colors),
-        _StatChip(label: 'Unguided frames', value: '$unguidedPct%', colors: colors),
+        _StatChip(
+            label: 'Mean RA RMS',
+            value: _arcsec(gs.meanRmsRaArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Mean Dec RMS',
+            value: _arcsec(gs.meanRmsDecArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Mean total RMS',
+            value: _arcsec(gs.meanRmsTotalArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Max RA RMS',
+            value: _arcsec(gs.maxRmsRaArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Max Dec RMS',
+            value: _arcsec(gs.maxRmsDecArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Max total RMS',
+            value: _arcsec(gs.maxRmsTotalArcsec),
+            colors: colors),
+        _StatChip(
+            label: 'Unguided frames', value: '$unguidedPct%', colors: colors),
       ],
     );
   }
@@ -694,8 +894,7 @@ class _TargetBlock extends StatelessWidget {
                     _bodyCell('${f.framesAccepted}'),
                     _bodyCell(
                       '${f.framesRejected}',
-                      color:
-                          f.framesRejected > 0 ? colors.warning : null,
+                      color: f.framesRejected > 0 ? colors.warning : null,
                     ),
                     _bodyCell(_formatDuration(f.totalIntegrationSecs)),
                     _bodyCell(_formatDouble(f.meanHfr, 2)),
@@ -736,8 +935,7 @@ class _TargetBlock extends StatelessWidget {
         ),
       );
 
-  Widget _bodyCell(String value, {bool bold = false, Color? color}) =>
-      Padding(
+  Widget _bodyCell(String value, {bool bold = false, Color? color}) => Padding(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
         child: Text(
           value,
@@ -785,6 +983,443 @@ class _StatChip extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wave 4 Recovery Mode — single-row tile rendering a completed recovery
+/// loop in the post-session report. Shows cause, attempt count, duration,
+/// outcome (recovered / exhausted / aborted) and the final error message
+/// (truncated).
+class _RecoveryHistoryTile extends StatelessWidget {
+  final RecoveryHistoryEntry entry;
+  final NightshadeColors colors;
+
+  const _RecoveryHistoryTile({required this.entry, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final outcomeColor = entry.recovered
+        ? colors.success
+        : (entry.abortedByUser ? colors.warning : colors.error);
+    final outcomeLabel = entry.recovered
+        ? 'recovered'
+        : (entry.abortedByUser ? 'aborted by operator' : 'exhausted');
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: NightshadeDecorations.iconChip(
+        outcomeColor,
+        borderRadius: BorderRadius.circular(6),
+        borderAlpha: 0.35,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  entry.cause.displayLabel,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              Text(
+                outcomeLabel,
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  color: outcomeColor,
+                  letterSpacing: 0.4,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '${entry.attempts} attempt${entry.attempts == 1 ? '' : 's'} · '
+            '${_formatDuration(entry.durationSecs)}',
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textSecondary,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
+          ),
+          if (entry.lastError != null && entry.lastError!.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              entry.lastError!,
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.textMuted,
+                fontStyle: FontStyle.italic,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(double secs) {
+    if (secs < 60) return '${secs.toStringAsFixed(0)}s';
+    final mins = (secs / 60).floor();
+    final rem = (secs - mins * 60).round();
+    if (rem == 0) return '${mins}m';
+    return '${mins}m ${rem}s';
+  }
+}
+
+/// Wave 7 — render one post-session [SessionInsight] inside the
+/// Suggestions section. Includes:
+///   * Title + confidence badge.
+///   * Optional body / recommendation (collapsed by default; tap to
+///     expand — same affordance as the diagnostic tile).
+///   * "Apply" button when the insight has an `applyHint` (e.g. an
+///     `altitudeAboveDeg` value that pre-fills the target editor).
+///   * "Dismiss" + "Don't suggest this again" (sticky via
+///     [dismissedSessionInsightsProvider]).
+class _SessionInsightTile extends ConsumerStatefulWidget {
+  final SessionInsight insight;
+  final NightshadeColors colors;
+
+  const _SessionInsightTile({
+    required this.insight,
+    required this.colors,
+  });
+
+  @override
+  ConsumerState<_SessionInsightTile> createState() =>
+      _SessionInsightTileState();
+}
+
+class _SessionInsightTileState extends ConsumerState<_SessionInsightTile> {
+  bool _expanded = false;
+  bool _dismissed = false;
+
+  IconData _iconForKind(SessionInsightKind kind) {
+    switch (kind) {
+      case SessionInsightKind.altitudeWindow:
+        return LucideIcons.arrowUpRight;
+      case SessionInsightKind.autofocusFrequency:
+        return LucideIcons.focus;
+      case SessionInsightKind.filterChangeOverhead:
+        return LucideIcons.filter;
+      case SessionInsightKind.rejectionRate:
+        return LucideIcons.xCircle;
+      case SessionInsightKind.guidingDegraded:
+        return LucideIcons.activity;
+      case SessionInsightKind.efficiencyLow:
+        return LucideIcons.timer;
+      case SessionInsightKind.informational:
+        return LucideIcons.info;
+    }
+  }
+
+  Color _confidenceColor(double confidence, NightshadeColors c) {
+    if (confidence >= 0.75) return c.error;
+    if (confidence >= 0.5) return c.warning;
+    return c.info;
+  }
+
+  /// Apply the insight's `applyHint` payload. Today we only support
+  /// the `altitudeAboveDeg` hint (jump to the target editor with the
+  /// suggested `startWhen` crossing). Future hint types would land
+  /// in this switch.
+  Future<void> _onApply() async {
+    final hint = widget.insight.applyHint;
+    if (hint == null) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    if (hint.containsKey('altitudeAboveDeg')) {
+      final value = (hint['altitudeAboveDeg'] as num?)?.toDouble();
+      if (value == null) return;
+      // Pre-fill the editor by mutating the live in-editor sequence:
+      // find the target by id (when supplied) and update its
+      // startWhen. The editor is the active surface when the user
+      // closes the report — so the change is visible immediately.
+      final notifier = ref.read(currentSequenceProvider.notifier);
+      final sequence = ref.read(currentSequenceProvider);
+      if (sequence == null) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('No sequence is open to apply the suggestion to.'),
+          ),
+        );
+        return;
+      }
+      final targetId = widget.insight.targetId;
+      TargetHeaderNode? match;
+      for (final h in sequence.targetHeaders) {
+        // The targetId in the optimizer maps to the Drift targets row;
+        // for now we match by display name (`targetName`) when present.
+        // The Drift id is not stored on the in-editor node tree so
+        // name-matching is the canonical join key.
+        if (targetId != null && h.targetName.isNotEmpty) {
+          match = h;
+          break;
+        }
+      }
+      if (match == null && sequence.targetHeaders.isNotEmpty) {
+        match = sequence.targetHeaders.first;
+      }
+      if (match == null) {
+        messenger?.showSnackBar(
+          const SnackBar(
+            content: Text('No target header to apply altitude to.'),
+          ),
+        );
+        return;
+      }
+      notifier.updateNode(match.copyWith(
+        startWhen: AltitudeAboveTrigger(value),
+      ));
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            'Applied: ${match.targetName} starts at '
+            '${value.toStringAsFixed(0)}° altitude.',
+          ),
+        ),
+      );
+      return;
+    }
+    if (hint.containsKey('autofocusInterval')) {
+      // Route to settings screen so the user can adjust the value
+      // there; we don't auto-mutate global settings from a single
+      // insight click.
+      messenger?.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Open Settings → Autofocus to relax the trigger interval.',
+          ),
+        ),
+      );
+      return;
+    }
+  }
+
+  Future<void> _onDismiss({required bool sticky}) async {
+    setState(() => _dismissed = true);
+    if (sticky) {
+      await ref
+          .read(dismissedSessionInsightsProvider.notifier)
+          .dismiss(widget.insight.id);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_dismissed) return const SizedBox.shrink();
+    final c = widget.colors;
+    final conf = widget.insight.confidence;
+    final confColor = _confidenceColor(conf, c);
+    final hasBody =
+        (widget.insight.body != null && widget.insight.body!.isNotEmpty) ||
+            (widget.insight.recommendation != null &&
+                widget.insight.recommendation!.isNotEmpty);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: c.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: confColor.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(_iconForKind(widget.insight.kind),
+                  size: 14, color: confColor),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  widget.insight.title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: c.textPrimary,
+                  ),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                decoration: NightshadeDecorations.statusChip(
+                  confColor,
+                  borderRadius: BorderRadius.circular(4),
+                  bordered: false,
+                ),
+                child: Text(
+                  '${(conf * 100).round()}%',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: confColor,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (hasBody) ...[
+            const SizedBox(height: 4),
+            InkWell(
+              onTap: () => setState(() => _expanded = !_expanded),
+              child: Row(
+                children: [
+                  Text(
+                    _expanded ? 'Hide details' : 'Show details',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: c.textMuted,
+                      decoration: TextDecoration.underline,
+                    ),
+                  ),
+                  Icon(
+                    _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
+                    size: 12,
+                    color: c.textMuted,
+                  ),
+                ],
+              ),
+            ),
+            if (_expanded) ...[
+              if (widget.insight.body != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.insight.body!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: c.textSecondary,
+                  ),
+                ),
+              ],
+              if (widget.insight.recommendation != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  widget.insight.recommendation!,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: c.primary,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ],
+            ],
+          ],
+          const SizedBox(height: 6),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              if (widget.insight.isActionable)
+                TextButton(
+                  onPressed: _onApply,
+                  child: Text(
+                    'Apply',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: c.primary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              TextButton(
+                onPressed: () => _onDismiss(sticky: false),
+                child: Text(
+                  'Dismiss',
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
+              ),
+              TextButton(
+                onPressed: () => _onDismiss(sticky: true),
+                child: Text(
+                  "Don't suggest again",
+                  style: TextStyle(fontSize: 11, color: c.textMuted),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Wave 5 Agent 3 — single diagnostic line in the session report's
+/// Diagnostics section. Mirrors the look of `_PreflightSection`'s
+/// issue rows but with the lighter post-session tone (everything is
+/// info-severity).
+class _DiagnosticIssueTile extends StatelessWidget {
+  final ValidationIssue issue;
+  final NightshadeColors colors;
+
+  const _DiagnosticIssueTile({
+    required this.issue,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final iconColor = issue.category == ValidationCategory.opticalTrain
+        ? colors.primary
+        : colors.info;
+    final icon = issue.category == ValidationCategory.opticalTrain
+        ? LucideIcons.crosshair
+        : LucideIcons.activity;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 12, color: iconColor),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  issue.title,
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  issue.description,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+                if (issue.resolutionHint != null) ...[
+                  const SizedBox(height: 4),
+                  Text(
+                    issue.resolutionHint!,
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: colors.primary,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ],
+              ],
             ),
           ),
         ],

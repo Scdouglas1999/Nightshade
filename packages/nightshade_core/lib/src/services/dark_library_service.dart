@@ -1,3 +1,4 @@
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -6,6 +7,7 @@ import 'package:flutter/foundation.dart';
 
 import '../database/database.dart';
 import '../database/daos/dark_library_dao.dart';
+import '../models/calibration/dark_library_match_tolerances.dart';
 
 /// Service for managing dark frame library operations.
 ///
@@ -63,10 +65,16 @@ class DarkLibraryService {
   /// Find the best-matching dark or bias for a light frame's parameters.
   ///
   /// Matching rules:
-  /// - Exposure, gain, and binning must match exactly.
-  /// - Temperature must be within [tempToleranceDegC] degrees (default 2.0).
+  /// - Exposure must be within [tolerances.exposureSecs] (default ±0.5s).
+  /// - Gain, offset, and binning must match exactly.
+  /// - Temperature must be within [tolerances.temperatureC] (default ±1.0°C).
   /// - Master darks are preferred over individual raw frames.
   /// - Among matches, the closest temperature match wins.
+  ///
+  /// IMG-P0-2: the tolerances object MUST be the same one consulted by
+  /// `DarkLibraryCoverageService`. Resolve it from
+  /// `darkLibraryMatchTolerancesProvider` at the caller so the coverage UI
+  /// and the runtime matcher cannot drift apart again.
   Future<DarkLibraryEntry?> findMatchingDark({
     required double exposureTime,
     required int gain,
@@ -74,7 +82,8 @@ class DarkLibraryService {
     int binX = 1,
     int binY = 1,
     double? temperature,
-    double tempToleranceDegC = 2.0,
+    DarkLibraryMatchTolerances tolerances =
+        DarkLibraryMatchTolerances.defaults,
     String frameType = 'dark',
   }) {
     return _dao.findBestMatch(
@@ -84,7 +93,7 @@ class DarkLibraryService {
       binX: binX,
       binY: binY,
       temperature: temperature,
-      tempToleranceDegC: tempToleranceDegC,
+      tolerances: tolerances,
       frameType: frameType,
     );
   }
@@ -338,16 +347,49 @@ class DarkLibraryService {
     }
   }
 
-  /// Minimal FITS parser that extracts 16-bit pixel data.
+  /// Minimal FITS parser that extracts pixel data and normalizes to 16-bit
+  /// unsigned samples.
   ///
-  /// FITS format: 2880-byte header blocks with keyword=value cards,
-  /// followed by data block. We look for NAXIS1, NAXIS2, BITPIX.
+  /// FITS format: 2880-byte header blocks with keyword=value cards, followed by
+  /// a data block. We honour the following keywords:
+  ///
+  /// - `NAXIS1`, `NAXIS2`: image dimensions (required).
+  /// - `BITPIX`: pixel encoding (see below).
+  /// - `BZERO`, `BSCALE`: physical-value linear transform per the FITS spec
+  ///   `physical = BSCALE * stored + BZERO`. Defaults are `BSCALE = 1.0` and
+  ///   `BZERO = 0.0` for floating-point BITPIX, and `BZERO = 32768.0` for the
+  ///   legacy 16-bit unsigned-via-signed convention (kept for byte-identical
+  ///   parity with the original 16-bit path).
+  ///
+  /// Supported `BITPIX` values:
+  ///
+  /// - `16`  — signed 16-bit (big-endian) reinterpreted as unsigned with the
+  ///   historical `BZERO = 32768` offset. This path is preserved verbatim for
+  ///   regression parity with darks captured by Nightshade itself.
+  /// - `-32` — IEEE 754 single-precision float (big-endian, FITS spec). Used
+  ///   by NINA, PixInsight, SiriL master darks. Converted to u16 via
+  ///   `clamp(round(BSCALE * stored + BZERO), 0, 65535)`.
+  /// - `-64` — IEEE 754 double-precision float (big-endian, FITS spec).
+  ///   Same conversion as `-32`.
+  ///
+  /// Any other `BITPIX` is rejected with a `FormatException` that lists the
+  /// supported encodings (errors are a feature — see CLAUDE.md).
+  ///
+  /// When float samples fall outside `[0, 65535]` after BZERO/BSCALE scaling,
+  /// the parser saturates them and emits a single warning per file via
+  /// `dart:developer` so users know their floating-point dynamic range was
+  /// clipped to the dark library's 16-bit representation.
   _FitsPixelData _parseFitsPixels(Uint8List bytes) {
     // Parse header to find dimensions
     int width = 0;
     int height = 0;
     int bitpix = 16;
     int headerEnd = 0;
+    // BZERO / BSCALE: physical = BSCALE * stored + BZERO.
+    // We delay defaulting BZERO until we know BITPIX so the 16-bit path can
+    // keep its implicit BZERO=32768 convention when the keyword is absent.
+    double? bzeroFromHeader;
+    double? bscaleFromHeader;
 
     // FITS headers are in 2880-byte blocks, each card is 80 chars
     bool endFound = false;
@@ -365,6 +407,10 @@ class DarkLibraryService {
           height = _parseFitsIntValue(card);
         } else if (card.startsWith('BITPIX')) {
           bitpix = _parseFitsIntValue(card);
+        } else if (card.startsWith('BZERO')) {
+          bzeroFromHeader = _parseFitsDoubleValue(card);
+        } else if (card.startsWith('BSCALE')) {
+          bscaleFromHeader = _parseFitsDoubleValue(card);
         } else if (card.startsWith('END')) {
           headerEnd = blockStart + 2880; // Data starts at next block boundary
           endFound = true;
@@ -384,38 +430,116 @@ class DarkLibraryService {
       );
     }
 
-    if (bitpix != 16) {
+    // Reject unsupported BITPIX loudly — list the supported encodings so the
+    // user can fix their pipeline (errors are a feature, per CLAUDE.md).
+    const supportedBitpix = <int>[16, -32, -64];
+    if (!supportedBitpix.contains(bitpix)) {
       throw FormatException(
-        'Only 16-bit FITS files are supported for dark library '
-        '(got BITPIX=$bitpix)',
+        'Unsupported FITS BITPIX=$bitpix for dark library. '
+        'Supported encodings: '
+        '16 (unsigned 16-bit), '
+        '-32 (IEEE float32), '
+        '-64 (IEEE float64). '
+        'BITPIX=8 (byte), 32 (int32), 64 (int64), and other values are not '
+        'accepted because the dark library stores 16-bit unsigned samples.',
       );
     }
 
     final pixelCount = width * height;
-    final pixels = Uint16List(pixelCount);
-
-    // FITS stores 16-bit data as big-endian signed shorts
+    final bytesPerSample = (bitpix.abs()) ~/ 8;
     final dataOffset = headerEnd;
-    final expectedDataEnd = dataOffset + pixelCount * 2;
-    if (expectedDataEnd > bytes.length) {
+    final expectedDataBytes = pixelCount * bytesPerSample;
+    if (dataOffset + expectedDataBytes > bytes.length) {
       throw FormatException(
-        'Truncated FITS pixel data: expected ${pixelCount * 2} bytes, '
+        'Truncated FITS pixel data: expected $expectedDataBytes bytes, '
         'found ${bytes.length - dataOffset}',
       );
     }
-    for (int i = 0; i < pixelCount; i++) {
-      final bytePos = dataOffset + i * 2;
 
-      // Big-endian to native — FITS uses signed 16-bit with BZERO=32768
-      final highByte = bytes[bytePos];
-      final lowByte = bytes[bytePos + 1];
-      final rawUnsigned = (highByte << 8) | lowByte;
-      // Interpret as signed 16-bit: values > 32767 are negative in two's complement
-      final signedVal = rawUnsigned > 32767 ? rawUnsigned - 65536 : rawUnsigned;
-      // Convert from signed to unsigned (BZERO=32768 convention):
-      // physical_value = stored_value + BZERO
-      // Range: -32768 + 32768 = 0  through  32767 + 32768 = 65535
-      pixels[i] = signedVal + 32768;
+    final pixels = Uint16List(pixelCount);
+    int saturatedLow = 0;
+    int saturatedHigh = 0;
+
+    if (bitpix == 16) {
+      // FITS stores 16-bit data as big-endian signed shorts. The historical
+      // BZERO=32768 convention encodes [0..65535] unsigned. We preserve the
+      // original byte-for-byte behaviour here (no BSCALE handling) to keep
+      // existing dark libraries identical after this change — the BZERO=32768
+      // offset is implicit when the keyword is absent.
+      for (int i = 0; i < pixelCount; i++) {
+        final bytePos = dataOffset + i * 2;
+        final highByte = bytes[bytePos];
+        final lowByte = bytes[bytePos + 1];
+        final rawUnsigned = (highByte << 8) | lowByte;
+        // Interpret as signed 16-bit: values > 32767 are negative
+        final signedVal =
+            rawUnsigned > 32767 ? rawUnsigned - 65536 : rawUnsigned;
+        // Convert from signed to unsigned (BZERO=32768 convention):
+        // physical_value = stored_value + BZERO
+        // Range: -32768 + 32768 = 0  through  32767 + 32768 = 65535
+        pixels[i] = signedVal + 32768;
+      }
+    } else {
+      // Floating-point paths (BITPIX = -32 or -64).
+      // FITS spec defaults for floats: BSCALE=1, BZERO=0.
+      final bzero = bzeroFromHeader ?? 0.0;
+      final bscale = bscaleFromHeader ?? 1.0;
+      final bd = ByteData.sublistView(bytes, dataOffset,
+          dataOffset + expectedDataBytes);
+
+      for (int i = 0; i < pixelCount; i++) {
+        // FITS floats are big-endian per the spec.
+        final stored = bitpix == -32
+            ? bd.getFloat32(i * 4, Endian.big)
+            : bd.getFloat64(i * 8, Endian.big);
+
+        // Apply BZERO/BSCALE per the FITS linear transform.
+        // NaN samples (common in float masters where rejected pixels become
+        // NaN) collapse to zero so they don't poison the median combine
+        // downstream.
+        double physical;
+        if (stored.isNaN) {
+          physical = 0.0;
+        } else {
+          physical = bscale * stored + bzero;
+        }
+
+        if (physical <= 0.0) {
+          if (physical < 0.0) saturatedLow++;
+          pixels[i] = 0;
+        } else if (physical >= 65535.0) {
+          if (physical > 65535.0) saturatedHigh++;
+          pixels[i] = 65535;
+        } else {
+          // Round-half-away-from-zero (physical is non-negative here).
+          pixels[i] = (physical + 0.5).floor();
+        }
+      }
+    }
+
+    // Surface the path that was taken so users can correlate parse logs
+    // against import failures. Warn loudly when clamping changes pixel values
+    // — silently clamping would hide a real dynamic-range mismatch.
+    final pathLabel = switch (bitpix) {
+      16 => 'BITPIX=16 (uint16 via BZERO=32768 convention)',
+      -32 => 'BITPIX=-32 (IEEE float32)',
+      -64 => 'BITPIX=-64 (IEEE float64)',
+      _ => 'BITPIX=$bitpix',
+    };
+    developer.log(
+      'DarkLibraryService: parsed FITS $pathLabel ${width}x$height '
+      '(BZERO=${bzeroFromHeader ?? "default"}, '
+      'BSCALE=${bscaleFromHeader ?? "default"})',
+      name: 'DarkLibraryService',
+    );
+    if (saturatedLow > 0 || saturatedHigh > 0) {
+      developer.log(
+        'DarkLibraryService: WARNING — clamped float pixels to u16 range. '
+        'Below 0: $saturatedLow, above 65535: $saturatedHigh. '
+        'If this was unexpected, check BZERO/BSCALE in your master dark.',
+        name: 'DarkLibraryService',
+        level: 900, // ~warning
+      );
     }
 
     return _FitsPixelData(pixels, width, height);
@@ -430,6 +554,23 @@ class DarkLibraryService {
     final valStr =
         (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq).trim();
     return int.tryParse(valStr) ?? 0;
+  }
+
+  /// Parse a floating-point value from a FITS card, tolerating integer
+  /// literals (e.g. `BZERO = 32768`) which the FITS spec also permits for
+  /// numeric-valued keywords.
+  double? _parseFitsDoubleValue(String card) {
+    final eqIdx = card.indexOf('=');
+    if (eqIdx < 0) return null;
+    final afterEq = card.substring(eqIdx + 1);
+    final slashIdx = afterEq.indexOf('/');
+    final valStr =
+        (slashIdx >= 0 ? afterEq.substring(0, slashIdx) : afterEq).trim();
+    if (valStr.isEmpty) return null;
+    // double.tryParse accepts both "32768" and "32768.0" / "3.2768E4" so it
+    // handles the integer-literal case the FITS spec allows for these
+    // keywords.
+    return double.tryParse(valStr);
   }
 
   /// Write a minimal valid FITS file with 16-bit unsigned pixel data.

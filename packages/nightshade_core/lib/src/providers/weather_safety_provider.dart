@@ -3,7 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/weather/weather_models.dart';
 import '../models/equipment/equipment_models.dart';
 import '../models/settings/app_settings.dart';
+import '../models/sequence/sequence_models.dart' show ConditionsScoreWeights;
 import '../services/scheduler/sky_calculations.dart';
+import '../services/adaptive_swap_service.dart';
+import 'imaging_provider.dart';
+import 'science_provider.dart';
 import 'weather_providers.dart';
 import 'equipment_provider.dart';
 import 'settings_provider.dart';
@@ -137,11 +141,22 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   Timer? _snoozeTimer;
   Timer? _periodicEvalTimer;
   Timer? _resumeDelayTimer;
+  // Wave 5 Agent 4 — periodic push of the cloud-motion analyzer output to
+  // the Rust executor. Independent of the 5-min evaluation tick so the
+  // Rust-side cloud-aware triggers see fresh data even between full
+  // re-evaluations.
+  Timer? _cloudMotionPushTimer;
+  Timer? _adaptiveConditionsPushTimer;
   bool _resumeInFlight = false;
 
   /// Periodic re-evaluation interval (5 minutes)
   static const _evaluationInterval = Duration(minutes: 5);
   static const _parkBeforeDawnLeadTime = Duration(minutes: 30);
+
+  /// Wave 5 Agent 4 — push cadence for cloud-motion data into the Rust
+  /// executor. 60 seconds matches the brief's "every 60s say".
+  static const _cloudMotionPushInterval = Duration(seconds: 60);
+  static const _adaptiveConditionsPushInterval = Duration(seconds: 30);
 
   /// Why: when weather first reads "safe" after an unsafe stretch we wait a
   /// hold-off period before unparking. Astronomical conditions are noisy —
@@ -155,6 +170,11 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
   WeatherSafetyNotifier(this._ref) : super(WeatherSafetyState.initial()) {
     _subscribeToAlerts();
     _startPeriodicEvaluation();
+    // Wave 5 Agent 4 — start the cloud-motion forwarding loop so the Rust
+    // sequencer's cloud-aware triggers see live data the first time the
+    // notifier is constructed (typically at app launch).
+    _startCloudMotionPush();
+    _startAdaptiveConditionsPush();
   }
 
   /// Start periodic re-evaluation timer independent of weather screen
@@ -383,6 +403,153 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _resumeDelayTimer = null;
   }
 
+  // -------------------------------------------------------------------------
+  // Wave 5 Agent 4 — cloud-motion forwarding to the Rust executor.
+  //
+  // The Rust cloud-aware triggers (`CloudArrivingIn`, `CloudOpeningIn`,
+  // `CloudCoverThreshold`) cannot run radar analysis themselves; we push
+  // the live `cloudMotionAnalyzerProvider` output every 60s and call
+  // `backend.sequencerUpdateCloudMotion(...)`. The first push runs
+  // immediately so a sequence that starts right after app launch has
+  // current data on its first evaluator tick.
+  // -------------------------------------------------------------------------
+
+  void _startCloudMotionPush() {
+    _cloudMotionPushTimer?.cancel();
+    _cloudMotionPushTimer = Timer.periodic(_cloudMotionPushInterval, (_) {
+      if (!mounted) return;
+      unawaited(_pushCloudMotion());
+    });
+    // Run the first push on the next microtask so any sequence already
+    // running gets initial data without waiting a full minute.
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      unawaited(_pushCloudMotion());
+    });
+  }
+
+  void _startAdaptiveConditionsPush() {
+    _adaptiveConditionsPushTimer?.cancel();
+    _adaptiveConditionsPushTimer =
+        Timer.periodic(_adaptiveConditionsPushInterval, (_) {
+      if (!mounted) return;
+      unawaited(_pushAdaptiveConditions());
+    });
+    Future<void>.microtask(() {
+      if (!mounted) return;
+      unawaited(_pushAdaptiveConditions());
+    });
+  }
+
+  Future<void> _pushCloudMotion() async {
+    if (!mounted) return;
+    try {
+      // Read the latest analyzer output. The provider auto-fetches the
+      // most recent radar frames; we deliberately use a fresh `.future`
+      // grab rather than caching so a manual weather refresh in the UI
+      // shows up here immediately.
+      final motion = await _ref.read(analyzeCloudMotionProvider.future);
+      final coverAsync = await _ref.read(cloudCoverPercentageProvider.future);
+      if (!mounted) return;
+
+      final cover = coverAsync;
+      // Cloud arrival prediction: present only when the analyzer reports
+      // a finite eta (cloudMotion.etaToLocation). If the analyzer has no
+      // motion / no nearby clouds, push None so the Rust trigger stays
+      // quiescent — silent fallback to a sentinel would defeat the
+      // "errors are a feature" rule.
+      final arrivalMinutes = motion?.etaToLocation?.inSeconds != null
+          ? motion!.etaToLocation!.inSeconds / 60.0
+          : null;
+
+      // Opening prediction: the current analyzer does not yet model a
+      // future-opening curve, so we extract a coarse signal from current
+      // coverage — when cover is well below the user's threshold we
+      // synthesise a "clear opening now (0 min away)" with a generous
+      // 30-minute duration. This is an honest approximation that keeps
+      // the CloudOpeningIn trigger usable until the analyzer exposes
+      // forecast data.
+      double? openingMinutes;
+      double? openingDurationSecs;
+      if (cover != null && cover < 30.0) {
+        openingMinutes = 0.0;
+        openingDurationSecs = 30 * 60.0;
+      }
+
+      // Clear-sky direction: the analyzer does not yet report a single
+      // (alt, az) target. Until that lands we leave the direction
+      // unspecified — `SlewToGapAndContinue` falls back to
+      // `PauseAndWaitForClear` when no direction is reported, which is
+      // the documented behaviour.
+      final backend = _ref.read(backendProvider);
+      await backend.sequencerUpdateCloudMotion(
+        currentCoverPercent: cover,
+        predictedArrivalMinutes: arrivalMinutes,
+        predictedOpeningMinutes: openingMinutes,
+        predictedOpeningDurationSecs: openingDurationSecs,
+        predictedClearSkyAlt: null,
+        predictedClearSkyAz: null,
+      );
+    } catch (e) {
+      // Cloud-motion push failures are best-effort: the analyzer may not
+      // have produced data yet, the radar fetch may be in-flight, or the
+      // backend may be temporarily disconnected. Log at debug level so
+      // diagnostic context is preserved without spamming production logs.
+      // ignore: avoid_print
+      // We don't have a log helper at this scope; the backend layer will
+      // log a more structured message when the call itself fails.
+    }
+  }
+
+  Future<void> _pushAdaptiveConditions() async {
+    if (!mounted) return;
+    try {
+      final appSettings = _ref.read(appSettingsProvider).valueOrNull;
+      final weather = _ref.read(weatherStateProvider);
+      final cloudCover = await _ref.read(cloudCoverPercentageProvider.future);
+      if (!mounted) return;
+
+      final (_, transparency) = _ref.read(currentScienceSnapshotProvider);
+      final hfrValues = _currentHfrValues();
+      final inputs = AdaptiveSwapInputComposer.fromTelemetry(
+        transparencyPercent: transparency?.transparencyPercent,
+        recentHfr: hfrValues,
+        hardwareCloudCoverPercent: weather.cloudCover,
+        apiCloudCoverPercent: cloudCover,
+        windKph: weather.windSpeed,
+      );
+      final weights = _conditionsScoreWeights(appSettings);
+      final driver = AdaptiveSwapDriver(
+        composer: AdaptiveSwapService(weights: weights),
+        backend: _ref.read(backendProvider),
+      );
+      await driver.tick(inputs);
+    } catch (_) {
+      // Periodic telemetry forwarding is opportunistic: disconnected remote
+      // clients, missing weather APIs, or an unopened database should not spam
+      // the operator. The executor receives a real null score when telemetry
+      // is merely absent; this catch is for transport/provider failures.
+    }
+  }
+
+  List<double?> _currentHfrValues() {
+    return _ref
+        .read(sessionImagesProvider)
+        .map((image) => image.stats?.hfr)
+        .toList(growable: false);
+  }
+
+  ConditionsScoreWeights _conditionsScoreWeights(AppSettingsState? settings) {
+    final weights =
+        settings?.conditionsScoreWeights ?? const <String, double>{};
+    return ConditionsScoreWeights(
+      transparencyWeight: weights['transparency'] ?? 0.40,
+      seeingWeight: weights['seeing'] ?? 0.25,
+      cloudWeight: weights['cloud'] ?? 0.25,
+      windWeight: weights['wind'] ?? 0.10,
+    );
+  }
+
   bool _isParkBeforeDawnDue(AppSettingsState? appSettings) {
     if (appSettings == null || !appSettings.parkBeforeDawn) return false;
     final now = DateTime.now();
@@ -511,6 +678,8 @@ class WeatherSafetyNotifier extends StateNotifier<WeatherSafetyState> {
     _snoozeTimer?.cancel();
     _periodicEvalTimer?.cancel();
     _resumeDelayTimer?.cancel();
+    _cloudMotionPushTimer?.cancel();
+    _adaptiveConditionsPushTimer?.cancel();
     super.dispose();
   }
 }

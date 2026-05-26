@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_desktop/headless_api/handlers/mosaic_handlers.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
 import 'handler_test_helpers.dart';
@@ -82,6 +83,46 @@ void main() {
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
+    });
+
+    test('recommended exposure uses shared Smart Night context', () async {
+      final scoped = ProviderContainer(
+        overrides: [
+          smartNightExposureContextProvider.overrideWith(
+            (ref) async => const SmartNightExposureContext(
+              camera: CameraExposureSpec(
+                readNoiseE: 1.4,
+                fullWellE: 50000,
+                qePeak: 0.85,
+              ),
+              bortleClass: 8,
+              focalLengthMm: 384,
+              apertureMm: 80,
+              pixelSizeMicrons: 3.76,
+              availableFilterNames: ['L'],
+              userCapSeconds: 240,
+              floorSeconds: 30,
+            ),
+          ),
+        ],
+      );
+      addTearDown(scoped.dispose);
+
+      final scopedHandlers = MosaicHandlers(scoped);
+      final response =
+          await translateHandlerErrors(scopedHandlers.handleRecommendExposure(
+        Request(
+          'GET',
+          Uri.parse('http://localhost/api/mosaic/recommended-exposure'),
+        ),
+      ));
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['exposureSeconds'], 30);
+      expect(body['exposuresPerPanel'], 10);
+      expect(body['filterName'], 'L');
+      expect(body['source'], 'smart_night');
     });
   });
 }

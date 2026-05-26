@@ -2,15 +2,21 @@ import 'package:drift/drift.dart';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:logging/logging.dart';
+import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/backend/device_capabilities.dart';
 import '../models/equipment/equipment_models.dart' show DeviceConnectionState;
+import '../models/equipment_profile.dart' as remote_profile;
 import '../models/optical_config.dart';
 import '../utils/json_validation.dart';
+import 'backend_provider.dart';
 import 'capability_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
 import '../services/profile_service.dart';
+
+final _log = Logger('ProfilesProvider');
 
 // ============================================================================
 // Equipment Profile Model (UI-friendly)
@@ -32,6 +38,8 @@ class EquipmentProfileModel {
   final String? rotatorId;
   final String? domeId;
   final String? weatherId;
+  final String? safetyMonitorId;
+  final String? switchId;
   final String? coverCalibratorId;
 
   // User-friendly device names (can be auto-generated or custom)
@@ -90,6 +98,8 @@ class EquipmentProfileModel {
     this.rotatorId,
     this.domeId,
     this.weatherId,
+    this.safetyMonitorId,
+    this.switchId,
     this.coverCalibratorId,
     this.cameraName,
     this.mountName,
@@ -141,6 +151,8 @@ class EquipmentProfileModel {
     if (rotatorId != null) count++;
     if (domeId != null) count++;
     if (weatherId != null) count++;
+    if (safetyMonitorId != null) count++;
+    if (switchId != null) count++;
     if (coverCalibratorId != null) count++;
     return count;
   }
@@ -165,17 +177,27 @@ class EquipmentProfileModel {
         db.aperture > 0 ? db.aperture : (telescopeAperture ?? 0.0);
 
     if (db.filterNames != null) {
-      filters = decodeStringListJson(
-        db.filterNames,
-        context: 'equipment_profiles.filter_names for "${db.name}"',
-      );
+      try {
+        filters = decodeStringListJson(
+          db.filterNames,
+          context: 'equipment_profiles.filter_names for "${db.name}"',
+        );
+      } catch (e) {
+        _log.warning(
+            'Failed to parse filterNames JSON for profile "${db.name}": $e');
+      }
     }
 
     if (db.filterFocusOffsets != null) {
-      offsets = decodeStringIntMapJson(
-        db.filterFocusOffsets,
-        context: 'equipment_profiles.filter_focus_offsets for "${db.name}"',
-      );
+      try {
+        offsets = decodeStringIntMapJson(
+          db.filterFocusOffsets,
+          context: 'equipment_profiles.filter_focus_offsets for "${db.name}"',
+        );
+      } catch (e) {
+        _log.warning(
+            'Failed to parse filterFocusOffsets JSON for profile "${db.name}": $e');
+      }
     }
 
     return EquipmentProfileModel(
@@ -191,6 +213,8 @@ class EquipmentProfileModel {
       rotatorId: db.rotatorId,
       domeId: db.domeId,
       weatherId: db.weatherId,
+      safetyMonitorId: db.safetyMonitorId,
+      switchId: db.switchId,
       coverCalibratorId: db.coverCalibratorId,
       cameraName: db.cameraName,
       mountName: db.mountName,
@@ -222,6 +246,90 @@ class EquipmentProfileModel {
     );
   }
 
+  /// Create from the host's REST `/api/profiles` payload when running as a
+  /// remote companion (NetworkBackend).
+  factory EquipmentProfileModel.fromRemoteProfile(
+    remote_profile.EquipmentProfile profile,
+  ) {
+    List<String> filters = [];
+    Map<String, int> offsets = {};
+
+    if (profile.filterNames != null && profile.filterNames!.isNotEmpty) {
+      try {
+        filters = decodeStringListJson(
+          profile.filterNames,
+          context: 'remote profile "${profile.name}" filterNames',
+        );
+      } catch (e) {
+        _log.warning(
+            'Failed to parse remote filterNames for "${profile.name}": $e');
+      }
+    }
+
+    if (profile.filterFocusOffsets != null &&
+        profile.filterFocusOffsets!.isNotEmpty) {
+      try {
+        offsets = decodeStringIntMapJson(
+          profile.filterFocusOffsets,
+          context: 'remote profile "${profile.name}" filterFocusOffsets',
+        );
+      } catch (e) {
+        _log.warning(
+            'Failed to parse remote filterFocusOffsets for "${profile.name}": $e');
+      }
+    }
+
+    final remoteId = int.tryParse(profile.id);
+
+    return EquipmentProfileModel(
+      id: remoteId,
+      name: profile.name,
+      description: profile.description,
+      isActive: profile.isActive,
+      cameraId: profile.cameraId,
+      mountId: profile.mountId,
+      focuserId: profile.focuserId,
+      filterWheelId: profile.filterWheelId,
+      guiderId: profile.guiderId,
+      rotatorId: profile.rotatorId,
+      domeId: profile.domeId,
+      weatherId: profile.weatherId,
+      safetyMonitorId: profile.safetyMonitorId,
+      switchId: profile.switchId,
+      coverCalibratorId: profile.coverCalibratorId,
+      cameraName: profile.cameraName,
+      mountName: profile.mountName,
+      focuserName: profile.focuserName,
+      filterWheelName: profile.filterWheelName,
+      guiderName: profile.guiderName,
+      rotatorName: profile.rotatorName,
+      telescopeName: profile.telescopeName,
+      telescopeFocalLength: profile.telescopeFocalLength > 0
+          ? profile.telescopeFocalLength
+          : null,
+      telescopeAperture:
+          profile.telescopeAperture > 0 ? profile.telescopeAperture : null,
+      focalLength: profile.focalLength,
+      aperture: profile.aperture,
+      focalRatio: profile.focalRatio,
+      defaultGain: profile.defaultGain,
+      defaultOffset: profile.defaultOffset,
+      defaultBinX: profile.defaultBinX,
+      defaultBinY: profile.defaultBinY,
+      defaultCoolingTemp: profile.defaultCoolingTemp,
+      coolOnConnect: profile.coolOnConnect,
+      defaultCenteringExposure: profile.defaultCenteringExposure,
+      filterNames: filters,
+      filterFocusOffsets: offsets,
+      profileIcon: profile.profileIcon,
+      profileColor: profile.profileColor,
+      sortOrder: profile.sortOrder,
+      isDefault: profile.isDefault,
+      createdAt: profile.createdAt,
+      updatedAt: profile.updatedAt,
+    );
+  }
+
   /// Convert to database companion for insert/update
   EquipmentProfilesCompanion toCompanion() {
     return EquipmentProfilesCompanion(
@@ -237,6 +345,8 @@ class EquipmentProfileModel {
       rotatorId: Value(rotatorId),
       domeId: Value(domeId),
       weatherId: Value(weatherId),
+      safetyMonitorId: Value(safetyMonitorId),
+      switchId: Value(switchId),
       coverCalibratorId: Value(coverCalibratorId),
       cameraName: Value(cameraName),
       mountName: Value(mountName),
@@ -283,6 +393,8 @@ class EquipmentProfileModel {
     String? rotatorId,
     String? domeId,
     String? weatherId,
+    String? safetyMonitorId,
+    String? switchId,
     String? coverCalibratorId,
     String? cameraName,
     String? mountName,
@@ -325,6 +437,8 @@ class EquipmentProfileModel {
       rotatorId: rotatorId ?? this.rotatorId,
       domeId: domeId ?? this.domeId,
       weatherId: weatherId ?? this.weatherId,
+      safetyMonitorId: safetyMonitorId ?? this.safetyMonitorId,
+      switchId: switchId ?? this.switchId,
       coverCalibratorId: coverCalibratorId ?? this.coverCalibratorId,
       cameraName: cameraName ?? this.cameraName,
       mountName: mountName ?? this.mountName,
@@ -380,6 +494,57 @@ class EquipmentProfileModel {
     final heightDeg = 2 * (57.3 * (sensorHeightMm / (2 * focalLength)));
     return (widthDeg, heightDeg);
   }
+
+  /// REST `/api/profiles` payload for host-authoritative writes.
+  remote_profile.EquipmentProfile toRemoteProfile() {
+    return remote_profile.EquipmentProfile(
+      id: id?.toString() ?? '',
+      name: name,
+      description: description,
+      cameraId: cameraId,
+      mountId: mountId,
+      focuserId: focuserId,
+      filterWheelId: filterWheelId,
+      guiderId: guiderId,
+      rotatorId: rotatorId,
+      domeId: domeId,
+      weatherId: weatherId,
+      safetyMonitorId: safetyMonitorId,
+      switchId: switchId,
+      coverCalibratorId: coverCalibratorId,
+      focalLength: focalLength,
+      aperture: aperture,
+      focalRatio: focalRatio,
+      defaultGain: defaultGain,
+      defaultOffset: defaultOffset,
+      defaultBinX: defaultBinX,
+      defaultBinY: defaultBinY,
+      defaultCoolingTemp: defaultCoolingTemp,
+      coolOnConnect: coolOnConnect,
+      defaultCenteringExposure: defaultCenteringExposure,
+      filterNames:
+          filterNames.isNotEmpty ? jsonEncode(filterNames) : null,
+      filterFocusOffsets: filterFocusOffsets.isNotEmpty
+          ? jsonEncode(filterFocusOffsets)
+          : null,
+      cameraName: cameraName,
+      mountName: mountName,
+      focuserName: focuserName,
+      filterWheelName: filterWheelName,
+      guiderName: guiderName,
+      rotatorName: rotatorName,
+      telescopeName: telescopeName,
+      telescopeFocalLength: telescopeFocalLength ?? 0.0,
+      telescopeAperture: telescopeAperture ?? 0.0,
+      profileIcon: profileIcon,
+      profileColor: profileColor,
+      sortOrder: sortOrder,
+      isDefault: isDefault,
+      createdAt: createdAt,
+      updatedAt: updatedAt ?? DateTime.now(),
+      isActive: isActive,
+    );
+  }
 }
 
 // ============================================================================
@@ -417,8 +582,63 @@ class EquipmentProfilesState {
 
 /// Notifier for managing equipment profiles
 class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
+  NetworkBackend? get _remoteBackend {
+    final backend = ref.read(backendProvider);
+    return backend is NetworkBackend ? backend : null;
+  }
+
+  Future<int?> _resolveRemoteProfileIdByName(String name) async {
+    final backend = _remoteBackend;
+    if (backend == null) {
+      return null;
+    }
+    final profiles = await backend.getProfiles();
+    for (final profile in profiles) {
+      if (profile.name == name) {
+        return int.tryParse(profile.id);
+      }
+    }
+    return null;
+  }
+
   @override
   Future<EquipmentProfilesState> build() async {
+    final backend = ref.watch(backendProvider);
+    if (backend is NetworkBackend) {
+      try {
+        final remoteProfiles = await backend.getProfiles();
+        final activeRemote = await backend.getActiveProfile();
+        final profiles = remoteProfiles
+            .map(EquipmentProfileModel.fromRemoteProfile)
+            .toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+
+        EquipmentProfileModel? active;
+        if (activeRemote != null) {
+          active = EquipmentProfileModel.fromRemoteProfile(activeRemote);
+        } else {
+          for (final profile in profiles) {
+            if (profile.isActive) {
+              active = profile;
+              break;
+            }
+          }
+        }
+
+        return EquipmentProfilesState(
+          profiles: profiles,
+          activeProfile: active,
+        );
+      } catch (e, stackTrace) {
+        _log.warning(
+          'Remote equipment profile fetch failed: $e\n$stackTrace',
+        );
+        return EquipmentProfilesState(
+          error: 'Could not load equipment profiles from host: $e',
+        );
+      }
+    }
+
     // Set up a watch on the database profiles
     final profilesStream = ref.watch(allProfilesProvider);
     final activeStream = ref.watch(activeProfileProvider);
@@ -447,6 +667,24 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
     required String name,
     String? description,
   }) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      await remote.saveProfile(
+        EquipmentProfileModel(
+          name: name,
+          description: description,
+        ).toRemoteProfile(),
+      );
+      final id = await _resolveRemoteProfileIdByName(name);
+      if (id == null) {
+        throw StateError(
+          'Host saved profile "$name" but id could not be resolved',
+        );
+      }
+      ref.invalidateSelf();
+      return id;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
 
     final id = await dao.createProfile(
@@ -468,6 +706,13 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       throw Exception('Cannot update profile without ID');
     }
 
+    final remote = _remoteBackend;
+    if (remote != null) {
+      await remote.saveProfile(profile.toRemoteProfile());
+      ref.invalidateSelf();
+      return;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     final dbProfile = await dao.getProfileById(profile.id!);
 
@@ -487,6 +732,8 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
       rotatorId: Value(profile.rotatorId),
       domeId: Value(profile.domeId),
       weatherId: Value(profile.weatherId),
+      safetyMonitorId: Value(profile.safetyMonitorId),
+      switchId: Value(profile.switchId),
       coverCalibratorId: Value(profile.coverCalibratorId),
       focalLength: profile.focalLength,
       aperture: profile.aperture,
@@ -513,6 +760,13 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 
   /// Delete a profile
   Future<void> deleteProfile(int profileId) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      await remote.deleteProfile(profileId.toString());
+      ref.invalidateSelf();
+      return;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     await dao.deleteProfile(profileId);
     ref.invalidateSelf();
@@ -520,6 +774,13 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 
   /// Set a profile as active
   Future<void> setActiveProfile(int profileId) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      await remote.loadProfile(profileId.toString());
+      ref.invalidateSelf();
+      return;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     await dao.setActiveProfile(profileId);
     ref.invalidateSelf();
@@ -528,6 +789,26 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
   /// Set or clear the default startup profile.
   Future<void> setDefaultProfile(int? profileId,
       {bool makeActive = true}) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      final remoteProfiles = await remote.getProfiles();
+      for (final existing in remoteProfiles) {
+        final shouldBeDefault =
+            profileId != null && existing.id == profileId.toString();
+        if (existing.isDefault == shouldBeDefault) {
+          continue;
+        }
+        await remote.saveProfile(
+          existing.copyWith(isDefault: shouldBeDefault),
+        );
+      }
+      if (profileId != null && makeActive) {
+        await remote.loadProfile(profileId.toString());
+      }
+      ref.invalidateSelf();
+      return;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     if (profileId == null) {
       await dao.clearDefaultProfile();
@@ -539,6 +820,32 @@ class EquipmentProfilesNotifier extends AsyncNotifier<EquipmentProfilesState> {
 
   /// Duplicate a profile
   Future<int> duplicateProfile(int sourceId, String newName) async {
+    final remote = _remoteBackend;
+    if (remote != null) {
+      final current = await future;
+      EquipmentProfileModel? source;
+      for (final profile in current.profiles) {
+        if (profile.id == sourceId) {
+          source = profile;
+          break;
+        }
+      }
+      if (source == null) {
+        throw StateError('Profile $sourceId not found on host');
+      }
+      await remote.saveProfile(
+        source.copyWith(id: null, name: newName, isActive: false).toRemoteProfile(),
+      );
+      final id = await _resolveRemoteProfileIdByName(newName);
+      if (id == null) {
+        throw StateError(
+          'Host duplicated profile as "$newName" but id could not be resolved',
+        );
+      }
+      ref.invalidateSelf();
+      return id;
+    }
+
     final dao = ref.read(equipmentProfilesDaoProvider);
     final id = await dao.duplicateProfile(sourceId, newName);
     ref.invalidateSelf();

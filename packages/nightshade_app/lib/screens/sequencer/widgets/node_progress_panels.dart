@@ -13,6 +13,7 @@ Widget? getProgressPanelForNode({
   required NightshadeColors colors,
   required double progressPercent,
   required String? progressDetail,
+  InstructionProgressDetail? structuredProgressDetail,
 }) {
   // Parse progress detail to extract relevant info
   final detail = progressDetail ?? '';
@@ -39,6 +40,7 @@ Widget? getProgressPanelForNode({
       colors: colors,
       progressPercent: progressPercent,
       detail: detail,
+      structuredDetail: structuredProgressDetail,
       node: node,
     );
   }
@@ -86,13 +88,9 @@ class _ProgressPanelContainer extends StatelessWidget {
     return Container(
       margin: const EdgeInsets.only(top: 4, bottom: 8),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
+      decoration: NightshadeDecorations.emphasisSurface(
+        accent,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: accent.withValues(alpha: 0.3),
-          width: 1,
-        ),
       ),
       child: child,
     );
@@ -904,8 +902,8 @@ class _StatBox extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Column(
@@ -947,21 +945,33 @@ class _ExposureProgressPanel extends StatelessWidget {
   final NightshadeColors colors;
   final double progressPercent;
   final String detail;
+  final InstructionProgressDetail? structuredDetail;
   final ExposureNode node;
 
   const _ExposureProgressPanel({
     required this.colors,
     required this.progressPercent,
     required this.detail,
+    this.structuredDetail,
     required this.node,
   });
 
   @override
   Widget build(BuildContext context) {
-    // Parse detail: "Frame 3/10" or "Exposing: 45s remaining"
+    final exposureDetail = structuredDetail is ExposureInstructionProgressDetail
+        ? structuredDetail as ExposureInstructionProgressDetail
+        : null;
+    // Parse legacy detail: "Frame 3/10" or "Exposing: 45s remaining".
     final frameMatch = RegExp(r'Frame (\d+)/(\d+)').firstMatch(detail);
-    final currentFrame = int.tryParse(frameMatch?.group(1) ?? '') ?? 0;
-    final totalFrames = int.tryParse(frameMatch?.group(2) ?? '') ?? node.count;
+    final currentFrame = exposureDetail?.frame ??
+        int.tryParse(frameMatch?.group(1) ?? '') ??
+        0;
+    final totalFrames = exposureDetail?.total ??
+        int.tryParse(frameMatch?.group(2) ?? '') ??
+        node.count;
+    final durationSecs = exposureDetail != null && exposureDetail.durationSecs > 0
+        ? exposureDetail.durationSecs
+        : node.durationSecs;
 
     return _ProgressPanelContainer(
       colors: colors,
@@ -1009,7 +1019,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               _StatBox(
                 colors: colors,
                 label: 'Duration',
-                value: node.durationSecs.toStringAsFixed(0),
+                value: durationSecs.toStringAsFixed(0),
                 unit: 's',
                 color: colors.success,
               ),
@@ -1017,7 +1027,7 @@ class _ExposureProgressPanel extends StatelessWidget {
               _StatBox(
                 colors: colors,
                 label: 'Total',
-                value: (node.durationSecs * totalFrames / 60).toStringAsFixed(1),
+                value: (durationSecs * totalFrames / 60).toStringAsFixed(1),
                 unit: 'min',
                 color: colors.info,
               ),
@@ -1075,9 +1085,7 @@ class _FrameGrid extends StatelessWidget {
                       : colors.border,
               width: isCurrent ? 2 : 1,
             ),
-            boxShadow: isCurrent
-                ? [BoxShadow(color: colors.info.withValues(alpha: 0.5), blurRadius: 4)]
-                : null,
+            boxShadow: null,
           ),
         );
       }),

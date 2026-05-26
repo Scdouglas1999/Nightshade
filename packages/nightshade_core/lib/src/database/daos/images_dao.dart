@@ -1,11 +1,111 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 
+import '../../services/logging_service.dart';
+import '../../services/thumbnail_sidecar_service.dart';
 import '../database.dart';
 import '../tables/captured_images.dart';
 import '../tables/imaging_sessions.dart';
 import '../tables/targets.dart';
 
 part 'images_dao.g.dart';
+
+/// Wave 6 Thumbnails — slim image record returned by
+/// [ImagesDao.watchImagesByProducingNode] and friends. Carries only the
+/// columns the sequence-tree thumbnail strip needs so the watch query
+/// stays narrow and so consumers don't have to depend on the full
+/// `CapturedImage` data class.
+///
+/// `runtimeGrade` is one of `'pass'`, `'reject'`, `'pending'`, or `null`
+/// when grading didn't run. Border colour mapping happens at the widget
+/// level (sequence_tree.dart) — this struct is colour-agnostic.
+class ProducingNodeThumbnail {
+  final int id;
+  final String filePath;
+  final String fileName;
+  final String? filter;
+  final String frameType;
+  final double? hfr;
+  final double? eccentricity;
+  final int? starCount;
+  final double exposureDuration;
+  final DateTime capturedAt;
+  final bool isAccepted;
+  final String? rejectionReason;
+  final String? runtimeGrade;
+  final String producingNodeId;
+  final String? producingRunId;
+
+  const ProducingNodeThumbnail({
+    required this.id,
+    required this.filePath,
+    required this.fileName,
+    required this.filter,
+    required this.frameType,
+    required this.hfr,
+    required this.eccentricity,
+    required this.starCount,
+    required this.exposureDuration,
+    required this.capturedAt,
+    required this.isAccepted,
+    required this.rejectionReason,
+    required this.runtimeGrade,
+    required this.producingNodeId,
+    required this.producingRunId,
+  });
+
+  factory ProducingNodeThumbnail.fromRow(QueryRow row) {
+    // captured_at on disk is stored as INTEGER seconds since epoch (matches
+    // `created_at` / SQLite epoch convention). Drift writes DateTime values
+    // through `DateTimeColumn` as seconds-since-epoch by default; reading
+    // it back here goes through the same path.
+    final capturedAtRaw = row.data['captured_at'];
+    final capturedAt = capturedAtRaw is int
+        ? DateTime.fromMillisecondsSinceEpoch(capturedAtRaw * 1000,
+            isUtc: true)
+        : DateTime.now();
+    return ProducingNodeThumbnail(
+      id: row.read<int>('id'),
+      filePath: row.read<String>('file_path'),
+      fileName: row.read<String>('file_name'),
+      filter: row.readNullable<String>('filter'),
+      frameType: row.read<String>('frame_type'),
+      hfr: row.readNullable<double>('hfr'),
+      eccentricity: row.readNullable<double>('eccentricity'),
+      starCount: row.readNullable<int>('star_count'),
+      exposureDuration: row.read<double>('exposure_duration'),
+      capturedAt: capturedAt,
+      isAccepted: row.read<bool>('is_accepted'),
+      rejectionReason: row.readNullable<String>('rejection_reason'),
+      runtimeGrade: row.readNullable<String>('runtime_grade'),
+      producingNodeId: row.read<String>('producing_node_id'),
+      producingRunId: row.readNullable<String>('producing_run_id'),
+    );
+  }
+
+  /// Convenience: convert the runtime grade text into the strip's color
+  /// "kind". Returns `'pass' | 'reject' | 'pending' | 'unknown'`.
+  String get gradeKind {
+    if (!isAccepted) return 'reject';
+    final g = runtimeGrade;
+    if (g == null || g.isEmpty) return 'unknown';
+    switch (g.toLowerCase()) {
+      case 'pass':
+      case 'accepted':
+        return 'pass';
+      case 'reject':
+      case 'rejected':
+        return 'reject';
+      case 'pending':
+      case 'borderline':
+      case 'review':
+        return 'pending';
+      default:
+        return 'unknown';
+    }
+  }
+}
 
 @DriftAccessor(
     tables: [CapturedImages, ImageMetadata, ImagingSessions, Targets])
@@ -138,6 +238,71 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
     );
   }
 
+  // ============================================================================
+  // P1-13: Thumbnail sidecar bookkeeping.
+  //
+  // The `thumbnail_path` column lives off-table (raw DDL, see
+  // `database.dart::_ensureCapturedImagesThumbnailPathColumn`) so we go
+  // through `customStatement` / `customSelect`. Nullable column — null
+  // means no sidecar yet; the GET handler falls back to a cold-read and
+  // self-heals by writing the sidecar then stamping the column.
+  // ============================================================================
+
+  /// Read the sidecar JPEG path for [imageId], or null if no sidecar has
+  /// been written. Doesn't probe the filesystem — callers must stat the
+  /// file themselves before assuming the path is usable.
+  Future<String?> getThumbnailPath(int imageId) async {
+    final row = await customSelect(
+      'SELECT thumbnail_path FROM captured_images WHERE id = ?',
+      variables: [Variable<int>(imageId)],
+      readsFrom: {capturedImages},
+    ).getSingleOrNull();
+    if (row == null) return null;
+    return row.data['thumbnail_path'] as String?;
+  }
+
+  /// Stamp the sidecar path on a row. Passing an empty string or `null`
+  /// clears it (used by regenerate-after-failure scenarios). Doesn't
+  /// validate the path exists on disk.
+  Future<void> setThumbnailPath(int imageId, String? thumbnailPath) async {
+    if (thumbnailPath == null || thumbnailPath.isEmpty) {
+      await customStatement(
+        'UPDATE captured_images SET thumbnail_path = NULL WHERE id = ?',
+        [imageId],
+      );
+    } else {
+      await customStatement(
+        'UPDATE captured_images SET thumbnail_path = ? WHERE id = ?',
+        [thumbnailPath, imageId],
+      );
+    }
+  }
+
+  /// List images whose sidecar is missing or unset. Used by the backfill
+  /// job to decide which rows need a thumbnail generated. Returns the row
+  /// id, source FITS path, and the recorded sidecar path (which may be
+  /// null or stale — the caller filters by file existence).
+  ///
+  /// We deliberately don't filter by `IS NULL` here only: the on-disk
+  /// file at a previously-stamped path may have been deleted by the
+  /// operator (e.g. SD card cleanup); the backfill should pick those up
+  /// too. The caller iterates and stats each `thumbnail_path`.
+  Future<List<({int id, String filePath, String? thumbnailPath})>>
+      listImagesForThumbnailBackfill() async {
+    final rows = await customSelect(
+      'SELECT id, file_path, thumbnail_path FROM captured_images '
+      'ORDER BY id ASC',
+      readsFrom: {capturedImages},
+    ).get();
+    return rows
+        .map((r) => (
+              id: r.read<int>('id'),
+              filePath: r.read<String>('file_path'),
+              thumbnailPath: r.data['thumbnail_path'] as String?,
+            ))
+        .toList(growable: false);
+  }
+
   /// Delete an image record
   Future<int> deleteImage(int id) {
     return (delete(capturedImages)..where((i) => i.id.equals(id))).go();
@@ -228,6 +393,348 @@ class ImagesDao extends DatabaseAccessor<NightshadeDatabase>
       }
     }
     return counts;
+  }
+
+  // ============================================================================
+  // Wave 6 Thumbnails — producing-node provenance
+  //
+  // The columns producing_node_id / producing_run_id / runtime_grade /
+  // eccentricity are stored on captured_images via the v30 raw-DDL migration
+  // (see database.dart). They are NOT declared on the [CapturedImages] Drift
+  // Table to keep the .g.dart codegen surface unchanged; the helpers below
+  // therefore go through `customSelect` / `customStatement`.
+  // ============================================================================
+
+  /// Stamp the producing-node provenance on an already-persisted image row.
+  ///
+  /// Called from the imaging service after `createImage` returns the new
+  /// row id, and from the sequence executor when a FrameAccepted /
+  /// FrameRejected event ships a runtime grade for a row this Dart side
+  /// just inserted.
+  ///
+  /// Pass `null` for fields you don't want to touch — the corresponding
+  /// column is simply omitted from the UPDATE so existing values survive.
+  Future<void> stampProducingNode({
+    required int imageId,
+    String? producingNodeId,
+    String? producingRunId,
+    String? runtimeGrade,
+    double? eccentricity,
+  }) async {
+    final assignments = <String>[];
+    final args = <Object?>[];
+    if (producingNodeId != null) {
+      assignments.add('producing_node_id = ?');
+      args.add(producingNodeId);
+    }
+    if (producingRunId != null) {
+      assignments.add('producing_run_id = ?');
+      args.add(producingRunId);
+    }
+    if (runtimeGrade != null) {
+      assignments.add('runtime_grade = ?');
+      args.add(runtimeGrade);
+    }
+    if (eccentricity != null) {
+      assignments.add('eccentricity = ?');
+      args.add(eccentricity);
+    }
+    if (assignments.isEmpty) {
+      return;
+    }
+    args.add(imageId);
+    await customStatement(
+      'UPDATE captured_images SET ${assignments.join(", ")} WHERE id = ?',
+      args,
+    );
+  }
+
+  /// Lightweight thumbnail-friendly view of a captured image row: only the
+  /// columns the sequence-tree thumbnail strip needs. Pulled out into its
+  /// own type so the watch query can stay narrow and so consumers don't
+  /// have to depend on the full CapturedImage data class.
+  ///
+  /// `runtimeGrade` is one of `pass`, `reject`, `pending`, or `null` (no
+  /// grading ran). Consumers map this to the strip's border colour.
+  /// `eccentricity` mirrors the Rust grader's median star eccentricity.
+  Future<List<ProducingNodeThumbnail>> getImagesByProducingNode({
+    required String producingNodeId,
+    String? producingRunId,
+    int limit = 100,
+  }) async {
+    final whereParts = <String>['producing_node_id = ?'];
+    final variables = <Variable>[Variable<String>(producingNodeId)];
+    if (producingRunId != null) {
+      whereParts.add('producing_run_id = ?');
+      variables.add(Variable<String>(producingRunId));
+    }
+    variables.add(Variable<int>(limit));
+    final rows = await customSelect(
+      'SELECT id, file_path, file_name, filter, frame_type, hfr, '
+      'eccentricity, star_count, exposure_duration, captured_at, '
+      'is_accepted, rejection_reason, runtime_grade, producing_node_id, '
+      'producing_run_id '
+      'FROM captured_images '
+      'WHERE ${whereParts.join(' AND ')} '
+      'ORDER BY captured_at ASC '
+      'LIMIT ?',
+      variables: variables,
+    ).get();
+    return rows.map(ProducingNodeThumbnail.fromRow).toList(growable: false);
+  }
+
+  /// Live-update version of [getImagesByProducingNode]. Used by the
+  /// sequence-tree thumbnail strip so freshly-captured frames appear
+  /// inline without a manual refresh.
+  Stream<List<ProducingNodeThumbnail>> watchImagesByProducingNode({
+    required String producingNodeId,
+    String? producingRunId,
+    int limit = 100,
+  }) {
+    final whereParts = <String>['producing_node_id = ?'];
+    final variables = <Variable>[Variable<String>(producingNodeId)];
+    if (producingRunId != null) {
+      whereParts.add('producing_run_id = ?');
+      variables.add(Variable<String>(producingRunId));
+    }
+    variables.add(Variable<int>(limit));
+    return customSelect(
+      'SELECT id, file_path, file_name, filter, frame_type, hfr, '
+      'eccentricity, star_count, exposure_duration, captured_at, '
+      'is_accepted, rejection_reason, runtime_grade, producing_node_id, '
+      'producing_run_id '
+      'FROM captured_images '
+      'WHERE ${whereParts.join(' AND ')} '
+      'ORDER BY captured_at ASC '
+      'LIMIT ?',
+      variables: variables,
+      readsFrom: {capturedImages},
+    ).watch().map((rows) =>
+        rows.map(ProducingNodeThumbnail.fromRow).toList(growable: false));
+  }
+
+  /// Count thumbnails for a given producing node — used by the tree
+  /// rendering to decide whether to draw the strip at all (an empty
+  /// strip is collapsed silently per the spec).
+  Future<int> countImagesByProducingNode({
+    required String producingNodeId,
+    String? producingRunId,
+  }) async {
+    final whereParts = <String>['producing_node_id = ?'];
+    final variables = <Variable>[Variable<String>(producingNodeId)];
+    if (producingRunId != null) {
+      whereParts.add('producing_run_id = ?');
+      variables.add(Variable<String>(producingRunId));
+    }
+    final row = await customSelect(
+      'SELECT COUNT(*) AS c FROM captured_images '
+      'WHERE ${whereParts.join(' AND ')}',
+      variables: variables,
+    ).getSingleOrNull();
+    return (row?.data['c'] as int?) ?? 0;
+  }
+
+  /// Insert a captured-image row from a sequence-driven event. This is
+  /// the only path that captures the producing-node breadcrumbs on
+  /// insertion (vs. the [createImage]/[stampProducingNode] dance used by
+  /// ad-hoc captures). Returns the new row id.
+  ///
+  /// `fileSize` is populated from `File(filePath).length()` here so the
+  /// REST `/api/images` listing exposes a real byte count to mobile
+  /// clients (otherwise they can't pre-size a download). The Rust FITS
+  /// writer is synchronous, so by the time the `FrameAccepted` /
+  /// `FrameRejected` event reaches Dart the file is already on disk —
+  /// if the length lookup throws, that's noteworthy enough to log a
+  /// warning, but the row MUST still be written (the size is purely
+  /// auxiliary; losing the breadcrumb row is far worse than losing the
+  /// size). Pass [logger] from a caller that has the `LoggingService`
+  /// already wired so the warning routes through the structured logger;
+  /// callers without one (tests, raw-DB tools) can pass `null` and the
+  /// warning will be swallowed silently — those callers are not the
+  /// production capture path.
+  Future<int> insertSequenceFrame({
+    required String filePath,
+    required String fileName,
+    required String fileFormat,
+    required double exposureDuration,
+    required DateTime capturedAt,
+    required bool isAccepted,
+    required String producingNodeId,
+    String? producingRunId,
+    String? runtimeGrade,
+    String? rejectionReason,
+    int? sessionId,
+    int? targetId,
+    String? filter,
+    String frameType = 'light',
+    double? hfr,
+    int? starCount,
+    double? eccentricity,
+    int? gain,
+    int? offset,
+    int? binX,
+    int? binY,
+    double? qualityScore,
+    LoggingService? logger,
+    ThumbnailSidecarService? sidecarService,
+  }) async {
+    final ms = capturedAt.toUtc().millisecondsSinceEpoch ~/ 1000;
+    Variable<int> intOrNull(int? v) =>
+        v == null ? const Variable<int>(null) : Variable<int>(v);
+    Variable<String> strOrNull(String? v) =>
+        v == null ? const Variable<String>(null) : Variable<String>(v);
+    Variable<double> realOrNull(double? v) =>
+        v == null ? const Variable<double>(null) : Variable<double>(v);
+
+    // P0-5 #2 — populate file_size so REST clients can pre-size a
+    // download. We use the synchronous length() here (the file was just
+    // written by Rust and is guaranteed on disk for the
+    // FrameAccepted/FrameRejected event path). On a rejected frame that
+    // was diverted to the reject folder, the path may still be valid;
+    // on a frame with an empty path (legacy emit site that didn't
+    // thread save_path through), we skip the stat entirely.
+    int? fileSize;
+    if (filePath.isNotEmpty) {
+      try {
+        fileSize = await File(filePath).length();
+      } catch (e) {
+        logger?.warning(
+          'Failed to read file size for $filePath: $e — row will be '
+          'inserted with NULL file_size',
+          source: 'ImagesDao',
+        );
+      }
+    }
+
+    // P1-13: pre-populate `thumbnail_path` with the predicted sidecar
+    // location so the GET handler doesn't need to test for the file's
+    // existence on every call. The actual JPEG bytes are written
+    // asynchronously by `ThumbnailSidecarService` (best-effort,
+    // unawaited); a missing file at this path triggers the cold-read
+    // self-heal in the GET handler.
+    final String? thumbnailPath =
+        filePath.isEmpty ? null : '$filePath.thumb.jpg';
+
+    final result = await customInsert(
+      'INSERT INTO captured_images '
+      '(file_path, file_name, file_format, file_size, session_id, target_id, '
+      'frame_type, exposure_duration, gain, offset, bin_x, bin_y, filter, '
+      'hfr, star_count, quality_score, captured_at, is_accepted, '
+      'rejection_reason, producing_node_id, producing_run_id, '
+      'runtime_grade, eccentricity, thumbnail_path, is_plate_solved, '
+      'created_at) '
+      'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, '
+      '?, ?, ?, 0, ?)',
+      variables: [
+        Variable<String>(filePath),
+        Variable<String>(fileName),
+        Variable<String>(fileFormat),
+        intOrNull(fileSize),
+        intOrNull(sessionId),
+        intOrNull(targetId),
+        Variable<String>(frameType),
+        Variable<double>(exposureDuration),
+        intOrNull(gain),
+        intOrNull(offset),
+        Variable<int>(binX ?? 1),
+        Variable<int>(binY ?? 1),
+        strOrNull(filter),
+        realOrNull(hfr),
+        intOrNull(starCount),
+        realOrNull(qualityScore),
+        Variable<int>(ms),
+        Variable<bool>(isAccepted),
+        strOrNull(rejectionReason),
+        Variable<String>(producingNodeId),
+        strOrNull(producingRunId),
+        strOrNull(runtimeGrade),
+        realOrNull(eccentricity),
+        strOrNull(thumbnailPath),
+        Variable<int>(ms),
+      ],
+      updates: {capturedImages},
+    );
+
+    // P1-13: schedule fire-and-forget sidecar generation. The row is
+    // persisted regardless of sidecar outcome — a missing sidecar self-
+    // heals on the next GET. Errors land in the structured logger via
+    // the service (see ThumbnailSidecarService.writeSidecarForRow).
+    if (sidecarService != null &&
+        filePath.isNotEmpty &&
+        isAccepted) {
+      sidecarService.scheduleSidecarWrite(
+        imageId: result,
+        fitsPath: filePath,
+        imagesDao: this,
+      );
+    }
+
+    return result;
+  }
+
+  /// P0-5 #2 — backfill helper for `file_size IS NULL` rows. Returns a
+  /// summary `{updated, skipped, errors}` map. `skipped` covers rows whose
+  /// on-disk file no longer exists (e.g. the operator deleted it); each
+  /// such row is logged at warning severity via [logger] if provided.
+  /// `errors` covers permission denied / I/O errors on `File.length()`.
+  ///
+  /// Existing databases predating P0-5 will have hundreds or thousands
+  /// of rows with NULL file_size; running this once after upgrade brings
+  /// them up to par with newly-inserted rows. We deliberately don't
+  /// auto-run on schema upgrade — the I/O could be large on a Pi with
+  /// an SD card — but the operator (or a debug action) can invoke it.
+  Future<Map<String, int>> backfillMissingFileSizes({
+    LoggingService? logger,
+  }) async {
+    // Pull rows lacking a size. Drift's typed query API doesn't expose
+    // `IS NULL` ergonomically through the generated DAO so we use the
+    // raw select for clarity.
+    final rows = await customSelect(
+      'SELECT id, file_path FROM captured_images WHERE file_size IS NULL',
+      readsFrom: {capturedImages},
+    ).get();
+
+    int updated = 0;
+    int skipped = 0;
+    int errors = 0;
+
+    for (final row in rows) {
+      final id = row.read<int>('id');
+      final filePath = row.read<String>('file_path');
+      if (filePath.isEmpty) {
+        skipped++;
+        continue;
+      }
+      final file = File(filePath);
+      if (!await file.exists()) {
+        skipped++;
+        logger?.warning(
+          'backfillMissingFileSizes: skipping image $id — file not '
+          'found on disk: $filePath',
+          source: 'ImagesDao',
+        );
+        continue;
+      }
+      try {
+        final size = await file.length();
+        await (update(capturedImages)..where((i) => i.id.equals(id)))
+            .write(CapturedImagesCompanion(fileSize: Value(size)));
+        updated++;
+      } catch (e) {
+        errors++;
+        logger?.warning(
+          'backfillMissingFileSizes: failed to read length for image '
+          '$id ($filePath): $e',
+          source: 'ImagesDao',
+        );
+      }
+    }
+
+    return {
+      'updated': updated,
+      'skipped': skipped,
+      'errors': errors,
+    };
   }
 
   // Image metadata operations

@@ -130,6 +130,8 @@ pub struct EquipmentProfile {
     pub rotator_id: Option<String>,
     pub dome_id: Option<String>,
     pub weather_id: Option<String>,
+    #[serde(default)]
+    pub safety_monitor_id: Option<String>,
     pub cover_calibrator_id: Option<String>,
     pub telescope_focal_length: f64,
     pub telescope_aperture: f64,
@@ -219,6 +221,20 @@ impl AppState {
             .get(&key)
             .map(|conn| conn.state == ConnectionState::Connected)
             .unwrap_or(false)
+    }
+
+    /// Return a connected device id for the requested type, if one is known.
+    ///
+    /// This intentionally reads live connection state rather than the equipment
+    /// profile. Some device classes, notably safety monitors, are not yet stored
+    /// as first-class profile fields but are still connected and must be usable
+    /// by unattended sequencer safety checks.
+    pub async fn first_connected_device_id(&self, device_type: DeviceType) -> Option<String> {
+        let devices = self.devices.read().await;
+        devices
+            .iter()
+            .find(|((dt, _), conn)| *dt == device_type && conn.state == ConnectionState::Connected)
+            .map(|((_, id), _)| id.clone())
     }
 
     /// Get the current session state
@@ -629,3 +645,47 @@ impl Default for AppState {
 
 /// Thread-safe shared application state
 pub type SharedAppState = Arc<AppState>;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn device(id: &str, device_type: DeviceType) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: id.to_string(),
+            device_type,
+            driver_type: DriverType::Simulator,
+            description: String::new(),
+            driver_version: String::new(),
+            serial_number: None,
+            unique_id: None,
+            display_name: id.to_string(),
+        }
+    }
+
+    #[tokio::test]
+    async fn first_connected_device_id_ignores_disconnected_devices() {
+        let state = AppState::new();
+        state
+            .register_device(
+                device("unsafe-old", DeviceType::SafetyMonitor),
+                ConnectionState::Disconnected,
+            )
+            .await;
+        state
+            .register_device(
+                device("safe-live", DeviceType::SafetyMonitor),
+                ConnectionState::Connected,
+            )
+            .await;
+
+        assert_eq!(
+            state
+                .first_connected_device_id(DeviceType::SafetyMonitor)
+                .await
+                .as_deref(),
+            Some("safe-live")
+        );
+    }
+}

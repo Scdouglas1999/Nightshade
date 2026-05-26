@@ -1,6 +1,9 @@
+// ignore_for_file: sort_child_properties_last
+
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/preview_transform.dart';
@@ -20,12 +23,17 @@ class AnnotationOverlayWrapper extends ConsumerStatefulWidget {
   /// can pan to center it.
   final void Function(Offset imagePoint)? onPanToObject;
 
+  /// Width of the live-preview viewport hosting this overlay (from
+  /// [LayoutBuilder] on the preview parent). Used for responsive panel sizing.
+  final double? previewViewportWidth;
+
   const AnnotationOverlayWrapper({
     super.key,
     required this.zoomLevel,
     required this.imageOffset,
     required this.imageSize,
     required this.colors,
+    this.previewViewportWidth,
     this.onPanToObject,
   });
 
@@ -39,10 +47,20 @@ class _AnnotationOverlayWrapperState
   CelestialObjectAnnotation? _selectedObject;
   Offset? _tooltipPosition;
   bool _isHoverTooltip = false; // Tracks if tooltip is from hover
-  static const double _tooltipWidth = 300;
   static const double _tooltipHeight = 220;
   static const double _tooltipMargin = 12;
-  static const double _objectsPanelWidth = 280;
+
+  double get _previewViewportWidth =>
+      widget.previewViewportWidth ?? MediaQuery.sizeOf(context).width;
+
+  double get _objectsPanelWidth => Responsive.previewOverlayMaxWidth(
+        _previewViewportWidth,
+        maxAbsolute: 320,
+      );
+
+  double get _tooltipWidth =>
+      Responsive.previewOverlayMaxWidth(_previewViewportWidth, maxAbsolute: 300)
+          .clamp(200.0, 300.0);
 
   Offset _computeTooltipPosition(Offset anchor, {bool preferRight = true}) {
     final screenSize = MediaQuery.sizeOf(context);
@@ -164,9 +182,11 @@ class _AnnotationOverlayWrapperState
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(obj.commonName ?? obj.name),
-        content: SingleChildScrollView(
+      builder: (context) => NightshadeDialog(
+        title: obj.commonName ?? obj.name,
+        icon: LucideIcons.info,
+        width: 460,
+        child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,

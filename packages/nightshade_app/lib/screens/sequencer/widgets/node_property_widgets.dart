@@ -472,40 +472,9 @@ class NodeToggleSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onChanged(!value),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 24,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: value ? colors.primary : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: value ? colors.primary : colors.border,
-          ),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 200),
-          alignment: value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              color: colors.background,
-              shape: BoxShape.circle,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.1),
-                  blurRadius: 4,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    return NightshadeSwitch(
+      value: value,
+      onChanged: onChanged,
     );
   }
 }
@@ -608,7 +577,10 @@ class _NodeDangerButtonState extends State<NodeDangerButton> {
           padding: EdgeInsets.symmetric(vertical: btnPaddingV),
           decoration: BoxDecoration(
             color: _isHovered
-                ? widget.colors.error.withValues(alpha: 0.1)
+                ? NightshadeDecorations.tintedBadge(
+                    widget.colors.error,
+                    borderRadius: BorderRadius.circular(8),
+                  ).color
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(8),
             border: Border.all(

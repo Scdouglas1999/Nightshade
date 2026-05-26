@@ -8,6 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../framing/altitude_chart.dart';
 import '../../localization/nightshade_localizations.dart';
+import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/progress_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
 
@@ -58,9 +59,13 @@ final _plannerOptimizationProvider =
     );
   }
   final suggestions = await ref.watch(tonightSuggestionsProvider.future);
+  final exposureContext = suggestions.isEmpty
+      ? null
+      : await ref.watch(smartNightExposureContextProvider.future);
   return ref.watch(sessionOptimizerServiceProvider).buildPlanFromSuggestions(
         suggestions,
         generatedAt: DateTime.now(),
+        exposureContext: exposureContext,
       );
 });
 
@@ -69,10 +74,6 @@ final _plannerOptimizationProvider =
 final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
   (_) => _kPlannerPageSize,
 );
-
-/// Tracks which suggestion (by target id) has its altitude curve expanded.
-/// Only one row is expanded at a time to keep the page tidy.
-final _expandedRowProvider = StateProvider.autoDispose<int?>((_) => null);
 
 /// Full "Plan Tonight" workspace.
 ///
@@ -122,7 +123,7 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     final tabs = <(PlannerTab, String)>[
       (PlannerTab.recommendation, 'Recommendation'),
@@ -219,7 +220,7 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final planAsync = ref.watch(_plannerOptimizationProvider);
     final filtersState = ref.watch(suggestionFilterProvider);
     final candidatesAsync = ref.watch(plannerFilteredSuggestionsProvider);
@@ -306,7 +307,10 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                   target: effectivePrimary,
                   plan: plan,
                   colors: colors,
+                  isMobile: isMobile,
                   isOverride: _selectedAlternateIndex != null,
+                  onSendToFraming: () =>
+                      _sendToFraming(context, ref, effectivePrimary!),
                 ),
                 const SizedBox(height: NightshadeTokens.spaceLg),
                 SizedBox(
@@ -334,14 +338,13 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                 ),
                 const SizedBox(height: NightshadeTokens.space2xl),
               ],
-              _SectionHeader(
+              SectionHeader(
                 title: candidates.isEmpty
                     ? 'No matching candidates'
                     : 'Tonight’s candidates',
                 subtitle: candidates.isEmpty
                     ? 'Adjust filters below to bring more targets back.'
                     : '${candidates.length} target${candidates.length == 1 ? '' : 's'} after filters',
-                colors: colors,
               ),
               const SizedBox(height: NightshadeTokens.spaceMd),
               if (candidates.isEmpty)
@@ -351,6 +354,17 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
                   candidates: candidates,
                   colors: colors,
                   isMobile: isMobile,
+                ),
+
+              if (ref
+                      .watch(suggestionFilterProvider)
+                      .searchQuery
+                      .trim()
+                      .length >=
+                  2)
+                _InstalledCatalogResultsSection(
+                  query: ref.watch(suggestionFilterProvider).searchQuery.trim(),
+                  colors: colors,
                 ),
 
               // External SIMBAD name resolver — shows up only when the user
@@ -372,20 +386,18 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
 
               if (plan.riskFactors.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.space2xl),
-                _SectionHeader(
+                SectionHeader(
                   title: l10n.text('plannerRiskFactors'),
                   subtitle: l10n.text('plannerRiskFactorsSubtitle'),
-                  colors: colors,
                 ),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _RiskFactorsList(riskFactors: plan.riskFactors, colors: colors),
               ],
               if (plan.rationale.isNotEmpty) ...[
                 const SizedBox(height: NightshadeTokens.space2xl),
-                _SectionHeader(
+                SectionHeader(
                   title: l10n.text('plannerRationale'),
                   subtitle: l10n.text('plannerRationaleSubtitle'),
-                  colors: colors,
                 ),
                 const SizedBox(height: NightshadeTokens.spaceMd),
                 _RationaleList(rationale: plan.rationale, colors: colors),
@@ -398,68 +410,62 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
     );
   }
 
-  void _createSequence(
+  Future<void> _createSequence(
     BuildContext context,
     NightshadeColors colors,
     TargetSuggestion target,
     SessionOptimizationPlan plan,
-  ) {
-    final sequenceNotifier = ref.read(currentSequenceProvider.notifier);
-    final targetNode = TargetHeaderNode(
-      targetName: target.targetName,
-      raHours: target.raHours,
-      decDegrees: target.decDegrees,
-    );
-    final estimatedFrames =
-        (plan.estimatedUsableHours * 3600 / plan.recommendedExposureSeconds)
-            .floor()
-            .clamp(1, 999);
-    final exposureNode = ExposureNode(
-      durationSecs: plan.recommendedExposureSeconds,
-      count: estimatedFrames,
-      frameType: FrameType.light,
-    );
-
+  ) async {
     try {
-      // The planner replaces the editor sequence by design — the user
-      // explicitly clicked "Send to Sequencer" from this screen and the
-      // confirm-clobber decision is implicit. Pass `discardUnsaved: true`
-      // so we don't double-prompt them with an UnsavedChangesException
-      // they never asked to see.
-      sequenceNotifier.createSequence(
-        name: '${target.targetName} Plan',
-        discardUnsaved: true,
+      final built = await buildPlanTonightTargetSequence(
+        ref: ref,
+        target: target,
+        plan: plan,
+        includeSessionPreamble: true,
       );
-      sequenceNotifier.addTargetHeader(targetNode);
-      sequenceNotifier.addNode(exposureNode, parentId: targetNode.id);
-    } on SequenceLockedException catch (e) {
-      // Can't author into a running/paused sequence; surface to user
-      // rather than silently dropping the planner's draft.
+      if (!context.mounted) return;
+      final loaded = await loadPlanTonightSequenceIntoEditor(
+        context: context,
+        ref: ref,
+        result: built,
+        replaceSequence: true,
+      );
+      if (!loaded || !context.mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            context.l10n.text(
+              'plannerDraftCreated',
+              params: {
+                'target': target.targetName,
+                'exposure': planTonightSequenceSummary(built),
+              },
+            ),
+          ),
+          backgroundColor: colors.success,
+        ),
+      );
+
+      context.go('/sequencer');
+    } on SmartNightBuildException catch (e) {
+      if (!context.mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(e.message),
           backgroundColor: colors.error,
         ),
       );
-      return;
     }
+  }
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          context.l10n.text(
-            'plannerDraftCreated',
-            params: {
-              'target': target.targetName,
-              'exposure': plan.recommendedExposureSeconds.toStringAsFixed(0),
-            },
-          ),
-        ),
-        backgroundColor: colors.success,
-      ),
-    );
-
-    context.go('/sequencer');
+  void _sendToFraming(
+    BuildContext context,
+    WidgetRef ref,
+    TargetSuggestion target,
+  ) {
+    ref.read(framingProvider.notifier).setTargetSuggestion(target);
+    context.goNamed('framing');
   }
 
   Widget _buildLoadingState(NightshadeColors colors) {
@@ -697,7 +703,7 @@ class _SearchField extends StatelessWidget {
         style: TextStyle(fontSize: 13, color: colors.textPrimary),
         decoration: InputDecoration(
           isDense: true,
-          hintText: 'Search catalog (M42, NGC7000, Orion, "horsehead")',
+          hintText: 'Search tonight candidates and installed catalogs',
           hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
           prefixIcon:
               Icon(LucideIcons.search, size: 16, color: colors.textMuted),
@@ -881,8 +887,8 @@ class _ConstellationDropdown extends ConsumerWidget {
       decoration: BoxDecoration(
         color: selected == null
             ? colors.surfaceAlt
-            : colors.primary.withValues(alpha: 0.1),
-        borderRadius: BorderRadius.circular(16),
+            : NightshadeDecorations.tintedBadge(colors.primary).color,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
         border: Border.all(
           color: selected == null
               ? colors.border
@@ -1277,7 +1283,7 @@ class _SortDropdown extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 10),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
         border: Border.all(color: colors.border),
       ),
       child: DropdownButtonHideUnderline(
@@ -1337,21 +1343,25 @@ class _ControlChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bg =
-        active ? colors.primary.withValues(alpha: 0.1) : colors.surfaceAlt;
+    final bg = active
+        ? NightshadeDecorations.tintedBadge(
+            colors.primary,
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
+          ).color
+        : colors.surfaceAlt;
     final border =
         active ? colors.primary.withValues(alpha: 0.5) : colors.border;
     final fg = active ? colors.primary : colors.textSecondary;
 
     return InkWell(
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
       onTap: onTap,
       child: Container(
         height: 32,
         padding: const EdgeInsets.symmetric(horizontal: 10),
         decoration: BoxDecoration(
           color: bg,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
           border: Border.all(color: border),
         ),
         child: Row(
@@ -1445,47 +1455,6 @@ Future<double?> _showAngleSlider({
 }
 
 // ============================================================================
-// Section header + reusable bits
-// ============================================================================
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String subtitle;
-  final NightshadeColors colors;
-
-  const _SectionHeader({
-    required this.title,
-    required this.subtitle,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          subtitle,
-          style: TextStyle(
-            fontSize: 12,
-            color: colors.textMuted,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-// ============================================================================
 // Candidate list with pagination
 // ============================================================================
 
@@ -1505,7 +1474,6 @@ class _CandidateList extends ConsumerWidget {
     final visibleCount =
         ref.watch(_plannerVisibleCountProvider).clamp(0, candidates.length);
     final visible = candidates.take(visibleCount).toList(growable: false);
-    final expandedId = ref.watch(_expandedRowProvider);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1517,13 +1485,7 @@ class _CandidateList extends ConsumerWidget {
               key: ValueKey('candidate-${candidate.targetId}'),
               suggestion: candidate,
               colors: colors,
-              isExpanded: expandedId == candidate.targetId,
-              onToggleExpand: () {
-                ref.read(_expandedRowProvider.notifier).state =
-                    expandedId == candidate.targetId
-                        ? null
-                        : candidate.targetId;
-              },
+              isMobile: isMobile,
             ),
           ),
         if (visibleCount < candidates.length)
@@ -1550,18 +1512,18 @@ class _CandidateList extends ConsumerWidget {
   }
 }
 
-class _CandidateRow extends ConsumerWidget {
+/// Target metadata and actions for a planner candidate card.
+class _CandidateRowInfo extends ConsumerWidget {
   final TargetSuggestion suggestion;
   final NightshadeColors colors;
-  final bool isExpanded;
-  final VoidCallback onToggleExpand;
+  final VoidCallback onSendToFraming;
+  final VoidCallback onAddToObservingList;
 
-  const _CandidateRow({
-    super.key,
+  const _CandidateRowInfo({
     required this.suggestion,
     required this.colors,
-    required this.isExpanded,
-    required this.onToggleExpand,
+    required this.onSendToFraming,
+    required this.onAddToObservingList,
   });
 
   @override
@@ -1571,6 +1533,183 @@ class _CandidateRow extends ConsumerWidget {
     final hoursAbove = suggestion.visibility.hoursAboveMinAlt ?? 0.0;
     final moonDist = suggestion.visibility.moonDistance;
 
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    suggestion.targetName,
+                    style: TextStyle(
+                      fontSize: 15,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (suggestion.catalogId != null &&
+                      suggestion.catalogId != suggestion.targetName)
+                    Text(
+                      suggestion.catalogId!,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            _ScoreBadge(score: suggestion.totalScore, colors: colors),
+          ],
+        ),
+        const SizedBox(height: NightshadeTokens.spaceSm),
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: 4,
+          children: [
+            if (suggestion.objectType != null)
+              _StatChip(
+                icon: LucideIcons.shapes,
+                label: suggestion.objectType!,
+                colors: colors,
+              ),
+            _StatChip(
+              icon: LucideIcons.arrowUp,
+              label: 'Peak ${peakAlt.toStringAsFixed(0)}°',
+              colors: colors,
+            ),
+            _IntegrationEstimateChip(
+              targetId: suggestion.targetId,
+              fallbackVisibleHours: hoursAbove,
+              colors: colors,
+            ),
+            _StatChip(
+              icon: LucideIcons.moon,
+              label: 'Moon ${moonDist.toStringAsFixed(0)}°',
+              colors: colors,
+              isWarning: moonDist < 45,
+            ),
+            if (suggestion.magnitude != null)
+              _StatChip(
+                icon: LucideIcons.sparkles,
+                label: 'Mag ${suggestion.magnitude!.toStringAsFixed(1)}',
+                colors: colors,
+              ),
+            // Why major-axis only: the DB Target schema does not store a
+            // minor axis, so plumbing one through from OpenNGC would touch
+            // out-of-scope files for this branch.
+            if (suggestion.sizeArcmin != null && suggestion.sizeArcmin! > 0)
+              _StatChip(
+                icon: LucideIcons.ruler,
+                label: _formatSizeLabel(suggestion.sizeArcmin),
+                colors: colors,
+              ),
+            if (suggestion.constellation != null)
+              _StatChip(
+                icon: LucideIcons.star,
+                label: suggestion.constellation!,
+                colors: colors,
+              ),
+          ],
+        ),
+        if (suggestion.reasoning.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Text(
+            suggestion.reasoning,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+        ],
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            NightshadeButton(
+              label: 'Send to Framing',
+              icon: LucideIcons.frame,
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: onSendToFraming,
+            ),
+            NightshadeButton(
+              label: 'Add to observing list',
+              icon: LucideIcons.listPlus,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onAddToObservingList,
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+/// Altitude visibility chart shown beside (or below on narrow) candidate info.
+class _CandidateAltitudePanel extends StatelessWidget {
+  final TargetSuggestion suggestion;
+  final NightshadeColors colors;
+
+  const _CandidateAltitudePanel({
+    required this.suggestion,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+        border: Border.all(color: colors.border.withValues(alpha: 0.6)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
+        child: AltitudeChart(
+          raHours: suggestion.raHours,
+          decDegrees: suggestion.decDegrees,
+          targetName: suggestion.targetName,
+        ),
+      ),
+    );
+  }
+}
+
+class _CandidateRow extends ConsumerWidget {
+  final TargetSuggestion suggestion;
+  final NightshadeColors colors;
+  final bool isMobile;
+
+  const _CandidateRow({
+    super.key,
+    required this.suggestion,
+    required this.colors,
+    required this.isMobile,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final infoSection = _CandidateRowInfo(
+      suggestion: suggestion,
+      colors: colors,
+      onSendToFraming: () => _sendToFraming(context, ref),
+      onAddToObservingList: () => _addToObservingList(context, ref),
+    );
+    final chartPanel = _CandidateAltitudePanel(
+      suggestion: suggestion,
+      colors: colors,
+    );
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -1578,158 +1717,42 @@ class _CandidateRow extends ConsumerWidget {
         border: Border.all(color: colors.border),
       ),
       padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                infoSection,
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                chartPanel,
+              ],
+            )
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final panelWidth = clampPanelWidth(
+                  constraints.maxWidth,
+                  fraction: 0.32,
+                  min: 300,
+                  max: 380,
+                );
+                return Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      suggestion.targetName,
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                      ),
+                    Expanded(child: infoSection),
+                    const SizedBox(width: NightshadeTokens.spaceLg),
+                    SizedBox(
+                      width: panelWidth,
+                      child: chartPanel,
                     ),
-                    if (suggestion.catalogId != null &&
-                        suggestion.catalogId != suggestion.targetName)
-                      Text(
-                        suggestion.catalogId!,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                        ),
-                      ),
                   ],
-                ),
-              ),
-              _ScoreBadge(score: suggestion.totalScore, colors: colors),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceSm),
-          Wrap(
-            spacing: NightshadeTokens.spaceSm,
-            runSpacing: 4,
-            children: [
-              if (suggestion.objectType != null)
-                _StatChip(
-                  icon: LucideIcons.shapes,
-                  label: suggestion.objectType!,
-                  colors: colors,
-                ),
-              _StatChip(
-                icon: LucideIcons.arrowUp,
-                label: 'Peak ${peakAlt.toStringAsFixed(0)}°',
-                colors: colors,
-              ),
-              _StatChip(
-                icon: LucideIcons.clock,
-                label: '${hoursAbove.toStringAsFixed(1)}h visible',
-                colors: colors,
-              ),
-              _StatChip(
-                icon: LucideIcons.moon,
-                label: 'Moon ${moonDist.toStringAsFixed(0)}°',
-                colors: colors,
-                isWarning: moonDist < 45,
-              ),
-              if (suggestion.magnitude != null)
-                _StatChip(
-                  icon: LucideIcons.sparkles,
-                  label: 'Mag ${suggestion.magnitude!.toStringAsFixed(1)}',
-                  colors: colors,
-                ),
-              // Why major-axis only: the DB Target schema does not store a
-              // minor axis, so plumbing one through from OpenNGC would touch
-              // out-of-scope files for this branch.
-              if (suggestion.sizeArcmin != null && suggestion.sizeArcmin! > 0)
-                _StatChip(
-                  icon: LucideIcons.ruler,
-                  label: _formatSizeLabel(suggestion.sizeArcmin),
-                  colors: colors,
-                ),
-              if (suggestion.constellation != null)
-                _StatChip(
-                  icon: LucideIcons.star,
-                  label: suggestion.constellation!,
-                  colors: colors,
-                ),
-            ],
-          ),
-          if (suggestion.reasoning.isNotEmpty) ...[
-            const SizedBox(height: NightshadeTokens.spaceSm),
-            Text(
-              suggestion.reasoning,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-                height: 1.35,
-              ),
+                );
+              },
             ),
-          ],
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Wrap(
-            spacing: NightshadeTokens.spaceSm,
-            runSpacing: NightshadeTokens.spaceSm,
-            children: [
-              NightshadeButton(
-                label: 'Send to Framing',
-                icon: LucideIcons.frame,
-                variant: ButtonVariant.primary,
-                size: ButtonSize.small,
-                onPressed: () => _sendToFraming(context),
-              ),
-              NightshadeButton(
-                label: 'Add to observing list',
-                icon: LucideIcons.listPlus,
-                variant: ButtonVariant.outline,
-                size: ButtonSize.small,
-                onPressed: () => _addToObservingList(context, ref),
-              ),
-              NightshadeButton(
-                label:
-                    isExpanded ? 'Hide altitude curve' : 'Show altitude curve',
-                icon:
-                    isExpanded ? LucideIcons.chevronUp : LucideIcons.lineChart,
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-                onPressed: onToggleExpand,
-              ),
-            ],
-          ),
-          if (isExpanded) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Divider(color: colors.border, height: 1),
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            SizedBox(
-              height: 220,
-              child: AltitudeChart(
-                raHours: suggestion.raHours,
-                decDegrees: suggestion.decDegrees,
-                targetName: suggestion.targetName,
-              ),
-            ),
-          ],
-        ],
-      ),
     );
   }
 
-  void _sendToFraming(BuildContext context) {
-    final params = <String, String>{
-      'ra': suggestion.raHours.toStringAsFixed(6),
-      'dec': suggestion.decDegrees.toStringAsFixed(6),
-      'name': suggestion.targetName,
-    };
-    final uri = Uri(path: '/framing', queryParameters: params);
-    context.go(uri.toString());
+  void _sendToFraming(BuildContext context, WidgetRef ref) {
+    ref.read(framingProvider.notifier).setTargetSuggestion(suggestion);
+    context.goNamed('framing');
   }
 
   Future<void> _addToObservingList(
@@ -1749,7 +1772,7 @@ class _CandidateRow extends ConsumerWidget {
             style: TextStyle(color: colors.textPrimary),
           ),
           content: SizedBox(
-            width: 320,
+            width: dialogMaxWidth(dCtx, 320),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -1766,7 +1789,14 @@ class _CandidateRow extends ConsumerWidget {
                   )
                 else
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 280),
+                    constraints: BoxConstraints(
+                      maxHeight: clampPanelWidth(
+                        MediaQuery.sizeOf(dCtx).height,
+                        fraction: 0.35,
+                        min: 180,
+                        max: 280,
+                      ),
+                    ),
                     child: ListView(
                       shrinkWrap: true,
                       children: [
@@ -1820,7 +1850,7 @@ class _CandidateRow extends ConsumerWidget {
           sizeArcmin: suggestion.sizeArcmin,
         );
     if (!context.mounted) return;
-    final colorsLocal = Theme.of(context).extension<NightshadeColors>()!;
+    final colorsLocal = NightshadeColors.of(context);
     final notifierState = ref.read(observingListNotifierProvider);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -1881,7 +1911,7 @@ class _CandidateRow extends ConsumerWidget {
           sizeArcmin: suggestion.sizeArcmin,
         );
     if (!context.mounted) return null;
-    final colorsLocal = Theme.of(context).extension<NightshadeColors>()!;
+    final colorsLocal = NightshadeColors.of(context);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(
@@ -1916,11 +1946,7 @@ class _ScoreBadge extends StatelessWidget {
     return Container(
       width: 44,
       height: 44,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: badgeColor.withValues(alpha: 0.15),
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
-      ),
+      decoration: NightshadeDecorations.kpiBadge(badgeColor),
       child: Center(
         child: Text(
           score.toStringAsFixed(0),
@@ -1931,6 +1957,61 @@ class _ScoreBadge extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Shows filter-aware estimated integration when Smart Night context is
+/// available; otherwise falls back to hours above minimum altitude.
+class _IntegrationEstimateChip extends ConsumerWidget {
+  final int targetId;
+  final double fallbackVisibleHours;
+  final NightshadeColors colors;
+
+  const _IntegrationEstimateChip({
+    required this.targetId,
+    required this.fallbackVisibleHours,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final previewAsync =
+        ref.watch(plannerTargetIntegrationPreviewProvider(targetId));
+
+    return previewAsync.when(
+      data: (preview) {
+        if (preview != null && preview.estimatedIntegrationHours > 0) {
+          return _StatChip(
+            icon: LucideIcons.timer,
+            label:
+                '~${preview.estimatedIntegrationHours.toStringAsFixed(1)}h integration',
+            colors: colors,
+          );
+        }
+        if (fallbackVisibleHours > 0) {
+          return _StatChip(
+            icon: LucideIcons.clock,
+            label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
+            colors: colors,
+          );
+        }
+        return const SizedBox.shrink();
+      },
+      loading: () => fallbackVisibleHours > 0
+          ? _StatChip(
+              icon: LucideIcons.clock,
+              label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
+              colors: colors,
+            )
+          : const SizedBox.shrink(),
+      error: (_, __) => fallbackVisibleHours > 0
+          ? _StatChip(
+              icon: LucideIcons.clock,
+              label: '${fallbackVisibleHours.toStringAsFixed(1)}h visible',
+              colors: colors,
+            )
+          : const SizedBox.shrink(),
     );
   }
 }
@@ -1953,14 +2034,15 @@ class _StatChip extends StatelessWidget {
     final chipColor = isWarning ? colors.warning : colors.textSecondary;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: (isWarning ? colors.warning : colors.surfaceAlt)
-            .withValues(alpha: isWarning ? 0.1 : 1.0),
-        borderRadius: BorderRadius.circular(6),
-        border: isWarning
-            ? Border.all(color: colors.warning.withValues(alpha: 0.3))
-            : null,
-      ),
+      decoration: isWarning
+          ? NightshadeDecorations.emphasisSurface(
+              colors.warning,
+              borderRadius: BorderRadius.circular(6),
+            )
+          : BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(6),
+            ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -2190,27 +2272,253 @@ class _FilteredEmptyState extends ConsumerWidget {
 // Primary target card + auxiliary lists (kept from original screen)
 // ============================================================================
 
-class _PrimaryTargetCard extends StatelessWidget {
+class _PrimaryTargetCard extends ConsumerWidget {
   final TargetSuggestion target;
   final SessionOptimizationPlan plan;
   final NightshadeColors colors;
+  final bool isMobile;
   final bool isOverride;
+  final VoidCallback onSendToFraming;
 
   const _PrimaryTargetCard({
     required this.target,
     required this.plan,
     required this.colors,
+    required this.isMobile,
     required this.isOverride,
+    required this.onSendToFraming,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final raFormatted = CoordinateUtils.formatRA(target.raHours);
     final decFormatted = CoordinateUtils.formatDec(target.decDegrees);
     final peakAlt =
         target.visibility.peakAltitude ?? target.visibility.currentAltitude;
     final hoursAbove = target.visibility.hoursAboveMinAlt ?? 0.0;
     final moonDist = target.visibility.moonDistance;
+    final integrationPreview =
+        ref.watch(plannerTargetIntegrationPreviewProvider(target.targetId));
+
+    final infoSection = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (isOverride)
+                    Padding(
+                      padding: const EdgeInsets.only(
+                          bottom: NightshadeTokens.spaceXs),
+                      child: Text(
+                        context.l10n.text('plannerUserOverride'),
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          color: colors.warning,
+                          letterSpacing: 1.2,
+                        ),
+                      ),
+                    ),
+                  Text(
+                    target.targetName,
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
+                    ),
+                  ),
+                  if (target.catalogId != null &&
+                      target.catalogId != target.targetName)
+                    Text(
+                      target.catalogId!,
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            _ScoreBadge(score: target.totalScore, colors: colors),
+          ],
+        ),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Row(
+          children: [
+            Icon(LucideIcons.locate, size: 14, color: colors.textMuted),
+            const SizedBox(width: 6),
+            Text(
+              '$raFormatted  /  $decFormatted',
+              style: TextStyle(
+                fontSize: 12,
+                fontFamily: 'monospace',
+                color: colors.textSecondary,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Wrap(
+          spacing: NightshadeTokens.spaceMd,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            if (target.objectType != null)
+              _StatChip(
+                icon: LucideIcons.shapes,
+                label: target.objectType!,
+                colors: colors,
+              ),
+            _StatChip(
+              icon: LucideIcons.arrowUp,
+              label: context.l10n.text(
+                'plannerPeak',
+                params: {'value': peakAlt.toStringAsFixed(1)},
+              ),
+              colors: colors,
+            ),
+            _IntegrationEstimateChip(
+              targetId: target.targetId,
+              fallbackVisibleHours: hoursAbove,
+              colors: colors,
+            ),
+            _StatChip(
+              icon: LucideIcons.moon,
+              label: context.l10n.text(
+                'plannerMoon',
+                params: {'value': moonDist.toStringAsFixed(0)},
+              ),
+              colors: colors,
+              isWarning: moonDist < 45,
+            ),
+            _StatChip(
+              icon: LucideIcons.camera,
+              label: context.l10n.text(
+                'plannerExposure',
+                params: {
+                  'value': plan.recommendedExposureSeconds.toStringAsFixed(0),
+                },
+              ),
+              colors: colors,
+            ),
+            if (plan.recommendedFilterNames.isNotEmpty)
+              _StatChip(
+                icon: LucideIcons.aperture,
+                label: plan.recommendedFilterNames.join(' · '),
+                colors: colors,
+              )
+            else if (plan.recommendedFilterName != null)
+              _StatChip(
+                icon: LucideIcons.aperture,
+                label: plan.recommendedFilterName!,
+                colors: colors,
+              ),
+            if (target.magnitude != null)
+              _StatChip(
+                icon: LucideIcons.sparkles,
+                label: context.l10n.text(
+                  'plannerMagnitude',
+                  params: {'value': target.magnitude!.toStringAsFixed(1)},
+                ),
+                colors: colors,
+              ),
+            if (target.sizeArcmin != null && target.sizeArcmin! > 0)
+              _StatChip(
+                icon: LucideIcons.ruler,
+                label: _formatSizeLabel(target.sizeArcmin),
+                colors: colors,
+              ),
+            if (target.constellation != null)
+              _StatChip(
+                icon: LucideIcons.star,
+                label: target.constellation!,
+                colors: colors,
+              ),
+          ],
+        ),
+        integrationPreview.when(
+          data: (preview) {
+            if (preview == null || preview.estimatedIntegrationHours <= 0) {
+              return const SizedBox.shrink();
+            }
+            return Padding(
+              padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+              child: Row(
+                children: [
+                  Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
+                  const SizedBox(width: 6),
+                  Text(
+                    context.l10n.text(
+                      'plannerEstimatedIntegration',
+                      params: {
+                        'value': _formatUsableHours(
+                          preview.estimatedIntegrationHours,
+                        ),
+                      },
+                    ),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          },
+          loading: () => const SizedBox.shrink(),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        Wrap(
+          spacing: NightshadeTokens.spaceSm,
+          runSpacing: NightshadeTokens.spaceSm,
+          children: [
+            NightshadeButton(
+              label: 'Send to Framing',
+              icon: LucideIcons.frame,
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: onSendToFraming,
+            ),
+          ],
+        ),
+        if (target.warnings.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          for (final warning in target.warnings.take(3))
+            Padding(
+              padding:
+                  const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    LucideIcons.alertTriangle,
+                    size: 14,
+                    color: _warningColor(warning.severity, colors),
+                  ),
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      warning.message,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: _warningColor(warning.severity, colors),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+        ],
+      ],
+    );
+    final chartPanel = _CandidateAltitudePanel(
+      suggestion: target,
+      colors: colors,
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -2221,197 +2529,28 @@ class _PrimaryTargetCard extends StatelessWidget {
               ? colors.warning.withValues(alpha: 0.5)
               : colors.primary.withValues(alpha: 0.4),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: (isOverride ? colors.warning : colors.primary)
-                .withValues(alpha: 0.08),
-            blurRadius: 12,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       padding: NightshadeTokens.cardPadding,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (isOverride)
-                      Padding(
-                        padding: const EdgeInsets.only(
-                            bottom: NightshadeTokens.spaceXs),
-                        child: Text(
-                          context.l10n.text('plannerUserOverride'),
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w700,
-                            color: colors.warning,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-                      ),
-                    Text(
-                      target.targetName,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w700,
-                        color: colors.textPrimary,
-                      ),
-                    ),
-                    if (target.catalogId != null &&
-                        target.catalogId != target.targetName)
-                      Text(
-                        target.catalogId!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                  ],
-                ),
-              ),
-              _ScoreBadge(score: target.totalScore, colors: colors),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Row(
-            children: [
-              Icon(LucideIcons.locate, size: 14, color: colors.textMuted),
-              const SizedBox(width: 6),
-              Text(
-                '$raFormatted  /  $decFormatted',
-                style: TextStyle(
-                  fontSize: 12,
-                  fontFamily: 'monospace',
-                  color: colors.textSecondary,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: NightshadeTokens.spaceMd),
-          Wrap(
-            spacing: NightshadeTokens.spaceMd,
-            runSpacing: NightshadeTokens.spaceSm,
-            children: [
-              if (target.objectType != null)
-                _StatChip(
-                  icon: LucideIcons.shapes,
-                  label: target.objectType!,
-                  colors: colors,
-                ),
-              _StatChip(
-                icon: LucideIcons.arrowUp,
-                label: context.l10n.text(
-                  'plannerPeak',
-                  params: {'value': peakAlt.toStringAsFixed(1)},
-                ),
-                colors: colors,
-              ),
-              _StatChip(
-                icon: LucideIcons.clock,
-                label: context.l10n.text(
-                  'plannerVisible',
-                  params: {'value': hoursAbove.toStringAsFixed(1)},
-                ),
-                colors: colors,
-              ),
-              _StatChip(
-                icon: LucideIcons.moon,
-                label: context.l10n.text(
-                  'plannerMoon',
-                  params: {'value': moonDist.toStringAsFixed(0)},
-                ),
-                colors: colors,
-                isWarning: moonDist < 45,
-              ),
-              _StatChip(
-                icon: LucideIcons.camera,
-                label: context.l10n.text(
-                  'plannerExposure',
-                  params: {
-                    'value': plan.recommendedExposureSeconds.toStringAsFixed(0),
-                  },
-                ),
-                colors: colors,
-              ),
-              if (target.magnitude != null)
-                _StatChip(
-                  icon: LucideIcons.sparkles,
-                  label: context.l10n.text(
-                    'plannerMagnitude',
-                    params: {'value': target.magnitude!.toStringAsFixed(1)},
-                  ),
-                  colors: colors,
-                ),
-              if (target.sizeArcmin != null && target.sizeArcmin! > 0)
-                _StatChip(
-                  icon: LucideIcons.ruler,
-                  label: _formatSizeLabel(target.sizeArcmin),
-                  colors: colors,
-                ),
-              if (target.constellation != null)
-                _StatChip(
-                  icon: LucideIcons.star,
-                  label: target.constellation!,
-                  colors: colors,
-                ),
-            ],
-          ),
-          if (plan.estimatedUsableHours > 0) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            Row(
+      child: isMobile
+          ? Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Icon(LucideIcons.timer, size: 14, color: colors.textMuted),
-                const SizedBox(width: 6),
-                Text(
-                  context.l10n.text(
-                    'plannerEstimatedIntegration',
-                    params: {
-                      'value': _formatUsableHours(plan.estimatedUsableHours),
-                    },
-                  ),
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: colors.textSecondary,
-                  ),
+                infoSection,
+                const SizedBox(height: NightshadeTokens.spaceMd),
+                chartPanel,
+              ],
+            )
+          : Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: infoSection),
+                const SizedBox(width: NightshadeTokens.spaceLg),
+                SizedBox(
+                  width: 360,
+                  child: chartPanel,
                 ),
               ],
             ),
-          ],
-          if (target.warnings.isNotEmpty) ...[
-            const SizedBox(height: NightshadeTokens.spaceMd),
-            for (final warning in target.warnings.take(3))
-              Padding(
-                padding:
-                    const EdgeInsets.only(bottom: NightshadeTokens.spaceXs),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Icon(
-                      LucideIcons.alertTriangle,
-                      size: 14,
-                      color: _warningColor(warning.severity, colors),
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        warning.message,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: _warningColor(warning.severity, colors),
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-          ],
-        ],
-      ),
     );
   }
 
@@ -2481,7 +2620,7 @@ class _RiskFactorsList extends StatelessWidget {
             ),
             if (i < riskFactors.length - 1)
               Divider(
-                color: colors.warning.withValues(alpha: 0.1),
+                color: colors.border,
                 height: NightshadeTokens.spaceLg,
               ),
           ],
@@ -2548,6 +2687,145 @@ class _RationaleList extends StatelessWidget {
 /// Section that resolves a name fragment against SIMBAD and renders the
 /// matches as send-to-framing rows. Only mounts when the planner search bar
 /// has ≥3 characters typed.
+class _InstalledCatalogResultsSection extends ConsumerWidget {
+  final String query;
+  final NightshadeColors colors;
+
+  const _InstalledCatalogResultsSection({
+    required this.query,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final async = ref.watch(plannerInstalledCatalogSearchProvider(query));
+
+    return async.when(
+      loading: () => Padding(
+        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+            const SizedBox(width: NightshadeTokens.spaceSm),
+            Text(
+              'Searching installed catalogs for "$query"...',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            ),
+          ],
+        ),
+      ),
+      error: (e, _) => Padding(
+        padding: const EdgeInsets.only(top: NightshadeTokens.space2xl),
+        child: Text(
+          'Installed catalog lookup failed: $e',
+          style: TextStyle(fontSize: 12, color: colors.warning),
+        ),
+      ),
+      data: (matches) {
+        if (matches.isEmpty) return const SizedBox.shrink();
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const SizedBox(height: NightshadeTokens.space2xl),
+            SectionHeader(
+              title: 'Installed catalog',
+              subtitle:
+                  '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" outside tonight\'s scored candidates',
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            for (final match in matches)
+              _CatalogResultRow(match: match, colors: colors),
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _CatalogResultRow extends StatelessWidget {
+  final CatalogSearchResult match;
+  final NightshadeColors colors;
+
+  const _CatalogResultRow({
+    required this.match,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final metaParts = <String>[
+      match.type,
+      if (match.magnitude != null) 'mag ${match.magnitude!.toStringAsFixed(1)}',
+      if (match.constellation != null && match.constellation!.isNotEmpty)
+        match.constellation!,
+      'RA ${_SimbadResultRow._formatRa(match.ra / 15.0)}  Dec ${_SimbadResultRow._formatDec(match.dec)}',
+    ];
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NightshadeTokens.spaceMd,
+        vertical: NightshadeTokens.spaceSm,
+      ),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: NightshadeTokens.borderRadiusMd,
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  match.name,
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+                Text(
+                  metaParts.join(' · '),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: NightshadeTokens.spaceSm),
+          NightshadeButton(
+            label: 'Send to Framing',
+            icon: LucideIcons.crosshair,
+            size: ButtonSize.small,
+            onPressed: () {
+              final uri = Uri(
+                path: '/framing',
+                queryParameters: {
+                  'ra': (match.ra / 15.0).toStringAsFixed(6),
+                  'dec': match.dec.toStringAsFixed(6),
+                  'name': match.name,
+                },
+              );
+              context.go(uri.toString());
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _SimbadResultsSection extends ConsumerWidget {
   final String query;
   final NightshadeColors colors;
@@ -2606,11 +2884,10 @@ class _SimbadResultsSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const SizedBox(height: NightshadeTokens.space2xl),
-            _SectionHeader(
+            SectionHeader(
               title: 'From SIMBAD',
               subtitle:
                   '${matches.length} match${matches.length == 1 ? '' : 'es'} for "$query" — not scored for tonight',
-              colors: colors,
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             for (final m in matches) _SimbadResultRow(match: m, colors: colors),

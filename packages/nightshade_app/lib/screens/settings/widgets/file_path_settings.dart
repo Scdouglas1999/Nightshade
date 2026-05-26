@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../../utils/snackbar_helper.dart';
@@ -11,11 +10,10 @@ import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
 class FilePathSettings extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const FilePathSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   Future<void> _selectPath(
     BuildContext context,
@@ -83,26 +81,28 @@ class FilePathSettings extends ConsumerWidget {
     final settingsAsync = ref.watch(appSettingsProvider);
 
     return settingsAsync.when(
-      loading: () => SettingsLoadingState(colors: colors, isMobile: isMobile),
+      loading: () => SettingsLoadingState(isMobile: isMobile),
       error: (error, stack) => SettingsErrorState(
-        colors: colors,
         isMobile: isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
       ),
-      data: (settings) => SettingsPage(
+      data: (settings) {
+        final isRemoteMode = ref.watch(isRemoteModeProvider);
+        final hostHint = isRemoteMode ? ' (on imaging host)' : '';
+        return SettingsPage(
         key: SettingsTutorialKeys.filePaths,
         title: 'File Paths',
-        description: 'Configure storage locations',
-        colors: colors,
+        description: isRemoteMode
+            ? 'Storage locations on the connected imaging host'
+            : 'Configure storage locations',
         children: [
           SettingsSection(
             title: 'Storage',
-            colors: colors,
             children: [
               SettingRow(
                 icon: LucideIcons.image,
-                title: 'Image output',
+                title: 'Image output$hostHint',
                 subtitle: settings.imageOutputPath.isEmpty
                     ? 'Not configured'
                     : settings.imageOutputPath,
@@ -110,13 +110,11 @@ class FilePathSettings extends ConsumerWidget {
                   path: settings.imageOutputPath,
                   onBrowse: () =>
                       _selectPath(context, ref, 'image', settings.imageOutputPath),
-                  colors: colors,
                 ),
-                colors: colors,
               ),
               SettingRow(
                 icon: LucideIcons.listOrdered,
-                title: 'Sequences',
+                title: 'Sequences$hostHint',
                 subtitle: settings.sequencesPath.isEmpty
                     ? 'Not configured'
                     : settings.sequencesPath,
@@ -128,13 +126,11 @@ class FilePathSettings extends ConsumerWidget {
                     'sequences',
                     settings.sequencesPath,
                   ),
-                  colors: colors,
                 ),
-                colors: colors,
               ),
               SettingRow(
                 icon: LucideIcons.database,
-                title: 'Database',
+                title: 'Database$hostHint',
                 subtitle: settings.databasePath.isEmpty
                     ? 'Default location'
                     : settings.databasePath,
@@ -142,13 +138,11 @@ class FilePathSettings extends ConsumerWidget {
                   path: settings.databasePath,
                   onBrowse: () =>
                       _selectPath(context, ref, 'database', settings.databasePath),
-                  colors: colors,
                 ),
-                colors: colors,
               ),
               SettingRow(
                 icon: LucideIcons.fileText,
-                title: 'Logs',
+                title: 'Logs$hostHint',
                 subtitle: settings.logsPath.isEmpty
                     ? 'Default location'
                     : settings.logsPath,
@@ -156,15 +150,14 @@ class FilePathSettings extends ConsumerWidget {
                   path: settings.logsPath,
                   onBrowse: () =>
                       _selectPath(context, ref, 'logs', settings.logsPath),
-                  colors: colors,
                 ),
                 isLast: true,
-                colors: colors,
               ),
             ],
           ),
         ],
-      ),
+      );
+      },
     );
   }
 }

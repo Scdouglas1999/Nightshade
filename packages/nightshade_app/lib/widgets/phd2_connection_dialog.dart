@@ -60,7 +60,7 @@ class _Phd2ConnectionDialogState extends ConsumerState<Phd2ConnectionDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return AlertDialog(
       backgroundColor: colors.surface,

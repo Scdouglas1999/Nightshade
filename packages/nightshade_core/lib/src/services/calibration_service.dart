@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:path/path.dart' as path;
 
+import '../backend/network_backend.dart';
+import '../providers/backend_provider.dart';
 import '../providers/dark_library_provider.dart';
 import '../services/dark_library_service.dart';
 import '../services/logging_service.dart';
@@ -136,12 +138,20 @@ class CalibrationService {
   }) async {
     _logger.info('Calibrating: $lightPath', source: 'CalibrationService');
 
+    final backend = _ref.read(backendProvider);
+    final isRemote = backend is NetworkBackend;
+
     // Determine dark frame path
     String? darkPath = settings.manualDarkPath;
-    if (settings.autoDarkFromLibrary &&
+    if (!isRemote &&
+        settings.autoDarkFromLibrary &&
         darkPath == null &&
         exposureTime != null &&
         gain != null) {
+      // IMG-P0-2: route through the unified tolerances provider so the
+      // runtime matcher and the coverage UI agree on what counts as a
+      // matching dark.
+      final tolerances = _ref.read(darkLibraryMatchTolerancesProvider);
       final matchingDark = await _darkLibrary.findMatchingDark(
         exposureTime: exposureTime,
         gain: gain,
@@ -149,6 +159,7 @@ class CalibrationService {
         binX: binX,
         binY: binY,
         temperature: sensorTemperature,
+        tolerances: tolerances,
       );
       if (matchingDark != null) {
         darkPath = matchingDark.filePath;
@@ -173,38 +184,42 @@ class CalibrationService {
           'Provide a dark, flat, or bias frame.');
     }
 
-    // Validate files exist
-    if (darkPath != null && !File(darkPath).existsSync()) {
-      throw FileSystemException('Dark frame file not found', darkPath);
-    }
-    if (flatPath != null && !File(flatPath).existsSync()) {
-      throw FileSystemException('Flat frame file not found', flatPath);
-    }
-    if (biasPath != null && !File(biasPath).existsSync()) {
-      throw FileSystemException('Bias frame file not found', biasPath);
+    // Validate files exist (local filesystem only — remote paths are
+    // validated on the headless host inside POST /api/imaging/calibrate-file).
+    if (!isRemote) {
+      if (darkPath != null && !File(darkPath).existsSync()) {
+        throw FileSystemException('Dark frame file not found', darkPath);
+      }
+      if (flatPath != null && !File(flatPath).existsSync()) {
+        throw FileSystemException('Flat frame file not found', flatPath);
+      }
+      if (biasPath != null && !File(biasPath).existsSync()) {
+        throw FileSystemException('Bias frame file not found', biasPath);
+      }
     }
 
     // Determine output path
     final effectiveOutputPath = outputPath ?? _generateCalOutputPath(lightPath);
 
-    // Ensure output directory exists
-    final outDir = Directory(path.dirname(effectiveOutputPath));
-    if (!outDir.existsSync()) {
-      outDir.createSync(recursive: true);
-    }
+    if (!isRemote) {
+      // Ensure output directory exists
+      final outDir = Directory(path.dirname(effectiveOutputPath));
+      if (!outDir.existsSync()) {
+        outDir.createSync(recursive: true);
+      }
 
-    // If overwriting in place, back up original
-    if (outputPath == null) {
-      final backupPath = '${lightPath}.uncal';
-      if (!File(backupPath).existsSync()) {
-        await File(lightPath).copy(backupPath);
-        _logger.info('Backed up original to: $backupPath',
-            source: 'CalibrationService');
+      // If overwriting in place, back up original
+      if (outputPath == null) {
+        final backupPath = '${lightPath}.uncal';
+        if (!File(backupPath).existsSync()) {
+          await File(lightPath).copy(backupPath);
+          _logger.info('Backed up original to: $backupPath',
+              source: 'CalibrationService');
+        }
       }
     }
 
-    // Call the native calibration pipeline
-    await bridge.apiCalibrateImageFile(
+    await backend.calibrateImageFile(
       lightPath: lightPath,
       darkPath: darkPath,
       flatPath: flatPath,

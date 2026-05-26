@@ -11,7 +11,10 @@ import '../database/daos/sequences_dao.dart';
 import '../database/daos/sessions_dao.dart';
 import '../database/daos/targets_dao.dart';
 import '../models/equipment/equipment_models.dart';
+import '../backend/network_backend.dart';
+import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
+import '../providers/profiles_provider.dart';
 import '../providers/session_provider.dart' show sequenceCheckpointsDaoProvider;
 import '../utils/json_validation.dart';
 
@@ -401,6 +404,7 @@ class QuickStartService {
   final TargetsDao targetsDao;
   final SequencesDao sequencesDao;
   final SequenceCheckpointsDao checkpointsDao;
+  final Future<String?> Function(int profileId)? resolveProfileName;
 
   QuickStartService({
     required this.sessionsDao,
@@ -408,7 +412,19 @@ class QuickStartService {
     required this.targetsDao,
     required this.sequencesDao,
     required this.checkpointsDao,
+    this.resolveProfileName,
   });
+
+  Future<String?> _profileNameForSession(int? profileId) async {
+    if (profileId == null) {
+      return null;
+    }
+    if (resolveProfileName != null) {
+      return resolveProfileName!(profileId);
+    }
+    final profile = await profilesDao.getProfileById(profileId);
+    return profile?.name;
+  }
 
   /// Get the quick start context from the most recent recoverable session.
   ///
@@ -470,10 +486,7 @@ class QuickStartService {
     final sequenceId = extendedData['sequenceId'] as int?;
     final equipmentSnapshotJson = extendedData['equipmentSnapshot'] as String?;
 
-    // Fetch related data in parallel for efficiency
-    final profileFuture = session.profileId != null
-        ? profilesDao.getProfileById(session.profileId!)
-        : Future<db.EquipmentProfile?>.value(null);
+    final profileNameFuture = _profileNameForSession(session.profileId);
 
     final targetFuture = session.targetId != null
         ? targetsDao.getTargetById(session.targetId!)
@@ -489,13 +502,13 @@ class QuickStartService {
 
     // Wait for all futures to complete
     final results = await Future.wait<Object?>([
-      profileFuture,
+      profileNameFuture,
       targetFuture,
       sequenceFuture,
       checkpointFuture,
     ]);
 
-    final profile = results[0] as db.EquipmentProfile?;
+    final profileName = results[0] as String?;
     final target = results[1] as db.Target?;
     final sequence = results[2] as db.Sequence?;
     final checkpoint = results[3] as db.SequenceCheckpoint?;
@@ -534,7 +547,7 @@ class QuickStartService {
       sessionId: session.id,
       sessionName: session.name,
       profileId: session.profileId,
-      profileName: profile?.name,
+      profileName: profileName,
       targetId: session.targetId,
       targetName: target?.name,
       targetRa: target?.ra,
@@ -747,6 +760,31 @@ final quickStartServiceProvider = Provider<QuickStartService>((ref) {
     targetsDao: ref.watch(targetsDaoProvider),
     sequencesDao: ref.watch(sequencesDaoProvider),
     checkpointsDao: ref.watch(sequenceCheckpointsDaoProvider),
+    resolveProfileName: (profileId) async {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        final profiles = await backend.getProfiles();
+        for (final profile in profiles) {
+          if (int.tryParse(profile.id) == profileId) {
+            return profile.name;
+          }
+        }
+        return null;
+      }
+
+      final state = ref.read(equipmentProfilesProvider).valueOrNull;
+      if (state != null) {
+        for (final profile in state.profiles) {
+          if (profile.id == profileId) {
+            return profile.name;
+          }
+        }
+      }
+
+      final profile =
+          await ref.read(equipmentProfilesDaoProvider).getProfileById(profileId);
+      return profile?.name;
+    },
   );
 });
 

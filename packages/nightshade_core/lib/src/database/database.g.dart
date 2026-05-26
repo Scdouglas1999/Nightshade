@@ -85,6 +85,12 @@ class $EquipmentProfilesTable extends EquipmentProfiles
   late final GeneratedColumn<String> safetyMonitorId = GeneratedColumn<String>(
       'safety_monitor_id', aliasedName, true,
       type: DriftSqlType.string, requiredDuringInsert: false);
+  static const VerificationMeta _switchIdMeta =
+      const VerificationMeta('switchId');
+  @override
+  late final GeneratedColumn<String> switchId = GeneratedColumn<String>(
+      'switch_id', aliasedName, true,
+      type: DriftSqlType.string, requiredDuringInsert: false);
   static const VerificationMeta _coverCalibratorIdMeta =
       const VerificationMeta('coverCalibratorId');
   @override
@@ -305,6 +311,7 @@ class $EquipmentProfilesTable extends EquipmentProfiles
         domeId,
         weatherId,
         safetyMonitorId,
+        switchId,
         coverCalibratorId,
         focalLength,
         aperture,
@@ -400,6 +407,10 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           _safetyMonitorIdMeta,
           safetyMonitorId.isAcceptableOrUnknown(
               data['safety_monitor_id']!, _safetyMonitorIdMeta));
+    }
+    if (data.containsKey('switch_id')) {
+      context.handle(_switchIdMeta,
+          switchId.isAcceptableOrUnknown(data['switch_id']!, _switchIdMeta));
     }
     if (data.containsKey('cover_calibrator_id')) {
       context.handle(
@@ -601,6 +612,8 @@ class $EquipmentProfilesTable extends EquipmentProfiles
           .read(DriftSqlType.string, data['${effectivePrefix}weather_id']),
       safetyMonitorId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}safety_monitor_id']),
+      switchId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}switch_id']),
       coverCalibratorId: attachedDatabase.typeMapping.read(
           DriftSqlType.string, data['${effectivePrefix}cover_calibrator_id']),
       focalLength: attachedDatabase.typeMapping
@@ -687,6 +700,7 @@ class EquipmentProfile extends DataClass
   final String? domeId;
   final String? weatherId;
   final String? safetyMonitorId;
+  final String? switchId;
   final String? coverCalibratorId;
   final double focalLength;
   final double aperture;
@@ -730,6 +744,7 @@ class EquipmentProfile extends DataClass
       this.domeId,
       this.weatherId,
       this.safetyMonitorId,
+      this.switchId,
       this.coverCalibratorId,
       required this.focalLength,
       required this.aperture,
@@ -794,6 +809,9 @@ class EquipmentProfile extends DataClass
     }
     if (!nullToAbsent || safetyMonitorId != null) {
       map['safety_monitor_id'] = Variable<String>(safetyMonitorId);
+    }
+    if (!nullToAbsent || switchId != null) {
+      map['switch_id'] = Variable<String>(switchId);
     }
     if (!nullToAbsent || coverCalibratorId != null) {
       map['cover_calibrator_id'] = Variable<String>(coverCalibratorId);
@@ -902,6 +920,9 @@ class EquipmentProfile extends DataClass
       safetyMonitorId: safetyMonitorId == null && nullToAbsent
           ? const Value.absent()
           : Value(safetyMonitorId),
+      switchId: switchId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(switchId),
       coverCalibratorId: coverCalibratorId == null && nullToAbsent
           ? const Value.absent()
           : Value(coverCalibratorId),
@@ -991,6 +1012,7 @@ class EquipmentProfile extends DataClass
       domeId: serializer.fromJson<String?>(json['domeId']),
       weatherId: serializer.fromJson<String?>(json['weatherId']),
       safetyMonitorId: serializer.fromJson<String?>(json['safetyMonitorId']),
+      switchId: serializer.fromJson<String?>(json['switchId']),
       coverCalibratorId:
           serializer.fromJson<String?>(json['coverCalibratorId']),
       focalLength: serializer.fromJson<double>(json['focalLength']),
@@ -1046,6 +1068,7 @@ class EquipmentProfile extends DataClass
       'domeId': serializer.toJson<String?>(domeId),
       'weatherId': serializer.toJson<String?>(weatherId),
       'safetyMonitorId': serializer.toJson<String?>(safetyMonitorId),
+      'switchId': serializer.toJson<String?>(switchId),
       'coverCalibratorId': serializer.toJson<String?>(coverCalibratorId),
       'focalLength': serializer.toJson<double>(focalLength),
       'aperture': serializer.toJson<double>(aperture),
@@ -1094,6 +1117,7 @@ class EquipmentProfile extends DataClass
           Value<String?> domeId = const Value.absent(),
           Value<String?> weatherId = const Value.absent(),
           Value<String?> safetyMonitorId = const Value.absent(),
+          Value<String?> switchId = const Value.absent(),
           Value<String?> coverCalibratorId = const Value.absent(),
           double? focalLength,
           double? aperture,
@@ -1140,6 +1164,7 @@ class EquipmentProfile extends DataClass
         safetyMonitorId: safetyMonitorId.present
             ? safetyMonitorId.value
             : this.safetyMonitorId,
+        switchId: switchId.present ? switchId.value : this.switchId,
         coverCalibratorId: coverCalibratorId.present
             ? coverCalibratorId.value
             : this.coverCalibratorId,
@@ -1209,6 +1234,7 @@ class EquipmentProfile extends DataClass
       safetyMonitorId: data.safetyMonitorId.present
           ? data.safetyMonitorId.value
           : this.safetyMonitorId,
+      switchId: data.switchId.present ? data.switchId.value : this.switchId,
       coverCalibratorId: data.coverCalibratorId.present
           ? data.coverCalibratorId.value
           : this.coverCalibratorId,
@@ -1292,6 +1318,7 @@ class EquipmentProfile extends DataClass
           ..write('domeId: $domeId, ')
           ..write('weatherId: $weatherId, ')
           ..write('safetyMonitorId: $safetyMonitorId, ')
+          ..write('switchId: $switchId, ')
           ..write('coverCalibratorId: $coverCalibratorId, ')
           ..write('focalLength: $focalLength, ')
           ..write('aperture: $aperture, ')
@@ -1340,6 +1367,7 @@ class EquipmentProfile extends DataClass
         domeId,
         weatherId,
         safetyMonitorId,
+        switchId,
         coverCalibratorId,
         focalLength,
         aperture,
@@ -1387,6 +1415,7 @@ class EquipmentProfile extends DataClass
           other.domeId == this.domeId &&
           other.weatherId == this.weatherId &&
           other.safetyMonitorId == this.safetyMonitorId &&
+          other.switchId == this.switchId &&
           other.coverCalibratorId == this.coverCalibratorId &&
           other.focalLength == this.focalLength &&
           other.aperture == this.aperture &&
@@ -1432,6 +1461,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
   final Value<String?> domeId;
   final Value<String?> weatherId;
   final Value<String?> safetyMonitorId;
+  final Value<String?> switchId;
   final Value<String?> coverCalibratorId;
   final Value<double> focalLength;
   final Value<double> aperture;
@@ -1475,6 +1505,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.domeId = const Value.absent(),
     this.weatherId = const Value.absent(),
     this.safetyMonitorId = const Value.absent(),
+    this.switchId = const Value.absent(),
     this.coverCalibratorId = const Value.absent(),
     this.focalLength = const Value.absent(),
     this.aperture = const Value.absent(),
@@ -1519,6 +1550,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     this.domeId = const Value.absent(),
     this.weatherId = const Value.absent(),
     this.safetyMonitorId = const Value.absent(),
+    this.switchId = const Value.absent(),
     this.coverCalibratorId = const Value.absent(),
     this.focalLength = const Value.absent(),
     this.aperture = const Value.absent(),
@@ -1563,6 +1595,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     Expression<String>? domeId,
     Expression<String>? weatherId,
     Expression<String>? safetyMonitorId,
+    Expression<String>? switchId,
     Expression<String>? coverCalibratorId,
     Expression<double>? focalLength,
     Expression<double>? aperture,
@@ -1607,6 +1640,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       if (domeId != null) 'dome_id': domeId,
       if (weatherId != null) 'weather_id': weatherId,
       if (safetyMonitorId != null) 'safety_monitor_id': safetyMonitorId,
+      if (switchId != null) 'switch_id': switchId,
       if (coverCalibratorId != null) 'cover_calibrator_id': coverCalibratorId,
       if (focalLength != null) 'focal_length': focalLength,
       if (aperture != null) 'aperture': aperture,
@@ -1658,6 +1692,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       Value<String?>? domeId,
       Value<String?>? weatherId,
       Value<String?>? safetyMonitorId,
+      Value<String?>? switchId,
       Value<String?>? coverCalibratorId,
       Value<double>? focalLength,
       Value<double>? aperture,
@@ -1701,6 +1736,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
       domeId: domeId ?? this.domeId,
       weatherId: weatherId ?? this.weatherId,
       safetyMonitorId: safetyMonitorId ?? this.safetyMonitorId,
+      switchId: switchId ?? this.switchId,
       coverCalibratorId: coverCalibratorId ?? this.coverCalibratorId,
       focalLength: focalLength ?? this.focalLength,
       aperture: aperture ?? this.aperture,
@@ -1774,6 +1810,9 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
     }
     if (safetyMonitorId.present) {
       map['safety_monitor_id'] = Variable<String>(safetyMonitorId.value);
+    }
+    if (switchId.present) {
+      map['switch_id'] = Variable<String>(switchId.value);
     }
     if (coverCalibratorId.present) {
       map['cover_calibrator_id'] = Variable<String>(coverCalibratorId.value);
@@ -1886,6 +1925,7 @@ class EquipmentProfilesCompanion extends UpdateCompanion<EquipmentProfile> {
           ..write('domeId: $domeId, ')
           ..write('weatherId: $weatherId, ')
           ..write('safetyMonitorId: $safetyMonitorId, ')
+          ..write('switchId: $switchId, ')
           ..write('coverCalibratorId: $coverCalibratorId, ')
           ..write('focalLength: $focalLength, ')
           ..write('aperture: $aperture, ')
@@ -20496,6 +20536,1516 @@ class DefectMapsCompanion extends UpdateCompanion<DefectMapEntry> {
   }
 }
 
+class $FocusModelsTable extends FocusModels
+    with TableInfo<$FocusModelsTable, FocusModelEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FocusModelsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _uuidMeta = const VerificationMeta('uuid');
+  @override
+  late final GeneratedColumn<String> uuid = GeneratedColumn<String>(
+      'uuid', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _equipmentProfileIdMeta =
+      const VerificationMeta('equipmentProfileId');
+  @override
+  late final GeneratedColumn<int> equipmentProfileId = GeneratedColumn<int>(
+      'equipment_profile_id', aliasedName, true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints: GeneratedColumn.constraintIsAlways(
+          'REFERENCES equipment_profiles (id) ON DELETE SET NULL'));
+  static const VerificationMeta _filterNameMeta =
+      const VerificationMeta('filterName');
+  @override
+  late final GeneratedColumn<String> filterName = GeneratedColumn<String>(
+      'filter_name', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _filterIndexMeta =
+      const VerificationMeta('filterIndex');
+  @override
+  late final GeneratedColumn<int> filterIndex = GeneratedColumn<int>(
+      'filter_index', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _temperatureCompensationSlopeMeta =
+      const VerificationMeta('temperatureCompensationSlope');
+  @override
+  late final GeneratedColumn<double> temperatureCompensationSlope =
+      GeneratedColumn<double>(
+          'temperature_compensation_slope', aliasedName, false,
+          type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _focusOffsetRelativeToLumMeta =
+      const VerificationMeta('focusOffsetRelativeToLum');
+  @override
+  late final GeneratedColumn<int> focusOffsetRelativeToLum =
+      GeneratedColumn<int>('focus_offset_relative_to_lum', aliasedName, false,
+          type: DriftSqlType.int,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(0));
+  static const VerificationMeta _interceptAtReferenceTempMeta =
+      const VerificationMeta('interceptAtReferenceTemp');
+  @override
+  late final GeneratedColumn<int> interceptAtReferenceTemp =
+      GeneratedColumn<int>('intercept_at_reference_temp', aliasedName, false,
+          type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _referenceTempCelsiusMeta =
+      const VerificationMeta('referenceTempCelsius');
+  @override
+  late final GeneratedColumn<double> referenceTempCelsius =
+      GeneratedColumn<double>('reference_temp_celsius', aliasedName, false,
+          type: DriftSqlType.double,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(10.0));
+  static const VerificationMeta _lastTrainedAtMeta =
+      const VerificationMeta('lastTrainedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastTrainedAt =
+      GeneratedColumn<DateTime>('last_trained_at', aliasedName, false,
+          type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  static const VerificationMeta _trainingRunCountMeta =
+      const VerificationMeta('trainingRunCount');
+  @override
+  late final GeneratedColumn<int> trainingRunCount = GeneratedColumn<int>(
+      'training_run_count', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _confidenceScoreMeta =
+      const VerificationMeta('confidenceScore');
+  @override
+  late final GeneratedColumn<double> confidenceScore = GeneratedColumn<double>(
+      'confidence_score', aliasedName, false,
+      type: DriftSqlType.double,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0.0));
+  static const VerificationMeta _lastUsedAtMeta =
+      const VerificationMeta('lastUsedAt');
+  @override
+  late final GeneratedColumn<DateTime> lastUsedAt = GeneratedColumn<DateTime>(
+      'last_used_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
+  static const VerificationMeta _trainingSamplesJsonMeta =
+      const VerificationMeta('trainingSamplesJson');
+  @override
+  late final GeneratedColumn<String> trainingSamplesJson =
+      GeneratedColumn<String>('training_samples_json', aliasedName, false,
+          type: DriftSqlType.string,
+          requiredDuringInsert: false,
+          defaultValue: const Constant('[]'));
+  static const VerificationMeta _maxTrainingSamplesMeta =
+      const VerificationMeta('maxTrainingSamples');
+  @override
+  late final GeneratedColumn<int> maxTrainingSamples = GeneratedColumn<int>(
+      'max_training_samples', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(50));
+  static const VerificationMeta _consecutiveBadPredictionsMeta =
+      const VerificationMeta('consecutiveBadPredictions');
+  @override
+  late final GeneratedColumn<int> consecutiveBadPredictions =
+      GeneratedColumn<int>('consecutive_bad_predictions', aliasedName, false,
+          type: DriftSqlType.int,
+          requiredDuringInsert: false,
+          defaultValue: const Constant(0));
+  static const VerificationMeta _accumulatedDriftStepsMeta =
+      const VerificationMeta('accumulatedDriftSteps');
+  @override
+  late final GeneratedColumn<int> accumulatedDriftSteps = GeneratedColumn<int>(
+      'accumulated_drift_steps', aliasedName, false,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultValue: const Constant(0));
+  static const VerificationMeta _createdAtMeta =
+      const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+      'created_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  static const VerificationMeta _updatedAtMeta =
+      const VerificationMeta('updatedAt');
+  @override
+  late final GeneratedColumn<DateTime> updatedAt = GeneratedColumn<DateTime>(
+      'updated_at', aliasedName, false,
+      type: DriftSqlType.dateTime,
+      requiredDuringInsert: false,
+      defaultValue: currentDateAndTime);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        uuid,
+        equipmentProfileId,
+        filterName,
+        filterIndex,
+        temperatureCompensationSlope,
+        focusOffsetRelativeToLum,
+        interceptAtReferenceTemp,
+        referenceTempCelsius,
+        lastTrainedAt,
+        trainingRunCount,
+        confidenceScore,
+        lastUsedAt,
+        trainingSamplesJson,
+        maxTrainingSamples,
+        consecutiveBadPredictions,
+        accumulatedDriftSteps,
+        createdAt,
+        updatedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'focus_models';
+  @override
+  VerificationContext validateIntegrity(Insertable<FocusModelEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('uuid')) {
+      context.handle(
+          _uuidMeta, uuid.isAcceptableOrUnknown(data['uuid']!, _uuidMeta));
+    } else if (isInserting) {
+      context.missing(_uuidMeta);
+    }
+    if (data.containsKey('equipment_profile_id')) {
+      context.handle(
+          _equipmentProfileIdMeta,
+          equipmentProfileId.isAcceptableOrUnknown(
+              data['equipment_profile_id']!, _equipmentProfileIdMeta));
+    }
+    if (data.containsKey('filter_name')) {
+      context.handle(
+          _filterNameMeta,
+          filterName.isAcceptableOrUnknown(
+              data['filter_name']!, _filterNameMeta));
+    } else if (isInserting) {
+      context.missing(_filterNameMeta);
+    }
+    if (data.containsKey('filter_index')) {
+      context.handle(
+          _filterIndexMeta,
+          filterIndex.isAcceptableOrUnknown(
+              data['filter_index']!, _filterIndexMeta));
+    }
+    if (data.containsKey('temperature_compensation_slope')) {
+      context.handle(
+          _temperatureCompensationSlopeMeta,
+          temperatureCompensationSlope.isAcceptableOrUnknown(
+              data['temperature_compensation_slope']!,
+              _temperatureCompensationSlopeMeta));
+    } else if (isInserting) {
+      context.missing(_temperatureCompensationSlopeMeta);
+    }
+    if (data.containsKey('focus_offset_relative_to_lum')) {
+      context.handle(
+          _focusOffsetRelativeToLumMeta,
+          focusOffsetRelativeToLum.isAcceptableOrUnknown(
+              data['focus_offset_relative_to_lum']!,
+              _focusOffsetRelativeToLumMeta));
+    }
+    if (data.containsKey('intercept_at_reference_temp')) {
+      context.handle(
+          _interceptAtReferenceTempMeta,
+          interceptAtReferenceTemp.isAcceptableOrUnknown(
+              data['intercept_at_reference_temp']!,
+              _interceptAtReferenceTempMeta));
+    } else if (isInserting) {
+      context.missing(_interceptAtReferenceTempMeta);
+    }
+    if (data.containsKey('reference_temp_celsius')) {
+      context.handle(
+          _referenceTempCelsiusMeta,
+          referenceTempCelsius.isAcceptableOrUnknown(
+              data['reference_temp_celsius']!, _referenceTempCelsiusMeta));
+    }
+    if (data.containsKey('last_trained_at')) {
+      context.handle(
+          _lastTrainedAtMeta,
+          lastTrainedAt.isAcceptableOrUnknown(
+              data['last_trained_at']!, _lastTrainedAtMeta));
+    } else if (isInserting) {
+      context.missing(_lastTrainedAtMeta);
+    }
+    if (data.containsKey('training_run_count')) {
+      context.handle(
+          _trainingRunCountMeta,
+          trainingRunCount.isAcceptableOrUnknown(
+              data['training_run_count']!, _trainingRunCountMeta));
+    }
+    if (data.containsKey('confidence_score')) {
+      context.handle(
+          _confidenceScoreMeta,
+          confidenceScore.isAcceptableOrUnknown(
+              data['confidence_score']!, _confidenceScoreMeta));
+    }
+    if (data.containsKey('last_used_at')) {
+      context.handle(
+          _lastUsedAtMeta,
+          lastUsedAt.isAcceptableOrUnknown(
+              data['last_used_at']!, _lastUsedAtMeta));
+    }
+    if (data.containsKey('training_samples_json')) {
+      context.handle(
+          _trainingSamplesJsonMeta,
+          trainingSamplesJson.isAcceptableOrUnknown(
+              data['training_samples_json']!, _trainingSamplesJsonMeta));
+    }
+    if (data.containsKey('max_training_samples')) {
+      context.handle(
+          _maxTrainingSamplesMeta,
+          maxTrainingSamples.isAcceptableOrUnknown(
+              data['max_training_samples']!, _maxTrainingSamplesMeta));
+    }
+    if (data.containsKey('consecutive_bad_predictions')) {
+      context.handle(
+          _consecutiveBadPredictionsMeta,
+          consecutiveBadPredictions.isAcceptableOrUnknown(
+              data['consecutive_bad_predictions']!,
+              _consecutiveBadPredictionsMeta));
+    }
+    if (data.containsKey('accumulated_drift_steps')) {
+      context.handle(
+          _accumulatedDriftStepsMeta,
+          accumulatedDriftSteps.isAcceptableOrUnknown(
+              data['accumulated_drift_steps']!, _accumulatedDriftStepsMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta,
+          createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    }
+    if (data.containsKey('updated_at')) {
+      context.handle(_updatedAtMeta,
+          updatedAt.isAcceptableOrUnknown(data['updated_at']!, _updatedAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FocusModelEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FocusModelEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      uuid: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}uuid'])!,
+      equipmentProfileId: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}equipment_profile_id']),
+      filterName: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}filter_name'])!,
+      filterIndex: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}filter_index']),
+      temperatureCompensationSlope: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}temperature_compensation_slope'])!,
+      focusOffsetRelativeToLum: attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}focus_offset_relative_to_lum'])!,
+      interceptAtReferenceTemp: attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}intercept_at_reference_temp'])!,
+      referenceTempCelsius: attachedDatabase.typeMapping.read(
+          DriftSqlType.double,
+          data['${effectivePrefix}reference_temp_celsius'])!,
+      lastTrainedAt: attachedDatabase.typeMapping.read(
+          DriftSqlType.dateTime, data['${effectivePrefix}last_trained_at'])!,
+      trainingRunCount: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}training_run_count'])!,
+      confidenceScore: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}confidence_score'])!,
+      lastUsedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}last_used_at']),
+      trainingSamplesJson: attachedDatabase.typeMapping.read(
+          DriftSqlType.string,
+          data['${effectivePrefix}training_samples_json'])!,
+      maxTrainingSamples: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}max_training_samples'])!,
+      consecutiveBadPredictions: attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}consecutive_bad_predictions'])!,
+      accumulatedDriftSteps: attachedDatabase.typeMapping.read(
+          DriftSqlType.int, data['${effectivePrefix}accumulated_drift_steps'])!,
+      createdAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+      updatedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}updated_at'])!,
+    );
+  }
+
+  @override
+  $FocusModelsTable createAlias(String alias) {
+    return $FocusModelsTable(attachedDatabase, alias);
+  }
+}
+
+class FocusModelEntry extends DataClass implements Insertable<FocusModelEntry> {
+  final int id;
+
+  /// UUID — stable identifier for export/import + cross-device reference.
+  final String uuid;
+
+  /// Reference to the equipment profile the model belongs to. SET NULL on
+  /// profile delete so models survive a profile rename/replace and can be
+  /// re-attached manually by the user.
+  final int? equipmentProfileId;
+
+  /// Filter name as it appears on the filter wheel (e.g. "L", "R", "Ha").
+  /// Case-sensitive — the filter wheel reports the canonical name so we
+  /// store it verbatim.
+  final String filterName;
+
+  /// Filter slot index on the wheel (0-based). Stored alongside `filterName`
+  /// because some users swap filter sets between wheels — the index alone
+  /// is ambiguous, but pairing it with the name lets the UI offer a
+  /// "re-attach to slot N" action without losing the learned data.
+  final int? filterIndex;
+
+  /// Learned regression slope in focuser steps per degree Celsius.
+  /// Sign convention: positive = focus moves outward when temperature
+  /// increases. Typical values are in [-100, +100]; the learner rejects
+  /// any slope outside `[-maxAcceptable, +maxAcceptable]` (default 500).
+  final double temperatureCompensationSlope;
+
+  /// Focus offset (steps) relative to the luminance / reference filter.
+  /// Positive = move *out* relative to L. Recomputed on every sample
+  /// insertion when the reference filter is set.
+  final int focusOffsetRelativeToLum;
+
+  /// Focuser position at the reference temperature ([referenceTempCelsius]).
+  /// Together with [temperatureCompensationSlope] this lets the predictor
+  /// compute `position(T) = intercept + slope * (T - T_ref)`.
+  final int interceptAtReferenceTemp;
+
+  /// Reference temperature used by the intercept. Defaults to 10 °C but is
+  /// reset on each re-fit to the mean of the training samples to keep the
+  /// regression numerically stable across wide temperature spans.
+  final double referenceTempCelsius;
+
+  /// When the regression was last re-fit. Distinct from [lastUsedAt]: the
+  /// model may be queried (used) without being re-fit (trained).
+  final DateTime lastTrainedAt;
+
+  /// Count of AF runs that have contributed to the current model. Decoupled
+  /// from `length(trainingSamplesJson)` because old samples get pruned —
+  /// this counter is monotonic and shows the total history a user has
+  /// accumulated.
+  final int trainingRunCount;
+
+  /// R² of the last regression fit, in [0, 1]. Used to gate direct
+  /// application of the model:
+  ///   * `>= 0.8` → trust the prediction
+  ///   * `< 0.5` → force a real AF sweep
+  ///   * in between → apply with a smaller correction factor
+  final double confidenceScore;
+
+  /// Last time the model was queried for a prediction (NOT a training
+  /// event). Lets the UI surface "stale model" warnings for filters the
+  /// user hasn't used in months.
+  final DateTime? lastUsedAt;
+
+  /// JSON-encoded list of training samples currently in the regression
+  /// window. Schema (matches [FocusTrainingSample]):
+  /// ```
+  /// [
+  ///   {
+  ///     "ts": 1715946000,        // unix seconds
+  ///     "temp": 8.3,              // °C
+  ///     "position": 28150,        // focuser steps
+  ///     "hfr": 1.92               // half-flux radius from the AF run
+  ///   },
+  ///   ...
+  /// ]
+  /// ```
+  /// Kept inline (rather than spilled to its own table) because:
+  ///   1. Read-after-write is always whole-list (we re-fit from all samples
+  ///      on every insertion), so per-sample indexing buys nothing.
+  ///   2. The cap is fixed (50 by default, 200 max), so the column is
+  ///      bounded in size.
+  ///   3. The user can export a whole model + its history as one JSON blob
+  ///      for sharing/backup without join queries.
+  final String trainingSamplesJson;
+
+  /// Maximum number of training samples retained in the JSON blob. User-
+  /// configurable per filter (the Ha narrowband crowd might want more
+  /// history because they only get a few AF runs per night).
+  final int maxTrainingSamples;
+
+  /// Number of consecutive AF runs where the model's prediction was off by
+  /// more than the drift threshold. When this exceeds 5, the service emits
+  /// a "re-train recommended" notification. Reset on a successful re-train
+  /// or a manual "clear samples" action.
+  final int consecutiveBadPredictions;
+
+  /// Cumulative drift (in focuser steps) over the recent consecutive bad
+  /// predictions — surfaced in the notification body ("drifted by 1200
+  /// steps over the last 5 runs").
+  final int accumulatedDriftSteps;
+
+  /// Row created/updated timestamps so the UI can sort the model viewer by
+  /// "most recently learned".
+  final DateTime createdAt;
+  final DateTime updatedAt;
+  const FocusModelEntry(
+      {required this.id,
+      required this.uuid,
+      this.equipmentProfileId,
+      required this.filterName,
+      this.filterIndex,
+      required this.temperatureCompensationSlope,
+      required this.focusOffsetRelativeToLum,
+      required this.interceptAtReferenceTemp,
+      required this.referenceTempCelsius,
+      required this.lastTrainedAt,
+      required this.trainingRunCount,
+      required this.confidenceScore,
+      this.lastUsedAt,
+      required this.trainingSamplesJson,
+      required this.maxTrainingSamples,
+      required this.consecutiveBadPredictions,
+      required this.accumulatedDriftSteps,
+      required this.createdAt,
+      required this.updatedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['uuid'] = Variable<String>(uuid);
+    if (!nullToAbsent || equipmentProfileId != null) {
+      map['equipment_profile_id'] = Variable<int>(equipmentProfileId);
+    }
+    map['filter_name'] = Variable<String>(filterName);
+    if (!nullToAbsent || filterIndex != null) {
+      map['filter_index'] = Variable<int>(filterIndex);
+    }
+    map['temperature_compensation_slope'] =
+        Variable<double>(temperatureCompensationSlope);
+    map['focus_offset_relative_to_lum'] =
+        Variable<int>(focusOffsetRelativeToLum);
+    map['intercept_at_reference_temp'] =
+        Variable<int>(interceptAtReferenceTemp);
+    map['reference_temp_celsius'] = Variable<double>(referenceTempCelsius);
+    map['last_trained_at'] = Variable<DateTime>(lastTrainedAt);
+    map['training_run_count'] = Variable<int>(trainingRunCount);
+    map['confidence_score'] = Variable<double>(confidenceScore);
+    if (!nullToAbsent || lastUsedAt != null) {
+      map['last_used_at'] = Variable<DateTime>(lastUsedAt);
+    }
+    map['training_samples_json'] = Variable<String>(trainingSamplesJson);
+    map['max_training_samples'] = Variable<int>(maxTrainingSamples);
+    map['consecutive_bad_predictions'] =
+        Variable<int>(consecutiveBadPredictions);
+    map['accumulated_drift_steps'] = Variable<int>(accumulatedDriftSteps);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    map['updated_at'] = Variable<DateTime>(updatedAt);
+    return map;
+  }
+
+  FocusModelsCompanion toCompanion(bool nullToAbsent) {
+    return FocusModelsCompanion(
+      id: Value(id),
+      uuid: Value(uuid),
+      equipmentProfileId: equipmentProfileId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(equipmentProfileId),
+      filterName: Value(filterName),
+      filterIndex: filterIndex == null && nullToAbsent
+          ? const Value.absent()
+          : Value(filterIndex),
+      temperatureCompensationSlope: Value(temperatureCompensationSlope),
+      focusOffsetRelativeToLum: Value(focusOffsetRelativeToLum),
+      interceptAtReferenceTemp: Value(interceptAtReferenceTemp),
+      referenceTempCelsius: Value(referenceTempCelsius),
+      lastTrainedAt: Value(lastTrainedAt),
+      trainingRunCount: Value(trainingRunCount),
+      confidenceScore: Value(confidenceScore),
+      lastUsedAt: lastUsedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lastUsedAt),
+      trainingSamplesJson: Value(trainingSamplesJson),
+      maxTrainingSamples: Value(maxTrainingSamples),
+      consecutiveBadPredictions: Value(consecutiveBadPredictions),
+      accumulatedDriftSteps: Value(accumulatedDriftSteps),
+      createdAt: Value(createdAt),
+      updatedAt: Value(updatedAt),
+    );
+  }
+
+  factory FocusModelEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FocusModelEntry(
+      id: serializer.fromJson<int>(json['id']),
+      uuid: serializer.fromJson<String>(json['uuid']),
+      equipmentProfileId: serializer.fromJson<int?>(json['equipmentProfileId']),
+      filterName: serializer.fromJson<String>(json['filterName']),
+      filterIndex: serializer.fromJson<int?>(json['filterIndex']),
+      temperatureCompensationSlope:
+          serializer.fromJson<double>(json['temperatureCompensationSlope']),
+      focusOffsetRelativeToLum:
+          serializer.fromJson<int>(json['focusOffsetRelativeToLum']),
+      interceptAtReferenceTemp:
+          serializer.fromJson<int>(json['interceptAtReferenceTemp']),
+      referenceTempCelsius:
+          serializer.fromJson<double>(json['referenceTempCelsius']),
+      lastTrainedAt: serializer.fromJson<DateTime>(json['lastTrainedAt']),
+      trainingRunCount: serializer.fromJson<int>(json['trainingRunCount']),
+      confidenceScore: serializer.fromJson<double>(json['confidenceScore']),
+      lastUsedAt: serializer.fromJson<DateTime?>(json['lastUsedAt']),
+      trainingSamplesJson:
+          serializer.fromJson<String>(json['trainingSamplesJson']),
+      maxTrainingSamples: serializer.fromJson<int>(json['maxTrainingSamples']),
+      consecutiveBadPredictions:
+          serializer.fromJson<int>(json['consecutiveBadPredictions']),
+      accumulatedDriftSteps:
+          serializer.fromJson<int>(json['accumulatedDriftSteps']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+      updatedAt: serializer.fromJson<DateTime>(json['updatedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'uuid': serializer.toJson<String>(uuid),
+      'equipmentProfileId': serializer.toJson<int?>(equipmentProfileId),
+      'filterName': serializer.toJson<String>(filterName),
+      'filterIndex': serializer.toJson<int?>(filterIndex),
+      'temperatureCompensationSlope':
+          serializer.toJson<double>(temperatureCompensationSlope),
+      'focusOffsetRelativeToLum':
+          serializer.toJson<int>(focusOffsetRelativeToLum),
+      'interceptAtReferenceTemp':
+          serializer.toJson<int>(interceptAtReferenceTemp),
+      'referenceTempCelsius': serializer.toJson<double>(referenceTempCelsius),
+      'lastTrainedAt': serializer.toJson<DateTime>(lastTrainedAt),
+      'trainingRunCount': serializer.toJson<int>(trainingRunCount),
+      'confidenceScore': serializer.toJson<double>(confidenceScore),
+      'lastUsedAt': serializer.toJson<DateTime?>(lastUsedAt),
+      'trainingSamplesJson': serializer.toJson<String>(trainingSamplesJson),
+      'maxTrainingSamples': serializer.toJson<int>(maxTrainingSamples),
+      'consecutiveBadPredictions':
+          serializer.toJson<int>(consecutiveBadPredictions),
+      'accumulatedDriftSteps': serializer.toJson<int>(accumulatedDriftSteps),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+      'updatedAt': serializer.toJson<DateTime>(updatedAt),
+    };
+  }
+
+  FocusModelEntry copyWith(
+          {int? id,
+          String? uuid,
+          Value<int?> equipmentProfileId = const Value.absent(),
+          String? filterName,
+          Value<int?> filterIndex = const Value.absent(),
+          double? temperatureCompensationSlope,
+          int? focusOffsetRelativeToLum,
+          int? interceptAtReferenceTemp,
+          double? referenceTempCelsius,
+          DateTime? lastTrainedAt,
+          int? trainingRunCount,
+          double? confidenceScore,
+          Value<DateTime?> lastUsedAt = const Value.absent(),
+          String? trainingSamplesJson,
+          int? maxTrainingSamples,
+          int? consecutiveBadPredictions,
+          int? accumulatedDriftSteps,
+          DateTime? createdAt,
+          DateTime? updatedAt}) =>
+      FocusModelEntry(
+        id: id ?? this.id,
+        uuid: uuid ?? this.uuid,
+        equipmentProfileId: equipmentProfileId.present
+            ? equipmentProfileId.value
+            : this.equipmentProfileId,
+        filterName: filterName ?? this.filterName,
+        filterIndex: filterIndex.present ? filterIndex.value : this.filterIndex,
+        temperatureCompensationSlope:
+            temperatureCompensationSlope ?? this.temperatureCompensationSlope,
+        focusOffsetRelativeToLum:
+            focusOffsetRelativeToLum ?? this.focusOffsetRelativeToLum,
+        interceptAtReferenceTemp:
+            interceptAtReferenceTemp ?? this.interceptAtReferenceTemp,
+        referenceTempCelsius: referenceTempCelsius ?? this.referenceTempCelsius,
+        lastTrainedAt: lastTrainedAt ?? this.lastTrainedAt,
+        trainingRunCount: trainingRunCount ?? this.trainingRunCount,
+        confidenceScore: confidenceScore ?? this.confidenceScore,
+        lastUsedAt: lastUsedAt.present ? lastUsedAt.value : this.lastUsedAt,
+        trainingSamplesJson: trainingSamplesJson ?? this.trainingSamplesJson,
+        maxTrainingSamples: maxTrainingSamples ?? this.maxTrainingSamples,
+        consecutiveBadPredictions:
+            consecutiveBadPredictions ?? this.consecutiveBadPredictions,
+        accumulatedDriftSteps:
+            accumulatedDriftSteps ?? this.accumulatedDriftSteps,
+        createdAt: createdAt ?? this.createdAt,
+        updatedAt: updatedAt ?? this.updatedAt,
+      );
+  FocusModelEntry copyWithCompanion(FocusModelsCompanion data) {
+    return FocusModelEntry(
+      id: data.id.present ? data.id.value : this.id,
+      uuid: data.uuid.present ? data.uuid.value : this.uuid,
+      equipmentProfileId: data.equipmentProfileId.present
+          ? data.equipmentProfileId.value
+          : this.equipmentProfileId,
+      filterName:
+          data.filterName.present ? data.filterName.value : this.filterName,
+      filterIndex:
+          data.filterIndex.present ? data.filterIndex.value : this.filterIndex,
+      temperatureCompensationSlope: data.temperatureCompensationSlope.present
+          ? data.temperatureCompensationSlope.value
+          : this.temperatureCompensationSlope,
+      focusOffsetRelativeToLum: data.focusOffsetRelativeToLum.present
+          ? data.focusOffsetRelativeToLum.value
+          : this.focusOffsetRelativeToLum,
+      interceptAtReferenceTemp: data.interceptAtReferenceTemp.present
+          ? data.interceptAtReferenceTemp.value
+          : this.interceptAtReferenceTemp,
+      referenceTempCelsius: data.referenceTempCelsius.present
+          ? data.referenceTempCelsius.value
+          : this.referenceTempCelsius,
+      lastTrainedAt: data.lastTrainedAt.present
+          ? data.lastTrainedAt.value
+          : this.lastTrainedAt,
+      trainingRunCount: data.trainingRunCount.present
+          ? data.trainingRunCount.value
+          : this.trainingRunCount,
+      confidenceScore: data.confidenceScore.present
+          ? data.confidenceScore.value
+          : this.confidenceScore,
+      lastUsedAt:
+          data.lastUsedAt.present ? data.lastUsedAt.value : this.lastUsedAt,
+      trainingSamplesJson: data.trainingSamplesJson.present
+          ? data.trainingSamplesJson.value
+          : this.trainingSamplesJson,
+      maxTrainingSamples: data.maxTrainingSamples.present
+          ? data.maxTrainingSamples.value
+          : this.maxTrainingSamples,
+      consecutiveBadPredictions: data.consecutiveBadPredictions.present
+          ? data.consecutiveBadPredictions.value
+          : this.consecutiveBadPredictions,
+      accumulatedDriftSteps: data.accumulatedDriftSteps.present
+          ? data.accumulatedDriftSteps.value
+          : this.accumulatedDriftSteps,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusModelEntry(')
+          ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('filterName: $filterName, ')
+          ..write('filterIndex: $filterIndex, ')
+          ..write(
+              'temperatureCompensationSlope: $temperatureCompensationSlope, ')
+          ..write('focusOffsetRelativeToLum: $focusOffsetRelativeToLum, ')
+          ..write('interceptAtReferenceTemp: $interceptAtReferenceTemp, ')
+          ..write('referenceTempCelsius: $referenceTempCelsius, ')
+          ..write('lastTrainedAt: $lastTrainedAt, ')
+          ..write('trainingRunCount: $trainingRunCount, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('trainingSamplesJson: $trainingSamplesJson, ')
+          ..write('maxTrainingSamples: $maxTrainingSamples, ')
+          ..write('consecutiveBadPredictions: $consecutiveBadPredictions, ')
+          ..write('accumulatedDriftSteps: $accumulatedDriftSteps, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(
+      id,
+      uuid,
+      equipmentProfileId,
+      filterName,
+      filterIndex,
+      temperatureCompensationSlope,
+      focusOffsetRelativeToLum,
+      interceptAtReferenceTemp,
+      referenceTempCelsius,
+      lastTrainedAt,
+      trainingRunCount,
+      confidenceScore,
+      lastUsedAt,
+      trainingSamplesJson,
+      maxTrainingSamples,
+      consecutiveBadPredictions,
+      accumulatedDriftSteps,
+      createdAt,
+      updatedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FocusModelEntry &&
+          other.id == this.id &&
+          other.uuid == this.uuid &&
+          other.equipmentProfileId == this.equipmentProfileId &&
+          other.filterName == this.filterName &&
+          other.filterIndex == this.filterIndex &&
+          other.temperatureCompensationSlope ==
+              this.temperatureCompensationSlope &&
+          other.focusOffsetRelativeToLum == this.focusOffsetRelativeToLum &&
+          other.interceptAtReferenceTemp == this.interceptAtReferenceTemp &&
+          other.referenceTempCelsius == this.referenceTempCelsius &&
+          other.lastTrainedAt == this.lastTrainedAt &&
+          other.trainingRunCount == this.trainingRunCount &&
+          other.confidenceScore == this.confidenceScore &&
+          other.lastUsedAt == this.lastUsedAt &&
+          other.trainingSamplesJson == this.trainingSamplesJson &&
+          other.maxTrainingSamples == this.maxTrainingSamples &&
+          other.consecutiveBadPredictions == this.consecutiveBadPredictions &&
+          other.accumulatedDriftSteps == this.accumulatedDriftSteps &&
+          other.createdAt == this.createdAt &&
+          other.updatedAt == this.updatedAt);
+}
+
+class FocusModelsCompanion extends UpdateCompanion<FocusModelEntry> {
+  final Value<int> id;
+  final Value<String> uuid;
+  final Value<int?> equipmentProfileId;
+  final Value<String> filterName;
+  final Value<int?> filterIndex;
+  final Value<double> temperatureCompensationSlope;
+  final Value<int> focusOffsetRelativeToLum;
+  final Value<int> interceptAtReferenceTemp;
+  final Value<double> referenceTempCelsius;
+  final Value<DateTime> lastTrainedAt;
+  final Value<int> trainingRunCount;
+  final Value<double> confidenceScore;
+  final Value<DateTime?> lastUsedAt;
+  final Value<String> trainingSamplesJson;
+  final Value<int> maxTrainingSamples;
+  final Value<int> consecutiveBadPredictions;
+  final Value<int> accumulatedDriftSteps;
+  final Value<DateTime> createdAt;
+  final Value<DateTime> updatedAt;
+  const FocusModelsCompanion({
+    this.id = const Value.absent(),
+    this.uuid = const Value.absent(),
+    this.equipmentProfileId = const Value.absent(),
+    this.filterName = const Value.absent(),
+    this.filterIndex = const Value.absent(),
+    this.temperatureCompensationSlope = const Value.absent(),
+    this.focusOffsetRelativeToLum = const Value.absent(),
+    this.interceptAtReferenceTemp = const Value.absent(),
+    this.referenceTempCelsius = const Value.absent(),
+    this.lastTrainedAt = const Value.absent(),
+    this.trainingRunCount = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    this.lastUsedAt = const Value.absent(),
+    this.trainingSamplesJson = const Value.absent(),
+    this.maxTrainingSamples = const Value.absent(),
+    this.consecutiveBadPredictions = const Value.absent(),
+    this.accumulatedDriftSteps = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  });
+  FocusModelsCompanion.insert({
+    this.id = const Value.absent(),
+    required String uuid,
+    this.equipmentProfileId = const Value.absent(),
+    required String filterName,
+    this.filterIndex = const Value.absent(),
+    required double temperatureCompensationSlope,
+    this.focusOffsetRelativeToLum = const Value.absent(),
+    required int interceptAtReferenceTemp,
+    this.referenceTempCelsius = const Value.absent(),
+    required DateTime lastTrainedAt,
+    this.trainingRunCount = const Value.absent(),
+    this.confidenceScore = const Value.absent(),
+    this.lastUsedAt = const Value.absent(),
+    this.trainingSamplesJson = const Value.absent(),
+    this.maxTrainingSamples = const Value.absent(),
+    this.consecutiveBadPredictions = const Value.absent(),
+    this.accumulatedDriftSteps = const Value.absent(),
+    this.createdAt = const Value.absent(),
+    this.updatedAt = const Value.absent(),
+  })  : uuid = Value(uuid),
+        filterName = Value(filterName),
+        temperatureCompensationSlope = Value(temperatureCompensationSlope),
+        interceptAtReferenceTemp = Value(interceptAtReferenceTemp),
+        lastTrainedAt = Value(lastTrainedAt);
+  static Insertable<FocusModelEntry> custom({
+    Expression<int>? id,
+    Expression<String>? uuid,
+    Expression<int>? equipmentProfileId,
+    Expression<String>? filterName,
+    Expression<int>? filterIndex,
+    Expression<double>? temperatureCompensationSlope,
+    Expression<int>? focusOffsetRelativeToLum,
+    Expression<int>? interceptAtReferenceTemp,
+    Expression<double>? referenceTempCelsius,
+    Expression<DateTime>? lastTrainedAt,
+    Expression<int>? trainingRunCount,
+    Expression<double>? confidenceScore,
+    Expression<DateTime>? lastUsedAt,
+    Expression<String>? trainingSamplesJson,
+    Expression<int>? maxTrainingSamples,
+    Expression<int>? consecutiveBadPredictions,
+    Expression<int>? accumulatedDriftSteps,
+    Expression<DateTime>? createdAt,
+    Expression<DateTime>? updatedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (uuid != null) 'uuid': uuid,
+      if (equipmentProfileId != null)
+        'equipment_profile_id': equipmentProfileId,
+      if (filterName != null) 'filter_name': filterName,
+      if (filterIndex != null) 'filter_index': filterIndex,
+      if (temperatureCompensationSlope != null)
+        'temperature_compensation_slope': temperatureCompensationSlope,
+      if (focusOffsetRelativeToLum != null)
+        'focus_offset_relative_to_lum': focusOffsetRelativeToLum,
+      if (interceptAtReferenceTemp != null)
+        'intercept_at_reference_temp': interceptAtReferenceTemp,
+      if (referenceTempCelsius != null)
+        'reference_temp_celsius': referenceTempCelsius,
+      if (lastTrainedAt != null) 'last_trained_at': lastTrainedAt,
+      if (trainingRunCount != null) 'training_run_count': trainingRunCount,
+      if (confidenceScore != null) 'confidence_score': confidenceScore,
+      if (lastUsedAt != null) 'last_used_at': lastUsedAt,
+      if (trainingSamplesJson != null)
+        'training_samples_json': trainingSamplesJson,
+      if (maxTrainingSamples != null)
+        'max_training_samples': maxTrainingSamples,
+      if (consecutiveBadPredictions != null)
+        'consecutive_bad_predictions': consecutiveBadPredictions,
+      if (accumulatedDriftSteps != null)
+        'accumulated_drift_steps': accumulatedDriftSteps,
+      if (createdAt != null) 'created_at': createdAt,
+      if (updatedAt != null) 'updated_at': updatedAt,
+    });
+  }
+
+  FocusModelsCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? uuid,
+      Value<int?>? equipmentProfileId,
+      Value<String>? filterName,
+      Value<int?>? filterIndex,
+      Value<double>? temperatureCompensationSlope,
+      Value<int>? focusOffsetRelativeToLum,
+      Value<int>? interceptAtReferenceTemp,
+      Value<double>? referenceTempCelsius,
+      Value<DateTime>? lastTrainedAt,
+      Value<int>? trainingRunCount,
+      Value<double>? confidenceScore,
+      Value<DateTime?>? lastUsedAt,
+      Value<String>? trainingSamplesJson,
+      Value<int>? maxTrainingSamples,
+      Value<int>? consecutiveBadPredictions,
+      Value<int>? accumulatedDriftSteps,
+      Value<DateTime>? createdAt,
+      Value<DateTime>? updatedAt}) {
+    return FocusModelsCompanion(
+      id: id ?? this.id,
+      uuid: uuid ?? this.uuid,
+      equipmentProfileId: equipmentProfileId ?? this.equipmentProfileId,
+      filterName: filterName ?? this.filterName,
+      filterIndex: filterIndex ?? this.filterIndex,
+      temperatureCompensationSlope:
+          temperatureCompensationSlope ?? this.temperatureCompensationSlope,
+      focusOffsetRelativeToLum:
+          focusOffsetRelativeToLum ?? this.focusOffsetRelativeToLum,
+      interceptAtReferenceTemp:
+          interceptAtReferenceTemp ?? this.interceptAtReferenceTemp,
+      referenceTempCelsius: referenceTempCelsius ?? this.referenceTempCelsius,
+      lastTrainedAt: lastTrainedAt ?? this.lastTrainedAt,
+      trainingRunCount: trainingRunCount ?? this.trainingRunCount,
+      confidenceScore: confidenceScore ?? this.confidenceScore,
+      lastUsedAt: lastUsedAt ?? this.lastUsedAt,
+      trainingSamplesJson: trainingSamplesJson ?? this.trainingSamplesJson,
+      maxTrainingSamples: maxTrainingSamples ?? this.maxTrainingSamples,
+      consecutiveBadPredictions:
+          consecutiveBadPredictions ?? this.consecutiveBadPredictions,
+      accumulatedDriftSteps:
+          accumulatedDriftSteps ?? this.accumulatedDriftSteps,
+      createdAt: createdAt ?? this.createdAt,
+      updatedAt: updatedAt ?? this.updatedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (uuid.present) {
+      map['uuid'] = Variable<String>(uuid.value);
+    }
+    if (equipmentProfileId.present) {
+      map['equipment_profile_id'] = Variable<int>(equipmentProfileId.value);
+    }
+    if (filterName.present) {
+      map['filter_name'] = Variable<String>(filterName.value);
+    }
+    if (filterIndex.present) {
+      map['filter_index'] = Variable<int>(filterIndex.value);
+    }
+    if (temperatureCompensationSlope.present) {
+      map['temperature_compensation_slope'] =
+          Variable<double>(temperatureCompensationSlope.value);
+    }
+    if (focusOffsetRelativeToLum.present) {
+      map['focus_offset_relative_to_lum'] =
+          Variable<int>(focusOffsetRelativeToLum.value);
+    }
+    if (interceptAtReferenceTemp.present) {
+      map['intercept_at_reference_temp'] =
+          Variable<int>(interceptAtReferenceTemp.value);
+    }
+    if (referenceTempCelsius.present) {
+      map['reference_temp_celsius'] =
+          Variable<double>(referenceTempCelsius.value);
+    }
+    if (lastTrainedAt.present) {
+      map['last_trained_at'] = Variable<DateTime>(lastTrainedAt.value);
+    }
+    if (trainingRunCount.present) {
+      map['training_run_count'] = Variable<int>(trainingRunCount.value);
+    }
+    if (confidenceScore.present) {
+      map['confidence_score'] = Variable<double>(confidenceScore.value);
+    }
+    if (lastUsedAt.present) {
+      map['last_used_at'] = Variable<DateTime>(lastUsedAt.value);
+    }
+    if (trainingSamplesJson.present) {
+      map['training_samples_json'] =
+          Variable<String>(trainingSamplesJson.value);
+    }
+    if (maxTrainingSamples.present) {
+      map['max_training_samples'] = Variable<int>(maxTrainingSamples.value);
+    }
+    if (consecutiveBadPredictions.present) {
+      map['consecutive_bad_predictions'] =
+          Variable<int>(consecutiveBadPredictions.value);
+    }
+    if (accumulatedDriftSteps.present) {
+      map['accumulated_drift_steps'] =
+          Variable<int>(accumulatedDriftSteps.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    if (updatedAt.present) {
+      map['updated_at'] = Variable<DateTime>(updatedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusModelsCompanion(')
+          ..write('id: $id, ')
+          ..write('uuid: $uuid, ')
+          ..write('equipmentProfileId: $equipmentProfileId, ')
+          ..write('filterName: $filterName, ')
+          ..write('filterIndex: $filterIndex, ')
+          ..write(
+              'temperatureCompensationSlope: $temperatureCompensationSlope, ')
+          ..write('focusOffsetRelativeToLum: $focusOffsetRelativeToLum, ')
+          ..write('interceptAtReferenceTemp: $interceptAtReferenceTemp, ')
+          ..write('referenceTempCelsius: $referenceTempCelsius, ')
+          ..write('lastTrainedAt: $lastTrainedAt, ')
+          ..write('trainingRunCount: $trainingRunCount, ')
+          ..write('confidenceScore: $confidenceScore, ')
+          ..write('lastUsedAt: $lastUsedAt, ')
+          ..write('trainingSamplesJson: $trainingSamplesJson, ')
+          ..write('maxTrainingSamples: $maxTrainingSamples, ')
+          ..write('consecutiveBadPredictions: $consecutiveBadPredictions, ')
+          ..write('accumulatedDriftSteps: $accumulatedDriftSteps, ')
+          ..write('createdAt: $createdAt, ')
+          ..write('updatedAt: $updatedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $GuideRmsHistoryTable extends GuideRmsHistory
+    with TableInfo<$GuideRmsHistoryTable, GuideRmsHistoryEntry> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $GuideRmsHistoryTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+      'id', aliasedName, false,
+      hasAutoIncrement: true,
+      type: DriftSqlType.int,
+      requiredDuringInsert: false,
+      defaultConstraints:
+          GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'));
+  static const VerificationMeta _sessionIdMeta =
+      const VerificationMeta('sessionId');
+  @override
+  late final GeneratedColumn<String> sessionId = GeneratedColumn<String>(
+      'session_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _mountIdMeta =
+      const VerificationMeta('mountId');
+  @override
+  late final GeneratedColumn<String> mountId = GeneratedColumn<String>(
+      'mount_id', aliasedName, false,
+      type: DriftSqlType.string, requiredDuringInsert: true);
+  static const VerificationMeta _targetIdMeta =
+      const VerificationMeta('targetId');
+  @override
+  late final GeneratedColumn<int> targetId = GeneratedColumn<int>(
+      'target_id', aliasedName, true,
+      type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _totalRmsArcsecMeta =
+      const VerificationMeta('totalRmsArcsec');
+  @override
+  late final GeneratedColumn<double> totalRmsArcsec = GeneratedColumn<double>(
+      'total_rms_arcsec', aliasedName, false,
+      type: DriftSqlType.double, requiredDuringInsert: true);
+  static const VerificationMeta _sampleCountMeta =
+      const VerificationMeta('sampleCount');
+  @override
+  late final GeneratedColumn<int> sampleCount = GeneratedColumn<int>(
+      'sample_count', aliasedName, false,
+      type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _exposureSecondsMeta =
+      const VerificationMeta('exposureSeconds');
+  @override
+  late final GeneratedColumn<double> exposureSeconds = GeneratedColumn<double>(
+      'exposure_seconds', aliasedName, true,
+      type: DriftSqlType.double, requiredDuringInsert: false);
+  static const VerificationMeta _recordedAtMeta =
+      const VerificationMeta('recordedAt');
+  @override
+  late final GeneratedColumn<DateTime> recordedAt = GeneratedColumn<DateTime>(
+      'recorded_at', aliasedName, false,
+      type: DriftSqlType.dateTime, requiredDuringInsert: true);
+  @override
+  List<GeneratedColumn> get $columns => [
+        id,
+        sessionId,
+        mountId,
+        targetId,
+        totalRmsArcsec,
+        sampleCount,
+        exposureSeconds,
+        recordedAt
+      ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'guide_rms_history';
+  @override
+  VerificationContext validateIntegrity(
+      Insertable<GuideRmsHistoryEntry> instance,
+      {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('session_id')) {
+      context.handle(_sessionIdMeta,
+          sessionId.isAcceptableOrUnknown(data['session_id']!, _sessionIdMeta));
+    } else if (isInserting) {
+      context.missing(_sessionIdMeta);
+    }
+    if (data.containsKey('mount_id')) {
+      context.handle(_mountIdMeta,
+          mountId.isAcceptableOrUnknown(data['mount_id']!, _mountIdMeta));
+    } else if (isInserting) {
+      context.missing(_mountIdMeta);
+    }
+    if (data.containsKey('target_id')) {
+      context.handle(_targetIdMeta,
+          targetId.isAcceptableOrUnknown(data['target_id']!, _targetIdMeta));
+    }
+    if (data.containsKey('total_rms_arcsec')) {
+      context.handle(
+          _totalRmsArcsecMeta,
+          totalRmsArcsec.isAcceptableOrUnknown(
+              data['total_rms_arcsec']!, _totalRmsArcsecMeta));
+    } else if (isInserting) {
+      context.missing(_totalRmsArcsecMeta);
+    }
+    if (data.containsKey('sample_count')) {
+      context.handle(
+          _sampleCountMeta,
+          sampleCount.isAcceptableOrUnknown(
+              data['sample_count']!, _sampleCountMeta));
+    } else if (isInserting) {
+      context.missing(_sampleCountMeta);
+    }
+    if (data.containsKey('exposure_seconds')) {
+      context.handle(
+          _exposureSecondsMeta,
+          exposureSeconds.isAcceptableOrUnknown(
+              data['exposure_seconds']!, _exposureSecondsMeta));
+    }
+    if (data.containsKey('recorded_at')) {
+      context.handle(
+          _recordedAtMeta,
+          recordedAt.isAcceptableOrUnknown(
+              data['recorded_at']!, _recordedAtMeta));
+    } else if (isInserting) {
+      context.missing(_recordedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  GuideRmsHistoryEntry map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return GuideRmsHistoryEntry(
+      id: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      sessionId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}session_id'])!,
+      mountId: attachedDatabase.typeMapping
+          .read(DriftSqlType.string, data['${effectivePrefix}mount_id'])!,
+      targetId: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}target_id']),
+      totalRmsArcsec: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}total_rms_arcsec'])!,
+      sampleCount: attachedDatabase.typeMapping
+          .read(DriftSqlType.int, data['${effectivePrefix}sample_count'])!,
+      exposureSeconds: attachedDatabase.typeMapping.read(
+          DriftSqlType.double, data['${effectivePrefix}exposure_seconds']),
+      recordedAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}recorded_at'])!,
+    );
+  }
+
+  @override
+  $GuideRmsHistoryTable createAlias(String alias) {
+    return $GuideRmsHistoryTable(attachedDatabase, alias);
+  }
+}
+
+class GuideRmsHistoryEntry extends DataClass
+    implements Insertable<GuideRmsHistoryEntry> {
+  /// Auto-incrementing primary key.
+  final int id;
+
+  /// Session identifier this sample belongs to.
+  final String sessionId;
+
+  /// Mount identifier (driver-reported), used to scope per-mount averages.
+  final String mountId;
+
+  /// Target the session was imaging, when applicable.
+  final int? targetId;
+
+  /// Total RMS (combined RA+Dec) in arcseconds for the session.
+  final double totalRmsArcsec;
+
+  /// Number of guide samples that contributed to [totalRmsArcsec].
+  final int sampleCount;
+
+  /// Sub-exposure length in seconds while these RMS samples were recorded.
+  ///
+  /// Nullable as of schema v30: older sessions imported before the planner
+  /// tracked sub-exposure length need to round-trip without a default value
+  /// (a synthetic default would corrupt the exposure-distribution heuristic
+  /// the Smart Night planner derives from this column).
+  final double? exposureSeconds;
+
+  /// When the sample was recorded.
+  final DateTime recordedAt;
+  const GuideRmsHistoryEntry(
+      {required this.id,
+      required this.sessionId,
+      required this.mountId,
+      this.targetId,
+      required this.totalRmsArcsec,
+      required this.sampleCount,
+      this.exposureSeconds,
+      required this.recordedAt});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['session_id'] = Variable<String>(sessionId);
+    map['mount_id'] = Variable<String>(mountId);
+    if (!nullToAbsent || targetId != null) {
+      map['target_id'] = Variable<int>(targetId);
+    }
+    map['total_rms_arcsec'] = Variable<double>(totalRmsArcsec);
+    map['sample_count'] = Variable<int>(sampleCount);
+    if (!nullToAbsent || exposureSeconds != null) {
+      map['exposure_seconds'] = Variable<double>(exposureSeconds);
+    }
+    map['recorded_at'] = Variable<DateTime>(recordedAt);
+    return map;
+  }
+
+  GuideRmsHistoryCompanion toCompanion(bool nullToAbsent) {
+    return GuideRmsHistoryCompanion(
+      id: Value(id),
+      sessionId: Value(sessionId),
+      mountId: Value(mountId),
+      targetId: targetId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(targetId),
+      totalRmsArcsec: Value(totalRmsArcsec),
+      sampleCount: Value(sampleCount),
+      exposureSeconds: exposureSeconds == null && nullToAbsent
+          ? const Value.absent()
+          : Value(exposureSeconds),
+      recordedAt: Value(recordedAt),
+    );
+  }
+
+  factory GuideRmsHistoryEntry.fromJson(Map<String, dynamic> json,
+      {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return GuideRmsHistoryEntry(
+      id: serializer.fromJson<int>(json['id']),
+      sessionId: serializer.fromJson<String>(json['sessionId']),
+      mountId: serializer.fromJson<String>(json['mountId']),
+      targetId: serializer.fromJson<int?>(json['targetId']),
+      totalRmsArcsec: serializer.fromJson<double>(json['totalRmsArcsec']),
+      sampleCount: serializer.fromJson<int>(json['sampleCount']),
+      exposureSeconds: serializer.fromJson<double?>(json['exposureSeconds']),
+      recordedAt: serializer.fromJson<DateTime>(json['recordedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'sessionId': serializer.toJson<String>(sessionId),
+      'mountId': serializer.toJson<String>(mountId),
+      'targetId': serializer.toJson<int?>(targetId),
+      'totalRmsArcsec': serializer.toJson<double>(totalRmsArcsec),
+      'sampleCount': serializer.toJson<int>(sampleCount),
+      'exposureSeconds': serializer.toJson<double?>(exposureSeconds),
+      'recordedAt': serializer.toJson<DateTime>(recordedAt),
+    };
+  }
+
+  GuideRmsHistoryEntry copyWith(
+          {int? id,
+          String? sessionId,
+          String? mountId,
+          Value<int?> targetId = const Value.absent(),
+          double? totalRmsArcsec,
+          int? sampleCount,
+          Value<double?> exposureSeconds = const Value.absent(),
+          DateTime? recordedAt}) =>
+      GuideRmsHistoryEntry(
+        id: id ?? this.id,
+        sessionId: sessionId ?? this.sessionId,
+        mountId: mountId ?? this.mountId,
+        targetId: targetId.present ? targetId.value : this.targetId,
+        totalRmsArcsec: totalRmsArcsec ?? this.totalRmsArcsec,
+        sampleCount: sampleCount ?? this.sampleCount,
+        exposureSeconds: exposureSeconds.present
+            ? exposureSeconds.value
+            : this.exposureSeconds,
+        recordedAt: recordedAt ?? this.recordedAt,
+      );
+  GuideRmsHistoryEntry copyWithCompanion(GuideRmsHistoryCompanion data) {
+    return GuideRmsHistoryEntry(
+      id: data.id.present ? data.id.value : this.id,
+      sessionId: data.sessionId.present ? data.sessionId.value : this.sessionId,
+      mountId: data.mountId.present ? data.mountId.value : this.mountId,
+      targetId: data.targetId.present ? data.targetId.value : this.targetId,
+      totalRmsArcsec: data.totalRmsArcsec.present
+          ? data.totalRmsArcsec.value
+          : this.totalRmsArcsec,
+      sampleCount:
+          data.sampleCount.present ? data.sampleCount.value : this.sampleCount,
+      exposureSeconds: data.exposureSeconds.present
+          ? data.exposureSeconds.value
+          : this.exposureSeconds,
+      recordedAt:
+          data.recordedAt.present ? data.recordedAt.value : this.recordedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GuideRmsHistoryEntry(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('mountId: $mountId, ')
+          ..write('targetId: $targetId, ')
+          ..write('totalRmsArcsec: $totalRmsArcsec, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('exposureSeconds: $exposureSeconds, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, sessionId, mountId, targetId,
+      totalRmsArcsec, sampleCount, exposureSeconds, recordedAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is GuideRmsHistoryEntry &&
+          other.id == this.id &&
+          other.sessionId == this.sessionId &&
+          other.mountId == this.mountId &&
+          other.targetId == this.targetId &&
+          other.totalRmsArcsec == this.totalRmsArcsec &&
+          other.sampleCount == this.sampleCount &&
+          other.exposureSeconds == this.exposureSeconds &&
+          other.recordedAt == this.recordedAt);
+}
+
+class GuideRmsHistoryCompanion extends UpdateCompanion<GuideRmsHistoryEntry> {
+  final Value<int> id;
+  final Value<String> sessionId;
+  final Value<String> mountId;
+  final Value<int?> targetId;
+  final Value<double> totalRmsArcsec;
+  final Value<int> sampleCount;
+  final Value<double?> exposureSeconds;
+  final Value<DateTime> recordedAt;
+  const GuideRmsHistoryCompanion({
+    this.id = const Value.absent(),
+    this.sessionId = const Value.absent(),
+    this.mountId = const Value.absent(),
+    this.targetId = const Value.absent(),
+    this.totalRmsArcsec = const Value.absent(),
+    this.sampleCount = const Value.absent(),
+    this.exposureSeconds = const Value.absent(),
+    this.recordedAt = const Value.absent(),
+  });
+  GuideRmsHistoryCompanion.insert({
+    this.id = const Value.absent(),
+    required String sessionId,
+    required String mountId,
+    this.targetId = const Value.absent(),
+    required double totalRmsArcsec,
+    required int sampleCount,
+    this.exposureSeconds = const Value.absent(),
+    required DateTime recordedAt,
+  })  : sessionId = Value(sessionId),
+        mountId = Value(mountId),
+        totalRmsArcsec = Value(totalRmsArcsec),
+        sampleCount = Value(sampleCount),
+        recordedAt = Value(recordedAt);
+  static Insertable<GuideRmsHistoryEntry> custom({
+    Expression<int>? id,
+    Expression<String>? sessionId,
+    Expression<String>? mountId,
+    Expression<int>? targetId,
+    Expression<double>? totalRmsArcsec,
+    Expression<int>? sampleCount,
+    Expression<double>? exposureSeconds,
+    Expression<DateTime>? recordedAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (sessionId != null) 'session_id': sessionId,
+      if (mountId != null) 'mount_id': mountId,
+      if (targetId != null) 'target_id': targetId,
+      if (totalRmsArcsec != null) 'total_rms_arcsec': totalRmsArcsec,
+      if (sampleCount != null) 'sample_count': sampleCount,
+      if (exposureSeconds != null) 'exposure_seconds': exposureSeconds,
+      if (recordedAt != null) 'recorded_at': recordedAt,
+    });
+  }
+
+  GuideRmsHistoryCompanion copyWith(
+      {Value<int>? id,
+      Value<String>? sessionId,
+      Value<String>? mountId,
+      Value<int?>? targetId,
+      Value<double>? totalRmsArcsec,
+      Value<int>? sampleCount,
+      Value<double?>? exposureSeconds,
+      Value<DateTime>? recordedAt}) {
+    return GuideRmsHistoryCompanion(
+      id: id ?? this.id,
+      sessionId: sessionId ?? this.sessionId,
+      mountId: mountId ?? this.mountId,
+      targetId: targetId ?? this.targetId,
+      totalRmsArcsec: totalRmsArcsec ?? this.totalRmsArcsec,
+      sampleCount: sampleCount ?? this.sampleCount,
+      exposureSeconds: exposureSeconds ?? this.exposureSeconds,
+      recordedAt: recordedAt ?? this.recordedAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (sessionId.present) {
+      map['session_id'] = Variable<String>(sessionId.value);
+    }
+    if (mountId.present) {
+      map['mount_id'] = Variable<String>(mountId.value);
+    }
+    if (targetId.present) {
+      map['target_id'] = Variable<int>(targetId.value);
+    }
+    if (totalRmsArcsec.present) {
+      map['total_rms_arcsec'] = Variable<double>(totalRmsArcsec.value);
+    }
+    if (sampleCount.present) {
+      map['sample_count'] = Variable<int>(sampleCount.value);
+    }
+    if (exposureSeconds.present) {
+      map['exposure_seconds'] = Variable<double>(exposureSeconds.value);
+    }
+    if (recordedAt.present) {
+      map['recorded_at'] = Variable<DateTime>(recordedAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('GuideRmsHistoryCompanion(')
+          ..write('id: $id, ')
+          ..write('sessionId: $sessionId, ')
+          ..write('mountId: $mountId, ')
+          ..write('targetId: $targetId, ')
+          ..write('totalRmsArcsec: $totalRmsArcsec, ')
+          ..write('sampleCount: $sampleCount, ')
+          ..write('exposureSeconds: $exposureSeconds, ')
+          ..write('recordedAt: $recordedAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$NightshadeDatabase extends GeneratedDatabase {
   _$NightshadeDatabase(QueryExecutor e) : super(e);
   $NightshadeDatabaseManager get managers => $NightshadeDatabaseManager(this);
@@ -20547,6 +22097,9 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       $ObservingListItemsTable(this);
   late final $SequenceRunsTable sequenceRuns = $SequenceRunsTable(this);
   late final $DefectMapsTable defectMaps = $DefectMapsTable(this);
+  late final $FocusModelsTable focusModels = $FocusModelsTable(this);
+  late final $GuideRmsHistoryTable guideRmsHistory =
+      $GuideRmsHistoryTable(this);
   late final Index idxProfilesName = Index('idx_profiles_name',
       'CREATE INDEX idx_profiles_name ON equipment_profiles (name)');
   late final Index idxProfilesActive = Index('idx_profiles_active',
@@ -20763,6 +22316,13 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       'CREATE INDEX idx_sequence_runs_status ON sequence_runs (status)');
   late final Index idxDefectMapsLookup = Index('idx_defect_maps_lookup',
       'CREATE UNIQUE INDEX idx_defect_maps_lookup ON defect_maps (camera_id, width, height, temperature_bucket_decicelsius)');
+  late final Index idxFocusModelsProfile = Index('idx_focus_models_profile',
+      'CREATE INDEX idx_focus_models_profile ON focus_models (equipment_profile_id)');
+  late final Index idxFocusModelsProfileFilter = Index(
+      'idx_focus_models_profile_filter',
+      'CREATE UNIQUE INDEX idx_focus_models_profile_filter ON focus_models (equipment_profile_id, filter_name)');
+  late final Index idxFocusModelsLastUsed = Index('idx_focus_models_last_used',
+      'CREATE INDEX idx_focus_models_last_used ON focus_models (last_used_at)');
   late final ImagesDao imagesDao = ImagesDao(this as NightshadeDatabase);
   late final EquipmentProfilesDao equipmentProfilesDao =
       EquipmentProfilesDao(this as NightshadeDatabase);
@@ -20790,6 +22350,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
       ObservingListsDao(this as NightshadeDatabase);
   late final SequenceRunsDao sequenceRunsDao =
       SequenceRunsDao(this as NightshadeDatabase);
+  late final GuideRmsHistoryDao guideRmsHistoryDao =
+      GuideRmsHistoryDao(this as NightshadeDatabase);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -20825,6 +22387,8 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         observingListItems,
         sequenceRuns,
         defectMaps,
+        focusModels,
+        guideRmsHistory,
         idxProfilesName,
         idxProfilesActive,
         idxSessionsTarget,
@@ -20912,7 +22476,10 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
         idxSequenceRunsSequence,
         idxSequenceRunsStarted,
         idxSequenceRunsStatus,
-        idxDefectMapsLookup
+        idxDefectMapsLookup,
+        idxFocusModelsProfile,
+        idxFocusModelsProfileFilter,
+        idxFocusModelsLastUsed
       ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules(
@@ -21175,6 +22742,13 @@ abstract class _$NightshadeDatabase extends GeneratedDatabase {
               TableUpdate('sequence_runs', kind: UpdateKind.update),
             ],
           ),
+          WritePropagation(
+            on: TableUpdateQuery.onTableName('equipment_profiles',
+                limitUpdateKind: UpdateKind.delete),
+            result: [
+              TableUpdate('focus_models', kind: UpdateKind.update),
+            ],
+          ),
         ],
       );
 }
@@ -21193,6 +22767,7 @@ typedef $$EquipmentProfilesTableCreateCompanionBuilder
   Value<String?> domeId,
   Value<String?> weatherId,
   Value<String?> safetyMonitorId,
+  Value<String?> switchId,
   Value<String?> coverCalibratorId,
   Value<double> focalLength,
   Value<double> aperture,
@@ -21238,6 +22813,7 @@ typedef $$EquipmentProfilesTableUpdateCompanionBuilder
   Value<String?> domeId,
   Value<String?> weatherId,
   Value<String?> safetyMonitorId,
+  Value<String?> switchId,
   Value<String?> coverCalibratorId,
   Value<double> focalLength,
   Value<double> aperture,
@@ -21361,6 +22937,21 @@ final class $$EquipmentProfilesTableReferences extends BaseReferences<
     return ProcessedTableManager(
         manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$FocusModelsTable, List<FocusModelEntry>>
+      _focusModelsRefsTable(_$NightshadeDatabase db) =>
+          MultiTypedResultKey.fromTable(db.focusModels,
+              aliasName: $_aliasNameGenerator(
+                  db.equipmentProfiles.id, db.focusModels.equipmentProfileId));
+
+  $$FocusModelsTableProcessedTableManager get focusModelsRefs {
+    final manager = $$FocusModelsTableTableManager($_db, $_db.focusModels)
+        .filter((f) => f.equipmentProfileId.id($_item.id));
+
+    final cache = $_typedResult.readTableOrNull(_focusModelsRefsTable($_db));
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$EquipmentProfilesTableFilterComposer
@@ -21408,6 +22999,9 @@ class $$EquipmentProfilesTableFilterComposer
   ColumnFilters<String> get safetyMonitorId => $composableBuilder(
       column: $table.safetyMonitorId,
       builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get switchId => $composableBuilder(
+      column: $table.switchId, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId,
@@ -21615,6 +23209,27 @@ class $$EquipmentProfilesTableFilterComposer
             ));
     return f(composer);
   }
+
+  Expression<bool> focusModelsRefs(
+      Expression<bool> Function($$FocusModelsTableFilterComposer f) f) {
+    final $$FocusModelsTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.focusModels,
+        getReferencedColumn: (t) => t.equipmentProfileId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FocusModelsTableFilterComposer(
+              $db: $db,
+              $table: $db.focusModels,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$EquipmentProfilesTableOrderingComposer
@@ -21663,6 +23278,9 @@ class $$EquipmentProfilesTableOrderingComposer
   ColumnOrderings<String> get safetyMonitorId => $composableBuilder(
       column: $table.safetyMonitorId,
       builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get switchId => $composableBuilder(
+      column: $table.switchId, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId,
@@ -21811,6 +23429,9 @@ class $$EquipmentProfilesTableAnnotationComposer
 
   GeneratedColumn<String> get safetyMonitorId => $composableBuilder(
       column: $table.safetyMonitorId, builder: (column) => column);
+
+  GeneratedColumn<String> get switchId =>
+      $composableBuilder(column: $table.switchId, builder: (column) => column);
 
   GeneratedColumn<String> get coverCalibratorId => $composableBuilder(
       column: $table.coverCalibratorId, builder: (column) => column);
@@ -22010,6 +23631,27 @@ class $$EquipmentProfilesTableAnnotationComposer
             ));
     return f(composer);
   }
+
+  Expression<T> focusModelsRefs<T extends Object>(
+      Expression<T> Function($$FocusModelsTableAnnotationComposer a) f) {
+    final $$FocusModelsTableAnnotationComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.id,
+        referencedTable: $db.focusModels,
+        getReferencedColumn: (t) => t.equipmentProfileId,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$FocusModelsTableAnnotationComposer(
+              $db: $db,
+              $table: $db.focusModels,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return f(composer);
+  }
 }
 
 class $$EquipmentProfilesTableTableManager extends RootTableManager<
@@ -22028,7 +23670,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
         bool flatHistoryRefs,
         bool polarAlignmentHistoryRefs,
         bool photometricTransformsRefs,
-        bool observationLogsRefs})> {
+        bool observationLogsRefs,
+        bool focusModelsRefs})> {
   $$EquipmentProfilesTableTableManager(
       _$NightshadeDatabase db, $EquipmentProfilesTable table)
       : super(TableManagerState(
@@ -22054,6 +23697,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> domeId = const Value.absent(),
             Value<String?> weatherId = const Value.absent(),
             Value<String?> safetyMonitorId = const Value.absent(),
+            Value<String?> switchId = const Value.absent(),
             Value<String?> coverCalibratorId = const Value.absent(),
             Value<double> focalLength = const Value.absent(),
             Value<double> aperture = const Value.absent(),
@@ -22098,6 +23742,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             domeId: domeId,
             weatherId: weatherId,
             safetyMonitorId: safetyMonitorId,
+            switchId: switchId,
             coverCalibratorId: coverCalibratorId,
             focalLength: focalLength,
             aperture: aperture,
@@ -22142,6 +23787,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             Value<String?> domeId = const Value.absent(),
             Value<String?> weatherId = const Value.absent(),
             Value<String?> safetyMonitorId = const Value.absent(),
+            Value<String?> switchId = const Value.absent(),
             Value<String?> coverCalibratorId = const Value.absent(),
             Value<double> focalLength = const Value.absent(),
             Value<double> aperture = const Value.absent(),
@@ -22186,6 +23832,7 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
             domeId: domeId,
             weatherId: weatherId,
             safetyMonitorId: safetyMonitorId,
+            switchId: switchId,
             coverCalibratorId: coverCalibratorId,
             focalLength: focalLength,
             aperture: aperture,
@@ -22228,7 +23875,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
               flatHistoryRefs = false,
               polarAlignmentHistoryRefs = false,
               photometricTransformsRefs = false,
-              observationLogsRefs = false}) {
+              observationLogsRefs = false,
+              focusModelsRefs = false}) {
             return PrefetchHooks(
               db: db,
               explicitlyWatchedTables: [
@@ -22236,7 +23884,8 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                 if (flatHistoryRefs) db.flatHistory,
                 if (polarAlignmentHistoryRefs) db.polarAlignmentHistory,
                 if (photometricTransformsRefs) db.photometricTransforms,
-                if (observationLogsRefs) db.observationLogs
+                if (observationLogsRefs) db.observationLogs,
+                if (focusModelsRefs) db.focusModels
               ],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
@@ -22300,6 +23949,18 @@ class $$EquipmentProfilesTableTableManager extends RootTableManager<
                         referencedItemsForCurrentItem:
                             (item, referencedItems) => referencedItems
                                 .where((e) => e.equipmentProfileId == item.id),
+                        typedResults: items),
+                  if (focusModelsRefs)
+                    await $_getPrefetchedData(
+                        currentTable: table,
+                        referencedTable: $$EquipmentProfilesTableReferences
+                            ._focusModelsRefsTable(db),
+                        managerFromTypedResult: (p0) =>
+                            $$EquipmentProfilesTableReferences(db, table, p0)
+                                .focusModelsRefs,
+                        referencedItemsForCurrentItem:
+                            (item, referencedItems) => referencedItems
+                                .where((e) => e.equipmentProfileId == item.id),
                         typedResults: items)
                 ];
               },
@@ -22324,7 +23985,8 @@ typedef $$EquipmentProfilesTableProcessedTableManager = ProcessedTableManager<
         bool flatHistoryRefs,
         bool polarAlignmentHistoryRefs,
         bool photometricTransformsRefs,
-        bool observationLogsRefs})>;
+        bool observationLogsRefs,
+        bool focusModelsRefs})>;
 typedef $$TargetsTableCreateCompanionBuilder = TargetsCompanion Function({
   Value<int> id,
   required String name,
@@ -36300,6 +37962,732 @@ typedef $$DefectMapsTableProcessedTableManager = ProcessedTableManager<
     ),
     DefectMapEntry,
     PrefetchHooks Function()>;
+typedef $$FocusModelsTableCreateCompanionBuilder = FocusModelsCompanion
+    Function({
+  Value<int> id,
+  required String uuid,
+  Value<int?> equipmentProfileId,
+  required String filterName,
+  Value<int?> filterIndex,
+  required double temperatureCompensationSlope,
+  Value<int> focusOffsetRelativeToLum,
+  required int interceptAtReferenceTemp,
+  Value<double> referenceTempCelsius,
+  required DateTime lastTrainedAt,
+  Value<int> trainingRunCount,
+  Value<double> confidenceScore,
+  Value<DateTime?> lastUsedAt,
+  Value<String> trainingSamplesJson,
+  Value<int> maxTrainingSamples,
+  Value<int> consecutiveBadPredictions,
+  Value<int> accumulatedDriftSteps,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+});
+typedef $$FocusModelsTableUpdateCompanionBuilder = FocusModelsCompanion
+    Function({
+  Value<int> id,
+  Value<String> uuid,
+  Value<int?> equipmentProfileId,
+  Value<String> filterName,
+  Value<int?> filterIndex,
+  Value<double> temperatureCompensationSlope,
+  Value<int> focusOffsetRelativeToLum,
+  Value<int> interceptAtReferenceTemp,
+  Value<double> referenceTempCelsius,
+  Value<DateTime> lastTrainedAt,
+  Value<int> trainingRunCount,
+  Value<double> confidenceScore,
+  Value<DateTime?> lastUsedAt,
+  Value<String> trainingSamplesJson,
+  Value<int> maxTrainingSamples,
+  Value<int> consecutiveBadPredictions,
+  Value<int> accumulatedDriftSteps,
+  Value<DateTime> createdAt,
+  Value<DateTime> updatedAt,
+});
+
+final class $$FocusModelsTableReferences extends BaseReferences<
+    _$NightshadeDatabase, $FocusModelsTable, FocusModelEntry> {
+  $$FocusModelsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $EquipmentProfilesTable _equipmentProfileIdTable(
+          _$NightshadeDatabase db) =>
+      db.equipmentProfiles.createAlias($_aliasNameGenerator(
+          db.focusModels.equipmentProfileId, db.equipmentProfiles.id));
+
+  $$EquipmentProfilesTableProcessedTableManager? get equipmentProfileId {
+    if ($_item.equipmentProfileId == null) return null;
+    final manager =
+        $$EquipmentProfilesTableTableManager($_db, $_db.equipmentProfiles)
+            .filter((f) => f.id($_item.equipmentProfileId!));
+    final item = $_typedResult.readTableOrNull(_equipmentProfileIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(
+        manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$FocusModelsTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $FocusModelsTable> {
+  $$FocusModelsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get uuid => $composableBuilder(
+      column: $table.uuid, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get filterIndex => $composableBuilder(
+      column: $table.filterIndex, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get temperatureCompensationSlope => $composableBuilder(
+      column: $table.temperatureCompensationSlope,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get focusOffsetRelativeToLum => $composableBuilder(
+      column: $table.focusOffsetRelativeToLum,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get interceptAtReferenceTemp => $composableBuilder(
+      column: $table.interceptAtReferenceTemp,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get referenceTempCelsius => $composableBuilder(
+      column: $table.referenceTempCelsius,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get lastTrainedAt => $composableBuilder(
+      column: $table.lastTrainedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get trainingRunCount => $composableBuilder(
+      column: $table.trainingRunCount,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get confidenceScore => $composableBuilder(
+      column: $table.confidenceScore,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get lastUsedAt => $composableBuilder(
+      column: $table.lastUsedAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get trainingSamplesJson => $composableBuilder(
+      column: $table.trainingSamplesJson,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get maxTrainingSamples => $composableBuilder(
+      column: $table.maxTrainingSamples,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get consecutiveBadPredictions => $composableBuilder(
+      column: $table.consecutiveBadPredictions,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get accumulatedDriftSteps => $composableBuilder(
+      column: $table.accumulatedDriftSteps,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnFilters(column));
+
+  $$EquipmentProfilesTableFilterComposer get equipmentProfileId {
+    final $$EquipmentProfilesTableFilterComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.equipmentProfileId,
+        referencedTable: $db.equipmentProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$EquipmentProfilesTableFilterComposer(
+              $db: $db,
+              $table: $db.equipmentProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FocusModelsTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $FocusModelsTable> {
+  $$FocusModelsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get uuid => $composableBuilder(
+      column: $table.uuid, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get filterIndex => $composableBuilder(
+      column: $table.filterIndex, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get temperatureCompensationSlope =>
+      $composableBuilder(
+          column: $table.temperatureCompensationSlope,
+          builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get focusOffsetRelativeToLum => $composableBuilder(
+      column: $table.focusOffsetRelativeToLum,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get interceptAtReferenceTemp => $composableBuilder(
+      column: $table.interceptAtReferenceTemp,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get referenceTempCelsius => $composableBuilder(
+      column: $table.referenceTempCelsius,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get lastTrainedAt => $composableBuilder(
+      column: $table.lastTrainedAt,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get trainingRunCount => $composableBuilder(
+      column: $table.trainingRunCount,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get confidenceScore => $composableBuilder(
+      column: $table.confidenceScore,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get lastUsedAt => $composableBuilder(
+      column: $table.lastUsedAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get trainingSamplesJson => $composableBuilder(
+      column: $table.trainingSamplesJson,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get maxTrainingSamples => $composableBuilder(
+      column: $table.maxTrainingSamples,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get consecutiveBadPredictions => $composableBuilder(
+      column: $table.consecutiveBadPredictions,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get accumulatedDriftSteps => $composableBuilder(
+      column: $table.accumulatedDriftSteps,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+      column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get updatedAt => $composableBuilder(
+      column: $table.updatedAt, builder: (column) => ColumnOrderings(column));
+
+  $$EquipmentProfilesTableOrderingComposer get equipmentProfileId {
+    final $$EquipmentProfilesTableOrderingComposer composer = $composerBuilder(
+        composer: this,
+        getCurrentColumn: (t) => t.equipmentProfileId,
+        referencedTable: $db.equipmentProfiles,
+        getReferencedColumn: (t) => t.id,
+        builder: (joinBuilder,
+                {$addJoinBuilderToRootComposer,
+                $removeJoinBuilderFromRootComposer}) =>
+            $$EquipmentProfilesTableOrderingComposer(
+              $db: $db,
+              $table: $db.equipmentProfiles,
+              $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+              joinBuilder: joinBuilder,
+              $removeJoinBuilderFromRootComposer:
+                  $removeJoinBuilderFromRootComposer,
+            ));
+    return composer;
+  }
+}
+
+class $$FocusModelsTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $FocusModelsTable> {
+  $$FocusModelsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get uuid =>
+      $composableBuilder(column: $table.uuid, builder: (column) => column);
+
+  GeneratedColumn<String> get filterName => $composableBuilder(
+      column: $table.filterName, builder: (column) => column);
+
+  GeneratedColumn<int> get filterIndex => $composableBuilder(
+      column: $table.filterIndex, builder: (column) => column);
+
+  GeneratedColumn<double> get temperatureCompensationSlope =>
+      $composableBuilder(
+          column: $table.temperatureCompensationSlope,
+          builder: (column) => column);
+
+  GeneratedColumn<int> get focusOffsetRelativeToLum => $composableBuilder(
+      column: $table.focusOffsetRelativeToLum, builder: (column) => column);
+
+  GeneratedColumn<int> get interceptAtReferenceTemp => $composableBuilder(
+      column: $table.interceptAtReferenceTemp, builder: (column) => column);
+
+  GeneratedColumn<double> get referenceTempCelsius => $composableBuilder(
+      column: $table.referenceTempCelsius, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastTrainedAt => $composableBuilder(
+      column: $table.lastTrainedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get trainingRunCount => $composableBuilder(
+      column: $table.trainingRunCount, builder: (column) => column);
+
+  GeneratedColumn<double> get confidenceScore => $composableBuilder(
+      column: $table.confidenceScore, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get lastUsedAt => $composableBuilder(
+      column: $table.lastUsedAt, builder: (column) => column);
+
+  GeneratedColumn<String> get trainingSamplesJson => $composableBuilder(
+      column: $table.trainingSamplesJson, builder: (column) => column);
+
+  GeneratedColumn<int> get maxTrainingSamples => $composableBuilder(
+      column: $table.maxTrainingSamples, builder: (column) => column);
+
+  GeneratedColumn<int> get consecutiveBadPredictions => $composableBuilder(
+      column: $table.consecutiveBadPredictions, builder: (column) => column);
+
+  GeneratedColumn<int> get accumulatedDriftSteps => $composableBuilder(
+      column: $table.accumulatedDriftSteps, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get updatedAt =>
+      $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  $$EquipmentProfilesTableAnnotationComposer get equipmentProfileId {
+    final $$EquipmentProfilesTableAnnotationComposer composer =
+        $composerBuilder(
+            composer: this,
+            getCurrentColumn: (t) => t.equipmentProfileId,
+            referencedTable: $db.equipmentProfiles,
+            getReferencedColumn: (t) => t.id,
+            builder: (joinBuilder,
+                    {$addJoinBuilderToRootComposer,
+                    $removeJoinBuilderFromRootComposer}) =>
+                $$EquipmentProfilesTableAnnotationComposer(
+                  $db: $db,
+                  $table: $db.equipmentProfiles,
+                  $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+                  joinBuilder: joinBuilder,
+                  $removeJoinBuilderFromRootComposer:
+                      $removeJoinBuilderFromRootComposer,
+                ));
+    return composer;
+  }
+}
+
+class $$FocusModelsTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $FocusModelsTable,
+    FocusModelEntry,
+    $$FocusModelsTableFilterComposer,
+    $$FocusModelsTableOrderingComposer,
+    $$FocusModelsTableAnnotationComposer,
+    $$FocusModelsTableCreateCompanionBuilder,
+    $$FocusModelsTableUpdateCompanionBuilder,
+    (FocusModelEntry, $$FocusModelsTableReferences),
+    FocusModelEntry,
+    PrefetchHooks Function({bool equipmentProfileId})> {
+  $$FocusModelsTableTableManager(
+      _$NightshadeDatabase db, $FocusModelsTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$FocusModelsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$FocusModelsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$FocusModelsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> uuid = const Value.absent(),
+            Value<int?> equipmentProfileId = const Value.absent(),
+            Value<String> filterName = const Value.absent(),
+            Value<int?> filterIndex = const Value.absent(),
+            Value<double> temperatureCompensationSlope = const Value.absent(),
+            Value<int> focusOffsetRelativeToLum = const Value.absent(),
+            Value<int> interceptAtReferenceTemp = const Value.absent(),
+            Value<double> referenceTempCelsius = const Value.absent(),
+            Value<DateTime> lastTrainedAt = const Value.absent(),
+            Value<int> trainingRunCount = const Value.absent(),
+            Value<double> confidenceScore = const Value.absent(),
+            Value<DateTime?> lastUsedAt = const Value.absent(),
+            Value<String> trainingSamplesJson = const Value.absent(),
+            Value<int> maxTrainingSamples = const Value.absent(),
+            Value<int> consecutiveBadPredictions = const Value.absent(),
+            Value<int> accumulatedDriftSteps = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              FocusModelsCompanion(
+            id: id,
+            uuid: uuid,
+            equipmentProfileId: equipmentProfileId,
+            filterName: filterName,
+            filterIndex: filterIndex,
+            temperatureCompensationSlope: temperatureCompensationSlope,
+            focusOffsetRelativeToLum: focusOffsetRelativeToLum,
+            interceptAtReferenceTemp: interceptAtReferenceTemp,
+            referenceTempCelsius: referenceTempCelsius,
+            lastTrainedAt: lastTrainedAt,
+            trainingRunCount: trainingRunCount,
+            confidenceScore: confidenceScore,
+            lastUsedAt: lastUsedAt,
+            trainingSamplesJson: trainingSamplesJson,
+            maxTrainingSamples: maxTrainingSamples,
+            consecutiveBadPredictions: consecutiveBadPredictions,
+            accumulatedDriftSteps: accumulatedDriftSteps,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String uuid,
+            Value<int?> equipmentProfileId = const Value.absent(),
+            required String filterName,
+            Value<int?> filterIndex = const Value.absent(),
+            required double temperatureCompensationSlope,
+            Value<int> focusOffsetRelativeToLum = const Value.absent(),
+            required int interceptAtReferenceTemp,
+            Value<double> referenceTempCelsius = const Value.absent(),
+            required DateTime lastTrainedAt,
+            Value<int> trainingRunCount = const Value.absent(),
+            Value<double> confidenceScore = const Value.absent(),
+            Value<DateTime?> lastUsedAt = const Value.absent(),
+            Value<String> trainingSamplesJson = const Value.absent(),
+            Value<int> maxTrainingSamples = const Value.absent(),
+            Value<int> consecutiveBadPredictions = const Value.absent(),
+            Value<int> accumulatedDriftSteps = const Value.absent(),
+            Value<DateTime> createdAt = const Value.absent(),
+            Value<DateTime> updatedAt = const Value.absent(),
+          }) =>
+              FocusModelsCompanion.insert(
+            id: id,
+            uuid: uuid,
+            equipmentProfileId: equipmentProfileId,
+            filterName: filterName,
+            filterIndex: filterIndex,
+            temperatureCompensationSlope: temperatureCompensationSlope,
+            focusOffsetRelativeToLum: focusOffsetRelativeToLum,
+            interceptAtReferenceTemp: interceptAtReferenceTemp,
+            referenceTempCelsius: referenceTempCelsius,
+            lastTrainedAt: lastTrainedAt,
+            trainingRunCount: trainingRunCount,
+            confidenceScore: confidenceScore,
+            lastUsedAt: lastUsedAt,
+            trainingSamplesJson: trainingSamplesJson,
+            maxTrainingSamples: maxTrainingSamples,
+            consecutiveBadPredictions: consecutiveBadPredictions,
+            accumulatedDriftSteps: accumulatedDriftSteps,
+            createdAt: createdAt,
+            updatedAt: updatedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (
+                    e.readTable(table),
+                    $$FocusModelsTableReferences(db, table, e)
+                  ))
+              .toList(),
+          prefetchHooksCallback: ({equipmentProfileId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins: <
+                  T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic>>(state) {
+                if (equipmentProfileId) {
+                  state = state.withJoin(
+                    currentTable: table,
+                    currentColumn: table.equipmentProfileId,
+                    referencedTable: $$FocusModelsTableReferences
+                        ._equipmentProfileIdTable(db),
+                    referencedColumn: $$FocusModelsTableReferences
+                        ._equipmentProfileIdTable(db)
+                        .id,
+                  ) as T;
+                }
+
+                return state;
+              },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ));
+}
+
+typedef $$FocusModelsTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $FocusModelsTable,
+    FocusModelEntry,
+    $$FocusModelsTableFilterComposer,
+    $$FocusModelsTableOrderingComposer,
+    $$FocusModelsTableAnnotationComposer,
+    $$FocusModelsTableCreateCompanionBuilder,
+    $$FocusModelsTableUpdateCompanionBuilder,
+    (FocusModelEntry, $$FocusModelsTableReferences),
+    FocusModelEntry,
+    PrefetchHooks Function({bool equipmentProfileId})>;
+typedef $$GuideRmsHistoryTableCreateCompanionBuilder = GuideRmsHistoryCompanion
+    Function({
+  Value<int> id,
+  required String sessionId,
+  required String mountId,
+  Value<int?> targetId,
+  required double totalRmsArcsec,
+  required int sampleCount,
+  Value<double?> exposureSeconds,
+  required DateTime recordedAt,
+});
+typedef $$GuideRmsHistoryTableUpdateCompanionBuilder = GuideRmsHistoryCompanion
+    Function({
+  Value<int> id,
+  Value<String> sessionId,
+  Value<String> mountId,
+  Value<int?> targetId,
+  Value<double> totalRmsArcsec,
+  Value<int> sampleCount,
+  Value<double?> exposureSeconds,
+  Value<DateTime> recordedAt,
+});
+
+class $$GuideRmsHistoryTableFilterComposer
+    extends Composer<_$NightshadeDatabase, $GuideRmsHistoryTable> {
+  $$GuideRmsHistoryTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get mountId => $composableBuilder(
+      column: $table.mountId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get totalRmsArcsec => $composableBuilder(
+      column: $table.totalRmsArcsec,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get exposureSeconds => $composableBuilder(
+      column: $table.exposureSeconds,
+      builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnFilters(column));
+}
+
+class $$GuideRmsHistoryTableOrderingComposer
+    extends Composer<_$NightshadeDatabase, $GuideRmsHistoryTable> {
+  $$GuideRmsHistoryTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(
+      column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get sessionId => $composableBuilder(
+      column: $table.sessionId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get mountId => $composableBuilder(
+      column: $table.mountId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get targetId => $composableBuilder(
+      column: $table.targetId, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get totalRmsArcsec => $composableBuilder(
+      column: $table.totalRmsArcsec,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get exposureSeconds => $composableBuilder(
+      column: $table.exposureSeconds,
+      builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => ColumnOrderings(column));
+}
+
+class $$GuideRmsHistoryTableAnnotationComposer
+    extends Composer<_$NightshadeDatabase, $GuideRmsHistoryTable> {
+  $$GuideRmsHistoryTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id =>
+      $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get sessionId =>
+      $composableBuilder(column: $table.sessionId, builder: (column) => column);
+
+  GeneratedColumn<String> get mountId =>
+      $composableBuilder(column: $table.mountId, builder: (column) => column);
+
+  GeneratedColumn<int> get targetId =>
+      $composableBuilder(column: $table.targetId, builder: (column) => column);
+
+  GeneratedColumn<double> get totalRmsArcsec => $composableBuilder(
+      column: $table.totalRmsArcsec, builder: (column) => column);
+
+  GeneratedColumn<int> get sampleCount => $composableBuilder(
+      column: $table.sampleCount, builder: (column) => column);
+
+  GeneratedColumn<double> get exposureSeconds => $composableBuilder(
+      column: $table.exposureSeconds, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get recordedAt => $composableBuilder(
+      column: $table.recordedAt, builder: (column) => column);
+}
+
+class $$GuideRmsHistoryTableTableManager extends RootTableManager<
+    _$NightshadeDatabase,
+    $GuideRmsHistoryTable,
+    GuideRmsHistoryEntry,
+    $$GuideRmsHistoryTableFilterComposer,
+    $$GuideRmsHistoryTableOrderingComposer,
+    $$GuideRmsHistoryTableAnnotationComposer,
+    $$GuideRmsHistoryTableCreateCompanionBuilder,
+    $$GuideRmsHistoryTableUpdateCompanionBuilder,
+    (
+      GuideRmsHistoryEntry,
+      BaseReferences<_$NightshadeDatabase, $GuideRmsHistoryTable,
+          GuideRmsHistoryEntry>
+    ),
+    GuideRmsHistoryEntry,
+    PrefetchHooks Function()> {
+  $$GuideRmsHistoryTableTableManager(
+      _$NightshadeDatabase db, $GuideRmsHistoryTable table)
+      : super(TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$GuideRmsHistoryTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$GuideRmsHistoryTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$GuideRmsHistoryTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<String> sessionId = const Value.absent(),
+            Value<String> mountId = const Value.absent(),
+            Value<int?> targetId = const Value.absent(),
+            Value<double> totalRmsArcsec = const Value.absent(),
+            Value<int> sampleCount = const Value.absent(),
+            Value<double?> exposureSeconds = const Value.absent(),
+            Value<DateTime> recordedAt = const Value.absent(),
+          }) =>
+              GuideRmsHistoryCompanion(
+            id: id,
+            sessionId: sessionId,
+            mountId: mountId,
+            targetId: targetId,
+            totalRmsArcsec: totalRmsArcsec,
+            sampleCount: sampleCount,
+            exposureSeconds: exposureSeconds,
+            recordedAt: recordedAt,
+          ),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required String sessionId,
+            required String mountId,
+            Value<int?> targetId = const Value.absent(),
+            required double totalRmsArcsec,
+            required int sampleCount,
+            Value<double?> exposureSeconds = const Value.absent(),
+            required DateTime recordedAt,
+          }) =>
+              GuideRmsHistoryCompanion.insert(
+            id: id,
+            sessionId: sessionId,
+            mountId: mountId,
+            targetId: targetId,
+            totalRmsArcsec: totalRmsArcsec,
+            sampleCount: sampleCount,
+            exposureSeconds: exposureSeconds,
+            recordedAt: recordedAt,
+          ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ));
+}
+
+typedef $$GuideRmsHistoryTableProcessedTableManager = ProcessedTableManager<
+    _$NightshadeDatabase,
+    $GuideRmsHistoryTable,
+    GuideRmsHistoryEntry,
+    $$GuideRmsHistoryTableFilterComposer,
+    $$GuideRmsHistoryTableOrderingComposer,
+    $$GuideRmsHistoryTableAnnotationComposer,
+    $$GuideRmsHistoryTableCreateCompanionBuilder,
+    $$GuideRmsHistoryTableUpdateCompanionBuilder,
+    (
+      GuideRmsHistoryEntry,
+      BaseReferences<_$NightshadeDatabase, $GuideRmsHistoryTable,
+          GuideRmsHistoryEntry>
+    ),
+    GuideRmsHistoryEntry,
+    PrefetchHooks Function()>;
 
 class $NightshadeDatabaseManager {
   final _$NightshadeDatabase _db;
@@ -36371,4 +38759,8 @@ class $NightshadeDatabaseManager {
       $$SequenceRunsTableTableManager(_db, _db.sequenceRuns);
   $$DefectMapsTableTableManager get defectMaps =>
       $$DefectMapsTableTableManager(_db, _db.defectMaps);
+  $$FocusModelsTableTableManager get focusModels =>
+      $$FocusModelsTableTableManager(_db, _db.focusModels);
+  $$GuideRmsHistoryTableTableManager get guideRmsHistory =>
+      $$GuideRmsHistoryTableTableManager(_db, _db.guideRmsHistory);
 }

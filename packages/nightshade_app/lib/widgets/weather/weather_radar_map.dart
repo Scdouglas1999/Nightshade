@@ -186,8 +186,7 @@ class _WeatherRadarMapState extends ConsumerState<WeatherRadarMap> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>() ??
-        NightshadeColors.dark;
+    final colors = NightshadeColors.of(context);
 
     final userLocation = LatLng(widget.latitude, widget.longitude);
 

@@ -5,7 +5,7 @@ class RemoteApiCompatibility {
   // not expose the auth, pairing, and version-negotiation contracts required
   // by current desktop, mobile, and WebRTC clients.
   static const minimumSupportedVersion = SemanticVersion(2, 4, 0);
-  static const serverApiVersion = SemanticVersion(2, 5, 0);
+  static const serverApiVersion = SemanticVersion(2, 6, 0);
   static const clientApiVersion = serverApiVersion;
 
   const RemoteApiCompatibility._();

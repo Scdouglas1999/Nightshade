@@ -97,6 +97,38 @@ class _RecordingNotificationService implements MobileNotificationSink {
   Future<void> notifyPush(Map<String, dynamic> data) async {
     calls.add(NotifyCall('push', Map<String, Object?>.from(data)));
   }
+
+  @override
+  Future<void> notifyPlateSolveFailed(String errorMessage) async {
+    calls.add(NotifyCall('plateSolveFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyCenteringFailed(String errorMessage) async {
+    calls.add(NotifyCall('centeringFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyPolarAlignmentFailed(String errorMessage) async {
+    calls.add(NotifyCall('polarAlignmentFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyOwnershipTakenOver({
+    String? displacingClientName,
+    String? reason,
+  }) async {
+    calls.add(NotifyCall('ownershipTakenOver', {
+      if (displacingClientName != null)
+        'displacingClientName': displacingClientName,
+      if (reason != null) 'reason': reason,
+    }));
+  }
+
+  @override
+  Future<void> notifyOwnershipAutoReleased(String reason) async {
+    calls.add(NotifyCall('ownershipAutoReleased', {'reason': reason}));
+  }
 }
 
 class NotifyCall {
@@ -436,6 +468,288 @@ void main() {
   group('Polar alignment category', () {
     test('PolarAlignment events are not surfaced as notifications', () async {
       await emit(_ev(EventCategory.polarAlignment, 'StatusUpdate'));
+      expect(notifications.calls, isEmpty);
+    });
+  });
+
+  group('Job category (Wave 3 / P1-2 P1-3)', () {
+    test('JobStarted is silenced (no notification)', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobStarted',
+        data: {
+          'jobId': 'j1',
+          'operation': 'plate-solve',
+          'state': 'queued',
+        },
+        severity: EventSeverity.info,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobProgress is silenced (no notification)', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobProgress',
+        data: {
+          'jobId': 'j1',
+          'operation': 'plate-solve',
+          'state': 'running',
+          'progress': 0.5,
+        },
+        severity: EventSeverity.info,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobCompleted is silenced (no notification)', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobCompleted',
+        data: {
+          'jobId': 'j1',
+          'operation': 'plate-solve',
+          'state': 'succeeded',
+        },
+        severity: EventSeverity.info,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobCancelled is silenced (user-triggered)', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobCancelled',
+        data: {
+          'jobId': 'j1',
+          'operation': 'plate-solve',
+          'state': 'cancelled',
+        },
+        severity: EventSeverity.warning,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobFailed for plate-solve -> plateSolveFailed notification',
+        () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j1',
+          'operation': 'plate-solve',
+          'state': 'failed',
+          'error': {
+            'code': 'no_stars',
+            'message': 'No stars detected in frame',
+          },
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls, hasLength(1));
+      expect(notifications.calls.single.kind, 'plateSolveFailed');
+      expect(notifications.calls.single.data['error'],
+          'No stars detected in frame');
+    });
+
+    test('JobFailed for framing.center-on-target -> centeringFailed', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j2',
+          'operation': 'framing.center-on-target',
+          'state': 'failed',
+          'error': {
+            'code': 'max_iterations',
+            'message': 'Centering did not converge in 5 attempts',
+          },
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls.single.kind, 'centeringFailed');
+      expect(notifications.calls.single.data['error'],
+          'Centering did not converge in 5 attempts');
+    });
+
+    test('JobFailed for polar-alignment.start -> polarAlignmentFailed',
+        () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j3',
+          'operation': 'polar-alignment.start',
+          'state': 'failed',
+          'error': {
+            'code': 'mount_not_responding',
+            'message': 'Mount stopped reporting position',
+          },
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls.single.kind, 'polarAlignmentFailed');
+    });
+
+    test('JobFailed for polar-alignment.all-sky.start -> polarAlignmentFailed',
+        () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j4',
+          'operation': 'polar-alignment.all-sky.start',
+          'state': 'failed',
+          'error': {'message': 'Could not solve any of 4 frames'},
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls.single.kind, 'polarAlignmentFailed');
+    });
+
+    test('JobFailed for focuser.autofocus -> autofocusFailed', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j5',
+          'operation': 'focuser.autofocus',
+          'state': 'failed',
+          'error': {'message': 'V-curve fit failed'},
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls.single.kind, 'autofocusFailed');
+    });
+
+    test(
+        'JobFailed for unknown operation -> no notification (but logs '
+        'loudly)', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j6',
+          'operation': 'mystery.future.op',
+          'state': 'failed',
+          'error': {'message': 'something'},
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobFailed for plate-solve respects notifyExposureFailed mute',
+        () async {
+      await prefs.setNotifyExposureFailed(false);
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j7',
+          'operation': 'plate-solve',
+          'state': 'failed',
+          'error': {'message': 'No stars'},
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('JobFailed debounces repeats of same operation', () async {
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j8',
+          'operation': 'plate-solve',
+          'state': 'failed',
+          'error': {'message': 'No stars'},
+        },
+        severity: EventSeverity.error,
+      ));
+      await emit(_ev(
+        EventCategory.job,
+        'JobFailed',
+        data: {
+          'jobId': 'j9',
+          'operation': 'plate-solve',
+          'state': 'failed',
+          'error': {'message': 'No stars again'},
+        },
+        severity: EventSeverity.error,
+      ));
+      expect(notifications.calls, hasLength(1));
+    });
+  });
+
+  group('Session category (Wave 3 / P1-5)', () {
+    test('OwnershipTakenOver -> notification with displacing client',
+        () async {
+      await emit(_ev(
+        EventCategory.session,
+        'OwnershipTakenOver',
+        data: {
+          'clientId': 'tablet-uuid',
+          'clientName': 'Observatory Tablet',
+          'reason': 'forced',
+          'claimedAt': '2026-05-24T03:00:00Z',
+          'lastSeenAt': '2026-05-24T03:00:00Z',
+        },
+        severity: EventSeverity.warning,
+      ));
+      expect(notifications.calls, hasLength(1));
+      expect(notifications.calls.single.kind, 'ownershipTakenOver');
+      expect(notifications.calls.single.data['displacingClientName'],
+          'Observatory Tablet');
+      expect(notifications.calls.single.data['reason'], 'forced');
+    });
+
+    test('OwnershipAutoReleased -> info-level notification', () async {
+      await emit(_ev(
+        EventCategory.session,
+        'OwnershipAutoReleased',
+        data: {
+          'clientId': 'phone-uuid',
+          'reason': 'heartbeat_timeout',
+          'timeoutSeconds': 60,
+          'claimedAt': '2026-05-24T03:00:00Z',
+          'lastSeenAt': '2026-05-24T03:01:00Z',
+        },
+        severity: EventSeverity.warning,
+      ));
+      expect(notifications.calls.single.kind, 'ownershipAutoReleased');
+      expect(notifications.calls.single.data['reason'], 'heartbeat_timeout');
+    });
+
+    test('OwnershipClaimed -> ignored (the user themselves did this)',
+        () async {
+      await emit(_ev(
+        EventCategory.session,
+        'OwnershipClaimed',
+        data: {
+          'clientId': 'phone-uuid',
+          'clientName': 'Phone',
+          'claimedAt': '2026-05-24T03:00:00Z',
+          'lastSeenAt': '2026-05-24T03:00:00Z',
+        },
+        severity: EventSeverity.info,
+      ));
+      expect(notifications.calls, isEmpty);
+    });
+
+    test('OwnershipReleased -> ignored (voluntary release)', () async {
+      await emit(_ev(
+        EventCategory.session,
+        'OwnershipReleased',
+        data: {
+          'clientId': 'phone-uuid',
+          'clientName': 'Phone',
+          'claimedAt': '2026-05-24T03:00:00Z',
+          'lastSeenAt': '2026-05-24T03:05:00Z',
+        },
+        severity: EventSeverity.info,
+      ));
       expect(notifications.calls, isEmpty);
     });
   });

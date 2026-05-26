@@ -55,8 +55,26 @@ impl AscomMount {
         self.device.get_double_property("RightAscension")
     }
 
+    pub fn target_right_ascension(&self) -> Result<f64, String> {
+        self.device.get_double_property("TargetRightAscension")
+    }
+
+    pub fn set_target_right_ascension(&mut self, ra_hours: f64) -> Result<(), String> {
+        self.device
+            .set_double_property("TargetRightAscension", ra_hours)
+    }
+
     pub fn declination(&self) -> Result<f64, String> {
         self.device.get_double_property("Declination")
+    }
+
+    pub fn target_declination(&self) -> Result<f64, String> {
+        self.device.get_double_property("TargetDeclination")
+    }
+
+    pub fn set_target_declination(&mut self, dec_degrees: f64) -> Result<(), String> {
+        self.device
+            .set_double_property("TargetDeclination", dec_degrees)
     }
 
     pub fn altitude(&self) -> Result<f64, String> {
@@ -73,6 +91,51 @@ impl AscomMount {
 
     pub fn sidereal_time(&self) -> Result<f64, String> {
         self.device.get_double_property("SiderealTime")
+    }
+
+    pub fn site_latitude(&self) -> Result<f64, String> {
+        self.device.get_double_property("SiteLatitude")
+    }
+
+    pub fn set_site_latitude(&mut self, latitude_degrees: f64) -> Result<(), String> {
+        self.device
+            .set_double_property("SiteLatitude", latitude_degrees)
+    }
+
+    pub fn site_longitude(&self) -> Result<f64, String> {
+        self.device.get_double_property("SiteLongitude")
+    }
+
+    pub fn set_site_longitude(&mut self, longitude_degrees: f64) -> Result<(), String> {
+        self.device
+            .set_double_property("SiteLongitude", longitude_degrees)
+    }
+
+    pub fn site_elevation(&self) -> Result<f64, String> {
+        self.device.get_double_property("SiteElevation")
+    }
+
+    pub fn set_site_elevation(&mut self, elevation_meters: f64) -> Result<(), String> {
+        self.device
+            .set_double_property("SiteElevation", elevation_meters)
+    }
+
+    /// UTCDate as an OLE Automation date (days since 1899-12-30).
+    pub fn utc_date(&self) -> Result<f64, String> {
+        self.device.get_date_property("UTCDate")
+    }
+
+    /// Set UTCDate from an OLE Automation date (days since 1899-12-30).
+    pub fn set_utc_date(&mut self, utc_date: f64) -> Result<(), String> {
+        self.device.set_date_property("UTCDate", utc_date)
+    }
+
+    pub fn does_refraction(&self) -> Result<bool, String> {
+        self.device.get_bool_property("DoesRefraction")
+    }
+
+    pub fn set_does_refraction(&mut self, enabled: bool) -> Result<(), String> {
+        self.device.set_bool_property("DoesRefraction", enabled)
     }
 
     pub fn tracking(&self) -> Result<bool, String> {
@@ -260,6 +323,8 @@ impl AscomMount {
         MountPositionStatus {
             right_ascension: self.right_ascension().ok(),
             declination: self.declination().ok(),
+            target_right_ascension: self.target_right_ascension().ok(),
+            target_declination: self.target_declination().ok(),
             altitude: self.altitude().ok(),
             azimuth: self.azimuth().ok(),
             sidereal_time: self.sidereal_time().ok(),
@@ -288,6 +353,17 @@ impl AscomMount {
         }
     }
 
+    /// Get mount site/time/refraction configuration in a single batch operation
+    pub fn get_site_status(&self) -> MountSiteStatus {
+        MountSiteStatus {
+            site_latitude: self.site_latitude().ok(),
+            site_longitude: self.site_longitude().ok(),
+            site_elevation: self.site_elevation().ok(),
+            utc_date: self.utc_date().ok(),
+            does_refraction: self.does_refraction().ok(),
+        }
+    }
+
     /// Get mount capabilities in a single batch operation
     /// Use this to determine what operations are available
     pub fn get_capabilities(&self) -> MountCapabilities {
@@ -312,6 +388,7 @@ impl AscomMount {
             position: self.get_position_status(),
             motion: self.get_motion_status(),
             guide_rates: self.get_guide_rates(),
+            site: self.get_site_status(),
         }
     }
 
@@ -331,6 +408,8 @@ impl AscomMount {
 pub struct MountPositionStatus {
     pub right_ascension: Option<f64>,
     pub declination: Option<f64>,
+    pub target_right_ascension: Option<f64>,
+    pub target_declination: Option<f64>,
     pub altitude: Option<f64>,
     pub azimuth: Option<f64>,
     pub sidereal_time: Option<f64>,
@@ -356,6 +435,17 @@ pub struct MountGuideRates {
     pub can_pulse_guide: Option<bool>,
 }
 
+/// Mount site/time/refraction configuration
+#[derive(Debug, Clone, Default)]
+pub struct MountSiteStatus {
+    pub site_latitude: Option<f64>,
+    pub site_longitude: Option<f64>,
+    pub site_elevation: Option<f64>,
+    /// OLE Automation date (days since 1899-12-30), matching ASCOM UTCDate.
+    pub utc_date: Option<f64>,
+    pub does_refraction: Option<bool>,
+}
+
 /// Mount capabilities
 #[derive(Debug, Clone, Default)]
 pub struct MountCapabilities {
@@ -376,4 +466,5 @@ pub struct MountFullStatus {
     pub position: MountPositionStatus,
     pub motion: MountMotionStatus,
     pub guide_rates: MountGuideRates,
+    pub site: MountSiteStatus,
 }

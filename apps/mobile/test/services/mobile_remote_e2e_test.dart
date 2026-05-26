@@ -131,6 +131,38 @@ class _RecordingNotificationSink implements MobileNotificationSink {
   Future<void> notifyPush(Map<String, dynamic> data) async {
     calls.add(_NotifyCall('push', Map<String, Object?>.from(data)));
   }
+
+  @override
+  Future<void> notifyPlateSolveFailed(String errorMessage) async {
+    calls.add(_NotifyCall('plateSolveFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyCenteringFailed(String errorMessage) async {
+    calls.add(_NotifyCall('centeringFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyPolarAlignmentFailed(String errorMessage) async {
+    calls.add(_NotifyCall('polarAlignmentFailed', {'error': errorMessage}));
+  }
+
+  @override
+  Future<void> notifyOwnershipTakenOver({
+    String? displacingClientName,
+    String? reason,
+  }) async {
+    calls.add(_NotifyCall('ownershipTakenOver', {
+      if (displacingClientName != null)
+        'displacingClientName': displacingClientName,
+      if (reason != null) 'reason': reason,
+    }));
+  }
+
+  @override
+  Future<void> notifyOwnershipAutoReleased(String reason) async {
+    calls.add(_NotifyCall('ownershipAutoReleased', {'reason': reason}));
+  }
 }
 
 class _NotifyCall {

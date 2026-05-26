@@ -12,7 +12,27 @@ use std::net::TcpStream;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{mpsc, Arc, Mutex};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
+
+/// Normalize a PHD2 TCP host for reliable local connections.
+///
+/// On Windows, `localhost` often resolves to `::1` while PHD2 listens on IPv4
+/// `127.0.0.1`, which makes port probes fail and triggers duplicate launches.
+pub fn normalize_phd2_tcp_host(host: &str) -> String {
+    match host.trim().to_lowercase().as_str() {
+        "" | "localhost" | "::1" => "127.0.0.1".to_string(),
+        other => other.to_string(),
+    }
+}
+
+/// Returns true when PHD2's event server accepts TCP connections on [host]:[port].
+pub fn is_phd2_server_listening(host: &str, port: u16) -> bool {
+    let host = normalize_phd2_tcp_host(host);
+    let Ok(addr) = format!("{host}:{port}").parse() else {
+        return false;
+    };
+    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+}
 
 /// PHD2 connection state
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -307,6 +327,9 @@ pub enum Phd2Event {
 #[derive(Serialize)]
 struct JsonRpcRequest {
     method: String,
+    /// PHD2 rejects `"params": null` (-32600). Omit the field when there are
+    /// no parameters (matches PHD2 wiki examples: `{"method":"…","id":N}`).
+    #[serde(skip_serializing_if = "Option::is_none")]
     params: Option<serde_json::Value>,
     id: u32,
 }
@@ -368,6 +391,8 @@ pub struct Phd2Client {
     /// Registry of pending RPC response senders, keyed by request ID.
     /// The reader thread sends response lines to the matching sender.
     response_registry: Arc<Mutex<HashMap<u32, mpsc::Sender<String>>>>,
+    /// Suppress `Phd2Event::Disconnected` while we intentionally tear down the socket.
+    suppress_disconnect_events: Arc<AtomicBool>,
 }
 
 impl Phd2Client {
@@ -375,7 +400,7 @@ impl Phd2Client {
     pub fn new(host: &str, port: u16) -> Self {
         Self {
             write_stream: None,
-            host: host.to_string(),
+            host: normalize_phd2_tcp_host(host),
             port,
             request_id: 0,
             running: Arc::new(AtomicBool::new(false)),
@@ -385,6 +410,7 @@ impl Phd2Client {
             state: Arc::new(Mutex::new(Phd2State::Disconnected)),
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             response_registry: Arc::new(Mutex::new(HashMap::new())),
+            suppress_disconnect_events: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -392,7 +418,7 @@ impl Phd2Client {
     pub fn with_config(host: &str, port: u16, config: Phd2ConnectionConfig) -> Self {
         Self {
             write_stream: None,
-            host: host.to_string(),
+            host: normalize_phd2_tcp_host(host),
             port,
             request_id: 0,
             running: Arc::new(AtomicBool::new(false)),
@@ -402,6 +428,7 @@ impl Phd2Client {
             state: Arc::new(Mutex::new(Phd2State::Disconnected)),
             reconnect_attempts: Arc::new(std::sync::atomic::AtomicU32::new(0)),
             response_registry: Arc::new(Mutex::new(HashMap::new())),
+            suppress_disconnect_events: Arc::new(AtomicBool::new(false)),
         }
     }
 
@@ -503,8 +530,36 @@ impl Phd2Client {
         ))
     }
 
+    /// Wait until PHD2 responds to RPC after the TCP connection is established.
+    ///
+    /// PHD2 sends initial event messages on connect; the server may not answer
+    /// RPC until that burst completes. Retries avoid racing `get_app_state`.
+    pub fn wait_until_ready(&mut self, timeout: Duration) -> Result<(), String> {
+        let deadline = Instant::now() + timeout;
+        let mut last_error = String::from("PHD2 did not respond");
+
+        while Instant::now() < deadline {
+            match self.get_app_state() {
+                Ok(_) => return Ok(()),
+                Err(e) => {
+                    last_error = e;
+                    std::thread::sleep(Duration::from_millis(200));
+                }
+            }
+        }
+
+        Err(format!(
+            "PHD2 did not become ready within {}s: {}",
+            timeout.as_secs(),
+            last_error
+        ))
+    }
+
     /// Connect to PHD2
     pub fn connect(&mut self) -> Result<(), String> {
+        self.suppress_disconnect_events
+            .store(false, std::sync::atomic::Ordering::SeqCst);
+
         let addr = format!("{}:{}", self.host, self.port);
         tracing::info!("Connecting to PHD2 at {}", addr);
 
@@ -541,8 +596,12 @@ impl Phd2Client {
 
     /// Disconnect from PHD2
     pub fn disconnect(&mut self) {
+        self.suppress_disconnect_events
+            .store(true, std::sync::atomic::Ordering::SeqCst);
         self.running.store(false, Ordering::SeqCst);
-        self.write_stream = None;
+        if let Some(stream) = self.write_stream.take() {
+            let _ = stream.shutdown(std::net::Shutdown::Both);
+        }
 
         // Clear any pending response waiters so they don't hang
         if let Ok(mut registry) = self.response_registry.lock() {
@@ -579,6 +638,7 @@ impl Phd2Client {
         let rolling_stats = Arc::clone(&self.rolling_stats);
         let state = Arc::clone(&self.state);
         let response_registry = Arc::clone(&self.response_registry);
+        let suppress_disconnect_events = Arc::clone(&self.suppress_disconnect_events);
 
         thread::spawn(move || {
             tracing::info!("PHD2: Reader thread started");
@@ -599,12 +659,15 @@ impl Phd2Client {
                     Ok(0) => {
                         // EOF - connection closed
                         tracing::info!("PHD2: Reader thread got EOF, connection closed");
+                        running.store(false, Ordering::SeqCst);
                         if let Ok(mut s) = state.lock() {
                             *s = Phd2State::Disconnected;
                         }
-                        if let Some(ref cb) = callback {
-                            if let Ok(cb) = cb.lock() {
-                                cb(Phd2Event::Disconnected);
+                        if !suppress_disconnect_events.load(Ordering::SeqCst) {
+                            if let Some(ref cb) = callback {
+                                if let Ok(cb) = cb.lock() {
+                                    cb(Phd2Event::Disconnected);
+                                }
                             }
                         }
                         break;
@@ -651,14 +714,17 @@ impl Phd2Client {
 
                         tracing::warn!("PHD2: Read error (kind={:?}): {}", e.kind(), e);
 
+                        running.store(false, Ordering::SeqCst);
                         // Update state to disconnected
                         if let Ok(mut s) = state.lock() {
                             *s = Phd2State::Disconnected;
                         }
 
-                        if let Some(ref cb) = callback {
-                            if let Ok(cb) = cb.lock() {
-                                cb(Phd2Event::Disconnected);
+                        if !suppress_disconnect_events.load(Ordering::SeqCst) {
+                            if let Some(ref cb) = callback {
+                                if let Ok(cb) = cb.lock() {
+                                    cb(Phd2Event::Disconnected);
+                                }
                             }
                         }
                         break;
@@ -690,7 +756,7 @@ impl Phd2Client {
             }
         };
 
-        // Check for JSON-RPC response (has "id" field that is a number)
+        // JSON-RPC response (numeric id) — includes success and error bodies.
         if let Some(id_val) = parsed.get("id") {
             if let Some(id) = id_val.as_u64() {
                 let id = id as u32;
@@ -703,6 +769,11 @@ impl Phd2Client {
                         tracing::debug!("PHD2: Received response for unknown id {}", id);
                     }
                 }
+                return;
+            }
+            // PHD2 may return parse/validation errors with `"id": null`; not an event.
+            if id_val.is_null() && parsed.get("error").is_some() {
+                tracing::debug!("PHD2: Ignoring JSON-RPC error with null id: {}", json);
                 return;
             }
         }
@@ -1507,12 +1578,9 @@ fn base64_decode(input: &str) -> Result<Vec<u8>, String> {
     Ok(output)
 }
 
-/// Check if PHD2 is running
+/// Check if PHD2's event server is listening on the default port.
 pub fn is_phd2_running() -> bool {
-    let Ok(addr) = "127.0.0.1:4400".parse() else {
-        return false;
-    };
-    TcpStream::connect_timeout(&addr, Duration::from_millis(500)).is_ok()
+    is_phd2_server_listening("127.0.0.1", 4400)
 }
 
 /// Check if PHD2 is installed
@@ -1652,6 +1720,15 @@ pub fn launch_phd2() -> Result<(), String> {
 mod tests {
     use super::*;
 
+    #[test]
+    fn normalizes_localhost_for_tcp() {
+        assert_eq!(normalize_phd2_tcp_host("localhost"), "127.0.0.1");
+        assert_eq!(normalize_phd2_tcp_host("LOCALHOST"), "127.0.0.1");
+        assert_eq!(normalize_phd2_tcp_host("::1"), "127.0.0.1");
+        assert_eq!(normalize_phd2_tcp_host("  "), "127.0.0.1");
+        assert_eq!(normalize_phd2_tcp_host("192.168.1.5"), "192.168.1.5");
+    }
+
     /// §6.23: documented PHD2 app states map deterministically and
     /// unambiguously. Two of them (`Stopped`, `Selected`) collapse to
     /// `Connected` per PHD2's protocol semantics; the rest are 1:1.
@@ -1677,5 +1754,19 @@ mod tests {
                 other => panic!("expected Phd2State::Unknown({:?}), got {:?}", sample, other),
             }
         }
+    }
+
+    /// PHD2 returns -32600 when `params` is JSON null; omit the field instead.
+    #[test]
+    fn json_rpc_request_omits_null_params() {
+        let request = JsonRpcRequest {
+            method: "get_app_state".to_string(),
+            params: None,
+            id: 1,
+        };
+        let json = serde_json::to_string(&request).unwrap();
+        assert!(!json.contains("params"));
+        assert!(json.contains("\"method\":\"get_app_state\""));
+        assert!(json.contains("\"id\":1"));
     }
 }

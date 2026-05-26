@@ -52,7 +52,22 @@ bool hasMeaningfulDuration(SequenceNode node) {
     CloseDomeNode _ ||
     ParkDomeNode _ ||
     PolarAlignmentNode _ ||
-    ScriptNode _ =>
+    ScriptNode _ ||
+    // Wave 3 Agent 2: SmartExposure has a meaningful (and often very
+    // large) duration — display the time estimate inline like ExposureNode.
+    SmartExposureNode _ ||
+    // Audit §11 — plugin nodes carry an OPTIONAL per-node timeout that
+    // bounds wall-clock cost; treat the duration as meaningful when the
+    // operator supplied one, so the editor's timing section shows the
+    // worst-case budget and the user can immediately tell which plugin
+    // nodes might overrun the night.
+    PluginInstructionNode _ ||
+    // Wave 7 Agent 4: SciencePhotometry captures `count` frames at
+    // `exposureSecs` apiece — total wall-clock is the count × exposure
+    // sum (plus per-frame overhead), which is meaningful in the same
+    // way ExposureNode's is. Surfacing the estimate in the editor warns
+    // the user when a 600-frame burst would overrun the night.
+    SciencePhotometryNode _ =>
       true,
     // Container/notification/cover/calibrator nodes have no intrinsic duration
     TargetHeaderNode _ ||
@@ -65,7 +80,16 @@ bool hasMeaningfulDuration(SequenceNode node) {
     OpenCoverNode _ ||
     CloseCoverNode _ ||
     CalibratorOnNode _ ||
-    CalibratorOffNode _ =>
+    CalibratorOffNode _ ||
+    // Wave 3 Agent 1: TargetScheduler is a container — its duration is the
+    // sum/max of its children's durations, which the timing estimator
+    // computes by walking the subtree. The container itself has no
+    // intrinsic per-node duration to display in the section header.
+    TargetSchedulerNode _ ||
+    // Wave 7 Agent 2: LiveStacking arms the broadcast and returns
+    // immediately. The wall-clock cost is paid by sibling exposure
+    // nodes, so this node itself has no displayable duration.
+    LiveStackingNode _ =>
       false,
   };
 }
@@ -195,10 +219,10 @@ class NodeTimingSection extends ConsumerWidget {
         // Summary timing info
         Container(
           padding: EdgeInsets.all(sectionPadding),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.08),
+          decoration: NightshadeDecorations.iconChip(
+            colors.primary,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.primary.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Column(
             children: [
@@ -531,6 +555,36 @@ class NodeTimingSection extends ConsumerWidget {
         _DurationDetail(
           label: 'Timeout',
           value: '${script.timeoutSecs ?? 30}s',
+        ),
+      ];
+    }
+
+    // Wave 7 Agent 4: SciencePhotometry — count × exposure plus the
+    // standard per-frame download overhead, surfaced so the user sees
+    // upfront that a 600-frame V0376 Per burst is a 10-hour
+    // commitment.
+    if (node is SciencePhotometryNode) {
+      final phot = node as SciencePhotometryNode;
+      final exposureTotal = phot.exposureSecs * phot.count;
+      final downloadOverhead = phot.count * 2.0;
+      final total = exposureTotal + downloadOverhead;
+      return [
+        _DurationDetail(
+          label: 'Frames',
+          value:
+              '${phot.count} x ${phot.exposureSecs.toStringAsFixed(phot.exposureSecs == phot.exposureSecs.truncate() ? 0 : 1)}s',
+        ),
+        _DurationDetail(
+          label: 'Filter',
+          value: phot.filter,
+        ),
+        _DurationDetail(
+          label: 'Download overhead',
+          value: '~${downloadOverhead.toStringAsFixed(0)}s',
+        ),
+        _DurationDetail(
+          label: 'Total',
+          value: formatDurationNice(Duration(seconds: total.round())),
         ),
       ];
     }

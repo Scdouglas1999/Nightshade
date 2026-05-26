@@ -108,7 +108,7 @@ class _OnboardingGuiderStepState extends ConsumerState<OnboardingGuiderStep> {
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     return Column(

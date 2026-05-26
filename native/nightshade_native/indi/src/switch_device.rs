@@ -155,7 +155,9 @@ impl IndiSwitchDevice {
             .await
     }
 
-    /// Set the state of a specific switch element
+    /// Set the state of a specific switch element.
+    ///
+    /// Honors INDI switch rules (`OneOfMany`, `AtMostOne`) via [`IndiClient::set_switch`].
     pub async fn set_switch_state(
         &self,
         property_name: &str,
@@ -165,6 +167,14 @@ impl IndiSwitchDevice {
         let mut client = self.client.write().await;
         client
             .set_switch(&self.device_name, property_name, element, on)
+            .await
+    }
+
+    /// Switch rule advertised for a property (`OneOfMany`, `AnyOfMany`, etc.).
+    pub async fn get_switch_rule(&self, property_name: &str) -> Option<crate::IndiSwitchRule> {
+        let client = self.client.read().await;
+        client
+            .get_switch_rule(&self.device_name, property_name)
             .await
     }
 

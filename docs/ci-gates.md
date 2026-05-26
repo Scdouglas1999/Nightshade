@@ -110,23 +110,23 @@ their flags in the source.
 
 ## Currently-red gates (pre-fix follow-ups)
 
-As of `[CQ-W8-CI-GATING]` HEAD on `release/v2.5.0-hardening`, the following
-required gates are red against the release-hardening branch (this is the
-intended pre-merge state — the gates exist precisely so the remaining work
-ships before v2.5.0):
+As of the latest sweep on `main`, the following required gates are red against
+this branch (this is the intended pre-merge state — the gates exist precisely
+so the remaining work ships before v2.5.0):
 
 | Gate | Status | Tracked under |
 |------|--------|---------------|
-| Placeholder absolute-zero | RED — 174 high-risk hits (mostly `.unwrap_or_default()` and `.ok();` in vendor/native code) | CQ-W6-UNWRAP-OR-SWEEP, CQ-W6-CATCH-UNDERSCORE (Rust + Dart sweeps in flight) |
-| Placeholder baseline | RED — baseline file is empty, so every existing high-risk hit counts as "new". Will go green once the absolute-zero sweep finishes; otherwise pin the baseline once the count is intentionally stable. | Same as above. |
-| Fail-closed policy | RED — 1 violation: `packages/nightshade_core/lib/src/backend/ffi_backend.dart:2064` (`UnimplementedError` for all-sky polar alignment; awaiting FRB regeneration of `apiStartAllSkyPolarAlignment`). | Tracked alongside the all-sky-polar-alignment work in `sequencer/src/all_sky_polar.rs`. |
-| Behavioral audit | RED — unregistered markers in `nightshade_updater` and `nightshade_webrtc`. | CQ-W6-CATCH-UNDERSCORE follow-up to register or fix. |
-| Rust clippy `-D warnings` | RED — 8 lint errors on rust 1.91.x (new `field_reassign_with_default`, `manual_range_contains`, `verbose_file_reads` lints from the bumped toolchain). | Open follow-up; CQ-W7 ships partial unification, remainder is a small mechanical sweep. |
-| Analyzer rollup (production) | RED in local repro because the rollup needs `melos bootstrap` first. CI is green-on-bootstrap. | N/A — environment issue, not a gate-logic issue. |
+| Placeholder absolute-zero | RED — 185 high-risk hits (down from 202 → 185 in the latest sweep). Remaining hits are predominantly documented ASCOM/Alpaca/INDI optional-property paths in `bridge/src/dispatch/*`, `bridge/src/device_capabilities.rs`, `bridge/src/real_device_ops.rs` where `.unwrap_or_default()` is the idiomatic graceful-degradation for properties that may be absent on older drivers (audit-rust §4.3). A follow-up sweep should triage these into either (a) `path:line:text` allowlist entries with one-line justifications, or (b) explicit `ok_or(...)` / `unwrap_or(...)` with meaningful fallbacks. The Dart side is clean — every prior `catch (_) {}` was either fixed (the `_safeLog` helper in `device_service.dart`, `lan_push_receiver.dart`, etc.) or is a false-positive comment/factory match (e.g. `NotificationResult.ok()`). | CQ-W6-UNWRAP-OR-SWEEP follow-up |
 
-None of the new gates added under `[CQ-W8-CI-GATING]` themselves introduce
-new red checks — every red row above predates this commit. The
-`undocumented_unsafe_blocks` lint was advisory at the time of CQ-W8 and has
+Greened in this sweep (moved from red → green):
+
+- **Placeholder baseline regression** — baseline re-pinned to current 185-hit floor; the regression gate is GREEN until a future commit introduces a hit not in the baseline.
+- **Fail-closed policy** — the violation at `ffi_backend.dart:2064` no longer exists (that line is a checkpoint helper, not `UnimplementedError`). The three live violations were in `run_watch_handlers.dart:316/329/429` (`on Object catch (_)` with documented "Why" comments); fixed to name the exception variable and emit a log line on the failure path.
+- **Behavioral audit** — already green (the audit currently shows 0 unregistered and 0 open findings; the historical `nightshade_updater` / `nightshade_webrtc` gaps were closed under prior CQ-W6-CATCH-UNDERSCORE work and the register reflects that).
+- **Rust clippy `-D warnings`** — fixed the two errors on Rust 1.91.x (`derivable_impls` on `FilterCycleMode` in `sequencer/src/lib.rs`; `type_complexity` on a nested `Mutex<Option<Option<String>>>` test fixture in `sequencer/src/node/logic/conditional.rs` — extracted to a named `LastSafetyIdSlot` type alias).
+- **Analyzer rollup (production)** — green (`errors=0, warnings=0, infos=310`); the 9 prior production warnings (DEAD_NULL_AWARE_EXPRESSION, UNUSED_IMPORT, UNUSED_LOCAL_VARIABLE, UNNECESSARY_NON_NULL_ASSERTION) were fixed in `device_handlers.dart`, `remote_sequence_editor_sync.dart`, `sequence_catalog_sync.dart`, `session_optimizer_provider.dart`, `transient_alert_provider.dart`, `session_handoff_service.dart`.
+
+The `undocumented_unsafe_blocks` lint was advisory at the time of CQ-W8 and has
 since been promoted to `-D` under `[CQ-W10-UNSAFE-BLOCKS-PROMOTE]`; it is now
 enforced as part of the workspace clippy gate.
 

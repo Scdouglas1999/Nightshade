@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import 'nightshade_colors.dart';
+
 /// Typography system for consistent text styling across the app.
 ///
 /// Usage:
@@ -165,6 +167,16 @@ abstract final class NightshadeTypography {
     letterSpacing: 0.1,
   );
 
+  /// Label quiet - Sidebar descriptions, de-emphasized helpers
+  /// 11px, Medium — pair with [NightshadeColors.textMuted] at the call site
+  static const TextStyle labelQuiet = TextStyle(
+    fontFamily: fontFamily,
+    fontSize: 11,
+    fontWeight: FontWeight.w500,
+    height: 1.27,
+    letterSpacing: 0.1,
+  );
+
   // ===========================================================================
   // Caption & Utility Styles
   // ===========================================================================
@@ -204,13 +216,28 @@ abstract final class NightshadeTypography {
   // ===========================================================================
 
   /// Mono large - Large numeric values, coordinates
-  /// 18px, Regular
+  /// 18px, Regular (non-tabular; use [telemetryMd] for live-updating values)
   static TextStyle get monoLg => GoogleFonts.jetBrainsMono(
     fontSize: 18,
     fontWeight: FontWeight.w400,
     height: 1.33,
     letterSpacing: 0,
   );
+
+  /// Telemetry large - Hero live numeric displays (countdowns, scores)
+  /// 22px, Medium, tabular figures
+  static TextStyle get telemetryLg => withTabular(
+    GoogleFonts.jetBrainsMono(
+      fontSize: 22,
+      fontWeight: FontWeight.w500,
+      height: 1.0,
+      letterSpacing: 0,
+    ),
+  );
+
+  /// Telemetry medium - Secondary live numeric highlights (ETA, gauges)
+  /// 18px, Regular, tabular figures
+  static TextStyle get telemetryMd => withTabular(monoLg);
 
   /// Mono - Standard technical text, code
   /// 14px, Regular
@@ -302,6 +329,31 @@ abstract final class NightshadeTypography {
   );
 
   // ===========================================================================
+  // Theme Integration
+  // ===========================================================================
+
+  /// Material [TextTheme] wired to Nightshade semantic colors.
+  static TextTheme textTheme(NightshadeColors colors) {
+    return TextTheme(
+      displayLarge: h1.copyWith(color: colors.textPrimary),
+      displayMedium: h2.copyWith(color: colors.textPrimary),
+      displaySmall: h3.copyWith(color: colors.textPrimary),
+      headlineLarge: h2.copyWith(color: colors.textPrimary),
+      headlineMedium: h3.copyWith(color: colors.textPrimary),
+      headlineSmall: h4.copyWith(color: colors.textPrimary),
+      titleLarge: h4.copyWith(color: colors.textPrimary),
+      titleMedium: h5.copyWith(color: colors.textPrimary),
+      titleSmall: label.copyWith(color: colors.textPrimary),
+      bodyLarge: bodyLg.copyWith(color: colors.textPrimary),
+      bodyMedium: body.copyWith(color: colors.textPrimary),
+      bodySmall: bodySm.copyWith(color: colors.textSecondary),
+      labelLarge: labelLg.copyWith(color: colors.textPrimary),
+      labelMedium: label.copyWith(color: colors.textSecondary),
+      labelSmall: labelSm.copyWith(color: colors.textMuted),
+    );
+  }
+
+  // ===========================================================================
   // Helper Methods
   // ===========================================================================
 
@@ -323,6 +375,13 @@ abstract final class NightshadeTypography {
   /// Make any style italic
   static TextStyle italic(TextStyle style) {
     return style.copyWith(fontStyle: FontStyle.italic);
+  }
+
+  /// Enable tabular figures so updating numeric values do not shift layout.
+  static TextStyle withTabular(TextStyle style) {
+    return style.copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
   }
 
   /// Add underline to any style

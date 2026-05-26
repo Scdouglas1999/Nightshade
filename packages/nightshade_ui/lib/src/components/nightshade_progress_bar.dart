@@ -105,7 +105,7 @@ class NightshadeProgressBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     final bgColor = backgroundColor ?? colors.surfaceAlt;
     final fgColor = foregroundColor ?? _getStateColor(colors);
@@ -205,117 +205,37 @@ class _StandardProgressBar extends StatefulWidget {
   State<_StandardProgressBar> createState() => _StandardProgressBarState();
 }
 
-class _StandardProgressBarState extends State<_StandardProgressBar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _completionController;
-  late Animation<double> _glowAnimation;
-  bool _wasComplete = false;
-
-  /// Creates a slightly lighter shade of the given color
-  Color _lightenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
-  }
-
-  @override
-  void initState() {
-    super.initState();
-    _completionController = AnimationController(
-      duration: NightshadeTokens.durationSmooth,
-      vsync: this,
-    );
-    _glowAnimation = Tween<double>(begin: 0.0, end: 0.5).animate(
-      CurvedAnimation(parent: _completionController, curve: Curves.easeOut),
-    );
-    _wasComplete = widget.value >= 1.0;
-  }
-
-  @override
-  void didUpdateWidget(_StandardProgressBar oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    // Trigger completion glow when progress reaches 100%
-    final isComplete = widget.value >= 1.0;
-    if (isComplete && !_wasComplete) {
-      _completionController.forward().then((_) {
-        if (mounted) _completionController.reverse();
-      });
-    }
-    _wasComplete = isComplete;
-  }
-
-  @override
-  void dispose() {
-    _completionController.dispose();
-    super.dispose();
-  }
-
+class _StandardProgressBarState extends State<_StandardProgressBar> {
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final isComplete = widget.value >= 1.0;
-
-    // Shift to success color on completion
     final effectiveFgColor = isComplete ? colors.success : widget.foregroundColor;
 
-    return AnimatedBuilder(
-      animation: _glowAnimation,
-      builder: (context, child) {
-        return Container(
-          height: widget.height,
-          decoration: BoxDecoration(
-            color: widget.backgroundColor,
-            borderRadius: BorderRadius.circular(widget.height / 2),
-            // Inner shadow for depth (recessed track)
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.15),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-                blurStyle: BlurStyle.inner,
-              ),
-            ],
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              return Stack(
-                children: [
-                  AnimatedContainer(
-                    duration: widget.animationDuration,
-                    curve: NightshadeTokens.curvePrecise,
-                    width: constraints.maxWidth * widget.value.clamp(0.0, 1.0),
-                    height: widget.height,
-                    decoration: BoxDecoration(
-                      // Gradient fill
-                      gradient: LinearGradient(
-                        begin: Alignment.topCenter,
-                        end: Alignment.bottomCenter,
-                        colors: [
-                          _lightenColor(effectiveFgColor, 0.1),
-                          effectiveFgColor,
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(widget.height / 2),
-                      // Completion glow
-                      boxShadow: _glowAnimation.value > 0
-                          ? [
-                              BoxShadow(
-                                color: effectiveFgColor.withValues(
-                                  alpha: _glowAnimation.value,
-                                ),
-                                blurRadius: 8,
-                                spreadRadius: 2,
-                              ),
-                            ]
-                          : null,
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        );
-      },
+    return Container(
+      height: widget.height,
+      decoration: BoxDecoration(
+        color: widget.backgroundColor,
+        borderRadius: BorderRadius.circular(widget.height / 2),
+        border: Border.all(
+          color: colors.border.withValues(alpha: 0.45),
+        ),
+      ),
+      clipBehavior: Clip.hardEdge,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return AnimatedContainer(
+            duration: widget.animationDuration,
+            curve: NightshadeTokens.curvePrecise,
+            width: constraints.maxWidth * widget.value.clamp(0.0, 1.0),
+            height: widget.height,
+            decoration: BoxDecoration(
+              color: effectiveFgColor,
+              borderRadius: BorderRadius.circular(widget.height / 2),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -488,7 +408,7 @@ class NightshadeCircularProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     final bgColor = backgroundColor ?? colors.surfaceAlt;
     final fgColor = foregroundColor ?? _getStateColor(colors);

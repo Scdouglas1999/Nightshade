@@ -15,7 +15,7 @@ class RunDashboardLiveFrame extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final currentImage = ref.watch(currentImageProvider);
 
     return NightshadeCard(
@@ -92,11 +92,11 @@ class _FrameBadge extends StatelessWidget {
           const SizedBox(width: 4),
           Text(
             filter ?? 'no filter',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
+            style: NightshadeTypography.withTabular(
+              NightshadeTypography.captionSm.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.textSecondary,
+              ),
             ),
           ),
           const SizedBox(width: 8),
@@ -104,11 +104,11 @@ class _FrameBadge extends StatelessWidget {
           const SizedBox(width: 8),
           Text(
             '${exposure.toStringAsFixed(exposure >= 10 ? 0 : 1)}s',
-            style: TextStyle(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-              fontFeatures: const [FontFeature.tabularFigures()],
+            style: NightshadeTypography.withTabular(
+              NightshadeTypography.captionSm.copyWith(
+                fontWeight: FontWeight.w600,
+                color: colors.textSecondary,
+              ),
             ),
           ),
         ],

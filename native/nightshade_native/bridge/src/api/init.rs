@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -44,6 +42,11 @@ pub fn api_init_with_logging(log_directory: Option<String>) -> Result<(), Nights
 
     // Initialize the app state
     let _ = get_state();
+
+    // Start OS device-change notifications after state/runtime initialization
+    // so hotplug messages can invalidate discovery caches and fan out through
+    // the normal NightshadeEvent stream.
+    crate::hotplug::start_os_hotplug_listener();
 
     // Initialize device manager (this will spawn Tokio tasks, so runtime must exist)
     let _ = get_device_manager();

@@ -543,8 +543,55 @@ pub async fn get_status() -> Result<Phd2Status, NightshadeError> {
     })
 }
 
+/// Convert the built-in guider's `east`/`north` calibration vectors into the
+/// PHD2-shaped `Phd2CalibrationData` (degrees, possibly None) so the unified
+/// `api_guider_get_calibration` can return one type across backends.
+pub async fn get_calibration_data() -> Result<crate::api::phd2::Phd2CalibrationData, NightshadeError>
+{
+    let guard = state().read().await;
+    let calib = match guard.calibration {
+        Some(c) => c,
+        None => {
+            return Ok(crate::api::phd2::Phd2CalibrationData {
+                is_calibrated: false,
+                ra_angle: None,
+                dec_angle: None,
+                ra_rate: None,
+                dec_rate: None,
+            });
+        }
+    };
+    // atan2 returns radians in (-π, π]; convert to degrees in (-180, 180].
+    let ra_angle = calib.east.y.atan2(calib.east.x).to_degrees();
+    let dec_angle = calib.north.y.atan2(calib.north.x).to_degrees();
+    // Pulse magnitude divided by configured calibration_ms gives pixels/ms,
+    // which we surface in the same shape PHD2 uses (rate as pixels/ms).
+    let ra_rate = if calib.pulse_ms > 0.0 {
+        Some((calib.east.x.hypot(calib.east.y)) / calib.pulse_ms)
+    } else {
+        None
+    };
+    let dec_rate = if calib.pulse_ms > 0.0 {
+        Some((calib.north.x.hypot(calib.north.y)) / calib.pulse_ms)
+    } else {
+        None
+    };
+    Ok(crate::api::phd2::Phd2CalibrationData {
+        is_calibrated: true,
+        ra_angle: Some(ra_angle),
+        dec_angle: Some(dec_angle),
+        ra_rate,
+        dec_rate,
+    })
+}
+
 pub fn device_id() -> &'static str {
     BUILTIN_GUIDER_ID
+}
+
+/// Whether the built-in guider session is active (heartbeat liveness).
+pub async fn is_connected() -> bool {
+    state().read().await.connected
 }
 
 async fn ensure_connected() -> Result<(), NightshadeError> {
@@ -582,13 +629,14 @@ async fn resolve_devices() -> Result<(String, String), NightshadeError> {
         ));
     };
 
-    if !app_state
+    let device_manager = get_device_manager();
+    if !device_manager
         .is_device_connected(DeviceType::Camera, &camera_id)
         .await
     {
         return Err(NightshadeError::NotConnected(camera_id));
     }
-    if !app_state
+    if !device_manager
         .is_device_connected(DeviceType::Mount, &mount_id)
         .await
     {
@@ -599,12 +647,9 @@ async fn resolve_devices() -> Result<(String, String), NightshadeError> {
 }
 
 async fn first_connected_device(device_type: DeviceType) -> Option<String> {
-    get_state()
-        .get_devices(device_type)
+    get_device_manager()
+        .first_connected_device_id(device_type)
         .await
-        .into_iter()
-        .map(|device| device.id)
-        .next()
 }
 
 async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {

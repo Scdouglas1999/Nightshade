@@ -5,7 +5,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
-import '../../../utils/add_target_header_helper.dart';
+import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../suggestions/widgets/suggestion_card.dart';
 import '../../suggestions/widgets/suggestion_filters.dart';
 
@@ -23,7 +23,7 @@ class FramingSuggestionsTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final suggestionsAsync = ref.watch(filteredSuggestionsProvider);
 
     return suggestionsAsync.when(
@@ -321,7 +321,7 @@ class FramingSuggestionsTab extends ConsumerWidget {
     WidgetRef ref,
     TargetSuggestion suggestion,
   ) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     showDialog(
       context: context,
@@ -348,21 +348,10 @@ class FramingSuggestionsTab extends ConsumerWidget {
               variant: ButtonVariant.primary,
               size: ButtonSize.small,
               onPressed: () async {
-                // Create a TargetHeaderNode for the suggestion
-                final targetNode = TargetHeaderNode(
-                  targetName: suggestion.targetName,
-                  raHours: suggestion.raHours,
-                  decDegrees: suggestion.decDegrees,
-                );
-
-                // Add via the shared helper so a "no active sequence" /
-                // "sequence running" condition surfaces a meaningful
-                // prompt instead of silently no-op'ing or silently
-                // creating an unnamed sequence.
-                final added = await addTargetHeaderWithPrompt(
+                final added = await addPlanTonightTargetToSequencer(
                   context: context,
                   ref: ref,
-                  targetNode: targetNode,
+                  target: suggestion,
                 );
                 if (!context.mounted) return;
                 Navigator.of(context).pop();

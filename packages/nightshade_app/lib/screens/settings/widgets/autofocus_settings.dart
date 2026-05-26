@@ -8,11 +8,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'settings_widgets.dart';
 
 class AutofocusSettingsPage extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const AutofocusSettingsPage(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<AutofocusSettingsPage> createState() =>
@@ -86,11 +85,9 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -103,13 +100,11 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           title: 'Autofocus',
           description:
               'Configure autofocus behavior, curve fitting, and per-filter settings',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           hideHeader: widget.isMobile,
           children: [
             SettingsSection(
               title: 'Autofocus',
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 if (!widget.isMobile)
@@ -144,7 +139,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: settings.useFilterFocusOffsets,
                     onChanged: (value) =>
                         notifier.setUseFilterFocusOffsets(value),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -159,7 +153,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfInitialOffsetSteps(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -171,7 +164,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     onChanged: (value) {
                       if (value != null) notifier.setAfMethod(value);
                     },
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -183,7 +175,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     onChanged: (value) {
                       if (value != null) notifier.setAfCurveFitting(value);
                     },
-                    colors: widget.colors,
                     width: 150,
                   ),
                 ),
@@ -199,7 +190,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfNumberOfAttempts(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -214,7 +204,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfUseBrightestNStars(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -227,7 +216,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     max: 1.0,
                     decimals: 2,
                     onChanged: (value) => notifier.setAfOuterCropRatio(value),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -240,7 +228,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     max: 4,
                     decimals: 0,
                     onChanged: (value) => notifier.setAfBinning(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -255,7 +242,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 2,
                     onChanged: (value) =>
                         notifier.setAfRSquaredThreshold(value),
-                    colors: widget.colors,
                   ),
                   isLast: true,
                 ),
@@ -278,7 +264,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     max: 10000,
                     decimals: 0,
                     onChanged: (value) => notifier.setAfStepSize(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -292,7 +277,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     max: 300,
                     decimals: 1,
                     onChanged: (value) => notifier.setAfExposureTime(value),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -303,7 +287,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     value: settings.afDisableGuidingDuringAf,
                     onChanged: (value) =>
                         notifier.setAfDisableGuidingDuringAf(value),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -318,7 +301,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfFocuserSettleTimeMs(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -333,7 +315,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfExposuresPerPoint(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -346,7 +327,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     max: 1.0,
                     decimals: 2,
                     onChanged: (value) => notifier.setAfInnerCropRatio(value),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -360,7 +340,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                         notifier.setAfBacklashCompMethod(value);
                       }
                     },
-                    colors: widget.colors,
                     width: 150,
                   ),
                 ),
@@ -375,7 +354,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfBacklashIn(value.toInt()),
-                    colors: widget.colors,
                   ),
                 ),
                 _buildAfSettingRow(
@@ -389,7 +367,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     decimals: 0,
                     onChanged: (value) =>
                         notifier.setAfBacklashOut(value.toInt()),
-                    colors: widget.colors,
                   ),
                   isLast: true,
                 ),
@@ -411,9 +388,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         trailing: SettingsSwitch(
           value: settings.useFilterFocusOffsets,
           onChanged: (value) => notifier.setUseFilterFocusOffsets(value),
-          colors: widget.colors,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -427,10 +402,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 20,
           decimals: 0,
           onChanged: (value) => notifier.setAfInitialOffsetSteps(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -442,10 +415,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           onChanged: (value) {
             if (value != null) notifier.setAfMethod(value);
           },
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -457,10 +428,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           onChanged: (value) {
             if (value != null) notifier.setAfCurveFitting(value);
           },
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -474,10 +443,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 10000,
           decimals: 0,
           onChanged: (value) => notifier.setAfStepSize(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -491,10 +458,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 300,
           decimals: 1,
           onChanged: (value) => notifier.setAfExposureTime(value),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -504,9 +469,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
         trailing: SettingsSwitch(
           value: settings.afDisableGuidingDuringAf,
           onChanged: (value) => notifier.setAfDisableGuidingDuringAf(value),
-          colors: widget.colors,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -520,10 +483,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 10,
           decimals: 0,
           onChanged: (value) => notifier.setAfNumberOfAttempts(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -537,10 +498,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 500,
           decimals: 0,
           onChanged: (value) => notifier.setAfUseBrightestNStars(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -553,10 +512,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 1.0,
           decimals: 2,
           onChanged: (value) => notifier.setAfOuterCropRatio(value),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -569,10 +526,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 1.0,
           decimals: 2,
           onChanged: (value) => notifier.setAfInnerCropRatio(value),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -585,10 +540,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 4,
           decimals: 0,
           onChanged: (value) => notifier.setAfBinning(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -602,10 +555,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 1.0,
           decimals: 2,
           onChanged: (value) => notifier.setAfRSquaredThreshold(value),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -620,10 +571,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           decimals: 0,
           onChanged: (value) =>
               notifier.setAfFocuserSettleTimeMs(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -637,10 +586,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 20,
           decimals: 0,
           onChanged: (value) => notifier.setAfExposuresPerPoint(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -652,10 +599,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           onChanged: (value) {
             if (value != null) notifier.setAfBacklashCompMethod(value);
           },
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -668,10 +613,8 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 10000,
           decimals: 0,
           onChanged: (value) => notifier.setAfBacklashIn(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
-        colors: widget.colors,
         isMobile: true,
       ),
       SettingRow(
@@ -684,11 +627,9 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           max: 10000,
           decimals: 0,
           onChanged: (value) => notifier.setAfBacklashOut(value.toInt()),
-          colors: widget.colors,
           isMobile: true,
         ),
         isLast: true,
-        colors: widget.colors,
         isMobile: true,
       ),
     ];
@@ -709,7 +650,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             ? null
             : Border(
                 bottom: BorderSide(
-                  color: widget.colors.border.withValues(alpha: 0.3),
+                  color: NightshadeColors.of(context).border.withValues(alpha: 0.3),
                 ),
               ),
       ),
@@ -719,10 +660,10 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             width: 32,
             height: 32,
             decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
+              color: NightshadeColors.of(context).surfaceAlt,
               borderRadius: BorderRadius.circular(7),
             ),
-            child: Icon(icon, size: 14, color: widget.colors.textSecondary),
+            child: Icon(icon, size: 14, color: NightshadeColors.of(context).textSecondary),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -734,7 +675,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: widget.colors.textPrimary,
+                    color: NightshadeColors.of(context).textPrimary,
                   ),
                 ),
                 if (subtitle != null) ...[
@@ -743,7 +684,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     subtitle,
                     style: TextStyle(
                       fontSize: 10,
-                      color: widget.colors.textMuted,
+                      color: NightshadeColors.of(context).textMuted,
                     ),
                   ),
                 ],
@@ -769,7 +710,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
     if (!isConnected || filterNames.isEmpty) {
       return SettingsSection(
         title: 'Autofocus Filter Settings',
-        colors: widget.colors,
         isMobile: widget.isMobile,
         children: [
           SettingRow(
@@ -779,7 +719,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                 'Connect a filter wheel to configure per-filter autofocus settings.',
             trailing: const SizedBox.shrink(),
             isLast: true,
-            colors: widget.colors,
             isMobile: widget.isMobile,
           ),
         ],
@@ -793,7 +732,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
 
     return SettingsSection(
       title: 'Autofocus Filter Settings',
-      colors: widget.colors,
       isMobile: widget.isMobile,
       children: [
         if (widget.isMobile)
@@ -819,7 +757,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
           decoration: BoxDecoration(
             border: Border(
-              bottom: BorderSide(color: widget.colors.border),
+              bottom: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           child: Row(
@@ -847,7 +785,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
             filterName: filterName,
             config: config,
             allFilterNames: filterNames,
-            colors: widget.colors,
             isLast: isLast,
             onConfigChanged: (newConfig) {
               notifier.setFilterAutofocusConfig(filterName, newConfig);
@@ -859,20 +796,20 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             border: Border(
-              top: BorderSide(color: widget.colors.border),
+              top: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           child: Row(
             children: [
               Icon(LucideIcons.focus,
-                  size: 16, color: widget.colors.textSecondary),
+                  size: 16, color: NightshadeColors.of(context).textSecondary),
               const SizedBox(width: 10),
               Text(
                 'Designated autofocus filter:',
                 style: TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w500,
-                  color: widget.colors.textPrimary,
+                  color: NightshadeColors.of(context).textPrimary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -888,7 +825,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
                     );
                   }
                 },
-                colors: widget.colors,
                 width: 180,
               ),
             ],
@@ -917,7 +853,6 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
           filterName: filterName,
           config: config,
           allFilterNames: filterNames,
-          colors: widget.colors,
           isLast: index == filterNames.length - 1,
           onConfigChanged: (newConfig) {
             notifier.setFilterAutofocusConfig(filterName, newConfig);
@@ -944,11 +879,9 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
               );
             }
           },
-          colors: widget.colors,
           isMobile: true,
         ),
         isLast: true,
-        colors: widget.colors,
         isMobile: true,
       ),
     );
@@ -962,7 +895,7 @@ class _AutofocusSettingsState extends ConsumerState<AutofocusSettingsPage> {
       style: TextStyle(
         fontSize: 11,
         fontWeight: FontWeight.w600,
-        color: widget.colors.textSecondary,
+        color: NightshadeColors.of(context).textSecondary,
       ),
     );
 
@@ -979,7 +912,6 @@ class _FilterSettingsRow extends StatefulWidget {
   final String filterName;
   final FilterAutofocusConfig config;
   final List<String> allFilterNames;
-  final NightshadeColors colors;
   final bool isLast;
   final ValueChanged<FilterAutofocusConfig> onConfigChanged;
 
@@ -988,7 +920,6 @@ class _FilterSettingsRow extends StatefulWidget {
     required this.filterName,
     required this.config,
     required this.allFilterNames,
-    required this.colors,
     required this.isLast,
     required this.onConfigChanged,
   });
@@ -1053,7 +984,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             ? null
             : Border(
                 bottom: BorderSide(
-                  color: widget.colors.border.withValues(alpha: 0.5),
+                  color: NightshadeColors.of(context).border.withValues(alpha: 0.5),
                 ),
               ),
       ),
@@ -1066,7 +997,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
               '${widget.position}',
               style: TextStyle(
                 fontSize: 12,
-                color: widget.colors.textSecondary,
+                color: NightshadeColors.of(context).textSecondary,
                 fontFamily: 'monospace',
               ),
             ),
@@ -1079,7 +1010,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: FontWeight.w500,
-                color: widget.colors.textPrimary,
+                color: NightshadeColors.of(context).textPrimary,
               ),
               overflow: TextOverflow.ellipsis,
             ),
@@ -1142,7 +1073,6 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
                     }
                   }
                 },
-                colors: widget.colors,
               ),
             ),
           ),
@@ -1160,7 +1090,6 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
                   );
                 }
               },
-              colors: widget.colors,
             ),
           ),
           // Gain
@@ -1222,9 +1151,9 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
       child: Container(
         height: 28,
         decoration: BoxDecoration(
-          color: widget.colors.surfaceAlt,
+          color: NightshadeColors.of(context).surfaceAlt,
           borderRadius: BorderRadius.circular(4),
-          border: Border.all(color: widget.colors.border),
+          border: Border.all(color: NightshadeColors.of(context).border),
         ),
         child: TextField(
           controller: controller,
@@ -1234,7 +1163,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
           ],
           style: TextStyle(
             fontSize: 11,
-            color: widget.colors.textPrimary,
+            color: NightshadeColors.of(context).textPrimary,
           ),
           textAlign: TextAlign.right,
           decoration: InputDecoration(
@@ -1245,7 +1174,7 @@ class _FilterSettingsRowState extends State<_FilterSettingsRow> {
             hintText: hint,
             hintStyle: TextStyle(
               fontSize: 10,
-              color: widget.colors.textMuted,
+              color: NightshadeColors.of(context).textMuted,
             ),
           ),
           onChanged: onChanged,
@@ -1261,7 +1190,6 @@ class _FilterSettingsMobileCard extends StatefulWidget {
   final String filterName;
   final FilterAutofocusConfig config;
   final List<String> allFilterNames;
-  final NightshadeColors colors;
   final bool isLast;
   final ValueChanged<FilterAutofocusConfig> onConfigChanged;
 
@@ -1270,7 +1198,6 @@ class _FilterSettingsMobileCard extends StatefulWidget {
     required this.filterName,
     required this.config,
     required this.allFilterNames,
-    required this.colors,
     required this.isLast,
     required this.onConfigChanged,
   });
@@ -1336,7 +1263,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
             ? null
             : Border(
                 bottom: BorderSide(
-                  color: widget.colors.border.withValues(alpha: 0.5),
+                  color: NightshadeColors.of(context).border.withValues(alpha: 0.5),
                 ),
               ),
       ),
@@ -1349,8 +1276,8 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
               Container(
                 width: 28,
                 height: 28,
-                decoration: BoxDecoration(
-                  color: widget.colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  NightshadeColors.of(context).primary,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Center(
@@ -1359,7 +1286,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                     style: TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: widget.colors.primary,
+                      color: NightshadeColors.of(context).primary,
                     ),
                   ),
                 ),
@@ -1370,7 +1297,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                 style: TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
-                  color: widget.colors.textPrimary,
+                  color: NightshadeColors.of(context).textPrimary,
                 ),
               ),
             ],
@@ -1434,7 +1361,6 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                       }
                     }
                   },
-                  colors: widget.colors,
                   isMobile: true,
                   flexible: true,
                 ),
@@ -1452,7 +1378,6 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
                       );
                     }
                   },
-                  colors: widget.colors,
                   isMobile: true,
                   flexible: true,
                 ),
@@ -1517,7 +1442,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
             style: TextStyle(
               fontSize: 10,
               fontWeight: FontWeight.w600,
-              color: widget.colors.textSecondary,
+              color: NightshadeColors.of(context).textSecondary,
             ),
           ),
           const SizedBox(height: 4),
@@ -1535,9 +1460,9 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
     return Container(
       height: 32,
       decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
+        color: NightshadeColors.of(context).surfaceAlt,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: widget.colors.border),
+        border: Border.all(color: NightshadeColors.of(context).border),
       ),
       child: TextField(
         controller: controller,
@@ -1547,7 +1472,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
         ],
         style: TextStyle(
           fontSize: 12,
-          color: widget.colors.textPrimary,
+          color: NightshadeColors.of(context).textPrimary,
         ),
         textAlign: TextAlign.right,
         decoration: InputDecoration(
@@ -1558,7 +1483,7 @@ class _FilterSettingsMobileCardState extends State<_FilterSettingsMobileCard> {
           hintText: hint,
           hintStyle: TextStyle(
             fontSize: 10,
-            color: widget.colors.textMuted,
+            color: NightshadeColors.of(context).textMuted,
           ),
         ),
         onChanged: onChanged,

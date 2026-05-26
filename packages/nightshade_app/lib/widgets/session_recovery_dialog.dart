@@ -70,21 +70,92 @@ class SessionRecoveryDialog extends ConsumerWidget {
         ),
       ),
       actions: [
+        // Non-destructive escape hatch: the previous version forced the
+        // user to either discard everything or interact with every row.
+        // "Decide Later" closes the dialog without touching the sessions
+        // so they remain available via whatever entry-point originally
+        // surfaced this dialog (dashboard "Recover sessions" + startup
+        // auto-open).
         NightshadeButton(
-          onPressed: () async {
-            // Discard all
-            for (final session in incompleteSessions) {
-              await _discardSession(ref, session);
-            }
-            if (!context.mounted) return;
-            Navigator.of(context).pop();
-          },
+          onPressed: () => Navigator.of(context).pop(),
+          label: 'Decide Later',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
+        ),
+        NightshadeButton(
+          onPressed: () => _confirmAndDiscardAll(context, ref),
           label: 'Discard All',
           variant: ButtonVariant.destructive,
           size: ButtonSize.small,
         ),
       ],
     );
+  }
+
+  Future<void> _confirmAndDiscardAll(
+      BuildContext context, WidgetRef ref) async {
+    final count = incompleteSessions.length;
+    final sessionWord = count == 1 ? 'session' : 'sessions';
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Discard all sessions?'),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 440,
+          ),
+          child: Text(
+            'Discard $count $sessionWord? Their data will be marked '
+            "aborted and you won't be able to resume them.",
+          ),
+        ),
+        actions: [
+          NightshadeButton(
+            label: 'Cancel',
+            variant: ButtonVariant.ghost,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(ctx).pop(false),
+          ),
+          NightshadeButton(
+            label: 'Discard',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
+            onPressed: () => Navigator.of(ctx).pop(true),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    // Track per-session failures so a single failed mark-aborted call
+    // doesn't silently leave the user thinking everything was discarded.
+    // Errors are a feature: surface them.
+    final failures = <SessionRecoveryInfo>[];
+    for (final session in incompleteSessions) {
+      try {
+        final sessionService = ref.read(sessionServiceProvider);
+        await sessionService.markSessionAborted(session.sessionId);
+      } catch (_) {
+        failures.add(session);
+      }
+    }
+
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+
+    if (failures.isNotEmpty && ref.context.mounted) {
+      final colors = NightshadeColors.of(ref.context);
+      ScaffoldMessenger.of(ref.context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Failed to discard ${failures.length} of $count '
+            '$sessionWord.',
+          ),
+          backgroundColor: colors.error,
+        ),
+      );
+    }
   }
 
   Future<void> _recoverSession(
@@ -95,7 +166,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
 
       // Show success message
       if (ref.context.mounted) {
-        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(ref.context);
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
             content: Text(
@@ -107,7 +178,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
       }
     } catch (e) {
       if (ref.context.mounted) {
-        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(ref.context);
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
             content: Text('Failed to recover session: $e'),
@@ -125,7 +196,7 @@ class SessionRecoveryDialog extends ConsumerWidget {
       await sessionService.markSessionAborted(session.sessionId);
     } catch (e) {
       if (ref.context.mounted) {
-        final colors = Theme.of(ref.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(ref.context);
         ScaffoldMessenger.of(ref.context).showSnackBar(
           SnackBar(
             content: Text('Failed to discard session: $e'),
@@ -151,7 +222,7 @@ class _SessionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final stats = session.stats;
 
     return Card(
@@ -197,7 +268,7 @@ class _SessionCard extends StatelessWidget {
               children: [
                 _StatChip(
                   icon: LucideIcons.camera,
-                  label: '${stats.completedExposures} exposures',
+                  label: _pluralize(stats.completedExposures, 'exposure'),
                 ),
                 _StatChip(
                   icon: LucideIcons.clock,
@@ -253,12 +324,22 @@ class _SessionCard extends StatelessWidget {
   }
 
   String _formatDuration(Duration duration) {
+    final totalSeconds = duration.inSeconds;
     final hours = duration.inHours;
     final minutes = duration.inMinutes.remainder(60);
     if (hours > 0) {
       return '${hours}h ${minutes}m';
     }
-    return '${minutes}m';
+    if (minutes > 0) {
+      return '${minutes}m';
+    }
+    // Session opened and closed in well under a minute; "0m" reads as
+    // "didn't run" which is wrong — there's clearly *some* runtime or we
+    // wouldn't be in the recovery dialog.
+    if (totalSeconds > 0) {
+      return '<1m';
+    }
+    return '0m';
   }
 
   String _formatIntegration(double seconds) {
@@ -267,7 +348,24 @@ class _SessionCard extends StatelessWidget {
     if (hours > 0) {
       return '${hours}h ${minutes}m total';
     }
-    return '${minutes}m total';
+    if (minutes > 0) {
+      return '${minutes}m total';
+    }
+    // Sub-minute integration is meaningful (e.g. a couple of 10-second
+    // calibration frames). Avoid the misleading "0m total" by reporting
+    // the actual seconds when we have any, and "no integration" when we
+    // genuinely have none.
+    if (seconds > 0) {
+      final secs = seconds.round();
+      return _pluralize(secs, 'second', suffix: ' total');
+    }
+    return 'no integration';
+  }
+
+  String _pluralize(int count, String singular,
+      {String? plural, String suffix = ''}) {
+    final word = count == 1 ? singular : (plural ?? '${singular}s');
+    return '$count $word$suffix';
   }
 }
 

@@ -40,6 +40,77 @@ class SequenceManagementHandlers {
   }
 
   // ===========================================================================
+  // Full sequence documents (remote companion sync)
+  // ===========================================================================
+
+  /// GET /api/sequence-management/list-full
+  ///
+  /// Returns complete sequence trees using the same JSON schema as file export
+  /// so mobile companions do not maintain a separate local SQLite copy.
+  Future<Response> handleListFullSequences(Request request) async {
+    _logInfo('[API] GET /api/sequence-management/list-full');
+    final fileService = container.read(sequenceFileServiceProvider);
+    final repo = container.read(sequenceRepositoryProvider);
+    final sequences = await repo.loadAllSequences();
+
+    return jsonOk({
+      'sequences': sequences.map((sequence) {
+        final map = fileService.sequenceToMap(sequence);
+        if (sequence.databaseId != null) {
+          map['databaseId'] = sequence.databaseId;
+        }
+        return map;
+      }).toList(),
+    });
+  }
+
+  /// GET /api/sequence-management/templates-full
+  Future<Response> handleListFullTemplates(Request request) async {
+    _logInfo('[API] GET /api/sequence-management/templates-full');
+    final fileService = container.read(sequenceFileServiceProvider);
+    final repo = container.read(sequenceRepositoryProvider);
+    final templates = await repo.loadAllTemplates();
+
+    return jsonOk({
+      'templates': templates.map((sequence) {
+        final map = fileService.sequenceToMap(sequence);
+        if (sequence.databaseId != null) {
+          map['databaseId'] = sequence.databaseId;
+        }
+        return map;
+      }).toList(),
+    });
+  }
+
+  /// POST /api/sequence-management/save-full
+  Future<Response> handleSaveFullSequence(Request request) async {
+    _logInfo('[API] POST /api/sequence-management/save-full');
+    final payload = await readJsonObject(request);
+    final sequenceMap = requireObject(payload, 'sequence');
+    final isTemplate = optionalBool(payload, 'isTemplate') ?? false;
+    final databaseId = optionalInt(payload, 'databaseId');
+
+    final fileService = container.read(sequenceFileServiceProvider);
+    final repo = container.read(sequenceRepositoryProvider);
+    var sequence = fileService.parseFromMap(
+      Map<String, dynamic>.from(sequenceMap),
+    );
+    if (databaseId != null) {
+      sequence = sequence.copyWith(databaseId: databaseId);
+    }
+
+    final id = await repo.saveSequence(sequence, isTemplate: isTemplate);
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: id,
+      action: 'saved',
+      name: sequence.name,
+      isTemplate: isTemplate,
+    );
+    return jsonOk({'id': id});
+  }
+
+  // ===========================================================================
   // Get All Sequences
   // ===========================================================================
 
@@ -117,6 +188,13 @@ class SequenceManagementHandlers {
 
     final id = await database.sequencesDao.createSequence(companion);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: id,
+      action: 'created',
+      name: requireString(payload, 'name'),
+      isTemplate: optionalBool(payload, 'isTemplate') ?? false,
+    );
     return jsonOk({'status': 'created', 'id': id});
   }
 
@@ -151,6 +229,13 @@ class SequenceManagementHandlers {
 
     await database.sequencesDao.updateSequence(updated);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: sequenceId,
+      action: 'updated',
+      name: updated.name,
+      isTemplate: updated.isTemplate,
+    );
     return jsonOk({'status': 'updated'});
   }
 
@@ -165,6 +250,12 @@ class SequenceManagementHandlers {
 
     await database.sequencesDao.deleteSequence(sequenceId);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: sequenceId,
+      action: 'deleted',
+    );
+
     return jsonOk({'status': 'deleted'});
   }
 
@@ -176,11 +267,19 @@ class SequenceManagementHandlers {
     _logInfo('[API] POST /api/sequence-management/$id/duplicate');
     final sequenceId = _parsePathId(id, 'id');
     final payload = await readJsonObject(request);
-    final newName = optionalString(payload, 'name') ?? 'Copy';
+    final newName =
+        optionalString(payload, 'newName') ?? optionalString(payload, 'name') ?? 'Copy';
     final database = container.read(databaseProvider);
 
     final newId =
         await database.sequencesDao.duplicateSequence(sequenceId, newName);
+
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: newId,
+      action: 'duplicated',
+      name: newName,
+    );
 
     return jsonOk({'status': 'duplicated', 'id': newId});
   }
@@ -212,6 +311,11 @@ class SequenceManagementHandlers {
 
     final id = await database.sequencesDao.createNode(companion);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: seqId,
+      action: 'updated',
+    );
     return jsonOk({'status': 'created', 'id': id});
   }
 
@@ -251,6 +355,11 @@ class SequenceManagementHandlers {
 
     await database.sequencesDao.updateNode(updated);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: existing.sequenceId,
+      action: 'updated',
+    );
     return jsonOk({'status': 'updated'});
   }
 
@@ -263,10 +372,18 @@ class SequenceManagementHandlers {
     final nid = _parsePathId(nodeId, 'nodeId');
     final database = container.read(databaseProvider);
 
-    final deleted = await database.sequencesDao.deleteNode(nid);
-    if (deleted == 0) {
+    final existing = await database.sequencesDao.getNodeById(nid);
+    if (existing == null) {
       return jsonNotFound({'error': 'Node not found: $nodeId'});
     }
+
+    await database.sequencesDao.deleteNode(nid);
+
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: existing.sequenceId,
+      action: 'updated',
+    );
 
     return jsonOk({'status': 'deleted'});
   }
@@ -285,6 +402,11 @@ class SequenceManagementHandlers {
 
     await database.sequencesDao.reorderNodes(seqId, nodeIds);
 
+    notifySequenceCatalogChangedFromContainer(
+      container,
+      sequenceId: seqId,
+      action: 'updated',
+    );
     return jsonOk({'status': 'reordered'});
   }
 
@@ -301,6 +423,14 @@ class SequenceManagementHandlers {
 
     await database.sequencesDao.setNodeEnabled(nid, enabled);
 
+    final node = await database.sequencesDao.getNodeById(nid);
+    if (node != null) {
+      notifySequenceCatalogChangedFromContainer(
+        container,
+        sequenceId: node.sequenceId,
+        action: 'updated',
+      );
+    }
     return jsonOk({'status': 'updated'});
   }
 

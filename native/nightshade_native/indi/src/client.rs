@@ -14,7 +14,7 @@
 
 use crate::error::{IndiError, IndiResult};
 use crate::{
-    IndiDevice, IndiPermission, IndiProperty, IndiPropertyState, IndiPropertyType,
+    IndiDevice, IndiPermission, IndiProperty, IndiPropertyState, IndiPropertyType, IndiSwitchRule,
     IndiTimeoutConfig, IndiTimeoutError, INDI_DEFAULT_PORT,
 };
 use base64::{engine::general_purpose::STANDARD as BASE64, Engine as _};
@@ -155,6 +155,111 @@ pub enum IndiEvent {
     ProtocolVersionDetected(String),
 }
 
+fn send_indi_event(
+    event_tx: &broadcast::Sender<IndiEvent>,
+    event: IndiEvent,
+    context: &'static str,
+) {
+    if event_tx.send(event).is_err() {
+        tracing::debug!(
+            "INDI event dropped in {} because there are no active event subscribers",
+            context
+        );
+    }
+}
+
+fn parse_indi_number_attribute(
+    attribute: &'static str,
+    device: &str,
+    property: &str,
+    element: &str,
+    value: &str,
+) -> Option<f64> {
+    match value.parse::<f64>() {
+        Ok(parsed) => Some(parsed),
+        Err(err) => {
+            tracing::warn!(
+                "Ignoring malformed INDI number attribute {}='{}' for {}.{}.{}: {}",
+                attribute,
+                value,
+                device,
+                property,
+                element,
+                err
+            );
+            None
+        }
+    }
+}
+
+fn parse_indi_usize_attribute(
+    attribute: &'static str,
+    device: &str,
+    property: &str,
+    element: &str,
+    value: &str,
+) -> Option<usize> {
+    match value.parse::<usize>() {
+        Ok(parsed) => Some(parsed),
+        Err(err) => {
+            tracing::warn!(
+                "Ignoring malformed INDI integer attribute {}='{}' for {}.{}.{}: {}",
+                attribute,
+                value,
+                device,
+                property,
+                element,
+                err
+            );
+            None
+        }
+    }
+}
+
+fn parse_indi_number_value(
+    device: &str,
+    property: &str,
+    element: &str,
+    value: &str,
+) -> Option<f64> {
+    match value.parse::<f64>() {
+        Ok(parsed) => Some(parsed),
+        Err(err) => {
+            tracing::warn!(
+                "Ignoring malformed INDI number value '{}' for {}.{}.{}: {}",
+                value,
+                device,
+                property,
+                element,
+                err
+            );
+            None
+        }
+    }
+}
+
+fn parse_indi_light_state_value(
+    device: &str,
+    property: &str,
+    element: &str,
+    value: &str,
+) -> Option<i32> {
+    match value.parse::<i32>() {
+        Ok(parsed) => Some(parsed),
+        Err(err) => {
+            tracing::warn!(
+                "Ignoring malformed INDI light state value '{}' for {}.{}.{}: {}",
+                value,
+                device,
+                property,
+                element,
+                err
+            );
+            None
+        }
+    }
+}
+
 /// Number element limits (min, max, step)
 #[derive(Debug, Clone, Default)]
 pub struct NumberLimits {
@@ -172,6 +277,9 @@ type NumberLimitsMap = HashMap<(String, String, String), NumberLimits>;
 
 /// Type alias for latest BLOB payload storage.
 type BlobMap = HashMap<(String, String, String), Vec<u8>>;
+
+/// Milliseconds since UNIX epoch when a property last received a `set*Vector` update.
+type PropertyUpdateMap = HashMap<(String, String), u64>;
 
 /// Reader task status for supervision
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -440,6 +548,8 @@ pub struct IndiClient {
     devices: Arc<RwLock<HashMap<String, IndiDevice>>>,
     properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
     property_values: Arc<RwLock<PropertyValueMap>>,
+    /// Per-property last server update time (audit ND-P1-13 / ND-P1-22 partial).
+    property_updated_ms: Arc<RwLock<PropertyUpdateMap>>,
     number_limits: Arc<RwLock<NumberLimitsMap>>,
     latest_blobs: Arc<RwLock<BlobMap>>,
     tx: Option<mpsc::Sender<String>>,
@@ -500,6 +610,7 @@ impl IndiClient {
             devices: Arc::new(RwLock::new(HashMap::new())),
             properties: Arc::new(RwLock::new(HashMap::new())),
             property_values: Arc::new(RwLock::new(HashMap::new())),
+            property_updated_ms: Arc::new(RwLock::new(HashMap::new())),
             number_limits: Arc::new(RwLock::new(HashMap::new())),
             latest_blobs: Arc::new(RwLock::new(HashMap::new())),
             tx: None,
@@ -562,6 +673,7 @@ impl IndiClient {
             devices: Arc::new(RwLock::new(HashMap::new())),
             properties: Arc::new(RwLock::new(HashMap::new())),
             property_values: Arc::new(RwLock::new(HashMap::new())),
+            property_updated_ms: Arc::new(RwLock::new(HashMap::new())),
             number_limits: Arc::new(RwLock::new(HashMap::new())),
             latest_blobs: Arc::new(RwLock::new(HashMap::new())),
             tx: None,
@@ -706,6 +818,7 @@ impl IndiClient {
         let devices = self.devices.clone();
         let properties = self.properties.clone();
         let property_values = self.property_values.clone();
+        let property_updated_ms = self.property_updated_ms.clone();
         let number_limits = self.number_limits.clone();
         let latest_blobs = self.latest_blobs.clone();
         let connected = self.connected.clone();
@@ -728,11 +841,15 @@ impl IndiClient {
         *self.reader_status.write().await = ReaderStatus::Running;
 
         // Emit health changed event - reader is now healthy
-        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-            healthy: true,
-            status: ReaderStatus::Running,
-            consecutive_failures: 0,
-        });
+        send_indi_event(
+            &self.event_tx,
+            IndiEvent::ReaderHealthChanged {
+                healthy: true,
+                status: ReaderStatus::Running,
+                consecutive_failures: 0,
+            },
+            "connect.reader_health_running",
+        );
 
         tokio::spawn(async move {
             Self::supervised_reader_task(
@@ -740,6 +857,7 @@ impl IndiClient {
                 devices,
                 properties,
                 property_values,
+                property_updated_ms,
                 number_limits,
                 latest_blobs,
                 connected,
@@ -758,7 +876,11 @@ impl IndiClient {
 
         // Mark as connected
         self.connected.store(true, Ordering::SeqCst);
-        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(true));
+        send_indi_event(
+            &self.event_tx,
+            IndiEvent::ConnectionStateChanged(true),
+            "connect.connection_state_connected",
+        );
 
         // Request device list with configured protocol version
         let version = &self.protocol_config.preferred_version;
@@ -799,6 +921,7 @@ impl IndiClient {
         devices: Arc<RwLock<HashMap<String, IndiDevice>>>,
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
+        property_updated_ms: Arc<RwLock<PropertyUpdateMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
         latest_blobs: Arc<RwLock<BlobMap>>,
         connected: Arc<AtomicBool>,
@@ -819,6 +942,7 @@ impl IndiClient {
                 devices,
                 properties,
                 property_values,
+                property_updated_ms,
                 number_limits,
                 latest_blobs,
                 connected.clone(),
@@ -842,11 +966,15 @@ impl IndiClient {
             Ok(_) => {
                 // Graceful shutdown - reset failure counter and update status
                 *reader_status.write().await = ReaderStatus::Stopped;
-                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
-                    healthy: false,
-                    status: ReaderStatus::Stopped,
-                    consecutive_failures: 0,
-                });
+                send_indi_event(
+                    &event_tx,
+                    IndiEvent::ReaderHealthChanged {
+                        healthy: false,
+                        status: ReaderStatus::Stopped,
+                        consecutive_failures: 0,
+                    },
+                    "supervised_reader.stopped_health",
+                );
                 tracing::info!("INDI reader task stopped gracefully");
             }
             Err(ref e) => {
@@ -865,14 +993,22 @@ impl IndiClient {
                 *reader_status.write().await = ReaderStatus::Crashed;
 
                 // Emit ReaderDied event with error details
-                let _ = event_tx.send(IndiEvent::ReaderDied(e.to_string()));
+                send_indi_event(
+                    &event_tx,
+                    IndiEvent::ReaderDied(e.to_string()),
+                    "supervised_reader.reader_died",
+                );
 
                 // Emit health changed event
-                let _ = event_tx.send(IndiEvent::ReaderHealthChanged {
-                    healthy: false,
-                    status: ReaderStatus::Crashed,
-                    consecutive_failures: failures,
-                });
+                send_indi_event(
+                    &event_tx,
+                    IndiEvent::ReaderHealthChanged {
+                        healthy: false,
+                        status: ReaderStatus::Crashed,
+                        consecutive_failures: failures,
+                    },
+                    "supervised_reader.crashed_health",
+                );
 
                 // Check if we've exceeded max failures
                 if failures >= max_failures {
@@ -880,10 +1016,14 @@ impl IndiClient {
                         "INDI reader task exceeded max consecutive failures ({}) - giving up",
                         max_failures
                     );
-                    let _ = event_tx.send(IndiEvent::ReaderRestartFailed {
-                        attempts: failures,
-                        last_error: e.to_string(),
-                    });
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::ReaderRestartFailed {
+                            attempts: failures,
+                            last_error: e.to_string(),
+                        },
+                        "supervised_reader.restart_failed",
+                    );
                 } else if reader_task_config.auto_restart {
                     // Calculate restart delay and emit restart event
                     let delay = reader_task_config.calculate_restart_delay(failures, &jitter_rng);
@@ -893,18 +1033,26 @@ impl IndiClient {
                         failures,
                         max_failures
                     );
-                    let _ = event_tx.send(IndiEvent::ReaderRestarting {
-                        attempt: failures,
-                        max_attempts: max_failures,
-                        delay_secs: delay.as_secs_f64(),
-                    });
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::ReaderRestarting {
+                            attempt: failures,
+                            max_attempts: max_failures,
+                            delay_secs: delay.as_secs_f64(),
+                        },
+                        "supervised_reader.restarting",
+                    );
                 }
             }
         };
 
         // Always mark as disconnected when reader stops
         connected.store(false, Ordering::SeqCst);
-        let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
+        send_indi_event(
+            &event_tx,
+            IndiEvent::ConnectionStateChanged(false),
+            "supervised_reader.connection_state_disconnected",
+        );
     }
 
     /// Reader task with XML parse timeout - processes incoming INDI messages
@@ -914,6 +1062,7 @@ impl IndiClient {
         devices: Arc<RwLock<HashMap<String, IndiDevice>>>,
         properties: Arc<RwLock<HashMap<(String, String), IndiProperty>>>,
         property_values: Arc<RwLock<PropertyValueMap>>,
+        property_updated_ms: Arc<RwLock<PropertyUpdateMap>>,
         number_limits: Arc<RwLock<NumberLimitsMap>>,
         latest_blobs: Arc<RwLock<BlobMap>>,
         connected: Arc<AtomicBool>,
@@ -940,7 +1089,8 @@ impl IndiClient {
         let mut current_device = String::new();
         let mut current_property = String::new();
         let mut current_element = String::new();
-        let mut current_blob_format = String::new();
+        let mut current_blob_format: Option<String> = None;
+        let mut current_blob_active = false;
         let mut current_blob_size: usize = 0;
 
         // XML parse timeout tracking - use configured timeout
@@ -967,10 +1117,14 @@ impl IndiClient {
                         xml_timeout,
                         incomplete_message_bytes
                     );
-                    let _ = event_tx.send(IndiEvent::Error(format!(
-                        "XML parse timeout after {:?}: {} bytes of incomplete message",
-                        xml_timeout, incomplete_message_bytes
-                    )));
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::Error(format!(
+                            "XML parse timeout after {:?}: {} bytes of incomplete message",
+                            xml_timeout, incomplete_message_bytes
+                        )),
+                        "reader.xml_parse_timeout",
+                    );
                     buf.clear();
                     incomplete_message_start = None;
                     incomplete_message_bytes = 0;
@@ -988,13 +1142,18 @@ impl IndiClient {
                         current_blob_size,
                         blob_timeout
                     );
-                    let _ = event_tx.send(IndiEvent::Error(format!(
-                        "BLOB timeout for {}.{}: expected {} bytes after {:?}",
-                        current_device, current_property, current_blob_size, blob_timeout
-                    )));
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::Error(format!(
+                            "BLOB timeout for {}.{}: expected {} bytes after {:?}",
+                            current_device, current_property, current_blob_size, blob_timeout
+                        )),
+                        "reader.blob_timeout",
+                    );
                     // Reset BLOB state
                     blob_start_time = None;
-                    current_blob_format.clear();
+                    current_blob_format = None;
+                    current_blob_active = false;
                     current_blob_size = 0;
                 }
             }
@@ -1067,6 +1226,12 @@ impl IndiClient {
                                     get_attribute(e, "perm").unwrap_or_else(|| "rw".to_string());
                                 let perm = parse_perm(&perm_str);
 
+                                let switch_rule = if name_bytes == b"defSwitchVector" {
+                                    get_attribute(e, "rule").map(|r| parse_switch_rule(&r))
+                                } else {
+                                    None
+                                };
+
                                 // Add device if new
                                 {
                                     let mut devs = devices.write().await;
@@ -1103,15 +1268,20 @@ impl IndiClient {
                                             state,
                                             perm,
                                             elements: Vec::new(),
+                                            switch_rule,
                                         },
                                     );
                                 }
 
-                                let _ = event_tx.send(IndiEvent::PropertyDefined(
-                                    current_device.clone(),
-                                    current_property.clone(),
-                                    prop_type,
-                                ));
+                                send_indi_event(
+                                    &event_tx,
+                                    IndiEvent::PropertyDefined(
+                                        current_device.clone(),
+                                        current_property.clone(),
+                                        prop_type,
+                                    ),
+                                    "reader.property_defined",
+                                );
                             }
                         }
                     }
@@ -1132,9 +1302,33 @@ impl IndiClient {
                                 // Extract min/max/step/format for number elements
                                 if name_bytes == b"defNumber" {
                                     let limits = NumberLimits {
-                                        min: get_attribute(e, "min").and_then(|s| s.parse().ok()),
-                                        max: get_attribute(e, "max").and_then(|s| s.parse().ok()),
-                                        step: get_attribute(e, "step").and_then(|s| s.parse().ok()),
+                                        min: get_attribute(e, "min").and_then(|s| {
+                                            parse_indi_number_attribute(
+                                                "min",
+                                                &current_device,
+                                                &current_property,
+                                                &elem_name,
+                                                &s,
+                                            )
+                                        }),
+                                        max: get_attribute(e, "max").and_then(|s| {
+                                            parse_indi_number_attribute(
+                                                "max",
+                                                &current_device,
+                                                &current_property,
+                                                &elem_name,
+                                                &s,
+                                            )
+                                        }),
+                                        step: get_attribute(e, "step").and_then(|s| {
+                                            parse_indi_number_attribute(
+                                                "step",
+                                                &current_device,
+                                                &current_property,
+                                                &elem_name,
+                                                &s,
+                                            )
+                                        }),
                                         format: get_attribute(e, "format"),
                                     };
 
@@ -1169,7 +1363,7 @@ impl IndiClient {
                             if let Some(prop) = get_attribute(e, "name") {
                                 current_property = prop;
 
-                                // Update state
+                                // Update state (and switch rule when present on set*Vector)
                                 if let Some(state_str) = get_attribute(e, "state") {
                                     let state = parse_state(&state_str);
                                     let mut props = properties.write().await;
@@ -1181,6 +1375,19 @@ impl IndiClient {
                                         p.state = state;
                                     }
                                 }
+                                if name_bytes == b"setSwitchVector" {
+                                    if let Some(rule_str) = get_attribute(e, "rule") {
+                                        let rule = parse_switch_rule(&rule_str);
+                                        let mut props = properties.write().await;
+                                        if let Some(p) = map_get_mut_2(
+                                            &mut props,
+                                            &current_device,
+                                            &current_property,
+                                        ) {
+                                            p.switch_rule = Some(rule);
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -1190,17 +1397,33 @@ impl IndiClient {
                             current_element = elem;
                         }
                         // Extract format attribute (e.g., ".fits", ".jpeg", ".png")
+                        // Missing/empty format stays unknown until payload magic-byte inference below.
                         // Why (audit-rust §4.3): per INDI 1.7 §3.4 the `format` attribute is
-                        // protocol-OPTIONAL on `oneBLOB` and almost-universally omitted by INDI
-                        // CCD drivers — `.fits` is the documented INDI BLOB default and matches
-                        // every camera driver in our supported matrix. `size` defaults to 0 so
+                        // protocol-OPTIONAL on `oneBLOB` and almost-universally omitted by INDI.
+                        // Missing or empty format stays unknown until payload magic-byte inference.
+                        // `size` defaults to 0 so
                         // the BLOB pump computes the length from the decoded base64 payload
                         // rather than relying on a possibly-absent header hint.
-                        current_blob_format =
-                            get_attribute(e, "format").unwrap_or_else(|| ".fits".to_string());
+                        current_blob_active = true;
+                        current_blob_format = get_attribute(e, "format").and_then(|format| {
+                            let trimmed = format.trim().to_string();
+                            if trimmed.is_empty() {
+                                None
+                            } else {
+                                Some(trimmed)
+                            }
+                        });
                         // Extract size attribute
                         current_blob_size = get_attribute(e, "size")
-                            .and_then(|s| s.parse().ok())
+                            .and_then(|s| {
+                                parse_indi_usize_attribute(
+                                    "size",
+                                    &current_device,
+                                    &current_property,
+                                    &current_element,
+                                    &s,
+                                )
+                            })
                             .unwrap_or(0);
                         // Start BLOB reception timeout tracking
                         blob_start_time = Some(Instant::now());
@@ -1223,7 +1446,11 @@ impl IndiClient {
                         if let Some(version) = get_attribute(e, "version") {
                             let mut sv = server_version.write().await;
                             *sv = Some(version.clone());
-                            let _ = event_tx.send(IndiEvent::ProtocolVersionDetected(version));
+                            send_indi_event(
+                                &event_tx,
+                                IndiEvent::ProtocolVersionDetected(version),
+                                "reader.protocol_version_detected",
+                            );
                         }
                     }
 
@@ -1280,7 +1507,15 @@ impl IndiClient {
                             if let (Some(dev), Some(prop)) =
                                 (frame_device_for_event, frame_property_for_event)
                             {
-                                let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
+                                {
+                                    let mut updated = property_updated_ms.write().await;
+                                    updated.insert((dev.clone(), prop.clone()), current_time_ms());
+                                }
+                                send_indi_event(
+                                    &event_tx,
+                                    IndiEvent::PropertyUpdated(dev, prop),
+                                    "reader.self_closing_property_updated",
+                                );
                             }
                         }
                     }
@@ -1312,10 +1547,15 @@ impl IndiClient {
                                 ),
                                 text.clone(),
                             );
+                            let mut updated = property_updated_ms.write().await;
+                            updated.insert(
+                                (current_device.clone(), current_property.clone()),
+                                current_time_ms(),
+                            );
                         }
 
                         // Handle BLOB data with format validation
-                        if !current_blob_format.is_empty() {
+                        if current_blob_active {
                             // Decode base64
                             match BASE64.decode(text.trim()) {
                                 Ok(data) => {
@@ -1331,9 +1571,10 @@ impl IndiClient {
                                         );
                                     }
 
-                                    // Validate BLOB format
+                                    // Validate declared format or infer it when INDI omitted
+                                    // the optional format attribute.
                                     let validated_format =
-                                        validate_blob_format(&current_blob_format, &data);
+                                        resolve_blob_format(current_blob_format.as_deref(), &data);
 
                                     latest_blobs.write().await.insert(
                                         (
@@ -1344,14 +1585,18 @@ impl IndiClient {
                                         data.clone(),
                                     );
 
-                                    let _ = event_tx.send(IndiEvent::BlobReceived {
-                                        device: current_device.clone(),
-                                        property: current_property.clone(),
-                                        element: current_element.clone(),
-                                        data,
-                                        format: validated_format,
-                                        size: current_blob_size,
-                                    });
+                                    send_indi_event(
+                                        &event_tx,
+                                        IndiEvent::BlobReceived {
+                                            device: current_device.clone(),
+                                            property: current_property.clone(),
+                                            element: current_element.clone(),
+                                            data,
+                                            format: validated_format,
+                                            size: current_blob_size,
+                                        },
+                                        "reader.blob_received",
+                                    );
                                 }
                                 Err(e) => {
                                     tracing::warn!(
@@ -1364,7 +1609,8 @@ impl IndiClient {
                                 }
                             }
                             // Reset BLOB tracking state
-                            current_blob_format.clear();
+                            current_blob_format = None;
+                            current_blob_active = false;
                             current_blob_size = 0;
                             blob_start_time = None;
                         }
@@ -1398,11 +1644,15 @@ impl IndiClient {
                                     String::from_utf8_lossy(end_name),
                                     String::from_utf8_lossy(&popped.tag)
                                 );
-                                let _ = event_tx.send(IndiEvent::Error(format!(
-                                    "Unbalanced XML: got </{}>, expected </{}>",
-                                    String::from_utf8_lossy(end_name),
-                                    String::from_utf8_lossy(&popped.tag)
-                                )));
+                                send_indi_event(
+                                    &event_tx,
+                                    IndiEvent::Error(format!(
+                                        "Unbalanced XML: got </{}>, expected </{}>",
+                                        String::from_utf8_lossy(end_name),
+                                        String::from_utf8_lossy(&popped.tag)
+                                    )),
+                                    "reader.unbalanced_xml",
+                                );
 
                                 if let Some(match_idx) =
                                     xml_stack.iter().rposition(|f| f.tag.as_slice() == end_name)
@@ -1422,7 +1672,16 @@ impl IndiClient {
                                 // frame so we always use the device/property that THIS frame
                                 // established, not whatever sibling frames may have set.
                                 if let (Some(dev), Some(prop)) = (popped.device, popped.property) {
-                                    let _ = event_tx.send(IndiEvent::PropertyUpdated(dev, prop));
+                                    {
+                                        let mut updated = property_updated_ms.write().await;
+                                        updated
+                                            .insert((dev.clone(), prop.clone()), current_time_ms());
+                                    }
+                                    send_indi_event(
+                                        &event_tx,
+                                        IndiEvent::PropertyUpdated(dev, prop),
+                                        "reader.property_updated",
+                                    );
                                 }
                             }
 
@@ -1442,17 +1701,25 @@ impl IndiClient {
                                 "INDI XML stray end tag </{}>: no matching opener on stack",
                                 String::from_utf8_lossy(end_name)
                             );
-                            let _ = event_tx.send(IndiEvent::Error(format!(
-                                "Stray XML end tag </{}>",
-                                String::from_utf8_lossy(end_name)
-                            )));
+                            send_indi_event(
+                                &event_tx,
+                                IndiEvent::Error(format!(
+                                    "Stray XML end tag </{}>",
+                                    String::from_utf8_lossy(end_name)
+                                )),
+                                "reader.stray_xml_end_tag",
+                            );
                         }
                     }
                 }
                 Ok(Ok(Event::Eof)) => {
                     tracing::info!("INDI connection closed (EOF)");
                     connected.store(false, Ordering::SeqCst);
-                    let _ = event_tx.send(IndiEvent::ConnectionStateChanged(false));
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::ConnectionStateChanged(false),
+                        "reader.eof_connection_state",
+                    );
                     break;
                 }
                 Ok(Err(e)) => {
@@ -1461,7 +1728,11 @@ impl IndiClient {
                         e,
                         String::from_utf8_lossy(&buf[..buf.len().min(200)])
                     );
-                    let _ = event_tx.send(IndiEvent::Error(format!("XML parse error: {}", e)));
+                    send_indi_event(
+                        &event_tx,
+                        IndiEvent::Error(format!("XML parse error: {}", e)),
+                        "reader.xml_parse_error",
+                    );
                     buf.clear();
                     // Why: a hard parser error means the underlying stream is no longer
                     // trustable — drop all in-flight depth bookkeeping along with the
@@ -1471,7 +1742,8 @@ impl IndiClient {
                     current_device.clear();
                     current_property.clear();
                     current_element.clear();
-                    current_blob_format.clear();
+                    current_blob_format = None;
+                    current_blob_active = false;
                     current_blob_size = 0;
                     blob_start_time = None;
                     incomplete_message_start = None;
@@ -1540,12 +1812,20 @@ impl IndiClient {
         *self.reader_status.write().await = ReaderStatus::Stopped;
 
         // Emit events
-        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-            healthy: false,
-            status: ReaderStatus::Stopped,
-            consecutive_failures: 0,
-        });
-        let _ = self.event_tx.send(IndiEvent::ConnectionStateChanged(false));
+        send_indi_event(
+            &self.event_tx,
+            IndiEvent::ReaderHealthChanged {
+                healthy: false,
+                status: ReaderStatus::Stopped,
+                consecutive_failures: 0,
+            },
+            "disconnect.reader_health_stopped",
+        );
+        send_indi_event(
+            &self.event_tx,
+            IndiEvent::ConnectionStateChanged(false),
+            "disconnect.connection_state_disconnected",
+        );
 
         Ok(())
     }
@@ -1653,7 +1933,7 @@ impl IndiClient {
     pub async fn get_number(&self, device: &str, property: &str, element: &str) -> Option<f64> {
         self.get_property_value(device, property, element)
             .await
-            .and_then(|v| v.parse().ok())
+            .and_then(|v| parse_indi_number_value(device, property, element, &v))
     }
 
     /// Get a switch property value
@@ -1714,7 +1994,7 @@ impl IndiClient {
                 "Ok" => Some(1),
                 "Busy" => Some(2),
                 "Alert" => Some(3),
-                _ => v.parse().ok(),
+                _ => parse_indi_light_state_value(device, property, element, &v),
             })
     }
 
@@ -1763,7 +2043,23 @@ impl IndiClient {
         Ok(())
     }
 
-    /// Set a switch property with permission check
+    /// Milliseconds since UNIX epoch when the driver last sent a `set*Vector` for this property.
+    pub async fn get_property_last_update_ms(&self, device: &str, property: &str) -> Option<u64> {
+        let updated = self.property_updated_ms.read().await;
+        map_get_2(&updated, device, property).copied()
+    }
+
+    /// Switch rule advertised by the driver for this property.
+    pub async fn get_switch_rule(&self, device: &str, property: &str) -> Option<IndiSwitchRule> {
+        self.get_property(device, property)
+            .await
+            .and_then(|p| p.switch_rule)
+    }
+
+    /// Set a switch property with permission check.
+    ///
+    /// For `OneOfMany` / `AtMostOne` rules, turning a switch **on** sends a full vector with
+    /// sibling switches forced off (audit ND-P1-14).
     pub async fn set_switch(
         &mut self,
         device: &str,
@@ -1771,6 +2067,12 @@ impl IndiClient {
         element: &str,
         state: bool,
     ) -> IndiResult<()> {
+        if state
+            && switch_rule_requires_exclusive_vector(self.get_switch_rule(device, property).await)
+        {
+            return self.set_switch_exclusive(device, property, element).await;
+        }
+
         // Check permission
         if let Some(perm) = self.get_property_permission(device, property).await {
             self.check_write_permission(perm, property)?;
@@ -1782,6 +2084,50 @@ impl IndiClient {
              <oneSwitch name=\"{}\">{}</oneSwitch>\
              </newSwitchVector>",
             device, property, element, state_str
+        );
+        self.send_command(&cmd).await
+    }
+
+    /// Set exactly one switch on within a vector; all other elements are forced off.
+    pub async fn set_switch_exclusive(
+        &mut self,
+        device: &str,
+        property: &str,
+        active_element: &str,
+    ) -> IndiResult<()> {
+        if let Some(perm) = self.get_property_permission(device, property).await {
+            self.check_write_permission(perm, property)?;
+        }
+
+        let elements = self
+            .get_property(device, property)
+            .await
+            .map(|p| p.elements)
+            .unwrap_or_default();
+
+        if elements.is_empty() {
+            return Err(IndiError::PropertyNotFound {
+                device: device.to_string(),
+                property: property.to_string(),
+            });
+        }
+        if !elements.iter().any(|name| name == active_element) {
+            return Err(IndiError::ProtocolError(format!(
+                "Switch element '{}.{}' not found on device '{}'",
+                property, active_element, device
+            )));
+        }
+
+        let switches: String = elements
+            .iter()
+            .map(|name| {
+                let state = if name == active_element { "On" } else { "Off" };
+                format!("<oneSwitch name=\"{name}\">{state}</oneSwitch>")
+            })
+            .collect();
+
+        let cmd = format!(
+            "<newSwitchVector device=\"{device}\" name=\"{property}\">{switches}</newSwitchVector>"
         );
         self.send_command(&cmd).await
     }
@@ -2228,11 +2574,15 @@ impl IndiClient {
 
         // Update status to Restarting
         *self.reader_status.write().await = ReaderStatus::Restarting;
-        let _ = self.event_tx.send(IndiEvent::ReaderHealthChanged {
-            healthy: false,
-            status: ReaderStatus::Restarting,
-            consecutive_failures: failures,
-        });
+        send_indi_event(
+            &self.event_tx,
+            IndiEvent::ReaderHealthChanged {
+                healthy: false,
+                status: ReaderStatus::Restarting,
+                consecutive_failures: failures,
+            },
+            "recover_reader.reader_health_restarting",
+        );
 
         // Calculate and wait for delay
         if failures > 0 {
@@ -2251,9 +2601,13 @@ impl IndiClient {
         let result = match self.connect().await {
             Ok(_) => {
                 tracing::info!("Reader recovery successful after {} attempts", failures);
-                let _ = self.event_tx.send(IndiEvent::ReaderRestarted {
-                    attempts_used: failures,
-                });
+                send_indi_event(
+                    &self.event_tx,
+                    IndiEvent::ReaderRestarted {
+                        attempts_used: failures,
+                    },
+                    "recover_reader.reader_restarted",
+                );
                 Ok(())
             }
             Err(e) => {
@@ -2322,8 +2676,33 @@ impl IndiClient {
     }
 }
 
+fn parse_switch_rule(rule: &str) -> IndiSwitchRule {
+    match rule {
+        "OneOfMany" => IndiSwitchRule::OneOfMany,
+        "AtMostOne" => IndiSwitchRule::AtMostOne,
+        "AnyOfMany" => IndiSwitchRule::AnyOfMany,
+        "OneOfManyZeroOff" => IndiSwitchRule::OneOfManyZeroOff,
+        other => {
+            tracing::warn!(
+                "Unknown INDI switch rule '{}'; treating as OneOfMany",
+                other
+            );
+            IndiSwitchRule::OneOfMany
+        }
+    }
+}
+
+fn switch_rule_requires_exclusive_vector(rule: Option<IndiSwitchRule>) -> bool {
+    matches!(
+        rule,
+        Some(IndiSwitchRule::OneOfMany)
+            | Some(IndiSwitchRule::AtMostOne)
+            | Some(IndiSwitchRule::OneOfManyZeroOff)
+    )
+}
+
 /// Get current time in milliseconds since UNIX epoch
-fn current_time_ms() -> u64 {
+pub(crate) fn current_time_ms() -> u64 {
     use std::time::SystemTime;
     SystemTime::now()
         .duration_since(SystemTime::UNIX_EPOCH)
@@ -2410,28 +2789,30 @@ fn parse_perm(s: &str) -> IndiPermission {
 }
 
 /// Validate BLOB format and detect actual format from data
-fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
-    // Check magic bytes to detect actual format
-    let detected: &str = if data.len() >= 6 && &data[0..6] == b"SIMPLE" {
-        ".fits"
+fn detect_blob_format(data: &[u8]) -> Option<&'static str> {
+    if data.len() >= 6 && &data[0..6] == b"SIMPLE" {
+        Some(".fits")
     } else if data.len() >= 8 && data[0..8] == [0x89, b'P', b'N', b'G', 0x0D, 0x0A, 0x1A, 0x0A] {
-        ".png"
+        Some(".png")
     } else if data.len() >= 3 && data[0..3] == [0xFF, 0xD8, 0xFF] {
-        ".jpeg"
+        Some(".jpeg")
     } else if data.len() >= 4
         && &data[0..4] == b"RIFF"
         && data.len() >= 12
         && &data[8..12] == b"WEBP"
     {
-        ".webp"
+        Some(".webp")
     } else if data.len() >= 4 && data[0..4] == [0x1F, 0x8B, 0x08, 0x00] {
-        ".gz"
+        Some(".gz")
     } else if data.len() >= 2 && data[0..2] == [0x50, 0x4B] {
-        ".zip"
+        Some(".zip")
     } else {
-        // Use declared format
-        declared_format
-    };
+        None
+    }
+}
+
+fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
+    let detected = detect_blob_format(data).unwrap_or(declared_format);
 
     // Log warning if formats don't match
     if !declared_format.is_empty() && detected != declared_format {
@@ -2443,6 +2824,15 @@ fn validate_blob_format(declared_format: &str, data: &[u8]) -> String {
     }
 
     detected.to_string()
+}
+
+fn resolve_blob_format(declared_format: Option<&str>, data: &[u8]) -> String {
+    match declared_format {
+        Some(format) => validate_blob_format(format, data),
+        None => detect_blob_format(data)
+            .map(str::to_string)
+            .unwrap_or_else(|| ".blob".to_string()),
+    }
 }
 
 /// Compare protocol versions (returns true if server >= required)
@@ -2474,6 +2864,7 @@ impl Default for IndiClient {
 mod tests {
     use super::*;
     use crate::IndiPropertyState;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
     #[tokio::test]
     async fn test_timeout_config_default() {
@@ -2663,6 +3054,108 @@ mod tests {
         }
     }
 
+    async fn capture_switch_command(rule: &str, element: &str, state: bool) -> String {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake INDI server");
+        let port = listener.local_addr().expect("read listener address").port();
+        let rule = rule.to_string();
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
+            let mut buf = vec![0_u8; 4096];
+            let _ = socket
+                .read(&mut buf)
+                .await
+                .expect("read initial getProperties");
+
+            let definition = format!(
+                r#"
+<defSwitchVector device="SwitchBox" name="POWER" state="Ok" perm="rw" rule="{rule}">
+  <defSwitch name="PORT_A">Off</defSwitch>
+  <defSwitch name="PORT_B">Off</defSwitch>
+  <defSwitch name="PORT_C">Off</defSwitch>
+</defSwitchVector>
+"#
+            );
+            socket
+                .write_all(definition.as_bytes())
+                .await
+                .expect("write switch definition");
+
+            loop {
+                buf.fill(0);
+                let n = socket.read(&mut buf).await.expect("read switch command");
+                assert!(n > 0, "client disconnected before sending switch command");
+                let command = String::from_utf8_lossy(&buf[..n]).to_string();
+                if command.contains("<newSwitchVector") && command.contains("name=\"POWER\"") {
+                    return command;
+                }
+            }
+        });
+
+        let mut timeout_config = IndiTimeoutConfig::default();
+        timeout_config.connection_timeout_secs = 1;
+        let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
+        client.connect().await.expect("connect fake INDI client");
+
+        let deadline = tokio::time::Instant::now() + Duration::from_secs(2);
+        while client.get_property("SwitchBox", "POWER").await.is_none() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "fake INDI switch property was not parsed in time"
+            );
+            tokio::time::sleep(Duration::from_millis(10)).await;
+        }
+
+        client
+            .set_switch("SwitchBox", "POWER", element, state)
+            .await
+            .expect("send switch command");
+
+        tokio::time::timeout(Duration::from_secs(2), server)
+            .await
+            .expect("fake INDI server should receive switch command")
+            .expect("fake INDI server task should finish")
+    }
+
+    #[tokio::test]
+    async fn test_one_of_many_switch_command_forces_siblings_off() {
+        let command = capture_switch_command("OneOfMany", "PORT_B", true).await;
+
+        assert!(
+            command.contains("<oneSwitch name=\"PORT_A\">Off</oneSwitch>"),
+            "exclusive command must force PORT_A off: {}",
+            command
+        );
+        assert!(
+            command.contains("<oneSwitch name=\"PORT_B\">On</oneSwitch>"),
+            "exclusive command must turn requested port on: {}",
+            command
+        );
+        assert!(
+            command.contains("<oneSwitch name=\"PORT_C\">Off</oneSwitch>"),
+            "exclusive command must force PORT_C off: {}",
+            command
+        );
+    }
+
+    #[tokio::test]
+    async fn test_any_of_many_switch_command_preserves_single_element_write() {
+        let command = capture_switch_command("AnyOfMany", "PORT_B", true).await;
+
+        assert!(
+            command.contains("<oneSwitch name=\"PORT_B\">On</oneSwitch>"),
+            "AnyOfMany command must include requested element: {}",
+            command
+        );
+        assert!(
+            !command.contains("PORT_A") && !command.contains("PORT_C"),
+            "AnyOfMany command must not force unrelated siblings: {}",
+            command
+        );
+    }
+
     #[tokio::test]
     async fn test_timeout_config_modification() {
         let mut client = IndiClient::new("localhost", Some(7624));
@@ -2725,6 +3218,10 @@ mod tests {
         // Unknown format uses declared
         let unknown_data = [0x00, 0x01, 0x02, 0x03];
         assert_eq!(validate_blob_format(".raw", &unknown_data), ".raw");
+
+        // Missing declared format is inferred from magic bytes, not defaulted to FITS.
+        assert_eq!(resolve_blob_format(None, &jpeg_data), ".jpeg");
+        assert_eq!(resolve_blob_format(None, &unknown_data), ".blob");
     }
 
     #[tokio::test]
@@ -2756,6 +3253,26 @@ mod tests {
             .get_number_limits("TestDevice", "TestProperty", "TestElement")
             .await;
         assert!(limits.is_none());
+    }
+
+    #[test]
+    fn malformed_indi_number_parse_returns_none_with_context() {
+        assert_eq!(
+            parse_indi_number_value("Device", "Property", "Element", "not-a-number"),
+            None
+        );
+        assert_eq!(
+            parse_indi_number_attribute("min", "Device", "Property", "Element", "bad"),
+            None
+        );
+        assert_eq!(
+            parse_indi_usize_attribute("size", "Device", "Property", "Element", "-1"),
+            None
+        );
+        assert_eq!(
+            parse_indi_light_state_value("Device", "Property", "Element", "bogus"),
+            None
+        );
     }
 
     #[tokio::test]
@@ -3354,13 +3871,16 @@ mod tests {
     }
 
     /// Build a minimum reader-task fixture and run the XML parser over `xml`.
-    /// Returns the populated `property_values` map plus the events that were
-    /// broadcast during parsing. `&[]` after the payload triggers EOF, which
-    /// breaks the parser's main loop cleanly.
-    async fn drive_parser(xml: &str) -> (PropertyValueMap, Vec<IndiEvent>) {
+    /// Returns the populated `property_values` map, per-property update timestamps,
+    /// plus the events that were broadcast during parsing. `&[]` after the payload
+    /// triggers EOF, which breaks the parser's main loop cleanly.
+    async fn drive_parser_with_updates(
+        xml: &str,
+    ) -> (PropertyValueMap, PropertyUpdateMap, Vec<IndiEvent>) {
         let devices = Arc::new(RwLock::new(HashMap::new()));
         let properties = Arc::new(RwLock::new(HashMap::new()));
         let property_values = Arc::new(RwLock::new(HashMap::new()));
+        let property_updated_ms = Arc::new(RwLock::new(HashMap::new()));
         let number_limits = Arc::new(RwLock::new(HashMap::new()));
         let latest_blobs = Arc::new(RwLock::new(HashMap::new()));
         let connected = Arc::new(AtomicBool::new(true));
@@ -3376,11 +3896,13 @@ mod tests {
         // Put a separate clone of property_values into the parser so the test
         // can read the final state without contention.
         let pv_clone = property_values.clone();
+        let updated_clone = property_updated_ms.clone();
         let result = IndiClient::reader_task_with_timeout(
             reader,
             devices,
             properties,
             pv_clone,
+            updated_clone,
             number_limits,
             latest_blobs,
             connected,
@@ -3397,7 +3919,13 @@ mod tests {
             events.push(ev);
         }
         let pv_snapshot = property_values.read().await.clone();
-        (pv_snapshot, events)
+        let updated_snapshot = property_updated_ms.read().await.clone();
+        (pv_snapshot, updated_snapshot, events)
+    }
+
+    async fn drive_parser(xml: &str) -> (PropertyValueMap, Vec<IndiEvent>) {
+        let (values, _updated, events) = drive_parser_with_updates(xml).await;
+        (values, events)
     }
 
     #[tokio::test]
@@ -3428,6 +3956,26 @@ mod tests {
             ))
             .expect("DEC value missing");
         assert_eq!(dec, "-30.25");
+    }
+
+    #[tokio::test]
+    async fn test_parser_infers_missing_blob_format_from_payload() {
+        let xml = r#"
+            <setBLOBVector device="CCD" name="CCD1">
+                <oneBLOB name="Image" size="6">/9j/4AAA</oneBLOB>
+            </setBLOBVector>
+        "#;
+
+        let (_values, events) = drive_parser(xml).await;
+        let blob_event = events
+            .into_iter()
+            .find_map(|event| match event {
+                IndiEvent::BlobReceived { format, size, .. } => Some((format, size)),
+                _ => None,
+            })
+            .expect("BlobReceived event missing");
+
+        assert_eq!(blob_event, (".jpeg".to_string(), 6));
     }
 
     #[tokio::test]
@@ -3473,6 +4021,39 @@ mod tests {
                     if d == "MountSim" && p == "CONNECTION"
             )),
             "PropertyUpdated event missing after self-closing children: {:?}",
+            events
+        );
+    }
+
+    #[tokio::test]
+    async fn test_parser_tracks_independent_property_update_timestamps() {
+        let xml = r#"
+            <setNumberVector device="WeatherSim" name="WEATHER_PARAMETERS" state="Ok">
+                <oneNumber name="WEATHER_TEMPERATURE">12.5</oneNumber>
+            </setNumberVector>
+            <setSwitchVector device="MountSim" name="CONNECTION" state="Ok">
+                <oneSwitch name="CONNECT">On</oneSwitch>
+            </setSwitchVector>
+        "#;
+        let (_values, updates, events) = drive_parser_with_updates(xml).await;
+
+        assert!(
+            updates.contains_key(&("WeatherSim".to_string(), "WEATHER_PARAMETERS".to_string())),
+            "weather update timestamp missing: {:?}",
+            updates
+        );
+        assert!(
+            updates.contains_key(&("MountSim".to_string(), "CONNECTION".to_string())),
+            "mount update timestamp missing: {:?}",
+            updates
+        );
+        assert!(
+            events.iter().any(|e| matches!(
+                e,
+                IndiEvent::PropertyUpdated(device, property)
+                    if device == "WeatherSim" && property == "WEATHER_PARAMETERS"
+            )),
+            "weather PropertyUpdated event missing: {:?}",
             events
         );
     }

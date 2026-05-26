@@ -20,7 +20,7 @@ class RunDashboardEquipmentPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return EquipmentTelemetryStrip(
       colors: colors,
       direction: Axis.vertical,

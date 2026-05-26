@@ -33,6 +33,15 @@ impl AscomSwitch {
         self.device.disconnect()
     }
 
+    /// Query the underlying ASCOM driver for its current `Connected` state.
+    ///
+    /// Used by capability probes that must NOT kick an active UI connection:
+    /// if the driver reports `Ok(true)`, the probe reuses the connection
+    /// instead of opening/closing its own session.
+    pub fn is_connected(&self) -> Result<bool, String> {
+        self.device.is_connected()
+    }
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -333,6 +342,38 @@ impl AscomSwitch {
         }
     }
 
+    pub fn switch_step(&self, id: i32) -> Result<f64, String> {
+        // SAFETY: DISPATCH_METHOD with one VT_I4 positional arg — ISwitchV2 `SwitchStep`.
+        unsafe {
+            let dispid = self.device.get_dispid("SwitchStep")?;
+            let mut args = [variant_i32(id)];
+
+            let params = DISPPARAMS {
+                rgvarg: args.as_mut_ptr(),
+                rgdispidNamedArgs: ptr::null_mut(),
+                cArgs: 1,
+                cNamedArgs: 0,
+            };
+
+            let mut result = VARIANT::default();
+            self.device
+                .dispatch
+                .Invoke(
+                    dispid,
+                    &GUID::zeroed(),
+                    0,
+                    DISPATCH_METHOD,
+                    &params,
+                    Some(&mut result),
+                    None,
+                    None,
+                )
+                .map_err(|e| format!("Failed to call SwitchStep: {}", e))?;
+
+            variant_to_f64(&result).ok_or_else(|| "SwitchStep did not return a number".to_string())
+        }
+    }
+
     pub fn can_write(&self, id: i32) -> Result<bool, String> {
         // SAFETY: Single-VT_I4-arg with result VARIANT consumed by `variant_to_bool` —
         // same shape as `get_switch`.
@@ -370,19 +411,29 @@ impl AscomSwitch {
     // Batch Property Queries
     // ========================================================================
 
-    /// Get all switch states in a single batch operation
-    /// Returns states for switches 0 through max_switch-1
+    /// Get all switch channel telemetry in a single batch operation.
+    ///
+    /// Returns bool state, analog value, min/max, and step for switches `0..max_switch`.
     pub fn get_all_switch_states(&self) -> SwitchFullStatus {
         let max_switch = self.max_switch().ok();
-        let mut states = Vec::new();
+        let mut channels = Vec::new();
 
         if let Some(max) = max_switch {
             for i in 0..max {
-                states.push(self.get_switch(i).ok());
+                channels.push(SwitchChannelState {
+                    on: self.get_switch(i).ok(),
+                    value: self.get_switch_value(i).ok(),
+                    min_value: self.min_switch_value(i).ok(),
+                    max_value: self.max_switch_value(i).ok(),
+                    step: self.switch_step(i).ok(),
+                });
             }
         }
 
-        SwitchFullStatus { max_switch, states }
+        SwitchFullStatus {
+            max_switch,
+            channels,
+        }
     }
 
     /// Perform a heartbeat check to verify device is still responding
@@ -396,9 +447,65 @@ impl AscomSwitch {
     }
 }
 
+/// Per-channel switch telemetry (ISwitchV2).
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct SwitchChannelState {
+    pub on: Option<bool>,
+    pub value: Option<f64>,
+    pub min_value: Option<f64>,
+    pub max_value: Option<f64>,
+    pub step: Option<f64>,
+}
+
 /// Full switch status
 #[derive(Debug, Clone, Default)]
 pub struct SwitchFullStatus {
     pub max_switch: Option<i32>,
-    pub states: Vec<Option<bool>>,
+    pub channels: Vec<SwitchChannelState>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{SwitchChannelState, SwitchFullStatus};
+
+    #[test]
+    fn channel_state_holds_pwm_fields() {
+        let channel = SwitchChannelState {
+            on: Some(true),
+            value: Some(0.75),
+            min_value: Some(0.0),
+            max_value: Some(1.0),
+            step: Some(0.05),
+        };
+
+        assert_eq!(channel.value, Some(0.75));
+        assert_eq!(channel.step, Some(0.05));
+    }
+
+    #[test]
+    fn full_status_aligns_channel_count_with_max_switch() {
+        let status = SwitchFullStatus {
+            max_switch: Some(2),
+            channels: vec![
+                SwitchChannelState {
+                    on: Some(false),
+                    value: Some(0.0),
+                    min_value: Some(0.0),
+                    max_value: Some(100.0),
+                    step: Some(5.0),
+                },
+                SwitchChannelState {
+                    on: Some(true),
+                    value: Some(50.0),
+                    min_value: Some(0.0),
+                    max_value: Some(100.0),
+                    step: Some(5.0),
+                },
+            ],
+        };
+
+        assert_eq!(status.max_switch, Some(2));
+        assert_eq!(status.channels.len(), 2);
+        assert_eq!(status.channels[1].value, Some(50.0));
+    }
 }

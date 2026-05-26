@@ -17,12 +17,8 @@ Write-Host "Native dir: $NativeDir"
 Write-Host "Building for Windows..."
 cargo build --release --manifest-path bridge\Cargo.toml
 
-# Copy to Flutter app directory
-$LibName = "nightshade_bridge.dll"
-$TargetDir = Join-Path $ProjectRoot "apps\desktop\build\windows\x64\runner\Release"
-New-Item -ItemType Directory -Force -Path $TargetDir | Out-Null
-Copy-Item "target\release\$LibName" -Destination $TargetDir -Force
-Write-Host "Copied $LibName to $TargetDir"
+# Stage bridge + libraw + MSVC runtime into Flutter Release output
+& (Join-Path $ScriptDir "stage_windows_release.ps1") -Profile Release
 
 Write-Host "Build complete!"
 

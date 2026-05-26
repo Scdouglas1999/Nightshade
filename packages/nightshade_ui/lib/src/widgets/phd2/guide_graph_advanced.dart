@@ -93,7 +93,7 @@ class GuideGraphAdvanced extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Column(
       children: [
@@ -134,7 +134,7 @@ class GuideGraphAdvanced extends StatelessWidget {
   Widget _buildControlsBar(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
+        final colors = context.nightshadeColors;
         final isCompact = constraints.maxWidth < 450;
         final isVeryCompact = constraints.maxWidth < 350;
 

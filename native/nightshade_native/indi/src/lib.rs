@@ -58,7 +58,7 @@ mod switch_device;
 mod weather;
 
 pub use autofocus::{AutofocusMethod, IndiAutofocus, IndiAutofocusConfig, IndiAutofocusResult};
-pub use camera::IndiCamera;
+pub use camera::{IndiBayerPattern, IndiCamera, IndiReadoutMode};
 pub use client::*;
 pub use covercalibrator::{IndiCalibratorState, IndiCoverCalibrator, IndiCoverState};
 pub use discovery::{
@@ -69,12 +69,12 @@ pub use dome::{IndiDome, IndiShutterStatus};
 pub use error::{IndiError, IndiResult};
 pub use filterwheel::IndiFilterWheel;
 pub use focuser::IndiFocuser;
-pub use mount::IndiMount;
+pub use mount::{IndiMount, IndiMountGuideDirection};
 pub use protocol::{standard_properties, CcdFrameType, INDI_PROTOCOL_VERSION};
 pub use rotator::IndiRotator;
 pub use safetymonitor::IndiSafetyMonitor;
 pub use switch_device::{IndiSwitchDevice, IndiSwitchInfo};
-pub use weather::{IndiWeather, IndiWeatherStatus};
+pub use weather::{IndiWeather, IndiWeatherStatus, DEFAULT_WEATHER_STALE_MS};
 
 /// Error returned when an INDI feature is not supported
 #[derive(Debug, Clone)]
@@ -179,6 +179,15 @@ pub enum IndiPropertyState {
     Alert,
 }
 
+/// INDI switch vector rule (see INDI protocol §3.4).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndiSwitchRule {
+    OneOfMany,
+    AtMostOne,
+    AnyOfMany,
+    OneOfManyZeroOff,
+}
+
 /// An INDI property
 #[derive(Debug, Clone)]
 pub struct IndiProperty {
@@ -190,6 +199,8 @@ pub struct IndiProperty {
     pub state: IndiPropertyState,
     pub perm: IndiPermission,
     pub elements: Vec<String>,
+    /// Switch rule from `defSwitchVector` / `setSwitchVector` (`rule="..."`).
+    pub switch_rule: Option<IndiSwitchRule>,
 }
 
 /// INDI property permission

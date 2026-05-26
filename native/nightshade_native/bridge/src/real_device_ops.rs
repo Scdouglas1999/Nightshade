@@ -55,7 +55,7 @@
 
 use crate::api::get_device_manager;
 use crate::api::{get_sim_focuser, get_sim_rotator};
-use crate::device::FilterWheelStatus;
+use crate::device::{DeviceType, FilterWheelStatus};
 use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::device_manager::DeviceManager;
 use crate::filter_matching::find_filter_match;
@@ -64,7 +64,8 @@ use async_trait::async_trait;
 use chrono::{Datelike, Timelike};
 use nightshade_native::camera::ExposureParams;
 use nightshade_sequencer::{
-    DeviceOps, DeviceResult, GuidingStatus, ImageData as SeqImageData, PlateSolveResult,
+    DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData as SeqImageData,
+    PlateSolveResult,
 };
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -74,6 +75,12 @@ use nightshade_alpaca::*;
 #[cfg(windows)]
 use nightshade_ascom::*;
 use nightshade_indi::*;
+
+const NATIVE_EXPOSURE_COMPLETION_MARGIN: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn native_exposure_completion_timeout(duration_secs: f64) -> std::time::Duration {
+    std::time::Duration::from_secs_f64(duration_secs.max(0.0)) + NATIVE_EXPOSURE_COMPLETION_MARGIN
+}
 
 // =============================================================================
 // Device ID Parsing Helpers
@@ -242,6 +249,36 @@ impl RealDeviceOps {
         *cached = profile;
     }
 
+    async fn resolve_safety_device_id(&self, explicit_id: Option<&str>) -> DeviceResult<String> {
+        if let Some(id) = explicit_id {
+            return Ok(id.to_string());
+        }
+
+        if let Some(id) = self
+            .device_manager
+            .first_connected_device_id(DeviceType::SafetyMonitor)
+            .await
+        {
+            return Ok(id);
+        }
+
+        // Audit C1: prefer the profile's persisted SafetyMonitor selection
+        // before falling back to a weather device so safety checks consult
+        // the dedicated sensor when one is configured.
+        if let Some(id) = self.get_device_id_async(DeviceType::SafetyMonitor).await {
+            return Ok(id);
+        }
+
+        if let Some(id) = self.get_device_id_async(DeviceType::Weather).await {
+            return Ok(id);
+        }
+
+        Err(
+            "No safety monitor or weather device configured for sequencer safety checks"
+                .to_string(),
+        )
+    }
+
     /// Helper to get device ID from equipment profile (async version - preferred)
     pub async fn get_device_id_async(
         &self,
@@ -283,6 +320,7 @@ impl RealDeviceOps {
             DeviceType::Rotator => profile.rotator_id,
             DeviceType::Dome => profile.dome_id,
             DeviceType::Weather => profile.weather_id,
+            DeviceType::SafetyMonitor => profile.safety_monitor_id,
             _ => None,
         }
     }
@@ -306,6 +344,7 @@ impl RealDeviceOps {
                     DeviceType::Rotator => profile.rotator_id.clone(),
                     DeviceType::Dome => profile.dome_id.clone(),
                     DeviceType::Weather => profile.weather_id.clone(),
+                    DeviceType::SafetyMonitor => profile.safety_monitor_id.clone(),
                     _ => None,
                 };
             }
@@ -349,6 +388,7 @@ impl RealDeviceOps {
                 DeviceType::Rotator => profile.rotator_id,
                 DeviceType::Dome => profile.dome_id,
                 DeviceType::Weather => profile.weather_id,
+                DeviceType::SafetyMonitor => profile.safety_monitor_id,
                 _ => None,
             };
         }
@@ -463,6 +503,10 @@ impl RealDeviceOps {
 
 #[async_trait]
 impl DeviceOps for RealDeviceOps {
+    async fn device_is_connected(&self, device_id: &str) -> DeviceResult<bool> {
+        Ok(self.device_manager.is_connected(device_id).await)
+    }
+
     // =========================================================================
     // MOUNT OPERATIONS
     // =========================================================================
@@ -1508,12 +1552,27 @@ impl DeviceOps for RealDeviceOps {
                     .map_err(|e| format!("Failed to start exposure: {}", e))?;
 
                 // Wait for exposure to complete
+                let exposure_start = std::time::Instant::now();
+                let exposure_timeout = native_exposure_completion_timeout(duration_secs);
                 while !camera
                     .is_exposure_complete()
                     .await
                     .map_err(|e| format!("Error checking exposure: {}", e))?
                 {
-                    tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+                    if exposure_start.elapsed() >= exposure_timeout {
+                        return Err(format!(
+                            "Exposure on {} did not complete within {:.1}s timeout ({:.1}s requested exposure plus safety margin)",
+                            camera_id,
+                            exposure_timeout.as_secs_f64(),
+                            duration_secs
+                        ));
+                    }
+
+                    tokio::time::sleep(
+                        std::time::Duration::from_millis(100)
+                            .min(exposure_timeout.saturating_sub(exposure_start.elapsed())),
+                    )
+                    .await;
                 }
 
                 // Download image
@@ -2465,6 +2524,20 @@ impl DeviceOps for RealDeviceOps {
         })
     }
 
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        let guider_id = crate::api::get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let calib = crate::api::phd2::api_guider_get_calibration(guider_id)
+            .await
+            .map_err(|e| format!("Failed to get guider calibration: {}", e))?;
+        Ok(GuidingCalibration {
+            is_calibrated: calib.is_calibrated,
+            ra_angle_deg: calib.ra_angle,
+            dec_angle_deg: calib.dec_angle,
+        })
+    }
+
     async fn guider_start(
         &self,
         settle_pixels: f64,
@@ -2600,12 +2673,13 @@ impl DeviceOps for RealDeviceOps {
         &self,
         image_data: &SeqImageData,
         file_path: &str,
-        target_name: Option<&str>,
-        filter: Option<&str>,
-        ra_hours: Option<f64>,
-        dec_degrees: Option<f64>,
+        frame_ctx: &nightshade_sequencer::scheduling::FrameContext,
     ) -> DeviceResult<()> {
-        tracing::info!("Saving FITS image to: {}", file_path);
+        tracing::info!(
+            "Saving FITS image to: {} ({})",
+            file_path,
+            frame_ctx.log_label()
+        );
 
         // Create directory if it doesn't exist
         if let Some(parent) = std::path::Path::new(file_path).parent() {
@@ -2613,36 +2687,26 @@ impl DeviceOps for RealDeviceOps {
                 .map_err(|e| format!("Failed to create directory: {}", e))?;
         }
 
-        // Build FITS header
-        let header = crate::api::FitsWriteHeader {
-            object_name: target_name.map(|s| s.to_string()),
-            exposure_time: image_data.exposure_secs,
-            capture_timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
-            frame_type: "Light".to_string(),
-            filter: filter.map(|s| s.to_string()),
-            gain: image_data.gain,
-            offset: image_data.offset,
-            ccd_temp: image_data.temperature,
-            ra: ra_hours,
-            dec: dec_degrees,
-            altitude: None,
-            telescope: None,
-            instrument: None,
-            observer: None,
-            // Capture metadata currently does not include binning in ImageData.
-            bin_x: 1,
-            bin_y: 1,
-            focal_length: None,
-            aperture: None,
-            pixel_size_x: None,
-            pixel_size_y: None,
-            site_latitude: None,
-            site_longitude: None,
-            site_elevation: None,
-        };
+        // Wave 3 Image Grading: route through the rich-header save path
+        // so every FITS keyword (focuser position, rotator angle, guide
+        // RMS, plate-solve, mosaic panel, session ID) ends up in the file.
+        let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);
+        // ImageData may carry per-capture overrides (gain/offset/temp from
+        // the driver) that the executor didn't seed into FrameContext yet;
+        // prefer those so the FITS header reflects what the camera actually
+        // reported, not the commanded values.
+        if let Some(g) = image_data.gain {
+            header.gain = Some(g);
+        }
+        if let Some(o) = image_data.offset {
+            header.offset = Some(o);
+        }
+        if let Some(t) = image_data.temperature {
+            header.ccd_temp = Some(t);
+        }
+        header.exposure_time = image_data.exposure_secs;
 
-        // Call the API function to save
-        crate::api::api_save_fits_file(
+        crate::api::save_fits_file_rich(
             file_path.to_string(),
             image_data.width,
             image_data.height,
@@ -2660,7 +2724,13 @@ impl DeviceOps for RealDeviceOps {
     // NOTIFICATIONS
     // =========================================================================
 
-    async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
+    async fn send_notification(
+        &self,
+        level: &str,
+        title: &str,
+        message: &str,
+        explicit_transports: Option<&[String]>,
+    ) -> DeviceResult<()> {
         tracing::info!("[NOTIFICATION][{}] {}: {}", level, title, message);
 
         // Determine severity from level
@@ -2678,6 +2748,7 @@ impl DeviceOps for RealDeviceOps {
                 title: title.to_string(),
                 message: message.to_string(),
                 level: level.to_string(),
+                explicit_transports: explicit_transports.map(|s| s.to_vec()),
             }),
         );
 
@@ -2826,20 +2897,10 @@ impl DeviceOps for RealDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // Resolve safety source from explicit ID or active profile.
-        // Return errors when unresolved so sequencer fail-mode can decide policy.
-        let device_id = match safety_id {
-            Some(id) => id.to_string(),
-            None => match self.get_device_id(crate::device::DeviceType::Weather) {
-                Some(id) => id,
-                None => {
-                    return Err(
-                        "No safety/weather device configured for sequencer safety checks"
-                            .to_string(),
-                    );
-                }
-            },
-        };
+        // Prefer a connected SafetyMonitor device. Equipment profiles still
+        // only store weather_id, so weather remains a fallback rather than the
+        // primary safety source.
+        let device_id = self.resolve_safety_device_id(safety_id).await?;
 
         tracing::debug!("Checking safety status for device: {}", device_id);
 
@@ -2859,10 +2920,7 @@ impl DeviceOps for RealDeviceOps {
     /// Trust-patch §2: HumidityThreshold trigger feed. Reads the configured
     /// weather device's humidity via DeviceManager. See `weather_get_humidity`
     /// rustdoc on the trait for the Ok(None) vs Err semantics.
-    async fn weather_get_humidity(
-        &self,
-        weather_id: Option<&str>,
-    ) -> DeviceResult<Option<f64>> {
+    async fn weather_get_humidity(&self, weather_id: Option<&str>) -> DeviceResult<Option<f64>> {
         let device_id = match weather_id {
             Some(id) => id.to_string(),
             None => match self.get_device_id(crate::device::DeviceType::Weather) {
@@ -2871,7 +2929,10 @@ impl DeviceOps for RealDeviceOps {
             },
         };
 
-        match get_device_manager().weather_get_conditions(&device_id).await {
+        match get_device_manager()
+            .weather_get_conditions(&device_id)
+            .await
+        {
             Ok(conditions) => Ok(conditions.humidity),
             Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
         }

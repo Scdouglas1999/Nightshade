@@ -116,7 +116,7 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final hasOperation = ref.watch(hasActiveOperationProvider);
     final operation = ref.watch(primaryOperationProvider);
 
@@ -144,13 +144,9 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
     return Container(
       height: 28,
       margin: const EdgeInsets.symmetric(horizontal: 8),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.3),
-          width: 1,
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -215,8 +211,8 @@ class _OperationStatusBarState extends ConsumerState<OperationStatusBar>
                 },
                 child: Container(
                   padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: colors.error.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.error,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Icon(
@@ -244,7 +240,7 @@ class OperationIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final operation = ref.watch(activeOperationsProvider)[type];
 
     if (operation == null) {
@@ -253,8 +249,8 @@ class OperationIndicator extends ConsumerWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.tintedBadge(
+        colors.primary,
         borderRadius: BorderRadius.circular(4),
       ),
       child: Row(

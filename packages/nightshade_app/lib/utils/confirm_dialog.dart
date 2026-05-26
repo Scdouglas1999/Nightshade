@@ -1,12 +1,10 @@
-// ignore_for_file: unused_local_variable
-
 import 'package:flutter/material.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Utility class for showing confirmation dialogs.
 ///
 /// This eliminates duplicate AlertDialog patterns across the codebase.
-/// Use this instead of implementing inline showDialog<bool> patterns.
+/// Use this instead of implementing inline `showDialog<bool>` patterns.
 class ConfirmDialog {
   /// Shows a confirmation dialog and returns true if confirmed.
   ///
@@ -23,30 +21,32 @@ class ConfirmDialog {
     String cancelLabel = 'Cancel',
     bool isDestructive = false,
   }) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-
     final result = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          NightshadeButton(
-            label: cancelLabel,
-            variant: ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.pop(ctx, false),
-          ),
-          NightshadeButton(
-            label: confirmLabel,
-            variant: isDestructive
-                ? ButtonVariant.destructive
-                : ButtonVariant.primary,
-            size: ButtonSize.small,
-            onPressed: () => Navigator.pop(ctx, true),
-          ),
-        ],
-      ),
+      builder: (ctx) {
+        return NightshadeDialog(
+          title: title,
+          width: 420,
+          showCloseButton: false,
+          actions: [
+            NightshadeButton(
+              label: cancelLabel,
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.pop(ctx, false),
+            ),
+            NightshadeButton(
+              label: confirmLabel,
+              variant: isDestructive
+                  ? ButtonVariant.destructive
+                  : ButtonVariant.primary,
+              size: ButtonSize.small,
+              onPressed: () => Navigator.pop(ctx, true),
+            ),
+          ],
+          child: Text(message),
+        );
+      },
     );
 
     return result ?? false;

@@ -5,18 +5,17 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
-
-import '../../planetarium/widgets/target_picker_sky_view.dart';
 import 'package:intl/intl.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../widgets/delete_node_confirmation.dart';
 
 class TargetsTab extends ConsumerWidget {
   const TargetsTab({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sequence = ref.watch(currentSequenceProvider);
     final isMobile = Responsive.isMobile(context);
     // Trust-patch §B: Add Target opens a dialog that ultimately calls
@@ -183,7 +182,11 @@ class TargetsTab extends ConsumerWidget {
           Expanded(
             flex: 3,
             child: sequence == null || sequence.targetHeaders.isEmpty
-                ? _EmptyState(colors: colors)
+                ? const EmptyState.compact(
+                    icon: LucideIcons.calendarClock,
+                    title: 'No targets scheduled',
+                    body: 'Add a target to see the plan',
+                  )
                 : _ActiveTargetList(colors: colors, sequence: sequence),
           ),
         ],
@@ -197,7 +200,7 @@ class _NightTimeline extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sequence = ref.watch(currentSequenceProvider);
     final location = ref.watch(observerLocationProvider);
 
@@ -246,16 +249,7 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Draw background (Sky gradient)
-    final bgPaint = Paint()
-      ..shader = LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [
-          colors.background.withValues(alpha: 0.8), // Zenith
-          colors.surface, // Horizon
-        ],
-      ).createShader(Rect.fromLTWH(0, 0, size.width, size.height));
+    final bgPaint = Paint()..color = colors.surfaceAlt;
     canvas.drawRect(Rect.fromLTWH(0, 0, size.width, size.height), bgPaint);
 
     // Draw Optimal Window (Alt > 30)
@@ -554,17 +548,33 @@ class _ActiveTargetList extends ConsumerWidget {
           colors.info
         ][index % 5];
 
+        // Wave 7 — Per-target campaign rollup column visibility is
+        // gated by the [campaignRollupSurfaceTargetsTab] setting so
+        // operators with clean targets tables can opt out of the
+        // extra row.
+        final settings = ref.watch(appSettingsProvider).valueOrNull;
+        final showCampaign =
+            settings?.campaignRollupSurfaceTargetsTab ?? true;
         return _TargetListItem(
           key: ValueKey(target.id),
           colors: colors,
           target: target,
           color: color,
           index: index,
+          showCampaign: showCampaign,
           onDelete: canEdit
-              ? () {
-                  ref
-                      .read(currentSequenceProvider.notifier)
-                      .removeNode(target.id);
+              ? () async {
+                  // Why: a TargetHeaderNode usually owns a non-trivial
+                  // subtree (exposures, autofocus, filter changes), so
+                  // route the trash icon through the canonical confirm
+                  // helper. Previously this was a silent removeNode call
+                  // that could nuke a fully-authored target on a misclick.
+                  await confirmAndDeleteSequenceNode(
+                    context: context,
+                    ref: ref,
+                    nodeId: target.id,
+                    colors: colors,
+                  );
                 }
               : null,
         );
@@ -593,7 +603,7 @@ class _ActiveTargetList extends ConsumerWidget {
   }
 }
 
-class _TargetListItem extends StatelessWidget {
+class _TargetListItem extends ConsumerWidget {
   final NightshadeColors colors;
   final TargetHeaderNode target;
   final Color color;
@@ -603,6 +613,10 @@ class _TargetListItem extends StatelessWidget {
   // sees what would be available once the sequence stops.
   final VoidCallback? onDelete;
 
+  /// Wave 7 — show the campaign rollup column. Gated by the
+  /// `campaignRollupSurfaceTargetsTab` setting.
+  final bool showCampaign;
+
   const _TargetListItem({
     super.key,
     required this.colors,
@@ -610,10 +624,11 @@ class _TargetListItem extends StatelessWidget {
     required this.color,
     required this.index,
     required this.onDelete,
+    this.showCampaign = true,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final isMobile = Responsive.isMobile(context);
     final isVeryNarrow = MediaQuery.sizeOf(context).width < 360;
 
@@ -623,13 +638,6 @@ class _TargetListItem extends StatelessWidget {
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ],
       ),
       child: ListTile(
         contentPadding: EdgeInsets.symmetric(
@@ -639,11 +647,7 @@ class _TargetListItem extends StatelessWidget {
         leading: Container(
           width: isMobile ? 36 : 40,
           height: isMobile ? 36 : 40,
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
-            shape: BoxShape.circle,
-            border: Border.all(color: color.withValues(alpha: 0.5), width: 2),
-          ),
+          decoration: NightshadeDecorations.kpiBadge(color),
           child: Center(
             child: Text(
               '${index + 1}',
@@ -665,14 +669,26 @@ class _TargetListItem extends StatelessWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        subtitle: Text(
-          isVeryNarrow
-              ? '${target.raHours.toStringAsFixed(2)}h / ${target.decDegrees.toStringAsFixed(2)}°'
-              : 'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
-          style: TextStyle(
-              color: colors.textSecondary, fontSize: isMobile ? 11 : 12),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
+        subtitle: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              isVeryNarrow
+                  ? '${target.raHours.toStringAsFixed(2)}h / ${target.decDegrees.toStringAsFixed(2)}°'
+                  : 'RA: ${target.raHours.toStringAsFixed(4)}h  Dec: ${target.decDegrees.toStringAsFixed(4)}°',
+              style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: isMobile ? 11 : 12),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+            if (showCampaign)
+              _TargetCampaignColumn(
+                targetName: target.targetName,
+                colors: colors,
+              ),
+          ],
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
@@ -698,37 +714,75 @@ class _TargetListItem extends StatelessWidget {
   }
 }
 
-class _EmptyState extends StatelessWidget {
+/// Wave 7 — Per-target campaign rollup row shown in the Scheduled
+/// Targets list. Renders one line per filter ("L 24h, Ha 8h")
+/// followed by the session count. Silently hides when the target is
+/// unknown (target_name has no Drift row) or has no captured frames.
+class _TargetCampaignColumn extends ConsumerWidget {
+  final String targetName;
   final NightshadeColors colors;
 
-  const _EmptyState({required this.colors});
+  const _TargetCampaignColumn({
+    required this.targetName,
+    required this.colors,
+  });
+
+  String _formatHours(double seconds) {
+    final hours = seconds / 3600.0;
+    if (hours >= 10) return '${hours.toStringAsFixed(0)}h';
+    return '${hours.toStringAsFixed(1)}h';
+  }
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.calendarClock, size: 48, color: colors.textMuted),
-          const SizedBox(height: 16),
-          Text(
-            'No targets scheduled',
-            style: TextStyle(
-              fontSize: 16,
-              color: colors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
+  Widget build(BuildContext context, WidgetRef ref) {
+    final rollupAsync = ref.watch(campaignRollupByNameProvider(targetName));
+    return rollupAsync.maybeWhen(
+      data: (rollup) {
+        if (rollup == null) return const SizedBox.shrink();
+        if (rollup.totalCapturedIntegrationSecs <= 0) {
+          return const SizedBox.shrink();
+        }
+        final filterBits = rollup.filters
+            .where((f) => f.capturedIntegrationSecs > 0)
+            .map((f) =>
+                '${f.filter} ${_formatHours(f.capturedIntegrationSecs)}')
+            .toList(growable: false);
+        return Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Wrap(
+            spacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Icon(LucideIcons.layers, size: 11, color: colors.primary),
+              Text(
+                'Total ${_formatHours(rollup.totalCapturedIntegrationSecs)}',
+                style: TextStyle(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w600,
+                  color: colors.primary,
+                ),
+              ),
+              if (filterBits.isNotEmpty)
+                Text(
+                  '• ${filterBits.join(', ')}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: colors.textSecondary,
+                  ),
+                ),
+              Text(
+                '• ${rollup.sessionCount} session'
+                '${rollup.sessionCount == 1 ? '' : 's'}',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textMuted,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          Text(
-            'Add a target to see the plan',
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
     );
   }
 }
@@ -751,20 +805,20 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final searchState = ref.watch(objectSearchProvider);
 
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 500,
+      designHeight: 600,
+    );
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 960,
-          preferredHeight: 640,
-          minWidth: 350,
-          minHeight: 400,
-        ),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -779,16 +833,9 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                 ),
               ),
               const SizedBox(height: 16),
-              Expanded(
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Expanded(
-                      flex: 2,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          TextField(
+
+              // Search Bar
+              TextField(
                 controller: _searchController,
                 autofocus: true,
                 style: TextStyle(color: colors.textPrimary),
@@ -803,15 +850,16 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                     borderSide: BorderSide.none,
                   ),
                 ),
-                            onChanged: (value) {
-                              ref
-                                  .read(objectSearchProvider.notifier)
-                                  .search(value);
-                            },
-                          ),
-                          const SizedBox(height: 16),
-                          Expanded(
-                            child: searchState.isSearching
+                onChanged: (value) {
+                  ref.read(objectSearchProvider.notifier).search(value);
+                },
+              ),
+
+              const SizedBox(height: 16),
+
+              // Results
+              Expanded(
+                child: searchState.isSearching
                     ? Center(
                         child: CircularProgressIndicator(color: colors.primary))
                     : searchState.results.isEmpty
@@ -843,72 +891,32 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
                                   icon: LucideIcons.plus,
                                   variant: ButtonVariant.ghost,
                                   size: ButtonSize.small,
-                                  onPressed: () => _addTargetFromObject(
-                                    context,
-                                    obj.name,
-                                    obj.coordinates.ra,
-                                    obj.coordinates.dec,
-                                  ),
+                                  onPressed: () {
+                                    ref
+                                        .read(currentSequenceProvider.notifier)
+                                        .addNode(
+                                          TargetHeaderNode(
+                                            targetName: obj.name,
+                                            raHours: obj.coordinates.ra,
+                                            decDegrees: obj.coordinates.dec,
+                                          ),
+                                        );
+                                    Navigator.pop(context);
+                                    if (context.mounted) {
+                                      context.showSuccessSnackBar(
+                                          'Added ${obj.name} to sequence');
+                                    }
+                                  },
                                 ),
-                                onTap: () {
-                                  ref
-                                      .read(skyViewStateProvider.notifier)
-                                      .lookAt(obj.coordinates);
-                                },
                               );
                             },
                           ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      flex: 3,
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(8),
-                        child: TargetPickerSkyView(
-                          onObjectTapped: (object, coordinates, _) {
-                            if (object == null) {
-                              return;
-                            }
-                            _addTargetFromObject(
-                              context,
-                              object.name,
-                              coordinates.ra,
-                              coordinates.dec,
-                            );
-                          },
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
         ),
       ),
     );
-  }
-
-  void _addTargetFromObject(
-    BuildContext context,
-    String name,
-    double raHours,
-    double decDegrees,
-  ) {
-    ref.read(currentSequenceProvider.notifier).addNode(
-          TargetHeaderNode(
-            targetName: name,
-            raHours: raHours,
-            decDegrees: decDegrees,
-          ),
-        );
-    Navigator.pop(context);
-    if (context.mounted) {
-      context.showSuccessSnackBar('Added $name to sequence');
-    }
   }
 }
 
@@ -1001,20 +1009,20 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 700,
+      designHeight: 600,
+    );
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 700,
-          preferredHeight: 600,
-          minWidth: 500,
-          minHeight: 450,
-        ),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -1108,9 +1116,8 @@ class _OptimizeOrderDialogState extends ConsumerState<_OptimizeOrderDialog> {
                               leading: Container(
                                 width: 32,
                                 height: 32,
-                                decoration: BoxDecoration(
-                                  color: colors.primary.withValues(alpha: 0.1),
-                                  shape: BoxShape.circle,
+                                decoration: NightshadeDecorations.kpiBadge(
+                                  colors.primary,
                                 ),
                                 child: Center(
                                   child: Text(

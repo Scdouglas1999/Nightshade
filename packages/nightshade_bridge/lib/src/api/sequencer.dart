@@ -7,8 +7,8 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `run_sequencer_event_loop`, `serialize_node_definition`, `serialize_sequence_definition`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`
+// These functions are ignored because they are not marked as `pub`: `get_sequence_executor`, `recovery_cause_fields`, `recovery_event_completed`, `recovery_event_gave_up`, `recovery_event_progress`, `recovery_event_started`, `recovery_phase_str`, `run_decision_event_loop`, `run_sequencer_event_loop`, `serialize_node_definition`, `serialize_sequence_definition`, `structured_progress_payload_from_progress_detail`, `typed_sequencer_event_from_progress_detail`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `api_sequencer_event_stream`
 
 /// Load a sequence from JSON
@@ -52,6 +52,30 @@ Future<void> apiSequencerSkipToNode({required String nodeId}) =>
 /// Reset the sequence executor
 Future<void> apiSequencerReset() =>
     RustLib.instance.api.crateApiSequencerApiSequencerReset();
+
+/// Wave 6 Pack P — Dart side reports the verdict of a plugin-dispatched
+/// node back to the Rust executor. Routes to
+/// `ExecutorCommand::PluginNodeFinished`. The Rust instruction node
+/// awaiting on the matching pending oneshot unblocks with Success or
+/// Failure based on `success`.
+///
+/// `structured_detail_json` is an optional opaque JSON payload the plugin
+/// author emits as the node's final progress event. Invalid JSON is
+/// logged at warn and dropped (the verdict still applies).
+///
+/// Returns an error if the executor is not currently running — the
+/// caller should treat that as a stale reply (the run was cancelled
+/// between dispatch and reply) and drop the result.
+Future<void> apiSequencerPluginNodeFinished(
+        {required String nodeId,
+        required bool success,
+        String? message,
+        String? structuredDetailJson}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerPluginNodeFinished(
+        nodeId: nodeId,
+        success: success,
+        message: message,
+        structuredDetailJson: structuredDetailJson);
 
 /// Get the current sequencer state
 Future<SequencerState> apiSequencerGetState() =>
@@ -118,6 +142,15 @@ Future<void> apiSequencerSetSafetyFailMode({required String mode}) =>
     RustLib.instance.api
         .crateApiSequencerApiSequencerSetSafetyFailMode(mode: mode);
 
+/// Set the safety/humidity polling interval for the sequencer.
+/// Must be between 5 seconds and 3600 seconds. The executor applies the
+/// update live without restarting the current sequence.
+Future<void> apiSequencerSetSafetyCheckIntervalSeconds(
+        {required int seconds}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerSetSafetyCheckIntervalSeconds(
+            seconds: seconds);
+
 /// Set the save path for sequencer images.
 /// This is the base directory where captured images will be saved.
 /// If not set (or set to None), images will NOT be saved to disk.
@@ -148,6 +181,24 @@ Future<void> apiSequencerUpdateLocation(
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateLocation(
         latitude: latitude, longitude: longitude);
 
+/// Wave 7.5 — stage per-target / per-filter carry-over integration so the
+/// next `sequencerStart()` seeds the IntegrationBudget tracker with frames
+/// already captured in prior sessions. The Dart `SequenceExecutor.start()`
+/// calls this once per target after reading `sessionHandoffDecisionProvider`:
+///
+///   * `Resume`      → supply the prior per-filter totals.
+///   * `Restart`     → supply an empty inner map (zeroes the carry-over).
+///   * `ContinueNew` → omit the target from the call (default behaviour).
+///
+/// `carry_over` shape: `target_id` -> { `filter_name` -> `seconds` }.
+/// The Rust side merges entries (last-write-wins per target_id), then drains
+/// the staged map on the next `start()`.
+Future<void> apiSequencerUpdatePendingIntegrationCarryOver(
+        {required Map<String, Map<String, double>> carryOver}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerUpdatePendingIntegrationCarryOver(
+            carryOver: carryOver);
+
 /// Update filter focus offsets at runtime while a sequence is running or paused.
 /// Updates the executor's stored offsets so subsequent filter changes apply
 /// the correct focus compensation.
@@ -165,6 +216,177 @@ Future<void> apiSequencerUpdateFilterOffsets(
 Future<void> apiSequencerUpdateAutofocusInterval({required int everyNFrames}) =>
     RustLib.instance.api.crateApiSequencerApiSequencerUpdateAutofocusInterval(
         everyNFrames: everyNFrames);
+
+/// Pack G — update the global default image-grading thresholds at runtime.
+///
+/// All fields are optional; when `enabled` is `false` an `ImageQualityCheck`
+/// is NOT constructed (grading disabled globally — per-node `quality_check`
+/// on TakeExposure still wins). The Dart `enableImageGrading` toggle on
+/// app settings drives this directly.
+Future<void> apiSequencerUpdateDefaultQualityCheck(
+        {double? hfrThreshold,
+        double? hfrBaselinePercent,
+        double? eccentricityThreshold,
+        int? starCountMin,
+        required int maxConsecutiveRejects,
+        required bool enabled}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateDefaultQualityCheck(
+        hfrThreshold: hfrThreshold,
+        hfrBaselinePercent: hfrBaselinePercent,
+        eccentricityThreshold: eccentricityThreshold,
+        starCountMin: starCountMin,
+        maxConsecutiveRejects: maxConsecutiveRejects,
+        enabled: enabled);
+
+/// Pack G — update the reject-folder override at runtime. Empty string =>
+/// None (i.e. fall back to `<save_path>/Reject/`).
+Future<void> apiSequencerUpdateRejectFolderPath({String? path}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerUpdateRejectFolderPath(path: path);
+
+/// Pack G — push observer / equipment identification to the executor so
+/// the next FITS save stamps real keywords (OBSERVER, TELESCOP, FOCALLEN,
+/// APTDIA, INSTRUME, SITEELEV). Every field is optional because in
+/// headless / no-profile runs we'd rather omit the keyword than emit a
+/// sentinel — silent fallbacks are bugs.
+Future<void> apiSequencerUpdateObserverProfile(
+        {String? observerName,
+        double? siteElevationM,
+        String? cameraMake,
+        String? cameraModel,
+        String? telescopeName,
+        double? telescopeFocalLengthMm,
+        double? telescopeApertureMm}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateObserverProfile(
+        observerName: observerName,
+        siteElevationM: siteElevationM,
+        cameraMake: cameraMake,
+        cameraModel: cameraModel,
+        telescopeName: telescopeName,
+        telescopeFocalLengthMm: telescopeFocalLengthMm,
+        telescopeApertureMm: telescopeApertureMm);
+
+/// Push the latest cloud-motion analyzer reading into the executor.
+///
+/// All fields are optional because the Dart analyzer may not yet have
+/// enough radar history to produce every quantity. `None` values disable
+/// the corresponding evaluator branch rather than firing on a default —
+/// silently picking a sentinel would mask analyzer failures.
+///
+/// `predicted_clear_sky_alt` / `predicted_clear_sky_az` must be either
+/// both `Some` or both `None`; a half-specified direction is logged at
+/// WARN and treated as no-direction.
+Future<void> apiSequencerUpdateCloudMotion(
+        {double? currentCoverPercent,
+        double? predictedArrivalMinutes,
+        double? predictedOpeningMinutes,
+        double? predictedOpeningDurationSecs,
+        double? predictedClearSkyAlt,
+        double? predictedClearSkyAz}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateCloudMotion(
+        currentCoverPercent: currentCoverPercent,
+        predictedArrivalMinutes: predictedArrivalMinutes,
+        predictedOpeningMinutes: predictedOpeningMinutes,
+        predictedOpeningDurationSecs: predictedOpeningDurationSecs,
+        predictedClearSkyAlt: predictedClearSkyAlt,
+        predictedClearSkyAz: predictedClearSkyAz);
+
+/// Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
+/// dashboard. Returns `Ok(None)` when no data has been pushed yet.
+Future<String?> apiSequencerGetCloudMotionJson() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerGetCloudMotionJson();
+
+/// Push the latest live sky-brightness reading to the executor.
+///
+/// `mag` is the sky brightness in mag/arcsec² (bigger = darker). Pass
+/// `None` when the tracker has lost lock — the adapter then falls back to
+/// the nominal duration and emits a structured `Unavailable` event.
+Future<void> apiSequencerUpdateSkyBrightness({double? mag}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerUpdateSkyBrightness(mag: mag);
+
+/// Push the global default sky-brightness adaptive-exposure config to the
+/// executor. Per-node `ExposureConfig.adaptive_exposure` still wins; this
+/// is the runtime fallback applied to TakeExposure nodes that have no
+/// own block.
+///
+/// Pass `enabled = false` to disable the feature globally. The per-filter
+/// maps are flattened into parallel arrays because FRB cannot bridge
+/// `HashMap<String, T>` directly — Dart serialises its own filter map to
+/// the (`*_filters`, `*_values`) pair shape.
+Future<void> apiSequencerUpdateDefaultAdaptiveExposure(
+        {required bool enabled,
+        required double targetSnr,
+        required double referenceSkyBrightnessMag,
+        required double minExposureSecs,
+        required double maxExposureSecs,
+        required List<String> perFilterEnabledKeys,
+        required List<bool> perFilterEnabledValues,
+        required List<String> perFilterMinKeys,
+        required List<double> perFilterMinValues,
+        required List<String> perFilterMaxKeys,
+        required List<double> perFilterMaxValues}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerUpdateDefaultAdaptiveExposure(
+            enabled: enabled,
+            targetSnr: targetSnr,
+            referenceSkyBrightnessMag: referenceSkyBrightnessMag,
+            minExposureSecs: minExposureSecs,
+            maxExposureSecs: maxExposureSecs,
+            perFilterEnabledKeys: perFilterEnabledKeys,
+            perFilterEnabledValues: perFilterEnabledValues,
+            perFilterMinKeys: perFilterMinKeys,
+            perFilterMinValues: perFilterMinValues,
+            perFilterMaxKeys: perFilterMaxKeys,
+            perFilterMaxValues: perFilterMaxValues);
+
+/// Wave 5 Agent 2 — disable the global default adaptive-exposure config
+/// (push `None`). Convenience entry-point so the Dart side doesn't have
+/// to pass a sentinel struct just to disable.
+Future<void> apiSequencerClearDefaultAdaptiveExposure() => RustLib.instance.api
+    .crateApiSequencerApiSequencerClearDefaultAdaptiveExposure();
+
+/// Operator pressed "Try Now" on the Run Dashboard banner — punch through
+/// the wait timer and force the next recovery attempt immediately. No-op
+/// when the executor is not currently in `Recovering`.
+Future<void> apiSequencerRecoveryTryNow() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerRecoveryTryNow();
+
+/// Operator pressed "Abort" on the Run Dashboard banner — exits the recovery
+/// loop and transitions the executor to `Failed`. No-op when not in
+/// `Recovering`.
+Future<void> apiSequencerRecoveryAbort() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerRecoveryAbort();
+
+/// Push updated recovery defaults into the executor's runtime config. The
+/// next recovery entry uses these values; an in-flight loop continues with
+/// the values that were live when it entered.
+///
+/// Validation here matches the gate the Rust sequencer applies internally:
+/// both `retry_interval_secs` and `max_duration_secs` must be > 0. We
+/// surface a structured InvalidParameter error so the Dart settings page
+/// can render a precise validation message instead of "unknown error".
+Future<void> apiSequencerUpdateRecoveryConfig(
+        {required RecoveryConfigUpdate update}) =>
+    RustLib.instance.api
+        .crateApiSequencerApiSequencerUpdateRecoveryConfig(update: update);
+
+/// JSON-serialised snapshot of the current in-flight `RecoveryContext`.
+/// Returns `None` when the executor is not currently in `Recovering`.
+///
+/// JSON-string-over-bridge is intentional: the Dart side already owns a
+/// hand-written `RecoveryStatus.fromJson` mirror (see
+/// `nightshade_core/lib/src/models/sequencer/recovery_status.dart`) so
+/// piping serde JSON across is cheaper than asking FRB to bridge the
+/// chrono-dependent `RecoveryContext` Rust struct.
+Future<String?> apiSequencerGetCurrentRecoveryJson() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerGetCurrentRecoveryJson();
+
+/// JSON-serialised dump of every completed recovery loop since the executor
+/// was constructed. Surfaced for the post-session report dialog. Returns an
+/// empty JSON array `"[]"` when no recoveries have completed yet.
+Future<String> apiSequencerGetRecoveryHistoryJson() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerGetRecoveryHistoryJson();
 
 /// Create an exposure node configuration
 String apiCreateExposureNode(
@@ -269,6 +491,12 @@ String apiCreateTargetGroupNode(
         children: children);
 
 /// Create a target header node configuration
+///
+/// Wave 3 Agent 3 — `integration_budget_json` (optional) is a JSON-encoded
+/// [`nightshade_sequencer::IntegrationBudget`] payload mirroring the
+/// Dart-side `IntegrationBudget` model. Passing `None` leaves the
+/// target without a budget (current behaviour); passing a valid JSON
+/// string installs the budget on the TargetHeader.
 String apiCreateTargetHeaderNode(
         {required String id,
         required String name,
@@ -282,6 +510,7 @@ String apiCreateTargetHeaderNode(
         PlatformInt64? startAfter,
         PlatformInt64? endBefore,
         String? mosaicPanelJson,
+        String? integrationBudgetJson,
         required List<String> children}) =>
     RustLib.instance.api.crateApiSequencerApiCreateTargetHeaderNode(
         id: id,
@@ -296,6 +525,7 @@ String apiCreateTargetHeaderNode(
         startAfter: startAfter,
         endBefore: endBefore,
         mosaicPanelJson: mosaicPanelJson,
+        integrationBudgetJson: integrationBudgetJson,
         children: children);
 
 /// Create a loop node configuration
@@ -506,6 +736,89 @@ double apiCalculateAltitude(
         longitude: longitude,
         timeUnixMillis: timeUnixMillis);
 
+/// Returns the currently-active LiveStacking broadcast session, or
+/// `None` when no LiveStacking node has been executed in the current
+/// sequence run.
+///
+/// Wave 7 Agent 2 — consumed by the Dart `BroadcastService` to decide
+/// whether `/api/broadcast/*` endpoints should answer 200 or 404.
+LiveStackingBroadcastSnapshot? apiBroadcastGetActive() =>
+    RustLib.instance.api.crateApiSequencerApiBroadcastGetActive();
+
+/// Force-deactivate the active broadcast session. Called by the Dart
+/// side when the user toggles broadcast off mid-sequence, or by tests
+/// that want a deterministic baseline. A no-op if no session is active.
+void apiBroadcastDeactivate() =>
+    RustLib.instance.api.crateApiSequencerApiBroadcastDeactivate();
+
+/// Wave 8 Replay Debug — stamp the active `sequence_runs.id` onto the
+/// executor so every subsequent emitted DecisionEvent carries it as
+/// `sequence_run_id`. Called by the Dart side immediately after the
+/// `sequence_runs` row is inserted.
+///
+/// Pass `None` (Dart `null`) to clear the slot — useful at run end /
+/// reset.
+Future<void> apiSequencerSetActiveSequenceRunId(
+        {PlatformInt64? sequenceRunId}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerSetActiveSequenceRunId(
+        sequenceRunId: sequenceRunId);
+
+/// Wave 8 Replay Debug — read back the currently-stamped
+/// `sequence_runs.id`. Used by tests and as a sanity check from the
+/// Dart side.
+Future<PlatformInt64?> apiSequencerGetActiveSequenceRunId() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerGetActiveSequenceRunId();
+
+/// Wave 8 Replay Debug — runtime toggle for decision emission. When
+/// `enabled = false`, the executor short-circuits all decision sends
+/// (no channel publish, no allocation) so power users who don't want
+/// the replay log can opt out. Defaults to ON.
+Future<void> apiSequencerSetDecisionLoggingEnabled({required bool enabled}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerSetDecisionLoggingEnabled(
+        enabled: enabled);
+
+/// Wave 8 Replay Debug — readback for the runtime toggle.
+Future<bool> apiSequencerGetDecisionLoggingEnabled() => RustLib.instance.api
+    .crateApiSequencerApiSequencerGetDecisionLoggingEnabled();
+
+/// Push the latest composite sky-conditions score to the executor. All
+/// fields are optional because the Dart composer may not have every axis
+/// (e.g. no weather station => `wind_score = None`); the score itself
+/// is computed by Dart from the available axes using
+/// [`ConditionsScoreWeights`].
+///
+/// Pass `score = None` to clear the slot (telemetry lost — the
+/// scheduler then falls back to the ordinary ranking).
+Future<void> apiSequencerUpdateConditionsScore(
+        {double? score,
+        double? transparencyScore,
+        double? seeingScore,
+        double? cloudScore,
+        double? windScore,
+        required double transparencyWeight,
+        required double seeingWeight,
+        required double cloudWeight,
+        required double windWeight,
+        required PlatformInt64 generatedUnixSecs}) =>
+    RustLib.instance.api.crateApiSequencerApiSequencerUpdateConditionsScore(
+        score: score,
+        transparencyScore: transparencyScore,
+        seeingScore: seeingScore,
+        cloudScore: cloudScore,
+        windScore: windScore,
+        transparencyWeight: transparencyWeight,
+        seeingWeight: seeingWeight,
+        cloudWeight: cloudWeight,
+        windWeight: windWeight,
+        generatedUnixSecs: generatedUnixSecs);
+
+/// JSON-serialised snapshot of the live conditions score + adaptive
+/// swap accounting (last swap timestamp, current tier, hysteresis
+/// countdown info) for the Run Dashboard "Adaptive Conditions" panel.
+/// Returns `Ok(None)` when no telemetry has been pushed since startup.
+Future<String?> apiSequencerGetAdaptiveSwapJson() =>
+    RustLib.instance.api.crateApiSequencerApiSequencerGetAdaptiveSwapJson();
+
 /// Checkpoint info returned to Dart
 class CheckpointInfoApi {
   final String sequenceName;
@@ -544,6 +857,87 @@ class CheckpointInfoApi {
           completedIntegrationSecs == other.completedIntegrationSecs &&
           canResume == other.canResume &&
           ageSeconds == other.ageSeconds;
+}
+
+/// Mirror of the active broadcast session exposed to Dart. Fields are
+/// flattened so FRB does not have to bridge the Rust `BroadcastSession`
+/// struct directly (the `chrono::DateTime` field would not bridge
+/// cleanly).
+class LiveStackingBroadcastSnapshot {
+  /// Node id of the LiveStacking node that armed the broadcast.
+  final String nodeId;
+
+  /// `broadcast_only` or `record_and_broadcast`.
+  final String mode;
+
+  /// `average`, `median_rej`, or `sigma`.
+  final String stackMethod;
+  final bool broadcastEnabled;
+  final int broadcastPort;
+  final String broadcastPath;
+
+  /// Empty string when public (no token required). Non-empty when
+  /// `?token=…` is required on every broadcast endpoint.
+  final String authToken;
+
+  /// Empty string when no watermark configured. The Dart side does the
+  /// variable-interpolation render against the live `${target}` /
+  /// `${integration.hms}` context — Rust only carries the raw template.
+  final String watermarkTemplate;
+  final int thumbnailWidth;
+  final int thumbnailHeight;
+  final int maxFramesToStack;
+
+  /// Unix epoch milliseconds the broadcast was armed at.
+  final PlatformInt64 activatedAtUnixMillis;
+
+  const LiveStackingBroadcastSnapshot({
+    required this.nodeId,
+    required this.mode,
+    required this.stackMethod,
+    required this.broadcastEnabled,
+    required this.broadcastPort,
+    required this.broadcastPath,
+    required this.authToken,
+    required this.watermarkTemplate,
+    required this.thumbnailWidth,
+    required this.thumbnailHeight,
+    required this.maxFramesToStack,
+    required this.activatedAtUnixMillis,
+  });
+
+  @override
+  int get hashCode =>
+      nodeId.hashCode ^
+      mode.hashCode ^
+      stackMethod.hashCode ^
+      broadcastEnabled.hashCode ^
+      broadcastPort.hashCode ^
+      broadcastPath.hashCode ^
+      authToken.hashCode ^
+      watermarkTemplate.hashCode ^
+      thumbnailWidth.hashCode ^
+      thumbnailHeight.hashCode ^
+      maxFramesToStack.hashCode ^
+      activatedAtUnixMillis.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LiveStackingBroadcastSnapshot &&
+          runtimeType == other.runtimeType &&
+          nodeId == other.nodeId &&
+          mode == other.mode &&
+          stackMethod == other.stackMethod &&
+          broadcastEnabled == other.broadcastEnabled &&
+          broadcastPort == other.broadcastPort &&
+          broadcastPath == other.broadcastPath &&
+          authToken == other.authToken &&
+          watermarkTemplate == other.watermarkTemplate &&
+          thumbnailWidth == other.thumbnailWidth &&
+          thumbnailHeight == other.thumbnailHeight &&
+          maxFramesToStack == other.maxFramesToStack &&
+          activatedAtUnixMillis == other.activatedAtUnixMillis;
 }
 
 /// Result structure for mosaic panel calculations (FFI-safe)
@@ -620,6 +1014,45 @@ class NodeDefinitionApi {
           enabled == other.enabled &&
           children == other.children &&
           configJson == other.configJson;
+}
+
+/// User-tunable recovery defaults pushed from the Settings > Recovery Mode
+/// page. Field-for-field mirror of
+/// `nightshade_sequencer::recovery::RecoveryRuntimeConfig` so the FRB wire
+/// shape stays stable across regen cycles.
+class RecoveryConfigUpdate {
+  final double retryIntervalSecs;
+  final double maxDurationSecs;
+  final bool stopTrackingDuringRecovery;
+  final bool abortOnMeridian;
+  final bool audibleAlertWhenEntered;
+
+  const RecoveryConfigUpdate({
+    required this.retryIntervalSecs,
+    required this.maxDurationSecs,
+    required this.stopTrackingDuringRecovery,
+    required this.abortOnMeridian,
+    required this.audibleAlertWhenEntered,
+  });
+
+  @override
+  int get hashCode =>
+      retryIntervalSecs.hashCode ^
+      maxDurationSecs.hashCode ^
+      stopTrackingDuringRecovery.hashCode ^
+      abortOnMeridian.hashCode ^
+      audibleAlertWhenEntered.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RecoveryConfigUpdate &&
+          runtimeType == other.runtimeType &&
+          retryIntervalSecs == other.retryIntervalSecs &&
+          maxDurationSecs == other.maxDurationSecs &&
+          stopTrackingDuringRecovery == other.stopTrackingDuringRecovery &&
+          abortOnMeridian == other.abortOnMeridian &&
+          audibleAlertWhenEntered == other.audibleAlertWhenEntered;
 }
 
 /// Sequence definition for Flutter

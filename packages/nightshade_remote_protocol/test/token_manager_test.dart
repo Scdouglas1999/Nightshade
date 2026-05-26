@@ -9,6 +9,13 @@ class FakePairedDevicesCompanion extends Fake
     implements PairedDevicesCompanion {}
 
 void main() {
+  // mocktail requires non-primitive matcher fallbacks be registered up front
+  // so `any()` / `any(named: ...)` for these types is safe in stubs and
+  // verifications across the entire test file.
+  setUpAll(() {
+    registerFallbackValue(DateTime(2025, 1, 1));
+  });
+
   group('TokenManager', () {
     late MockPairingDatabase mockDb;
     late TokenManager tokenManager;
@@ -127,6 +134,16 @@ void main() {
 
     group('revokeDevice', () {
       test('delegates to database revokeDevice', () async {
+        // P0-10: revokeDevice now also reads the device row first so it can
+        // surface the session token to the revocation listener. Stub the
+        // read with a non-null device so the path executes both sides.
+        when(() => mockDb.getPairedDevice('dev-1')).thenAnswer(
+          (_) async => _fakePairedDevice(
+            deviceId: 'dev-1',
+            sessionToken: 'aabbccdd' * 8,
+            isActive: true,
+          ),
+        );
         when(() => mockDb.revokeDevice('dev-1')).thenAnswer((_) async {});
 
         await tokenManager.revokeDevice('dev-1');
@@ -233,6 +250,7 @@ void main() {
             deviceName: 'Test Phone',
             sessionToken: '11223344' * 8,
             deviceType: 'mobile',
+            expiresAt: any(named: 'expiresAt'),
           ),
         ).thenAnswer((_) async {});
         when(() => mockDb.deleteUsedPairingSessions()).thenAnswer((_) async {});
@@ -252,8 +270,187 @@ void main() {
             deviceName: 'Test Phone',
             sessionToken: '11223344' * 8,
             deviceType: 'mobile',
+            expiresAt: any(named: 'expiresAt'),
           ),
         ).called(1);
+      });
+    });
+
+    group('verifySessionToken (P0-10 expiry)', () {
+      test('returns expired when device token is past its expires_at',
+          () async {
+        final past = DateTime.now().subtract(const Duration(minutes: 1));
+        final device = _fakePairedDevice(
+          deviceId: 'device-expired',
+          sessionToken: 'aabbccdd' * 8,
+          isActive: true,
+          expiresAt: past,
+        );
+
+        when(() => mockDb.getPairedDevice('device-expired'))
+            .thenAnswer((_) async => device);
+
+        final result = await tokenManager.verifySessionToken(
+          deviceId: 'device-expired',
+          token: 'aabbccdd' * 8,
+        );
+
+        expect(result, equals(TokenVerificationResult.expired));
+        // No DB write should have happened — expired tokens must not bump
+        // last_connected_at because they cannot be honoured.
+        verifyNever(() => mockDb.updateLastConnected(any()));
+      });
+
+      test('returns valid when expires_at is in the future', () async {
+        final future = DateTime.now().add(const Duration(hours: 1));
+        final device = _fakePairedDevice(
+          deviceId: 'device-unexpired',
+          sessionToken: 'aabbccdd' * 8,
+          isActive: true,
+          expiresAt: future,
+        );
+
+        when(() => mockDb.getPairedDevice('device-unexpired'))
+            .thenAnswer((_) async => device);
+        when(() => mockDb.updateLastConnected('device-unexpired'))
+            .thenAnswer((_) async {});
+
+        final result = await tokenManager.verifySessionToken(
+          deviceId: 'device-unexpired',
+          token: 'aabbccdd' * 8,
+        );
+
+        expect(result, equals(TokenVerificationResult.valid));
+      });
+
+      test('treats null expires_at as no expiry (backward compat)', () async {
+        final device = _fakePairedDevice(
+          deviceId: 'device-legacy',
+          sessionToken: 'aabbccdd' * 8,
+          isActive: true,
+          expiresAt: null,
+        );
+
+        when(() => mockDb.getPairedDevice('device-legacy'))
+            .thenAnswer((_) async => device);
+        when(() => mockDb.updateLastConnected('device-legacy'))
+            .thenAnswer((_) async {});
+
+        final result = await tokenManager.verifySessionToken(
+          deviceId: 'device-legacy',
+          token: 'aabbccdd' * 8,
+        );
+
+        expect(result, equals(TokenVerificationResult.valid));
+      });
+
+      test('expired path invokes the revocation listener', () async {
+        final past = DateTime.now().subtract(const Duration(minutes: 1));
+        final device = _fakePairedDevice(
+          deviceId: 'device-expired-listener',
+          sessionToken: 'eeeeeeee' * 8,
+          isActive: true,
+          expiresAt: past,
+        );
+
+        when(() => mockDb.getPairedDevice('device-expired-listener'))
+            .thenAnswer((_) async => device);
+
+        String? evicted;
+        tokenManager.setRevocationListener((token) => evicted = token);
+
+        final result = await tokenManager.verifySessionToken(
+          deviceId: 'device-expired-listener',
+          token: 'eeeeeeee' * 8,
+        );
+
+        expect(result, equals(TokenVerificationResult.expired));
+        expect(evicted, equals('eeeeeeee' * 8));
+      });
+    });
+
+    group('revokeDevice (P0-10 propagation)', () {
+      test('invokes the revocation listener with the session token', () async {
+        final device = _fakePairedDevice(
+          deviceId: 'dev-revoked',
+          sessionToken: 'ffffffff' * 8,
+          isActive: true,
+        );
+
+        when(() => mockDb.getPairedDevice('dev-revoked'))
+            .thenAnswer((_) async => device);
+        when(() => mockDb.revokeDevice('dev-revoked'))
+            .thenAnswer((_) async {});
+
+        String? evicted;
+        tokenManager.setRevocationListener((token) => evicted = token);
+
+        await tokenManager.revokeDevice('dev-revoked');
+
+        expect(evicted, equals('ffffffff' * 8));
+        verify(() => mockDb.revokeDevice('dev-revoked')).called(1);
+      });
+
+      test('is a no-op for an unknown device id (no listener call)',
+          () async {
+        when(() => mockDb.getPairedDevice('nope'))
+            .thenAnswer((_) async => null);
+        when(() => mockDb.revokeDevice('nope')).thenAnswer((_) async {});
+
+        var called = false;
+        tokenManager.setRevocationListener((_) => called = true);
+
+        await tokenManager.revokeDevice('nope');
+
+        expect(called, isFalse);
+      });
+    });
+
+    group('purgeExpiredAndRevokedSessions', () {
+      test('separates expired and revoked rows and notifies listener',
+          () async {
+        final past = DateTime.now().subtract(const Duration(minutes: 1));
+        final expiredDevice = _fakePairedDevice(
+          deviceId: 'dev-expired',
+          sessionToken: 'expiredtok' * 6 + 'abcd',
+          isActive: true,
+          expiresAt: past,
+        );
+        final revokedDevice = _fakePairedDevice(
+          deviceId: 'dev-revoked-sweep',
+          sessionToken: 'revokedtok' * 6 + 'abcd',
+          isActive: false,
+          expiresAt: null,
+        );
+
+        when(() => mockDb.getExpiredOrRevokedDevices(any()))
+            .thenAnswer((_) async => [expiredDevice, revokedDevice]);
+        when(() => mockDb.deleteExpiredPairedDevices(any()))
+            .thenAnswer((_) async {});
+
+        final evicted = <String>[];
+        tokenManager.setRevocationListener(evicted.add);
+
+        final result = await tokenManager.purgeExpiredAndRevokedSessions();
+
+        expect(result.expiredTokens, equals([expiredDevice.sessionToken]));
+        expect(result.revokedTokens, equals([revokedDevice.sessionToken]));
+        expect(
+          evicted,
+          containsAll([expiredDevice.sessionToken, revokedDevice.sessionToken]),
+        );
+        // Expired rows must be hard-deleted; revoked rows retained for audit.
+        verify(() => mockDb.deleteExpiredPairedDevices(any())).called(1);
+      });
+
+      test('no-op when nothing matches', () async {
+        when(() => mockDb.getExpiredOrRevokedDevices(any()))
+            .thenAnswer((_) async => []);
+
+        final result = await tokenManager.purgeExpiredAndRevokedSessions();
+
+        expect(result.isEmpty, isTrue);
+        verifyNever(() => mockDb.deleteExpiredPairedDevices(any()));
       });
     });
   });
@@ -265,6 +462,7 @@ PairedDevice _fakePairedDevice({
   required String deviceId,
   required String sessionToken,
   required bool isActive,
+  DateTime? expiresAt,
 }) {
   return PairedDevice(
     deviceId: deviceId,
@@ -274,6 +472,7 @@ PairedDevice _fakePairedDevice({
     lastConnectedAt: null,
     deviceType: 'mobile',
     isActive: isActive,
+    expiresAt: expiresAt,
   );
 }
 

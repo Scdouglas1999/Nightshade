@@ -7,12 +7,7 @@ enum ButtonVariant { primary, outline, ghost, destructive }
 
 enum ButtonSize { small, medium, large }
 
-/// A button matching the Nightshade visual-polish design doc
-/// (`docs/plans/2026-01-07-ui-visual-polish-design.md`, §3 Button Hierarchy).
-///
-/// Filled variants (primary/destructive) use a vertical
-/// `LinearGradient(primary.lighten(5) → primary)` for depth, a soft accent
-/// glow on hover, and a flat darkened press state.
+/// Solid-fill button with subtle borders and pressed darkening.
 class NightshadeButton extends StatefulWidget {
   final String label;
   final IconData? icon;
@@ -62,9 +57,6 @@ class _NightshadeButtonState extends State<NightshadeButton>
     super.dispose();
   }
 
-  // Hover/press setState calls run synchronously: MouseRegion and
-  // GestureDetector callbacks fire outside the build phase, so the
-  // post-frame indirection we used to do here just added a frame of lag.
   void _setHovered(bool value) {
     if (!mounted || _isHovered == value) return;
     setState(() => _isHovered = value);
@@ -119,8 +111,6 @@ class _NightshadeButtonState extends State<NightshadeButton>
     };
   }
 
-  /// Lighten via HSL — the design doc's `primary.lighten(5)` shorthand.
-  /// `amount` is a fractional lightness delta (0.05 = "+5").
   Color _lightenColor(Color color, double amount) {
     final hsl = HSLColor.fromColor(color);
     return hsl
@@ -138,32 +128,36 @@ class _NightshadeButtonState extends State<NightshadeButton>
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final colorScheme = theme.colorScheme;
     final isDisabled = widget.onPressed == null || widget.isLoading;
 
     final Color foregroundColor;
     final Color borderColor;
     Color? flatColor;
-    Gradient? gradient;
-    List<BoxShadow>? boxShadow;
 
     switch (widget.variant) {
       case ButtonVariant.primary:
-        (flatColor, gradient, foregroundColor, borderColor, boxShadow) =
-            _buildFilled(colors.primary, colors, colorScheme.onPrimary,
-                isDisabled: isDisabled);
+        (flatColor, foregroundColor, borderColor) = _buildFilled(
+          colors.primary,
+          colors,
+          colorScheme.onPrimary,
+          isDisabled: isDisabled,
+        );
       case ButtonVariant.destructive:
-        (flatColor, gradient, foregroundColor, borderColor, boxShadow) =
-            _buildFilled(colors.error, colors, colorScheme.onError,
-                isDisabled: isDisabled);
+        (flatColor, foregroundColor, borderColor) = _buildFilled(
+          colors.error,
+          colors,
+          colorScheme.onError,
+          isDisabled: isDisabled,
+        );
       case ButtonVariant.outline:
         flatColor = _isHovered && !isDisabled
             ? colors.primary.withValues(alpha: 0.08)
             : Colors.transparent;
         foregroundColor = isDisabled ? colors.textMuted : colors.textPrimary;
         borderColor = _isHovered && !isDisabled
-            ? colors.primary.withValues(alpha: 0.5)
+            ? colors.primary.withValues(alpha: 0.45)
             : colors.border;
       case ButtonVariant.ghost:
         flatColor = _isHovered && !isDisabled
@@ -203,11 +197,9 @@ class _NightshadeButtonState extends State<NightshadeButton>
               duration: NightshadeTokens.durationQuick,
               curve: NightshadeTokens.curveSnappy,
               decoration: BoxDecoration(
-                color: gradient == null ? flatColor : null,
-                gradient: gradient,
+                color: flatColor,
                 borderRadius: NightshadeTokens.borderRadiusSm,
                 border: Border.all(color: borderColor),
-                boxShadow: boxShadow,
               ),
               child: Padding(
                 padding: _padding,
@@ -248,49 +240,21 @@ class _NightshadeButtonState extends State<NightshadeButton>
     );
   }
 
-  /// Builds the visuals for filled variants (primary, destructive) per the
-  /// visual-polish design doc:
-  ///   - default/hover: `LinearGradient(base.lighten(5) → base)` top→bottom
-  ///   - pressed: flat darkened fill, no glow (physical press feel)
-  ///   - hover: soft accent glow (alpha 0.3, blurRadius 12)
-  ///   - disabled: flat surface with muted text
-  (Color?, Gradient?, Color, Color, List<BoxShadow>?) _buildFilled(
+  (Color?, Color, Color) _buildFilled(
     Color base,
     NightshadeColors colors,
     Color onColor, {
     required bool isDisabled,
   }) {
     if (isDisabled) {
-      return (
-        colors.surfaceAlt,
-        null,
-        colors.textMuted,
-        colors.border,
-        null,
-      );
+      return (colors.surfaceAlt, colors.textMuted, colors.border);
     }
     if (_isPressed) {
-      return (
-        _darkenColor(base, 0.1),
-        null,
-        onColor,
-        Colors.transparent,
-        null,
-      );
+      return (_darkenColor(base, 0.1), onColor, _darkenColor(base, 0.15));
     }
-    final gradient = LinearGradient(
-      begin: Alignment.topCenter,
-      end: Alignment.bottomCenter,
-      colors: [_lightenColor(base, 0.05), base],
-    );
-    final glow = _isHovered
-        ? <BoxShadow>[
-            BoxShadow(
-              color: base.withValues(alpha: 0.3),
-              blurRadius: 12,
-            ),
-          ]
-        : null;
-    return (null, gradient, onColor, Colors.transparent, glow);
+    if (_isHovered) {
+      return (_lightenColor(base, 0.04), onColor, _darkenColor(base, 0.08));
+    }
+    return (base, onColor, _darkenColor(base, 0.12));
   }
 }

@@ -14,7 +14,7 @@ class ShimmerLoading extends StatefulWidget {
     required this.child,
     this.isLoading = true,
     this.duration = NightshadeTokens.durationShimmer,
-    this.useAccentTint = true,
+    this.useAccentTint = false,
   });
 
   @override
@@ -56,12 +56,11 @@ class _ShimmerLoadingState extends State<ShimmerLoading>
   }
 
   void _updateCachedColors() {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     if (widget.useAccentTint) {
-      // Subtle accent-tinted shimmer for premium feel
       _cachedColors = [
         colors.surfaceAlt,
-        Color.lerp(colors.surfaceHover, colors.primary, 0.08)!,
+        Color.lerp(colors.surfaceHover, colors.primary, 0.04)!,
         colors.surfaceAlt,
       ];
     } else {
@@ -131,7 +130,7 @@ class SkeletonBox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       width: width,
@@ -139,6 +138,9 @@ class SkeletonBox extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(borderRadius),
+        border: Border.all(
+          color: colors.border.withValues(alpha: 0.5),
+        ),
       ),
     );
   }
@@ -155,7 +157,7 @@ class SkeletonCircle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       width: size,
@@ -163,6 +165,9 @@ class SkeletonCircle extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         shape: BoxShape.circle,
+        border: Border.all(
+          color: colors.border.withValues(alpha: 0.5),
+        ),
       ),
     );
   }
@@ -185,7 +190,7 @@ class SkeletonText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     if (lines == 1) {
       return Container(

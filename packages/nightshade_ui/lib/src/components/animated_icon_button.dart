@@ -58,7 +58,7 @@ class _AnimatedIconButtonState extends State<AnimatedIconButton>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final isDisabled = widget.onPressed == null;
 
     final iconColor = isDisabled
@@ -99,14 +99,7 @@ class _AnimatedIconButtonState extends State<AnimatedIconButton>
               color: bgColor,
               borderRadius: BorderRadius.circular(8),
               border: Border.all(color: borderColor),
-              boxShadow: widget.isActive
-                  ? [
-                      BoxShadow(
-                        color: colors.primary.withValues(alpha: 0.2),
-                        blurRadius: 8,
-                      ),
-                    ]
-                  : null,
+              boxShadow: null,
             ),
             child: Icon(
               widget.icon,
@@ -147,7 +140,7 @@ class AnimatedIconButtonGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       padding: const EdgeInsets.all(4),

@@ -17,6 +17,18 @@ enum RunDashboardPanelId {
   guidingGraph,
   weatherSafety,
   triggerFeed,
+  // Wave 3 Agent 1: TargetScheduler decision feed.
+  scheduler,
+  // Wave 5 Agent 4: live cloud-motion analyzer panel (cloud cover,
+  // arrival / opening predictions, optional clear-sky direction).
+  cloudMotion,
+  // Wave 8.5: live adaptive-conditions score and target-swap state.
+  adaptiveConditions,
+  // Wave 7.5: live light-curve panel for SciencePhotometryNode runs.
+  // Self-hides when no Science Photometry frame has been emitted in
+  // the current run, so users of non-science sequences never see it
+  // clutter the dashboard even when the visibility toggle is on.
+  lightCurve,
 }
 
 /// Immutable per-panel visibility state.
@@ -170,5 +182,32 @@ const runDashboardPanelDescriptors = <RunDashboardPanelDescriptor>[
     id: RunDashboardPanelId.triggerFeed,
     label: 'Trigger feed',
     description: 'Latest executor events with timestamps',
+  ),
+  // Wave 3 Agent 1: TargetScheduler decisions + score table.
+  RunDashboardPanelDescriptor(
+    id: RunDashboardPanelId.scheduler,
+    label: 'Target scheduler',
+    description: 'Latest scheduler decision and per-target score table',
+  ),
+  // Wave 5 Agent 4: cloud-motion analyzer telemetry.
+  RunDashboardPanelDescriptor(
+    id: RunDashboardPanelId.cloudMotion,
+    label: 'Cloud motion',
+    description:
+        'Live cloud cover plus predicted arrival/opening times from the radar analyzer',
+  ),
+  // Wave 8.5: adaptive-swap score + executor state.
+  RunDashboardPanelDescriptor(
+    id: RunDashboardPanelId.adaptiveConditions,
+    label: 'Adaptive conditions',
+    description:
+        'Live conditions score, brightness tier floor, swap reason, and hysteresis',
+  ),
+  // Wave 7.5: live light-curve plot for SciencePhotometryNode runs.
+  RunDashboardPanelDescriptor(
+    id: RunDashboardPanelId.lightCurve,
+    label: 'Light curve',
+    description:
+        'Live magnitude-vs-time plot for Science Photometry bursts (auto-hidden when not in use)',
   ),
 ];

@@ -8,7 +8,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
-import '../../../utils/add_target_header_helper.dart';
+import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../../../utils/snackbar_helper.dart';
 import 'sidebar_shared_widgets.dart';
 
@@ -69,14 +69,25 @@ class InfoTab extends ConsumerWidget {
           },
           onAddToTargets: () async {
             final coords = obj.coordinates;
-            final added = await addTargetHeaderWithPrompt(
+            final visibility = ref.read(selectedObjectProvider).visibility;
+            final meta = celestialObjectMetadata(obj);
+            final target = await catalogTargetSuggestion(
+              ref: ref,
+              targetName: obj.name,
+              raHours: coords.ra,
+              decDegrees: coords.dec,
+              catalogId: meta.catalogId,
+              objectType: meta.objectType,
+              magnitude: obj.magnitude,
+              sizeArcmin: meta.sizeArcmin,
+              constellation: meta.constellation,
+              visibility: visibility,
+            );
+            if (!context.mounted) return;
+            final added = await addPlanTonightTargetToSequencer(
               context: context,
               ref: ref,
-              targetNode: TargetHeaderNode(
-                targetName: obj.name,
-                raHours: coords.ra,
-                decDegrees: coords.dec,
-              ),
+              target: target,
             );
             if (added && context.mounted) {
               context.showSuccessSnackBar('Added ${obj.name} to sequence');

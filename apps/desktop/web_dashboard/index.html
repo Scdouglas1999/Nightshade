@@ -5,9 +5,13 @@
   <!-- CSP: connect-src restricted to same origin + same-origin WebSockets only (§2.4).
        The previous "http://*:*" wildcard allowed an attacker-controlled page served
        from the dashboard origin to relay credentials to any host on the network. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'none'; frame-ancestors 'none'">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0A0C0F">
   <title>Nightshade Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
   <link rel="stylesheet" href="/dashboard/css/dashboard.css">
 </head>
 <body>
@@ -48,6 +52,21 @@
       <button id="btn-apply-token" class="btn btn-sm" aria-label="Apply token and connect">Apply</button>
     </div>
 
+    <!-- Quick navigation to major remote surfaces -->
+    <nav class="capability-nav" aria-label="Dashboard sections">
+      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-guiding">Guiding</button>
+      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-planetarium">Planetarium</button>
+      <button type="button" class="cap-nav-btn" data-scroll-panel="ops-profile-panel">Analytics</button>
+      <button type="button" class="cap-nav-btn" data-scroll-panel="panel-settings">Settings</button>
+      <button type="button" class="cap-nav-btn" data-scroll-panel="ops-seq-load-panel">Sequences</button>
+      <a id="nav-run-watch" class="cap-nav-btn cap-nav-link" href="/run-watch/">Run-Watch</a>
+    </nav>
+
+  <div id="parity-banner" class="parity-banner hidden" role="note">
+    For full GPU planetarium rendering, install the Nightshade desktop or mobile client.
+    This web dashboard covers remote control via the headless API.
+  </div>
+
     <!-- ===== Dashboard Grid ===== -->
     <div class="dashboard-grid" id="dashboard-grid">
 
@@ -83,6 +102,10 @@
           <div class="panel-stale-indicator" id="stale-camera" role="status" aria-live="polite"></div>
           <div class="image-preview-container" id="image-preview" role="img" aria-label="Most recent exposure preview">
             <div class="image-preview-placeholder">No image captured yet</div>
+            <span id="preview-badge" class="preview-badge preview-badge--loading" role="status" aria-live="polite" hidden>
+              <span class="spinner" aria-hidden="true"></span>
+              <span class="preview-badge-label">Loading HQ…</span>
+            </span>
           </div>
           <div class="image-stats" id="image-stats"></div>
           <hr class="section-divider">
@@ -510,7 +533,9 @@
             Guiding (PHD2)
           </span>
           <div class="panel-actions">
+            <button id="btn-guide-connect" class="btn btn-sm" aria-label="Connect to PHD2">Connect</button>
             <button id="btn-guide-start" class="btn btn-success btn-sm" aria-label="Start guiding">Start</button>
+            <button id="btn-guide-pause" class="btn btn-sm" aria-label="Pause or resume PHD2 guiding">Pause</button>
             <button id="btn-guide-stop" class="btn btn-danger btn-sm" aria-label="Stop guiding">Stop</button>
           </div>
         </div>
@@ -519,6 +544,11 @@
           <div class="status-row">
             <span class="status-label">Status</span>
             <span id="guide-status"><span class="badge badge-idle">disconnected</span></span>
+          </div>
+          <div class="control-row">
+            <label for="guide-dither-amount">Dither (px)</label>
+            <input id="guide-dither-amount" type="number" min="0" max="50" step="0.5" value="5" aria-label="Dither amount in pixels">
+            <button id="btn-guide-dither" class="btn btn-sm btn-primary" aria-label="Send dither command to PHD2">Dither</button>
           </div>
           <div class="guide-graph-container">
             <canvas id="guide-canvas" aria-label="Guiding RA and Dec error history"></canvas>
@@ -536,6 +566,85 @@
               <span class="guide-stat-label">Total:</span>
               <span class="guide-stat-value guide-total" id="guide-total-rms">--</span>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Planetarium (remote slew + FOV) ===== -->
+      <div class="panel" id="panel-planetarium" data-panel="planetarium">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9733;</span>
+            Planetarium
+          </span>
+          <div class="panel-actions">
+            <button id="btn-planetarium-refresh-mount" class="btn btn-sm" aria-label="Refresh mount position and FOV">Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <p class="panel-hint">Slew and FOV via the headless API. Full GPU sky view is on the desktop/mobile app.</p>
+          <div class="status-row">
+            <span class="status-label">Mount RA</span>
+            <span class="status-value" id="planetarium-mount-ra">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Mount Dec</span>
+            <span class="status-value" id="planetarium-mount-dec">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Camera FOV</span>
+            <span class="status-value" id="planetarium-fov-text">--</span>
+          </div>
+          <hr class="section-divider">
+          <div class="control-row">
+            <label for="planetarium-ra">Slew RA (h)</label>
+            <input id="planetarium-ra" type="number" step="0.0001" min="0" max="24" placeholder="hours" aria-label="Target right ascension in hours">
+          </div>
+          <div class="control-row">
+            <label for="planetarium-dec">Slew Dec (&deg;)</label>
+            <input id="planetarium-dec" type="number" step="0.0001" min="-90" max="90" placeholder="degrees" aria-label="Target declination in degrees">
+            <button id="btn-planetarium-slew" class="btn btn-sm btn-primary" aria-label="Slew mount to coordinates">Slew</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== Settings (read-only subset) ===== -->
+      <div class="panel" id="panel-settings" data-panel="settings">
+        <div class="panel-header">
+          <span class="panel-title">
+            <span class="panel-title-icon" aria-hidden="true">&#9881;</span>
+            Settings
+          </span>
+          <div class="panel-actions">
+            <button id="btn-settings-refresh" class="btn btn-sm" aria-label="Refresh settings from host">Refresh</button>
+          </div>
+        </div>
+        <div class="panel-body">
+          <p class="panel-hint">Read-only host settings. Edit on the desktop app.</p>
+          <div class="status-row">
+            <span class="status-label">Observatory</span>
+            <span class="status-value" id="settings-observatory-name">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Save path</span>
+            <span class="status-value status-message" id="settings-save-path">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Plate solver</span>
+            <span class="status-value" id="settings-plate-solver">--</span>
+          </div>
+          <hr class="section-divider">
+          <div class="status-row">
+            <span class="status-label">Latitude</span>
+            <span class="status-value" id="settings-latitude">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Longitude</span>
+            <span class="status-value" id="settings-longitude">--</span>
+          </div>
+          <div class="status-row">
+            <span class="status-label">Elevation</span>
+            <span class="status-value" id="settings-elevation">--</span>
           </div>
         </div>
       </div>
@@ -656,10 +765,7 @@
             <span class="status-value status-message" id="ops-weather-message">--</span>
           </div>
           <hr class="section-divider">
-          <!-- Telemetry rows — these will display "--" until the backend
-               exposes a /api/weather/current endpoint that reads from a
-               connected ObservingConditions / hardware weather device.
-               See TODO(W5-BACKEND-EXTEND) in api.js for the gap. -->
+          <!-- Live telemetry from GET /api/weather/current (hardware device). -->
           <div class="status-row">
             <span class="status-label">Temperature</span>
             <span class="status-value" id="ops-weather-temp">--</span>
@@ -1083,7 +1189,7 @@
         <p class="modal-body">Per-panel exposure parameters.</p>
         <div class="control-row">
           <label for="mosaic-exp-sec">Exposure (s)</label>
-          <input id="mosaic-exp-sec" type="number" min="0.1" max="3600" step="0.1" value="120" aria-label="Per-frame exposure seconds">
+          <input id="mosaic-exp-sec" type="number" min="0.1" max="3600" step="0.1" value="60" aria-label="Per-frame exposure seconds">
         </div>
         <div class="control-row">
           <label for="mosaic-exp-count">Frames / panel</label>

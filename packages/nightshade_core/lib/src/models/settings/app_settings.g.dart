@@ -70,6 +70,47 @@ _$AppSettingsImpl _$$AppSettingsImplFromJson(Map<String, dynamic> json) =>
       safetyFailMode: $enumDecodeNullable(
               _$SafetyFailModeEnumMap, json['safetyFailMode']) ??
           SafetyFailMode.failClosed,
+      enableImageGrading: json['enableImageGrading'] as bool? ?? false,
+      imageGradingHfrThresholdPx:
+          (json['imageGradingHfrThresholdPx'] as num?)?.toDouble(),
+      imageGradingHfrBaselinePercent:
+          (json['imageGradingHfrBaselinePercent'] as num?)?.toDouble(),
+      imageGradingEccentricityThreshold:
+          (json['imageGradingEccentricityThreshold'] as num?)?.toDouble(),
+      imageGradingStarCountMin:
+          (json['imageGradingStarCountMin'] as num?)?.toInt(),
+      imageGradingMaxConsecutiveRejects:
+          (json['imageGradingMaxConsecutiveRejects'] as num?)?.toInt() ?? 3,
+      imageGradingRejectFolderPath:
+          json['imageGradingRejectFolderPath'] as String?,
+      adaptiveExposureEnabled:
+          json['adaptiveExposureEnabled'] as bool? ?? false,
+      adaptiveExposureTargetSnr:
+          (json['adaptiveExposureTargetSnr'] as num?)?.toDouble() ?? 30.0,
+      adaptiveExposureReferenceMag:
+          (json['adaptiveExposureReferenceMag'] as num?)?.toDouble() ?? 21.5,
+      adaptiveExposureMinSecs:
+          (json['adaptiveExposureMinSecs'] as num?)?.toDouble() ?? 5.0,
+      adaptiveExposureMaxSecs:
+          (json['adaptiveExposureMaxSecs'] as num?)?.toDouble() ?? 600.0,
+      adaptiveExposurePerFilterEnabled:
+          (json['adaptiveExposurePerFilterEnabled'] as Map<String, dynamic>?)
+                  ?.map(
+                (k, e) => MapEntry(k, e as bool),
+              ) ??
+              const <String, bool>{},
+      adaptiveExposurePerFilterMinSecs:
+          (json['adaptiveExposurePerFilterMinSecs'] as Map<String, dynamic>?)
+                  ?.map(
+                (k, e) => MapEntry(k, (e as num).toDouble()),
+              ) ??
+              const <String, double>{},
+      adaptiveExposurePerFilterMaxSecs:
+          (json['adaptiveExposurePerFilterMaxSecs'] as Map<String, dynamic>?)
+                  ?.map(
+                (k, e) => MapEntry(k, (e as num).toDouble()),
+              ) ??
+              const <String, double>{},
     );
 
 Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
@@ -113,6 +154,26 @@ Map<String, dynamic> _$$AppSettingsImplToJson(_$AppSettingsImpl instance) =>
       'updateCheckIntervalHours': instance.updateCheckIntervalHours,
       'skippedUpdateVersion': instance.skippedUpdateVersion,
       'safetyFailMode': _$SafetyFailModeEnumMap[instance.safetyFailMode]!,
+      'enableImageGrading': instance.enableImageGrading,
+      'imageGradingHfrThresholdPx': instance.imageGradingHfrThresholdPx,
+      'imageGradingHfrBaselinePercent': instance.imageGradingHfrBaselinePercent,
+      'imageGradingEccentricityThreshold':
+          instance.imageGradingEccentricityThreshold,
+      'imageGradingStarCountMin': instance.imageGradingStarCountMin,
+      'imageGradingMaxConsecutiveRejects':
+          instance.imageGradingMaxConsecutiveRejects,
+      'imageGradingRejectFolderPath': instance.imageGradingRejectFolderPath,
+      'adaptiveExposureEnabled': instance.adaptiveExposureEnabled,
+      'adaptiveExposureTargetSnr': instance.adaptiveExposureTargetSnr,
+      'adaptiveExposureReferenceMag': instance.adaptiveExposureReferenceMag,
+      'adaptiveExposureMinSecs': instance.adaptiveExposureMinSecs,
+      'adaptiveExposureMaxSecs': instance.adaptiveExposureMaxSecs,
+      'adaptiveExposurePerFilterEnabled':
+          instance.adaptiveExposurePerFilterEnabled,
+      'adaptiveExposurePerFilterMinSecs':
+          instance.adaptiveExposurePerFilterMinSecs,
+      'adaptiveExposurePerFilterMaxSecs':
+          instance.adaptiveExposurePerFilterMaxSecs,
     };
 
 const _$SafetyFailModeEnumMap = {

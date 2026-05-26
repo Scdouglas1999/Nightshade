@@ -21,6 +21,7 @@ enum AscomFilterWheelCommand {
     GetDriverVersion(oneshot::Sender<Result<String, String>>),
     GetDriverInfo(oneshot::Sender<Result<String, String>>),
     GetSupportedActions(oneshot::Sender<Result<Vec<String>, String>>),
+    Heartbeat(oneshot::Sender<Result<(), String>>),
 }
 
 pub struct AscomFilterWheelWrapper {
@@ -166,6 +167,9 @@ impl AscomFilterWheelWrapper {
                     }
                     AscomFilterWheelCommand::GetSupportedActions(reply) => {
                         let _ = reply.send(fw.supported_actions());
+                    }
+                    AscomFilterWheelCommand::Heartbeat(reply) => {
+                        let _ = reply.send(fw.heartbeat().map_err(|e| e.to_string()));
                     }
                 }
             }
@@ -316,6 +320,15 @@ impl NativeFilterWheel for AscomFilterWheelWrapper {
 
 // Version query methods
 impl AscomFilterWheelWrapper {
+    pub async fn heartbeat(&self) -> Result<(), NativeError> {
+        let (tx, rx) = oneshot::channel();
+        self.sender
+            .send(AscomFilterWheelCommand::Heartbeat(tx))
+            .await
+            .map_err(|e| NativeError::SdkError(e.to_string()))?;
+        Self::recv_with_timeout(rx, Timeouts::property_read(), "heartbeat").await
+    }
+
     /// Get the ASCOM interface version number
     pub async fn interface_version(&self) -> Result<i32, NativeError> {
         let (tx, rx) = oneshot::channel();
@@ -446,5 +459,22 @@ mod tests {
         wrapper.connect().await.expect("connect should succeed");
         assert!(wrapper.is_connected());
         assert_eq!(wrapper.get_filter_count(), 7);
+    }
+
+    #[tokio::test]
+    async fn test_heartbeat_uses_worker_command() {
+        let wrapper = build_test_wrapper(move |cmd| {
+            if let AscomFilterWheelCommand::Heartbeat(reply) = cmd {
+                let _ = reply.send(Err("COM disconnected".to_string()));
+                return true;
+            }
+            false
+        });
+
+        let result = wrapper.heartbeat().await;
+        assert!(
+            result.is_err(),
+            "heartbeat must propagate COM read failures"
+        );
     }
 }

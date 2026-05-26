@@ -75,22 +75,31 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     final centeringStatus = ref.watch(centeringStatusProvider);
     final currentImage = ref.watch(currentImageProvider);
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     // Block back-button / Escape dismissal mid-run; the only sanctioned exit
     // while centering is the Abort button, which also stops the service.
+    final isWideLayout = _isCentering ||
+        _result != null ||
+        centeringStatus.iterationHistory.isNotEmpty;
+
     return PopScope(
       canPop: !_isCentering,
       child: Dialog(
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 300),
-          curve: Curves.easeInOut,
-          width: _isCentering || _result != null ? 900 : 600,
-          constraints: BoxConstraints(
-            maxHeight: MediaQuery.sizeOf(context).height * 0.85,
+        child: ConstrainedBox(
+          constraints: Responsive.dialogConstraints(
+            context,
+            preferredWidth: isWideLayout ? 900 : 600,
+            maxWidthPercent: 0.95,
+            maxHeightPercent: 0.85,
+            minWidth: 320,
           ),
-          padding: const EdgeInsets.all(24),
-          child: Column(
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOut,
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -216,6 +225,7 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
             ],
           ),
         ),
+        ),
       ),
     );
   }
@@ -262,7 +272,14 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
     ThemeData theme,
   ) {
     return Container(
-      constraints: const BoxConstraints(maxHeight: 400),
+      constraints: BoxConstraints(
+        maxHeight: clampPanelWidth(
+          MediaQuery.sizeOf(context).height,
+          fraction: 0.45,
+          min: 200,
+          max: 400,
+        ),
+      ),
       decoration: BoxDecoration(
         color: colors.background,
         borderRadius: BorderRadius.circular(8),
@@ -533,12 +550,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: stateColor.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.statusChip(
+        stateColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: stateColor.withValues(alpha: 0.3),
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -615,12 +629,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -689,9 +700,9 @@ class _CenteringDialogState extends ConsumerState<CenteringDialog> {
                 Container(
                   width: 22,
                   height: 22,
-                  decoration: BoxDecoration(
-                    color: color.withValues(alpha: 0.15),
-                    shape: BoxShape.circle,
+                  decoration: NightshadeDecorations.tintedBadge(
+                    color,
+                    borderRadius: BorderRadius.circular(11),
                   ),
                   child: Center(
                     child: Text(

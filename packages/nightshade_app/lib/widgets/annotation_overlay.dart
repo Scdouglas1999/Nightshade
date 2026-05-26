@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../screens/imaging/imaging_science_state.dart';
-import '../utils/add_target_header_helper.dart';
+import '../utils/plan_tonight_sequencer_helper.dart';
 import '../utils/preview_transform.dart';
 
 const _annotationOverlayTextColor = Color(0xFFFFFFFF);
@@ -886,16 +886,22 @@ class ObjectInfoTooltip extends ConsumerWidget {
     // RA stored in degrees in annotation, sequence needs hours
     final raHours = object.ra / 15.0;
 
-    final targetNode = TargetHeaderNode(
+    final target = await catalogTargetSuggestion(
+      ref: ref,
       targetName: object.commonName ?? object.name,
       raHours: raHours,
       decDegrees: object.dec,
+      catalogId: object.catalogId ?? object.name,
+      objectType: annotationObjectTypeLabel(object.type),
+      magnitude: object.magnitude,
+      sizeArcmin: object.size,
     );
 
-    final added = await addTargetHeaderWithPrompt(
+    if (!context.mounted) return;
+    final added = await addPlanTonightTargetToSequencer(
       context: context,
       ref: ref,
-      targetNode: targetNode,
+      target: target,
     );
 
     if (added && context.mounted) {
@@ -911,13 +917,15 @@ class ObjectInfoTooltip extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+
     return Container(
       constraints: const BoxConstraints(maxWidth: 280),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withValues(alpha: 0.95),
+        color: colors.surfaceOverlay.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xFF2D2D44)),
+        border: Border.all(color: colors.border),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withValues(alpha: 0.4),

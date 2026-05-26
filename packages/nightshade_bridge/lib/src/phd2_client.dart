@@ -899,12 +899,24 @@ class Phd2Event {
   });
 }
 
+String _resolvePhd2ConnectHost(String host) {
+  final normalized = host.trim().toLowerCase();
+  if (normalized.isEmpty || normalized == 'localhost' || normalized == '::1') {
+    return '127.0.0.1';
+  }
+  return host.trim();
+}
+
 /// Check if PHD2 is running (try to connect briefly)
 Future<bool> checkPhd2Running(
     {String host = 'localhost', int port = 4400}) async {
+  final connectHost = _resolvePhd2ConnectHost(host);
   try {
-    final socket =
-        await Socket.connect(host, port, timeout: const Duration(seconds: 1));
+    final socket = await Socket.connect(
+      connectHost,
+      port,
+      timeout: const Duration(seconds: 1),
+    );
     socket.destroy();
     return true;
   } catch (_) {

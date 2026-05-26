@@ -51,7 +51,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    if let Some(pos) = locked.get_number(&device_name, "ABS_ROTATOR_ANGLE", "ANGLE").await {
+                    if let Some(pos) = locked
+                        .get_number(&device_name, "ABS_ROTATOR_ANGLE", "ANGLE")
+                        .await
+                    {
                         return Ok(pos);
                     }
                 }
@@ -65,7 +68,8 @@ impl DeviceManager {
                 Err("Native rotator not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
+                Ok(sim.position)
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -114,7 +118,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_number(&device_name, "ABS_ROTATOR_ANGLE", "ANGLE", position).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_number(&device_name, "ABS_ROTATOR_ANGLE", "ANGLE", position)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI rotator not connected".to_string())
             }
@@ -126,7 +133,14 @@ impl DeviceManager {
                 Err("Native rotator not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let r = crate::api::devices::simulation::get_sim_rotator();
+                let mut r = r.write().await;
+                if !r.status.connected {
+                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                }
+                r.status.position = position;
+                r.status.mechanical_position = position;
+                Ok(())
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -171,7 +185,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "ROTATOR_ABORT_MOTION", "ABORT", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "ROTATOR_ABORT_MOTION", "ABORT", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI rotator not connected".to_string())
             }
@@ -183,7 +200,14 @@ impl DeviceManager {
                 Err("Native rotator not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let r = crate::api::devices::simulation::get_sim_rotator();
+                let mut r = r.write().await;
+                if !r.status.connected {
+                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                }
+                r.status.moving = false;
+                r.status.is_moving = false;
+                Ok(())
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -249,7 +273,17 @@ impl DeviceManager {
                 Err("Native rotator not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let r = crate::api::devices::simulation::get_sim_rotator();
+                let mut r = r.write().await;
+                if !r.status.connected {
+                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                }
+                // Sync snaps the reported PA without moving — matches the
+                // simulator path in
+                // `api::devices::simulation::api_rotator_sync_to_pa`.
+                r.status.position = position;
+                r.status.mechanical_position = position;
+                Ok(())
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -294,7 +328,9 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    return Ok(locked.is_property_busy(&device_name, "ABS_ROTATOR_ANGLE").await);
+                    return Ok(locked
+                        .is_property_busy(&device_name, "ABS_ROTATOR_ANGLE")
+                        .await);
                 }
                 Err("INDI rotator not connected".to_string())
             }
@@ -306,7 +342,8 @@ impl DeviceManager {
                 Err("Native rotator not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
+                Ok(sim.moving)
             }
             None => Err(format!("Device not found: {}", device_id)),
         }

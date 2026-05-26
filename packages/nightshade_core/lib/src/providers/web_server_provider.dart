@@ -19,6 +19,7 @@ class WebServerState {
   final bool requiresAuthentication;
   final bool dashboardAvailable;
   final String lastError;
+  final String serverFingerprint;
 
   const WebServerState({
     this.isRunning = false,
@@ -30,6 +31,7 @@ class WebServerState {
     this.requiresAuthentication = false,
     this.dashboardAvailable = false,
     this.lastError = '',
+    this.serverFingerprint = '',
   });
 
   /// The URL for accessing the web dashboard from the local machine.
@@ -49,6 +51,7 @@ class WebServerState {
     bool? requiresAuthentication,
     bool? dashboardAvailable,
     String? lastError,
+    String? serverFingerprint,
   }) {
     return WebServerState(
       isRunning: isRunning ?? this.isRunning,
@@ -61,6 +64,7 @@ class WebServerState {
           requiresAuthentication ?? this.requiresAuthentication,
       dashboardAvailable: dashboardAvailable ?? this.dashboardAvailable,
       lastError: lastError ?? this.lastError,
+      serverFingerprint: serverFingerprint ?? this.serverFingerprint,
     );
   }
 }
@@ -82,6 +86,7 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
     bool? requiresAuthentication,
     bool? dashboardAvailable,
     String? lastError,
+    String? serverFingerprint,
   }) {
     state = state.copyWith(
       isRunning: isRunning,
@@ -92,7 +97,11 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
           requiresAuthentication ?? state.requiresAuthentication,
       dashboardAvailable: dashboardAvailable ?? state.dashboardAvailable,
       lastError: lastError ?? '',
+      serverFingerprint: serverFingerprint ?? state.serverFingerprint,
     );
+    if (isRunning) {
+      unawaited(_resolveLocalIp());
+    }
   }
 
   void setStopped({

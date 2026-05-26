@@ -1,4 +1,5 @@
 import 'dart:developer' as developer;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -26,6 +27,7 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
   // We use a Set of property names to track which properties the user has
   // explicitly touched during this session.
   final Set<String> _userOverrides = {};
+  bool _isRunningTestExposure = false;
 
   @override
   void initState() {
@@ -108,11 +110,81 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
     return profile?.defaultOffset ?? widget.node.offset ?? 0;
   }
 
+  int _effectiveBinningX(EquipmentProfileModel? profile) {
+    if (_isBinningProfileDefault()) {
+      return profile?.defaultBinX ?? _binningModeToInt(widget.node.binning);
+    }
+    return _binningModeToInt(widget.node.binning);
+  }
+
+  int _effectiveBinningY(EquipmentProfileModel? profile) {
+    if (_isBinningProfileDefault()) {
+      return profile?.defaultBinY ?? _binningModeToInt(widget.node.binning);
+    }
+    return _binningModeToInt(widget.node.binning);
+  }
+
+  Future<void> _runTestExposure(EquipmentProfileModel? profile) async {
+    if (_isRunningTestExposure) return;
+
+    setState(() => _isRunningTestExposure = true);
+
+    final node = widget.node;
+    final settings = ExposureSettings(
+      exposureTime: node.durationSecs,
+      gain: _effectiveGain(profile),
+      offset: _effectiveOffset(profile),
+      binningX: _effectiveBinningX(profile),
+      binningY: _effectiveBinningY(profile),
+      filter: node.filter,
+      frameType: FrameType.snapshot,
+      fastReadout: false,
+    );
+
+    try {
+      final image = await ref.read(imagingServiceProvider).captureImage(
+            settings: settings,
+            targetName: '${node.name} test',
+          );
+
+      if (image != null) {
+        ref.read(currentImageProvider.notifier).state = image;
+        ref.read(lastImageStatsProvider.notifier).state = image.stats;
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            image == null ? 'Test exposure completed' : 'Test exposure saved',
+          ),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Test exposure failed: $error'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isRunningTestExposure = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = widget.colors;
     final node = widget.node;
     final profile = ref.watch(activeEquipmentProfileProvider);
+    final exposureContext =
+        ref.watch(smartNightExposureContextProvider).valueOrNull;
+    final exposureRecommendation =
+        exposureContext?.recommendForFilter(node.filter);
     // Trust-patch §B: belt-and-suspenders gate (parent
     // NodePropertiesPanel already wraps the editor body in AbsorbPointer
     // when running). Wrap the largest properties form in IgnorePointer
@@ -158,6 +230,26 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
               },
             ),
           ),
+
+          if (exposureRecommendation != null) ...[
+            const SizedBox(height: 8),
+            _ExposureRecommendationCard(
+              colors: colors,
+              recommendation: exposureRecommendation,
+              currentDurationSecs: node.durationSecs,
+              onApply: () {
+                final seconds = exposureRecommendation.seconds;
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(durationSecs: seconds),
+                    );
+                ref
+                    .read(sequencerDefaultsProvider.notifier)
+                    .updateExposureDefaults(
+                      duration: seconds,
+                    );
+              },
+            ),
+          ],
 
           NodePropertyField(
             colors: colors,
@@ -318,11 +410,43 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
             ),
           ),
 
+          // Wave 5 Agent 2 — sky-brightness adaptive exposure block.
+          // Off by default; expanding shows the SNR / reference / min /
+          // max controls + per-filter overrides.
+          const SizedBox(height: 12),
+          _AdaptiveExposureSection(
+            colors: colors,
+            node: node,
+            profile: profile,
+          ),
+
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _isRunningTestExposure
+                  ? null
+                  : () => _runTestExposure(profile),
+              icon: Icon(
+                _isRunningTestExposure
+                    ? LucideIcons.loader2
+                    : LucideIcons.camera,
+                size: 15,
+              ),
+              label: Text(
+                _isRunningTestExposure
+                    ? 'Running Test Exposure'
+                    : 'Run Test Exposure',
+              ),
+            ),
+          ),
+
           // Summary
+          const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              colors.primary,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Row(
@@ -483,6 +607,112 @@ class _ExposurePropertiesState extends ConsumerState<ExposureProperties> {
     if (secs < 60) return '${secs.toStringAsFixed(1)}s';
     if (secs < 3600) return '${(secs / 60).toStringAsFixed(1)}m';
     return '${(secs / 3600).toStringAsFixed(1)}h';
+  }
+}
+
+class _ExposureRecommendationCard extends StatelessWidget {
+  final NightshadeColors colors;
+  final ExposureRecommendation recommendation;
+  final double currentDurationSecs;
+  final VoidCallback onApply;
+
+  const _ExposureRecommendationCard({
+    required this.colors,
+    required this.recommendation,
+    required this.currentDurationSecs,
+    required this.onApply,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final recommended = recommendation.seconds;
+    final differs = (recommended - currentDurationSecs).abs() > 0.5;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: NightshadeDecorations.iconChip(
+        colors.primary,
+        borderRadius: BorderRadius.circular(8),
+        borderAlpha: 0.28,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.sparkles, size: 14, color: colors.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Recommended exposure',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    fontWeight: FontWeight.w600,
+                    color: colors.textPrimary,
+                  ),
+                ),
+              ),
+              TextButton.icon(
+                onPressed: differs ? onApply : null,
+                icon: Icon(
+                  LucideIcons.check,
+                  size: 13,
+                  color: differs ? colors.primary : colors.textMuted,
+                ),
+                label: Text(
+                  'Apply ${_formatSeconds(recommended)}',
+                  style: TextStyle(
+                    fontSize: Responsive.fontSize(context, 12),
+                    color: differs ? colors.primary : colors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            '${_formatSeconds(recommended)} · ${recommendation.limitingFactor}',
+            style: TextStyle(
+              fontSize: Responsive.fontSize(context, 12),
+              color: colors.textSecondary,
+            ),
+          ),
+          if (recommendation.rationale.isNotEmpty) ...[
+            const SizedBox(height: 2),
+            Text(
+              recommendation.rationale,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: Responsive.fontSize(context, 11),
+                color: colors.textMuted,
+              ),
+            ),
+          ],
+          if (recommendation.caveats.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            Text(
+              recommendation.caveats.first,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: Responsive.fontSize(context, 11),
+                color: colors.warning,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  static String _formatSeconds(double seconds) {
+    final rounded = seconds.roundToDouble();
+    if ((seconds - rounded).abs() < 0.05) {
+      return '${rounded.toInt()}s';
+    }
+    return '${seconds.toStringAsFixed(1)}s';
   }
 }
 
@@ -1219,15 +1449,13 @@ class StartGuidingProperties extends ConsumerWidget {
           label: 'Auto-select Star',
           child: SizedBox(
             height: 28,
-            child: Switch(
+            child: NightshadeSwitch(
               value: node.autoSelectStar,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
                       node.copyWith(autoSelectStar: value),
                     );
               },
-              activeColor: colors.accent,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
         ),
@@ -1337,7 +1565,7 @@ class DitherProperties extends ConsumerWidget {
           label: 'RA Only',
           child: SizedBox(
             height: 28,
-            child: Switch(
+            child: NightshadeSwitch(
               value: node.raOnly,
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
@@ -1347,8 +1575,6 @@ class DitherProperties extends ConsumerWidget {
                     .read(sequencerDefaultsProvider.notifier)
                     .updateDitherDefaults(raOnly: value);
               },
-              activeColor: colors.accent,
-              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
         ),
@@ -1414,8 +1640,8 @@ class WarmCameraProperties extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.warning.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.warning,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -1609,10 +1835,8 @@ class SlewProperties extends ConsumerWidget {
 
               return Container(
                 padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: targetGroup != null
-                      ? colors.success.withValues(alpha: 0.1)
-                      : colors.warning.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  targetGroup != null ? colors.success : colors.warning,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Row(
@@ -1659,13 +1883,49 @@ class NotificationProperties extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Wave 5 Agent 5 — pull live transport configs so we know which
+    // transports are *enabled & configured*. Showing every transport in
+    // the chip list would confuse the user with "Telegram" chips that
+    // can never actually fire because no bot token was saved.
+    final emailAsync = ref.watch(emailTransportConfigProvider);
+    final pushoverAsync = ref.watch(pushoverTransportConfigProvider);
+    final telegramAsync = ref.watch(telegramTransportConfigProvider);
+    final discordAsync = ref.watch(discordTransportConfigProvider);
+    final mqttAsync = ref.watch(mqttTransportConfigProvider);
+    final webhookAsync = ref.watch(webhookTransportConfigProvider);
+
+    bool isConfigured(NotificationTransportKind kind) {
+      switch (kind) {
+        case NotificationTransportKind.inApp:
+        case NotificationTransportKind.systemPush:
+          // Always available — no credentials required.
+          return true;
+        case NotificationTransportKind.email:
+          return emailAsync.valueOrNull?.isConfigured ?? false;
+        case NotificationTransportKind.webhookGeneric:
+          return webhookAsync.valueOrNull?.isConfigured ?? false;
+        case NotificationTransportKind.pushover:
+          return pushoverAsync.valueOrNull?.isConfigured ?? false;
+        case NotificationTransportKind.telegram:
+          return telegramAsync.valueOrNull?.isConfigured ?? false;
+        case NotificationTransportKind.discord:
+          return discordAsync.valueOrNull?.isConfigured ?? false;
+        case NotificationTransportKind.mqtt:
+          return mqttAsync.valueOrNull?.isConfigured ?? false;
+      }
+    }
+
+    final selected =
+        node.explicitTransports?.toSet() ?? <NotificationTransportKind>{};
+    final fontSize = Responsive.fontSize(context, 13);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           'Notification Settings',
           style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
+            fontSize: fontSize,
             fontWeight: FontWeight.w600,
             color: colors.textPrimary,
           ),
@@ -1673,11 +1933,11 @@ class NotificationProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         NodePropertyField(
           colors: colors,
-          label: 'Title',
+          label: 'Title (template)',
           child: NodeTextInput(
             colors: colors,
             value: node.title,
-            hint: 'Notification title',
+            hint: r'e.g. Frame ${frame} of ${target.name} done',
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(title: value),
@@ -1687,11 +1947,12 @@ class NotificationProperties extends ConsumerWidget {
         ),
         NodePropertyField(
           colors: colors,
-          label: 'Message',
+          label: 'Message (template, multi-line)',
           child: NodeTextInput(
             colors: colors,
             value: node.message,
-            hint: 'Notification message',
+            hint: r'e.g. Captured ${frame} frames at ${time.local}',
+            maxLines: 4,
             onChanged: (value) {
               ref.read(currentSequenceProvider.notifier).updateNode(
                     node.copyWith(message: value),
@@ -1725,7 +1986,160 @@ class NotificationProperties extends ConsumerWidget {
             },
           ),
         ),
+        NodePropertyField(
+          colors: colors,
+          label: 'Send via',
+          child: _TransportMultiSelect(
+            colors: colors,
+            selected: selected,
+            isConfigured: isConfigured,
+            onChanged: (next) {
+              if (next.isEmpty) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(clearExplicitTransports: true),
+                    );
+              } else {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(explicitTransports: next.toList()),
+                    );
+              }
+            },
+          ),
+        ),
+        _NotificationPreview(colors: colors, node: node),
       ],
+    );
+  }
+}
+
+/// Chip-based multi-select for NotificationTransportKind. Greyed-out
+/// chips for unconfigured transports so the user knows why their pick
+/// won't fire until they fill in the credentials. Selecting an
+/// unconfigured transport is still allowed — it just won't send until
+/// the user goes to Settings → Notifications and configures it.
+class _TransportMultiSelect extends StatelessWidget {
+  final NightshadeColors colors;
+  final Set<NotificationTransportKind> selected;
+  final bool Function(NotificationTransportKind) isConfigured;
+  final ValueChanged<Set<NotificationTransportKind>> onChanged;
+
+  const _TransportMultiSelect({
+    required this.colors,
+    required this.selected,
+    required this.isConfigured,
+    required this.onChanged,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    const all = NotificationTransportKind.values;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Empty = use the matrix\'s default for "Custom" notifications. Tick one or more to override per-node.',
+          style: TextStyle(
+            fontSize: 11,
+            color: colors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: all.map((kind) {
+            final isSelected = selected.contains(kind);
+            final configured = isConfigured(kind);
+            return FilterChip(
+              key: ValueKey('notif_transport_${kind.storageKey}'),
+              label: Text(
+                configured ? kind.label : '${kind.label} (not configured)',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: configured
+                      ? (isSelected ? colors.background : colors.textPrimary)
+                      : colors.textMuted,
+                ),
+              ),
+              selected: isSelected,
+              showCheckmark: false,
+              selectedColor: colors.primary,
+              backgroundColor: colors.surfaceAlt,
+              side: BorderSide(
+                color: configured
+                    ? colors.border
+                    : colors.warning.withValues(alpha: 0.6),
+              ),
+              onSelected: (sel) {
+                final next = Set<NotificationTransportKind>.of(selected);
+                if (sel) {
+                  next.add(kind);
+                } else {
+                  next.remove(kind);
+                }
+                onChanged(next);
+              },
+            );
+          }).toList(),
+        ),
+      ],
+    );
+  }
+}
+
+/// Renders a live preview of the rendered title/body using
+/// Wave 4 Agent 3's interpolation engine so the user can spot unknown
+/// variables before the sequence runs.
+class _NotificationPreview extends StatelessWidget {
+  final NightshadeColors colors;
+  final NotificationNode node;
+
+  const _NotificationPreview({required this.colors, required this.node});
+
+  @override
+  Widget build(BuildContext context) {
+    final title = previewInterpolation(node.title);
+    final body = previewInterpolation(node.message);
+    return Container(
+      margin: const EdgeInsets.only(top: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Preview',
+            style: TextStyle(
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              color: colors.textMuted,
+              letterSpacing: 0.4,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            title.isEmpty ? '(no title)' : title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: title.isEmpty ? colors.textMuted : colors.textPrimary,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            body.isEmpty ? '(no body)' : body,
+            style: TextStyle(
+              fontSize: 12,
+              color: body.isEmpty ? colors.textMuted : colors.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1800,8 +2214,8 @@ class ScriptProperties extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.warning.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.warning,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2106,8 +2520,8 @@ class MeridianFlipProperties extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2417,8 +2831,8 @@ class PolarAlignmentProperties extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -2521,10 +2935,10 @@ class OpenCoverProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.iconChip(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.info.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Row(
             children: [
@@ -2576,10 +2990,10 @@ class CloseCoverProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.iconChip(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.info.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Row(
             children: [
@@ -2676,10 +3090,10 @@ class CalibratorOnProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.iconChip(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.info.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Row(
             children: [
@@ -2731,10 +3145,10 @@ class CalibratorOffProperties extends ConsumerWidget {
         const SizedBox(height: 12),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.iconChip(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.info.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Row(
             children: [
@@ -2752,6 +3166,400 @@ class CalibratorOffProperties extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+// ============================================================================
+// Wave 5 Agent 2 — Sky-brightness adaptive exposure UI block for the
+// ExposureProperties panel. Off by default; expanding shows SNR / reference
+// / min / max + per-filter overrides + a live preview the user can glance
+// at to see what the next burst will actually capture at.
+// ============================================================================
+
+class _AdaptiveExposureSection extends ConsumerStatefulWidget {
+  const _AdaptiveExposureSection({
+    required this.colors,
+    required this.node,
+    required this.profile,
+  });
+
+  final NightshadeColors colors;
+  final ExposureNode node;
+  final EquipmentProfileModel? profile;
+
+  @override
+  ConsumerState<_AdaptiveExposureSection> createState() =>
+      _AdaptiveExposureSectionState();
+}
+
+class _AdaptiveExposureSectionState
+    extends ConsumerState<_AdaptiveExposureSection> {
+  AdaptiveExposureConfig get _effective =>
+      widget.node.adaptiveExposure ?? const AdaptiveExposureConfig();
+
+  /// Whether this node carries its own per-node override (vs. inheriting
+  /// the global default from settings).
+  bool get _hasOverride => widget.node.adaptiveExposure != null;
+
+  void _update(AdaptiveExposureConfig next) {
+    ref.read(currentSequenceProvider.notifier).updateNode(
+          widget.node.copyWith(adaptiveExposure: next),
+        );
+  }
+
+  void _clearOverride() {
+    ref.read(currentSequenceProvider.notifier).updateNode(
+          widget.node.copyWith(clearAdaptiveExposure: true),
+        );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = widget.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface.withValues(alpha: 0.4),
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.barChart3, size: 14, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Adaptive Exposure (sky-brightness)',
+                style: TextStyle(
+                  fontSize: Responsive.fontSize(context, 12),
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 0.4,
+                  color: colors.textPrimary,
+                ),
+              ),
+              const Spacer(),
+              Text(
+                _hasOverride ? 'Per-node' : 'Inherit',
+                style: TextStyle(fontSize: 10, color: colors.textMuted),
+              ),
+              const SizedBox(width: 6),
+              NightshadeSwitch(
+                value: _hasOverride,
+                onChanged: (v) {
+                  if (v) {
+                    _update(const AdaptiveExposureConfig());
+                  } else {
+                    _clearOverride();
+                  }
+                  setState(() {});
+                },
+              ),
+            ],
+          ),
+          if (!_hasOverride)
+            Padding(
+              padding: const EdgeInsets.only(top: 6, left: 22),
+              child: Text(
+                'Inheriting global default from Settings → Adaptive Exposure.',
+                style: TextStyle(fontSize: 11, color: colors.textMuted),
+              ),
+            ),
+          if (_hasOverride) ...[
+            const SizedBox(height: 12),
+            _buildKnobs(),
+            const SizedBox(height: 12),
+            _buildPerFilterTable(),
+            const SizedBox(height: 12),
+            _buildPreview(),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKnobs() {
+    final cfg = _effective;
+    final colors = widget.colors;
+    return Column(
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: NodePropertyField(
+                colors: colors,
+                label: 'Target SNR',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: cfg.targetSnr,
+                  min: 1,
+                  max: 1000,
+                  decimals: 0,
+                  onChanged: (v) => _update(cfg.copyWith(targetSnr: v)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: NodePropertyField(
+                colors: colors,
+                label: 'Reference (mag/arcsec²)',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: cfg.referenceSkyBrightnessMag,
+                  min: 14,
+                  max: 24,
+                  decimals: 2,
+                  onChanged: (v) =>
+                      _update(cfg.copyWith(referenceSkyBrightnessMag: v)),
+                ),
+              ),
+            ),
+          ],
+        ),
+        Row(
+          children: [
+            Expanded(
+              child: NodePropertyField(
+                colors: colors,
+                label: 'Min (s)',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: cfg.minExposureSecs,
+                  min: 0.001,
+                  max: 7200,
+                  decimals: 1,
+                  onChanged: (v) => _update(cfg.copyWith(minExposureSecs: v)),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: NodePropertyField(
+                colors: colors,
+                label: 'Max (s)',
+                child: NodeNumberInput(
+                  colors: colors,
+                  value: cfg.maxExposureSecs,
+                  min: 0.001,
+                  max: 7200,
+                  decimals: 1,
+                  onChanged: (v) => _update(cfg.copyWith(maxExposureSecs: v)),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildPerFilterTable() {
+    final cfg = _effective;
+    final colors = widget.colors;
+    final filterNames = widget.profile?.filterNames ?? const <String>[];
+    if (filterNames.isEmpty) {
+      return Padding(
+        padding: const EdgeInsets.only(top: 4),
+        child: Text(
+          'No filter wheel on active profile — adaptive applies to every '
+          'capture (mono camera assumption).',
+          style: TextStyle(fontSize: 11, color: colors.textMuted),
+        ),
+      );
+    }
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Per-filter overrides',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+          ),
+        ),
+        const SizedBox(height: 6),
+        for (final filter in filterNames)
+          _PerFilterRow(
+            colors: colors,
+            filter: filter,
+            cfg: cfg,
+            onChanged: _update,
+          ),
+      ],
+    );
+  }
+
+  Widget _buildPreview() {
+    final cfg = _effective;
+    final colors = widget.colors;
+    final tracker = ref.read(skyBrightnessTrackerProvider);
+    final liveMag = tracker.currentMagPerArcsec2();
+    final filter = widget.node.filter;
+
+    final enabled = cfg.isEnabledForFilter(filter);
+    final min = cfg.minForFilter(filter);
+    final max = cfg.maxForFilter(filter);
+    String preview;
+    Color color = colors.textPrimary;
+    if (!cfg.enabled) {
+      preview = 'Adaptive exposure is off (global enable switch).';
+      color = colors.textMuted;
+    } else if (!enabled) {
+      preview = 'Adaptive disabled for filter "${filter ?? "(none)"}". '
+          'Exposure stays at ${widget.node.durationSecs.toStringAsFixed(1)}s.';
+      color = colors.textMuted;
+    } else if (liveMag == null) {
+      preview = 'Sky brightness not yet available — exposure stays at '
+          '${widget.node.durationSecs.toStringAsFixed(1)}s until the tracker converges.';
+      color = colors.textMuted;
+    } else {
+      final ratio = math
+          .pow(10, (cfg.referenceSkyBrightnessMag - liveMag) / 2.5)
+          .toDouble();
+      final raw = widget.node.durationSecs * ratio;
+      final clamped = raw < min
+          ? min
+          : raw > max
+              ? max
+              : raw;
+      preview = 'At current sky ${liveMag.toStringAsFixed(2)} mag/arcsec², '
+          'this exposure would be ${clamped.toStringAsFixed(0)}s '
+          '(nominal ${widget.node.durationSecs.toStringAsFixed(0)}s).';
+      if (clamped == min || clamped == max) {
+        color = colors.warning;
+      } else {
+        color = colors.primary;
+      }
+    }
+
+    final outOfBounds =
+        widget.node.durationSecs < min || widget.node.durationSecs > max;
+
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: colors.background.withValues(alpha: 0.6),
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.lineChart, size: 12, color: color),
+              const SizedBox(width: 6),
+              Expanded(
+                child:
+                    Text(preview, style: TextStyle(fontSize: 11, color: color)),
+              ),
+            ],
+          ),
+          if (outOfBounds && cfg.enabled) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                Icon(LucideIcons.alertTriangle,
+                    size: 12, color: colors.warning),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    'Nominal duration (${widget.node.durationSecs.toStringAsFixed(0)}s) '
+                    'is outside the adaptive [${min.toStringAsFixed(0)}, ${max.toStringAsFixed(0)}]s '
+                    'bounds — every frame will be clamped.',
+                    style: TextStyle(fontSize: 11, color: colors.warning),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _PerFilterRow extends StatelessWidget {
+  const _PerFilterRow({
+    required this.colors,
+    required this.filter,
+    required this.cfg,
+    required this.onChanged,
+  });
+
+  final NightshadeColors colors;
+  final String filter;
+  final AdaptiveExposureConfig cfg;
+  final ValueChanged<AdaptiveExposureConfig> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled =
+        cfg.perFilterEnabled[filter] ?? cfg.perFilterEnabled.isEmpty;
+    final min = cfg.perFilterMinSecs[filter];
+    final max = cfg.perFilterMaxSecs[filter];
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 2),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(
+              filter,
+              style: TextStyle(
+                fontSize: 11,
+                color: colors.textPrimary,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          NightshadeCheckbox(
+            value: enabled,
+            onChanged: (v) {
+              final next = Map<String, bool>.from(cfg.perFilterEnabled);
+              next[filter] = v ?? false;
+              onChanged(cfg.copyWith(perFilterEnabled: next));
+            },
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: NodeNumberInput(
+              colors: colors,
+              value: min ?? cfg.minExposureSecs,
+              min: 0.001,
+              max: 7200,
+              decimals: 1,
+              suffix: 's min',
+              onChanged: (v) {
+                final next = Map<String, double>.from(cfg.perFilterMinSecs);
+                next[filter] = v;
+                onChanged(cfg.copyWith(perFilterMinSecs: next));
+              },
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 80,
+            child: NodeNumberInput(
+              colors: colors,
+              value: max ?? cfg.maxExposureSecs,
+              min: 0.001,
+              max: 7200,
+              decimals: 1,
+              suffix: 's max',
+              onChanged: (v) {
+                final next = Map<String, double>.from(cfg.perFilterMaxSecs);
+                next[filter] = v;
+                onChanged(cfg.copyWith(perFilterMaxSecs: next));
+              },
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

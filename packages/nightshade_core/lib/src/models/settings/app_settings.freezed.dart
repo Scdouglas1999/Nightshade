@@ -244,7 +244,77 @@ mixin _$AppSettings {
   int get updateCheckIntervalHours => throw _privateConstructorUsedError;
   String get skippedUpdateVersion =>
       throw _privateConstructorUsedError; // Safety settings
-  SafetyFailMode get safetyFailMode => throw _privateConstructorUsedError;
+  SafetyFailMode get safetyFailMode =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Wave 3 Image Grading: live frame Pass/Reject thresholds. Opt-in:
+// disabled by default so existing users keep current behaviour
+// (every captured frame saved, none auto-rejected).
+// -------------------------------------------------------------------
+  /// Master switch: when false, no grading runs at all.
+  bool get enableImageGrading => throw _privateConstructorUsedError;
+
+  /// Reject if HFR exceeds this absolute pixel value. `null` => don't
+  /// apply the absolute check.
+  double? get imageGradingHfrThresholdPx => throw _privateConstructorUsedError;
+
+  /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
+  /// don't apply the baseline-relative check.
+  double? get imageGradingHfrBaselinePercent =>
+      throw _privateConstructorUsedError;
+
+  /// Reject if star eccentricity exceeds this value. `null` => don't apply.
+  double? get imageGradingEccentricityThreshold =>
+      throw _privateConstructorUsedError;
+
+  /// Reject if detected star count falls below this. `null` => don't apply.
+  int? get imageGradingStarCountMin => throw _privateConstructorUsedError;
+
+  /// Pause sequence after this many consecutive rejects (default 3).
+  int get imageGradingMaxConsecutiveRejects =>
+      throw _privateConstructorUsedError;
+
+  /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
+  /// Relative paths resolve against the run save_path; absolute paths
+  /// are used verbatim.
+  String? get imageGradingRejectFolderPath =>
+      throw _privateConstructorUsedError; // -------------------------------------------------------------------
+// Wave 5 Agent 2 — Sky-brightness adaptive exposures: global defaults.
+// Per-ExposureNode overrides still win at runtime; these are the
+// values pushed into the executor via
+// `sequencerUpdateDefaultAdaptiveExposure` when none of the active
+// nodes carry their own block.
+// -------------------------------------------------------------------
+  /// Master switch — when false, the global default adaptive-exposure
+  /// is cleared and the executor falls back to nominal duration for
+  /// any node without an explicit per-node override.
+  bool get adaptiveExposureEnabled => throw _privateConstructorUsedError;
+
+  /// Target SNR for the SNR-based scaling (informational; the live
+  /// math uses background flux ratio).
+  double get adaptiveExposureTargetSnr => throw _privateConstructorUsedError;
+
+  /// Reference sky brightness in mag/arcsec² the nominal exposure
+  /// duration was calibrated for. Dark-site default is 21.5.
+  double get adaptiveExposureReferenceMag => throw _privateConstructorUsedError;
+
+  /// Global minimum exposure clamp in seconds.
+  double get adaptiveExposureMinSecs => throw _privateConstructorUsedError;
+
+  /// Global maximum exposure clamp in seconds.
+  double get adaptiveExposureMaxSecs => throw _privateConstructorUsedError;
+
+  /// Per-filter enable map (filter name -> bool). Empty => apply
+  /// globally (matches the Rust `is_enabled_for_filter` semantics).
+  Map<String, bool> get adaptiveExposurePerFilterEnabled =>
+      throw _privateConstructorUsedError;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  Map<String, double> get adaptiveExposurePerFilterMinSecs =>
+      throw _privateConstructorUsedError;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  Map<String, double> get adaptiveExposurePerFilterMaxSecs =>
+      throw _privateConstructorUsedError;
 
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
   @JsonKey(ignore: true)
@@ -297,7 +367,22 @@ abstract class $AppSettingsCopyWith<$Res> {
       String updateChannel,
       int updateCheckIntervalHours,
       String skippedUpdateVersion,
-      SafetyFailMode safetyFailMode});
+      SafetyFailMode safetyFailMode,
+      bool enableImageGrading,
+      double? imageGradingHfrThresholdPx,
+      double? imageGradingHfrBaselinePercent,
+      double? imageGradingEccentricityThreshold,
+      int? imageGradingStarCountMin,
+      int imageGradingMaxConsecutiveRejects,
+      String? imageGradingRejectFolderPath,
+      bool adaptiveExposureEnabled,
+      double adaptiveExposureTargetSnr,
+      double adaptiveExposureReferenceMag,
+      double adaptiveExposureMinSecs,
+      double adaptiveExposureMaxSecs,
+      Map<String, bool> adaptiveExposurePerFilterEnabled,
+      Map<String, double> adaptiveExposurePerFilterMinSecs,
+      Map<String, double> adaptiveExposurePerFilterMaxSecs});
 
   $ObserverLocationCopyWith<$Res>? get location;
 }
@@ -354,6 +439,21 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
     Object? updateCheckIntervalHours = null,
     Object? skippedUpdateVersion = null,
     Object? safetyFailMode = null,
+    Object? enableImageGrading = null,
+    Object? imageGradingHfrThresholdPx = freezed,
+    Object? imageGradingHfrBaselinePercent = freezed,
+    Object? imageGradingEccentricityThreshold = freezed,
+    Object? imageGradingStarCountMin = freezed,
+    Object? imageGradingMaxConsecutiveRejects = null,
+    Object? imageGradingRejectFolderPath = freezed,
+    Object? adaptiveExposureEnabled = null,
+    Object? adaptiveExposureTargetSnr = null,
+    Object? adaptiveExposureReferenceMag = null,
+    Object? adaptiveExposureMinSecs = null,
+    Object? adaptiveExposureMaxSecs = null,
+    Object? adaptiveExposurePerFilterEnabled = null,
+    Object? adaptiveExposurePerFilterMinSecs = null,
+    Object? adaptiveExposurePerFilterMaxSecs = null,
   }) {
     return _then(_value.copyWith(
       location: freezed == location
@@ -512,6 +612,68 @@ class _$AppSettingsCopyWithImpl<$Res, $Val extends AppSettings>
           ? _value.safetyFailMode
           : safetyFailMode // ignore: cast_nullable_to_non_nullable
               as SafetyFailMode,
+      enableImageGrading: null == enableImageGrading
+          ? _value.enableImageGrading
+          : enableImageGrading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      imageGradingHfrThresholdPx: freezed == imageGradingHfrThresholdPx
+          ? _value.imageGradingHfrThresholdPx
+          : imageGradingHfrThresholdPx // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingHfrBaselinePercent: freezed == imageGradingHfrBaselinePercent
+          ? _value.imageGradingHfrBaselinePercent
+          : imageGradingHfrBaselinePercent // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingEccentricityThreshold: freezed ==
+              imageGradingEccentricityThreshold
+          ? _value.imageGradingEccentricityThreshold
+          : imageGradingEccentricityThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingStarCountMin: freezed == imageGradingStarCountMin
+          ? _value.imageGradingStarCountMin
+          : imageGradingStarCountMin // ignore: cast_nullable_to_non_nullable
+              as int?,
+      imageGradingMaxConsecutiveRejects: null ==
+              imageGradingMaxConsecutiveRejects
+          ? _value.imageGradingMaxConsecutiveRejects
+          : imageGradingMaxConsecutiveRejects // ignore: cast_nullable_to_non_nullable
+              as int,
+      imageGradingRejectFolderPath: freezed == imageGradingRejectFolderPath
+          ? _value.imageGradingRejectFolderPath
+          : imageGradingRejectFolderPath // ignore: cast_nullable_to_non_nullable
+              as String?,
+      adaptiveExposureEnabled: null == adaptiveExposureEnabled
+          ? _value.adaptiveExposureEnabled
+          : adaptiveExposureEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      adaptiveExposureTargetSnr: null == adaptiveExposureTargetSnr
+          ? _value.adaptiveExposureTargetSnr
+          : adaptiveExposureTargetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureReferenceMag: null == adaptiveExposureReferenceMag
+          ? _value.adaptiveExposureReferenceMag
+          : adaptiveExposureReferenceMag // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureMinSecs: null == adaptiveExposureMinSecs
+          ? _value.adaptiveExposureMinSecs
+          : adaptiveExposureMinSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureMaxSecs: null == adaptiveExposureMaxSecs
+          ? _value.adaptiveExposureMaxSecs
+          : adaptiveExposureMaxSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposurePerFilterEnabled: null == adaptiveExposurePerFilterEnabled
+          ? _value.adaptiveExposurePerFilterEnabled
+          : adaptiveExposurePerFilterEnabled // ignore: cast_nullable_to_non_nullable
+              as Map<String, bool>,
+      adaptiveExposurePerFilterMinSecs: null == adaptiveExposurePerFilterMinSecs
+          ? _value.adaptiveExposurePerFilterMinSecs
+          : adaptiveExposurePerFilterMinSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      adaptiveExposurePerFilterMaxSecs: null == adaptiveExposurePerFilterMaxSecs
+          ? _value.adaptiveExposurePerFilterMaxSecs
+          : adaptiveExposurePerFilterMaxSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
     ) as $Val);
   }
 
@@ -575,7 +737,22 @@ abstract class _$$AppSettingsImplCopyWith<$Res>
       String updateChannel,
       int updateCheckIntervalHours,
       String skippedUpdateVersion,
-      SafetyFailMode safetyFailMode});
+      SafetyFailMode safetyFailMode,
+      bool enableImageGrading,
+      double? imageGradingHfrThresholdPx,
+      double? imageGradingHfrBaselinePercent,
+      double? imageGradingEccentricityThreshold,
+      int? imageGradingStarCountMin,
+      int imageGradingMaxConsecutiveRejects,
+      String? imageGradingRejectFolderPath,
+      bool adaptiveExposureEnabled,
+      double adaptiveExposureTargetSnr,
+      double adaptiveExposureReferenceMag,
+      double adaptiveExposureMinSecs,
+      double adaptiveExposureMaxSecs,
+      Map<String, bool> adaptiveExposurePerFilterEnabled,
+      Map<String, double> adaptiveExposurePerFilterMinSecs,
+      Map<String, double> adaptiveExposurePerFilterMaxSecs});
 
   @override
   $ObserverLocationCopyWith<$Res>? get location;
@@ -631,6 +808,21 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
     Object? updateCheckIntervalHours = null,
     Object? skippedUpdateVersion = null,
     Object? safetyFailMode = null,
+    Object? enableImageGrading = null,
+    Object? imageGradingHfrThresholdPx = freezed,
+    Object? imageGradingHfrBaselinePercent = freezed,
+    Object? imageGradingEccentricityThreshold = freezed,
+    Object? imageGradingStarCountMin = freezed,
+    Object? imageGradingMaxConsecutiveRejects = null,
+    Object? imageGradingRejectFolderPath = freezed,
+    Object? adaptiveExposureEnabled = null,
+    Object? adaptiveExposureTargetSnr = null,
+    Object? adaptiveExposureReferenceMag = null,
+    Object? adaptiveExposureMinSecs = null,
+    Object? adaptiveExposureMaxSecs = null,
+    Object? adaptiveExposurePerFilterEnabled = null,
+    Object? adaptiveExposurePerFilterMinSecs = null,
+    Object? adaptiveExposurePerFilterMaxSecs = null,
   }) {
     return _then(_$AppSettingsImpl(
       location: freezed == location
@@ -789,6 +981,68 @@ class __$$AppSettingsImplCopyWithImpl<$Res>
           ? _value.safetyFailMode
           : safetyFailMode // ignore: cast_nullable_to_non_nullable
               as SafetyFailMode,
+      enableImageGrading: null == enableImageGrading
+          ? _value.enableImageGrading
+          : enableImageGrading // ignore: cast_nullable_to_non_nullable
+              as bool,
+      imageGradingHfrThresholdPx: freezed == imageGradingHfrThresholdPx
+          ? _value.imageGradingHfrThresholdPx
+          : imageGradingHfrThresholdPx // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingHfrBaselinePercent: freezed == imageGradingHfrBaselinePercent
+          ? _value.imageGradingHfrBaselinePercent
+          : imageGradingHfrBaselinePercent // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingEccentricityThreshold: freezed ==
+              imageGradingEccentricityThreshold
+          ? _value.imageGradingEccentricityThreshold
+          : imageGradingEccentricityThreshold // ignore: cast_nullable_to_non_nullable
+              as double?,
+      imageGradingStarCountMin: freezed == imageGradingStarCountMin
+          ? _value.imageGradingStarCountMin
+          : imageGradingStarCountMin // ignore: cast_nullable_to_non_nullable
+              as int?,
+      imageGradingMaxConsecutiveRejects: null ==
+              imageGradingMaxConsecutiveRejects
+          ? _value.imageGradingMaxConsecutiveRejects
+          : imageGradingMaxConsecutiveRejects // ignore: cast_nullable_to_non_nullable
+              as int,
+      imageGradingRejectFolderPath: freezed == imageGradingRejectFolderPath
+          ? _value.imageGradingRejectFolderPath
+          : imageGradingRejectFolderPath // ignore: cast_nullable_to_non_nullable
+              as String?,
+      adaptiveExposureEnabled: null == adaptiveExposureEnabled
+          ? _value.adaptiveExposureEnabled
+          : adaptiveExposureEnabled // ignore: cast_nullable_to_non_nullable
+              as bool,
+      adaptiveExposureTargetSnr: null == adaptiveExposureTargetSnr
+          ? _value.adaptiveExposureTargetSnr
+          : adaptiveExposureTargetSnr // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureReferenceMag: null == adaptiveExposureReferenceMag
+          ? _value.adaptiveExposureReferenceMag
+          : adaptiveExposureReferenceMag // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureMinSecs: null == adaptiveExposureMinSecs
+          ? _value.adaptiveExposureMinSecs
+          : adaptiveExposureMinSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposureMaxSecs: null == adaptiveExposureMaxSecs
+          ? _value.adaptiveExposureMaxSecs
+          : adaptiveExposureMaxSecs // ignore: cast_nullable_to_non_nullable
+              as double,
+      adaptiveExposurePerFilterEnabled: null == adaptiveExposurePerFilterEnabled
+          ? _value._adaptiveExposurePerFilterEnabled
+          : adaptiveExposurePerFilterEnabled // ignore: cast_nullable_to_non_nullable
+              as Map<String, bool>,
+      adaptiveExposurePerFilterMinSecs: null == adaptiveExposurePerFilterMinSecs
+          ? _value._adaptiveExposurePerFilterMinSecs
+          : adaptiveExposurePerFilterMinSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
+      adaptiveExposurePerFilterMaxSecs: null == adaptiveExposurePerFilterMaxSecs
+          ? _value._adaptiveExposurePerFilterMaxSecs
+          : adaptiveExposurePerFilterMaxSecs // ignore: cast_nullable_to_non_nullable
+              as Map<String, double>,
     ));
   }
 }
@@ -835,7 +1089,28 @@ class _$AppSettingsImpl implements _AppSettings {
       this.updateChannel = 'stable',
       this.updateCheckIntervalHours = 24,
       this.skippedUpdateVersion = '',
-      this.safetyFailMode = SafetyFailMode.failClosed});
+      this.safetyFailMode = SafetyFailMode.failClosed,
+      this.enableImageGrading = false,
+      this.imageGradingHfrThresholdPx,
+      this.imageGradingHfrBaselinePercent,
+      this.imageGradingEccentricityThreshold,
+      this.imageGradingStarCountMin,
+      this.imageGradingMaxConsecutiveRejects = 3,
+      this.imageGradingRejectFolderPath,
+      this.adaptiveExposureEnabled = false,
+      this.adaptiveExposureTargetSnr = 30.0,
+      this.adaptiveExposureReferenceMag = 21.5,
+      this.adaptiveExposureMinSecs = 5.0,
+      this.adaptiveExposureMaxSecs = 600.0,
+      final Map<String, bool> adaptiveExposurePerFilterEnabled =
+          const <String, bool>{},
+      final Map<String, double> adaptiveExposurePerFilterMinSecs =
+          const <String, double>{},
+      final Map<String, double> adaptiveExposurePerFilterMaxSecs =
+          const <String, double>{}})
+      : _adaptiveExposurePerFilterEnabled = adaptiveExposurePerFilterEnabled,
+        _adaptiveExposurePerFilterMinSecs = adaptiveExposurePerFilterMinSecs,
+        _adaptiveExposurePerFilterMaxSecs = adaptiveExposurePerFilterMaxSecs;
 
   factory _$AppSettingsImpl.fromJson(Map<String, dynamic> json) =>
       _$$AppSettingsImplFromJson(json);
@@ -964,10 +1239,124 @@ class _$AppSettingsImpl implements _AppSettings {
   @override
   @JsonKey()
   final SafetyFailMode safetyFailMode;
+// -------------------------------------------------------------------
+// Wave 3 Image Grading: live frame Pass/Reject thresholds. Opt-in:
+// disabled by default so existing users keep current behaviour
+// (every captured frame saved, none auto-rejected).
+// -------------------------------------------------------------------
+  /// Master switch: when false, no grading runs at all.
+  @override
+  @JsonKey()
+  final bool enableImageGrading;
+
+  /// Reject if HFR exceeds this absolute pixel value. `null` => don't
+  /// apply the absolute check.
+  @override
+  final double? imageGradingHfrThresholdPx;
+
+  /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
+  /// don't apply the baseline-relative check.
+  @override
+  final double? imageGradingHfrBaselinePercent;
+
+  /// Reject if star eccentricity exceeds this value. `null` => don't apply.
+  @override
+  final double? imageGradingEccentricityThreshold;
+
+  /// Reject if detected star count falls below this. `null` => don't apply.
+  @override
+  final int? imageGradingStarCountMin;
+
+  /// Pause sequence after this many consecutive rejects (default 3).
+  @override
+  @JsonKey()
+  final int imageGradingMaxConsecutiveRejects;
+
+  /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
+  /// Relative paths resolve against the run save_path; absolute paths
+  /// are used verbatim.
+  @override
+  final String? imageGradingRejectFolderPath;
+// -------------------------------------------------------------------
+// Wave 5 Agent 2 — Sky-brightness adaptive exposures: global defaults.
+// Per-ExposureNode overrides still win at runtime; these are the
+// values pushed into the executor via
+// `sequencerUpdateDefaultAdaptiveExposure` when none of the active
+// nodes carry their own block.
+// -------------------------------------------------------------------
+  /// Master switch — when false, the global default adaptive-exposure
+  /// is cleared and the executor falls back to nominal duration for
+  /// any node without an explicit per-node override.
+  @override
+  @JsonKey()
+  final bool adaptiveExposureEnabled;
+
+  /// Target SNR for the SNR-based scaling (informational; the live
+  /// math uses background flux ratio).
+  @override
+  @JsonKey()
+  final double adaptiveExposureTargetSnr;
+
+  /// Reference sky brightness in mag/arcsec² the nominal exposure
+  /// duration was calibrated for. Dark-site default is 21.5.
+  @override
+  @JsonKey()
+  final double adaptiveExposureReferenceMag;
+
+  /// Global minimum exposure clamp in seconds.
+  @override
+  @JsonKey()
+  final double adaptiveExposureMinSecs;
+
+  /// Global maximum exposure clamp in seconds.
+  @override
+  @JsonKey()
+  final double adaptiveExposureMaxSecs;
+
+  /// Per-filter enable map (filter name -> bool). Empty => apply
+  /// globally (matches the Rust `is_enabled_for_filter` semantics).
+  final Map<String, bool> _adaptiveExposurePerFilterEnabled;
+
+  /// Per-filter enable map (filter name -> bool). Empty => apply
+  /// globally (matches the Rust `is_enabled_for_filter` semantics).
+  @override
+  @JsonKey()
+  Map<String, bool> get adaptiveExposurePerFilterEnabled {
+    if (_adaptiveExposurePerFilterEnabled is EqualUnmodifiableMapView)
+      return _adaptiveExposurePerFilterEnabled;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_adaptiveExposurePerFilterEnabled);
+  }
+
+  /// Per-filter minimum exposure overrides (seconds).
+  final Map<String, double> _adaptiveExposurePerFilterMinSecs;
+
+  /// Per-filter minimum exposure overrides (seconds).
+  @override
+  @JsonKey()
+  Map<String, double> get adaptiveExposurePerFilterMinSecs {
+    if (_adaptiveExposurePerFilterMinSecs is EqualUnmodifiableMapView)
+      return _adaptiveExposurePerFilterMinSecs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_adaptiveExposurePerFilterMinSecs);
+  }
+
+  /// Per-filter maximum exposure overrides (seconds).
+  final Map<String, double> _adaptiveExposurePerFilterMaxSecs;
+
+  /// Per-filter maximum exposure overrides (seconds).
+  @override
+  @JsonKey()
+  Map<String, double> get adaptiveExposurePerFilterMaxSecs {
+    if (_adaptiveExposurePerFilterMaxSecs is EqualUnmodifiableMapView)
+      return _adaptiveExposurePerFilterMaxSecs;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableMapView(_adaptiveExposurePerFilterMaxSecs);
+  }
 
   @override
   String toString() {
-    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode)';
+    return 'AppSettings(location: $location, theme: $theme, language: $language, autoConnect: $autoConnect, latitude: $latitude, longitude: $longitude, elevation: $elevation, fileNamingPattern: $fileNamingPattern, meridianFlipMinutes: $meridianFlipMinutes, autoFocusEveryMinutes: $autoFocusEveryMinutes, ditherEveryFrames: $ditherEveryFrames, plateSolveTimeout: $plateSolveTimeout, plateSolveSearchRadius: $plateSolveSearchRadius, discordWebhook: $discordWebhook, pushoverKey: $pushoverKey, pushoverUser: $pushoverUser, astapPath: $astapPath, autoDiscoverOnLaunch: $autoDiscoverOnLaunch, accentColor: $accentColor, fontSize: $fontSize, uiScale: $uiScale, indiServerHost: $indiServerHost, indiServerPort: $indiServerPort, indiAutoConnect: $indiAutoConnect, alpacaServerHost: $alpacaServerHost, alpacaServerPort: $alpacaServerPort, alpacaAutoDiscover: $alpacaAutoDiscover, useNativeExecution: $useNativeExecution, useSimulationMode: $useSimulationMode, imageOutputPath: $imageOutputPath, observer: $observer, telescope: $telescope, instrument: $instrument, updateCheckEnabled: $updateCheckEnabled, updateServerUrl: $updateServerUrl, updateChannel: $updateChannel, updateCheckIntervalHours: $updateCheckIntervalHours, skippedUpdateVersion: $skippedUpdateVersion, safetyFailMode: $safetyFailMode, enableImageGrading: $enableImageGrading, imageGradingHfrThresholdPx: $imageGradingHfrThresholdPx, imageGradingHfrBaselinePercent: $imageGradingHfrBaselinePercent, imageGradingEccentricityThreshold: $imageGradingEccentricityThreshold, imageGradingStarCountMin: $imageGradingStarCountMin, imageGradingMaxConsecutiveRejects: $imageGradingMaxConsecutiveRejects, imageGradingRejectFolderPath: $imageGradingRejectFolderPath, adaptiveExposureEnabled: $adaptiveExposureEnabled, adaptiveExposureTargetSnr: $adaptiveExposureTargetSnr, adaptiveExposureReferenceMag: $adaptiveExposureReferenceMag, adaptiveExposureMinSecs: $adaptiveExposureMinSecs, adaptiveExposureMaxSecs: $adaptiveExposureMaxSecs, adaptiveExposurePerFilterEnabled: $adaptiveExposurePerFilterEnabled, adaptiveExposurePerFilterMinSecs: $adaptiveExposurePerFilterMinSecs, adaptiveExposurePerFilterMaxSecs: $adaptiveExposurePerFilterMaxSecs)';
   }
 
   @override
@@ -1045,13 +1434,33 @@ class _$AppSettingsImpl implements _AppSettings {
                 other.updateServerUrl == updateServerUrl) &&
             (identical(other.updateChannel, updateChannel) ||
                 other.updateChannel == updateChannel) &&
-            (identical(
-                    other.updateCheckIntervalHours, updateCheckIntervalHours) ||
+            (identical(other.updateCheckIntervalHours, updateCheckIntervalHours) ||
                 other.updateCheckIntervalHours == updateCheckIntervalHours) &&
             (identical(other.skippedUpdateVersion, skippedUpdateVersion) ||
                 other.skippedUpdateVersion == skippedUpdateVersion) &&
             (identical(other.safetyFailMode, safetyFailMode) ||
-                other.safetyFailMode == safetyFailMode));
+                other.safetyFailMode == safetyFailMode) &&
+            (identical(other.enableImageGrading, enableImageGrading) ||
+                other.enableImageGrading == enableImageGrading) &&
+            (identical(other.imageGradingHfrThresholdPx, imageGradingHfrThresholdPx) ||
+                other.imageGradingHfrThresholdPx ==
+                    imageGradingHfrThresholdPx) &&
+            (identical(other.imageGradingHfrBaselinePercent, imageGradingHfrBaselinePercent) ||
+                other.imageGradingHfrBaselinePercent ==
+                    imageGradingHfrBaselinePercent) &&
+            (identical(other.imageGradingEccentricityThreshold, imageGradingEccentricityThreshold) ||
+                other.imageGradingEccentricityThreshold == imageGradingEccentricityThreshold) &&
+            (identical(other.imageGradingStarCountMin, imageGradingStarCountMin) || other.imageGradingStarCountMin == imageGradingStarCountMin) &&
+            (identical(other.imageGradingMaxConsecutiveRejects, imageGradingMaxConsecutiveRejects) || other.imageGradingMaxConsecutiveRejects == imageGradingMaxConsecutiveRejects) &&
+            (identical(other.imageGradingRejectFolderPath, imageGradingRejectFolderPath) || other.imageGradingRejectFolderPath == imageGradingRejectFolderPath) &&
+            (identical(other.adaptiveExposureEnabled, adaptiveExposureEnabled) || other.adaptiveExposureEnabled == adaptiveExposureEnabled) &&
+            (identical(other.adaptiveExposureTargetSnr, adaptiveExposureTargetSnr) || other.adaptiveExposureTargetSnr == adaptiveExposureTargetSnr) &&
+            (identical(other.adaptiveExposureReferenceMag, adaptiveExposureReferenceMag) || other.adaptiveExposureReferenceMag == adaptiveExposureReferenceMag) &&
+            (identical(other.adaptiveExposureMinSecs, adaptiveExposureMinSecs) || other.adaptiveExposureMinSecs == adaptiveExposureMinSecs) &&
+            (identical(other.adaptiveExposureMaxSecs, adaptiveExposureMaxSecs) || other.adaptiveExposureMaxSecs == adaptiveExposureMaxSecs) &&
+            const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterEnabled, _adaptiveExposurePerFilterEnabled) &&
+            const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterMinSecs, _adaptiveExposurePerFilterMinSecs) &&
+            const DeepCollectionEquality().equals(other._adaptiveExposurePerFilterMaxSecs, _adaptiveExposurePerFilterMaxSecs));
   }
 
   @JsonKey(ignore: true)
@@ -1096,7 +1505,22 @@ class _$AppSettingsImpl implements _AppSettings {
         updateChannel,
         updateCheckIntervalHours,
         skippedUpdateVersion,
-        safetyFailMode
+        safetyFailMode,
+        enableImageGrading,
+        imageGradingHfrThresholdPx,
+        imageGradingHfrBaselinePercent,
+        imageGradingEccentricityThreshold,
+        imageGradingStarCountMin,
+        imageGradingMaxConsecutiveRejects,
+        imageGradingRejectFolderPath,
+        adaptiveExposureEnabled,
+        adaptiveExposureTargetSnr,
+        adaptiveExposureReferenceMag,
+        adaptiveExposureMinSecs,
+        adaptiveExposureMaxSecs,
+        const DeepCollectionEquality().hash(_adaptiveExposurePerFilterEnabled),
+        const DeepCollectionEquality().hash(_adaptiveExposurePerFilterMinSecs),
+        const DeepCollectionEquality().hash(_adaptiveExposurePerFilterMaxSecs)
       ]);
 
   @JsonKey(ignore: true)
@@ -1115,45 +1539,61 @@ class _$AppSettingsImpl implements _AppSettings {
 
 abstract class _AppSettings implements AppSettings {
   const factory _AppSettings(
-      {final ObserverLocation? location,
-      final String theme,
-      final String language,
-      final bool autoConnect,
-      final double latitude,
-      final double longitude,
-      final double elevation,
-      final String fileNamingPattern,
-      final int meridianFlipMinutes,
-      final int autoFocusEveryMinutes,
-      final int ditherEveryFrames,
-      final int plateSolveTimeout,
-      final double plateSolveSearchRadius,
-      final String discordWebhook,
-      final String pushoverKey,
-      final String pushoverUser,
-      final String astapPath,
-      final bool autoDiscoverOnLaunch,
-      final String accentColor,
-      final String fontSize,
-      final String uiScale,
-      final String indiServerHost,
-      final int indiServerPort,
-      final bool indiAutoConnect,
-      final String alpacaServerHost,
-      final int alpacaServerPort,
-      final bool alpacaAutoDiscover,
-      final bool useNativeExecution,
-      final bool useSimulationMode,
-      final String imageOutputPath,
-      final String observer,
-      final String telescope,
-      final String instrument,
-      final bool updateCheckEnabled,
-      final String updateServerUrl,
-      final String updateChannel,
-      final int updateCheckIntervalHours,
-      final String skippedUpdateVersion,
-      final SafetyFailMode safetyFailMode}) = _$AppSettingsImpl;
+          {final ObserverLocation? location,
+          final String theme,
+          final String language,
+          final bool autoConnect,
+          final double latitude,
+          final double longitude,
+          final double elevation,
+          final String fileNamingPattern,
+          final int meridianFlipMinutes,
+          final int autoFocusEveryMinutes,
+          final int ditherEveryFrames,
+          final int plateSolveTimeout,
+          final double plateSolveSearchRadius,
+          final String discordWebhook,
+          final String pushoverKey,
+          final String pushoverUser,
+          final String astapPath,
+          final bool autoDiscoverOnLaunch,
+          final String accentColor,
+          final String fontSize,
+          final String uiScale,
+          final String indiServerHost,
+          final int indiServerPort,
+          final bool indiAutoConnect,
+          final String alpacaServerHost,
+          final int alpacaServerPort,
+          final bool alpacaAutoDiscover,
+          final bool useNativeExecution,
+          final bool useSimulationMode,
+          final String imageOutputPath,
+          final String observer,
+          final String telescope,
+          final String instrument,
+          final bool updateCheckEnabled,
+          final String updateServerUrl,
+          final String updateChannel,
+          final int updateCheckIntervalHours,
+          final String skippedUpdateVersion,
+          final SafetyFailMode safetyFailMode,
+          final bool enableImageGrading,
+          final double? imageGradingHfrThresholdPx,
+          final double? imageGradingHfrBaselinePercent,
+          final double? imageGradingEccentricityThreshold,
+          final int? imageGradingStarCountMin,
+          final int imageGradingMaxConsecutiveRejects,
+          final String? imageGradingRejectFolderPath,
+          final bool adaptiveExposureEnabled,
+          final double adaptiveExposureTargetSnr,
+          final double adaptiveExposureReferenceMag,
+          final double adaptiveExposureMinSecs,
+          final double adaptiveExposureMaxSecs,
+          final Map<String, bool> adaptiveExposurePerFilterEnabled,
+          final Map<String, double> adaptiveExposurePerFilterMinSecs,
+          final Map<String, double> adaptiveExposurePerFilterMaxSecs}) =
+      _$AppSettingsImpl;
 
   factory _AppSettings.fromJson(Map<String, dynamic> json) =
       _$AppSettingsImpl.fromJson;
@@ -1237,6 +1677,83 @@ abstract class _AppSettings implements AppSettings {
   String get skippedUpdateVersion;
   @override // Safety settings
   SafetyFailMode get safetyFailMode;
+  @override // -------------------------------------------------------------------
+// Wave 3 Image Grading: live frame Pass/Reject thresholds. Opt-in:
+// disabled by default so existing users keep current behaviour
+// (every captured frame saved, none auto-rejected).
+// -------------------------------------------------------------------
+  /// Master switch: when false, no grading runs at all.
+  bool get enableImageGrading;
+  @override
+
+  /// Reject if HFR exceeds this absolute pixel value. `null` => don't
+  /// apply the absolute check.
+  double? get imageGradingHfrThresholdPx;
+  @override
+
+  /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
+  /// don't apply the baseline-relative check.
+  double? get imageGradingHfrBaselinePercent;
+  @override
+
+  /// Reject if star eccentricity exceeds this value. `null` => don't apply.
+  double? get imageGradingEccentricityThreshold;
+  @override
+
+  /// Reject if detected star count falls below this. `null` => don't apply.
+  int? get imageGradingStarCountMin;
+  @override
+
+  /// Pause sequence after this many consecutive rejects (default 3).
+  int get imageGradingMaxConsecutiveRejects;
+  @override
+
+  /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
+  /// Relative paths resolve against the run save_path; absolute paths
+  /// are used verbatim.
+  String? get imageGradingRejectFolderPath;
+  @override // -------------------------------------------------------------------
+// Wave 5 Agent 2 — Sky-brightness adaptive exposures: global defaults.
+// Per-ExposureNode overrides still win at runtime; these are the
+// values pushed into the executor via
+// `sequencerUpdateDefaultAdaptiveExposure` when none of the active
+// nodes carry their own block.
+// -------------------------------------------------------------------
+  /// Master switch — when false, the global default adaptive-exposure
+  /// is cleared and the executor falls back to nominal duration for
+  /// any node without an explicit per-node override.
+  bool get adaptiveExposureEnabled;
+  @override
+
+  /// Target SNR for the SNR-based scaling (informational; the live
+  /// math uses background flux ratio).
+  double get adaptiveExposureTargetSnr;
+  @override
+
+  /// Reference sky brightness in mag/arcsec² the nominal exposure
+  /// duration was calibrated for. Dark-site default is 21.5.
+  double get adaptiveExposureReferenceMag;
+  @override
+
+  /// Global minimum exposure clamp in seconds.
+  double get adaptiveExposureMinSecs;
+  @override
+
+  /// Global maximum exposure clamp in seconds.
+  double get adaptiveExposureMaxSecs;
+  @override
+
+  /// Per-filter enable map (filter name -> bool). Empty => apply
+  /// globally (matches the Rust `is_enabled_for_filter` semantics).
+  Map<String, bool> get adaptiveExposurePerFilterEnabled;
+  @override
+
+  /// Per-filter minimum exposure overrides (seconds).
+  Map<String, double> get adaptiveExposurePerFilterMinSecs;
+  @override
+
+  /// Per-filter maximum exposure overrides (seconds).
+  Map<String, double> get adaptiveExposurePerFilterMaxSecs;
   @override
   @JsonKey(ignore: true)
   _$$AppSettingsImplCopyWith<_$AppSettingsImpl> get copyWith =>

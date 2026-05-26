@@ -20,9 +20,15 @@ class SequenceActionService {
   SequenceExecutor get _executor => _ref.read(sequenceExecutorProvider);
 
   /// Starts the sequence.
+  ///
+  /// Audit C3 — `_executor.start()` is async (full pre-flight validation
+  /// including async disk-space). The previous `_executor.start();`
+  /// without `await` returned `ok` before validation completed, swallowing
+  /// any [SequenceValidationException]. Awaiting it surfaces all
+  /// validation errors via the failure path.
   Future<CommandActionResult> start() async {
     try {
-      _executor.start();
+      await _executor.start();
       return CommandActionResult.ok;
     } catch (e) {
       return CommandActionResult.failure('Failed to start sequence: $e');
@@ -50,9 +56,15 @@ class SequenceActionService {
   }
 
   /// Stops the sequence.
-  Future<CommandActionResult> stop() async {
+  ///
+  /// Audit C3 — user-initiated stops preserve the checkpoint by default
+  /// so the operator can resume the run later (e.g. paused last night,
+  /// stopped this morning, want to keep going tonight). Pass
+  /// `preserveCheckpoint: false` from a "discard and stop" affordance
+  /// when the user explicitly wants the checkpoint cleared.
+  Future<CommandActionResult> stop({bool preserveCheckpoint = true}) async {
     try {
-      await _executor.stop();
+      await _executor.stop(preserveCheckpoint: preserveCheckpoint);
       return CommandActionResult.ok;
     } catch (e) {
       return CommandActionResult.failure('Failed to stop sequence: $e');

@@ -22,18 +22,20 @@ import 'settings_provider.dart';
 // fire on every keystroke. The pre-flight dialog runs the full async stack
 // via [SequenceValidatorService.validate].
 //
-// The state exposed below ([LiveValidationState]) wraps a [ValidationResult]
-// and adds a debounce-aware `isValidating` flag for UI spinners.
+// The state exposed below ([LiveValidationState]) wraps a [ValidationResult].
+// It used to also carry an `isValidating` flag for a debounce spinner; no UI
+// surface ever consumed it (the pre-flight dialog tracks its own local flag),
+// so the field was removed during Wave 1.5 dead-data cleanup. The wrapper
+// stays because the per-node helpers ([worstSeverityForNode] etc.) are part
+// of the public live-validation API that the sequence tree depends on.
 
 /// Aggregated live validation state for tree-border colouring and the
 /// header counts.
 class LiveValidationState {
   final ValidationResult result;
-  final bool isValidating;
 
   const LiveValidationState({
     required this.result,
-    this.isValidating = false,
   });
 
   factory LiveValidationState.empty() => LiveValidationState(
@@ -125,13 +127,6 @@ class LiveValidationNotifier extends StateNotifier<LiveValidationState> {
         state = LiveValidationState.empty();
       }
       return;
-    }
-
-    if (mounted) {
-      state = LiveValidationState(
-        result: state.result,
-        isValidating: true,
-      );
     }
 
     // We don't grab the provider here because the notifier is itself a

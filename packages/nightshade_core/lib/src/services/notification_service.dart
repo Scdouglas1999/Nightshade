@@ -335,11 +335,11 @@ class NotificationService {
       case NotificationEvent.meridianFlip:
         return 0x3B82F6;
       case NotificationEvent.captureComplete:
-        return 0x6366F1;
+        return 0x5B9EC4;
       case NotificationEvent.autofocusComplete:
-        return 0x8B5CF6;
+        return 0x7AB8D4;
       case NotificationEvent.custom:
-        return 0x6366F1;
+        return 0x5B9EC4;
     }
   }
 

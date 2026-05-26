@@ -74,7 +74,7 @@ class NightshadeAlert extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final (bgColor, borderColor, iconColor, textColor) = _getColors(colors);
 
     final padding = compact
@@ -154,26 +154,38 @@ class NightshadeAlert extends StatelessWidget {
       NightshadeColors colors) {
     return switch (severity) {
       NightshadeAlertSeverity.info => (
-          colors.info.withValues(alpha: 0.1),
-          colors.info.withValues(alpha: 0.3),
+          Color.alphaBlend(
+            colors.info.withValues(alpha: 0.06),
+            colors.surfaceAlt,
+          ),
+          colors.info.withValues(alpha: 0.35),
           colors.info,
           colors.textPrimary,
         ),
       NightshadeAlertSeverity.success => (
-          colors.success.withValues(alpha: 0.1),
-          colors.success.withValues(alpha: 0.3),
+          Color.alphaBlend(
+            colors.success.withValues(alpha: 0.06),
+            colors.surfaceAlt,
+          ),
+          colors.success.withValues(alpha: 0.35),
           colors.success,
           colors.textPrimary,
         ),
       NightshadeAlertSeverity.warning => (
-          colors.warning.withValues(alpha: 0.1),
-          colors.warning.withValues(alpha: 0.3),
+          Color.alphaBlend(
+            colors.warning.withValues(alpha: 0.06),
+            colors.surfaceAlt,
+          ),
+          colors.warning.withValues(alpha: 0.35),
           colors.warning,
           colors.textPrimary,
         ),
       NightshadeAlertSeverity.error => (
-          colors.error.withValues(alpha: 0.1),
-          colors.error.withValues(alpha: 0.3),
+          Color.alphaBlend(
+            colors.error.withValues(alpha: 0.06),
+            colors.surfaceAlt,
+          ),
+          colors.error.withValues(alpha: 0.35),
           colors.error,
           colors.textPrimary,
         ),
@@ -207,7 +219,7 @@ class NightshadeInlineBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final color = _getColor(colors);
 
     return Row(
@@ -269,7 +281,7 @@ class NightshadeToast extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final color = _getColor(colors);
 
     return Material(
@@ -277,10 +289,10 @@ class NightshadeToast extends StatelessWidget {
       child: Container(
         constraints: const BoxConstraints(maxWidth: 400),
         decoration: BoxDecoration(
-          color: colors.surface,
+          color: colors.surfaceElevated,
           borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(color: colors.border),
-          boxShadow: NightshadeTokens.shadowLg,
+          boxShadow: NightshadeTokens.shadowMd,
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: NightshadeTokens.spaceLg,

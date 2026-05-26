@@ -2,17 +2,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../localization/nightshade_localizations.dart';
 import 'settings_widgets.dart';
 
 class GeneralSettings extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const GeneralSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,9 +18,8 @@ class GeneralSettings extends ConsumerWidget {
     final l10n = context.l10n;
 
     return settingsAsync.when(
-      loading: () => SettingsLoadingState(colors: colors, isMobile: isMobile),
+      loading: () => SettingsLoadingState(isMobile: isMobile),
       error: (error, stack) => SettingsErrorState(
-        colors: colors,
         isMobile: isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -30,13 +27,11 @@ class GeneralSettings extends ConsumerWidget {
       data: (settings) => SettingsPage(
         title: l10n.text('generalTitle'),
         description: l10n.text('generalDescription'),
-        colors: colors,
         isMobile: isMobile,
         hideHeader: isMobile,
         children: [
           SettingsSection(
             title: l10n.text('generalStartup'),
-            colors: colors,
             isMobile: isMobile,
             children: [
               SettingRow(
@@ -50,9 +45,7 @@ class GeneralSettings extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setStartMinimized(value);
                   },
-                  colors: colors,
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
               SettingRow(
@@ -66,17 +59,14 @@ class GeneralSettings extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setAutoConnectEquipment(value);
                   },
-                  colors: colors,
                 ),
                 isLast: true,
-                colors: colors,
                 isMobile: isMobile,
               ),
             ],
           ),
           SettingsSection(
             title: l10n.text('generalBehavior'),
-            colors: colors,
             isMobile: isMobile,
             children: [
               SettingRow(
@@ -96,10 +86,8 @@ class GeneralSettings extends ConsumerWidget {
                           value == l10n.text('languageSpanish') ? 'es' : 'en',
                         );
                   },
-                  colors: colors,
                   width: 150,
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
               SettingRow(
@@ -113,10 +101,8 @@ class GeneralSettings extends ConsumerWidget {
                         .read(appSettingsProvider.notifier)
                         .setConfirmBeforeClosing(value);
                   },
-                  colors: colors,
                 ),
                 isLast: true,
-                colors: colors,
                 isMobile: isMobile,
               ),
             ],

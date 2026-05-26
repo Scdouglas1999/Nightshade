@@ -5,7 +5,10 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../widgets/notes_panel.dart';
 import '../widgets/post_session_stats_dialog.dart';
+import '../widgets/replay_debug_screen.dart';
+import '../widgets/sequence_diff_dialog.dart';
 
 /// One-shot "open this run on first paint" hint for the history tab.
 ///
@@ -30,7 +33,7 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final runsAsync = ref.watch(sequenceRunsProvider);
     final openRunId = ref.watch(historyOpenRunIdProvider);
 
@@ -55,7 +58,12 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
         ParsedRunStats? stats;
         try {
           stats = ParsedRunStats.fromJson(match.statsJson);
-        } catch (_) {}
+        } on Object catch (e) {
+          // Why: legacy/corrupted statsJson should not block the rest of the
+          // history-tab open flow. We log so the user-visible "no stats"
+          // outcome is traceable to a parse error in diagnostics.
+          debugPrint('history_tab: ParsedRunStats.fromJson failed: $e');
+        }
         if (stats == null) return;
         showDialog(
           context: context,
@@ -103,7 +111,11 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
             child: runsAsync.when(
               data: (runs) {
                 if (runs.isEmpty) {
-                  return _EmptyState(colors: colors);
+                  return const EmptyState(
+                    icon: LucideIcons.history,
+                    title: 'No runs yet',
+                    body: 'Execute a sequence to see its history here.',
+                  );
                 }
                 return ListView.separated(
                   itemCount: runs.length,
@@ -113,8 +125,8 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                   },
                 );
               },
-              loading: () =>
-                  Center(child: CircularProgressIndicator(color: colors.primary)),
+              loading: () => Center(
+                  child: CircularProgressIndicator(color: colors.primary)),
               error: (err, _) => Center(
                 child: Text(
                   'Failed to load history: $err',
@@ -122,38 +134,6 @@ class _HistoryTabState extends ConsumerState<HistoryTab> {
                 ),
               ),
             ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _EmptyState({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(LucideIcons.history, size: 48, color: colors.textMuted),
-          const SizedBox(height: 16),
-          Text(
-            'No runs yet',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Execute a sequence to see its history here.',
-            style: TextStyle(fontSize: 13, color: colors.textMuted),
           ),
         ],
       ),
@@ -217,8 +197,8 @@ class _RunCard extends ConsumerWidget {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  statusColor,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(statusIcon, size: 20, color: statusColor),
@@ -241,8 +221,7 @@ class _RunCard extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       '${dateFormat.format(run.startedAt)}  |  $durationStr',
-                      style:
-                          TextStyle(fontSize: 12, color: colors.textMuted),
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
                     ),
                   ],
                 ),
@@ -261,16 +240,152 @@ class _RunCard extends ConsumerWidget {
                   icon: LucideIcons.clock,
                   label: stats.formatDuration(stats.integrationSecs),
                 ),
+                const SizedBox(width: 8),
+                // Wave 7 — Campaign rollup badge. Resolves the per-run
+                // primary target (the first key of the targetBreakdown
+                // blob) into a [CampaignRollup] via the all-targets
+                // provider. Hidden when (a) the run has no target
+                // breakdown, (b) the target has no other sessions
+                // (rollup.sessionCount <= 1), or (c) the lookup fails.
+                if (stats.targetBreakdown.isNotEmpty)
+                  _CampaignBadge(
+                    targetName: stats.targetBreakdown.keys.first,
+                  ),
               ],
 
               const SizedBox(width: 8),
 
+              // Wave 6 Agent 5 — "Diff vs previous" affordance. Opens
+              // the structural diff between the sequence backing this
+              // run and its previous run. Disabled (via tooltip-only
+              // hint) when the run has no linked sequence id; the
+              // dialog itself also guards for that case.
+              if (run.sequenceId != null)
+                IconButton(
+                  onPressed: () => SequenceDiffDialog.showForRun(
+                    context,
+                    ref,
+                    run: run,
+                  ),
+                  icon: const Icon(LucideIcons.gitCompare, size: 16),
+                  tooltip: 'Diff vs previous run',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                ),
+
+              // Wave 8 Replay Debug — open the chronological decision
+              // feed for this run. The badge surfaces the count so the
+              // user can see at a glance whether the run has any
+              // recorded decisions before opening (older runs that
+              // pre-date Wave 8 will show 0).
+              Consumer(builder: (context, ref, _) {
+                final countAsync = ref.watch(
+                  decisionCountForRunProvider(run.id),
+                );
+                final count = countAsync.maybeWhen(
+                  data: (n) => n,
+                  orElse: () => 0,
+                );
+                return IconButton(
+                  onPressed: () => ReplayDebugScreen.push(
+                    context,
+                    sequenceRunId: run.id,
+                    sequenceName: run.sequenceName,
+                    startedAt: run.startedAt,
+                    endedAt: run.endedAt,
+                  ),
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(LucideIcons.history, size: 16),
+                      if (count > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: colors.onPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  tooltip: count == 0
+                      ? 'Open replay (no decisions recorded)'
+                      : 'Open replay ($count decisions)',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                );
+              }),
+
+              // Wave 6 Agent 5 — quick "open notes" affordance keyed
+              // on this run id. Notes attached to the run from any
+              // surface (target card, session report) appear here
+              // because the underlying provider streams from a single
+              // database row set.
+              Consumer(builder: (context, ref, _) {
+                final notesAsync = ref.watch(notesForRunProvider(run.id));
+                final count = notesAsync.maybeWhen(
+                  data: (notes) => notes.length,
+                  orElse: () => 0,
+                );
+                return IconButton(
+                  onPressed: () => _openNotesForRun(context, ref, run),
+                  icon: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      const Icon(LucideIcons.bookOpen, size: 16),
+                      if (count > 0)
+                        Positioned(
+                          right: -4,
+                          top: -4,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
+                            decoration: BoxDecoration(
+                              color: colors.primary,
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Text(
+                              '$count',
+                              style: TextStyle(
+                                fontSize: 9,
+                                color: colors.onPrimary,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                  tooltip: count == 0 ? 'Add note' : 'Notes ($count)',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                );
+              }),
+
+              const SizedBox(width: 4),
+
               // Status badge
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: NightshadeDecorations.tintedBadge(
+                  statusColor,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -280,6 +395,85 @@ class _RunCard extends ConsumerWidget {
                     fontWeight: FontWeight.w600,
                     color: statusColor,
                   ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Resolve the primary target name for the run (best-effort: the
+  /// stats blob's first target breakdown key) and pop the per-run
+  /// notes drawer.
+  Future<void> _openNotesForRun(
+      BuildContext context, WidgetRef ref, SequenceRun run) async {
+    final colors = NightshadeColors.of(context);
+    String? primaryTarget;
+    try {
+      final stats = ParsedRunStats.fromJson(run.statsJson);
+      if (stats.targetBreakdown.isNotEmpty) {
+        primaryTarget = stats.targetBreakdown.keys.first;
+      }
+    } on Object catch (e) {
+      // Why: stats blob may be missing/corrupt for legacy runs — fall back to
+      // the sequence name (assigned below). Logged so the fallback isn't silent.
+      debugPrint('history_tab: notes-drawer stats parse failed: $e');
+    }
+    primaryTarget ??= run.sequenceName;
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 640,
+      designHeight: 600,
+    );
+    await showDialog<void>(
+      context: context,
+      builder: (_) => Dialog(
+        backgroundColor: colors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+          side: BorderSide(color: colors.border),
+        ),
+        child: SizedBox(
+          width: dialogSize.width,
+          height: dialogSize.height,
+          child: Column(
+            mainAxisSize: MainAxisSize.max,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: Row(
+                  children: [
+                    Icon(LucideIcons.bookOpen, size: 20, color: colors.primary),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Notes — ${run.sequenceName}',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                          color: colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    IconButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      icon: Icon(LucideIcons.x, color: colors.textMuted),
+                    ),
+                  ],
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: RunNotesSection(
+                  sequenceRunId: run.id,
+                  targetId: primaryTarget!,
+                  colors: colors,
+                  embedded: true,
                 ),
               ),
             ],
@@ -326,6 +520,63 @@ class _RunCard extends ConsumerWidget {
     if (hours > 0) return '${hours}h ${mins}m';
     if (mins > 0) return '${mins}m ${secs}s';
     return '${secs}s';
+  }
+}
+
+/// Wave 7 — Per-run campaign rollup badge.
+///
+/// Surfaces "Campaign: 6h total across 3 sessions" when the target has
+/// been imaged on more than one night. Silently hides when the target
+/// is unknown, has only one session, or the rollup lookup fails.
+class _CampaignBadge extends ConsumerWidget {
+  final String targetName;
+
+  const _CampaignBadge({required this.targetName});
+
+  String _formatHours(double seconds) {
+    final hours = seconds / 3600.0;
+    return '${hours.toStringAsFixed(1)}h';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    final rollupAsync = ref.watch(campaignRollupByNameProvider(targetName));
+    return rollupAsync.maybeWhen(
+      data: (rollup) {
+        if (rollup == null || rollup.sessionCount <= 1) {
+          return const SizedBox.shrink();
+        }
+        final total = _formatHours(rollup.totalCapturedIntegrationSecs);
+        return Tooltip(
+          message: 'Campaign: $total across ${rollup.sessionCount} sessions',
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            margin: const EdgeInsets.only(right: 4),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.primary,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(LucideIcons.layers, size: 12, color: colors.primary),
+                const SizedBox(width: 4),
+                Text(
+                  '$total / ${rollup.sessionCount}',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: colors.primary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+      orElse: () => const SizedBox.shrink(),
+    );
   }
 }
 

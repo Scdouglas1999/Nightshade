@@ -78,8 +78,8 @@ class MountControlCard extends ConsumerWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: mountState.isTracking ? colors.success.withValues(alpha: 0.1) : colors.info.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      mountState.isTracking ? colors.success : colors.info,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(
@@ -93,9 +93,10 @@ class MountControlCard extends ConsumerWidget {
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                    decoration: BoxDecoration(
-                      color: statusColor.withValues(alpha: 0.15),
+                    decoration: NightshadeDecorations.statusChip(
+                      statusColor,
                       borderRadius: BorderRadius.circular(10),
+                      bordered: false,
                     ),
                     child: Text(statusText, style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600, color: statusColor)),
                   ),

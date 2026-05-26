@@ -17,6 +17,7 @@ SessionReport _fakeReport({
   String name = 'M42 night 1',
   List<SessionTargetReport>? targets,
   List<String> errors = const [],
+  List<String> warnings = const [],
 }) {
   final t = targets ??
       [
@@ -72,6 +73,7 @@ SessionReport _fakeReport({
     avgSeeingArcsec: 2.0,
     notes: null,
     errorMessages: errors,
+    warningMessages: warnings,
     generatedAt: DateTime.utc(2026, 1, 2, 2),
   );
 }
@@ -167,8 +169,35 @@ void main() {
       _fakeReport(errors: const ['Guider lost star', 'Recovered']),
     );
 
-    expect(find.text('Errors / warnings'), findsOneWidget);
+    // Errors and Warnings are now distinct sections so the user can
+    // visually triage by severity (trust-patch §B item 7).
+    expect(find.text('Errors'), findsOneWidget);
     expect(find.text('Guider lost star'), findsOneWidget);
     expect(find.text('Recovered'), findsOneWidget);
+    // Warnings section is hidden when warningMessages is empty.
+    expect(find.text('Warnings'), findsNothing);
+  });
+
+  testWidgets('renders the warningMessages section (trust-patch §B item 7)',
+      (tester) async {
+    await _pump(
+      tester,
+      _fakeReport(
+        warnings: const [
+          'Filter "Halpha" could not be matched 14 times',
+          'Autofocus skipped: dome was closing',
+        ],
+      ),
+    );
+
+    // Pre-patch, warningMessages was dead data (collected by the
+    // executor but never rendered). The section title plus both
+    // messages must appear verbatim.
+    expect(find.text('Warnings'), findsOneWidget);
+    expect(
+      find.text('Filter "Halpha" could not be matched 14 times'),
+      findsOneWidget,
+    );
+    expect(find.text('Autofocus skipped: dome was closing'), findsOneWidget);
   });
 }

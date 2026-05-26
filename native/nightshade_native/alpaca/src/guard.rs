@@ -33,15 +33,11 @@ impl AlpacaConnectable for AlpacaCamera {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::Camera,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::Camera,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let camera = AlpacaCamera::new(&device);
                     let _ = camera.disconnect().await;
                 });
@@ -61,15 +57,11 @@ impl AlpacaConnectable for AlpacaTelescope {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::Telescope,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::Telescope,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let mount = AlpacaTelescope::new(&device);
                     let _ = mount.disconnect().await;
                 });
@@ -89,15 +81,11 @@ impl AlpacaConnectable for AlpacaFocuser {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::Focuser,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::Focuser,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let focuser = AlpacaFocuser::new(&device);
                     let _ = focuser.disconnect().await;
                 });
@@ -117,15 +105,11 @@ impl AlpacaConnectable for AlpacaFilterWheel {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::FilterWheel,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::FilterWheel,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let fw = AlpacaFilterWheel::new(&device);
                     let _ = fw.disconnect().await;
                 });
@@ -145,15 +129,11 @@ impl AlpacaConnectable for AlpacaRotator {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::Rotator,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::Rotator,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let rotator = AlpacaRotator::new(&device);
                     let _ = rotator.disconnect().await;
                 });
@@ -173,15 +153,11 @@ impl AlpacaConnectable for AlpacaDome {
                 .build()
             {
                 rt.block_on(async {
-                    let device = crate::AlpacaDevice {
-                        device_type: crate::AlpacaDeviceType::Dome,
+                    let device = crate::AlpacaDevice::from_server(
+                        crate::AlpacaDeviceType::Dome,
+                        &base_url,
                         device_number,
-                        server_name: String::new(),
-                        manufacturer: String::new(),
-                        device_name: String::new(),
-                        unique_id: String::new(),
-                        base_url,
-                    };
+                    );
                     let dome = AlpacaDome::new(&device);
                     let _ = dome.disconnect().await;
                 });

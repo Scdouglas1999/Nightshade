@@ -7,12 +7,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'settings_widgets.dart';
 
 class DarkLibrarySettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const DarkLibrarySettings({
     super.key,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -34,14 +32,12 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
     return SettingsPage(
       title: 'Dark Library',
       description: 'Manage dark and bias calibration frames',
-      colors: widget.colors,
       isMobile: widget.isMobile,
       hideHeader: widget.isMobile,
       children: [
         // Settings section
         SettingsSection(
           title: 'Auto-Calibration',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             SettingRow(
@@ -49,9 +45,9 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               title: 'Auto dark subtraction',
               subtitle:
                   'Automatically subtract matching darks from light frames',
-              trailing: Switch(
+              trailing: SettingsSwitch(
                 value: autoSubtract,
-                onChanged: (value) {
+                  onChanged: (value) {
                   // Why: the imaging pipeline reads
                   // `calibrationSettingsProvider.autoCalibrate` to decide
                   // whether to run dark/flat/bias correction on captured
@@ -63,7 +59,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       .setAutoCalibrate(value);
                 },
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
             SettingRow(
@@ -88,7 +83,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                                 );
                           }
                         },
-                        colors: widget.colors,
                         isMobile: widget.isMobile,
                       ),
                     ),
@@ -96,14 +90,13 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     Text(
                       '\u00b0C',
                       style: TextStyle(
-                        color: widget.colors.textSecondary,
+                        color: NightshadeColors.of(context).textSecondary,
                         fontSize: 13,
                       ),
                     ),
                   ],
                 ),
               ),
-              colors: widget.colors,
               isMobile: widget.isMobile,
             ),
           ],
@@ -114,7 +107,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
         // Library statistics
         SettingsSection(
           title: 'Library Statistics',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             statsAsync.when(
@@ -125,7 +117,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Error loading stats: $e',
-                    style: TextStyle(color: widget.colors.error)),
+                    style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (stats) => Padding(
                 padding: const EdgeInsets.all(16),
@@ -135,28 +127,24 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                       label: 'Dark Frames',
                       value: '${stats.darkCount}',
                       icon: LucideIcons.moon,
-                      colors: widget.colors,
                     ),
                     const SizedBox(width: 12),
                     _StatCard(
                       label: 'Bias Frames',
                       value: '${stats.biasCount}',
                       icon: LucideIcons.zap,
-                      colors: widget.colors,
                     ),
                     const SizedBox(width: 12),
                     _StatCard(
                       label: 'Master Darks',
                       value: '${stats.masterCount}',
                       icon: LucideIcons.layers,
-                      colors: widget.colors,
                     ),
                     const SizedBox(width: 12),
                     _StatCard(
                       label: 'Total',
                       value: '${stats.totalEntries}',
                       icon: LucideIcons.database,
-                      colors: widget.colors,
                     ),
                   ],
                 ),
@@ -173,27 +161,25 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: widget.colors.primary.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                NightshadeColors.of(context).primary,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.primary.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
                   Icon(LucideIcons.info,
-                      size: 16, color: widget.colors.primary),
+                      size: 16, color: NightshadeColors.of(context).primary),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       uiState.statusMessage!,
                       style: TextStyle(
-                          color: widget.colors.textPrimary, fontSize: 13),
+                          color: NightshadeColors.of(context).textPrimary, fontSize: 13),
                     ),
                   ),
                   IconButton(
                     icon: Icon(LucideIcons.x,
-                        size: 14, color: widget.colors.textMuted),
+                        size: 14, color: NightshadeColors.of(context).textMuted),
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearStatus(),
@@ -209,27 +195,25 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
             padding: const EdgeInsets.only(bottom: 8),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: widget.colors.error.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                NightshadeColors.of(context).error,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.error.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
                   Icon(LucideIcons.alertTriangle,
-                      size: 16, color: widget.colors.error),
+                      size: 16, color: NightshadeColors.of(context).error),
                   const SizedBox(width: 8),
                   Expanded(
                     child: Text(
                       uiState.errorMessage!,
                       style: TextStyle(
-                          color: widget.colors.textPrimary, fontSize: 13),
+                          color: NightshadeColors.of(context).textPrimary, fontSize: 13),
                     ),
                   ),
                   IconButton(
                     icon: Icon(LucideIcons.x,
-                        size: 14, color: widget.colors.textMuted),
+                        size: 14, color: NightshadeColors.of(context).textMuted),
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .clearError(),
@@ -244,7 +228,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
         // Library actions
         SettingsSection(
           title: 'Library Management',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             Padding(
@@ -261,14 +244,12 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     onPressed: () => ref
                         .read(darkLibraryNotifierProvider.notifier)
                         .cleanOrphans(),
-                    colors: widget.colors,
                   ),
                   _ActionButton(
                     icon: LucideIcons.trash2,
                     label: 'Clear Library',
                     tooltip: 'Remove all entries from the library',
                     onPressed: () => _showClearDialog(context),
-                    colors: widget.colors,
                     isDanger: true,
                   ),
                 ],
@@ -282,7 +263,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
         // Frame groups
         SettingsSection(
           title: 'Frame Groups',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             groupsAsync.when(
@@ -293,7 +273,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Error: $e',
-                    style: TextStyle(color: widget.colors.error)),
+                    style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (groups) {
                 if (groups.isEmpty) {
@@ -305,13 +285,13 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                         children: [
                           Icon(LucideIcons.moon,
                               size: 48,
-                              color: widget.colors.textMuted
+                              color: NightshadeColors.of(context).textMuted
                                   .withValues(alpha: 0.5)),
                           const SizedBox(height: 12),
                           Text(
                             'No dark frames in library',
                             style: TextStyle(
-                              color: widget.colors.textMuted,
+                              color: NightshadeColors.of(context).textMuted,
                               fontSize: 14,
                             ),
                           ),
@@ -319,7 +299,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                           Text(
                             'Capture dark or bias frames to populate the library',
                             style: TextStyle(
-                              color: widget.colors.textMuted
+                              color: NightshadeColors.of(context).textMuted
                                   .withValues(alpha: 0.7),
                               fontSize: 12,
                             ),
@@ -335,7 +315,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     for (final group in groups)
                       _DarkGroupTile(
                         group: group,
-                        colors: widget.colors,
                         onCreateMaster: () =>
                             _showCreateMasterDialog(context, group),
                         onDeleteGroup: () =>
@@ -353,7 +332,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
         // All entries list
         SettingsSection(
           title: 'All Entries',
-          colors: widget.colors,
           isMobile: widget.isMobile,
           children: [
             entriesAsync.when(
@@ -364,7 +342,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               error: (e, _) => Padding(
                 padding: const EdgeInsets.all(16),
                 child: Text('Error: $e',
-                    style: TextStyle(color: widget.colors.error)),
+                    style: TextStyle(color: NightshadeColors.of(context).error)),
               ),
               data: (entries) {
                 if (entries.isEmpty) {
@@ -372,7 +350,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     padding: const EdgeInsets.all(16),
                     child: Text(
                       'No entries',
-                      style: TextStyle(color: widget.colors.textMuted),
+                      style: TextStyle(color: NightshadeColors.of(context).textMuted),
                     ),
                   );
                 }
@@ -382,7 +360,6 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     for (final entry in entries)
                       _DarkEntryTile(
                         entry: entry,
-                        colors: widget.colors,
                         onDelete: () => _showDeleteEntryDialog(context, entry),
                       ),
                   ],
@@ -430,7 +407,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     .clearLibrary(deleteFiles: deleteFiles);
               },
               child:
-                  Text('Clear', style: TextStyle(color: widget.colors.error)),
+                  Text('Clear', style: TextStyle(color: NightshadeColors.of(context).error)),
             ),
           ],
         ),
@@ -532,7 +509,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                 await service.deleteEntries(ids, deleteFile: deleteFiles);
               },
               child:
-                  Text('Delete', style: TextStyle(color: widget.colors.error)),
+                  Text('Delete', style: TextStyle(color: NightshadeColors.of(context).error)),
             ),
           ],
         ),
@@ -554,7 +531,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
               const SizedBox(height: 4),
               Text(
                 entry.filePath,
-                style: TextStyle(fontSize: 11, color: widget.colors.textMuted),
+                style: TextStyle(fontSize: 11, color: NightshadeColors.of(context).textMuted),
               ),
               const SizedBox(height: 12),
               CheckboxListTile(
@@ -579,7 +556,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
                     .deleteEntry(entry.id, deleteFile: deleteFile);
               },
               child:
-                  Text('Delete', style: TextStyle(color: widget.colors.error)),
+                  Text('Delete', style: TextStyle(color: NightshadeColors.of(context).error)),
             ),
           ],
         ),
@@ -592,17 +569,16 @@ class _StatCard extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
-  final NightshadeColors colors;
 
   const _StatCard({
     required this.label,
     required this.value,
     required this.icon,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
@@ -644,7 +620,6 @@ class _ActionButton extends StatelessWidget {
   final String label;
   final String tooltip;
   final VoidCallback onPressed;
-  final NightshadeColors colors;
   final bool isDanger;
 
   const _ActionButton({
@@ -652,7 +627,6 @@ class _ActionButton extends StatelessWidget {
     required this.label,
     required this.tooltip,
     required this.onPressed,
-    required this.colors,
     this.isDanger = false,
   });
 
@@ -672,19 +646,18 @@ class _ActionButton extends StatelessWidget {
 
 class _DarkGroupTile extends StatelessWidget {
   final DarkGroupKey group;
-  final NightshadeColors colors;
   final VoidCallback onCreateMaster;
   final VoidCallback onDeleteGroup;
 
   const _DarkGroupTile({
     required this.group,
-    required this.colors,
     required this.onCreateMaster,
     required this.onDeleteGroup,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final isD = group.frameType == 'dark';
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -748,17 +721,16 @@ class _DarkGroupTile extends StatelessWidget {
 
 class _DarkEntryTile extends StatelessWidget {
   final DarkLibraryEntry entry;
-  final NightshadeColors colors;
   final VoidCallback onDelete;
 
   const _DarkEntryTile({
     required this.entry,
-    required this.colors,
     required this.onDelete,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final isMaster = entry.masterDarkPath != null;
     final isDark = entry.frameType == 'dark';
 
@@ -770,7 +742,10 @@ class _DarkEntryTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: isMaster
-            ? colors.primary.withValues(alpha: 0.05)
+            ? NightshadeDecorations.tintedBadge(
+                colors.primary,
+                borderRadius: BorderRadius.zero,
+              ).color
             : Colors.transparent,
         border: Border(
           bottom: BorderSide(color: colors.border.withValues(alpha: 0.5)),

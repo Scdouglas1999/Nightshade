@@ -12,11 +12,7 @@ import '../../../utils/snackbar_helper.dart';
 // autoDispose: list is only consumed by SequenceLibraryTab; refetching the
 // DB on revisit is cheap and ensures we never show stale entries after the
 // user edited a sequence elsewhere (audit-dart §1b).
-final savedSequencesProvider =
-    FutureProvider.autoDispose<List<Sequence>>((ref) async {
-  final repository = ref.watch(sequenceRepositoryProvider);
-  return await repository.loadAllSequences();
-});
+// Defined in nightshade_core: savedSequencesProvider (sequence_catalog_sync.dart)
 
 /// Search provider for sequences
 // autoDispose: filter input is tab-scoped; clearing it on revisit matches
@@ -38,7 +34,7 @@ class SequenceLibraryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sequencesAsync = ref.watch(savedSequencesProvider);
     final searchQuery = ref.watch(sequenceSearchProvider);
     final sortOrder = ref.watch(sequenceSortOrderProvider);
@@ -90,8 +86,44 @@ class SequenceLibraryTab extends ConsumerWidget {
                 }
 
                 if (filtered.isEmpty) {
-                  return _EmptyState(
-                      colors: colors, hasSearch: searchQuery.isNotEmpty);
+                  final hasSearch = searchQuery.isNotEmpty;
+                  return EmptyState(
+                    icon:
+                        hasSearch ? LucideIcons.searchX : LucideIcons.folderOpen,
+                    title:
+                        hasSearch ? 'No sequences found' : 'No saved sequences',
+                    body: hasSearch
+                        ? 'Try a different search term'
+                        : 'Save your sequences to access them later',
+                    action: hasSearch
+                        ? null
+                        : Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: 10,
+                            ),
+                            decoration: BoxDecoration(
+                              color: colors.surfaceAlt,
+                              borderRadius: BorderRadius.circular(8),
+                              border: Border.all(color: colors.border),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Icon(LucideIcons.lightbulb,
+                                    size: 14, color: colors.warning),
+                                const SizedBox(width: 8),
+                                Text(
+                                  'Tip: Use "Save Current" to save your sequence',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                  );
                 }
 
                 return ListView.separated(
@@ -496,15 +528,7 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 : widget.colors.border,
             width: _isHovered ? 2 : 1,
           ),
-          boxShadow: _isHovered
-              ? [
-                  BoxShadow(
-                    color: widget.colors.primary.withValues(alpha: 0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
+          boxShadow: null,
         ),
         child: Row(
           children: [
@@ -512,8 +536,8 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
             Container(
               width: 48,
               height: 48,
-              decoration: BoxDecoration(
-                color: widget.colors.primary.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.tintedBadge(
+                widget.colors.primary,
                 borderRadius: BorderRadius.circular(10),
               ),
               child: Icon(
@@ -701,9 +725,15 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Discard unsaved changes?'),
-          content: Text(
-              '"${e.currentSequenceName}" has unsaved changes. '
-              'Loading "${widget.sequence.name}" will discard them.'),
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              ctx,
+              designMaxWidth: 440,
+            ),
+            child: Text(
+                '"${e.currentSequenceName}" has unsaved changes. '
+                'Loading "${widget.sequence.name}" will discard them.'),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -732,10 +762,19 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
     if (dbId != null) {
       try {
         final repository = ref.read(sequenceRepositoryProvider);
-        await repository.duplicateSequence(
+        final duplicated = await repository.duplicateSequence(
             dbId, '${widget.sequence.name} (Copy)');
 
-        ref.invalidate(savedSequencesProvider);
+        if (duplicated?.databaseId != null) {
+          notifySequenceCatalogChanged(
+            ref,
+            sequenceId: duplicated!.databaseId!,
+            action: 'duplicated',
+            name: duplicated.name,
+          );
+        } else {
+          ref.invalidate(savedSequencesProvider);
+        }
 
         if (context.mounted) {
           context.showSuccessSnackBar('Duplicated "${widget.sequence.name}"');
@@ -761,9 +800,15 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
           'Delete Sequence',
           style: TextStyle(color: widget.colors.textPrimary),
         ),
-        content: Text(
-          'Are you sure you want to delete "${widget.sequence.name}"? This action cannot be undone.',
-          style: TextStyle(color: widget.colors.textSecondary),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            dialogContext,
+            designMaxWidth: 400,
+          ),
+          child: Text(
+            'Are you sure you want to delete "${widget.sequence.name}"? This action cannot be undone.',
+            style: TextStyle(color: widget.colors.textSecondary),
+          ),
         ),
         actions: [
           NightshadeButton(
@@ -780,7 +825,12 @@ class _SequenceCardState extends ConsumerState<_SequenceCard> {
                 final repository = ref.read(sequenceRepositoryProvider);
                 await repository.deleteSequence(dbId);
 
-                ref.invalidate(savedSequencesProvider);
+                notifySequenceCatalogChanged(
+                  ref,
+                  sequenceId: dbId,
+                  action: 'deleted',
+                  name: widget.sequence.name,
+                );
 
                 if (context.mounted) {
                   context
@@ -871,7 +921,10 @@ class _IconButtonState extends State<_IconButton> {
             height: 36,
             decoration: BoxDecoration(
               color: _isHovered
-                  ? color.withValues(alpha: 0.1)
+                  ? NightshadeDecorations.tintedBadge(
+                      color,
+                      borderRadius: BorderRadius.circular(8),
+                    ).color
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(8),
             ),
@@ -882,84 +935,6 @@ class _IconButtonState extends State<_IconButton> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-  final bool hasSearch;
-
-  const _EmptyState({
-    required this.colors,
-    this.hasSearch = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.border),
-            ),
-            child: Icon(
-              hasSearch ? LucideIcons.searchX : LucideIcons.folderOpen,
-              size: 48,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            hasSearch ? 'No sequences found' : 'No saved sequences',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hasSearch
-                ? 'Try a different search term'
-                : 'Save your sequences to access them later',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textMuted,
-            ),
-          ),
-          if (!hasSearch) ...[
-            const SizedBox(height: 24),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.lightbulb, size: 14, color: colors.warning),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Tip: Use "Save Current" to save your sequence',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -1019,9 +994,15 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
         isTemplate: false,
       );
 
-      await repository.saveSequence(sequenceToSave, isTemplate: false);
+      final savedId =
+          await repository.saveSequence(sequenceToSave, isTemplate: false);
 
-      ref.invalidate(savedSequencesProvider);
+      notifySequenceCatalogChanged(
+        ref,
+        sequenceId: savedId,
+        action: 'saved',
+        name: sequenceToSave.name,
+      );
 
       if (mounted) {
         Navigator.pop(context);
@@ -1045,10 +1026,14 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
     return Dialog(
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: 450,
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 450,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -1057,8 +1042,8 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    color: widget.colors.primary.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    widget.colors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -1208,6 +1193,7 @@ class _SaveSequenceDialogState extends ConsumerState<_SaveSequenceDialog> {
               ],
             ),
           ],
+        ),
         ),
       ),
     );

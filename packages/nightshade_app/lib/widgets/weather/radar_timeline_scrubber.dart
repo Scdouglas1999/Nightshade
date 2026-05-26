@@ -182,7 +182,7 @@ class _RadarTimelineScrubberState
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (widget.frames.isEmpty) {
       return Container(
@@ -351,17 +351,16 @@ class _RadarTimelineScrubberState
                   horizontal: 10,
                   vertical: 6,
                 ),
-                decoration: BoxDecoration(
-                  color: currentFrame.isForecast
-                      ? colors.warning.withValues(alpha: 0.1)
-                      : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(4),
-                  border: Border.all(
-                    color: currentFrame.isForecast
-                        ? colors.warning.withValues(alpha: 0.3)
-                        : colors.border,
-                  ),
-                ),
+                decoration: currentFrame.isForecast
+                    ? NightshadeDecorations.emphasisSurface(
+                        colors.warning,
+                        borderRadius: BorderRadius.circular(4),
+                      )
+                    : BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(4),
+                        border: Border.all(color: colors.border),
+                      ),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
@@ -406,8 +405,7 @@ class _RadarTimelineScrubberState
   }
 
   PopupMenuItem<double> _buildSpeedMenuItem(double value, String label) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return PopupMenuItem<double>(
       value: value,

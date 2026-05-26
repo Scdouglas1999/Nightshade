@@ -268,6 +268,9 @@ struct GPhoto2Sdk {
     // Summary
     camera_get_summary:
         unsafe extern "C" fn(*mut GPCamera, *mut GPCameraText, *mut GPContext) -> c_int,
+
+    // Library metadata
+    library_version: Option<unsafe extern "C" fn(c_int) -> *const *const c_char>,
 }
 
 /// Camera text struct for summary
@@ -439,6 +442,12 @@ impl GPhoto2Sdk {
                         )?;
                         let camera_get_summary =
                             load_symbol(&lib, b"gp_camera_get_summary\0", "gp_camera_get_summary")?;
+                        let library_version = lib
+                            .get::<unsafe extern "C" fn(c_int) -> *const *const c_char>(
+                                b"gp_library_version\0",
+                            )
+                            .ok()
+                            .map(|symbol| *symbol);
 
                         let sdk = Self {
                             lib,
@@ -477,6 +486,7 @@ impl GPhoto2Sdk {
                             widget_free,
                             camera_get_abilities,
                             camera_get_summary,
+                            library_version,
                         };
 
                         tracing::info!(
@@ -549,6 +559,33 @@ pub struct DetectedGPhoto2Camera {
     pub port: String,
     pub index: usize,
     pub device_id: String,
+    pub sdk_version: Option<String>,
+}
+
+unsafe fn gphoto2_version_from_array(versions: *const *const c_char) -> Option<String> {
+    if versions.is_null() {
+        return None;
+    }
+
+    // SAFETY: caller guarantees `versions` is the const char** returned by libgphoto2.
+    let first = unsafe { *versions };
+    if first.is_null() {
+        return None;
+    }
+
+    // SAFETY: libgphoto2 returns static, NUL-terminated version strings.
+    let version = unsafe { CStr::from_ptr(first) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!version.is_empty()).then_some(format!("libgphoto2 v{version}"))
+}
+
+fn sdk_version_from_sdk(sdk: &GPhoto2Sdk) -> Option<String> {
+    let library_version = sdk.library_version?;
+    // SAFETY: gp_library_version(GP_VERSION_SHORT=0) returns a const char** array owned by
+    // libgphoto2. We read only the first short-version entry.
+    unsafe { gphoto2_version_from_array(library_version(0)) }
 }
 
 /// Detect all connected gPhoto2-compatible cameras.
@@ -568,6 +605,7 @@ pub fn detect_gphoto2_cameras() -> Vec<DetectedGPhoto2Camera> {
     // matches `list_new`. Out-pointers (`list`) and the stack-owned `count` are valid
     // local addresses for the duration of the call.
     unsafe {
+        let sdk_version = sdk_version_from_sdk(sdk);
         let context = (sdk.context_new)();
         if context.is_null() {
             tracing::error!("gPhoto2: Failed to create context");
@@ -617,6 +655,7 @@ pub fn detect_gphoto2_cameras() -> Vec<DetectedGPhoto2Camera> {
                     model,
                     port,
                     index: i as usize,
+                    sdk_version: sdk_version.clone(),
                 });
             }
         }
@@ -2129,6 +2168,52 @@ impl NativeCamera for GPhoto2Camera {
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
         Err(NativeError::NotSupported)
     }
+
+    async fn capture_preview(&self) -> Result<Vec<u8>, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+        if !self.can_preview {
+            return Err(NativeError::NotSupported);
+        }
+
+        let _lock = gphoto2_mutex().lock().await;
+        let sdk = GPhoto2Sdk::get()
+            .ok_or_else(|| NativeError::SdkError("gPhoto2 SDK not loaded".to_string()))?;
+
+        // SAFETY: gphoto2_mutex held; gp_camera/gp_context valid while connected.
+        // gp_file is stack-allocated out-pointer freed on every exit path.
+        unsafe {
+            let mut gp_file: *mut CameraFile = std::ptr::null_mut();
+            let ret = (sdk.file_new)(&mut gp_file);
+            check_gp_error(ret, "file_new")?;
+
+            let ret = (sdk.camera_capture_preview)(self.gp_camera, gp_file, self.gp_context);
+            if ret < GP_OK {
+                (sdk.file_free)(gp_file);
+                return Err(NativeError::SdkError(format!(
+                    "gPhoto2: capture_preview failed with code {}",
+                    ret
+                )));
+            }
+
+            let mut data_ptr: *const c_char = std::ptr::null();
+            let mut data_size: u64 = 0;
+            let ret = (sdk.file_get_data_and_size)(gp_file, &mut data_ptr, &mut data_size);
+            if ret < GP_OK || data_ptr.is_null() || data_size == 0 {
+                (sdk.file_free)(gp_file);
+                return Err(NativeError::SdkError(format!(
+                    "gPhoto2: Failed to read preview data: code {}",
+                    ret
+                )));
+            }
+
+            let data = std::slice::from_raw_parts(data_ptr as *const u8, data_size as usize);
+            let jpeg = data.to_vec();
+            (sdk.file_free)(gp_file);
+            Ok(jpeg)
+        }
+    }
 }
 
 impl Drop for GPhoto2Camera {
@@ -2240,4 +2325,27 @@ fn parse_shutter_speed_to_secs(speed: &str) -> Option<f64> {
 
     // Handle decimal speeds like "2.5" or "30"
     speed.parse().ok()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn gphoto2_version_from_array_reads_first_short_version() {
+        let version = b"2.5.33\0";
+        let versions = [version.as_ptr() as *const c_char, std::ptr::null()];
+
+        let parsed = unsafe { gphoto2_version_from_array(versions.as_ptr()) };
+
+        assert_eq!(parsed.as_deref(), Some("libgphoto2 v2.5.33"));
+    }
+
+    #[test]
+    fn gphoto2_version_from_array_rejects_null_inputs() {
+        assert!(unsafe { gphoto2_version_from_array(std::ptr::null()) }.is_none());
+
+        let versions = [std::ptr::null()];
+        assert!(unsafe { gphoto2_version_from_array(versions.as_ptr()) }.is_none());
+    }
 }

@@ -12,8 +12,8 @@ final deviceMatchingServiceProvider = Provider<DeviceMatchingService>((ref) {
 });
 
 /// Provider for unified device discovery state
-final unifiedDiscoveryProvider = StateNotifierProvider.autoDispose<
-    UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((ref) {
+final unifiedDiscoveryProvider =
+    StateNotifierProvider<UnifiedDiscoveryNotifier, UnifiedDiscoveryState>((ref) {
   return UnifiedDiscoveryNotifier(ref);
 });
 
@@ -37,20 +37,9 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Get backends that are available on this platform
     final backends = _getAvailableBackends();
 
-    // Initialize backend states
-    final initialStates = <DriverType, BackendDiscoveryState>{};
-    for (final backend in backends) {
-      initialStates[backend] = BackendDiscoveryState(
-        backend: backend,
-        status: DiscoveryStatus.discovering,
-      );
-    }
-
-    state = UnifiedDiscoveryState(
-      backendStates: initialStates,
-      rawDevices: const [],
-      groupedDevices: const [],
-    );
+    // UI-P0-4: clear stale grouped/raw results before rescan so a failed or
+    // partial scan never leaves yesterday's devices on screen.
+    state = _discoveringStateForBackends(backends);
 
     // Discover from all backends in parallel
     final futures = <Future<_BackendResult>>[];
@@ -102,14 +91,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
   }) async {
     _cancelled = false;
 
-    // Update state to show this backend is discovering
-    final currentStates =
-        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
-    currentStates[backend] = BackendDiscoveryState(
-      backend: backend,
-      status: DiscoveryStatus.discovering,
-    );
-    state = state.copyWith(backendStates: currentStates);
+    // UI-P0-4: drop this backend's stale devices as soon as rescan starts.
+    state = _discoveringStateForBackends([backend], mergeWithExisting: true);
 
     // Discover
     final result = await _discoverBackend(backend, host: host, port: port);
@@ -117,8 +100,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     if (_cancelled) return;
 
     // Update state with results
-    final updatedStates =
-        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
+    final updatedStates = Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
     updatedStates[backend] = BackendDiscoveryState(
       backend: backend,
       status: result.error != null
@@ -180,16 +162,8 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     // Otherwise, selectively rediscover only the stale backends
     _cancelled = false;
 
-    // Mark stale backends as discovering
-    final currentStates =
-        Map<DriverType, BackendDiscoveryState>.from(state.backendStates);
-    for (final backend in staleBackends) {
-      currentStates[backend] = BackendDiscoveryState(
-        backend: backend,
-        status: DiscoveryStatus.discovering,
-      );
-    }
-    state = state.copyWith(backendStates: currentStates);
+    // UI-P0-4: clear stale devices for backends being rescanned.
+    state = _discoveringStateForBackends(staleBackends, mergeWithExisting: true);
 
     // Discover stale backends in parallel
     final futures = <Future<_BackendResult>>[];
@@ -247,6 +221,43 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
     state = const UnifiedDiscoveryState();
   }
 
+  /// Build state with [backends] marked discovering and their device lists cleared.
+  ///
+  /// When [mergeWithExisting] is true, backends not in [backends] keep their
+  /// prior results (used by selective `discoverIfNeeded` refresh).
+  UnifiedDiscoveryState _discoveringStateForBackends(
+    List<DriverType> backends, {
+    bool mergeWithExisting = false,
+  }) {
+    final updatedStates = mergeWithExisting
+        ? Map<DriverType, BackendDiscoveryState>.from(state.backendStates)
+        : <DriverType, BackendDiscoveryState>{};
+
+    for (final backend in backends) {
+      updatedStates[backend] = BackendDiscoveryState(
+        backend: backend,
+        status: DiscoveryStatus.discovering,
+        devices: const [],
+      );
+    }
+
+    final allDevices = <DeviceInfo>[];
+    for (final backendState in updatedStates.values) {
+      if (backendState.status != DiscoveryStatus.discovering) {
+        allDevices.addAll(backendState.devices);
+      }
+    }
+
+    final matchingService = _ref.read(deviceMatchingServiceProvider);
+    final groupedDevices = matchingService.groupDevices(allDevices);
+
+    return UnifiedDiscoveryState(
+      backendStates: updatedStates,
+      rawDevices: allDevices,
+      groupedDevices: groupedDevices,
+    );
+  }
+
   /// Get list of backends available on this platform
   List<DriverType> _getAvailableBackends() {
     final backends = <DriverType>[
@@ -289,34 +300,15 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
             try {
               final typeDevices = await deviceService.discoverDevices(type);
               // Filter to only include devices from this backend
-              return _TypeDiscoveryResult(
-                type: type,
-                devices:
-                    typeDevices.where((d) => d.driverType == backend).toList(),
-              );
+              return typeDevices.where((d) => d.driverType == backend).toList();
             } catch (e) {
-              return _TypeDiscoveryResult(
-                type: type,
-                devices: const [],
-                error: e.toString(),
-              );
+              // Log but continue with other types
+              return <DeviceInfo>[];
             }
           });
           final results = await Future.wait(typeFutures);
-          final errors = <String>[];
-          for (final result in results) {
-            devices.addAll(result.devices);
-            if (result.error != null) {
-              errors.add('${result.type.name}: ${result.error}');
-            }
-          }
-          if (errors.isNotEmpty) {
-            return _BackendResult(
-              backend: backend,
-              devices: devices,
-              error: '${backend.name} discovery had per-type failures: '
-                  '${errors.join('; ')}',
-            );
+          for (final typeDevices in results) {
+            devices.addAll(typeDevices);
           }
           break;
 
@@ -325,8 +317,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final indiPort = port ?? settings.indiServerPort;
           if (indiHost.isNotEmpty) {
             try {
-              devices =
-                  await deviceService.discoverIndiAtAddress(indiHost, indiPort);
+              devices = await deviceService.discoverIndiAtAddress(indiHost, indiPort);
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -342,8 +333,7 @@ class UnifiedDiscoveryNotifier extends StateNotifier<UnifiedDiscoveryState> {
           final alpacaPort = port ?? settings.alpacaServerPort;
           if (alpacaHost.isNotEmpty) {
             try {
-              devices = await deviceService.discoverAlpacaAtAddress(
-                  alpacaHost, alpacaPort);
+              devices = await deviceService.discoverAlpacaAtAddress(alpacaHost, alpacaPort);
             } catch (e) {
               return _BackendResult(
                 backend: backend,
@@ -374,18 +364,6 @@ class _BackendResult {
 
   const _BackendResult({
     required this.backend,
-    required this.devices,
-    this.error,
-  });
-}
-
-class _TypeDiscoveryResult {
-  final DeviceType type;
-  final List<DeviceInfo> devices;
-  final String? error;
-
-  const _TypeDiscoveryResult({
-    required this.type,
     required this.devices,
     this.error,
   });
@@ -447,4 +425,10 @@ final unifiedWeatherProvider = Provider<List<UnifiedDevice>>((ref) {
 final unifiedSafetyMonitorsProvider = Provider<List<UnifiedDevice>>((ref) {
   final discovery = ref.watch(unifiedDiscoveryProvider);
   return discovery.getDevicesByType(DeviceType.safetyMonitor);
+});
+
+/// Provider for unified switch devices (DEV-P2-1).
+final unifiedSwitchesProvider = Provider<List<UnifiedDevice>>((ref) {
+  final discovery = ref.watch(unifiedDiscoveryProvider);
+  return discovery.getDevicesByType(DeviceType.switch_);
 });

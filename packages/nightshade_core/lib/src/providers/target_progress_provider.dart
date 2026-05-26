@@ -1,8 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../backend/network_backend.dart';
 import '../models/scheduler/target_progress.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/target_progress_service.dart';
+import 'backend_provider.dart';
 import 'database_provider.dart';
 
 /// Service-level access. Stateless, so a plain `Provider` suffices.
@@ -26,8 +28,9 @@ final targetProgressProvider =
   // Drive re-evaluation off the underlying drift streams. We discard the
   // values — they only exist to subscribe the provider to schema-bearing
   // changes; the heavy aggregation work happens in the service.
-  await ref.watch(allDbImagesProvider.future);
+  final images = await ref.watch(allDbImagesProvider.future);
   final targets = await ref.watch(allDbTargetsProvider.future);
+  final useHostImages = ref.watch(backendProvider) is NetworkBackend;
 
   for (final target in targets) {
     if (target.id == targetId) {
@@ -35,6 +38,7 @@ final targetProgressProvider =
       return service.forTarget(
         targetId: targetId,
         targetName: target.name,
+        capturedImages: useHostImages ? images : null,
       );
     }
   }
@@ -48,11 +52,19 @@ final targetProgressProvider =
 /// targets or captured-images change.
 final allTargetProgressProvider = FutureProvider.autoDispose<
     Map<int, TargetProgress>>((ref) async {
-  await ref.watch(allDbImagesProvider.future);
+  final images = await ref.watch(allDbImagesProvider.future);
   final targets = await ref.watch(allDbTargetsProvider.future);
+  final useHostImages = ref.watch(backendProvider) is NetworkBackend;
 
   final service = ref.watch(targetProgressServiceProvider);
   return service.forTargets(
     targets.map((t) => (id: t.id, name: t.name)).toList(),
+    capturedImages: useHostImages ? images : null,
   );
 });
+
+/// Invalidates target-progress readers after host catalog or capture changes.
+void invalidateTargetProgressReaders(Ref ref) {
+  ref.invalidate(allTargetProgressProvider);
+  ref.invalidate(targetProgressProvider);
+}

@@ -23,10 +23,14 @@
 //! CLOSED on the empty-indicator case. These probes are observability /
 //! UI signals only and "alert absent" is the correct default.
 
-use crate::client::IndiClient;
+use crate::client::{current_time_ms, IndiClient};
 use crate::error::IndiResult;
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::RwLock;
+
+/// Default maximum age for `WEATHER_PARAMETERS` before readings are treated as stale.
+pub const DEFAULT_WEATHER_STALE_MS: u64 = 120_000;
 
 /// Overall weather status derived from INDI light states
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,6 +90,33 @@ impl IndiWeather {
     // =========================================================================
     // Weather Measurements
     // =========================================================================
+
+    /// Age of the last `WEATHER_PARAMETERS` update in milliseconds, if known.
+    pub async fn parameters_age_ms(&self) -> Option<u64> {
+        let client = self.client.read().await;
+        let now = current_time_ms();
+        client
+            .get_property_last_update_ms(&self.device_name, "WEATHER_PARAMETERS")
+            .await
+            .map(|ts| now.saturating_sub(ts))
+    }
+
+    /// Returns true when weather readings are older than `max_age` or never received.
+    pub async fn is_parameters_stale(&self, max_age: Duration) -> bool {
+        let limit_ms = max_age.as_millis() as u64;
+        match self.parameters_age_ms().await {
+            Some(age) => age > limit_ms,
+            None => true,
+        }
+    }
+
+    /// Temperature in Celsius when `WEATHER_PARAMETERS` was updated within `max_age`.
+    pub async fn get_temperature_if_fresh(&self, max_age: Duration) -> Option<f64> {
+        if self.is_parameters_stale(max_age).await {
+            return None;
+        }
+        self.get_temperature().await
+    }
 
     /// Get temperature in Celsius
     pub async fn get_temperature(&self) -> Option<f64> {
@@ -392,5 +423,20 @@ impl IndiWeather {
     /// Check if sky brightness sensor is available
     pub async fn has_sky_brightness(&self) -> bool {
         self.get_sky_brightness().await.is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn parameters_stale_when_never_updated() {
+        let client = Arc::new(tokio::sync::RwLock::new(IndiClient::new(
+            "localhost",
+            Some(7624),
+        )));
+        let weather = IndiWeather::new(client, "WX");
+        assert!(weather.is_parameters_stale(Duration::from_millis(1)).await);
     }
 }

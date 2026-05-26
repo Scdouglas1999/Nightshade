@@ -620,7 +620,7 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
               ),
               _LegendItem(
                 colors: widget.colors,
-                color: Colors.indigo.withValues(alpha: 0.4),
+                color: NightshadeChartColors.twilightAstro(),
                 label: 'Astro',
               ),
             ],
@@ -683,14 +683,14 @@ class _FullTimelineState extends ConsumerState<_FullTimeline>
     addRegion(
       twilight.nauticalDusk,
       twilight.astronomicalDusk,
-      Colors.indigo.withValues(alpha: 0.4),
+      NightshadeChartColors.twilightAstro(),
     );
 
     // Astronomical twilight (morning): astronomical dawn to nautical dawn
     addRegion(
       twilight.astronomicalDawn,
       twilight.nauticalDawn,
-      Colors.indigo.withValues(alpha: 0.4),
+      NightshadeChartColors.twilightAstro(),
     );
 
     // Nautical twilight (morning): nautical dawn to civil dawn

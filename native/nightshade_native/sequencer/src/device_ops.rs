@@ -47,6 +47,20 @@ pub struct GuidingStatus {
     pub rms_total: f64,
 }
 
+/// Guiding calibration snapshot, surfaced for post-start quality checks.
+///
+/// Both axis angles are in degrees and may be `None` if the underlying
+/// driver does not expose them (the older Alpaca-only path, for example).
+/// When present, the absolute difference between them should sit close to
+/// 90° on a well-calibrated mount; the executor uses this to catch silent
+/// "looks calibrated but axes are wrong" failures (P3-7).
+#[derive(Debug, Clone)]
+pub struct GuidingCalibration {
+    pub is_calibrated: bool,
+    pub ra_angle_deg: Option<f64>,
+    pub dec_angle_deg: Option<f64>,
+}
+
 /// Trait defining all device operations needed by the sequencer
 ///
 /// This trait is implemented by the bridge to provide actual device control.
@@ -200,6 +214,13 @@ pub trait DeviceOps: Send + Sync {
     /// Get guiding status
     async fn guider_get_status(&self) -> DeviceResult<GuidingStatus>;
 
+    /// Get calibration data for the active guider. Returns Err if the driver
+    /// cannot report calibration (older Alpaca, etc.) — callers should treat
+    /// that as "validation unavailable", not as a calibration failure.
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        Err("guider_get_calibration not supported by this driver".to_string())
+    }
+
     /// Start guiding
     async fn guider_start(
         &self,
@@ -228,27 +249,55 @@ pub trait DeviceOps: Send + Sync {
     // IMAGE SAVING
     // =========================================================================
 
-    /// Save image as FITS file
+    /// Save image as FITS file.
+    ///
+    /// Wave 3 Image Grading: the per-frame metadata bundle is the
+    /// [`FrameContext`](crate::scheduling::FrameContext) carried from
+    /// `expose.rs`. It supersedes the previous 4-field call signature
+    /// (target_name, filter, RA, Dec) — the FITS writer extracts every
+    /// relevant keyword (target identification, plate-solve coords,
+    /// telemetry, mosaic panel, observer/site info, equipment ID) from
+    /// the context. See `bridge/src/api/imaging.rs::api_save_fits_file`
+    /// for the keyword list.
     async fn save_fits(
         &self,
         image_data: &ImageData,
         file_path: &str,
-        target_name: Option<&str>,
-        filter: Option<&str>,
-        ra_hours: Option<f64>,
-        dec_degrees: Option<f64>,
+        frame_ctx: &crate::scheduling::FrameContext,
     ) -> DeviceResult<()>;
 
     // =========================================================================
     // NOTIFICATIONS
     // =========================================================================
 
-    /// Send a notification
-    async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()>;
+    /// Send a notification.
+    ///
+    /// Wave 5.5 Pack M follow-up — `explicit_transports`, when `Some`, carries
+    /// per-NotificationNode override transport names (NotificationTransportKind
+    /// from the Dart side, serialised as strings). Bridge implementations emit
+    /// this field on the user-visible event so `NotificationRouter` can route
+    /// to the user-picked transports instead of the matrix's `custom` rule.
+    async fn send_notification(
+        &self,
+        level: &str,
+        title: &str,
+        message: &str,
+        explicit_transports: Option<&[String]>,
+    ) -> DeviceResult<()>;
 
     // =========================================================================
     // UTILITY
     // =========================================================================
+
+    /// Query whether a specific device id is currently connected.
+    ///
+    /// The sequencer recovery loop uses this after a device-disconnect
+    /// failure to wait for the bridge/device-manager reconnect path before
+    /// resuming the failed instruction.
+    async fn device_is_connected(&self, device_id: &str) -> DeviceResult<bool> {
+        let _ = device_id;
+        Err("device_is_connected not supported by this driver".to_string())
+    }
 
     /// Calculate current altitude of a target (returns degrees)
     fn calculate_altitude(&self, ra_hours: f64, dec_degrees: f64, lat: f64, lon: f64) -> f64;
@@ -585,6 +634,16 @@ impl DeviceOps for NullDeviceOps {
         })
     }
 
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        // Synthetic well-calibrated mount (axes 90° apart) so simulation
+        // mode doesn't fail post-start validation.
+        Ok(GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(90.0),
+        })
+    }
+
     async fn guider_start(
         &self,
         _settle_pixels: f64,
@@ -630,21 +689,33 @@ impl DeviceOps for NullDeviceOps {
         &self,
         _image_data: &ImageData,
         file_path: &str,
-        target_name: Option<&str>,
-        _filter: Option<&str>,
-        _ra: Option<f64>,
-        _dec: Option<f64>,
+        frame_ctx: &crate::scheduling::FrameContext,
     ) -> DeviceResult<()> {
         tracing::info!(
-            "[NULL] Saving FITS to {} (target: {:?})",
+            "[NULL] Saving FITS to {} ({})",
             file_path,
-            target_name
+            frame_ctx.log_label()
         );
         Ok(())
     }
 
-    async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
-        tracing::info!("[NOTIFICATION][{}] {}: {}", level, title, message);
+    async fn send_notification(
+        &self,
+        level: &str,
+        title: &str,
+        message: &str,
+        explicit_transports: Option<&[String]>,
+    ) -> DeviceResult<()> {
+        match explicit_transports {
+            Some(t) if !t.is_empty() => tracing::info!(
+                "[NOTIFICATION][{}] {}: {} (transports: {})",
+                level,
+                title,
+                message,
+                t.join(",")
+            ),
+            _ => tracing::info!("[NOTIFICATION][{}] {}: {}", level, title, message),
+        }
         Ok(())
     }
 
@@ -865,8 +936,10 @@ pub async fn try_park_with_retry(
                 );
                 last_error = Some(e);
                 if attempt < total_attempts && retry_delay_secs > 0.0 {
-                    tokio::time::sleep(std::time::Duration::from_secs_f64(retry_delay_secs.max(0.0)))
-                        .await;
+                    tokio::time::sleep(std::time::Duration::from_secs_f64(
+                        retry_delay_secs.max(0.0),
+                    ))
+                    .await;
                 }
             }
         }
@@ -936,12 +1009,7 @@ mod tests {
         }
 
         // === delegating methods ===
-        async fn mount_slew_to_coordinates(
-            &self,
-            id: &str,
-            ra: f64,
-            dec: f64,
-        ) -> DeviceResult<()> {
+        async fn mount_slew_to_coordinates(&self, id: &str, ra: f64, dec: f64) -> DeviceResult<()> {
             self.inner.mount_slew_to_coordinates(id, ra, dec).await
         }
         async fn mount_abort_slew(&self, id: &str) -> DeviceResult<()> {
@@ -965,10 +1033,7 @@ mod tests {
         async fn mount_can_flip(&self, id: &str) -> DeviceResult<bool> {
             self.inner.mount_can_flip(id).await
         }
-        async fn mount_side_of_pier(
-            &self,
-            id: &str,
-        ) -> DeviceResult<crate::meridian::PierSide> {
+        async fn mount_side_of_pier(&self, id: &str) -> DeviceResult<crate::meridian::PierSide> {
             self.inner.mount_side_of_pier(id).await
         }
         async fn mount_is_tracking(&self, id: &str) -> DeviceResult<bool> {
@@ -991,12 +1056,7 @@ mod tests {
         async fn camera_abort_exposure(&self, id: &str) -> DeviceResult<()> {
             self.inner.camera_abort_exposure(id).await
         }
-        async fn camera_set_cooler(
-            &self,
-            id: &str,
-            e: bool,
-            t: f64,
-        ) -> DeviceResult<()> {
+        async fn camera_set_cooler(&self, id: &str, e: bool, t: f64) -> DeviceResult<()> {
             self.inner.camera_set_cooler(id, e, t).await
         }
         async fn camera_get_temperature(&self, id: &str) -> DeviceResult<f64> {
@@ -1076,15 +1136,18 @@ mod tests {
             &self,
             d: &ImageData,
             f: &str,
-            t: Option<&str>,
-            fl: Option<&str>,
-            r: Option<f64>,
-            de: Option<f64>,
+            ctx: &crate::scheduling::FrameContext,
         ) -> DeviceResult<()> {
-            self.inner.save_fits(d, f, t, fl, r, de).await
+            self.inner.save_fits(d, f, ctx).await
         }
-        async fn send_notification(&self, l: &str, t: &str, m: &str) -> DeviceResult<()> {
-            self.inner.send_notification(l, t, m).await
+        async fn send_notification(
+            &self,
+            l: &str,
+            t: &str,
+            m: &str,
+            x: Option<&[String]>,
+        ) -> DeviceResult<()> {
+            self.inner.send_notification(l, t, m, x).await
         }
         fn calculate_altitude(&self, r: f64, d: f64, la: f64, lo: f64) -> f64 {
             self.inner.calculate_altitude(r, d, la, lo)
@@ -1116,10 +1179,7 @@ mod tests {
         async fn calculate_image_hfr(&self, d: &ImageData) -> DeviceResult<Option<f64>> {
             self.inner.calculate_image_hfr(d).await
         }
-        async fn detect_stars_in_image(
-            &self,
-            d: &ImageData,
-        ) -> DeviceResult<Vec<(f64, f64, f64)>> {
+        async fn detect_stars_in_image(&self, d: &ImageData) -> DeviceResult<Vec<(f64, f64, f64)>> {
             self.inner.detect_stars_in_image(d).await
         }
         async fn cover_calibrator_open_cover(&self, id: &str) -> DeviceResult<()> {

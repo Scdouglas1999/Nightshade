@@ -132,6 +132,18 @@ class MobileEventNotifier {
           // Polar alignment runs in a foreground assistant; no need to
           // wake the operator's phone for each measurement frame.
           break;
+        case EventCategory.job:
+          await _handleJob(event);
+          break;
+        case EventCategory.session:
+          await _handleSession(event);
+          break;
+        case EventCategory.catalog:
+          // Wave 4C: catalog (sequence library, targets) sync events. No
+          // operator action required; the existing catalog provider on the
+          // phone consumes these via its own subscription so we just drop
+          // them here rather than waking the user.
+          break;
       }
     } catch (e, st) {
       // Catching here keeps a malformed event from killing the subscriber.
@@ -334,6 +346,145 @@ class MobileEventNotifier {
         if (available == null) return;
         await _notifications.notifyLowDiskSpace(available);
         _markFired(key);
+        break;
+    }
+  }
+
+  /// P1-2/P1-3: job lifecycle events. A long-running operation registered
+  /// in `JobManager` emits five event types in this category:
+  ///
+  ///   JobStarted | JobProgress | JobCompleted | JobFailed | JobCancelled
+  ///
+  /// Only `JobFailed` warrants a notification. The other four are noise on
+  /// a mobile companion:
+  ///
+  ///   * JobStarted / JobProgress — a single plate-solve fires dozens of
+  ///     these in a few seconds; the sequencer page already shows live
+  ///     progress, and buzzing the phone every tick is user-hostile.
+  ///   * JobCompleted — success is the expected outcome of every job we
+  ///     queue. The downstream event the operator actually cares about
+  ///     (e.g. TargetCompleted, sequencer state changes) is already
+  ///     covered by `_handleSequencer`.
+  ///   * JobCancelled — the user themselves almost always triggered the
+  ///     cancel, so they already know.
+  ///
+  /// Failure routing is keyed off the job's `operation` field — see
+  /// `apps/desktop/lib/headless_api/handlers/*.dart` for the canonical
+  /// list. We surface plate-solve, center-on-target, polar-alignment, and
+  /// autofocus failures. Any other operation falls through and is logged
+  /// loudly (per CLAUDE.md's no-silent-fallback rule) but not surfaced —
+  /// so when a new long-running job is added server-side, the logs will
+  /// reveal the gap.
+  Future<void> _handleJob(NightshadeEvent event) async {
+    if (event.eventType != 'JobFailed') {
+      // Drop JobStarted/JobProgress/JobCompleted/JobCancelled entirely.
+      // No log spam: these are normal and we explicitly chose not to
+      // surface them.
+      return;
+    }
+
+    final operation = (event.data['operation'] as String?) ?? '';
+    final errorObj = event.data['error'];
+    final errorMessage = errorObj is Map
+        ? (errorObj['message'] as String? ?? 'Job failed')
+        : (event.data['message'] as String? ??
+            event.data['reason'] as String? ??
+            'Job failed');
+
+    final key = 'job:$operation:JobFailed';
+    if (_firedRecently(key, _repeatWindow)) return;
+    if (_pushAlreadyCovered(event.eventType)) return;
+
+    switch (operation) {
+      case 'focuser.autofocus':
+      case 'focuser.autofocus.start':
+        if (!_preferences.notifyAutofocusFailed) return;
+        await _notifications.notifyAutofocusFailed();
+        _markFired(key);
+        break;
+      case 'plate-solve':
+        if (!_preferences.notifyExposureFailed) return;
+        await _notifications.notifyPlateSolveFailed(errorMessage);
+        _markFired(key);
+        break;
+      case 'framing.center-on-target':
+        if (!_preferences.notifyExposureFailed) return;
+        await _notifications.notifyCenteringFailed(errorMessage);
+        _markFired(key);
+        break;
+      case 'polar-alignment.start':
+      case 'polar-alignment.all-sky.start':
+        // Polar alignment failure is operator-facing: even if the user is
+        // staring at the polar-align screen, a notification helps when
+        // they wandered off to fetch coffee mid-routine. Gate on the same
+        // "exposure failed" pref so users who muted imaging failures
+        // don't get paged by this.
+        if (!_preferences.notifyExposureFailed) return;
+        await _notifications.notifyPolarAlignmentFailed(errorMessage);
+        _markFired(key);
+        break;
+      default:
+        // Unknown operation. Log loudly so the next time a job type is
+        // added server-side, the gap is visible in mobile logs instead
+        // of silently swallowed.
+        developer.log(
+          '[MobileEventNotifier] JobFailed for unhandled operation '
+          '"$operation": $errorMessage',
+          name: 'MobileEventNotifier',
+          level: 900,
+        );
+        break;
+    }
+  }
+
+  /// P1-5: session-ownership lifecycle events. Four event types:
+  ///
+  ///   OwnershipClaimed   - the user themselves likely triggered this on
+  ///                        another device. Ignored.
+  ///   OwnershipReleased  - voluntary release; the user knows. Ignored.
+  ///   OwnershipTakenOver - another client forced a take-over while we
+  ///                        held the slot. User-visible: their next
+  ///                        action will start returning 409s otherwise.
+  ///   OwnershipAutoReleased - heartbeat timed out and the slot was
+  ///                           freed. Informational, low priority.
+  ///
+  /// Note: these events fan out to *all* connected clients, including the
+  /// one whose ownership changed. We deliberately don't try to filter to
+  /// "events about me" here — the headless server already filtered
+  /// before broadcasting (a take-over event reaches the previous owner;
+  /// the new owner's own claim doesn't generate a separate displaced
+  /// event for them).
+  Future<void> _handleSession(NightshadeEvent event) async {
+    final key = 'session:${event.eventType}';
+    if (_firedRecently(key, _repeatWindow)) return;
+    if (_pushAlreadyCovered(event.eventType)) return;
+
+    switch (event.eventType) {
+      case 'OwnershipTakenOver':
+        final clientName = event.data['clientName'] as String?;
+        final reason = event.data['reason'] as String?;
+        await _notifications.notifyOwnershipTakenOver(
+          displacingClientName: clientName,
+          reason: reason,
+        );
+        _markFired(key);
+        break;
+      case 'OwnershipAutoReleased':
+        final reason =
+            event.data['reason'] as String? ?? 'heartbeat timeout';
+        await _notifications.notifyOwnershipAutoReleased(reason);
+        _markFired(key);
+        break;
+      case 'OwnershipClaimed':
+      case 'OwnershipReleased':
+        // The local user almost certainly triggered these. No notification.
+        break;
+      default:
+        developer.log(
+          '[MobileEventNotifier] Unknown session event "${event.eventType}"',
+          name: 'MobileEventNotifier',
+          level: 900,
+        );
         break;
     }
   }

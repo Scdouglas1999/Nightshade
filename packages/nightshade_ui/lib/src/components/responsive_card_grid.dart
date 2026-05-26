@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/nightshade_tokens.dart';
+
 class ResponsiveCardGrid extends StatelessWidget {
   final List<Widget> children;
   final double minCardWidth;
@@ -9,7 +11,7 @@ class ResponsiveCardGrid extends StatelessWidget {
     super.key,
     required this.children,
     this.minCardWidth = 320,
-    this.spacing = 16,
+    this.spacing = NightshadeTokens.spaceLg,
   });
 
   @override

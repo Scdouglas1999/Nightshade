@@ -91,4 +91,34 @@ class SequenceRunsDao extends DatabaseAccessor<NightshadeDatabase>
           ..where((r) => r.startedAt.isSmallerThanValue(cutoff)))
         .go();
   }
+
+  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// `startedAt` so the phone always sees the most recent run at index 0.
+  /// Callers MUST validate and clamp [limit] / [offset] before delegating.
+  Future<List<SequenceRun>> listPaginated({
+    int? sequenceId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(sequenceRuns)
+      ..orderBy([(r) => OrderingTerm.desc(r.startedAt)])
+      ..limit(limit, offset: offset);
+    if (sequenceId != null) {
+      query.where((r) => r.sequenceId.equals(sequenceId));
+    }
+    return query.get();
+  }
+
+  /// P2-8: row count for the same filter set [listPaginated] uses; the
+  /// handler returns this in the `total` field so the phone can render a
+  /// progress indicator.
+  Future<int> countFiltered({int? sequenceId}) async {
+    final countExpr = sequenceRuns.id.count();
+    final query = selectOnly(sequenceRuns)..addColumns([countExpr]);
+    if (sequenceId != null) {
+      query.where(sequenceRuns.sequenceId.equals(sequenceId));
+    }
+    final row = await query.getSingle();
+    return row.read(countExpr) ?? 0;
+  }
 }

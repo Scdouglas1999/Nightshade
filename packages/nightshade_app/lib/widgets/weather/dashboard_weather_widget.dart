@@ -22,7 +22,7 @@ class DashboardWeatherWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final weatherStatus = ref.watch(weatherStatusProvider);
     final appSettings = ref.watch(appSettingsProvider).valueOrNull;
 
@@ -487,10 +487,9 @@ class _AlertBanner extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: bgColor.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        bgColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: bgColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [
@@ -528,8 +527,8 @@ class _AlertBanner extends StatelessWidget {
     switch (alert.level) {
       case AlertLevel.warning:
         return (
-          const Color(0xFFFF9800),
-          const Color(0xFFC66900),
+          colors.warning,
+          colors.warning,
           LucideIcons.alertTriangle,
         );
       case AlertLevel.critical:
@@ -588,7 +587,7 @@ class _WeatherHeader extends StatelessWidget {
     return switch (level) {
       AlertLevel.clear => colors.success,
       AlertLevel.watch => colors.warning,
-      AlertLevel.warning => const Color(0xFFFF9800),
+      AlertLevel.warning => colors.warning,
       AlertLevel.critical => colors.error,
     };
   }
@@ -599,9 +598,8 @@ class _WeatherHeader extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: _getStatusColor().withValues(alpha: 0.1),
-            borderRadius: BorderRadius.circular(8),
+          decoration: NightshadeDecorations.tintedBadge(
+            _getStatusColor(),
           ),
           child: Icon(
             LucideIcons.cloud,
@@ -672,12 +670,12 @@ class _StatusBadge extends StatelessWidget {
       AlertLevel.watch => (
           'Watch',
           colors.warning.withValues(alpha: 0.2),
-          const Color(0xFF855C00)
+          colors.warning
         ),
       AlertLevel.warning => (
           'Warning',
-          const Color(0xFFFF9800).withValues(alpha: 0.2),
-          const Color(0xFFC66900)
+          colors.warning.withValues(alpha: 0.2),
+          colors.warning
         ),
       AlertLevel.critical => (
           'Critical',
@@ -826,7 +824,7 @@ class _WeatherStatusDisplay extends StatelessWidget {
     return switch (weatherStatus.currentLevel) {
       AlertLevel.clear => colors.success,
       AlertLevel.watch => colors.warning,
-      AlertLevel.warning => const Color(0xFFFF9800),
+      AlertLevel.warning => colors.warning,
       AlertLevel.critical => colors.error,
     };
   }

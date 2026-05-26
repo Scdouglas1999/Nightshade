@@ -75,10 +75,16 @@ class _GuidingCardState extends ConsumerState<GuidingCard> {
               // State badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isGuiding ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: isGuiding
+                    ? NightshadeDecorations.statusChip(
+                        colors.success,
+                        borderRadius: BorderRadius.circular(8),
+                        bordered: false,
+                      )
+                    : BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                 child: Text(
                   stateText,
                   style: TextStyle(

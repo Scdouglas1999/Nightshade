@@ -16,7 +16,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final profilesAsync = ref.watch(allProfilesProvider);
 
@@ -28,15 +28,12 @@ class OnboardingWelcomeStep extends ConsumerWidget {
             Container(
               width: 56,
               height: 56,
-              decoration: BoxDecoration(
-                color: colors.primary.withValues(alpha: 0.12),
-                borderRadius: BorderRadius.circular(14),
-                border: Border.all(
-                  color: colors.primary.withValues(alpha: 0.3),
-                ),
+              decoration: NightshadeDecorations.iconChip(
+                colors.primary,
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
               ),
-              child: Icon(LucideIcons.sparkles,
-                  color: colors.primary, size: 28),
+              child:
+                  Icon(LucideIcons.sparkles, color: colors.primary, size: 28),
             ),
             const SizedBox(width: 16),
             Expanded(
@@ -101,12 +98,9 @@ class OnboardingWelcomeStep extends ConsumerWidget {
             // Returning user — explain why the wizard appeared at all.
             return Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.08),
+              decoration: NightshadeDecorations.emphasisSurface(
+                colors.warning,
                 borderRadius: BorderRadius.circular(10),
-                border: Border.all(
-                  color: colors.warning.withValues(alpha: 0.3),
-                ),
               ),
               child: Row(
                 children: [

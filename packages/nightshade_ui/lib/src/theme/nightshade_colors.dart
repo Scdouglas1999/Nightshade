@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+/// Semantic color palette registered as a [ThemeExtension].
+///
+/// Resolve at runtime with [of]. Prefer this over static presets in widgets.
 class NightshadeColors extends ThemeExtension<NightshadeColors> {
   final Color primary;
   final Color accent;
@@ -19,6 +22,10 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   final Color error;
   final Color info;
 
+  /// When true, [onPrimary] uses [background] instead of white — e.g. red night
+  /// vision mode where white thumbs/checkmarks would ruin dark adaptation.
+  final bool useDarkOnPrimary;
+
   const NightshadeColors({
     required this.primary,
     required this.accent,
@@ -37,48 +44,53 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     required this.warning,
     required this.error,
     required this.info,
+    this.useDarkOnPrimary = false,
   });
 
-  // Dark theme colors - inspired by night sky observation
+  /// Foreground color for content on [primary] fills (switches, buttons).
+  Color get onPrimary =>
+      useDarkOnPrimary ? background : const Color(0xFFFFFFFF);
+
+  /// Deep graphite / blue-black palette with restrained cyan-blue accents.
   static const dark = NightshadeColors(
-    primary: Color(0xFF6366F1), // Indigo
-    accent: Color(0xFF8B5CF6), // Violet
-    background: Color(0xFF0F0F14), // Deep night
-    surface: Color(0xFF191922), // Base surface
-    surfaceAlt: Color(0xFF242432), // Cards and panels
-    surfaceHover: Color(0xFF303044), // Hover state
-    surfaceElevated: Color(0xFF323246), // Raised interactive elements
-    surfaceOverlay: Color(0xFF3B3B50), // Modals and floating elements
-    border: Color(0xFF37374A), // Subtle border
-    borderHighlight: Color(0xFF505066), // Highlight edge (catches light)
-    textPrimary: Color(0xFFF4F4F5), // Primary text
-    textSecondary: Color(0xFFA1A1AA), // Secondary text
-    textMuted: Color(0xFF71717A), // Muted text
-    success: Color(0xFF22C55E), // Green
-    warning: Color(0xFFF59E0B), // Amber
-    error: Color(0xFFEF4444), // Red
-    info: Color(0xFF3B82F6), // Blue
+    primary: Color(0xFF5B9EC4),
+    accent: Color(0xFF7AB8D4),
+    background: Color(0xFF0A0C0F),
+    surface: Color(0xFF111418),
+    surfaceAlt: Color(0xFF181C22),
+    surfaceHover: Color(0xFF212630),
+    surfaceElevated: Color(0xFF252A32),
+    surfaceOverlay: Color(0xFF2A3038),
+    border: Color(0xFF2E353F),
+    borderHighlight: Color(0xFF3A424E),
+    textPrimary: Color(0xFFE8EAED),
+    textSecondary: Color(0xFF9AA3AD),
+    textMuted: Color(0xFF6B7380),
+    success: Color(0xFF3DAA6D),
+    warning: Color(0xFFD49A3A),
+    error: Color(0xFFD85C5C),
+    info: Color(0xFF5B9EC4),
   );
 
-  // Light theme colors
+  /// Cool light palette with deeper cyan-blue primary for contrast.
   static const light = NightshadeColors(
-    primary: Color(0xFF4F46E5), // Indigo
-    accent: Color(0xFF7C3AED), // Violet
-    background: Color(0xFFF8FAFC), // Light background
-    surface: Color(0xFFFFFFFF), // White surface
-    surfaceAlt: Color(0xFFF1F5F9), // Alternative surface
-    surfaceHover: Color(0xFFE2E8F0), // Hover state
-    surfaceElevated: Color(0xFFFFFFFF), // Raised elements (white with shadow)
-    surfaceOverlay: Color(0xFFFFFFFF), // Modals (white with stronger shadow)
-    border: Color(0xFFE2E8F0), // Subtle border
-    borderHighlight: Color(0xFFFFFFFF), // Highlight edge (pure white on light)
-    textPrimary: Color(0xFF0F172A), // Primary text
-    textSecondary: Color(0xFF64748B), // Secondary text
-    textMuted: Color(0xFF94A3B8), // Muted text
-    success: Color(0xFF16A34A), // Green
-    warning: Color(0xFFD97706), // Amber
-    error: Color(0xFFDC2626), // Red
-    info: Color(0xFF2563EB), // Blue
+    primary: Color(0xFF2878A8),
+    accent: Color(0xFF3A9BC4),
+    background: Color(0xFFF4F6F8),
+    surface: Color(0xFFFFFFFF),
+    surfaceAlt: Color(0xFFEEF1F4),
+    surfaceHover: Color(0xFFE4E8EC),
+    surfaceElevated: Color(0xFFFFFFFF),
+    surfaceOverlay: Color(0xFFFFFFFF),
+    border: Color(0xFFD8DEE4),
+    borderHighlight: Color(0xFFC8D0D8),
+    textPrimary: Color(0xFF141820),
+    textSecondary: Color(0xFF5C6672),
+    textMuted: Color(0xFF8A939E),
+    success: Color(0xFF2F8F57),
+    warning: Color(0xFFB87A1E),
+    error: Color(0xFFC94848),
+    info: Color(0xFF2878A8),
   );
 
   /// Create a dark theme with custom accent color
@@ -108,23 +120,24 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
   /// Red night vision theme - designed to preserve dark-adapted eyes
   /// Uses only red wavelengths which minimally affect scotopic (night) vision
   static const redNight = NightshadeColors(
-    primary: Color(0xFFDC2626), // Bright red (main accent)
-    accent: Color(0xFFB91C1C), // Deeper red (secondary accent)
-    background: Color(0xFF0A0000), // Nearly pure black with hint of red
-    surface: Color(0xFF140808), // Very dark red surface
-    surfaceAlt: Color(0xFF1C0C0C), // Slightly lighter red surface
-    surfaceHover: Color(0xFF241010), // Hover state
-    surfaceElevated: Color(0xFF281212), // Raised interactive elements
-    surfaceOverlay: Color(0xFF301616), // Modals and floating elements
-    border: Color(0xFF2E1414), // Dark red border
-    borderHighlight: Color(0xFF3A1A1A), // Highlight edge
-    textPrimary: Color(0xFFE57373), // Light red text - easy to read
-    textSecondary: Color(0xFFB71C1C), // Medium red secondary text
-    textMuted: Color(0xFF7F1D1D), // Muted dark red
-    success: Color(0xFFB91C1C), // Dark red for success (no green)
-    warning: Color(0xFFDC2626), // Standard red for warning
-    error: Color(0xFFEF5350), // Bright red for errors
-    info: Color(0xFFE57373), // Light red for info
+    primary: Color(0xFFDC2626),
+    accent: Color(0xFFB91C1C),
+    background: Color(0xFF0A0000),
+    surface: Color(0xFF140808),
+    surfaceAlt: Color(0xFF1C0C0C),
+    surfaceHover: Color(0xFF241010),
+    surfaceElevated: Color(0xFF281212),
+    surfaceOverlay: Color(0xFF301616),
+    border: Color(0xFF2E1414),
+    borderHighlight: Color(0xFF3A1A1A),
+    textPrimary: Color(0xFFE57373),
+    textSecondary: Color(0xFFB71C1C),
+    textMuted: Color(0xFF7F1D1D),
+    success: Color(0xFFB91C1C),
+    warning: Color(0xFFDC2626),
+    error: Color(0xFFEF5350),
+    info: Color(0xFFE57373),
+    useDarkOnPrimary: true,
   );
 
   @override
@@ -146,6 +159,7 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
     Color? warning,
     Color? error,
     Color? info,
+    bool? useDarkOnPrimary,
   }) {
     return NightshadeColors(
       primary: primary ?? this.primary,
@@ -165,7 +179,23 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
       warning: warning ?? this.warning,
       error: error ?? this.error,
       info: info ?? this.info,
+      useDarkOnPrimary: useDarkOnPrimary ?? this.useDarkOnPrimary,
     );
+  }
+
+  /// Resolve the active [NightshadeColors] from [context].
+  ///
+  /// Falls back to [dark] or [light] when the nearest [Theme] has no
+  /// extension — e.g. mobile connection [MaterialApp] shells that predate
+  /// a theme rebuild, or routes pushed before the parent theme applies.
+  static NightshadeColors of(BuildContext context) {
+    final extension = Theme.of(context).extension<NightshadeColors>();
+    if (extension != null) {
+      return extension;
+    }
+    return Theme.of(context).brightness == Brightness.light
+        ? NightshadeColors.light
+        : NightshadeColors.dark;
   }
 
   @override
@@ -189,6 +219,13 @@ class NightshadeColors extends ThemeExtension<NightshadeColors> {
       warning: Color.lerp(warning, other.warning, t)!,
       error: Color.lerp(error, other.error, t)!,
       info: Color.lerp(info, other.info, t)!,
+      useDarkOnPrimary: t < 0.5 ? useDarkOnPrimary : other.useDarkOnPrimary,
     );
   }
+}
+
+/// Shorthand for [NightshadeColors.of] on a [BuildContext].
+extension NightshadeThemeContext on BuildContext {
+  /// Active semantic palette from the nearest [Theme].
+  NightshadeColors get nightshadeColors => NightshadeColors.of(this);
 }

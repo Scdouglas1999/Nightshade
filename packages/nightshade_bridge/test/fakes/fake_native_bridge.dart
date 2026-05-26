@@ -159,8 +159,9 @@ class FakeNativeBridge {
   }
 
   /// All calls whose [FakeBridgeCall.method] equals [methodName].
-  List<FakeBridgeCall> callsTo(String methodName) =>
-      recordedCalls.where((c) => c.method == methodName).toList(growable: false);
+  List<FakeBridgeCall> callsTo(String methodName) => recordedCalls
+      .where((c) => c.method == methodName)
+      .toList(growable: false);
 
   /// Number of times [methodName] was invoked.
   int callCount(String methodName) =>
@@ -526,7 +527,8 @@ class FakeNativeBridge {
     _maybeThrow('apiFilterwheelSetPosition');
   }
 
-  Future<List<String>> apiFilterwheelGetNames({required String deviceId}) async {
+  Future<List<String>> apiFilterwheelGetNames(
+      {required String deviceId}) async {
     _record('apiFilterwheelGetNames', {'deviceId': deviceId});
     _maybeThrow('apiFilterwheelGetNames');
     return _typed<List<String>>(
@@ -678,7 +680,8 @@ class FakeNativeBridge {
 
   // --- PHD2 / Guider ----------------------------------------------------------
 
-  Future<bool> isPhd2Running({String host = 'localhost', int port = 4400}) async {
+  Future<bool> isPhd2Running(
+      {String host = 'localhost', int port = 4400}) async {
     _record('isPhd2Running', {'host': host, 'port': port});
     _maybeThrow('isPhd2Running');
     return _typed<bool>('isPhd2Running', defaultValue: false);
@@ -913,6 +916,11 @@ class FakeNativeBridge {
     _maybeThrow('sequencerSetSafetyFailMode');
   }
 
+  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds) async {
+    _record('sequencerSetSafetyCheckIntervalSeconds', {'seconds': seconds});
+    _maybeThrow('sequencerSetSafetyCheckIntervalSeconds');
+  }
+
   Future<void> sequencerSetSavePath({String? path}) async {
     _record('sequencerSetSavePath', {'path': path});
     _maybeThrow('sequencerSetSavePath');
@@ -951,6 +959,62 @@ class FakeNativeBridge {
   }) async {
     _record('sequencerUpdateFilterOffsets', {'offsets': offsets});
     _maybeThrow('sequencerUpdateFilterOffsets');
+  }
+
+  /// Wave 7.5 — recorded so tests can verify the SequenceExecutor
+  /// pushes the operator's handoff decision (Resume / Restart) into
+  /// the BudgetRegistry seed pipeline.
+  Future<void> sequencerUpdatePendingIntegrationCarryOver({
+    required Map<String, Map<String, double>> carryOver,
+  }) async {
+    _record(
+        'sequencerUpdatePendingIntegrationCarryOver', {'carryOver': carryOver});
+    _maybeThrow('sequencerUpdatePendingIntegrationCarryOver');
+  }
+
+  Future<void> sequencerUpdateDefaultQualityCheck({
+    double? hfrThreshold,
+    double? hfrBaselinePercent,
+    double? eccentricityThreshold,
+    int? starCountMin,
+    required int maxConsecutiveRejects,
+    required bool enabled,
+  }) async {
+    _record('sequencerUpdateDefaultQualityCheck', {
+      'hfrThreshold': hfrThreshold,
+      'hfrBaselinePercent': hfrBaselinePercent,
+      'eccentricityThreshold': eccentricityThreshold,
+      'starCountMin': starCountMin,
+      'maxConsecutiveRejects': maxConsecutiveRejects,
+      'enabled': enabled,
+    });
+    _maybeThrow('sequencerUpdateDefaultQualityCheck');
+  }
+
+  Future<void> sequencerUpdateRejectFolderPath({String? path}) async {
+    _record('sequencerUpdateRejectFolderPath', {'path': path});
+    _maybeThrow('sequencerUpdateRejectFolderPath');
+  }
+
+  Future<void> sequencerUpdateObserverProfile({
+    String? observerName,
+    double? siteElevationM,
+    String? cameraMake,
+    String? cameraModel,
+    String? telescopeName,
+    double? telescopeFocalLengthMm,
+    double? telescopeApertureMm,
+  }) async {
+    _record('sequencerUpdateObserverProfile', {
+      'observerName': observerName,
+      'siteElevationM': siteElevationM,
+      'cameraMake': cameraMake,
+      'cameraModel': cameraModel,
+      'telescopeName': telescopeName,
+      'telescopeFocalLengthMm': telescopeFocalLengthMm,
+      'telescopeApertureMm': telescopeApertureMm,
+    });
+    _maybeThrow('sequencerUpdateObserverProfile');
   }
 
   Future<void> sequencerStart() async {
@@ -1325,7 +1389,8 @@ class FakeNativeBridge {
     progress: 0.0,
   );
 
-  static final bridge_stub.ImageStats _defaultImageStats = bridge_stub.ImageStats(
+  static final bridge_stub.ImageStats _defaultImageStats =
+      bridge_stub.ImageStats(
     min: 0,
     max: 0,
     mean: 0,

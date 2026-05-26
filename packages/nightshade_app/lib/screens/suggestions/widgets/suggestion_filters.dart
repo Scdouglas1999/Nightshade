@@ -35,7 +35,7 @@ class SuggestionFilters extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final config = ref.watch(targetSuggestionConfigProvider);
     final filters = ref.watch(suggestionFilterProvider);
 
@@ -533,19 +533,12 @@ class SuggestionFilters extends ConsumerWidget {
                     ],
                   ),
                 ),
-                Switch(
+                NightshadeSwitch(
                   value: config.prioritizeIncomplete,
                   onChanged: (value) => _updateConfig(
                     ref,
                     config.copyWith(prioritizeIncomplete: value),
                   ),
-                  activeTrackColor: colors.primary.withValues(alpha: 0.5),
-                  thumbColor: WidgetStateProperty.resolveWith((states) {
-                    if (states.contains(WidgetState.selected)) {
-                      return colors.primary;
-                    }
-                    return colors.textMuted;
-                  }),
                 ),
               ],
             ),

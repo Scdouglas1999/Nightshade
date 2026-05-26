@@ -73,15 +73,77 @@ fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
 
 use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::api::*;
+use crate::device::DeviceType;
 use crate::event::*;
 use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::FitsWriteHeader;
 use async_trait::async_trait;
 use nightshade_sequencer::{
-    DeviceOps, DeviceResult, GuidingStatus, ImageData, PlateSolveResult, PolarAlignResult,
+    DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData, PlateSolveResult,
+    PolarAlignResult,
 };
 use std::sync::Arc;
+
+const EXPOSURE_COMPLETION_MARGIN: std::time::Duration = std::time::Duration::from_secs(60);
+
+fn exposure_completion_timeout(duration_secs: f64) -> std::time::Duration {
+    std::time::Duration::from_secs_f64(duration_secs.max(0.0)) + EXPOSURE_COMPLETION_MARGIN
+}
+
+async fn wait_for_camera_exposure_complete<F, Fut>(
+    camera_id: &str,
+    duration_secs: f64,
+    timeout_after: std::time::Duration,
+    app_state: &SharedAppState,
+    mut is_complete: F,
+) -> DeviceResult<()>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<bool, String>>,
+{
+    let start_time = std::time::Instant::now();
+    let mut poller: AdaptivePoller<bool> = AdaptivePoller::from_preset(PollerPreset::Exposure);
+
+    loop {
+        if start_time.elapsed() >= timeout_after {
+            return Err(format!(
+                "Exposure on {} did not complete within {:.1}s timeout ({:.1}s requested exposure plus safety margin)",
+                camera_id,
+                timeout_after.as_secs_f64(),
+                duration_secs
+            ));
+        }
+
+        match is_complete().await {
+            Ok(true) => return Ok(()),
+            Ok(false) => {}
+            Err(e) => return Err(format!("Failed to check exposure status: {}", e)),
+        }
+
+        let elapsed = start_time.elapsed();
+        let progress = if duration_secs > 0.0 {
+            (elapsed.as_secs_f64() / duration_secs).min(1.0)
+        } else {
+            1.0
+        };
+        let remaining_secs = (duration_secs - elapsed.as_secs_f64()).max(0.0);
+
+        app_state.publish_imaging_event(
+            ImagingEvent::ExposureProgress {
+                progress,
+                remaining_secs,
+            },
+            EventSeverity::Info,
+        );
+
+        // Reaching this point means the current poll observed "not complete";
+        // a completed exposure returns immediately above.
+        let poll_interval = poller.tick(&false);
+        let remaining_timeout = timeout_after.saturating_sub(start_time.elapsed());
+        tokio::time::sleep(poll_interval.min(remaining_timeout)).await;
+    }
+}
 
 /// Unified device operations implementation
 ///
@@ -97,6 +159,44 @@ pub struct UnifiedDeviceOps {
 impl UnifiedDeviceOps {
     pub fn new(app_state: SharedAppState) -> Self {
         Self { app_state }
+    }
+
+    async fn resolve_safety_device_id(&self, explicit_id: Option<&str>) -> DeviceResult<String> {
+        if let Some(id) = explicit_id {
+            return Ok(id.to_string());
+        }
+
+        if let Some(id) = get_device_manager()
+            .first_connected_device_id(DeviceType::SafetyMonitor)
+            .await
+        {
+            return Ok(id);
+        }
+
+        // Audit C1: the profile now persists a SafetyMonitor selection. Prefer
+        // that over falling through to a weather device so sequencer safety
+        // checks consult the dedicated sensor instead of inferring safe/unsafe
+        // from a weather station.
+        if let Some(id) = self
+            .app_state
+            .get_profile_device_id(DeviceType::SafetyMonitor)
+            .await
+        {
+            return Ok(id);
+        }
+
+        if let Some(id) = self
+            .app_state
+            .get_profile_device_id(DeviceType::Weather)
+            .await
+        {
+            return Ok(id);
+        }
+
+        Err(
+            "No safety monitor or weather device configured for sequencer safety checks"
+                .to_string(),
+        )
     }
 }
 
@@ -331,7 +431,6 @@ impl DeviceOps for UnifiedDeviceOps {
         );
 
         let mgr = get_device_manager();
-        let start_time = std::time::Instant::now();
 
         // Publish ExposureStarted event
         self.app_state.publish_imaging_event(
@@ -368,46 +467,21 @@ impl DeviceOps for UnifiedDeviceOps {
             format!("Exposure failed: {}", e)
         })?;
 
-        // Wait for completion with progress updates using adaptive polling
-        // This reduces CPU/network overhead for long exposures while maintaining
-        // responsiveness at the beginning and end of the exposure
-        let mut poller: AdaptivePoller<bool> = AdaptivePoller::from_preset(PollerPreset::Exposure);
-        let mut last_complete_status = false;
-
-        loop {
-            match mgr.camera_is_exposure_complete(camera_id).await {
-                Ok(is_complete) => {
-                    if is_complete {
-                        break;
-                    }
-
-                    // Get next poll interval (adapts based on status changes)
-                    let poll_interval = poller.tick(&last_complete_status);
-                    last_complete_status = is_complete;
-                    tokio::time::sleep(poll_interval).await;
-                }
-                Err(e) => {
-                    self.app_state.publish_imaging_event(
-                        ImagingEvent::ExposureComplete { success: false },
-                        EventSeverity::Error,
-                    );
-                    return Err(format!("Failed to check exposure status: {}", e));
-                }
-            }
-
-            // Calculate and publish progress
-            let elapsed = start_time.elapsed().as_secs_f64();
-            let progress = (elapsed / duration_secs).min(1.0);
-            let remaining = (duration_secs - elapsed).max(0.0);
-
+        wait_for_camera_exposure_complete(
+            camera_id,
+            duration_secs,
+            exposure_completion_timeout(duration_secs),
+            &self.app_state,
+            || async { mgr.camera_is_exposure_complete(camera_id).await },
+        )
+        .await
+        .map_err(|e| {
             self.app_state.publish_imaging_event(
-                ImagingEvent::ExposureProgress {
-                    progress,
-                    remaining_secs: remaining,
-                },
-                EventSeverity::Info,
+                ImagingEvent::ExposureComplete { success: false },
+                EventSeverity::Error,
             );
-        }
+            e
+        })?;
 
         // Download image
         let native_image = mgr.camera_download_image(camera_id).await.map_err(|e| {
@@ -941,6 +1015,20 @@ impl DeviceOps for UnifiedDeviceOps {
         })
     }
 
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let calib = crate::api::phd2::api_guider_get_calibration(guider_id)
+            .await
+            .map_err(|e| format!("Failed to get guider calibration: {}", e))?;
+        Ok(GuidingCalibration {
+            is_calibrated: calib.is_calibrated,
+            ra_angle_deg: calib.ra_angle,
+            dec_angle_deg: calib.dec_angle,
+        })
+    }
+
     async fn guider_start(
         &self,
         settle_pixels: f64,
@@ -1053,40 +1141,28 @@ impl DeviceOps for UnifiedDeviceOps {
         &self,
         image_data: &ImageData,
         file_path: &str,
-        target_name: Option<&str>,
-        filter: Option<&str>,
-        ra_hours: Option<f64>,
-        dec_degrees: Option<f64>,
+        frame_ctx: &nightshade_sequencer::scheduling::FrameContext,
     ) -> DeviceResult<()> {
-        tracing::info!("Saving FITS image to: {}", file_path);
+        tracing::info!(
+            "Saving FITS image to: {} ({})",
+            file_path,
+            frame_ctx.log_label()
+        );
 
-        let header = FitsWriteHeader {
-            object_name: target_name.map(|s| s.to_string()),
-            exposure_time: image_data.exposure_secs,
-            capture_timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
-            frame_type: "Light".to_string(),
-            filter: filter.map(|s| s.to_string()),
-            gain: image_data.gain,
-            offset: image_data.offset,
-            ccd_temp: image_data.temperature,
-            ra: ra_hours,
-            dec: dec_degrees,
-            altitude: None,
-            telescope: None,
-            instrument: None,
-            observer: None,
-            bin_x: 1,
-            bin_y: 1,
-            focal_length: None,
-            aperture: None,
-            pixel_size_x: None,
-            pixel_size_y: None,
-            site_latitude: None,
-            site_longitude: None,
-            site_elevation: None,
-        };
+        // Wave 3 Image Grading: rich-header path.
+        let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);
+        if let Some(g) = image_data.gain {
+            header.gain = Some(g);
+        }
+        if let Some(o) = image_data.offset {
+            header.offset = Some(o);
+        }
+        if let Some(t) = image_data.temperature {
+            header.ccd_temp = Some(t);
+        }
+        header.exposure_time = image_data.exposure_secs;
 
-        api_save_fits_file(
+        crate::api::save_fits_file_rich(
             file_path.to_string(),
             image_data.width,
             image_data.height,
@@ -1101,7 +1177,13 @@ impl DeviceOps for UnifiedDeviceOps {
     // NOTIFICATIONS
     // =========================================================================
 
-    async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
+    async fn send_notification(
+        &self,
+        level: &str,
+        title: &str,
+        message: &str,
+        explicit_transports: Option<&[String]>,
+    ) -> DeviceResult<()> {
         tracing::info!(
             "[NOTIFICATION][{}] {}: {}",
             level.to_uppercase(),
@@ -1123,6 +1205,7 @@ impl DeviceOps for UnifiedDeviceOps {
                 title: title.to_string(),
                 message: message.to_string(),
                 level: level.to_string(),
+                explicit_transports: explicit_transports.map(|s| s.to_vec()),
             }),
         ));
 
@@ -1249,24 +1332,10 @@ impl DeviceOps for UnifiedDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // Resolve safety source from explicit ID or active profile.
-        // Return errors when unresolved so sequencer fail-mode can decide policy.
-        let device_id = match safety_id {
-            Some(id) => id.to_string(),
-            None => {
-                // Try to get from profile
-                let profile = self.app_state.get_profile().await;
-                match profile.and_then(|p| p.weather_id) {
-                    Some(id) => id,
-                    None => {
-                        return Err(
-                            "No safety/weather device configured for sequencer safety checks"
-                                .to_string(),
-                        );
-                    }
-                }
-            }
-        };
+        // Prefer a connected SafetyMonitor device. Equipment profiles still
+        // only store weather_id, so weather remains a fallback rather than the
+        // primary safety source.
+        let device_id = self.resolve_safety_device_id(safety_id).await?;
 
         tracing::debug!("Checking safety status for device: {}", device_id);
 
@@ -1290,10 +1359,7 @@ impl DeviceOps for UnifiedDeviceOps {
 
     /// Trust-patch §2: feed HumidityThreshold triggers from the configured
     /// weather device. See the trait rustdoc for Ok(None) vs Err semantics.
-    async fn weather_get_humidity(
-        &self,
-        weather_id: Option<&str>,
-    ) -> DeviceResult<Option<f64>> {
+    async fn weather_get_humidity(&self, weather_id: Option<&str>) -> DeviceResult<Option<f64>> {
         let device_id = match weather_id {
             Some(id) => id.to_string(),
             None => {
@@ -1305,7 +1371,10 @@ impl DeviceOps for UnifiedDeviceOps {
             }
         };
 
-        match get_device_manager().weather_get_conditions(&device_id).await {
+        match get_device_manager()
+            .weather_get_conditions(&device_id)
+            .await
+        {
             Ok(conditions) => Ok(conditions.humidity),
             Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
         }
@@ -1747,6 +1816,35 @@ mod tests {
         assert!(
             exposure_checked.load(Ordering::SeqCst) > 0,
             "Exposure status should be checked at least once"
+        );
+    }
+
+    #[tokio::test]
+    async fn exposure_polling_times_out_when_driver_never_completes() {
+        let poll_count = Arc::new(AtomicUsize::new(0));
+        let result = wait_for_camera_exposure_complete(
+            "native:test_hung_camera",
+            300.0,
+            std::time::Duration::from_millis(20),
+            &crate::api::get_state(),
+            || {
+                let poll_count = Arc::clone(&poll_count);
+                async move {
+                    poll_count.fetch_add(1, Ordering::SeqCst);
+                    Ok(false)
+                }
+            },
+        )
+        .await;
+
+        let err = result.expect_err("hung exposure polling should time out");
+        assert!(
+            err.contains("did not complete within"),
+            "unexpected timeout error: {err}"
+        );
+        assert!(
+            poll_count.load(Ordering::SeqCst) > 0,
+            "exposure status should be polled before timing out"
         );
     }
 }

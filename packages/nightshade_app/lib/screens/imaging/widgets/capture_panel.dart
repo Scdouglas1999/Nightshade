@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/remote_directory_picker_dialog.dart';
 import 'panel_widgets.dart';
 
 // Provider for park mount on end setting
@@ -24,6 +25,7 @@ class CapturePanel extends ConsumerWidget {
     final sessionImages = ref.watch(sessionImagesProvider);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final cameraState = ref.watch(cameraStateProvider);
+    final hostSuffix = isRemoteMode ? ' (host)' : '';
 
     // Get binning options based on connected camera's capabilities
     final binningOptions = ref.watch(
@@ -42,7 +44,7 @@ class CapturePanel extends ConsumerWidget {
         children: [
           // Exposure Settings
           PanelSection(
-            title: 'Exposure Settings',
+            title: 'Exposure Settings$hostSuffix',
             colors: colors,
             child: Column(
               children: [
@@ -123,42 +125,44 @@ class CapturePanel extends ConsumerWidget {
                   },
                 ),
                 const SizedBox(height: 12),
-                // In remote mode, show text input for server path
-                // In local mode, show directory picker
-                if (isRemoteMode)
-                  InputRowEditable(
-                    label: 'Save Path (Server)',
-                    value: namingPattern.baseDir,
-                    colors: colors,
-                    onChanged: (value) {
-                      ref
-                          .read(appSettingsProvider.notifier)
-                          .setImageOutputPath(value);
-                    },
-                  )
-                else
-                  InputRow(
-                    label: 'Save Path',
-                    value: namingPattern.baseDir,
-                    colors: colors,
-                    trailing: GestureDetector(
-                      onTap: () async {
-                        final result = await getDirectoryPath(
-                          confirmButtonText: 'Select',
-                          initialDirectory: namingPattern.baseDir.isNotEmpty
+                // Remote paths live on the imaging host; browse via the API.
+                InputRow(
+                  label: isRemoteMode ? 'Save Path (Host)' : 'Save Path',
+                  value: namingPattern.baseDir,
+                  colors: colors,
+                  trailing: GestureDetector(
+                    onTap: () async {
+                      if (isRemoteMode) {
+                        final result = await RemoteDirectoryPickerDialog.show(
+                          context,
+                          title: 'Select host capture folder',
+                          initialPath: namingPattern.baseDir.isNotEmpty
                               ? namingPattern.baseDir
                               : null,
                         );
                         if (result != null) {
-                          ref
+                          await ref
                               .read(appSettingsProvider.notifier)
                               .setImageOutputPath(result);
                         }
-                      },
-                      child: Icon(LucideIcons.folderOpen,
-                          size: 14, color: colors.textSecondary),
-                    ),
+                        return;
+                      }
+                      final result = await getDirectoryPath(
+                        confirmButtonText: 'Select',
+                        initialDirectory: namingPattern.baseDir.isNotEmpty
+                            ? namingPattern.baseDir
+                            : null,
+                      );
+                      if (result != null) {
+                        await ref
+                            .read(appSettingsProvider.notifier)
+                            .setImageOutputPath(result);
+                      }
+                    },
+                    child: Icon(LucideIcons.folderOpen,
+                        size: 14, color: colors.textSecondary),
                   ),
+                ),
               ],
             ),
           ),
@@ -436,15 +440,16 @@ class CapturePanel extends ConsumerWidget {
             variant: ButtonVariant.ghost,
             size: ButtonSize.small,
           ),
-          GradientDialogButton(
+          NightshadeButton(
             onPressed: () async {
               // Capture context before closing dialog
               final dialogContext = context;
               Navigator.of(context).pop();
               await _endSession(ref, dialogContext);
             },
-            color: colors.warning,
-            child: const Text('End Session'),
+            label: 'End Session',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
           ),
         ],
       ),

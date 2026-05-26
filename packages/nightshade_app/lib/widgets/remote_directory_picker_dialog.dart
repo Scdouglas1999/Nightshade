@@ -104,13 +104,18 @@ class _RemoteDirectoryPickerDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>();
+    final colors = NightshadeColors.of(context);
+    final dialogSize = AdaptiveDialogConstraints.hybrid(
+      context,
+      designMaxWidth: ShellChromeMetrics.shareDialogPreferredWidth,
+      designMaxHeight: ShellChromeMetrics.shareDialogPreferredWidth,
+    );
 
     return AlertDialog(
       title: Text(widget.title),
       content: SizedBox(
-        width: 420,
-        height: 420,
+        width: dialogSize.maxWidth,
+        height: dialogSize.maxHeight,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -118,7 +123,7 @@ class _RemoteDirectoryPickerDialogState
               Container(
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: colors?.surfaceAlt ?? Theme.of(context).cardColor,
+                  color: colors.surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Text(
@@ -138,7 +143,7 @@ class _RemoteDirectoryPickerDialogState
                     _error!,
                     textAlign: TextAlign.center,
                     style: TextStyle(
-                      color: colors?.error ?? Theme.of(context).colorScheme.error,
+                      color: colors.error,
                     ),
                   ),
                 ),

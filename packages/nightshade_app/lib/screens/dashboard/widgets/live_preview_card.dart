@@ -62,8 +62,8 @@ class LivePreviewCard extends StatelessWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(6),
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      colors.primary,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(LucideIcons.image, size: 14, color: colors.primary),
@@ -175,7 +175,7 @@ class _ImagePreviewAreaState extends ConsumerState<_ImagePreviewArea> {
 
     return Container(
       decoration: BoxDecoration(
-        color: const Color(0xFF0A0A12),
+        color: colors.background,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),

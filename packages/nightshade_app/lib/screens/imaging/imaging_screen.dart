@@ -116,7 +116,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
   }
 
   void _showFirstUseCatalogDialog() {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     showDialog(
       context: context,
       builder: (dialogContext) => AlertDialog(
@@ -159,8 +159,11 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 context: context,
                 builder: (context) => Dialog(
                   child: ConstrainedBox(
-                    constraints:
-                        const BoxConstraints(maxWidth: 800, maxHeight: 700),
+                    constraints: AdaptiveDialogConstraints.hybrid(
+                      context,
+                      designMaxWidth: 800,
+                      designMaxHeight: 700,
+                    ),
                     child: const CatalogSettingsScreen(),
                   ),
                 ),
@@ -198,13 +201,46 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
 
     setState(() => _isSingleCapture = true);
 
+    final settings = ref.read(exposureSettingsProvider);
+    final imagingService = ref.read(imagingServiceProvider);
+    final sessionNotifier = ref.read(sessionStateProvider.notifier);
+
+    sessionNotifier.setCapturing(true);
+
+    // IMG-P1-5: flip the button label back to "Snapshot" as soon as the
+    // imaging service publishes the preview image, even though FITS
+    // save, auto-calibration, and science processing keep running in
+    // the background after that. Without this listener the button
+    // stayed on "Taking…" for the full save+calibration cycle — long
+    // after the user could see and inspect the frame.
+    //
+    // We baseline against the `capturedAt` of whatever was on screen
+    // when the snapshot started so an idle, never-changing image (or a
+    // stale frame from a previous session) doesn't immediately trip
+    // the reset.
+    final baselineCapturedAt =
+        ref.read(currentImageProvider)?.capturedAt;
+    var previewSeen = false;
+    final previewSubscription = ref.listenManual<CapturedImageData?>(
+      currentImageProvider,
+      (previous, next) {
+        if (previewSeen) return;
+        if (next == null) return;
+        if (next.capturedAt == baselineCapturedAt) return;
+        previewSeen = true;
+        if (!mounted) return;
+        // Pop the button out of "Taking…" the instant the preview
+        // surfaces. The session-level `capturing` flag (used by other
+        // UI like the global capture chip) stays on until the whole
+        // pipeline finishes in the outer try/finally below — we don't
+        // want to mislead other surfaces that the work is done.
+        setState(() => _isSingleCapture = false);
+      },
+      // We don't care about the initial value, only future writes.
+      fireImmediately: false,
+    );
+
     try {
-      final settings = ref.read(exposureSettingsProvider);
-      final imagingService = ref.read(imagingServiceProvider);
-      final sessionNotifier = ref.read(sessionStateProvider.notifier);
-
-      sessionNotifier.setCapturing(true);
-
       final result = await imagingService.captureImage(
         settings: settings,
         targetName: ref.read(sessionStateProvider).targetName,
@@ -223,8 +259,15 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
       if (!mounted) return;
       context.showErrorSnackBar('Capture failed: $e');
     } finally {
+      previewSubscription.close();
       if (mounted) {
-        setState(() => _isSingleCapture = false);
+        // Safety net: if the capture failed before the preview was
+        // ever published (e.g. camera throw, abort), flip the button
+        // back here. When the listener already reset the flag this is
+        // a no-op setState that just rebuilds with the same state.
+        if (_isSingleCapture) {
+          setState(() => _isSingleCapture = false);
+        }
         ref.read(sessionStateProvider.notifier).setCapturing(false);
       }
     }
@@ -316,7 +359,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     // Sync snapshot exposure defaults from the active equipment profile
     ref.watch(syncExposureFromProfileProvider);
 
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final selectedPanel = ref.watch(selectedImagingPanelProvider);
     final annotationSettings = ref.watch(annotationSettingsProvider);
     final catalogInstalled = ref.watch(annotationCatalogInstalledProvider);
@@ -358,8 +401,11 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   context: context,
                   builder: (context) => Dialog(
                     child: ConstrainedBox(
-                      constraints:
-                          const BoxConstraints(maxWidth: 800, maxHeight: 700),
+                      constraints: AdaptiveDialogConstraints.hybrid(
+                        context,
+                        designMaxWidth: 800,
+                        designMaxHeight: 700,
+                      ),
                       child: const CatalogSettingsScreen(),
                     ),
                   ),
@@ -571,10 +617,13 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
     final isCapturing = _isSingleCapture || _isLooping;
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    final hostSuffix = isRemoteMode ? ' (host)' : '';
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile = constraints.maxWidth < 600;
+        final isMobile =
+            constraints.maxWidth < BreakpointTokens.breakpointPhone;
         final isSmallMobile = constraints.maxWidth < 400;
         final horizontalPadding = isMobile ? 12.0 : 16.0;
         final verticalPadding = isMobile ? 12.0 : 16.0;
@@ -590,7 +639,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
               children: [
                 // Capture controls
                 ControlSection(
-                  title: 'Capture',
+                  title: 'Capture$hostSuffix',
                   colors: colors,
                   child: Row(
                     children: [
@@ -600,7 +649,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                           icon: _isSingleCapture
                               ? LucideIcons.loader2
                               : LucideIcons.camera,
-                          label: _isSingleCapture ? 'Taking...' : 'Snapshot',
+                          label: _isSingleCapture
+                              ? 'Taking...'
+                              : 'Snapshot$hostSuffix',
                           color: colors.primary,
                           isLoading: _isSingleCapture,
                           isEnabled: isConnected && !isCapturing,
@@ -628,14 +679,14 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 SizedBox(height: sectionSpacing),
                 // Exposure settings
                 ControlSection(
-                  title: 'Exposure',
+                  title: 'Exposure$hostSuffix',
                   colors: colors,
                   child: Row(
                     children: [
                       Expanded(
                         child: EditableCompactInput(
                           key: ImagingTutorialKeys.exposureSlider,
-                          label: 'Duration',
+                          label: 'Duration$hostSuffix',
                           value:
                               exposureSettings.exposureTime.toStringAsFixed(0),
                           suffix: 's',
@@ -724,7 +775,7 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
         final wrapSpacing = sectionSpacing;
         final sections = <Widget>[
           ControlSection(
-            title: 'Capture',
+            title: 'Capture$hostSuffix',
             colors: colors,
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -734,7 +785,9 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                   icon: _isSingleCapture
                       ? LucideIcons.loader2
                       : LucideIcons.camera,
-                  label: _isSingleCapture ? 'Taking...' : 'Snapshot',
+                  label: _isSingleCapture
+                      ? 'Taking...'
+                      : 'Snapshot$hostSuffix',
                   color: colors.primary,
                   isLoading: _isSingleCapture,
                   isEnabled: isConnected && !isCapturing,
@@ -753,14 +806,14 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
             ),
           ),
           ControlSection(
-            title: 'Exposure',
+            title: 'Exposure$hostSuffix',
             colors: colors,
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
                 EditableCompactInput(
                   key: ImagingTutorialKeys.exposureSlider,
-                  label: 'Duration',
+                  label: 'Duration$hostSuffix',
                   value: exposureSettings.exposureTime.toStringAsFixed(0),
                   suffix: 's',
                   colors: colors,

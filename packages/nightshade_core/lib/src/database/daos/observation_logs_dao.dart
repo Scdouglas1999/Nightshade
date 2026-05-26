@@ -210,6 +210,34 @@ class ObservationLogsDao extends DatabaseAccessor<NightshadeDatabase>
     return result ?? 0;
   }
 
+  /// P2-8: paginated listing for the remote read API ("notes journal").
+  /// Filter by [equipmentProfileId] when provided. Newest-first by
+  /// `timestamp`. Caller MUST validate / clamp [limit] / [offset].
+  Future<List<ObservationLogEntry>> listPaginated({
+    int? equipmentProfileId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(observationLogs)
+      ..orderBy([(t) => OrderingTerm.desc(t.timestamp)])
+      ..limit(limit, offset: offset);
+    if (equipmentProfileId != null) {
+      query.where((t) => t.equipmentProfileId.equals(equipmentProfileId));
+    }
+    return query.get();
+  }
+
+  /// P2-8: row count matching [listPaginated]'s filter.
+  Future<int> countFiltered({int? equipmentProfileId}) async {
+    final countExpr = observationLogs.id.count();
+    final query = selectOnly(observationLogs)..addColumns([countExpr]);
+    if (equipmentProfileId != null) {
+      query.where(observationLogs.equipmentProfileId.equals(equipmentProfileId));
+    }
+    final row = await query.getSingle();
+    return row.read(countExpr) ?? 0;
+  }
+
   /// Get observation statistics.
   Future<ObservationLogStats> getStats() async {
     final logs = await getAllLogs();

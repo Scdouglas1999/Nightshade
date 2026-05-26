@@ -11,7 +11,7 @@ extension SnackBarHelper on BuildContext {
   /// Shows an error SnackBar with red background.
   void showErrorSnackBar(String message, {Duration? duration}) {
     if (!mounted) return;
-    final colors = Theme.of(this).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(this);
     ScaffoldMessenger.of(this).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -24,7 +24,7 @@ extension SnackBarHelper on BuildContext {
   /// Shows a success SnackBar with green background.
   void showSuccessSnackBar(String message, {Duration? duration}) {
     if (!mounted) return;
-    final colors = Theme.of(this).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(this);
     ScaffoldMessenger.of(this).showSnackBar(
       SnackBar(
         content: Text(message),
@@ -37,7 +37,7 @@ extension SnackBarHelper on BuildContext {
   /// Shows a warning SnackBar with amber/yellow background.
   void showWarningSnackBar(String message, {Duration? duration}) {
     if (!mounted) return;
-    final colors = Theme.of(this).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(this);
     ScaffoldMessenger.of(this).showSnackBar(
       SnackBar(
         content: Text(message),

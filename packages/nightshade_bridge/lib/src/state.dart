@@ -18,6 +18,7 @@ class EquipmentProfile {
   final String? rotatorId;
   final String? domeId;
   final String? weatherId;
+  final String? safetyMonitorId;
   final String? coverCalibratorId;
   final double telescopeFocalLength;
   final double telescopeAperture;
@@ -33,6 +34,7 @@ class EquipmentProfile {
     this.rotatorId,
     this.domeId,
     this.weatherId,
+    this.safetyMonitorId,
     this.coverCalibratorId,
     required this.telescopeFocalLength,
     required this.telescopeAperture,
@@ -50,6 +52,7 @@ class EquipmentProfile {
       rotatorId.hashCode ^
       domeId.hashCode ^
       weatherId.hashCode ^
+      safetyMonitorId.hashCode ^
       coverCalibratorId.hashCode ^
       telescopeFocalLength.hashCode ^
       telescopeAperture.hashCode;
@@ -69,6 +72,7 @@ class EquipmentProfile {
           rotatorId == other.rotatorId &&
           domeId == other.domeId &&
           weatherId == other.weatherId &&
+          safetyMonitorId == other.safetyMonitorId &&
           coverCalibratorId == other.coverCalibratorId &&
           telescopeFocalLength == other.telescopeFocalLength &&
           telescopeAperture == other.telescopeAperture;

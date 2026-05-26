@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_core/src/models/backend/event_types.dart'
+    as core_events;
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
 
 /// The active target during execution.
@@ -202,6 +204,105 @@ final runDashboardFilterTotalsProvider =
   );
 });
 
+/// Wave 3 Agent 3 — per-target integration budget progress for the
+/// active TargetHeader. `null` when the active target has no budget
+/// configured (so the dashboard hides the panel).
+class RunDashboardBudgetProgress {
+  /// The TargetHeader node id this progress applies to.
+  final String targetId;
+
+  /// Resolved per-filter cap (seconds), keyed by filter name. Computed
+  /// from the budget config — same math as
+  /// `IntegrationBudget::resolved_filter_cap` on the Rust side.
+  final Map<String, double> resolvedCapSecs;
+
+  /// Total budget cap (seconds). `0.0` when no total cap is set.
+  final double totalSecs;
+
+  /// Completed per-filter integration (seconds), pulled from the
+  /// database's accepted-frame totals for the active session.
+  final Map<String, double> completedSecs;
+
+  /// True iff the budget is met (every per-filter cap reached OR
+  /// total reached). Computed locally for UI; the Rust runtime is the
+  /// authoritative source.
+  final bool budgetMet;
+
+  const RunDashboardBudgetProgress({
+    required this.targetId,
+    required this.resolvedCapSecs,
+    required this.totalSecs,
+    required this.completedSecs,
+    required this.budgetMet,
+  });
+
+  double get completedTotalSecs =>
+      completedSecs.values.fold(0.0, (a, b) => a + b);
+
+  double get fraction {
+    if (totalSecs > 0) {
+      return (completedTotalSecs / totalSecs).clamp(0.0, 1.0);
+    }
+    final capSum =
+        resolvedCapSecs.values.fold<double>(0, (a, b) => a + b);
+    if (capSum <= 0) return 0;
+    return (completedTotalSecs / capSum).clamp(0.0, 1.0);
+  }
+}
+
+/// Wave 3 Agent 3 — surfaces the integration-budget progress for the
+/// currently-active TargetHeader. Returns `null` when no target is
+/// active or the active target has no budget configured.
+///
+/// Reads:
+/// * `runDashboardActiveTargetProvider` — the in-flight target.
+/// * `runDashboardSessionFilterTotalsProvider` — accepted-frame
+///   integration per filter for the active session.
+///
+/// Computes the resolved per-filter caps locally (cheap; same math as
+/// the Rust side) and asserts the "budget met" flag when every cap is
+/// reached. The Rust runtime is still the authoritative gate — this
+/// provider exists purely to render the panel.
+final runDashboardActiveBudgetProvider =
+    Provider<RunDashboardBudgetProgress?>((ref) {
+  final target = ref.watch(runDashboardActiveTargetProvider);
+  if (target == null) return null;
+  final budget = target.integrationBudget;
+  if (budget == null || !budget.isActive) return null;
+
+  final resolvedCaps = <String, double>{};
+  for (final filter in budget.perFilter.keys) {
+    final cap = budget.resolvedFilterCap(filter);
+    if (cap != null) resolvedCaps[filter] = cap;
+  }
+
+  final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+  final completedSecs = sessionId == null
+      ? const <String, double>{}
+      : ref
+              .watch(runDashboardSessionFilterTotalsProvider(sessionId))
+              .valueOrNull ??
+          const <String, double>{};
+
+  // Budget-met check mirrors `BudgetState::evaluate` on the Rust side.
+  final completedTotal =
+      completedSecs.values.fold<double>(0, (a, b) => a + b);
+  final totalMet = budget.totalSecs > 0 && completedTotal >= budget.totalSecs;
+  final allFiltersMet = resolvedCaps.isNotEmpty &&
+      resolvedCaps.entries.every(
+        (e) => (completedSecs[e.key] ?? 0) >= e.value,
+      );
+  final budgetMet = totalMet || allFiltersMet;
+
+  return RunDashboardBudgetProgress(
+    targetId: target.id,
+    resolvedCapSecs: resolvedCaps,
+    totalSecs: budget.totalSecs,
+    completedSecs: completedSecs,
+    budgetMet: budgetMet,
+  );
+});
+
 /// Severity classification used by the trigger feed.
 enum RunDashboardEventSeverity { info, warning, error, critical }
 
@@ -350,9 +451,40 @@ final runDashboardCriticalEventsProvider = StateNotifierProvider<
   return RunDashboardCriticalEventsNotifier();
 });
 
+/// Cooldown between consecutive audible alerts so a storm of critical
+/// events (e.g. a power loss that cascades into mount + camera + guider
+/// disconnects in the same second) doesn't machine-gun-beep at the user.
+const Duration _audibleAlertCooldown = Duration(seconds: 5);
+
+/// Map bridge event categories to the `EventCategory` enum that
+/// [PushNotificationService] expects on its synthetic-injection API.
+/// Why two enums: the bridge layer's enum is generated from FRB and lives
+/// in `nightshade_bridge`; `nightshade_core` has its own copy used by
+/// services (`PushNotification.category` is the core enum).
+core_events.EventCategory _bridgeCategoryToCore(
+    bridge_event.EventCategory cat) {
+  switch (cat) {
+    case bridge_event.EventCategory.equipment:
+      return core_events.EventCategory.equipment;
+    case bridge_event.EventCategory.imaging:
+      return core_events.EventCategory.imaging;
+    case bridge_event.EventCategory.guiding:
+      return core_events.EventCategory.guiding;
+    case bridge_event.EventCategory.sequencer:
+      return core_events.EventCategory.sequencer;
+    case bridge_event.EventCategory.safety:
+      return core_events.EventCategory.safety;
+    case bridge_event.EventCategory.system:
+      return core_events.EventCategory.system;
+    case bridge_event.EventCategory.polarAlignment:
+      return core_events.EventCategory.polarAlignment;
+  }
+}
+
 /// Side-effect provider: subscribes to the event history and routes
 /// critical events through the dashboard notifier, the in-app
-/// notification queue, and (if enabled) the platform audible-bell.
+/// notification queue, the audible alert player, and the mobile push
+/// notification stream.
 ///
 /// This provider must be `ref.watch`-ed somewhere in the widget tree for
 /// the side effects to run. The Run Dashboard scaffolding watches it in
@@ -361,6 +493,10 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
   // Use ref.listen on the history so we react to new entries without
   // depending on the order or count of rebuilds.
   BigInt? lastSeenId;
+  // Last time we played the audible alert. We hold this in the provider
+  // closure scope so the cooldown survives provider rebuilds.
+  DateTime? lastAlertAt;
+
   ref.listen<List<bridge_event.NightshadeEvent>>(
     eventHistoryProvider,
     (previous, next) {
@@ -374,6 +510,13 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
       }
       if (fresh.isEmpty) return;
       lastSeenId = fresh.first.eventId;
+
+      // Read settings once per batch; the user can't toggle these mid-batch
+      // and re-reading per event would race the AsyncNotifier update.
+      final settings = ref.read(appSettingsProvider).valueOrNull;
+      final audibleEnabled = settings?.audibleAlertsOnCritical ?? false;
+      final soundChoice = settings?.criticalAlertSound ?? 'systemBell';
+      final pushEnabled = settings?.pushCriticalAlerts ?? true;
 
       // Process oldest-first so the most recent ends up at the head of
       // the notifier's state list.
@@ -397,6 +540,41 @@ final runDashboardCriticalEventsBridgeProvider = Provider<void>((ref) {
           title: 'Critical · ${dashboardEvent.category}',
           duration: const Duration(seconds: 30),
         );
+
+        // Audible alert: respects the user setting + the 5-second cooldown
+        // so a storm of critical events doesn't make the laptop sound like
+        // a slot machine.
+        if (audibleEnabled && soundChoice != 'none') {
+          final now = DateTime.now();
+          if (lastAlertAt == null ||
+              now.difference(lastAlertAt!) >= _audibleAlertCooldown) {
+            lastAlertAt = now;
+            // Fire-and-forget: SystemSound.play returns Future<void> and we
+            // don't gate further work on it. Errors from the platform
+            // channel are surfaced via developer.log inside the player
+            // rather than thrown — a failed audio cue must not crash the
+            // event dispatch path.
+            final player = ref.read(criticalAlertPlayerProvider);
+            player.play(sound: soundChoice);
+          }
+        }
+
+        // Mobile push notification: forwarded via the existing push
+        // service so paired phones receive the alert as a separate
+        // high-priority WebSocket message. The push service applies its
+        // own per-event-type config gates; this synthetic path lets us
+        // forward criticality classifications the service's built-in
+        // handlers don't recognise (e.g. FITS save failures).
+        if (pushEnabled) {
+          final pushService = ref.read(pushNotificationServiceProvider);
+          pushService.enqueueCriticalNotification(
+            title: 'Critical · ${dashboardEvent.category}',
+            body: detail,
+            eventType:
+                bridge_event.nightshadeEventDisplayTitle(event),
+            category: _bridgeCategoryToCore(event.category),
+          );
+        }
       }
     },
     fireImmediately: true,

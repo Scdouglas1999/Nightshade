@@ -80,13 +80,13 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
   /// Accent color for the card header icon — one accent per device category.
   ///
   /// Mapping (per audit §4.22):
-  ///   - imaging chain (capture)            -> `colors.primary`  (indigo)
+  ///   - imaging chain (capture)            -> `colors.primary`  (cyan-blue)
   ///       - camera
   ///   - sky pointing / mechanical          -> `colors.warning`  (amber)
   ///       - mount
   ///       - rotator
   ///       - dome
-  ///   - opto-mechanical adjusters          -> `colors.accent`   (violet)
+  ///   - opto-mechanical adjusters          -> `colors.accent`   (light cyan)
   ///       - focuser
   ///       - filterWheel
   ///       - coverCalibrator
@@ -205,7 +205,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final connectionState = _getConnectionState();
     final borderColor = _getBorderColor(connectionState, colors);
     final accentColor = widget.type.accentColor(colors);
@@ -292,33 +292,35 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     }
   }
 
+  /// Header icon tint — never use category [accentColor] when disconnected.
+  /// Safety-monitor accent is `colors.success`, which would read as "connected"
+  /// if we fell back to accent (audit §4.22).
+  Color _iconColorForState(DeviceConnectionState state, NightshadeColors colors) {
+    return switch (state) {
+      DeviceConnectionState.connected => colors.success,
+      DeviceConnectionState.connecting => colors.warning,
+      DeviceConnectionState.error => colors.error,
+      DeviceConnectionState.disconnected => colors.textSecondary,
+    };
+  }
+
   Widget _buildHeader(
       NightshadeColors colors, Color accentColor, DeviceConnectionState state) {
     final deviceName = _getDeviceName();
 
     return Row(
       children: [
-        // Icon with gradient background
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                accentColor.withValues(alpha: 0.2),
-                accentColor.withValues(alpha: 0.1),
-              ],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
+          decoration: NightshadeDecorations.iconChip(
+            accentColor,
             borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(
             widget.type.icon,
             size: 18,
-            color: state == DeviceConnectionState.connected
-                ? colors.success
-                : accentColor,
+            color: _iconColorForState(state, colors),
           ),
         ),
 
@@ -423,9 +425,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(8),
+        bordered: false,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -660,7 +663,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
       case ConnectedDeviceType.weather:
         final state = ref.watch(weatherStateProvider);
-        final weatherColors = Theme.of(context).extension<NightshadeColors>()!;
+        final weatherColors = NightshadeColors.of(context);
         final hasRain = state.rainRate != null && state.rainRate! > 0;
         return [
           _DeviceMetric(
@@ -688,7 +691,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
 
       case ConnectedDeviceType.safetyMonitor:
         final state = ref.watch(safetyMonitorStateProvider);
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(context);
         return [
           _DeviceMetric(
             value: state.isSafe ? 'SAFE' : 'UNSAFE',
@@ -853,14 +856,17 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           final targetTemp = ref.read(cameraStateProvider).targetTemp;
           _showCoolingTempDialog(targetTemp);
         };
-      // Hidden: no device-specific settings widget exists yet. Adding a
-      // route here without an implementation would ship a stub.
-      case ConnectedDeviceType.filterWheel:
       case ConnectedDeviceType.mount:
+        return _showMountSettingsDialog;
       case ConnectedDeviceType.focuser:
+        return _showFocuserSettingsDialog;
       case ConnectedDeviceType.rotator:
+        return _showRotatorSettingsDialog;
       case ConnectedDeviceType.dome:
+        return _showDomeSettingsDialog;
       case ConnectedDeviceType.coverCalibrator:
+        return _showCoverCalibratorSettingsDialog;
+      case ConnectedDeviceType.filterWheel:
       // Read-only / no per-card settings.
       case ConnectedDeviceType.guider:
       case ConnectedDeviceType.weather:
@@ -1422,7 +1428,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     final result = await showDialog<double>(
       context: context,
       builder: (ctx) {
-        final colors = Theme.of(ctx).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(ctx);
         return NightshadeDialog(
           title: 'Set Cooling Target',
           icon: LucideIcons.thermometer,
@@ -1553,16 +1559,26 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     final domeState = ref.read(domeStateProvider);
     if (domeState.deviceId == null) return;
     try {
-      if (currentStatus == ShutterStatus.open) {
-        await bridge_api.apiDomeCloseShutter(deviceId: domeState.deviceId!);
-        if (mounted) {
-          context.showSuccessSnackBar('Closing dome shutter');
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        if (currentStatus == ShutterStatus.open) {
+          await backend.domeClose();
+        } else {
+          await backend.domeOpen();
         }
       } else {
-        await bridge_api.apiDomeOpenShutter(deviceId: domeState.deviceId!);
-        if (mounted) {
-          context.showSuccessSnackBar('Opening dome shutter');
+        if (currentStatus == ShutterStatus.open) {
+          await bridge_api.apiDomeCloseShutter(deviceId: domeState.deviceId!);
+        } else {
+          await bridge_api.apiDomeOpenShutter(deviceId: domeState.deviceId!);
         }
+      }
+      if (mounted) {
+        context.showSuccessSnackBar(
+          currentStatus == ShutterStatus.open
+              ? 'Closing dome shutter'
+              : 'Opening dome shutter',
+        );
       }
     } catch (e) {
       if (mounted) {
@@ -1576,7 +1592,12 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     if (domeState.deviceId == null) return;
     try {
       if (!isParked) {
-        await bridge_api.apiDomePark(deviceId: domeState.deviceId!);
+        final backend = ref.read(backendProvider);
+        if (backend is NetworkBackend) {
+          await backend.domePark();
+        } else {
+          await bridge_api.apiDomePark(deviceId: domeState.deviceId!);
+        }
         if (mounted) {
           context.showSuccessSnackBar('Parking dome');
         }
@@ -1602,18 +1623,24 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     final coverState = ref.read(coverCalibratorStateProvider);
     if (coverState.deviceId == null) return;
     try {
-      if (isOpen) {
-        await bridge_api.apiCoverCalibratorCloseCover(
-            deviceId: coverState.deviceId!);
-        if (mounted) {
-          context.showSuccessSnackBar('Closing cover');
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        if (isOpen) {
+          await backend.coverClose();
+        } else {
+          await backend.coverOpen();
         }
       } else {
-        await bridge_api.apiCoverCalibratorOpenCover(
-            deviceId: coverState.deviceId!);
-        if (mounted) {
-          context.showSuccessSnackBar('Opening cover');
+        if (isOpen) {
+          await bridge_api.apiCoverCalibratorCloseCover(
+              deviceId: coverState.deviceId!);
+        } else {
+          await bridge_api.apiCoverCalibratorOpenCover(
+              deviceId: coverState.deviceId!);
         }
+      }
+      if (mounted) {
+        context.showSuccessSnackBar(isOpen ? 'Closing cover' : 'Opening cover');
       }
     } catch (e) {
       if (mounted) {
@@ -1625,18 +1652,26 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   Future<void> _handleCalibratorToggle(CoverCalibratorState state) async {
     if (state.deviceId == null) return;
     try {
+      final backend = ref.read(backendProvider);
       if (state.isCalibratorOn) {
-        await bridge_api.apiCoverCalibratorCalibratorOff(
-            deviceId: state.deviceId!);
+        if (backend is NetworkBackend) {
+          await backend.calibratorOff();
+        } else {
+          await bridge_api.apiCoverCalibratorCalibratorOff(
+              deviceId: state.deviceId!);
+        }
         if (mounted) {
           context.showSuccessSnackBar('Calibrator light off');
         }
       } else {
-        // Turn on at current brightness, or max if brightness is 0
         final brightness =
             state.brightness > 0 ? state.brightness : state.maxBrightness;
-        await bridge_api.apiCoverCalibratorCalibratorOn(
-            deviceId: state.deviceId!, brightness: brightness);
+        if (backend is NetworkBackend) {
+          await backend.calibratorOn(brightness: brightness);
+        } else {
+          await bridge_api.apiCoverCalibratorCalibratorOn(
+              deviceId: state.deviceId!, brightness: brightness);
+        }
         if (mounted) {
           context.showSuccessSnackBar(
               'Calibrator light on at brightness $brightness');
@@ -1654,7 +1689,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   // ============================================================================
 
   void _showMoveDialog(BuildContext context) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final focuserState = ref.read(focuserStateProvider);
     final controller = TextEditingController(
       text: focuserState.position?.toString() ?? '0',
@@ -1729,7 +1764,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   }
 
   void _showRotateDialog(BuildContext context) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final rotatorState = ref.read(rotatorStateProvider);
     final controller = TextEditingController(
       text: rotatorState.position?.toStringAsFixed(1) ?? '0.0',
@@ -1811,7 +1846,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
   }
 
   void _showEditNameDialog(BuildContext context) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final currentName = _getDeviceName();
     final controller = TextEditingController(text: currentName);
 
@@ -1861,6 +1896,407 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     if (result != null && context.mounted) {
       widget.onNameChanged?.call(result);
       context.showSuccessSnackBar('Device name updated');
+    }
+  }
+
+  void _showMountSettingsDialog() async {
+    final settingsAsync = ref.read(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull ?? const AppSettingsState();
+    
+    bool enableFlip = settings.enableMeridianFlip;
+    final flipMinutesController = TextEditingController(text: settings.meridianFlipMinutes.toString());
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Mount Configuration',
+              icon: LucideIcons.compass,
+              width: 400,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.pop(context),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () async {
+                    final minutes = int.tryParse(flipMinutesController.text) ?? settings.meridianFlipMinutes;
+                    final notifier = ref.read(appSettingsProvider.notifier);
+                    await notifier.setEnableMeridianFlip(enableFlip);
+                    await notifier.setMeridianFlipMinutes(minutes);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      context.showSuccessSnackBar('Mount settings updated');
+                    }
+                  },
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Auto Meridian Flip', style: TextStyle(color: colors.textPrimary)),
+                      Switch(
+                        value: enableFlip,
+                        onChanged: (val) {
+                          setState(() {
+                            enableFlip = val;
+                          });
+                        },
+                        activeColor: colors.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: flipMinutesController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: colors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Meridian Flip Minutes',
+                      labelStyle: TextStyle(color: colors.textMuted),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+    flipMinutesController.dispose();
+  }
+
+  void _showFocuserSettingsDialog() async {
+    final settingsAsync = ref.read(appSettingsProvider);
+    final settings = settingsAsync.valueOrNull ?? const AppSettingsState();
+
+    bool tempComp = settings.tempCompensation;
+    final coeffController = TextEditingController(text: settings.tempCoefficient.toString());
+    final backlashController = TextEditingController(text: settings.backlashCompensation.toString());
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Focuser Configuration',
+              icon: LucideIcons.focus,
+              width: 400,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.pop(context),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () async {
+                    final coeff = double.tryParse(coeffController.text) ?? settings.tempCoefficient;
+                    final backlash = int.tryParse(backlashController.text) ?? settings.backlashCompensation;
+                    final notifier = ref.read(appSettingsProvider.notifier);
+                    await notifier.setTempCompensation(tempComp);
+                    await notifier.setTempCoefficient(coeff);
+                    await notifier.setBacklashCompensation(backlash);
+                    if (context.mounted) {
+                      Navigator.pop(context);
+                      context.showSuccessSnackBar('Focuser settings updated');
+                    }
+                  },
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Temperature Compensation', style: TextStyle(color: colors.textPrimary)),
+                      Switch(
+                        value: tempComp,
+                        onChanged: (val) {
+                          setState(() {
+                            tempComp = val;
+                          });
+                        },
+                        activeColor: colors.primary,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: coeffController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true, signed: true),
+                    style: TextStyle(color: colors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Temp Coefficient (steps/C)',
+                      labelStyle: TextStyle(color: colors.textMuted),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: backlashController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: colors.textPrimary),
+                    decoration: InputDecoration(
+                      labelText: 'Backlash Compensation (steps)',
+                      labelStyle: TextStyle(color: colors.textMuted),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+    coeffController.dispose();
+    backlashController.dispose();
+  }
+
+  void _showRotatorSettingsDialog() async {
+    final rotatorState = ref.read(rotatorStateProvider);
+    bool reversed = rotatorState.isReversed;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Rotator Configuration',
+              icon: LucideIcons.rotateCw,
+              width: 400,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.pop(context),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () {
+                    ref.read(rotatorStateProvider.notifier).setReversed(reversed);
+                    Navigator.pop(context);
+                    context.showSuccessSnackBar('Rotator settings updated');
+                  },
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Reverse Direction', style: TextStyle(color: colors.textPrimary)),
+                      Switch(
+                        value: reversed,
+                        onChanged: (val) {
+                          setState(() {
+                            reversed = val;
+                          });
+                        },
+                        activeColor: colors.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _showDomeSettingsDialog() async {
+    final domeState = ref.read(domeStateProvider);
+    bool slaved = domeState.isSlaved;
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Dome Configuration',
+              icon: LucideIcons.home,
+              width: 400,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.pop(context),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () {
+                    ref.read(domeStateProvider.notifier).setSlaved(slaved);
+                    Navigator.pop(context);
+                    context.showSuccessSnackBar('Dome settings updated');
+                  },
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Slave to Mount (Follow Mount)', style: TextStyle(color: colors.textPrimary)),
+                      Switch(
+                        value: slaved,
+                        onChanged: (val) {
+                          setState(() {
+                            slaved = val;
+                          });
+                        },
+                        activeColor: colors.primary,
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+  }
+
+  void _showCoverCalibratorSettingsDialog() async {
+    final state = ref.read(coverCalibratorStateProvider);
+    int brightness = state.brightness;
+    final maxBrightness = state.maxBrightness > 0 ? state.maxBrightness : 255;
+    final brightnessController = TextEditingController(text: brightness.toString());
+
+    await showDialog(
+      context: context,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Calibrator Configuration',
+              icon: LucideIcons.lamp,
+              width: 400,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.pop(context),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () async {
+                    final targetBrightness = int.tryParse(brightnessController.text) ?? brightness;
+                    if (targetBrightness >= 0 && targetBrightness <= maxBrightness) {
+                      Navigator.pop(context);
+                      await _handleCalibratorBrightness(targetBrightness);
+                    } else {
+                      context.showErrorSnackBar('Brightness must be between 0 and $maxBrightness');
+                    }
+                  },
+                  label: 'Save',
+                  variant: ButtonVariant.primary,
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Calibrator Brightness (0 - $maxBrightness):', style: TextStyle(color: colors.textSecondary, fontSize: 13)),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: brightnessController,
+                    keyboardType: TextInputType.number,
+                    style: TextStyle(color: colors.textPrimary),
+                    decoration: InputDecoration(
+                      hintText: 'Brightness',
+                      hintStyle: TextStyle(color: colors.textMuted),
+                      enabledBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.border),
+                      ),
+                      focusedBorder: OutlineInputBorder(
+                        borderSide: BorderSide(color: colors.primary),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+        );
+      }
+    );
+    brightnessController.dispose();
+  }
+
+  Future<void> _handleCalibratorBrightness(int brightness) async {
+    final state = ref.read(coverCalibratorStateProvider);
+    if (state.deviceId == null) return;
+    try {
+      final backend = ref.read(backendProvider);
+      if (backend is NetworkBackend) {
+        await backend.calibratorOn(brightness: brightness);
+      } else {
+        await bridge_api.apiCoverCalibratorCalibratorOn(
+            deviceId: state.deviceId!, brightness: brightness);
+      }
+      ref.read(coverCalibratorStateProvider.notifier).updateBrightness(brightness);
+      if (mounted) {
+        context.showSuccessSnackBar('Calibrator brightness updated to $brightness');
+      }
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to set brightness: $e');
+      }
     }
   }
 }

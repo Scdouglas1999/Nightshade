@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -94,6 +92,30 @@ pub async fn api_dome_get_shutter_status(device_id: String) -> Result<i32, Night
 pub async fn api_dome_is_slewing(device_id: String) -> Result<bool, NightshadeError> {
     let mgr = get_device_manager();
     mgr.dome_is_slewing(&device_id)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Enable or disable dome slaving to the mount
+pub async fn api_dome_set_slaved(device_id: String, slaved: bool) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.dome_set_slaved(&device_id, slaved)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Find the dome home position
+pub async fn api_dome_find_home(device_id: String) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.dome_find_home(&device_id)
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(e))
+}
+
+/// Abort dome slew / shutter motion
+pub async fn api_dome_abort_slew(device_id: String) -> Result<(), NightshadeError> {
+    let mgr = get_device_manager();
+    mgr.dome_abort_slew(&device_id)
         .await
         .map_err(|e| NightshadeError::OperationFailed(e))
 }

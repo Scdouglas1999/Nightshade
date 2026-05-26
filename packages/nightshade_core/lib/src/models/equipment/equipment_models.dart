@@ -356,7 +356,13 @@ class MountState extends Equatable {
   final String? sideOfPier;
   final TrackingRate trackingRate;
   final bool canSetTrackingRate;
+  final bool canPark;
   final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  /// Defaults to `true` to preserve historical behavior (auto-reconnect
+  /// was previously hard-coded on for every device type except camera,
+  /// which was the only type that honored a user preference).
   final bool autoReconnectEnabled;
 
   const MountState({
@@ -373,6 +379,7 @@ class MountState extends Equatable {
     this.sideOfPier,
     this.trackingRate = TrackingRate.sidereal,
     this.canSetTrackingRate = false,
+    this.canPark = true,
     this.lastError,
     this.autoReconnectEnabled = true,
   });
@@ -394,6 +401,7 @@ class MountState extends Equatable {
     String? sideOfPier,
     TrackingRate? trackingRate,
     bool? canSetTrackingRate,
+    bool? canPark,
     DeviceError? lastError,
     bool? autoReconnectEnabled,
     bool clearError = false,
@@ -412,6 +420,7 @@ class MountState extends Equatable {
       sideOfPier: sideOfPier ?? this.sideOfPier,
       trackingRate: trackingRate ?? this.trackingRate,
       canSetTrackingRate: canSetTrackingRate ?? this.canSetTrackingRate,
+      canPark: canPark ?? this.canPark,
       lastError: clearError ? null : (lastError ?? this.lastError),
       autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
     );
@@ -432,21 +441,587 @@ class MountState extends Equatable {
         sideOfPier,
         trackingRate,
         canSetTrackingRate,
+        canPark,
         lastError,
         autoReconnectEnabled,
       ];
 }
 
-/// Switch device state
+/// Focuser state
+class FocuserState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final int? position;
+  final int? maxPosition;
+  final double? stepSize;
+  final bool isAbsolute;
+  final bool hasTemperature;
+  final double? temperature;
+  final bool isMoving;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const FocuserState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.position,
+    this.maxPosition,
+    this.stepSize,
+    this.isAbsolute = false,
+    this.hasTemperature = false,
+    this.temperature,
+    this.isMoving = false,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  FocuserState clearError() => copyWith(clearError: true);
+
+  FocuserState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    int? position,
+    int? maxPosition,
+    double? stepSize,
+    bool? isAbsolute,
+    bool? hasTemperature,
+    double? temperature,
+    bool? isMoving,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return FocuserState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      position: position ?? this.position,
+      maxPosition: maxPosition ?? this.maxPosition,
+      stepSize: stepSize ?? this.stepSize,
+      isAbsolute: isAbsolute ?? this.isAbsolute,
+      hasTemperature: hasTemperature ?? this.hasTemperature,
+      temperature: temperature ?? this.temperature,
+      isMoving: isMoving ?? this.isMoving,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        position,
+        maxPosition,
+        stepSize,
+        isAbsolute,
+        hasTemperature,
+        temperature,
+        isMoving,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Filter wheel state
+class FilterWheelState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final int? currentPosition;
+  final List<String> filterNames;
+  final bool isMoving;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const FilterWheelState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.currentPosition,
+    this.filterNames = const [],
+    this.isMoving = false,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  String? get currentFilterName {
+    if (currentPosition != null && currentPosition! < filterNames.length) {
+      return filterNames[currentPosition!];
+    }
+    return null;
+  }
+
+  bool get hasError => lastError != null;
+  FilterWheelState clearError() => copyWith(clearError: true);
+
+  FilterWheelState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    int? currentPosition,
+    List<String>? filterNames,
+    bool? isMoving,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return FilterWheelState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      currentPosition: currentPosition ?? this.currentPosition,
+      filterNames: filterNames ?? this.filterNames,
+      isMoving: isMoving ?? this.isMoving,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        currentPosition,
+        filterNames,
+        isMoving,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Guider state
+class GuiderState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final bool isGuiding;
+  final bool isCalibrating;
+  final double? rmsRa;
+  final double? rmsDec;
+  final double? rmsTotal;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const GuiderState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.isGuiding = false,
+    this.isCalibrating = false,
+    this.rmsRa,
+    this.rmsDec,
+    this.rmsTotal,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  GuiderState clearError() => copyWith(clearError: true);
+
+  GuiderState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    bool? isGuiding,
+    bool? isCalibrating,
+    double? rmsRa,
+    double? rmsDec,
+    double? rmsTotal,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return GuiderState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      isGuiding: isGuiding ?? this.isGuiding,
+      isCalibrating: isCalibrating ?? this.isCalibrating,
+      rmsRa: rmsRa ?? this.rmsRa,
+      rmsDec: rmsDec ?? this.rmsDec,
+      rmsTotal: rmsTotal ?? this.rmsTotal,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        isGuiding,
+        isCalibrating,
+        rmsRa,
+        rmsDec,
+        rmsTotal,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Rotator state
+class RotatorState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final double? position;
+  final double? mechanicalPosition;
+  final bool isMoving;
+  final bool isReversed;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const RotatorState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.position,
+    this.mechanicalPosition,
+    this.isMoving = false,
+    this.isReversed = false,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  RotatorState clearError() => copyWith(clearError: true);
+
+  RotatorState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    double? position,
+    double? mechanicalPosition,
+    bool? isMoving,
+    bool? isReversed,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return RotatorState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      position: position ?? this.position,
+      mechanicalPosition: mechanicalPosition ?? this.mechanicalPosition,
+      isMoving: isMoving ?? this.isMoving,
+      isReversed: isReversed ?? this.isReversed,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        position,
+        mechanicalPosition,
+        isMoving,
+        isReversed,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Dome shutter status
+enum ShutterStatus { open, closed, opening, closing, error, unknown }
+
+/// Dome state
+class DomeState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final double? azimuth;
+  final ShutterStatus shutterStatus;
+  final bool isSlewing;
+  final bool isParked;
+  final bool isAtHome;
+  final bool isSlaved;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const DomeState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.azimuth,
+    this.shutterStatus = ShutterStatus.unknown,
+    this.isSlewing = false,
+    this.isParked = false,
+    this.isAtHome = false,
+    this.isSlaved = false,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  DomeState clearError() => copyWith(clearError: true);
+
+  DomeState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    double? azimuth,
+    ShutterStatus? shutterStatus,
+    bool? isSlewing,
+    bool? isParked,
+    bool? isAtHome,
+    bool? isSlaved,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return DomeState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      azimuth: azimuth ?? this.azimuth,
+      shutterStatus: shutterStatus ?? this.shutterStatus,
+      isSlewing: isSlewing ?? this.isSlewing,
+      isParked: isParked ?? this.isParked,
+      isAtHome: isAtHome ?? this.isAtHome,
+      isSlaved: isSlaved ?? this.isSlaved,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        azimuth,
+        shutterStatus,
+        isSlewing,
+        isParked,
+        isAtHome,
+        isSlaved,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Weather state
+class WeatherState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final double? temperature;
+  final double? humidity;
+  final double? pressure;
+  final double? cloudCover;
+  final double? dewPoint;
+  final double? windSpeed;
+  final double? windDirection;
+  final double? skyQuality;
+  final double? skyTemperature;
+  final double? rainRate;
+  final DateTime? lastUpdated;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const WeatherState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.temperature,
+    this.humidity,
+    this.pressure,
+    this.cloudCover,
+    this.dewPoint,
+    this.windSpeed,
+    this.windDirection,
+    this.skyQuality,
+    this.skyTemperature,
+    this.rainRate,
+    this.lastUpdated,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  WeatherState clearError() => copyWith(clearError: true);
+
+  WeatherState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    double? temperature,
+    double? humidity,
+    double? pressure,
+    double? cloudCover,
+    double? dewPoint,
+    double? windSpeed,
+    double? windDirection,
+    double? skyQuality,
+    double? skyTemperature,
+    double? rainRate,
+    DateTime? lastUpdated,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return WeatherState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      temperature: temperature ?? this.temperature,
+      humidity: humidity ?? this.humidity,
+      pressure: pressure ?? this.pressure,
+      cloudCover: cloudCover ?? this.cloudCover,
+      dewPoint: dewPoint ?? this.dewPoint,
+      windSpeed: windSpeed ?? this.windSpeed,
+      windDirection: windDirection ?? this.windDirection,
+      skyQuality: skyQuality ?? this.skyQuality,
+      skyTemperature: skyTemperature ?? this.skyTemperature,
+      rainRate: rainRate ?? this.rainRate,
+      lastUpdated: lastUpdated ?? this.lastUpdated,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        temperature,
+        humidity,
+        pressure,
+        cloudCover,
+        dewPoint,
+        windSpeed,
+        windDirection,
+        skyQuality,
+        skyTemperature,
+        rainRate,
+        lastUpdated,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Safety monitor state
+class SafetyMonitorState extends Equatable {
+  final DeviceConnectionState connectionState;
+  final String? deviceId;
+  final String? deviceName;
+  final bool isSafe;
+  final DateTime? lastChecked;
+  final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
+  const SafetyMonitorState({
+    this.connectionState = DeviceConnectionState.disconnected,
+    this.deviceId,
+    this.deviceName,
+    this.isSafe = true,
+    this.lastChecked,
+    this.lastError,
+    this.autoReconnectEnabled = true,
+  });
+
+  bool get hasError => lastError != null;
+  SafetyMonitorState clearError() => copyWith(clearError: true);
+
+  SafetyMonitorState copyWith({
+    DeviceConnectionState? connectionState,
+    String? deviceId,
+    String? deviceName,
+    bool? isSafe,
+    DateTime? lastChecked,
+    DeviceError? lastError,
+    bool? autoReconnectEnabled,
+    bool clearError = false,
+  }) {
+    return SafetyMonitorState(
+      connectionState: connectionState ?? this.connectionState,
+      deviceId: deviceId ?? this.deviceId,
+      deviceName: deviceName ?? this.deviceName,
+      isSafe: isSafe ?? this.isSafe,
+      lastChecked: lastChecked ?? this.lastChecked,
+      lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
+    );
+  }
+
+  @override
+  List<Object?> get props => [
+        connectionState,
+        deviceId,
+        deviceName,
+        isSafe,
+        lastChecked,
+        lastError,
+        autoReconnectEnabled,
+      ];
+}
+
+/// Switch device state.
+///
+/// Mirrors [SafetyMonitorState] in shape (DEV-P2-1 / Audit C1). A switch
+/// device exposes a fixed list of channels; each channel can be boolean
+/// (relay) or numeric (PWM, dimmer, voltage rail). The Rust bridge exposes
+/// these per-channel via `switch_get_state/value/name/description` calls —
+/// we hold a snapshot here so the UI can render channel counts and labels
+/// without re-fetching on every rebuild.
+///
+/// Per-channel control UI is intentionally deferred (future work); the
+/// `SwitchCard` only surfaces connect/disconnect + status for now.
 class SwitchState extends Equatable {
   final DeviceConnectionState connectionState;
   final String? deviceId;
   final String? deviceName;
+
+  /// Total number of channels reported by the driver (0 when unknown).
+  ///
+  /// Backed by Rust's `api_switch_get_max`. Cached on connect; channel
+  /// counts on real ASCOM/INDI switches never change at runtime.
   final int channelCount;
+
+  /// Per-channel display labels (driver-reported, name or description).
+  /// Length matches [channelCount] when populated; may be empty if the
+  /// driver returns nothing yet.
   final List<String> channelNames;
+
+  /// Per-channel boolean state. Length matches [channelCount] when
+  /// populated. Numeric channels collapse to `true` when value > 0.
   final List<bool> channelStates;
+
+  /// Wall-clock time of the last successful channel snapshot refresh,
+  /// or null when no refresh has completed yet. The UI uses this to
+  /// dim/age the channel labels when polling is stale.
   final DateTime? lastChannelRefresh;
+
   final DeviceError? lastError;
+
+  /// Whether auto-reconnection is enabled for this device.
   final bool autoReconnectEnabled;
 
   const SwitchState({
@@ -454,8 +1029,8 @@ class SwitchState extends Equatable {
     this.deviceId,
     this.deviceName,
     this.channelCount = 0,
-    this.channelNames = const <String>[],
-    this.channelStates = const <bool>[],
+    this.channelNames = const [],
+    this.channelStates = const [],
     this.lastChannelRefresh,
     this.lastError,
     this.autoReconnectEnabled = true,
@@ -503,493 +1078,6 @@ class SwitchState extends Equatable {
       ];
 }
 
-/// Focuser state
-class FocuserState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final int? position;
-  final int? maxPosition;
-  final double? stepSize;
-  final bool isAbsolute;
-  final bool hasTemperature;
-  final double? temperature;
-  final bool isMoving;
-  final DeviceError? lastError;
-
-  const FocuserState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.position,
-    this.maxPosition,
-    this.stepSize,
-    this.isAbsolute = false,
-    this.hasTemperature = false,
-    this.temperature,
-    this.isMoving = false,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  FocuserState clearError() => copyWith(clearError: true);
-
-  FocuserState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    int? position,
-    int? maxPosition,
-    double? stepSize,
-    bool? isAbsolute,
-    bool? hasTemperature,
-    double? temperature,
-    bool? isMoving,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return FocuserState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      position: position ?? this.position,
-      maxPosition: maxPosition ?? this.maxPosition,
-      stepSize: stepSize ?? this.stepSize,
-      isAbsolute: isAbsolute ?? this.isAbsolute,
-      hasTemperature: hasTemperature ?? this.hasTemperature,
-      temperature: temperature ?? this.temperature,
-      isMoving: isMoving ?? this.isMoving,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        position,
-        maxPosition,
-        stepSize,
-        isAbsolute,
-        hasTemperature,
-        temperature,
-        isMoving,
-        lastError,
-      ];
-}
-
-/// Filter wheel state
-class FilterWheelState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final int? currentPosition;
-  final List<String> filterNames;
-  final bool isMoving;
-  final DeviceError? lastError;
-
-  const FilterWheelState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.currentPosition,
-    this.filterNames = const [],
-    this.isMoving = false,
-    this.lastError,
-  });
-
-  String? get currentFilterName {
-    if (currentPosition != null && currentPosition! < filterNames.length) {
-      return filterNames[currentPosition!];
-    }
-    return null;
-  }
-
-  bool get hasError => lastError != null;
-  FilterWheelState clearError() => copyWith(clearError: true);
-
-  FilterWheelState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    int? currentPosition,
-    List<String>? filterNames,
-    bool? isMoving,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return FilterWheelState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      currentPosition: currentPosition ?? this.currentPosition,
-      filterNames: filterNames ?? this.filterNames,
-      isMoving: isMoving ?? this.isMoving,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        currentPosition,
-        filterNames,
-        isMoving,
-        lastError,
-      ];
-}
-
-/// Guider state
-class GuiderState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final bool isGuiding;
-  final bool isCalibrating;
-  final double? rmsRa;
-  final double? rmsDec;
-  final double? rmsTotal;
-  final DeviceError? lastError;
-
-  const GuiderState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.isGuiding = false,
-    this.isCalibrating = false,
-    this.rmsRa,
-    this.rmsDec,
-    this.rmsTotal,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  GuiderState clearError() => copyWith(clearError: true);
-
-  GuiderState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    bool? isGuiding,
-    bool? isCalibrating,
-    double? rmsRa,
-    double? rmsDec,
-    double? rmsTotal,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return GuiderState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      isGuiding: isGuiding ?? this.isGuiding,
-      isCalibrating: isCalibrating ?? this.isCalibrating,
-      rmsRa: rmsRa ?? this.rmsRa,
-      rmsDec: rmsDec ?? this.rmsDec,
-      rmsTotal: rmsTotal ?? this.rmsTotal,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        isGuiding,
-        isCalibrating,
-        rmsRa,
-        rmsDec,
-        rmsTotal,
-        lastError,
-      ];
-}
-
-/// Rotator state
-class RotatorState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final double? position;
-  final double? mechanicalPosition;
-  final bool isMoving;
-  final bool isReversed;
-  final DeviceError? lastError;
-
-  const RotatorState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.position,
-    this.mechanicalPosition,
-    this.isMoving = false,
-    this.isReversed = false,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  RotatorState clearError() => copyWith(clearError: true);
-
-  RotatorState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    double? position,
-    double? mechanicalPosition,
-    bool? isMoving,
-    bool? isReversed,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return RotatorState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      position: position ?? this.position,
-      mechanicalPosition: mechanicalPosition ?? this.mechanicalPosition,
-      isMoving: isMoving ?? this.isMoving,
-      isReversed: isReversed ?? this.isReversed,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        position,
-        mechanicalPosition,
-        isMoving,
-        isReversed,
-        lastError,
-      ];
-}
-
-/// Dome shutter status
-enum ShutterStatus { open, closed, opening, closing, error, unknown }
-
-/// Dome state
-class DomeState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final double? azimuth;
-  final ShutterStatus shutterStatus;
-  final bool isSlewing;
-  final bool isParked;
-  final bool isAtHome;
-  final bool isSlaved;
-  final DeviceError? lastError;
-
-  const DomeState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.azimuth,
-    this.shutterStatus = ShutterStatus.unknown,
-    this.isSlewing = false,
-    this.isParked = false,
-    this.isAtHome = false,
-    this.isSlaved = false,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  DomeState clearError() => copyWith(clearError: true);
-
-  DomeState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    double? azimuth,
-    ShutterStatus? shutterStatus,
-    bool? isSlewing,
-    bool? isParked,
-    bool? isAtHome,
-    bool? isSlaved,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return DomeState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      azimuth: azimuth ?? this.azimuth,
-      shutterStatus: shutterStatus ?? this.shutterStatus,
-      isSlewing: isSlewing ?? this.isSlewing,
-      isParked: isParked ?? this.isParked,
-      isAtHome: isAtHome ?? this.isAtHome,
-      isSlaved: isSlaved ?? this.isSlaved,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        azimuth,
-        shutterStatus,
-        isSlewing,
-        isParked,
-        isAtHome,
-        isSlaved,
-        lastError,
-      ];
-}
-
-/// Weather state
-class WeatherState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final double? temperature;
-  final double? humidity;
-  final double? pressure;
-  final double? cloudCover;
-  final double? dewPoint;
-  final double? windSpeed;
-  final double? windDirection;
-  final double? skyQuality;
-  final double? skyTemperature;
-  final double? rainRate;
-  final DateTime? lastUpdated;
-  final DeviceError? lastError;
-
-  const WeatherState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.temperature,
-    this.humidity,
-    this.pressure,
-    this.cloudCover,
-    this.dewPoint,
-    this.windSpeed,
-    this.windDirection,
-    this.skyQuality,
-    this.skyTemperature,
-    this.rainRate,
-    this.lastUpdated,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  WeatherState clearError() => copyWith(clearError: true);
-
-  WeatherState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    double? temperature,
-    double? humidity,
-    double? pressure,
-    double? cloudCover,
-    double? dewPoint,
-    double? windSpeed,
-    double? windDirection,
-    double? skyQuality,
-    double? skyTemperature,
-    double? rainRate,
-    DateTime? lastUpdated,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return WeatherState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      temperature: temperature ?? this.temperature,
-      humidity: humidity ?? this.humidity,
-      pressure: pressure ?? this.pressure,
-      cloudCover: cloudCover ?? this.cloudCover,
-      dewPoint: dewPoint ?? this.dewPoint,
-      windSpeed: windSpeed ?? this.windSpeed,
-      windDirection: windDirection ?? this.windDirection,
-      skyQuality: skyQuality ?? this.skyQuality,
-      skyTemperature: skyTemperature ?? this.skyTemperature,
-      rainRate: rainRate ?? this.rainRate,
-      lastUpdated: lastUpdated ?? this.lastUpdated,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        temperature,
-        humidity,
-        pressure,
-        cloudCover,
-        dewPoint,
-        windSpeed,
-        windDirection,
-        skyQuality,
-        skyTemperature,
-        rainRate,
-        lastUpdated,
-        lastError,
-      ];
-}
-
-/// Safety monitor state
-class SafetyMonitorState extends Equatable {
-  final DeviceConnectionState connectionState;
-  final String? deviceId;
-  final String? deviceName;
-  final bool isSafe;
-  final DateTime? lastChecked;
-  final DeviceError? lastError;
-
-  const SafetyMonitorState({
-    this.connectionState = DeviceConnectionState.disconnected,
-    this.deviceId,
-    this.deviceName,
-    this.isSafe = true,
-    this.lastChecked,
-    this.lastError,
-  });
-
-  bool get hasError => lastError != null;
-  SafetyMonitorState clearError() => copyWith(clearError: true);
-
-  SafetyMonitorState copyWith({
-    DeviceConnectionState? connectionState,
-    String? deviceId,
-    String? deviceName,
-    bool? isSafe,
-    DateTime? lastChecked,
-    DeviceError? lastError,
-    bool clearError = false,
-  }) {
-    return SafetyMonitorState(
-      connectionState: connectionState ?? this.connectionState,
-      deviceId: deviceId ?? this.deviceId,
-      deviceName: deviceName ?? this.deviceName,
-      isSafe: isSafe ?? this.isSafe,
-      lastChecked: lastChecked ?? this.lastChecked,
-      lastError: clearError ? null : (lastError ?? this.lastError),
-    );
-  }
-
-  @override
-  List<Object?> get props => [
-        connectionState,
-        deviceId,
-        deviceName,
-        isSafe,
-        lastChecked,
-        lastError,
-      ];
-}
-
 // ============================================================================
 // Cover Calibrator State
 // ============================================================================
@@ -1024,6 +1112,9 @@ class CoverCalibratorState extends Equatable {
   final int maxBrightness;
   final DeviceError? lastError;
 
+  /// Whether auto-reconnection is enabled for this device.
+  final bool autoReconnectEnabled;
+
   const CoverCalibratorState({
     this.connectionState = DeviceConnectionState.disconnected,
     this.deviceId,
@@ -1033,6 +1124,7 @@ class CoverCalibratorState extends Equatable {
     this.brightness = 0,
     this.maxBrightness = 100,
     this.lastError,
+    this.autoReconnectEnabled = true,
   });
 
   bool get hasError => lastError != null;
@@ -1054,6 +1146,7 @@ class CoverCalibratorState extends Equatable {
     int? brightness,
     int? maxBrightness,
     DeviceError? lastError,
+    bool? autoReconnectEnabled,
     bool clearError = false,
   }) {
     return CoverCalibratorState(
@@ -1065,6 +1158,7 @@ class CoverCalibratorState extends Equatable {
       brightness: brightness ?? this.brightness,
       maxBrightness: maxBrightness ?? this.maxBrightness,
       lastError: clearError ? null : (lastError ?? this.lastError),
+      autoReconnectEnabled: autoReconnectEnabled ?? this.autoReconnectEnabled,
     );
   }
 
@@ -1078,5 +1172,6 @@ class CoverCalibratorState extends Equatable {
         brightness,
         maxBrightness,
         lastError,
+        autoReconnectEnabled,
       ];
 }

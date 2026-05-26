@@ -64,7 +64,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI dome not connected".to_string())
             }
@@ -76,7 +79,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -123,7 +126,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI dome not connected".to_string())
             }
@@ -135,7 +141,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -168,10 +174,18 @@ impl DeviceManager {
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
                     return locked
-                        .set_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION", azimuth)
+                        .set_number(
+                            &device_name,
+                            "ABS_DOME_POSITION",
+                            "DOME_ABSOLUTE_POSITION",
+                            azimuth,
+                        )
                         .await
                         .map_err(|e| {
-                            format!("Failed to slew INDI dome {} to azimuth {:.2}: {}", device_name, azimuth, e)
+                            format!(
+                                "Failed to slew INDI dome {} to azimuth {:.2}: {}",
+                                device_name, azimuth, e
+                            )
                         });
                 }
                 Err("INDI dome not connected".to_string())
@@ -193,13 +207,16 @@ impl DeviceManager {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
                     return dome.slew_to_azimuth(azimuth).await.map_err(|e| {
-                        format!("Failed to slew native dome {} to azimuth {:.2}: {}", device_id, azimuth, e)
+                        format!(
+                            "Failed to slew native dome {} to azimuth {:.2}: {}",
+                            device_id, azimuth, e
+                        )
                     });
                 }
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -231,7 +248,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    if let Some(az) = locked.get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION").await {
+                    if let Some(az) = locked
+                        .get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
+                        .await
+                    {
                         return Ok(az);
                     }
                 }
@@ -258,7 +278,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -307,12 +327,21 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let locked = client.read().await;
-                    // Check INDI shutter switches: 0=Open, 1=Closed, 4=Unknown
-                    if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN").await.unwrap_or(false) {
-                        return Ok(0); // Open
-                    } else if locked.get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE").await.unwrap_or(false) {
-                        return Ok(1); // Closed
-                    }
+                    let shutter_open = locked
+                        .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN")
+                        .await;
+                    let shutter_close = locked
+                        .get_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE")
+                        .await;
+                    let shutter_busy = locked.is_property_busy(&device_name, "DOME_SHUTTER").await;
+
+                    return Ok(match (shutter_open, shutter_close, shutter_busy) {
+                        (Some(true), Some(false), true) => 2,  // Opening
+                        (Some(false), Some(true), true) => 3,  // Closing
+                        (Some(true), Some(false), false) => 0, // Open
+                        (Some(false), Some(true), false) => 1, // Closed
+                        _ => 4,                                // Unknown/Error
+                    });
                 }
                 Ok(4) // Unknown/Error
             }
@@ -334,7 +363,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -379,7 +408,10 @@ impl DeviceManager {
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
                     let mut locked = client.write().await;
-                    return locked.set_switch(&device_name, "DOME_PARK", "PARK", true).await.map_err(|e| e.to_string());
+                    return locked
+                        .set_switch(&device_name, "DOME_PARK", "PARK", true)
+                        .await
+                        .map_err(|e| e.to_string());
                 }
                 Err("INDI dome not connected".to_string())
             }
@@ -391,7 +423,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -452,7 +484,7 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }
@@ -495,7 +527,10 @@ impl DeviceManager {
                         )
                     })?;
                     let can_slave = dome.can_slave().await.map_err(|e| {
-                        format!("Failed to query Alpaca dome can_slave for {}: {}", device_id, e)
+                        format!(
+                            "Failed to query Alpaca dome can_slave for {}: {}",
+                            device_id, e
+                        )
                     })?;
 
                     return Ok(crate::device::DomeStatus {
@@ -503,11 +538,21 @@ impl DeviceManager {
                         azimuth: alpaca_status.azimuth,
                         altitude: alpaca_status.altitude,
                         shutter_status: match alpaca_status.shutter_status {
-                            nightshade_alpaca::ShutterStatus::Open => crate::device::ShutterState::Open,
-                            nightshade_alpaca::ShutterStatus::Closed => crate::device::ShutterState::Closed,
-                            nightshade_alpaca::ShutterStatus::Opening => crate::device::ShutterState::Opening,
-                            nightshade_alpaca::ShutterStatus::Closing => crate::device::ShutterState::Closing,
-                            nightshade_alpaca::ShutterStatus::Error => crate::device::ShutterState::Error,
+                            nightshade_alpaca::ShutterStatus::Open => {
+                                crate::device::ShutterState::Open
+                            }
+                            nightshade_alpaca::ShutterStatus::Closed => {
+                                crate::device::ShutterState::Closed
+                            }
+                            nightshade_alpaca::ShutterStatus::Opening => {
+                                crate::device::ShutterState::Opening
+                            }
+                            nightshade_alpaca::ShutterStatus::Closing => {
+                                crate::device::ShutterState::Closing
+                            }
+                            nightshade_alpaca::ShutterStatus::Error => {
+                                crate::device::ShutterState::Error
+                            }
                         },
                         slewing: alpaca_status.slewing,
                         at_home: alpaca_status.at_home,
@@ -555,7 +600,7 @@ impl DeviceManager {
 
                         return Ok(crate::device::DomeStatus {
                             connected: true,
-                            azimuth: 0.0, // ASCOM domes don't always expose azimuth
+                            azimuth: 0.0,   // ASCOM domes don't always expose azimuth
                             altitude: None, // ASCOM domes typically don't have altitude
                             shutter_status,
                             slewing,
@@ -563,7 +608,7 @@ impl DeviceManager {
                             at_park,
                             can_set_altitude: false,
                             can_set_azimuth: false, // Could query CanSetAzimuth if needed
-                            can_set_shutter: true, // All ASCOM domes have shutter control
+                            can_set_shutter: true,  // All ASCOM domes have shutter control
                             can_slave: false,
                             is_slaved: false,
                         });
@@ -584,7 +629,9 @@ impl DeviceManager {
                     let azimuth = locked
                         .get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
                         .await
-                        .ok_or_else(|| format!("Failed to read INDI dome azimuth for {}", device_id))?;
+                        .ok_or_else(|| {
+                            format!("Failed to read INDI dome azimuth for {}", device_id)
+                        })?;
                     let can_set_azimuth = true;
 
                     let shutter_open = locked
@@ -655,7 +702,10 @@ impl DeviceManager {
                 if let Some(dome) = native_domes.get(device_id) {
                     // Query all native dome properties
                     let azimuth = dome.get_azimuth().await.map_err(|e| {
-                        format!("Failed to read native dome azimuth for {}: {}", device_id, e)
+                        format!(
+                            "Failed to read native dome azimuth for {}: {}",
+                            device_id, e
+                        )
                     })?;
                     let altitude = dome.get_altitude().await.ok().flatten();
                     let shutter_state_native = match dome.get_shutter_status().await {
@@ -671,12 +721,24 @@ impl DeviceManager {
                         }
                     };
                     let shutter_status = match shutter_state_native {
-                        nightshade_native::traits::ShutterState::Open => crate::device::ShutterState::Open,
-                        nightshade_native::traits::ShutterState::Closed => crate::device::ShutterState::Closed,
-                        nightshade_native::traits::ShutterState::Opening => crate::device::ShutterState::Opening,
-                        nightshade_native::traits::ShutterState::Closing => crate::device::ShutterState::Closing,
-                        nightshade_native::traits::ShutterState::Error => crate::device::ShutterState::Error,
-                        nightshade_native::traits::ShutterState::Unknown => crate::device::ShutterState::Unknown,
+                        nightshade_native::traits::ShutterState::Open => {
+                            crate::device::ShutterState::Open
+                        }
+                        nightshade_native::traits::ShutterState::Closed => {
+                            crate::device::ShutterState::Closed
+                        }
+                        nightshade_native::traits::ShutterState::Opening => {
+                            crate::device::ShutterState::Opening
+                        }
+                        nightshade_native::traits::ShutterState::Closing => {
+                            crate::device::ShutterState::Closing
+                        }
+                        nightshade_native::traits::ShutterState::Error => {
+                            crate::device::ShutterState::Error
+                        }
+                        nightshade_native::traits::ShutterState::Unknown => {
+                            crate::device::ShutterState::Unknown
+                        }
                     };
                     let slewing = match dome.is_slewing().await {
                         Ok(s) => s,
@@ -737,7 +799,193 @@ impl DeviceManager {
                 Err("Native dome not connected".to_string())
             }
             Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+            }
+            None => Err(format!("Device not found: {}", device_id)),
+        }
+    }
+
+    /// Enable or disable dome slaving to the mount
+    pub async fn dome_set_slaved(&self, device_id: &str, slaved: bool) -> Result<(), String> {
+        let driver_type = {
+            let devices = self.devices.read().await;
+            devices.get(device_id).map(|d| d.info.driver_type.clone())
+        };
+
+        match driver_type {
+            Some(DriverType::Alpaca) => {
+                let domes = self.alpaca_domes.read().await;
+                if let Some(dome) = domes.get(device_id) {
+                    return dome.set_slaved(slaved).await;
+                }
+                Err(format!("Alpaca dome {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let domes = self.ascom_domes.read().await;
+                    if let Some(dome) = domes.get(device_id) {
+                        let dome_guard = dome.read().await;
+                        return dome_guard.set_slaved(slaved).await;
+                    }
+                    Err(format!("ASCOM dome {} not found", device_id))
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM not supported on this platform".to_string())
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err("Invalid INDI device ID".to_string());
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let mut locked = client.write().await;
+                    if slaved {
+                        return locked
+                            .set_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE", true)
+                            .await
+                            .map_err(|e| e.to_string());
+                    }
+                    return locked
+                        .set_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_DISABLE", true)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err("INDI dome not connected".to_string())
+            }
+            Some(DriverType::Native) => {
+                let mut native_domes = self.native_domes.write().await;
+                if let Some(dome) = native_domes.get_mut(device_id) {
+                    return dome.set_slaved(slaved).await.map_err(|e| e.to_string());
+                }
+                Err("Native dome not connected".to_string())
+            }
+            Some(DriverType::Simulator) => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+            }
+            None => Err(format!("Device not found: {}", device_id)),
+        }
+    }
+
+    /// Send dome to home position
+    pub async fn dome_find_home(&self, device_id: &str) -> Result<(), String> {
+        let driver_type = {
+            let devices = self.devices.read().await;
+            devices.get(device_id).map(|d| d.info.driver_type.clone())
+        };
+
+        match driver_type {
+            Some(DriverType::Alpaca) => {
+                let domes = self.alpaca_domes.read().await;
+                if let Some(dome) = domes.get(device_id) {
+                    return dome.find_home().await;
+                }
+                Err(format!("Alpaca dome {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let domes = self.ascom_domes.read().await;
+                    if let Some(dome) = domes.get(device_id) {
+                        let dome_guard = dome.read().await;
+                        return dome_guard.find_home().await;
+                    }
+                    Err(format!("ASCOM dome {} not found", device_id))
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM not supported on this platform".to_string())
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err("Invalid INDI device ID".to_string());
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let mut locked = client.write().await;
+                    return locked
+                        .set_switch(&device_name, "DOME_GOTO", "DOME_HOME", true)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err("INDI dome not connected".to_string())
+            }
+            Some(DriverType::Native) => {
+                let mut native_domes = self.native_domes.write().await;
+                if let Some(dome) = native_domes.get_mut(device_id) {
+                    return dome.find_home().await.map_err(|e| e.to_string());
+                }
+                Err("Native dome not connected".to_string())
+            }
+            Some(DriverType::Simulator) => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+            }
+            None => Err(format!("Device not found: {}", device_id)),
+        }
+    }
+
+    /// Abort dome slew / shutter motion
+    pub async fn dome_abort_slew(&self, device_id: &str) -> Result<(), String> {
+        let driver_type = {
+            let devices = self.devices.read().await;
+            devices.get(device_id).map(|d| d.info.driver_type.clone())
+        };
+
+        match driver_type {
+            Some(DriverType::Alpaca) => {
+                let domes = self.alpaca_domes.read().await;
+                if let Some(dome) = domes.get(device_id) {
+                    return dome.abort_slew().await;
+                }
+                Err(format!("Alpaca dome {} not found", device_id))
+            }
+            Some(DriverType::Ascom) => {
+                #[cfg(windows)]
+                {
+                    let domes = self.ascom_domes.read().await;
+                    if let Some(dome) = domes.get(device_id) {
+                        let dome_guard = dome.read().await;
+                        return dome_guard.abort_slew().await;
+                    }
+                    Err(format!("ASCOM dome {} not found", device_id))
+                }
+                #[cfg(not(windows))]
+                Err("ASCOM not supported on this platform".to_string())
+            }
+            Some(DriverType::Indi) => {
+                let parts: Vec<&str> = device_id.split(':').collect();
+                if parts.len() < 4 {
+                    return Err("Invalid INDI device ID".to_string());
+                }
+                let server_key = format!("{}:{}", parts[1], parts[2]);
+                let device_name = parts[3..].join(":");
+
+                let clients = self.indi_clients.read().await;
+                if let Some(client) = clients.get(&server_key) {
+                    let mut locked = client.write().await;
+                    return locked
+                        .set_switch(&device_name, "DOME_ABORT_MOTION", "ABORT", true)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err("INDI dome not connected".to_string())
+            }
+            Some(DriverType::Native) => {
+                let mut native_domes = self.native_domes.write().await;
+                if let Some(dome) = native_domes.get_mut(device_id) {
+                    return dome.abort_slew().await.map_err(|e| e.to_string());
+                }
+                Err("Native dome not connected".to_string())
+            }
+            Some(DriverType::Simulator) => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
             }
             None => Err(format!("Device not found: {}", device_id)),
         }

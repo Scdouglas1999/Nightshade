@@ -7,10 +7,14 @@ import '../components/nightshade_card.dart';
 import '../components/nightshade_checkbox.dart';
 import '../components/nightshade_dropdown.dart';
 import '../components/nightshade_switch.dart';
+import '../components/nightshade_switch_row.dart';
 import '../components/nightshade_text_field.dart';
+import '../components/nav_item.dart';
 import '../components/status_pill.dart';
+import '../components/status_dot.dart';
 import '../components/sub_tab_button.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_decorations.dart';
 import '../theme/nightshade_tokens.dart';
 import '../theme/nightshade_typography.dart';
 
@@ -29,7 +33,10 @@ class _NightshadeDesignSystemGalleryState
   bool _switchValue = true;
   String? _dropdownValue = 'Camera';
   int _selectedTab = 0;
+  int _selectedNavItem = 0;
+  bool _navExpanded = true;
   int _actionCount = 0;
+  int _statusDotAttentionSeed = 0;
 
   void _recordAction() {
     setState(() => _actionCount += 1);
@@ -37,7 +44,7 @@ class _NightshadeDesignSystemGalleryState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -64,6 +71,82 @@ class _NightshadeDesignSystemGalleryState
                     ),
                   ),
                   const SizedBox(height: NightshadeTokens.spaceLg),
+                  _GallerySection(
+                    title: 'Color Palette',
+                    child: Wrap(
+                      spacing: NightshadeTokens.spaceMd,
+                      runSpacing: NightshadeTokens.spaceMd,
+                      children: [
+                        _PaletteSwatch(label: 'Primary', color: colors.primary),
+                        _PaletteSwatch(label: 'Accent', color: colors.accent),
+                        _PaletteSwatch(
+                          label: 'Background',
+                          color: colors.background,
+                        ),
+                        _PaletteSwatch(label: 'Surface', color: colors.surface),
+                        _PaletteSwatch(
+                          label: 'Surface Alt',
+                          color: colors.surfaceAlt,
+                        ),
+                        _PaletteSwatch(label: 'Success', color: colors.success),
+                        _PaletteSwatch(label: 'Warning', color: colors.warning),
+                        _PaletteSwatch(label: 'Error', color: colors.error),
+                        _PaletteSwatch(label: 'Info', color: colors.info),
+                        _PaletteSwatch(
+                          label: 'Text Primary',
+                          color: colors.textPrimary,
+                        ),
+                        _PaletteSwatch(
+                          label: 'Text Secondary',
+                          color: colors.textSecondary,
+                        ),
+                        _PaletteSwatch(
+                          label: 'Text Muted',
+                          color: colors.textMuted,
+                        ),
+                        _PaletteSwatch(label: 'Border', color: colors.border),
+                      ],
+                    ),
+                  ),
+                  _GallerySection(
+                    title: 'Typography',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        _TypographySpecimen(
+                          label: 'H2 — Section title',
+                          sample: 'Sequence Run',
+                          style: NightshadeTypography.h2,
+                          colors: colors,
+                        ),
+                        _TypographySpecimen(
+                          label: 'Telemetry Lg — Hero live values',
+                          sample: '02:45',
+                          style: NightshadeTypography.telemetryLg,
+                          colors: colors,
+                        ),
+                        _TypographySpecimen(
+                          label: 'Telemetry Md — Secondary live values',
+                          sample: '18 min',
+                          style: NightshadeTypography.telemetryMd,
+                          colors: colors,
+                        ),
+                        _TypographySpecimen(
+                          label: 'Label Quiet — Sidebar descriptions',
+                          sample: 'Per-frame countdown and sequence totals',
+                          style: NightshadeTypography.labelQuiet,
+                          colors: colors,
+                          muted: true,
+                        ),
+                        _TypographySpecimen(
+                          label: 'Mono — Technical text',
+                          sample: 'RA 05h 35m 17s',
+                          style: NightshadeTypography.mono,
+                          colors: colors,
+                        ),
+                      ],
+                    ),
+                  ),
                   _GallerySection(
                     title: 'Buttons',
                     child: Wrap(
@@ -187,11 +270,21 @@ class _NightshadeDesignSystemGalleryState
                         _ControlRow(
                           label: 'Cooling',
                           child: NightshadeSwitch(
+                            key: const ValueKey('gallery-switch'),
                             value: _switchValue,
                             onChanged: (value) {
                               setState(() => _switchValue = value);
                             },
                           ),
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceSm),
+                        NightshadeSwitchRow(
+                          label: 'Dew heater',
+                          subtitle: 'Expanded row with label and subtitle',
+                          value: _switchValue,
+                          onChanged: (value) {
+                            setState(() => _switchValue = value);
+                          },
                         ),
                       ],
                     ),
@@ -216,6 +309,134 @@ class _NightshadeDesignSystemGalleryState
                             ),
                         ],
                       ),
+                    ),
+                  ),
+                  _GallerySection(
+                    title: 'Navigation',
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Wrap(
+                          spacing: NightshadeTokens.spaceMd,
+                          runSpacing: NightshadeTokens.spaceSm,
+                          children: [
+                            NightshadeButton(
+                              label: _navExpanded ? 'Collapse nav' : 'Expand nav',
+                              icon: LucideIcons.panelLeftClose,
+                              variant: ButtonVariant.outline,
+                              onPressed: () {
+                                setState(() => _navExpanded = !_navExpanded);
+                              },
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: NightshadeTokens.spaceMd),
+                        Container(
+                          width: _navExpanded ? 240 : 72,
+                          decoration: BoxDecoration(
+                            color: colors.surface,
+                            borderRadius: NightshadeTokens.borderRadiusMd,
+                            border: Border.all(color: colors.border),
+                          ),
+                          child: Column(
+                            children: [
+                              for (final entry in const [
+                                MapEntry(
+                                  0,
+                                  (
+                                    LucideIcons.layoutDashboard,
+                                    'Dashboard',
+                                    'Overview and status',
+                                  ),
+                                ),
+                                MapEntry(
+                                  1,
+                                  (
+                                    LucideIcons.camera,
+                                    'Imaging',
+                                    'Capture and review',
+                                  ),
+                                ),
+                                MapEntry(
+                                  2,
+                                  (
+                                    LucideIcons.listOrdered,
+                                    'Sequencer',
+                                    'Run automation',
+                                  ),
+                                ),
+                              ])
+                                Padding(
+                                  padding: const EdgeInsets.fromLTRB(
+                                    NightshadeTokens.spaceSm,
+                                    NightshadeTokens.spaceXs,
+                                    NightshadeTokens.spaceSm,
+                                    0,
+                                  ),
+                                  child: NavItem(
+                                    key: ValueKey(
+                                      'gallery-nav-${entry.key}-'
+                                      '${_navExpanded ? 'expanded' : 'collapsed'}',
+                                    ),
+                                    icon: entry.value.$1,
+                                    label: entry.value.$2,
+                                    description: entry.value.$3,
+                                    isSelected: _selectedNavItem == entry.key,
+                                    isExpanded: _navExpanded,
+                                    onTap: () {
+                                      setState(() => _selectedNavItem = entry.key);
+                                    },
+                                  ),
+                                ),
+                              const SizedBox(height: NightshadeTokens.spaceSm),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _GallerySection(
+                    title: 'Decorations',
+                    child: Wrap(
+                      spacing: NightshadeTokens.spaceMd,
+                      runSpacing: NightshadeTokens.spaceMd,
+                      children: [
+                        _DecorationSpecimen(
+                          label: 'Nav Selected',
+                          decoration: NightshadeDecorations.navSelected(colors),
+                          width: 140,
+                          height: 40,
+                        ),
+                        _DecorationSpecimen(
+                          label: 'Card Selected',
+                          decoration: NightshadeDecorations.cardSelected(
+                            colors.primary,
+                            background: colors.surface,
+                          ),
+                          width: 140,
+                          height: 72,
+                        ),
+                        _DecorationSpecimen(
+                          label: 'Card Hover',
+                          decoration: NightshadeDecorations.cardHover(colors),
+                          width: 140,
+                          height: 72,
+                        ),
+                        _DecorationSpecimen(
+                          label: 'Drag Feedback',
+                          decoration: NightshadeDecorations.dragFeedback(colors),
+                          width: 140,
+                          height: 72,
+                        ),
+                        _DecorationSpecimen(
+                          label: 'KPI Badge',
+                          decoration: NightshadeDecorations.kpiBadge(
+                            colors.success,
+                          ),
+                          width: 44,
+                          height: 44,
+                        ),
+                      ],
                     ),
                   ),
                   _GallerySection(
@@ -278,6 +499,53 @@ class _NightshadeDesignSystemGalleryState
                     ),
                   ),
                   _GallerySection(
+                    title: 'Status Dots',
+                    child: Wrap(
+                      spacing: NightshadeTokens.spaceLg,
+                      runSpacing: NightshadeTokens.spaceMd,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        _StatusDotSample(
+                          label: 'Static',
+                          dot: StatusDot(
+                            key: const ValueKey('gallery-status-dot-static'),
+                            color: colors.success,
+                          ),
+                        ),
+                        _StatusDotSample(
+                          label: 'Attention',
+                          dot: StatusDot(
+                            key: ValueKey(
+                              'gallery-status-dot-attention-'
+                              '$_statusDotAttentionSeed',
+                            ),
+                            color: _statusDotAttentionSeed.isEven
+                                ? colors.warning
+                                : colors.error,
+                            variant: StatusDotVariant.attention,
+                          ),
+                        ),
+                        NightshadeButton(
+                          key: const ValueKey('gallery-status-dot-flash'),
+                          label: 'Flash',
+                          size: ButtonSize.small,
+                          variant: ButtonVariant.outline,
+                          onPressed: () {
+                            setState(() => _statusDotAttentionSeed += 1);
+                          },
+                        ),
+                        _StatusDotSample(
+                          label: 'Urgent',
+                          dot: StatusDot(
+                            key: const ValueKey('gallery-status-dot-urgent'),
+                            color: colors.error,
+                            variant: StatusDotVariant.urgent,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  _GallerySection(
                     title: 'Alerts',
                     child: Column(
                       children: [
@@ -334,7 +602,7 @@ class _GallerySection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.space2xl),
@@ -370,7 +638,7 @@ class _GalleryCardSpecimen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return NightshadeCard(
       padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
@@ -410,17 +678,16 @@ class _GalleryChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: NightshadeTokens.spaceMd,
         vertical: NightshadeTokens.spaceSm,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+      decoration: NightshadeDecorations.emphasisSurface(
+        color,
         borderRadius: NightshadeTokens.borderRadiusSm,
-        border: Border.all(color: color.withValues(alpha: 0.32)),
       ),
       child: Text(
         label,
@@ -443,7 +710,7 @@ class _ControlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Row(
       mainAxisSize: MainAxisSize.min,
@@ -457,6 +724,152 @@ class _ControlRow extends StatelessWidget {
         const SizedBox(width: NightshadeTokens.spaceSm),
         child,
       ],
+    );
+  }
+}
+
+class _DecorationSpecimen extends StatelessWidget {
+  final String label;
+  final BoxDecoration decoration;
+  final double width;
+  final double height;
+
+  const _DecorationSpecimen({
+    required this.label,
+    required this.decoration,
+    required this.width,
+    required this.height,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: width,
+          height: height,
+          decoration: decoration,
+        ),
+        const SizedBox(height: NightshadeTokens.spaceXs),
+        Text(
+          label,
+          style: NightshadeTypography.caption.copyWith(
+            color: colors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _PaletteSwatch extends StatelessWidget {
+  final String label;
+  final Color color;
+
+  const _PaletteSwatch({
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+
+    return SizedBox(
+      width: 112,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            height: 44,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: NightshadeTokens.borderRadiusSm,
+              border: Border.all(color: colors.border),
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            label,
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusDotSample extends StatelessWidget {
+  final String label;
+  final Widget dot;
+
+  const _StatusDotSample({
+    required this.label,
+    required this.dot,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.nightshadeColors;
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        dot,
+        const SizedBox(width: NightshadeTokens.spaceSm),
+        Text(
+          label,
+          style: NightshadeTypography.caption.copyWith(
+            color: colors.textSecondary,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _TypographySpecimen extends StatelessWidget {
+  final String label;
+  final String sample;
+  final TextStyle style;
+  final NightshadeColors colors;
+  final bool muted;
+
+  const _TypographySpecimen({
+    required this.label,
+    required this.sample,
+    required this.style,
+    required this.colors,
+    this.muted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceMd),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: NightshadeTypography.caption.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs),
+          Text(
+            sample,
+            style: style.copyWith(
+              color: muted ? colors.textMuted : colors.textPrimary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

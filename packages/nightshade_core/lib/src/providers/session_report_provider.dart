@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/session_report.dart';
+import '../services/imaging_records_repository.dart';
 import '../services/session_report_service.dart';
 import 'database_provider.dart';
 import 'sequence_stats_provider.dart';
@@ -11,8 +12,7 @@ import 'sequence_stats_provider.dart';
 /// rows (sessions / captured_images / sequence_runs / targets).
 final sessionReportServiceProvider = Provider<SessionReportService>((ref) {
   return SessionReportService(
-    sessionsDao: ref.watch(sessionsDaoProvider),
-    imagesDao: ref.watch(imagesDaoProvider),
+    records: ref.watch(imagingRecordsRepositoryProvider),
     sequenceRunsDao: ref.watch(sequenceRunsDaoProvider),
     targetsDao: ref.watch(targetsDaoProvider),
   );

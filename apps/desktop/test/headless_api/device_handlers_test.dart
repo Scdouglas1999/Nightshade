@@ -55,6 +55,17 @@ void main() {
       expect(body['error'], isA<String>());
     });
 
+    test('last image jpeg missing deviceId returns bad request', () async {
+      final response =
+          await translateHandlerErrors(handlers.handleCameraGetLastImageJpeg(
+        Request('GET', Uri.parse('http://localhost/api/camera/last-image/jpeg')),
+      ));
+
+      expect(response.statusCode, HttpStatus.badRequest);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['error'], isA<String>());
+    });
+
     test('rotator halt malformed payload returns JSON internal error',
         () async {
       final response = await translateHandlerErrors(handlers.handleRotatorHalt(
@@ -70,6 +81,32 @@ void main() {
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
       expect(body['error'], isA<String>());
+    });
+
+    test(
+        'filter wheel get position returns 200 with null fields when '
+        'disconnected', () async {
+      // Why: with no driver connected (the bare ProviderContainer state),
+      // FilterWheelStateNotifier reports
+      // (currentPosition=null, isMoving=false, filterNames=[]). The
+      // handler should still respond 200 with `position: null,
+      // name: null, isMoving: false` — disconnection is not an error,
+      // it's a real state phones need to render.
+      final response = await translateHandlerErrors(
+        handlers.handleFilterWheelGetPosition(
+          Request(
+            'GET',
+            Uri.parse('http://localhost/api/filter-wheel/position'),
+          ),
+        ),
+      );
+
+      expect(response.statusCode, HttpStatus.ok);
+      expect(response.headers['content-type'], 'application/json');
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body['position'], isNull);
+      expect(body['name'], isNull);
+      expect(body['isMoving'], isFalse);
     });
   });
 }

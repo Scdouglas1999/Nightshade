@@ -2,6 +2,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/screens/shell/shell_chrome.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
@@ -21,8 +22,9 @@ class AutofocusProgressOverlay extends ConsumerStatefulWidget {
 class _AutofocusProgressOverlayState
     extends ConsumerState<AutofocusProgressOverlay>
     with SingleTickerProviderStateMixin {
-  // Drag offset from bottom-right corner
+  // Drag offset from bottom-right corner (dy clamped to shell chrome in build).
   Offset _offset = const Offset(16, 16);
+  bool _offsetInitialized = false;
   late AnimationController _pulseController;
 
   static const double _expandedWidth = 360.0;
@@ -46,6 +48,22 @@ class _AutofocusProgressOverlayState
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_offsetInitialized) return;
+    _offsetInitialized = true;
+    final useBottomNav =
+        ShellChrome.useBottomNavigation(MediaQuery.sizeOf(context).width);
+    _offset = Offset(
+      16,
+      ShellChromeMetrics.floatingOverlayBottomInset(
+        context,
+        useBottomNav: useBottomNav,
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final overlayState = ref.watch(autofocusOverlayProvider);
 
@@ -53,11 +71,18 @@ class _AutofocusProgressOverlayState
       return const SizedBox.shrink();
     }
 
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isMinimized = overlayState.isMinimized;
 
     final width = isMinimized ? _minimizedWidth : _expandedWidth;
     final height = isMinimized ? _minimizedHeight : _expandedHeight;
+    final useBottomNav =
+        ShellChrome.useBottomNavigation(MediaQuery.sizeOf(context).width);
+    final minBottomInset = ShellChromeMetrics.floatingOverlayBottomInset(
+      context,
+      useBottomNav: useBottomNav,
+      margin: 0,
+    );
 
     return Positioned(
       right: _offset.dx,
@@ -68,7 +93,10 @@ class _AutofocusProgressOverlayState
           setState(() {
             _offset = Offset(
               (_offset.dx - details.delta.dx).clamp(0, screenSize.width - width),
-              (_offset.dy - details.delta.dy).clamp(0, screenSize.height - height),
+              (_offset.dy - details.delta.dy).clamp(
+                minBottomInset,
+                screenSize.height - height,
+              ),
             );
           });
         },
@@ -411,15 +439,15 @@ class _StatBadge extends StatelessWidget {
     return Expanded(
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-        decoration: BoxDecoration(
-          color: highlight
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
-          border: highlight
-              ? Border.all(color: colors.primary.withValues(alpha: 0.3))
-              : null,
-        ),
+        decoration: highlight
+            ? NightshadeDecorations.emphasisSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(4),
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(4),
+              ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [

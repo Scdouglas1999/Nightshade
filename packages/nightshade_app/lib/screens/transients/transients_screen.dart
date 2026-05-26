@@ -32,7 +32,7 @@ class TransientsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final alertsAsync = ref.watch(activeTransientAlertsProvider);
     final currentFilter = ref.watch(_transientFilterProvider);
 
@@ -320,10 +320,7 @@ class _TransientsHeader extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceSm),
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.warning.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
+            decoration: NightshadeDecorations.tintedBadge(colors.warning),
             child: Icon(
               LucideIcons.sparkles,
               size: NightshadeTokens.iconMd,
@@ -523,7 +520,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final settings = ref.watch(transientAlertSettingsProvider);
     final notifier = ref.read(transientAlertSettingsProvider.notifier);
 
@@ -532,8 +529,12 @@ class _TransientSettingsDialog extends ConsumerWidget {
       shape: RoundedRectangleBorder(
         borderRadius: NightshadeTokens.borderRadiusXl,
       ),
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 400,
+        ),
+        child: Padding(
         padding: NightshadeTokens.dialogPadding,
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -706,11 +707,9 @@ class _TransientSettingsDialog extends ConsumerWidget {
                     ],
                   ),
                 ),
-                Switch(
+                NightshadeSwitch(
                   value: settings.notifyOnNew,
                   onChanged: (value) => notifier.setNotifyOnNew(value),
-                  activeTrackColor: colors.primary,
-                  activeThumbColor: Colors.white,
                 ),
               ],
             ),
@@ -726,6 +725,7 @@ class _TransientSettingsDialog extends ConsumerWidget {
               ),
             ),
           ],
+        ),
         ),
       ),
     );

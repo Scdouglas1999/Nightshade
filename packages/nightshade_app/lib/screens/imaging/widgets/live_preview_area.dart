@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:path/path.dart' as p;
 import '../../../utils/preview_transform.dart';
 import '../../../widgets/catalog_overlay_widget.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
@@ -54,6 +55,7 @@ class LivePreviewArea extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final currentImage = ref.watch(currentImageProvider);
+    final previewHistogram = ref.watch(previewDisplayHistogramProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final lastStats = ref.watch(lastImageStatsProvider);
     final cameraState = ref.watch(cameraStateProvider);
@@ -133,10 +135,19 @@ class LivePreviewArea extends ConsumerWidget {
         : ref.watch(capturedImageWcsProvider(currentFrameImageId)).valueOrNull;
 
     final annotationSettingsValue = ref.watch(annotationSettingsProvider);
-    final annotationSettingsObj = annotationSettingsValue.valueOrNull ?? const AnnotationSettings();
+    final annotationSettingsObj =
+        annotationSettingsValue.valueOrNull ?? const AnnotationSettings();
     final gridType = annotationSettingsObj.gridType;
     final annotationShowResiduals = annotationSettingsObj.showSolveResiduals;
     final currentAnnotation = ref.watch(currentAnnotationProvider);
+    final currentSkySolution = currentImage == null
+        ? const _CurrentImageSkySolution()
+        : _resolveCurrentImageSkySolution(
+            wcs: currentFrameWcs,
+            annotation: currentAnnotation,
+            width: currentImage.width,
+            height: currentImage.height,
+          );
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
@@ -159,7 +170,7 @@ class LivePreviewArea extends ConsumerWidget {
             ? const <ProjectedMovingTrack>[]
             : _projectMovingTracks(
                 candidates: movingCandidates,
-                wcs: currentFrameWcs,
+                wcs: currentSkySolution.catalogWcs,
                 imageWidth: currentImage.width.toDouble(),
                 imageHeight: currentImage.height.toDouble(),
               );
@@ -268,12 +279,12 @@ class LivePreviewArea extends ConsumerWidget {
                   // Celestial RA/Dec grid overlay (requires plate solve)
                   if (gridType == GridType.celestial &&
                       currentImage != null &&
-                      currentAnnotation?.plateSolve != null)
+                      currentSkySolution.plateSolve != null)
                     Positioned.fill(
                       child: IgnorePointer(
                         child: CustomPaint(
                           painter: CelestialGridPainter(
-                            plateSolve: currentAnnotation!.plateSolve,
+                            plateSolve: currentSkySolution.plateSolve!,
                             zoomLevel: zoomLevel,
                             imageOffset: imageOffset,
                           ),
@@ -306,6 +317,7 @@ class LivePreviewArea extends ConsumerWidget {
                         imageSize: Size(currentImage.width.toDouble(),
                             currentImage.height.toDouble()),
                         colors: colors,
+                        previewViewportWidth: viewportSize.width,
                         onPanToObject: (imagePoint) {
                           // Calculate pan delta to center the image point on screen
                           final viewportSize = MediaQuery.sizeOf(context);
@@ -331,11 +343,7 @@ class LivePreviewArea extends ConsumerWidget {
                   if (currentImage != null)
                     Positioned.fill(
                       child: CatalogOverlayWidget(
-                        wcs: _solvedWcsFromImage(
-                          wcs: currentFrameWcs,
-                          width: currentImage.width,
-                          height: currentImage.height,
-                        ),
+                        wcs: currentSkySolution.catalogWcs,
                         zoomLevel: zoomLevel,
                         imageOffset: imageOffset,
                         imageSize: Size(currentImage.width.toDouble(),
@@ -356,7 +364,10 @@ class LivePreviewArea extends ConsumerWidget {
 
                   // Compass and scale bar overlays (require plate solve data)
                   if (currentImage != null)
-                    _CompassScaleBarOverlay(zoomLevel: zoomLevel),
+                    _CompassScaleBarOverlay(
+                      zoomLevel: zoomLevel,
+                      plateSolve: currentSkySolution.plateSolve,
+                    ),
 
                   if (currentImage != null &&
                       scienceSettings.advancedModeEnabled &&
@@ -380,9 +391,9 @@ class LivePreviewArea extends ConsumerWidget {
                   if (currentImage != null &&
                       residualVectors.isNotEmpty &&
                       (annotationShowResiduals ||
-                       (scienceSettings.advancedModeEnabled &&
-                        scienceSettings.overlayEnabled &&
-                        scienceOverlay.showResidualVectors)))
+                          (scienceSettings.advancedModeEnabled &&
+                              scienceSettings.overlayEnabled &&
+                              scienceOverlay.showResidualVectors)))
                     Positioned.fill(
                       child: IgnorePointer(
                         child: CustomPaint(
@@ -468,6 +479,36 @@ class LivePreviewArea extends ConsumerWidget {
                       ),
                     ),
 
+                  // Upper-right preview status badges: raw/HQ progress and
+                  // calibration provenance. Both ride above the overlay bar
+                  // chips so the user sees them even when zoomed in.
+                  if (currentImage != null)
+                    Positioned(
+                      top: 12,
+                      right: 12,
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
+                            RawPreviewStatusBadge(
+                              status: currentImage.rawLoadStatus,
+                              colors: colors,
+                            ),
+                          if (currentImage.rawLoadStatus != RawLoadStatus.idle)
+                            const SizedBox(width: 6),
+                          // IMG-P1-4: surface whether the on-disk frame
+                          // backing the current preview has actually been
+                          // through the calibration pipeline. The provider
+                          // only reports true when the saved file path
+                          // ended up at `_cal.fits` — calibration failures
+                          // leave the original path untouched, so this
+                          // badge never lies about a frame that the
+                          // pipeline couldn't calibrate.
+                          _CalibratedBadge(colors: colors),
+                        ],
+                      ),
+                    ),
+
                   // Top overlay bar - responsive layout
                   Positioned(
                     top: 0,
@@ -482,16 +523,6 @@ class LivePreviewArea extends ConsumerWidget {
                         return Container(
                           padding: EdgeInsets.symmetric(
                               horizontal: horizontalPadding, vertical: 8),
-                          decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              begin: Alignment.topCenter,
-                              end: Alignment.bottomCenter,
-                              colors: [
-                                Colors.black.withValues(alpha: 0.6),
-                                Colors.transparent,
-                              ],
-                            ),
-                          ),
                           child: isNarrow
                               // Compact mobile layout - stack chips on top, controls below
                               ? Column(
@@ -552,18 +583,24 @@ class LivePreviewArea extends ConsumerWidget {
                                                 onTap: onToggleCrosshair,
                                               ),
                                               OverlayIconButton(
-                                                icon: gridType == GridType.celestial
+                                                icon: gridType ==
+                                                        GridType.celestial
                                                     ? LucideIcons.globe
                                                     : LucideIcons.grid,
                                                 tooltip: switch (gridType) {
                                                   GridType.none => 'Grid: Off',
-                                                  GridType.pixel => 'Grid: Pixel',
-                                                  GridType.celestial => 'Grid: RA/Dec',
+                                                  GridType.pixel =>
+                                                    'Grid: Pixel',
+                                                  GridType.celestial =>
+                                                    'Grid: RA/Dec',
                                                 },
                                                 colors: colors,
-                                                isActive: gridType != GridType.none,
+                                                isActive:
+                                                    gridType != GridType.none,
                                                 onTap: () => ref
-                                                    .read(annotationSettingsProvider.notifier)
+                                                    .read(
+                                                        annotationSettingsProvider
+                                                            .notifier)
                                                     .cycleGridType(),
                                               ),
                                               OverlayIconButton(
@@ -721,7 +758,8 @@ class LivePreviewArea extends ConsumerWidget {
                                       colors: colors,
                                       isActive: gridType != GridType.none,
                                       onTap: () => ref
-                                          .read(annotationSettingsProvider.notifier)
+                                          .read(annotationSettingsProvider
+                                              .notifier)
                                           .cycleGridType(),
                                     ),
                                     OverlayIconButton(
@@ -822,7 +860,18 @@ class LivePreviewArea extends ConsumerWidget {
                     Positioned(
                       top: 56,
                       right: 16,
-                      child: ScienceHudPanel(colors: colors),
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: Responsive.previewOverlayMaxWidth(
+                            viewportSize.width,
+                          ),
+                          maxHeight: (viewportSize.height - 72)
+                              .clamp(120.0, viewportSize.height),
+                        ),
+                        child: SingleChildScrollView(
+                          child: ScienceHudPanel(colors: colors),
+                        ),
+                      ),
                     ),
 
                   // Bottom histogram overlay
@@ -832,7 +881,7 @@ class LivePreviewArea extends ConsumerWidget {
                     child: HistogramWidget(
                       key: ImagingTutorialKeys.histogram,
                       colors: colors,
-                      histogram: currentImage?.histogram,
+                      histogram: previewHistogram,
                     ),
                   ),
 
@@ -868,7 +917,12 @@ class LivePreviewArea extends ConsumerWidget {
                           AnnotationStatusIndicator(colors: colors),
                           const SizedBox(height: 6),
                           ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 380),
+                            constraints: BoxConstraints(
+                              maxWidth: Responsive.previewOverlayMaxWidth(
+                                viewportSize.width,
+                                maxAbsolute: 380,
+                              ),
+                            ),
                             child: ReAnnotateSuggestionBanner(colors: colors),
                           ),
                         ],
@@ -944,15 +998,31 @@ class LivePreviewArea extends ConsumerWidget {
     if (filePath == null || filePath.isEmpty) {
       return null;
     }
+    final normalizedCurrent = _normalizeImagePath(filePath);
     for (final image in sessionImages) {
-      if (image.filePath == filePath) {
+      if (_normalizeImagePath(image.filePath) == normalizedCurrent) {
         final parsed = int.tryParse(image.id);
         if (parsed != null) {
           return parsed;
         }
       }
     }
+    final currentBasename = _normalizeImagePath(p.basename(filePath));
+    final basenameMatches = sessionImages.where((image) {
+      return _normalizeImagePath(p.basename(image.filePath)) == currentBasename;
+    }).toList(growable: false);
+    if (basenameMatches.length == 1) {
+      return int.tryParse(basenameMatches.single.id);
+    }
     return null;
+  }
+
+  String _normalizeImagePath(String value) {
+    return value
+        .trim()
+        .replaceAll('\\', '/')
+        .replaceAll(RegExp(r'/+'), '/')
+        .toLowerCase();
   }
 
   List<AstrometryResidualVectorRow> _selectCurrentFrameResidualVectors({
@@ -1083,36 +1153,27 @@ class LivePreviewArea extends ConsumerWidget {
 
   List<ProjectedMovingTrack> _projectMovingTracks({
     required List<MovingObjectCandidateRow> candidates,
-    required CapturedImageWcsData? wcs,
+    required SolvedWcs? wcs,
     required double imageWidth,
     required double imageHeight,
   }) {
     if (candidates.isEmpty || wcs == null) {
       return const <ProjectedMovingTrack>[];
     }
-    final solvedRaHours = wcs.solvedRaHours;
-    final solvedDecDegrees = wcs.solvedDecDegrees;
-    final solvedRotation = wcs.solvedRotationDegrees;
-    final solvedScale = wcs.solvedPixelScaleArcsecPerPixel;
-    if (!wcs.isPlateSolved ||
-        solvedRaHours == null ||
-        solvedDecDegrees == null ||
-        solvedRotation == null ||
-        solvedScale == null ||
-        solvedScale <= 0) {
+    if (!wcs.isValid) {
       return const <ProjectedMovingTrack>[];
     }
 
     final tracks = <ProjectedMovingTrack>[];
-    final centerRaDeg = solvedRaHours * 15.0;
+    final centerRaDeg = wcs.raHours * 15.0;
     for (final candidate in candidates.take(200)) {
       final projected = _skyToPixel(
         raDegrees: candidate.raDegrees,
         decDegrees: candidate.decDegrees,
         centerRaDegrees: centerRaDeg,
-        centerDecDegrees: solvedDecDegrees,
-        rotationDegrees: solvedRotation,
-        pixelScaleArcsecPerPixel: solvedScale,
+        centerDecDegrees: wcs.decDegrees,
+        rotationDegrees: wcs.rotationDeg,
+        pixelScaleArcsecPerPixel: wcs.pixelScaleArcsec,
         imageWidth: imageWidth,
         imageHeight: imageHeight,
       );
@@ -1181,22 +1242,76 @@ class LivePreviewArea extends ConsumerWidget {
   }
 }
 
+/// Small success-coloured chip that announces the displayed frame has
+/// been auto-calibrated. Watches `currentImageIsCalibratedProvider` and
+/// collapses to nothing when the answer is false, so it costs zero
+/// pixels for raw / failed-calibration frames.
+///
+/// Why a separate widget instead of inlining a `ref.watch` next to the
+/// `RawPreviewStatusBadge` row: keeping the watch local to this widget
+/// means a calibration-state flip only rebuilds the badge, not the
+/// whole preview area (which paints the image, overlays, histograms,
+/// etc.). The cost saved per swap is small but it lines up with how
+/// the other preview badges are scoped.
+class _CalibratedBadge extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _CalibratedBadge({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isCalibrated = ref.watch(currentImageIsCalibratedProvider);
+    if (!isCalibrated) return const SizedBox.shrink();
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colors.success.withValues(alpha: 0.9),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              LucideIcons.checkCircle2,
+              size: 12,
+              color: colors.onPrimary,
+            ),
+            const SizedBox(width: 4),
+            Text(
+              'Calibrated',
+              style: TextStyle(
+                color: colors.onPrimary,
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Composite overlay widget that shows compass and scale bar when plate solve
 /// data is available and the respective settings are enabled.
 class _CompassScaleBarOverlay extends ConsumerWidget {
   final double zoomLevel;
+  final PlateSolveData? plateSolve;
 
-  const _CompassScaleBarOverlay({required this.zoomLevel});
+  const _CompassScaleBarOverlay({
+    required this.zoomLevel,
+    required this.plateSolve,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final annotation = ref.watch(currentAnnotationProvider);
     final settingsAsync = ref.watch(annotationSettingsProvider);
-    final settings =
-        settingsAsync.valueOrNull ?? const AnnotationSettings();
+    final settings = settingsAsync.valueOrNull ?? const AnnotationSettings();
 
-    final plateSolve = annotation?.plateSolve;
-    if (plateSolve == null) return const SizedBox.shrink();
+    final solve = plateSolve;
+    if (solve == null) return const SizedBox.shrink();
 
     final showCompass = settings.compassEnabled;
     final showScaleBar = settings.scaleBarEnabled;
@@ -1206,7 +1321,7 @@ class _CompassScaleBarOverlay extends ConsumerWidget {
       child: IgnorePointer(
         child: CustomPaint(
           painter: _CompassScaleBarCombinedPainter(
-            plateSolve: plateSolve,
+            plateSolve: solve,
             showCompass: showCompass,
             showScaleBar: showScaleBar,
             zoomLevel: zoomLevel,
@@ -1261,6 +1376,44 @@ class _CompassScaleBarCombinedPainter extends CustomPainter {
 /// catalog overlay expects. Returns null when the row is missing or the
 /// frame wasn't plate-solved — the overlay widget renders an explanatory
 /// banner in that case (per the project's "errors are a feature" rule).
+class _CurrentImageSkySolution {
+  final SolvedWcs? catalogWcs;
+  final PlateSolveData? plateSolve;
+
+  const _CurrentImageSkySolution({
+    this.catalogWcs,
+    this.plateSolve,
+  });
+}
+
+_CurrentImageSkySolution _resolveCurrentImageSkySolution({
+  required CapturedImageWcsData? wcs,
+  required ImageAnnotation? annotation,
+  required int width,
+  required int height,
+}) {
+  final catalogWcs = _solvedWcsFromImage(
+    wcs: wcs,
+    width: width,
+    height: height,
+  );
+  if (catalogWcs != null) {
+    return _CurrentImageSkySolution(
+      catalogWcs: catalogWcs,
+      plateSolve: _plateSolveFromSolvedWcs(catalogWcs),
+    );
+  }
+
+  final annotationSolve = annotation?.plateSolve;
+  final annotationWcs = annotationSolve == null
+      ? null
+      : _solvedWcsFromPlateSolve(annotationSolve);
+  return _CurrentImageSkySolution(
+    catalogWcs: annotationWcs,
+    plateSolve: annotationSolve,
+  );
+}
+
 SolvedWcs? _solvedWcsFromImage({
   required CapturedImageWcsData? wcs,
   required int width,
@@ -1281,6 +1434,31 @@ SolvedWcs? _solvedWcsFromImage({
     pixelScaleArcsec: scale,
     imageWidth: width,
     imageHeight: height,
+  );
+}
+
+SolvedWcs? _solvedWcsFromPlateSolve(PlateSolveData plateSolve) {
+  final solved = SolvedWcs(
+    raHours: plateSolve.ra,
+    decDegrees: plateSolve.dec,
+    rotationDeg: plateSolve.rotation,
+    pixelScaleArcsec: plateSolve.pixelScale,
+    imageWidth: plateSolve.imageWidth,
+    imageHeight: plateSolve.imageHeight,
+  );
+  return solved.isValid ? solved : null;
+}
+
+PlateSolveData _plateSolveFromSolvedWcs(SolvedWcs wcs) {
+  return PlateSolveData(
+    ra: wcs.raHours,
+    dec: wcs.decDegrees,
+    pixelScale: wcs.pixelScaleArcsec,
+    rotation: wcs.rotationDeg,
+    fieldWidth: wcs.imageWidth * wcs.pixelScaleArcsec / 3600.0,
+    fieldHeight: wcs.imageHeight * wcs.pixelScaleArcsec / 3600.0,
+    imageWidth: wcs.imageWidth,
+    imageHeight: wcs.imageHeight,
   );
 }
 
@@ -1306,9 +1484,8 @@ class CatalogOverlayToolbarButton extends ConsumerWidget {
               'Catalog overlay [Mag ≤ ${magnitudeLimit.toStringAsFixed(0)}]',
           colors: colors,
           isActive: enabled,
-          onTap: () => ref
-              .read(catalogOverlayEnabledProvider.notifier)
-              .state = !enabled,
+          onTap: () =>
+              ref.read(catalogOverlayEnabledProvider.notifier).state = !enabled,
         ),
         // Why a separate dropdown trigger: a tap on the main icon must
         // toggle visibility (matches user expectation from the other
@@ -1319,11 +1496,19 @@ class CatalogOverlayToolbarButton extends ConsumerWidget {
           tooltip: 'Catalog overlay settings',
           position: PopupMenuPosition.under,
           offset: const Offset(0, 6),
+          color: colors.surfaceElevated,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+            side: BorderSide(color: colors.border),
+          ),
           onSelected: (_) {},
           itemBuilder: (context) => [
             PopupMenuItem<String>(
               enabled: false,
               padding: EdgeInsets.zero,
+              height: 0,
               child: CatalogOverlayPopover(colors: colors),
             ),
           ],

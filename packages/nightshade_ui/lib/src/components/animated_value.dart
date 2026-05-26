@@ -107,7 +107,7 @@ class _AnimatedValueState extends State<AnimatedValue>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     // Determine highlight color based on style
     Color effectiveHighlightColor;
@@ -257,7 +257,7 @@ class _InterpolatedValueState extends State<InterpolatedValue>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final baseStyle = widget.textStyle ?? TextStyle(color: colors.textPrimary);
     final effectiveStyle = widget.useTabularFigures
         ? baseStyle.copyWith(

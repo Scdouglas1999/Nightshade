@@ -393,7 +393,7 @@ class _TutorialOverlayContentState extends State<_TutorialOverlayContent> {
   Widget build(BuildContext context) {
     if (widget.step == null) return const SizedBox.shrink();
 
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final targetKey = TutorialKeys.getKey(widget.step!.targetKey);
     Rect? targetRect;
 
@@ -1064,7 +1064,7 @@ class _TooltipWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final screenSize = MediaQuery.sizeOf(context);
     final screenWidth = screenSize.width;
 

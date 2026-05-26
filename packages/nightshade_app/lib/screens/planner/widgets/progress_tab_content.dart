@@ -15,8 +15,8 @@ enum ProgressSort {
 /// Local sort preference for the Progress tab. `autoDispose` so the
 /// default re-asserts when the tab is closed and re-opened from a fresh
 /// session.
-final _progressSortProvider =
-    StateProvider.autoDispose<ProgressSort>((_) => ProgressSort.percentComplete);
+final _progressSortProvider = StateProvider.autoDispose<ProgressSort>(
+    (_) => ProgressSort.percentComplete);
 
 /// Tracks which target row currently has its per-filter breakdown expanded.
 /// Only one row at a time to keep the page tidy.
@@ -34,7 +34,7 @@ class ProgressTabContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final progressAsync = ref.watch(allTargetProgressProvider);
     final sort = ref.watch(_progressSortProvider);
 
@@ -83,7 +83,9 @@ List<TargetProgress> _sortRows(
         final ae = a.estimatedNightsRemaining;
         final be = b.estimatedNightsRemaining;
         if (ae == null && be == null) {
-          return a.targetName.toLowerCase().compareTo(b.targetName.toLowerCase());
+          return a.targetName
+              .toLowerCase()
+              .compareTo(b.targetName.toLowerCase());
         }
         if (ae == null) return 1;
         if (be == null) return -1;
@@ -116,7 +118,7 @@ class _ProgressList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final expandedId = ref.watch(_progressExpandedRowProvider);
 
     return Column(
@@ -198,7 +200,7 @@ class _SortBar extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: 10),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusXl),
               border: Border.all(color: colors.border),
             ),
             child: DropdownButtonHideUnderline(
@@ -316,50 +318,84 @@ class _ProgressRow extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: NightshadeTokens.spaceMd),
-                    SizedBox(
-                      width: 160,
-                      child: _ProgressBar(
-                        percent: progress.percentComplete,
-                        colors: colors,
-                        label: '${pct.toStringAsFixed(0)}%',
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    SizedBox(
-                      width: 110,
-                      child: Text(
-                        integrationLabel,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    SizedBox(
-                      width: 80,
-                      child: Text(
-                        etaLabel,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
-                          fontFeatures: const [FontFeature.tabularFigures()],
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: NightshadeTokens.spaceMd),
-                    SizedBox(
-                      width: 110,
-                      child: Text(
-                        lastImagedLabel,
-                        textAlign: TextAlign.right,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textMuted,
-                        ),
+                    Expanded(
+                      flex: 6,
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final metrics = Row(
+                            children: [
+                              Flexible(
+                                flex: 4,
+                                child: ConstrainedBox(
+                                  constraints:
+                                      const BoxConstraints(minWidth: 100),
+                                  child: _ProgressBar(
+                                    percent: progress.percentComplete,
+                                    colors: colors,
+                                    label: '${pct.toStringAsFixed(0)}%',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: NightshadeTokens.spaceMd),
+                              Flexible(
+                                flex: 3,
+                                child: Text(
+                                  integrationLabel,
+                                  textAlign: TextAlign.right,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: NightshadeTokens.spaceMd),
+                              Flexible(
+                                flex: 2,
+                                child: Text(
+                                  etaLabel,
+                                  textAlign: TextAlign.right,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textSecondary,
+                                    fontFeatures: const [
+                                      FontFeature.tabularFigures(),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: NightshadeTokens.spaceMd),
+                              Flexible(
+                                flex: 3,
+                                child: Text(
+                                  lastImagedLabel,
+                                  textAlign: TextAlign.right,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: colors.textMuted,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          );
+                          if (constraints.maxWidth < 420) {
+                            return SingleChildScrollView(
+                              scrollDirection: Axis.horizontal,
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minWidth: constraints.maxWidth,
+                                ),
+                                child: metrics,
+                              ),
+                            );
+                          }
+                          return metrics;
+                        },
                       ),
                     ),
                     const SizedBox(width: 6),
@@ -551,10 +587,11 @@ class _FilterProgressRow extends StatelessWidget {
     final pct = (filter.percentComplete * 100).clamp(0.0, 100.0);
     return Row(
       children: [
-        SizedBox(
-          width: 80,
+        Flexible(
+          flex: 2,
           child: Text(
             filter.filter,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -564,6 +601,7 @@ class _FilterProgressRow extends StatelessWidget {
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
         Expanded(
+          flex: 4,
           child: _ProgressBar(
             percent: filter.percentComplete,
             colors: colors,
@@ -571,11 +609,12 @@ class _FilterProgressRow extends StatelessWidget {
           ),
         ),
         const SizedBox(width: NightshadeTokens.spaceSm),
-        SizedBox(
-          width: 110,
+        Flexible(
+          flex: 3,
           child: Text(
             '${filter.capturedFrames} / ${filter.goalFrames} frames',
             textAlign: TextAlign.right,
+            overflow: TextOverflow.ellipsis,
             style: TextStyle(
               fontSize: 11,
               color: colors.textSecondary,
@@ -703,10 +742,10 @@ class _ProgressSkeletonList extends StatelessWidget {
         itemBuilder: (_, __) => Container(
           padding: NightshadeTokens.cardPadding,
           decoration: BoxDecoration(
-            color: Theme.of(context).extension<NightshadeColors>()!.surface,
+            color: NightshadeColors.of(context).surface,
             borderRadius: NightshadeTokens.borderRadiusLg,
             border: Border.all(
-              color: Theme.of(context).extension<NightshadeColors>()!.border,
+              color: NightshadeColors.of(context).border,
             ),
           ),
           child: const Row(

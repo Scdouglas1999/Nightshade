@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 import '../models/planning/target_suggestion.dart';
 import 'simbad_provider.dart';
@@ -127,8 +128,8 @@ class SuggestionFilterState {
 // ============================================================================
 
 /// Holds the current UI filter state. Defaults = no filtering.
-final suggestionFilterProvider =
-    StateProvider<SuggestionFilterState>((ref) => const SuggestionFilterState());
+final suggestionFilterProvider = StateProvider<SuggestionFilterState>(
+    (ref) => const SuggestionFilterState());
 
 /// Applies [SuggestionFilterState] on top of [tonightSuggestionsProvider].
 ///
@@ -401,7 +402,8 @@ final plannerFilterExclusionProvider =
   final suggestionsAsync = ref.watch(tonightSuggestionsProvider);
   final filters = ref.watch(suggestionFilterProvider);
 
-  final suggestions = suggestionsAsync.valueOrNull ?? const <TargetSuggestion>[];
+  final suggestions =
+      suggestionsAsync.valueOrNull ?? const <TargetSuggestion>[];
   final breakdown = <String, int>{};
 
   int countExcluded(String label, bool Function(TargetSuggestion) reject) {
@@ -519,6 +521,47 @@ final plannerSimbadResultsProvider = FutureProvider.autoDispose
   return results;
 });
 
+/// Installed-catalog search results for the planner search bar.
+///
+/// The main candidate list is intentionally limited to targets that survived
+/// tonight's scoring constraints. This provider searches the locally installed
+/// catalogs directly so a query can still surface objects that exist in the
+/// database but are not recommendation candidates right now.
+final plannerInstalledCatalogSearchProvider = FutureProvider.autoDispose
+    .family<List<CatalogSearchResult>, String>((ref, query) async {
+  final trimmed = query.trim();
+  if (trimmed.length < 2) return const <CatalogSearchResult>[];
+
+  final manager = CatalogManager.instance;
+  if (!manager.isInitialized) return const <CatalogSearchResult>[];
+
+  final suggestions = ref.watch(tonightSuggestionsProvider).valueOrNull ??
+      const <TargetSuggestion>[];
+  final existingKeys = <String>{};
+  for (final suggestion in suggestions) {
+    existingKeys.add(_catalogSearchKey(suggestion.targetName));
+    final catalogId = suggestion.catalogId;
+    if (catalogId != null && catalogId.isNotEmpty) {
+      existingKeys.add(_catalogSearchKey(catalogId));
+    }
+  }
+
+  final results = await manager.search(trimmed);
+  return results
+      .where((result) {
+        final resultKeys = <String>{
+          _catalogSearchKey(result.name),
+          _catalogSearchKey(result.catalogId),
+        };
+        return resultKeys.intersection(existingKeys).isEmpty;
+      })
+      .take(12)
+      .toList(growable: false);
+});
+
+String _catalogSearchKey(String value) =>
+    value.trim().toUpperCase().replaceAll(RegExp(r'\s+'), '');
+
 List<TargetSuggestion> _sortPlannerSuggestions(
   List<TargetSuggestion> suggestions,
   PlannerSortMode mode,
@@ -547,12 +590,10 @@ List<TargetSuggestion> _sortPlannerSuggestions(
     case PlannerSortMode.size:
       // Largest first. Nulls/zero sink to the bottom.
       copy.sort((a, b) {
-        final aSize = (a.sizeArcmin != null && a.sizeArcmin! > 0)
-            ? a.sizeArcmin!
-            : null;
-        final bSize = (b.sizeArcmin != null && b.sizeArcmin! > 0)
-            ? b.sizeArcmin!
-            : null;
+        final aSize =
+            (a.sizeArcmin != null && a.sizeArcmin! > 0) ? a.sizeArcmin! : null;
+        final bSize =
+            (b.sizeArcmin != null && b.sizeArcmin! > 0) ? b.sizeArcmin! : null;
         if (aSize == null && bSize == null) return 0;
         if (aSize == null) return 1;
         if (bSize == null) return -1;

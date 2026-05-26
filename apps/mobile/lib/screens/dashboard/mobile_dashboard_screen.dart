@@ -6,25 +6,23 @@ import 'package:nightshade_app/nightshade_app.dart'
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../widgets/network_status_indicator.dart';
+import '../../widgets/phone_battery_indicator.dart';
+import '../setup/first_run_setup_screen.dart';
 import 'tabs/camera_tab.dart';
 import 'tabs/devices_tab.dart';
 import 'tabs/log_tab.dart';
 import 'tabs/mount_tab.dart';
+import 'tabs/science_tab.dart';
 import 'tabs/sequencer_tab.dart';
 import 'tabs/settings_tab.dart';
 
-/// Phone-tailored landing screen (audit §3.5).
+/// Ops-only companion landing screen (legacy tabbed UI).
 ///
-/// The pre-existing `NightshadeApp(isMobile: true)` shrinks the desktop UI
-/// to fit a phone screen, which leaves tap targets below the 44 pt minimum
-/// and crams 16-column dashboards into 360 px viewports. This dashboard is
-/// the phone-native alternative: five bottom tabs, each full-viewport,
-/// reading from the same `nightshade_core` providers as the desktop UI so
-/// behaviour stays in lock-step.
-///
-/// Tablet (>= 768 px) routing intentionally keeps the desktop UI — the
-/// extra real estate is enough that the cramming problem doesn't apply and
-/// the multi-pane layouts are more useful than tabs.
+/// Default mobile routing uses `NightshadeApp(isMobile: true)` so phones get
+/// the same GoRouter screens as desktop/tablet remote clients. Enable this
+/// dashboard with `NIGHTSHADE_COMPANION_UI=1` for field-ops workflows that
+/// prefer the bottom-tab layout.
 class MobileDashboardScreen extends ConsumerStatefulWidget {
   const MobileDashboardScreen({super.key});
 
@@ -62,6 +60,11 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
       child: SequencerTab(),
     ),
     _DashboardTab(
+      icon: LucideIcons.flaskConical,
+      label: 'Science',
+      child: ScienceTab(),
+    ),
+    _DashboardTab(
       icon: LucideIcons.scrollText,
       label: 'Log',
       child: LogTab(),
@@ -80,6 +83,26 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
     // tablet path). Without this watch, errors emitted by Rust never
     // surface as SnackBars on a phone session.
     ref.watch(errorNotificationBridgeProvider);
+
+    // Wave 6D / P2-12 — first-run-setup gate. The async detection
+    // provider returns `FirstRunSetupNeeds.none` when the wizard has
+    // already been completed (or the server is fully configured); we
+    // intercept here so the wizard appears AFTER pairing succeeds and
+    // BEFORE the dashboard renders. Once the user completes (or skips)
+    // the wizard it sets the latch and invalidates the provider so this
+    // branch falls through on the next build.
+    final setupNeedsAsync = ref.watch(shouldRunFirstRunSetupProvider);
+    final setupNeeds = setupNeedsAsync.valueOrNull;
+    if (setupNeeds != null && setupNeeds.hasAnyMissing) {
+      return FirstRunSetupScreen(
+        needs: setupNeeds,
+        onCompleted: () {
+          // The wizard already invalidated the provider — a setState
+          // here re-pulls the dashboard once the async re-resolves.
+          if (mounted) setState(() {});
+        },
+      );
+    }
 
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     final tab = _tabs[_currentIndex];
@@ -103,6 +126,24 @@ class _MobileDashboardScreenState extends ConsumerState<MobileDashboardScreen> {
             ),
           ],
         ),
+        actions: const [
+          // Wave 6D / P2-14 — phone battery + power-saving badge.
+          // Sits left of the network indicator so the operator sees
+          // {battery, network} as a single status cluster. Hidden until
+          // the OS delivers the first sample so the layout doesn't flash.
+          Padding(
+            padding: EdgeInsets.only(right: 4),
+            child: PhoneBatteryIndicator(compact: true),
+          ),
+          // Persistent connection-state indicator (audit P1-15 bug 5).
+          // Renders compact in the AppBar action slot so it stays visible
+          // across all 7 dashboard tabs without eating title space. Tap
+          // opens the details sheet with the "Reconnect now" button.
+          Padding(
+            padding: EdgeInsets.only(right: 8),
+            child: NetworkStatusIndicator(compact: true),
+          ),
+        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(1),
           child: Container(height: 1, color: colors.border),

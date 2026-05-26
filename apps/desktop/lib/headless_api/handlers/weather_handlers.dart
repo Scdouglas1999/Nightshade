@@ -217,6 +217,63 @@ class WeatherHandlers {
   }
 
   // ===========================================================================
+  // Live telemetry (hardware + safety aggregate)
+  // ===========================================================================
+
+  /// GET /api/weather/current
+  ///
+  /// Returns safe-imaging status plus live ObservingConditions telemetry when
+  /// a weather device is connected ([weatherStateProvider]). Fields are omitted
+  /// (null) when no hardware source is available — clients must not invent
+  /// values.
+  Future<Response> handleGetCurrent(Request request) async {
+    _logInfo('[API] GET /api/weather/current');
+    final alertService = container.read(weatherAlertServiceProvider);
+    final currentAlert = alertService.currentAlert;
+    final isSafe =
+        currentAlert == null || currentAlert.level == AlertLevel.clear;
+
+    final weatherState = container.read(weatherStateProvider);
+    final hardwareConnected =
+        weatherState.connectionState == DeviceConnectionState.connected;
+
+    double? temperature;
+    double? humidity;
+    double? cloudCover;
+    double? windSpeed;
+    double? dewPoint;
+    if (hardwareConnected) {
+      temperature = weatherState.temperature;
+      humidity = weatherState.humidity;
+      cloudCover = weatherState.cloudCover;
+      windSpeed = weatherState.windSpeed;
+      dewPoint = weatherState.dewPoint;
+    }
+
+    return jsonOk({
+      'safeToImage': isSafe,
+      'alertLevel': currentAlert?.level.name ?? 'none',
+      'message': currentAlert?.message ?? 'No weather data available',
+      'currentAlert':
+          currentAlert != null ? _alertToJson(currentAlert) : null,
+      'hardwareConnected': hardwareConnected,
+      'deviceId': weatherState.deviceId,
+      'deviceName': weatherState.deviceName,
+      'lastUpdated': weatherState.lastUpdated?.toIso8601String(),
+      'temperature': temperature,
+      'humidity': humidity,
+      'cloudCover': cloudCover,
+      'windSpeed': windSpeed,
+      'dewPoint': dewPoint,
+      'pressure': hardwareConnected ? weatherState.pressure : null,
+      'windDirection':
+          hardwareConnected ? weatherState.windDirection : null,
+      'skyQuality': hardwareConnected ? weatherState.skyQuality : null,
+      'rainRate': hardwareConnected ? weatherState.rainRate : null,
+    });
+  }
+
+  // ===========================================================================
   // Clear Weather Cache
   // ===========================================================================
 

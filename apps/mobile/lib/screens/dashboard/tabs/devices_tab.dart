@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/nightshade_app.dart'
+    show GuideHealthCard, FocusModelCurveCard;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/error_snackbar.dart';
 
 /// Devices tab — one row per device class (camera, mount, focuser, filter
 /// wheel, guider), with connection status and connect/disconnect controls.
@@ -41,10 +45,48 @@ class DevicesTab extends ConsumerWidget {
           const _MountCard(),
           const SizedBox(height: 12),
           const _FocuserCard(),
+          // Wave 5C: surface the temperature-compensation focus model when
+          // the focuser is connected AND the active profile already has
+          // collected focus data points. We gate on profile + connection
+          // here so the FocusModelCurveCard never renders its "Focuser not
+          // connected" / "No active profile" empty states underneath the
+          // _FocuserCard (which already conveys both of those facts).
+          Consumer(builder: (context, ref, _) {
+            final focuser = ref.watch(focuserStateProvider);
+            final profile = ref.watch(activeEquipmentProfileProvider);
+            if (focuser.connectionState != DeviceConnectionState.connected) {
+              return const SizedBox.shrink();
+            }
+            if (profile == null) return const SizedBox.shrink();
+            final focusService = ref.watch(focusModelServiceProvider);
+            final data = focusService.getProfileData(profile.id.toString());
+            if (data == null || data.dataPoints.isEmpty) {
+              return const SizedBox.shrink();
+            }
+            return const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: FocusModelCurveCard(compact: true),
+            );
+          }),
           const SizedBox(height: 12),
           const _FilterWheelCard(),
           const SizedBox(height: 12),
           const _GuiderCard(),
+          // Wave 5A: surface live guide-health (sparkline + RMS + state)
+          // only when the guider is actually connected. The card hides
+          // itself when disconnected too, but checking here keeps the
+          // disconnected-state copy from duplicating _GuiderCard's
+          // "Connect" call to action.
+          Consumer(builder: (context, ref, _) {
+            final guider = ref.watch(guiderStateProvider);
+            if (guider.connectionState != DeviceConnectionState.connected) {
+              return const SizedBox.shrink();
+            }
+            return const Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: GuideHealthCard(),
+            );
+          }),
           const SizedBox(height: 12),
           // Bottom padding above the safe-area inset so the last card is
           // not tucked against the bottom nav.
@@ -63,9 +105,8 @@ class _NoProfileBanner extends StatelessWidget {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.1),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.4)),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.warning,
         borderRadius: BorderRadius.circular(10),
       ),
       child: Row(
@@ -162,7 +203,7 @@ class _DeviceCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -253,8 +294,8 @@ class _StateChip extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -331,8 +372,7 @@ class _MountCard extends ConsumerWidget {
       final ra = state.ra;
       final dec = state.dec;
       if (ra != null && dec != null) {
-        status =
-            'RA ${_formatRa(ra)}  Dec ${_formatDec(dec)}  '
+        status = 'RA ${_formatRa(ra)}  Dec ${_formatDec(dec)}  '
             '${state.isParked ? "parked" : (state.isTracking ? "tracking" : "idle")}';
       }
     }
@@ -379,9 +419,7 @@ class _FocuserCard extends ConsumerWidget {
     String? status;
     if (state.connectionState == DeviceConnectionState.connected) {
       final temp = state.temperature;
-      final tempLabel = temp != null
-          ? ' • ${temp.toStringAsFixed(1)} °C'
-          : '';
+      final tempLabel = temp != null ? ' • ${temp.toStringAsFixed(1)} °C' : '';
       status = 'Position ${state.position ?? "?"}$tempLabel';
     }
 
@@ -512,14 +550,10 @@ class _GuiderCard extends ConsumerWidget {
   }
 }
 
+// [Wave 6D error parsing] — delegate to the shared helper so every
+// devices-tab catch path benefits from envelope parsing + severity tint.
 void _showError(BuildContext context, Object e) {
-  final colors = Theme.of(context).extension<NightshadeColors>();
-  ScaffoldMessenger.of(context).showSnackBar(
-    SnackBar(
-      content: Text('$e'),
-      backgroundColor: colors?.error ?? Theme.of(context).colorScheme.error,
-    ),
-  );
+  showApiError(context, e);
 }
 
 void _showProfileMissing(BuildContext context, String deviceClass) {

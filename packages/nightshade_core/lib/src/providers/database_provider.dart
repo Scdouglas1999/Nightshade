@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../backend/network_backend.dart';
 import '../database/database.dart' as db;
+import '../models/equipment_profile.dart' as remote_profile;
 import '../database/daos/equipment_profiles_dao.dart';
 import '../database/daos/targets_dao.dart';
 import '../database/daos/sessions_dao.dart';
@@ -10,6 +11,8 @@ import '../database/daos/images_dao.dart';
 import '../database/daos/sequences_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/daos/science_dao.dart';
+import '../database/daos/guide_rms_history_dao.dart';
+import '../services/imaging_records_repository.dart';
 import 'backend_provider.dart';
 
 export 'project_tracking_provider.dart';
@@ -56,6 +59,11 @@ final scienceDaoProvider = Provider<ScienceDao>((ref) {
   return ScienceDao(ref.watch(databaseProvider));
 });
 
+/// Guide RMS history DAO provider.
+final guideRmsHistoryDaoProvider = Provider<GuideRmsHistoryDao>((ref) {
+  return GuideRmsHistoryDao(ref.watch(databaseProvider));
+});
+
 // ============================================================================
 // Convenience providers for watching data
 // Note: These use the database entity types (prefixed with db.)
@@ -63,11 +71,19 @@ final scienceDaoProvider = Provider<ScienceDao>((ref) {
 
 /// Watch all equipment profiles
 final allProfilesProvider = StreamProvider<List<db.EquipmentProfile>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteEquipmentProfiles(backend);
+  }
   return ref.watch(equipmentProfilesDaoProvider).watchAllProfiles();
 });
 
 /// Watch the active equipment profile
 final activeProfileProvider = StreamProvider<db.EquipmentProfile?>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteActiveProfile(backend);
+  }
   return ref.watch(equipmentProfilesDaoProvider).watchActiveProfile();
 });
 
@@ -84,19 +100,27 @@ final allDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
 final favoriteDbTargetsProvider = StreamProvider<List<db.Target>>((ref) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return _pollRemoteTargets(backend)
-        .map((targets) => targets.where((target) => target.isFavorite).toList());
+    return _pollRemoteTargets(backend).map(
+        (targets) => targets.where((target) => target.isFavorite).toList());
   }
   return ref.watch(targetsDaoProvider).watchFavoriteTargets();
 });
 
 /// Watch all sequences (database entities)
 final allDbSequencesProvider = StreamProvider<List<db.Sequence>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteSequenceRows(backend, templates: false);
+  }
   return ref.watch(sequencesDaoProvider).watchAllSequences();
 });
 
 /// Watch all sequence templates (database entities)
 final allDbTemplatesProvider = StreamProvider<List<db.Sequence>>((ref) {
+  final backend = ref.watch(backendProvider);
+  if (backend is NetworkBackend) {
+    return _pollRemoteSequenceRows(backend, templates: true);
+  }
   return ref.watch(sequencesDaoProvider).watchAllTemplates();
 });
 
@@ -123,14 +147,7 @@ final capturedImageByIdProvider =
     FutureProvider.family<db.CapturedImage?, int>((ref, imageId) {
   final backend = ref.watch(backendProvider);
   if (backend is NetworkBackend) {
-    return backend.getAllImageRows().then((rows) {
-      for (final row in rows) {
-        if ((row['id'] as int?) == imageId) {
-          return _imageFromJson(row);
-        }
-      }
-      return null;
-    });
+    return ref.watch(imagingRecordsRepositoryProvider).getImageById(imageId);
   }
   return ref.watch(imagesDaoProvider).getImageById(imageId);
 });
@@ -155,7 +172,13 @@ class CapturedImageWcsData {
 
 final capturedImageWcsProvider =
     FutureProvider.family<CapturedImageWcsData?, int>((ref, imageId) async {
-  final row = await ref.watch(imagesDaoProvider).getImageById(imageId);
+  final backend = ref.watch(backendProvider);
+  db.CapturedImage? row;
+  if (backend is NetworkBackend) {
+    row = await ref.watch(capturedImageByIdProvider(imageId).future);
+  } else {
+    row = await ref.watch(imagesDaoProvider).getImageById(imageId);
+  }
   if (row == null) {
     return null;
   }
@@ -174,11 +197,107 @@ final allSettingsProvider = StreamProvider<Map<String, String>>((ref) {
   return ref.watch(settingsDaoProvider).watchAllSettings();
 });
 
+Stream<List<db.EquipmentProfile>> _pollRemoteEquipmentProfiles(
+  NetworkBackend backend,
+) async* {
+  yield await _fetchRemoteEquipmentProfiles(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteEquipmentProfiles(backend);
+  }
+}
+
+Stream<db.EquipmentProfile?> _pollRemoteActiveProfile(
+  NetworkBackend backend,
+) async* {
+  yield await _fetchRemoteActiveProfile(backend);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteActiveProfile(backend);
+  }
+}
+
+Future<List<db.EquipmentProfile>> _fetchRemoteEquipmentProfiles(
+  NetworkBackend backend,
+) async {
+  final profiles = await backend.getProfiles();
+  return profiles.map(_equipmentProfileFromRemote).toList()
+    ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+}
+
+Future<db.EquipmentProfile?> _fetchRemoteActiveProfile(
+  NetworkBackend backend,
+) async {
+  final active = await backend.getActiveProfile();
+  if (active == null) {
+    return null;
+  }
+  return _equipmentProfileFromRemote(active);
+}
+
+db.EquipmentProfile _equipmentProfileFromRemote(
+  remote_profile.EquipmentProfile profile,
+) {
+  return db.EquipmentProfile(
+    id: int.tryParse(profile.id) ?? 0,
+    name: profile.name,
+    description: profile.description,
+    isActive: profile.isActive,
+    cameraId: profile.cameraId,
+    mountId: profile.mountId,
+    focuserId: profile.focuserId,
+    filterWheelId: profile.filterWheelId,
+    guiderId: profile.guiderId,
+    rotatorId: profile.rotatorId,
+    domeId: profile.domeId,
+    weatherId: profile.weatherId,
+    coverCalibratorId: profile.coverCalibratorId,
+    cameraName: profile.cameraName,
+    mountName: profile.mountName,
+    focuserName: profile.focuserName,
+    filterWheelName: profile.filterWheelName,
+    guiderName: profile.guiderName,
+    rotatorName: profile.rotatorName,
+    telescopeName: profile.telescopeName,
+    telescopeFocalLength: profile.telescopeFocalLength,
+    telescopeAperture: profile.telescopeAperture,
+    focalLength: profile.focalLength,
+    aperture: profile.aperture,
+    focalRatio: profile.focalRatio,
+    defaultGain: profile.defaultGain,
+    defaultOffset: profile.defaultOffset,
+    defaultBinX: profile.defaultBinX,
+    defaultBinY: profile.defaultBinY,
+    defaultCoolingTemp: profile.defaultCoolingTemp,
+    coolOnConnect: profile.coolOnConnect,
+    defaultCenteringExposure: profile.defaultCenteringExposure,
+    filterNames: profile.filterNames,
+    filterFocusOffsets: profile.filterFocusOffsets,
+    profileIcon: profile.profileIcon,
+    profileColor: profile.profileColor,
+    sortOrder: profile.sortOrder,
+    isDefault: profile.isDefault,
+    createdAt: profile.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+    updatedAt: profile.updatedAt ?? DateTime.fromMillisecondsSinceEpoch(0),
+  );
+}
+
 Stream<List<db.Target>> _pollRemoteTargets(NetworkBackend backend) async* {
   yield await _fetchRemoteTargets(backend);
   while (true) {
     await Future.delayed(const Duration(seconds: 10));
     yield await _fetchRemoteTargets(backend);
+  }
+}
+
+Stream<List<db.Sequence>> _pollRemoteSequenceRows(
+  NetworkBackend backend, {
+  required bool templates,
+}) async* {
+  yield await _fetchRemoteSequenceRows(backend, templates: templates);
+  while (true) {
+    await Future.delayed(const Duration(seconds: 10));
+    yield await _fetchRemoteSequenceRows(backend, templates: templates);
   }
 }
 
@@ -192,7 +311,8 @@ Stream<List<db.ImagingSession>> _pollRemoteSessions(
   }
 }
 
-Stream<List<db.CapturedImage>> _pollRemoteImages(NetworkBackend backend) async* {
+Stream<List<db.CapturedImage>> _pollRemoteImages(
+    NetworkBackend backend) async* {
   yield await _fetchRemoteImages(backend);
   while (true) {
     await Future.delayed(const Duration(seconds: 10));
@@ -206,6 +326,31 @@ Future<List<db.Target>> _fetchRemoteTargets(NetworkBackend backend) async {
     ..sort((a, b) => a.name.compareTo(b.name));
 }
 
+Future<List<db.Sequence>> _fetchRemoteSequenceRows(
+  NetworkBackend backend, {
+  required bool templates,
+}) async {
+  final rows = templates
+      ? await backend.getSequenceTemplates()
+      : await backend.getSequenceList();
+  final mapped = rows.map(_sequenceRowFromRemoteJson).toList();
+  mapped.sort((a, b) => a.name.compareTo(b.name));
+  return mapped;
+}
+
+db.Sequence _sequenceRowFromRemoteJson(Map<String, dynamic> json) {
+  return db.Sequence(
+    id: json['id'] as int,
+    name: json['name'] as String? ?? 'Untitled sequence',
+    description: json['description'] as String?,
+    rootNodeId: json['rootNodeId'] as String?,
+    estimatedDurationMins: json['estimatedDurationMins'] as int? ?? 0,
+    createdAt: _dateTimeFromJsonValue(json['createdAt']),
+    updatedAt: _dateTimeFromJsonValue(json['updatedAt']),
+    isTemplate: json['isTemplate'] as bool? ?? false,
+  );
+}
+
 Future<List<db.ImagingSession>> _fetchRemoteSessions(
   NetworkBackend backend,
 ) async {
@@ -215,7 +360,8 @@ Future<List<db.ImagingSession>> _fetchRemoteSessions(
   return mapped;
 }
 
-Future<List<db.CapturedImage>> _fetchRemoteImages(NetworkBackend backend) async {
+Future<List<db.CapturedImage>> _fetchRemoteImages(
+    NetworkBackend backend) async {
   final images = await backend.getAllImageRows();
   final mapped = images.map(_imageFromJson).toList();
   mapped.sort((a, b) => a.capturedAt.compareTo(b.capturedAt));

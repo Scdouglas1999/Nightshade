@@ -4,6 +4,8 @@ import 'package:file_selector/file_selector.dart' as file_selector;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 import '../models/imaging/imaging_models.dart' show FrameType;
+import '../models/notification/notification_categories.dart'
+    show NotificationTransportKind;
 import '../models/sequence/sequence_models.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/sequence/sequence_editor_exceptions.dart';
@@ -70,14 +72,13 @@ class SequenceFileService {
     // than letting the user discover the corruption on re-import. Errors
     // are blocking unless the caller explicitly opted into [forceExport].
     final issues = _exportValidator(sequence);
-    final hasErrors =
-        issues.any((i) => i.severity == ValidationSeverity.error);
+    final hasErrors = issues.any((i) => i.severity == ValidationSeverity.error);
     if (hasErrors && !forceExport) {
       throw SequenceValidationFailedException(issues);
     }
 
     // Prepare JSON
-    final json = _sequenceToJson(sequence);
+    final json = sequenceToMap(sequence);
     final jsonString = const JsonEncoder.withIndent('  ').convert(json);
 
     // Show save dialog
@@ -241,6 +242,15 @@ class SequenceFileService {
     }
   }
 
+  /// Encode [sequence] using the same schema written by [exportSequence],
+  /// without opening a file picker.
+  ///
+  /// Smart Night draft persistence uses this so persisted draft plans and
+  /// user-exported sequence files cannot diverge.
+  Map<String, dynamic> sequenceToMap(Sequence sequence) {
+    return _sequenceToJson(sequence);
+  }
+
   /// Current schema version for exported sequences.
   /// Increment this when making breaking changes to the JSON format
   /// and add a migration case in [_migrateSchema].
@@ -341,6 +351,8 @@ class SequenceFileService {
           'conditionType': node.conditionType.name,
           'thresholdValue': node.thresholdValue,
           'thresholdTime': node.thresholdTime?.toIso8601String(),
+          // Audit C2 — per-monitor targeting for multi-safety setups.
+          'safetyMonitorId': node.safetyMonitorId,
         },
       RecoveryNode() => <String, dynamic>{
           'recoveryAction': node.recoveryAction.name,
@@ -349,6 +361,13 @@ class SequenceFileService {
           'triggerThreshold': node.triggerThreshold,
           'hfrThresholdPercent': node.hfrThresholdPercent,
           'hfrConsecutiveFrames': node.hfrConsecutiveFrames,
+          // Wave 1 Pack A added focusDrift as a distinct trigger type
+          // with its own rolling-window parameters. Persist them so a
+          // saved-then-reloaded sequence preserves the trigger config —
+          // previously they would silently reset to defaults on import.
+          'focusDriftWindowSize': node.focusDriftWindowSize,
+          'focusDriftMinIncreasingCount': node.focusDriftMinIncreasingCount,
+          'focusDriftMinTotalIncrease': node.focusDriftMinTotalIncrease,
         },
       SlewNode() => <String, dynamic>{
           'useTargetCoords': node.useTargetCoords,
@@ -391,6 +410,8 @@ class SequenceFileService {
           'settleTime': node.settleTime,
           'settleTimeout': node.settleTimeout,
           'raOnly': node.raOnly,
+          'pattern': node.pattern.name,
+          'gridSize': node.gridSize,
         },
       StartGuidingNode() => <String, dynamic>{
           'settlePixels': node.settlePixels,
@@ -425,6 +446,9 @@ class SequenceFileService {
           'title': node.title,
           'message': node.message,
           'level': node.level.name,
+          if (node.explicitTransports != null)
+            'explicitTransports':
+                node.explicitTransports!.map((t) => t.storageKey).toList(),
         },
       ScriptNode() => <String, dynamic>{
           'scriptPath': node.scriptPath,
@@ -467,6 +491,74 @@ class SequenceFileService {
           'startFromCurrent': node.startFromCurrent,
           'isNorth': node.isNorth,
           'manualSlew': node.manualSlew,
+        },
+      // Wave 3 Agent 2: SmartExposure. Plans are serialised as a list of
+      // FilterPlan JSON maps (snake_case Rust shape) so the same blob
+      // round-trips through both disk persistence and the executor's
+      // `_nodeToConfig` payload.
+      SmartExposureNode() => <String, dynamic>{
+          'plans': node.plans.map((p) => p.toJson()).toList(growable: false),
+          'rotateFilters': node.rotateFilters,
+          'ditherOnFilterChange': node.ditherOnFilterChange,
+          'integrationBudgetSecs': node.integrationBudgetSecs,
+          'batchSize': node.batchSize,
+        },
+      // Wave 3 Agent 1: TargetScheduler config — eight knobs that
+      // round-trip through disk persistence and the executor payload.
+      TargetSchedulerNode() => <String, dynamic>{
+          'altitudeWeight': node.altitudeWeight,
+          'moonDistanceWeight': node.moonDistanceWeight,
+          'transitProximityWeight': node.transitProximityWeight,
+          'darknessWeight': node.darknessWeight,
+          'airmassWeight': node.airmassWeight,
+          'minScoreToRun': node.minScoreToRun,
+          'recomputeEveryNExposures': node.recomputeEveryNExposures,
+          'finishIterationOnSwitch': node.finishIterationOnSwitch,
+          'swapOnConditionsBelow': node.swapOnConditionsBelow,
+          'swapHysteresisSecs': node.swapHysteresisSecs,
+          'brightnessTierPreferences': node.brightnessTierPreferences.toJson(),
+          'maxConditionsScoreAgeSecs': node.maxConditionsScoreAgeSecs,
+        },
+      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node config.
+      LiveStackingNode() => <String, dynamic>{
+          'mode': node.mode.storageKey,
+          'stackMethod': node.stackMethod.storageKey,
+          'maxFramesToStack': node.maxFramesToStack,
+          'broadcastEnabled': node.broadcastEnabled,
+          'broadcastPort': node.broadcastPort,
+          'broadcastPath': node.broadcastPath,
+          'authToken': node.authToken,
+          'watermarkText': node.watermarkText,
+          'thumbnailWidth': node.thumbnailWidth,
+          'thumbnailHeight': node.thumbnailHeight,
+        },
+      // Wave 7 Science: SciencePhotometry — cadence-enforced
+      // photometric capture node config.
+      SciencePhotometryNode() => <String, dynamic>{
+          'targetDesignation': node.targetDesignation,
+          'referenceStars': node.referenceStars,
+          'maxCadenceGapSecs': node.maxCadenceGapSecs,
+          'filter': node.filter,
+          'exposureSecs': node.exposureSecs,
+          'count': node.count,
+          'reduceLive': node.reduceLive,
+          'applyDifferential': node.applyDifferential,
+          'quality': node.quality.toJson(),
+          'gain': node.gain,
+          'offset': node.offset,
+          'binning': node.binning.name,
+        },
+      // Audit §11 — plugin-contributed instruction. Round-trip the
+      // plugin identifiers + opaque config so an exported sequence
+      // loads back into the same node configuration (assuming the
+      // plugin is installed on the importing side).
+      PluginInstructionNode() => <String, dynamic>{
+          'pluginId': node.pluginId,
+          'nodeTypeId': node.nodeTypeId,
+          'configJson': node.configJson,
+          'timeoutSecs': node.timeoutSecs,
+          'pluginName': node.pluginName,
+          'iconHint': node.iconHint,
         },
       // Side-effect-only nodes have no type-specific fields beyond the base.
       InstructionSetNode() ||
@@ -566,6 +658,9 @@ class SequenceFileService {
           conditionType: _parseConditionalType(json['conditionType']),
           thresholdValue: (json['thresholdValue'] as num?)?.toDouble(),
           thresholdTime: _parseDate(json['thresholdTime']),
+          // Audit C2 — per-monitor targeting for multi-safety setups.
+          // Absent on sequences saved before C2 (deserialises to null).
+          safetyMonitorId: json['safetyMonitorId'] as String?,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -584,6 +679,15 @@ class SequenceFileService {
               (json['hfrThresholdPercent'] as num?)?.toDouble() ?? 20.0,
           hfrConsecutiveFrames:
               (json['hfrConsecutiveFrames'] as num?)?.toInt() ?? 3,
+          // Wave 1 Pack A: focusDrift trigger window. Default values
+          // match the model constructor so legacy files without these
+          // keys deserialize cleanly.
+          focusDriftWindowSize:
+              (json['focusDriftWindowSize'] as num?)?.toInt() ?? 10,
+          focusDriftMinIncreasingCount:
+              (json['focusDriftMinIncreasingCount'] as num?)?.toInt() ?? 5,
+          focusDriftMinTotalIncrease:
+              (json['focusDriftMinTotalIncrease'] as num?)?.toDouble() ?? 0.5,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -685,6 +789,11 @@ class SequenceFileService {
           settleTime: (json['settleTime'] as num?)?.toDouble() ?? 30.0,
           settleTimeout: (json['settleTimeout'] as num?)?.toDouble() ?? 120.0,
           raOnly: json['raOnly'] as bool? ?? false,
+          pattern: switch ((json['pattern'] as String?)?.toLowerCase()) {
+            'grid' => DitherPattern.grid,
+            _ => DitherPattern.random,
+          },
+          gridSize: (json['gridSize'] as num?)?.toInt() ?? 3,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -816,6 +925,8 @@ class SequenceFileService {
           title: json['title'] as String? ?? '',
           message: json['message'] as String? ?? '',
           level: _parseNotificationLevel(json['level']),
+          explicitTransports:
+              _parseExplicitTransports(json['explicitTransports']),
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -920,6 +1031,113 @@ class SequenceFileService {
           isEnabled: isEnabled,
         );
 
+      // Wave 3 Agent 1: TargetScheduler — case strings cover the
+      // normalised canonical Dart `nodeType` ('TargetScheduler') plus the
+      // snake_case form emitted by the bridge layer.
+      case 'targetscheduler':
+      case 'target_scheduler':
+        return TargetSchedulerNode(
+          id: id,
+          name: name ?? 'Scheduler',
+          altitudeWeight: (json['altitudeWeight'] as num?)?.toDouble() ?? 0.25,
+          moonDistanceWeight:
+              (json['moonDistanceWeight'] as num?)?.toDouble() ?? 0.25,
+          transitProximityWeight:
+              (json['transitProximityWeight'] as num?)?.toDouble() ?? 0.20,
+          darknessWeight: (json['darknessWeight'] as num?)?.toDouble() ?? 0.15,
+          airmassWeight: (json['airmassWeight'] as num?)?.toDouble() ?? 0.15,
+          minScoreToRun: (json['minScoreToRun'] as num?)?.toDouble() ?? 30.0,
+          recomputeEveryNExposures:
+              (json['recomputeEveryNExposures'] as num?)?.toInt() ?? 0,
+          finishIterationOnSwitch:
+              json['finishIterationOnSwitch'] as bool? ?? true,
+          swapOnConditionsBelow:
+              (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
+                  (json['swap_on_conditions_below'] as num?)?.toDouble(),
+          swapHysteresisSecs:
+              (json['swapHysteresisSecs'] as num?)?.toDouble() ??
+                  (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+                  180.0,
+          brightnessTierPreferences: _parseBrightnessTierPreferences(
+            json['brightnessTierPreferences'] ??
+                json['brightness_tier_preferences'],
+          ),
+          maxConditionsScoreAgeSecs:
+              (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
+                  (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+                  300,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      // Wave 3 Agent 2: SmartExposure — case strings cover the canonical
+      // Dart `nodeType` ('SmartExposure') normalised via
+      // `_normalizeNodeType` (which lowercases) plus the snake_case form
+      // emitted by the bridge layer.
+      case 'smartexposure':
+      case 'smart_exposure':
+        return SmartExposureNode(
+          id: id,
+          name: name ?? 'Smart Exposure',
+          plans: ((json['plans'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((p) => FilterPlan.fromJson(p.cast<String, dynamic>()))
+              .toList(growable: false),
+          rotateFilters: json['rotateFilters'] as bool? ?? true,
+          ditherOnFilterChange: json['ditherOnFilterChange'] as bool? ?? false,
+          integrationBudgetSecs:
+              (json['integrationBudgetSecs'] as num?)?.toDouble() ?? 0.0,
+          batchSize: (json['batchSize'] as num?)?.toInt() ?? 1,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      // Audit §11 — plugin-contributed instruction. The normaliser
+      // strips underscores + lowercases, so 'PluginNode' / 'plugin_node'
+      // / 'pluginnode' all land on the same case key.
+      case 'pluginnode':
+        return PluginInstructionNode(
+          id: id,
+          name: name ?? 'Plugin Node',
+          pluginId: json['pluginId'] as String? ?? '',
+          nodeTypeId: json['nodeTypeId'] as String? ?? '',
+          configJson: json['configJson'] as String? ?? '{}',
+          timeoutSecs: (json['timeoutSecs'] as num?)?.toInt(),
+          pluginName: json['pluginName'] as String? ?? '',
+          iconHint: json['iconHint'] as String? ?? 'puzzle',
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      // Wave 7 Agent 2: LiveStacking — broadcast / EAA node.
+      case 'livestacking':
+      case 'live_stacking':
+        return LiveStackingNode(
+          id: id,
+          name: name ?? 'Live Stacking',
+          mode: LiveStackingMode.fromStorageKey(json['mode'] as String?),
+          stackMethod:
+              LiveStackingMethod.fromStorageKey(json['stackMethod'] as String?),
+          maxFramesToStack: (json['maxFramesToStack'] as num?)?.toInt() ?? 0,
+          broadcastEnabled: json['broadcastEnabled'] as bool? ?? true,
+          broadcastPort: (json['broadcastPort'] as num?)?.toInt() ?? 8081,
+          broadcastPath: json['broadcastPath'] as String? ?? '/broadcast',
+          authToken: json['authToken'] as String?,
+          watermarkText: json['watermarkText'] as String?,
+          thumbnailWidth: (json['thumbnailWidth'] as num?)?.toInt() ?? 1280,
+          thumbnailHeight: (json['thumbnailHeight'] as num?)?.toInt() ?? 720,
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
       default:
         throw FormatException('Unsupported sequence node type: $rawType');
     }
@@ -987,6 +1205,22 @@ class SequenceFileService {
     );
   }
 
+  /// Wave 5 Agent 5 — parse per-NotificationNode explicit-transport
+  /// override. Absent or empty list → null (inherit matrix `custom`).
+  /// Unknown transport keys are silently dropped (forward-compat: a
+  /// future version may add a transport this build doesn't ship).
+  List<NotificationTransportKind>? _parseExplicitTransports(dynamic raw) {
+    if (raw is! List) return null;
+    final out = <NotificationTransportKind>[];
+    for (final entry in raw) {
+      if (entry is String) {
+        final t = NotificationTransportKind.fromStorageKey(entry);
+        if (t != null) out.add(t);
+      }
+    }
+    return out.isEmpty ? null : out;
+  }
+
   ConditionalType _parseConditionalType(dynamic value) {
     final raw = value is String ? value : null;
     if (raw == null) return ConditionalType.always;
@@ -1044,6 +1278,13 @@ class SequenceFileService {
       orElse: () => FlipFailureAction.pauseAndAlert,
     );
   }
+}
+
+BrightnessTierPreferences _parseBrightnessTierPreferences(Object? value) {
+  if (value is Map) {
+    return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
+  }
+  return const BrightnessTierPreferences();
 }
 
 /// Provider for the sequence file service

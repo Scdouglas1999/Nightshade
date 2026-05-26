@@ -195,7 +195,7 @@ class _NotificationToastState extends State<_NotificationToast>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final accentColor = _getColor(colors);
 
     return AnimatedBuilder(

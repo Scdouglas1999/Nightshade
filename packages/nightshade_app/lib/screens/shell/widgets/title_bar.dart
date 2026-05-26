@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/remote_connection_indicator.dart';
 import '../../../widgets/transient_alert_badge.dart';
 import '../../../widgets/tutorial_overlay.dart' show TutorialKeys;
 
@@ -18,18 +19,18 @@ class TitleBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return GestureDetector(
       onPanStart: window_impl.onTitleBarPanStart,
       onDoubleTap: window_impl.onTitleBarDoubleTap,
       child: Container(
-        height: 40,
+        height: ShellChromeMetrics.titleBarHeight,
         color: colors.surface,
         child: Row(
           children: [
-            const SizedBox(width: 16),
+            const SizedBox(width: NightshadeTokens.spaceLg),
 
             // Logo and app name
             Row(
@@ -38,11 +39,7 @@ class TitleBar extends ConsumerWidget {
                   width: 24,
                   height: 24,
                   decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [colors.primary, colors.accent],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                    color: colors.primary,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
@@ -51,7 +48,7 @@ class TitleBar extends ConsumerWidget {
                     color: onPrimary,
                   ),
                 ),
-                const SizedBox(width: 10),
+                const SizedBox(width: NightshadeTokens.spaceSm + 2),
                 Text(
                   'NIGHTSHADE',
                   style: TextStyle(
@@ -65,6 +62,15 @@ class TitleBar extends ConsumerWidget {
             ),
 
             const Spacer(),
+
+            // Persistent remote connection indicator (audit P1-15 bug 5).
+            // Tap opens the details sheet with the "Reconnect now" button
+            // so the operator can force an immediate retry without
+            // waiting for the exponential-backoff timer.
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 8),
+              child: RemoteConnectionIndicator(compact: true),
+            ),
 
             // Transient Alert Badge - shows count of new alerts
             Builder(
@@ -84,7 +90,7 @@ class TitleBar extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
 
             // Profile button - navigates to Settings > Equipment Profiles
             Builder(
@@ -124,7 +130,7 @@ class TitleBar extends ConsumerWidget {
               ),
             ),
 
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
 
             // Window controls (desktop only)
             if (Platform.isWindows || Platform.isLinux || Platform.isMacOS)
@@ -150,16 +156,16 @@ class _TitleBarButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     final button = InkWell(
       onTap: onPressed,
       borderRadius: BorderRadius.circular(4),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
         child: Icon(
           icon,
-          size: 16,
+          size: NightshadeTokens.iconSm,
           color: colors.textSecondary,
         ),
       ),
@@ -228,7 +234,7 @@ class _WindowButtonState extends State<_WindowButton> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final onError = Theme.of(context).colorScheme.onError;
 
     return MouseRegion(
@@ -237,8 +243,8 @@ class _WindowButtonState extends State<_WindowButton> {
       child: GestureDetector(
         onTap: widget.onPressed,
         child: Container(
-          width: 46,
-          height: 40,
+          width: ShellChromeMetrics.windowControlWidth,
+          height: ShellChromeMetrics.windowControlHeight,
           color: _isHovered ? widget.hoverColor : Colors.transparent,
           child: Icon(
             widget.icon,

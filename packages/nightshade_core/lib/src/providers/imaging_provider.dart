@@ -5,6 +5,7 @@ import '../models/imaging/imaging_models.dart';
 import '../models/imaging/auto_stretch_settings.dart';
 import 'database_provider.dart';
 import 'profiles_provider.dart';
+import 'session_optimizer_provider.dart';
 import 'settings_provider.dart';
 
 /// Current exposure settings
@@ -23,6 +24,8 @@ final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
 /// This prevents re-applying defaults when navigating back to the imaging screen
 /// while still allowing a profile switch to re-initialize the controls.
 final _lastAppliedProfileIdProvider = StateProvider<int?>((ref) => null);
+final _lastAppliedSmartExposureProfileIdProvider =
+    StateProvider<int?>((ref) => null);
 
 /// Call this provider from the imaging screen's initState/build to ensure
 /// snapshot controls are initialized from the active equipment profile.
@@ -35,19 +38,45 @@ final syncExposureFromProfileProvider = Provider<void>((ref) {
   final profile = ref.watch(activeEquipmentProfileProvider);
   if (profile == null) return;
 
-  final lastApplied = ref.read(_lastAppliedProfileIdProvider);
-  if (lastApplied == profile.id) return;
+  final exposureContext =
+      ref.watch(smartNightExposureContextProvider).valueOrNull;
 
-  // Mark this profile as applied so we don't overwrite user edits
-  ref.read(_lastAppliedProfileIdProvider.notifier).state = profile.id;
+  var disposed = false;
+  ref.onDispose(() => disposed = true);
 
-  final current = ref.read(exposureSettingsProvider);
-  ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
-    gain: profile.defaultGain ?? current.gain,
-    offset: profile.defaultOffset ?? current.offset,
-    binningX: profile.defaultBinX,
-    binningY: profile.defaultBinY,
-  );
+  Future<void>.microtask(() {
+    if (disposed) return;
+
+    final profileId = profile.id;
+    final lastApplied = ref.read(_lastAppliedProfileIdProvider);
+    if (lastApplied != profileId) {
+      ref.read(_lastAppliedProfileIdProvider.notifier).state = profileId;
+
+      final current = ref.read(exposureSettingsProvider);
+      ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
+        gain: profile.defaultGain ?? current.gain,
+        offset: profile.defaultOffset ?? current.offset,
+        binningX: profile.defaultBinX,
+        binningY: profile.defaultBinY,
+      );
+    }
+
+    if (exposureContext == null) return;
+
+    final lastSmart = ref.read(_lastAppliedSmartExposureProfileIdProvider);
+    if (lastSmart == profileId) return;
+
+    final current = ref.read(exposureSettingsProvider);
+    final isDefaultLightExposure =
+        current.frameType == FrameType.light && current.exposureTime == 120;
+    if (!isDefaultLightExposure) return;
+
+    ref.read(_lastAppliedSmartExposureProfileIdProvider.notifier).state =
+        profileId;
+    ref.read(exposureSettingsProvider.notifier).state = current.copyWith(
+      exposureTime: exposureContext.recommendForFilter(current.filter).seconds,
+    );
+  });
 });
 
 /// Last captured image stats

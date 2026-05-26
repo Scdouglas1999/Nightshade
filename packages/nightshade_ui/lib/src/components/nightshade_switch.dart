@@ -1,17 +1,31 @@
 import 'package:flutter/material.dart';
+
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
+import 'nightshade_switch_style.dart';
 
+/// Canonical Nightshade toggle control — the visual switch only.
+///
+/// Use when you need a bare toggle with no label (e.g. table cell, toolbar).
+/// For a label + switch row, prefer [NightshadeSwitchRow].
+/// For settings rows with icon + debounced persistence, use app-layer
+/// [SettingsSwitch] inside [SettingRow].
+///
+/// Prefer this over Material [Switch]. Theme [SwitchThemeData] is defined only
+/// in [NightshadeSwitchStyle.switchThemeData] as a fallback for legacy Material
+/// widgets.
 class NightshadeSwitch extends StatefulWidget {
   final bool value;
   final ValueChanged<bool>? onChanged;
   final bool enabled;
+  final bool compact;
 
   const NightshadeSwitch({
     super.key,
     required this.value,
     this.onChanged,
     this.enabled = true,
+    this.compact = false,
   });
 
   @override
@@ -21,59 +35,37 @@ class NightshadeSwitch extends StatefulWidget {
 class _NightshadeSwitchState extends State<NightshadeSwitch> {
   bool _isHovered = false;
 
-  /// Creates a slightly lighter shade of the given color
-  Color _lightenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness + amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final isEnabled = widget.enabled && widget.onChanged != null;
 
-    // Track gradient for active state
-    final trackDecoration = widget.value
-        ? BoxDecoration(
-            gradient: LinearGradient(
-              begin: Alignment.topCenter,
-              end: Alignment.bottomCenter,
-              colors: [
-                _lightenColor(colors.primary, 0.05),
-                colors.primary,
-              ],
-            ),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: colors.primary.withValues(alpha: 0.3),
-            ),
-          )
-        : BoxDecoration(
-            color: colors.surface,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: colors.border,
-            ),
-            // Inner shadow for recessed feel when off
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.2),
-                blurRadius: 2,
-                offset: const Offset(0, 1),
-                blurStyle: BlurStyle.inner,
-              ),
-            ],
-          );
+    final trackWidth = widget.compact
+        ? NightshadeSwitchStyle.compactTrackWidth
+        : NightshadeSwitchStyle.trackWidth;
+    final trackHeight = widget.compact
+        ? NightshadeSwitchStyle.compactTrackHeight
+        : NightshadeSwitchStyle.trackHeight;
+    final thumbSize = widget.compact
+        ? NightshadeSwitchStyle.compactThumbSize
+        : NightshadeSwitchStyle.thumbSize;
 
-    // Thumb with highlight edge
-    final thumbColor = widget.value
-        ? theme.colorScheme.onPrimary
-        : isEnabled
-            ? colors.textSecondary
-            : colors.textMuted;
+    final trackColor = NightshadeSwitchStyle.trackColor(
+      colors,
+      selected: widget.value,
+      hovered: _isHovered && isEnabled,
+    );
+    final trackBorder = NightshadeSwitchStyle.trackBorderColor(
+      colors,
+      selected: widget.value,
+    );
+    final thumbColor = NightshadeSwitchStyle.thumbColor(
+      theme,
+      colors,
+      selected: widget.value,
+      enabled: isEnabled,
+    );
 
     return MouseRegion(
       onEnter: isEnabled ? (_) => setState(() => _isHovered = true) : null,
@@ -85,49 +77,33 @@ class _NightshadeSwitchState extends State<NightshadeSwitch> {
           opacity: isEnabled ? 1.0 : NightshadeTokens.opacityDisabled,
           child: AnimatedContainer(
             duration: NightshadeTokens.durationNormal,
-            curve:
-                NightshadeTokens.curveSettle, // Overshoot for satisfying snap
-            width: 44,
-            height: 24,
-            padding: const EdgeInsets.all(2),
-            decoration: trackDecoration,
+            curve: NightshadeTokens.curvePrecise,
+            width: trackWidth,
+            height: trackHeight,
+            padding: const EdgeInsets.all(NightshadeSwitchStyle.trackPadding),
+            decoration: BoxDecoration(
+              color: trackColor,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+              border: Border.all(color: trackBorder),
+            ),
             child: AnimatedAlign(
               duration: NightshadeTokens.durationNormal,
-              curve: NightshadeTokens.curveSettle, // Overshoot animation
+              curve: NightshadeTokens.curvePrecise,
               alignment:
                   widget.value ? Alignment.centerRight : Alignment.centerLeft,
-              child: AnimatedContainer(
-                duration: NightshadeTokens.durationQuick,
-                width: 20,
-                height: 20,
+              child: Container(
+                width: thumbSize,
+                height: thumbSize,
                 decoration: BoxDecoration(
                   color: thumbColor,
                   shape: BoxShape.circle,
                   boxShadow: [
-                    // Shadow under thumb
                     BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.2),
-                      blurRadius: 4,
-                      offset: const Offset(0, 2),
+                      color: Colors.black.withValues(alpha: 0.18),
+                      blurRadius: 2,
+                      offset: const Offset(0, 1),
                     ),
-                    // Subtle glow on hover
-                    if (_isHovered && widget.value)
-                      BoxShadow(
-                        color: colors.primary.withValues(alpha: 0.3),
-                        blurRadius: 8,
-                        spreadRadius: 1,
-                      ),
                   ],
-                  // Highlight edge at top (catches light)
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _lightenColor(thumbColor, 0.15),
-                      thumbColor,
-                    ],
-                    stops: const [0.0, 0.3],
-                  ),
                 ),
               ),
             ),

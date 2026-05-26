@@ -29,7 +29,7 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
@@ -60,11 +60,9 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.emphasisSurface(
+                    colors.warning,
                     borderRadius: BorderRadius.circular(4),
-                    border:
-                        Border.all(color: colors.warning.withValues(alpha: 0.3)),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -312,7 +310,7 @@ class _ControlRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
         SizedBox(

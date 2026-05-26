@@ -9,8 +9,8 @@
 //! - And many other white-label brands
 
 use crate::camera::{
-    CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData, ImageMetadata,
-    ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
+    BayerPattern, CameraCapabilities, CameraState, CameraStatus, ExposureParams, ImageData,
+    ImageMetadata, ReadoutMode, SensorInfo, SubFrame, VendorFeatures,
 };
 use crate::sync::touptek_mutex;
 use crate::traits::{NativeCamera, NativeDevice, NativeError};
@@ -125,6 +125,7 @@ type OgmacamPullImageV3 = unsafe extern "system" fn(
 type OgmacamPutExpoTime = unsafe extern "system" fn(h: HOgmacam, time: c_uint) -> i32;
 
 // Gain
+type OgmacamGetExpoAGain = unsafe extern "system" fn(h: HOgmacam, gain: *mut u16) -> i32;
 type OgmacamPutExpoAGain = unsafe extern "system" fn(h: HOgmacam, gain: u16) -> i32;
 type OgmacamGetExpoAGainRange = unsafe extern "system" fn(
     h: HOgmacam,
@@ -136,6 +137,11 @@ type OgmacamGetExpoAGainRange = unsafe extern "system" fn(
 // Temperature
 type OgmacamGetTemperature = unsafe extern "system" fn(h: HOgmacam, temp: *mut i16) -> i32;
 type OgmacamPutTemperature = unsafe extern "system" fn(h: HOgmacam, temp: i16) -> i32;
+type OgmacamGetRawFormat = unsafe extern "system" fn(
+    h: HOgmacam,
+    p_fourcc: *mut c_uint,
+    p_bits_per_pixel: *mut c_uint,
+) -> i32;
 
 // Options
 type OgmacamPutOption = unsafe extern "system" fn(h: HOgmacam, opt: c_uint, val: c_int) -> i32;
@@ -156,6 +162,9 @@ type OgmacamGetSerialNumber = unsafe extern "system" fn(h: HOgmacam, sn: *mut c_
 // Snap (still image capture)
 type OgmacamSnap = unsafe extern "system" fn(h: HOgmacam, n_resolution_index: c_uint) -> i32;
 
+// SDK metadata
+type OgmacamVersion = unsafe extern "system" fn() -> *const c_char;
+
 // ============================================================================
 // SDK Wrapper
 // ============================================================================
@@ -168,15 +177,18 @@ struct TouptekSdk {
     stop: OgmacamStop,
     pull_image_v3: OgmacamPullImageV3,
     put_expo_time: OgmacamPutExpoTime,
+    get_expo_again: OgmacamGetExpoAGain,
     put_expo_again: OgmacamPutExpoAGain,
     get_expo_again_range: OgmacamGetExpoAGainRange,
     get_temperature: OgmacamGetTemperature,
     put_temperature: OgmacamPutTemperature,
+    get_raw_format: OgmacamGetRawFormat,
     put_option: OgmacamPutOption,
     get_size: OgmacamGetSize,
     put_roi: OgmacamPutRoi,
     get_serial_number: OgmacamGetSerialNumber,
     snap: OgmacamSnap,
+    version: Option<OgmacamVersion>,
 }
 
 // SAFETY: TouptekSdk owns a `libloading::Library` plus a set of plain function pointers (no interior mutability). The function pointers come from a single shared library and only point to compiled code, so sending the struct between threads is sound. All actual calls into these pointers are serialized by `touptek_mutex()` plus the per-camera `Mutex<HandleWrapper>` so the Send marker reflects the real synchronization discipline.
@@ -250,6 +262,11 @@ impl TouptekSdk {
                     .map_err(|e| {
                         NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
                     })?,
+                get_expo_again: *library
+                    .get::<OgmacamGetExpoAGain>(&sym("get_ExpoAGain"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
                 put_expo_again: *library
                     .get::<OgmacamPutExpoAGain>(&sym("put_ExpoAGain"))
                     .map_err(|e| {
@@ -267,6 +284,11 @@ impl TouptekSdk {
                     })?,
                 put_temperature: *library
                     .get::<OgmacamPutTemperature>(&sym("put_Temperature"))
+                    .map_err(|e| {
+                        NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
+                    })?,
+                get_raw_format: *library
+                    .get::<OgmacamGetRawFormat>(&sym("get_RawFormat"))
                     .map_err(|e| {
                         NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
                     })?,
@@ -291,6 +313,10 @@ impl TouptekSdk {
                 snap: *library.get::<OgmacamSnap>(&sym("Snap")).map_err(|e| {
                     NativeError::SdkError(format!("Symbol error in {}: {}", dll_name, e))
                 })?,
+                version: library
+                    .get::<OgmacamVersion>(&sym("Version"))
+                    .ok()
+                    .map(|symbol| *symbol),
                 _library: library,
             })
         }
@@ -350,6 +376,220 @@ where
     f(sdk)
 }
 
+fn touptek_static_cstr(ptr: *const c_char) -> Option<String> {
+    if ptr.is_null() {
+        return None;
+    }
+
+    // SAFETY: Touptek-family Version functions return static, NUL-terminated C strings
+    // owned by the loaded SDK shared library.
+    let value = unsafe { CStr::from_ptr(ptr) }
+        .to_string_lossy()
+        .trim()
+        .to_string();
+    (!value.is_empty()).then_some(value)
+}
+
+fn sdk_version_from_sdk(sdk: &TouptekSdk, brand: &str) -> Option<String> {
+    let version = sdk.version?;
+    // SAFETY: <Prefix>_Version takes no arguments and returns a static C string.
+    touptek_static_cstr(unsafe { version() }).map(|value| format!("{brand} SDK v{value}"))
+}
+
+fn touptek_temperature_result(
+    camera_name: &str,
+    sdk_result: i32,
+    temperature_tenths_c: i16,
+) -> Result<f64, NativeError> {
+    if sdk_result >= 0 {
+        Ok(temperature_tenths_c as f64 / 10.0)
+    } else {
+        tracing::error!(
+            "Touptek get_Temperature() failed for camera '{}'. Error code: {}",
+            camera_name,
+            sdk_result
+        );
+        Err(NativeError::SdkError(format!(
+            "Failed to read temperature from Touptek camera '{}'. SDK error: {}. Camera may not have a temperature sensor.",
+            camera_name, sdk_result
+        )))
+    }
+}
+
+fn make_touptek_fourcc(code: [u8; 4]) -> u32 {
+    (code[0] as u32) | ((code[1] as u32) << 8) | ((code[2] as u32) << 16) | ((code[3] as u32) << 24)
+}
+
+fn touptek_bayer_pattern_from_fourcc(fourcc: u32) -> Option<BayerPattern> {
+    match fourcc {
+        v if v == make_touptek_fourcc(*b"RGGB") => Some(BayerPattern::Rggb),
+        v if v == make_touptek_fourcc(*b"GRBG") => Some(BayerPattern::Grbg),
+        v if v == make_touptek_fourcc(*b"GBRG") => Some(BayerPattern::Gbrg),
+        v if v == make_touptek_fourcc(*b"BGGR") => Some(BayerPattern::Bggr),
+        _ => None,
+    }
+}
+
+fn touptek_fourcc_to_string(fourcc: u32) -> String {
+    let bytes = [
+        (fourcc & 0xff) as u8,
+        ((fourcc >> 8) & 0xff) as u8,
+        ((fourcc >> 16) & 0xff) as u8,
+        ((fourcc >> 24) & 0xff) as u8,
+    ];
+    String::from_utf8_lossy(&bytes).to_string()
+}
+
+fn max_adu_from_bit_depth(bit_depth: u32) -> u32 {
+    if bit_depth >= 32 {
+        u32::MAX
+    } else {
+        (1u32 << bit_depth).saturating_sub(1)
+    }
+}
+
+fn touptek_no_sdk_loaded_error(load_errors: &[(String, String, String)]) -> NativeError {
+    let details = load_errors
+        .iter()
+        .map(|(brand, library, error)| format!("{brand} ({library}): {error}"))
+        .collect::<Vec<_>>()
+        .join("; ");
+
+    NativeError::SdkError(format!(
+        "No Touptek-family SDK libraries could be loaded. Install at least one supported SDK DLL/shared library or add it to the process library path. Tried: {details}"
+    ))
+}
+
+fn read_touptek_raw_format(
+    sdk: &TouptekSdk,
+    handle: HOgmacam,
+    camera_name: &str,
+) -> (Option<BayerPattern>, Option<u32>) {
+    let mut fourcc: c_uint = 0;
+    let mut bits_per_pixel: c_uint = 0;
+    // SAFETY: caller holds touptek_mutex and `handle` is the open camera handle.
+    // The two out-pointers reference valid, distinct stack locals as required by
+    // the ToupCam/Ogmacam SDK's get_RawFormat signature.
+    let result = unsafe { (sdk.get_raw_format)(handle, &mut fourcc, &mut bits_per_pixel) };
+    if result < 0 {
+        tracing::warn!(
+            "Touptek get_RawFormat() failed for camera '{}'. SDK error: {}",
+            camera_name,
+            result
+        );
+        return (None, None);
+    }
+
+    let pattern = touptek_bayer_pattern_from_fourcc(fourcc);
+    if pattern.is_none() {
+        tracing::warn!(
+            "Touptek camera '{}' reported non-Bayer raw format '{}' ({} bpp); leaving Bayer pattern unknown",
+            camera_name,
+            touptek_fourcc_to_string(fourcc),
+            bits_per_pixel
+        );
+    }
+    let bit_depth = if bits_per_pixel > 0 {
+        Some(bits_per_pixel)
+    } else {
+        None
+    };
+    (pattern, bit_depth)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn touptek_temperature_result_converts_tenths_celsius() {
+        assert_eq!(
+            touptek_temperature_result("camera", 0, -123).unwrap(),
+            -12.3
+        );
+    }
+
+    #[test]
+    fn touptek_temperature_result_propagates_sdk_error() {
+        let err = touptek_temperature_result("camera", -7, 0).unwrap_err();
+        match err {
+            NativeError::SdkError(message) => {
+                assert!(message.contains("camera"));
+                assert!(message.contains("-7"));
+            }
+            other => panic!("expected SDK error, got {other:?}"),
+        }
+    }
+
+    #[tokio::test]
+    async fn touptek_get_cooler_power_reports_not_supported_instead_of_estimate() {
+        let mut camera = TouptekCamera::new(0, "OGMA");
+        camera.connected = true;
+        camera.cooler_on = true;
+        camera.target_temp = -10.0;
+
+        let err = camera.get_cooler_power().await.unwrap_err();
+        assert!(matches!(err, NativeError::NotSupported));
+    }
+
+    #[test]
+    fn touptek_bayer_pattern_from_fourcc_maps_all_sdk_patterns() {
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"RGGB")),
+            Some(BayerPattern::Rggb)
+        );
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"GRBG")),
+            Some(BayerPattern::Grbg)
+        );
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"GBRG")),
+            Some(BayerPattern::Gbrg)
+        );
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"BGGR")),
+            Some(BayerPattern::Bggr)
+        );
+    }
+
+    #[test]
+    fn touptek_bayer_pattern_from_fourcc_leaves_non_bayer_unknown() {
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"YYYY")),
+            None
+        );
+        assert_eq!(
+            touptek_bayer_pattern_from_fourcc(make_touptek_fourcc(*b"RGB8")),
+            None
+        );
+    }
+
+    #[test]
+    fn touptek_no_sdk_loaded_error_names_each_attempted_brand() {
+        let err = touptek_no_sdk_loaded_error(&[
+            (
+                "OGMA".to_string(),
+                "ogmacam.dll".to_string(),
+                "missing".to_string(),
+            ),
+            (
+                "Touptek".to_string(),
+                "toupcam.dll".to_string(),
+                "bad image".to_string(),
+            ),
+        ]);
+
+        match err {
+            NativeError::SdkError(message) => {
+                assert!(message.contains("No Touptek-family SDK libraries"));
+                assert!(message.contains("OGMA (ogmacam.dll): missing"));
+                assert!(message.contains("Touptek (toupcam.dll): bad image"));
+            }
+            other => panic!("expected SDK error, got {other:?}"),
+        }
+    }
+}
+
 // ============================================================================
 // Discovery
 // ============================================================================
@@ -368,10 +608,12 @@ pub struct TouptekDeviceInfo {
     pub pixel_size_y: f32,
     /// Which brand SDK this camera was discovered through
     pub brand: String,
+    pub sdk_version: Option<String>,
 }
 
 fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<TouptekDeviceInfo> {
     let mut devices = Vec::new();
+    let sdk_version = sdk_version_from_sdk(sdk, brand);
     // SAFETY: OgmacamDeviceV2 is `#[repr(C)]` containing only [u16; 64] arrays plus a `*const OgmacamModelV2` raw pointer — all valid bit-patterns for `std::mem::zeroed()` (NULL is the well-defined zero state for the raw pointer and is null-checked below before any deref). Pre-allocating OGMACAM_MAX (128) entries matches the SDK's documented enumeration cap.
     let mut arr: Vec<OgmacamDeviceV2> = vec![unsafe { std::mem::zeroed() }; OGMACAM_MAX];
     // SAFETY: caller (discover_devices / discover_devices_for_brand) holds touptek_mutex; `arr.as_mut_ptr()` points to a contiguous buffer of OGMACAM_MAX `#[repr(C)]` OgmacamDeviceV2 entries; OgmacamEnumV2 fills at most OGMACAM_MAX entries and returns the count, per the SDK header.
@@ -414,6 +656,7 @@ fn enumerate_brand_devices_from_sdk(sdk: &TouptekSdk, brand: &str) -> Vec<Toupte
             pixel_size_x: pixel_x,
             pixel_size_y: pixel_y,
             brand: brand.to_string(),
+            sdk_version: sdk_version.clone(),
         });
     }
 
@@ -429,17 +672,24 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
     let _lock = touptek_mutex().lock().await;
 
     let mut devices = Vec::new();
+    let mut loaded_sdk_count = 0usize;
+    let mut load_errors = Vec::new();
 
     for &(dll_name, _func_prefix, brand_name) in TOUPTEK_BRANDS {
-        // Try to load this brand's SDK -- skip silently if DLL not present
-        if get_sdk_for_brand(brand_name).is_err() {
+        if let Err(err) = get_sdk_for_brand(brand_name) {
             tracing::debug!(
                 "Touptek brand SDK '{}' ({}) not available, skipping",
                 brand_name,
                 dll_name
             );
+            load_errors.push((
+                brand_name.to_string(),
+                dll_name.to_string(),
+                err.to_string(),
+            ));
             continue;
         }
+        loaded_sdk_count += 1;
 
         let brand_devices = with_sdk(brand_name, |sdk| {
             Ok(enumerate_brand_devices_from_sdk(sdk, brand_name))
@@ -449,6 +699,12 @@ pub async fn discover_devices() -> Result<Vec<TouptekDeviceInfo>, NativeError> {
             tracing::info!("Found {} {} cameras", brand_devices.len(), brand_name);
         }
         devices.extend(brand_devices);
+    }
+
+    if loaded_sdk_count == 0 {
+        let err = touptek_no_sdk_loaded_error(&load_errors);
+        tracing::warn!("{}", err);
+        return Err(err);
     }
 
     Ok(devices)
@@ -546,6 +802,23 @@ impl TouptekCamera {
     pub fn new_default(device_index: usize) -> Self {
         Self::new(device_index, "OGMA")
     }
+
+    fn read_gain_locked(&self, handle: HOgmacam) -> Result<i32, NativeError> {
+        with_sdk(&self.brand, |sdk| {
+            let mut gain: u16 = 0;
+            // SAFETY: caller holds touptek_mutex; `handle` is the live SDK handle
+            // associated with this connected camera; `&mut gain` is a valid
+            // out-pointer for the SDK's unsigned-short exposure-gain value.
+            let result = unsafe { (sdk.get_expo_again)(handle, &mut gain) };
+            if result < 0 {
+                return Err(NativeError::SdkError(format!(
+                    "Failed to read gain from Touptek camera '{}'. SDK error: {}",
+                    self.name, result
+                )));
+            }
+            Ok(i32::from(gain))
+        })
+    }
 }
 
 #[async_trait]
@@ -580,7 +853,7 @@ impl NativeDevice for TouptekCamera {
         // Open the device and capture its discovery snapshot under the same SDK lock.
         // This avoids re-enumerating after releasing the mutex, which could otherwise
         // pick up a different camera if USB topology changes mid-connect.
-        let (device_info, serial_number) = {
+        let (device_info, serial_number, bayer_pattern, raw_bit_depth) = {
             // Acquire global SDK mutex for thread safety
             let _lock = touptek_mutex().lock().await;
 
@@ -618,8 +891,9 @@ impl NativeDevice for TouptekCamera {
                 *h = HandleWrapper(handle);
             }
 
-            // Get serial number, resolution, and gain range (all synchronous)
-            let serial_number = {
+            // Get serial number, resolution, gain range, and raw Bayer pattern
+            // (all synchronous).
+            let (serial_number, bayer_pattern, raw_bit_depth) = {
                 let handle_val = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
                 with_sdk(&brand, |sdk| {
@@ -656,27 +930,33 @@ impl NativeDevice for TouptekCamera {
                     // Why: gain_def is u16 (gain steps, 100..=10000 per Touptek SDK).
                     // u16 -> i32 is widening and value-preserving.
                     self.current_gain = gain_def as i32;
-                    Ok(serial)
+
+                    let (raw_bayer_pattern, raw_bit_depth) =
+                        read_touptek_raw_format(sdk, handle_val, &device_info.name);
+                    let bayer_pattern = if (device_info.model_flags & OGMACAM_FLAG_MONO) == 0 {
+                        raw_bayer_pattern
+                    } else {
+                        None
+                    };
+
+                    Ok((serial, bayer_pattern, raw_bit_depth))
                 })?
             };
 
-            (device_info, serial_number)
+            (device_info, serial_number, bayer_pattern, raw_bit_depth)
         };
 
         self.model_flags = device_info.model_flags;
+        let bit_depth = raw_bit_depth.unwrap_or(16);
         self.sensor_info = SensorInfo {
             width: device_info.width,
             height: device_info.height,
             pixel_size_x: device_info.pixel_size_x as f64,
             pixel_size_y: device_info.pixel_size_y as f64,
-            max_adu: 65535,
-            bit_depth: 16,
+            max_adu: max_adu_from_bit_depth(bit_depth),
+            bit_depth,
             color: (device_info.model_flags & OGMACAM_FLAG_MONO) == 0,
-            bayer_pattern: if (device_info.model_flags & OGMACAM_FLAG_MONO) == 0 {
-                Some(crate::camera::BayerPattern::Rggb)
-            } else {
-                None
-            },
+            bayer_pattern,
         };
         self.name = match serial_number {
             Some(serial) => format!("{} ({})", device_info.name, serial),
@@ -725,6 +1005,20 @@ impl NativeDevice for TouptekCamera {
             self.sensor_info.width,
             self.sensor_info.height
         );
+
+        let quirk_lookup_id = format!(
+            "native:touptek:{}:{}",
+            self.brand.to_lowercase(),
+            self.device_index
+        );
+        if let Some(delay_ms) = crate::quirks::get_timing_delay(&quirk_lookup_id, "connect") {
+            tracing::debug!(
+                "Applying DelayAfterConnect quirk: sleeping {}ms after connecting to {}",
+                delay_ms,
+                self.name
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
 
         Ok(())
     }
@@ -790,20 +1084,15 @@ impl NativeCamera for TouptekCamera {
         let current_temp = with_sdk(&brand, |sdk| {
             let mut temp: i16 = 0;
             // SAFETY: touptek_mutex held above (in get_status); `handle` was just loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid Ogmacam_OpenByIndex handle; `&mut temp` is a valid stack out-pointer to i16. Ogmacam_get_Temperature writes temperature in 0.1°C units per the SDK header.
-            if unsafe { (sdk.get_temperature)(handle, &mut temp) } >= 0 {
-                Ok(temp as f64 / 10.0)
-            } else {
-                Ok(0.0)
-            }
+            let result = unsafe { (sdk.get_temperature)(handle, &mut temp) };
+            touptek_temperature_result(&self.name, result, temp)
         })?;
 
-        // Get TEC power (not directly available, estimate from temp difference)
-        let cooler_power = if self.cooler_on {
-            let diff = (self.target_temp - current_temp).abs();
-            Some(((diff / 20.0) * 100.0).min(100.0))
-        } else {
-            Some(0.0)
-        };
+        // Touptek's common SDK surface used here does not expose an
+        // authoritative TEC duty-cycle readback. Do not fabricate cooler power
+        // from target/current temperature deltas; callers use this value as
+        // telemetry, not as a control hint.
+        let cooler_power = None;
 
         // Calculate exposure remaining
         let exposure_remaining = if self.state == CameraState::Exposing {
@@ -813,6 +1102,7 @@ impl NativeCamera for TouptekCamera {
         } else {
             None
         };
+        let gain = self.read_gain_locked(handle)?;
 
         Ok(CameraStatus {
             state: self.state,
@@ -820,7 +1110,7 @@ impl NativeCamera for TouptekCamera {
             cooler_power,
             target_temp: Some(self.target_temp),
             cooler_on: self.cooler_on,
-            gain: self.current_gain,
+            gain,
             offset: self.current_offset,
             bin_x: self.current_bin_x,
             bin_y: self.current_bin_y,
@@ -998,10 +1288,11 @@ impl NativeCamera for TouptekCamera {
 
         self.state = CameraState::Idle;
         self.exposure_started_at = None;
+        let gain = self.read_gain_locked(handle)?;
 
         let metadata = ImageMetadata {
             exposure_time: self.exposure_duration,
-            gain: self.current_gain,
+            gain,
             offset: self.current_offset,
             bin_x: self.current_bin_x,
             bin_y: self.current_bin_y,
@@ -1016,7 +1307,7 @@ impl NativeCamera for TouptekCamera {
             width: info.width,
             height: info.height,
             data,
-            bits_per_pixel: 16,
+            bits_per_pixel: self.sensor_info.bit_depth,
             bayer_pattern: self.sensor_info.bayer_pattern,
             metadata,
         })
@@ -1109,23 +1400,11 @@ impl NativeCamera for TouptekCamera {
 
         let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
 
-        let name = self.name.clone();
         with_sdk(&brand, |sdk| {
             let mut temp: i16 = 0;
             // SAFETY: touptek_mutex held above (in get_temperature trait method); `handle` was loaded from `self.handle` under its Mutex with `connected == true` guaranteeing a valid handle; `&mut temp` is a valid stack out-pointer to i16. Ogmacam_get_Temperature writes the sensor reading in 0.1°C units per the SDK header.
             let result = unsafe { (sdk.get_temperature)(handle, &mut temp) };
-            if result < 0 {
-                tracing::error!(
-                    "Touptek get_Temperature() failed for camera '{}'. Error code: {}",
-                    name,
-                    result
-                );
-                return Err(NativeError::SdkError(format!(
-                    "Failed to read temperature from Touptek camera '{}'. SDK error: {}. Camera may not have a temperature sensor.",
-                    name, result
-                )));
-            }
-            Ok(temp as f64 / 10.0)
+            touptek_temperature_result(&self.name, result, temp)
         })
     }
 
@@ -1134,15 +1413,7 @@ impl NativeCamera for TouptekCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Touptek SDK doesn't expose cooler power directly
-        // Estimate from temperature difference
-        if self.cooler_on {
-            let current_temp = self.get_temperature().await?;
-            let diff = (self.target_temp - current_temp).abs();
-            Ok(((diff / 20.0) * 100.0).min(100.0))
-        } else {
-            Ok(0.0)
-        }
+        Err(NativeError::NotSupported)
     }
 
     async fn set_gain(&mut self, gain: i32) -> Result<(), NativeError> {
@@ -1300,7 +1571,13 @@ impl NativeCamera for TouptekCamera {
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        Ok(self.current_gain)
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let _lock = touptek_mutex().lock().await;
+        let handle = self.handle.lock().unwrap_or_else(|e| e.into_inner()).0;
+        self.read_gain_locked(handle)
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {

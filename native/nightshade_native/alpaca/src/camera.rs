@@ -243,15 +243,7 @@ impl AlpacaCamera {
 
     /// Create from server details
     pub fn from_server(base_url: &str, device_number: u32) -> Self {
-        let device = AlpacaDevice {
-            device_type: AlpacaDeviceType::Camera,
-            device_number,
-            server_name: String::new(),
-            manufacturer: String::new(),
-            device_name: String::new(),
-            unique_id: String::new(),
-            base_url: base_url.to_string(),
-        };
+        let device = AlpacaDevice::from_server(AlpacaDeviceType::Camera, base_url, device_number);
         Self::new(&device)
     }
 
@@ -698,7 +690,7 @@ impl AlpacaCamera {
         // timeout budgets the worst case so the same value works for both.
         let timeout_ms = self.client.timeout_config().very_long_operation_ms;
 
-        let (client_id, transaction_id) = crate::client::get_client_transaction();
+        let (client_id, transaction_id) = self.client.client_transaction();
         // Why §5.13: `imagearrayvariant` is the v3 endpoint that may return
         // `application/imagebytes`. ASCOM mandates servers advertising binary
         // accept it here; servers that only know JSON still respond with their
@@ -761,6 +753,7 @@ impl AlpacaCamera {
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after: None,
             });
         }
 

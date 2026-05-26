@@ -10,12 +10,10 @@ import 'settings_widgets.dart';
 
 /// Auto-save configuration settings page.
 class AutoSaveSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const AutoSaveSettings({
     super.key,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -117,7 +115,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = widget.colors;
+    final colors = NightshadeColors.of(context);
     final isMobile = widget.isMobile;
     final service = ref.watch(autoSaveServiceProvider);
     final config = service.config;
@@ -125,14 +123,12 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
     return SettingsPage(
       title: 'Auto-Save',
       description: 'Configure automatic sequence saving and backups',
-      colors: colors,
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
         // Sequence auto-save section
         SettingsSection(
           title: 'Sequence Auto-Save',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -143,9 +139,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               trailing: SettingsSwitch(
                 value: config.sequenceEnabled,
                 onChanged: (value) => _updateConfig(sequenceEnabled: value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -161,11 +155,9 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                 onChanged: (value) => _updateConfig(
                   sequenceInterval: Duration(minutes: value.round()),
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -174,7 +166,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
         // Backup section
         SettingsSection(
           title: 'Automatic Backups',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -184,9 +175,7 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
               trailing: SettingsSwitch(
                 value: config.backupEnabled,
                 onChanged: (value) => _updateConfig(backupEnabled: value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -202,10 +191,8 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                 onChanged: (value) => _updateConfig(
                   backupInterval: Duration(hours: value.round()),
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -221,11 +208,9 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                 onChanged: (value) => _updateConfig(
                   maxBackups: value.round(),
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -234,7 +219,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
         // Status section
         SettingsSection(
           title: 'Status',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -260,7 +244,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         color: colors.textMuted,
                       ),
                     ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -286,7 +269,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                         color: colors.textMuted,
                       ),
                     ),
-              colors: colors,
               isMobile: isMobile,
             ),
             if (_currentStatus.lastError != null)
@@ -296,7 +278,6 @@ class _AutoSaveSettingsState extends ConsumerState<AutoSaveSettings> {
                 title: 'Last error',
                 subtitle: _currentStatus.lastError,
                 trailing: const SizedBox.shrink(),
-                colors: colors,
                 isMobile: isMobile,
               ),
             // Save Now button row

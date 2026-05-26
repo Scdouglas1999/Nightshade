@@ -86,7 +86,7 @@ class _OnboardingCaptureDirStepState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     return Column(

@@ -48,15 +48,8 @@ impl AlpacaFilterWheel {
 
     /// Create from server details
     pub fn from_server(base_url: &str, device_number: u32) -> Self {
-        let device = AlpacaDevice {
-            device_type: AlpacaDeviceType::FilterWheel,
-            device_number,
-            server_name: String::new(),
-            manufacturer: String::new(),
-            device_name: String::new(),
-            unique_id: String::new(),
-            base_url: base_url.to_string(),
-        };
+        let device =
+            AlpacaDevice::from_server(AlpacaDeviceType::FilterWheel, base_url, device_number);
         Self::new(&device)
     }
 

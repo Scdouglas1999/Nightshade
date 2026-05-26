@@ -152,15 +152,6 @@ class _SessionStatusIndicator extends StatelessWidget {
                 color: isCapturing
                     ? colors.success.withValues(alpha: 0.4 + pulseController.value * 0.4)
                     : colors.textMuted.withValues(alpha: 0.4 + pulseController.value * 0.3),
-                boxShadow: isCapturing
-                    ? [
-                        BoxShadow(
-                          color: colors.success.withValues(alpha: 0.3),
-                          blurRadius: 6,
-                          spreadRadius: 1,
-                        ),
-                      ]
-                    : null,
               ),
             );
           },

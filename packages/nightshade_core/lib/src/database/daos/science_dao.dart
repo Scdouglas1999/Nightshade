@@ -616,4 +616,232 @@ class ScienceDao extends DatabaseAccessor<NightshadeDatabase>
           ..orderBy([(tbl) => OrderingTerm.desc(tbl.dateComputed)]))
         .watch();
   }
+
+  // ===========================================================================
+  // P2-8 — paginated per-table reads for the remote read API.
+  //
+  // Why these are a separate group: existing per-session methods load the
+  // entire table for a session (no pagination, no `total`). The remote
+  // surface needs newest-first slices with offsets so a phone can stream
+  // history without dragging the full dataset over the network.
+  // Each method accepts an optional `sessionId` filter and pagination
+  // bounds. Callers MUST clamp `limit`/`offset` before delegating.
+  // ===========================================================================
+
+  Future<List<PhotometryMeasurementRow>> listPhotometryPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(photometryMeasurements)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countPhotometry({int? sessionId}) async {
+    final expr = photometryMeasurements.id.count();
+    final q = selectOnly(photometryMeasurements)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(photometryMeasurements.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<FramePhotometricCalibrationRow>> listCalibrationsPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(framePhotometricCalibration)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countCalibrations({int? sessionId}) async {
+    final expr = framePhotometricCalibration.id.count();
+    final q = selectOnly(framePhotometricCalibration)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(framePhotometricCalibration.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<TransparencySampleRow>> listTransparencyPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(transparencySamples)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countTransparency({int? sessionId}) async {
+    final expr = transparencySamples.id.count();
+    final q = selectOnly(transparencySamples)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(transparencySamples.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<PsfFieldTileRow>> listPsfTilesPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(psfFieldTiles)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countPsfTiles({int? sessionId}) async {
+    final expr = psfFieldTiles.id.count();
+    final q = selectOnly(psfFieldTiles)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(psfFieldTiles.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<ScienceFrameQualityMetricsRow>>
+      listFrameQualityPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(scienceFrameQualityMetrics)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countFrameQuality({int? sessionId}) async {
+    final expr = scienceFrameQualityMetrics.id.count();
+    final q = selectOnly(scienceFrameQualityMetrics)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(scienceFrameQualityMetrics.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<ScienceTileMetricRow>> listTileMetricsPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(scienceTileMetrics)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countTileMetrics({int? sessionId}) async {
+    final expr = scienceTileMetrics.id.count();
+    final q = selectOnly(scienceTileMetrics)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(scienceTileMetrics.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<AstrometryResidualVectorRow>> listResidualsPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(astrometryResidualVectors)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countResiduals({int? sessionId}) async {
+    final expr = astrometryResidualVectors.id.count();
+    final q = selectOnly(astrometryResidualVectors)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(astrometryResidualVectors.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<MovingObjectCandidateRow>> listMovingObjectsPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(movingObjectCandidates)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.timestamp)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countMovingObjects({int? sessionId}) async {
+    final expr = movingObjectCandidates.id.count();
+    final q = selectOnly(movingObjectCandidates)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(movingObjectCandidates.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
+
+  Future<List<LineRatioProductRow>> listLineRatiosPaginated({
+    int? sessionId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(lineRatioProducts)
+      ..orderBy([(tbl) => OrderingTerm.desc(tbl.createdAt)])
+      ..limit(limit, offset: offset);
+    if (sessionId != null) {
+      query.where((tbl) => tbl.sessionId.equals(sessionId));
+    }
+    return query.get();
+  }
+
+  Future<int> countLineRatios({int? sessionId}) async {
+    final expr = lineRatioProducts.id.count();
+    final q = selectOnly(lineRatioProducts)..addColumns([expr]);
+    if (sessionId != null) {
+      q.where(lineRatioProducts.sessionId.equals(sessionId));
+    }
+    final row = await q.getSingle();
+    return row.read(expr) ?? 0;
+  }
 }

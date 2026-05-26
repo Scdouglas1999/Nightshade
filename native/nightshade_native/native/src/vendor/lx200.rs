@@ -84,6 +84,124 @@ mod commands {
     pub const ONSTEP_UNPARK: &str = ":hR#";
     // OnStep pulse guide format: :Mgdnnnn# where d=n/s/e/w, nnnn=milliseconds
     pub const ONSTEP_PULSE_GUIDE_PREFIX: &str = ":Mg";
+
+    // Meade/LX200 information commands. Compatible firmware may omit them, so
+    // discovery treats these as optional metadata probes.
+    pub const GET_FIRMWARE_DATE: &str = ":GVD#";
+    pub const GET_FIRMWARE_NUMBER: &str = ":GVN#";
+    pub const GET_FIRMWARE_TIME: &str = ":GVT#";
+}
+
+fn optional_discovery_response(
+    port: &mut dyn serialport::SerialPort,
+    command: &str,
+) -> Option<String> {
+    if port.write_all(command.as_bytes()).is_err() {
+        return None;
+    }
+    let _ = port.flush();
+
+    let mut buf = [0u8; 64];
+    std::thread::sleep(Duration::from_millis(200));
+    let n = port.read(&mut buf).ok()?;
+    let response = String::from_utf8_lossy(&buf[..n]);
+    let trimmed = response.trim().trim_end_matches('#').trim().to_string();
+    if trimmed.is_empty() || trimmed == "\0" {
+        None
+    } else {
+        Some(trimmed)
+    }
+}
+
+fn format_firmware_version(
+    number: Option<&str>,
+    date: Option<&str>,
+    time: Option<&str>,
+) -> Option<String> {
+    let number = number.filter(|value| value.chars().any(|c| c.is_ascii_alphanumeric()));
+    let date = date.filter(|value| value.chars().any(|c| c.is_ascii_alphanumeric()));
+    let time = time.filter(|value| value.chars().any(|c| c.is_ascii_alphanumeric()));
+
+    match (number, date, time) {
+        (Some(number), Some(date), Some(time)) => {
+            Some(format!("LX200 firmware v{} ({} {})", number, date, time))
+        }
+        (Some(number), Some(date), None) => Some(format!("LX200 firmware v{} ({})", number, date)),
+        (Some(number), None, Some(time)) => Some(format!("LX200 firmware v{} ({})", number, time)),
+        (Some(number), None, None) => Some(format!("LX200 firmware v{}", number)),
+        (None, Some(date), Some(time)) => Some(format!("LX200 firmware {} {}", date, time)),
+        (None, Some(date), None) => Some(format!("LX200 firmware {}", date)),
+        (None, None, Some(time)) => Some(format!("LX200 firmware {}", time)),
+        (None, None, None) => None,
+    }
+}
+
+/// Parse OnStep `:GU#` status reply into mount state fields.
+///
+/// OnStep firmware builds the reply in a fixed prefix order (`Command.ino`):
+/// optional `n` (not tracking), optional `N` (no goto / not slewing), then exactly
+/// one park-status letter from `pIPF`, followed by optional feature flags, mount
+/// type (`E`/`K`/`A`), pier side (`o`/`T`/`W`), guide-rate digits, and an error digit.
+///
+/// Returns `(is_tracking, is_slewing, is_parked, is_at_home, pier_side)` using the
+/// same semantics as OnStep's official `MountStatus.h` (positional prefix for `n`/`N`/park).
+pub(crate) fn parse_onstep_status_fields(status: &str) -> (bool, bool, bool, bool, PierSide) {
+    let s = status.trim_end_matches('#').trim();
+    if s.is_empty() {
+        return (false, false, false, false, PierSide::Unknown);
+    }
+
+    let bytes = s.as_bytes();
+    let mut idx = 0usize;
+
+    // Positional prefix per OnStep firmware append order.
+    let has_not_tracking = bytes.get(idx) == Some(&b'n');
+    if has_not_tracking {
+        idx += 1;
+    }
+    let has_no_goto = bytes.get(idx) == Some(&b'N');
+    if has_no_goto {
+        idx += 1;
+    }
+
+    let park_char = bytes.get(idx).map(|b| *b as char);
+
+    // Source `Command.ino`: leading `n` is the not-tracking indicator.
+    // During a normal goto, OnStep can omit both `n` and `N`, so the mount is
+    // both tracking and slewing.
+    let is_slewing = !has_no_goto;
+    let is_tracking = !has_not_tracking;
+
+    // Park letter is always the third prefix slot when firmware follows the spec.
+    let mut is_parked = park_char == Some('P');
+    if park_char == Some('p') || s.contains('p') {
+        is_parked = false;
+    } else if park_char.is_none() {
+        // Malformed / legacy replies: fall back to OnStep addon substring rules.
+        is_parked = s.contains('P');
+    }
+
+    let is_homed = s.contains('H');
+
+    // The final suffix is: mount type, pier side, pulse-guide rate, guide rate,
+    // general error. Read pier side from that suffix instead of scanning for
+    // `T`/`W`, because earlier optional flags can contain unrelated status bytes.
+    let pier_side = parse_onstep_pier_side_suffix(bytes);
+
+    (is_tracking, is_slewing, is_parked, is_homed, pier_side)
+}
+
+fn parse_onstep_pier_side_suffix(bytes: &[u8]) -> PierSide {
+    if bytes.len() < 4 {
+        return PierSide::Unknown;
+    }
+
+    match bytes[bytes.len() - 4] {
+        b'T' => PierSide::East,
+        b'W' => PierSide::West,
+        b'o' => PierSide::Unknown,
+        _ => PierSide::Unknown,
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -105,7 +223,7 @@ impl Lx200MountType {
     pub fn vendor(&self) -> NativeVendor {
         match self {
             Lx200MountType::Meade => NativeVendor::Meade,
-            Lx200MountType::OnStep => NativeVendor::Pegasus, // Pegasus NYX uses OnStep
+            Lx200MountType::OnStep => NativeVendor::Other("Pegasus/OnStep".to_string()),
             Lx200MountType::Losmandy | Lx200MountType::TenMicron | Lx200MountType::Generic => {
                 NativeVendor::Other("LX200".to_string())
             }
@@ -458,29 +576,7 @@ impl Lx200Mount {
     /// Parse OnStep status response (:GU#)
     /// Returns (is_tracking, is_slewing, is_parked, is_homed, pier_side)
     fn parse_onstep_status(&self, status: &str) -> (bool, bool, bool, bool, PierSide) {
-        let s = status.trim_end_matches('#');
-
-        // OnStep status format: flags like "nNpPHGF..."
-        // n = not slewing, N = slewing
-        // p = not parked, P = parked
-        // H = at home
-        // T = tracking on
-        // E/W = pier side East/West
-
-        let is_slewing = s.contains('N'); // uppercase N = slewing
-        let is_parked = s.contains('P'); // uppercase P = parked
-        let is_homed = s.contains('H');
-        let is_tracking = s.contains('T') || (!is_parked && !s.contains('n'));
-
-        let pier_side = if s.contains('E') {
-            PierSide::East
-        } else if s.contains('W') {
-            PierSide::West
-        } else {
-            PierSide::Unknown
-        };
-
-        (is_tracking, is_slewing, is_parked, is_homed, pier_side)
+        parse_onstep_status_fields(status)
     }
 
     fn send_command(&self, command: &str) -> Result<String, NativeError> {
@@ -1143,6 +1239,7 @@ pub struct Lx200MountInfo {
     pub port: String,
     pub name: String,
     pub mount_type: Lx200MountType,
+    pub firmware_version: Option<String>,
     /// Baud rate that was successful during discovery
     pub baud_rate: u32,
 }
@@ -1275,11 +1372,23 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                         } else {
                             format!("OnStep: {} ({})", name, port_name)
                         };
+                        let firmware_number =
+                            optional_discovery_response(&mut *port, commands::GET_FIRMWARE_NUMBER);
+                        let firmware_date =
+                            optional_discovery_response(&mut *port, commands::GET_FIRMWARE_DATE);
+                        let firmware_time =
+                            optional_discovery_response(&mut *port, commands::GET_FIRMWARE_TIME);
+                        let firmware_version = format_firmware_version(
+                            firmware_number.as_deref(),
+                            firmware_date.as_deref(),
+                            firmware_time.as_deref(),
+                        );
 
                         mounts.push(Lx200MountInfo {
                             port: port_name.clone(),
                             name: display_name.clone(),
                             mount_type: Lx200MountType::OnStep,
+                            firmware_version,
                             baud_rate,
                         });
                         tracing::info!(
@@ -1327,10 +1436,28 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
 
                             if let Some(mount_type) = mount_type {
                                 let display_name = format!("{} ({})", name, port_name);
+                                let firmware_number = optional_discovery_response(
+                                    &mut *port,
+                                    commands::GET_FIRMWARE_NUMBER,
+                                );
+                                let firmware_date = optional_discovery_response(
+                                    &mut *port,
+                                    commands::GET_FIRMWARE_DATE,
+                                );
+                                let firmware_time = optional_discovery_response(
+                                    &mut *port,
+                                    commands::GET_FIRMWARE_TIME,
+                                );
+                                let firmware_version = format_firmware_version(
+                                    firmware_number.as_deref(),
+                                    firmware_date.as_deref(),
+                                    firmware_time.as_deref(),
+                                );
                                 mounts.push(Lx200MountInfo {
                                     port: port_name.clone(),
                                     name: display_name.clone(),
                                     mount_type,
+                                    firmware_version,
                                     baud_rate,
                                 });
                                 tracing::info!(
@@ -1360,6 +1487,7 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
                                     port: port_name.clone(),
                                     name: display_name.clone(),
                                     mount_type: Lx200MountType::Generic,
+                                    firmware_version: None,
                                     baud_rate,
                                 });
                                 tracing::info!(
@@ -1386,4 +1514,126 @@ pub async fn discover_mounts() -> Result<Vec<Lx200MountInfo>, NativeError> {
 
 pub fn is_available() -> bool {
     true
+}
+
+#[cfg(test)]
+mod onstep_status_tests {
+    use super::*;
+
+    #[test]
+    fn parse_typical_tracking_parked_idle() {
+        // N + P + home + GEM + pier east + rate digits + error 0 (no leading n)
+        let (tracking, slewing, parked, homed, pier) = parse_onstep_status_fields("NPHET050");
+        assert!(tracking, "N without leading n means tracking");
+        assert!(!slewing, "N means no goto (not slewing)");
+        assert!(parked);
+        assert!(homed);
+        assert_eq!(pier, PierSide::East);
+    }
+
+    #[test]
+    fn parse_not_tracking_idle_unparked() {
+        // n + N + p per OnStep wiki example (not tracking, not slewing, not parked)
+        let (tracking, slewing, parked, homed, pier) = parse_onstep_status_fields("nNpPH");
+        assert!(!tracking);
+        assert!(!slewing);
+        assert!(!parked);
+        assert!(homed);
+        assert_eq!(pier, PierSide::Unknown);
+    }
+
+    #[test]
+    fn parse_slewing_without_no_goto_flag() {
+        // No 'N' at prefix position 0/1 => slewing per MountStatus.h
+        let (tracking, slewing, _, _, _) = parse_onstep_status_fields("pHET050");
+        assert!(tracking);
+        assert!(slewing);
+    }
+
+    #[test]
+    fn leading_n_is_not_slewing_n_flag() {
+        // Old bug: contains('N') is false for "n..." but inverted logic treated N as slewing.
+        // Positional: 'n' at 0 is not-tracking; next char is park 'p', not slewing.
+        let (tracking, slewing, parked, _, _) = parse_onstep_status_fields("np");
+        assert!(!tracking);
+        assert!(slewing, "no N in prefix means goto/slew active");
+        assert!(!parked);
+    }
+
+    #[test]
+    fn gem_mount_type_e_is_not_pier_east() {
+        let (_, _, _, _, pier) = parse_onstep_status_fields("NPE");
+        assert_eq!(
+            pier,
+            PierSide::Unknown,
+            "E is mount type GEM, not pier side"
+        );
+    }
+
+    #[test]
+    fn pier_t_is_not_tracking_flag() {
+        let (tracking, _, _, _, pier) = parse_onstep_status_fields("NpPHET000");
+        assert!(tracking);
+        assert_eq!(pier, PierSide::East, "T is pier east, not tracking");
+    }
+
+    #[test]
+    fn strips_hash_terminator() {
+        let (tracking, slewing, parked, homed, pier) = parse_onstep_status_fields("nNpKW000#");
+        assert!(!tracking);
+        assert!(!slewing);
+        assert!(!parked);
+        assert!(!homed);
+        assert_eq!(pier, PierSide::West);
+    }
+
+    #[test]
+    fn parking_in_progress_is_not_parked() {
+        let (_, _, parked, _, _) = parse_onstep_status_fields("nNI");
+        assert!(!parked);
+    }
+
+    #[test]
+    fn slewing_goto_without_n_or_n_is_still_tracking() {
+        let (tracking, slewing, parked, _, pier) = parse_onstep_status_fields("pET000#");
+        assert!(tracking);
+        assert!(slewing);
+        assert!(!parked);
+        assert_eq!(pier, PierSide::East);
+    }
+
+    #[test]
+    fn optional_waiting_flag_w_is_not_pier_west() {
+        let (_, _, _, _, pier) = parse_onstep_status_fields("NpHwEo000#");
+        assert_eq!(
+            pier,
+            PierSide::Unknown,
+            "lowercase waiting-home flag is not pier west"
+        );
+    }
+
+    #[test]
+    fn format_lx200_firmware_version_combines_number_date_and_time() {
+        assert_eq!(
+            format_firmware_version(Some("4.2g"), Some("Oct 10 2010"), Some("12:34:56")).as_deref(),
+            Some("LX200 firmware v4.2g (Oct 10 2010 12:34:56)")
+        );
+    }
+
+    #[test]
+    fn format_lx200_firmware_version_accepts_partial_metadata() {
+        assert_eq!(
+            format_firmware_version(Some("4.2g"), None, None).as_deref(),
+            Some("LX200 firmware v4.2g")
+        );
+        assert_eq!(
+            format_firmware_version(None, Some("Oct 10 2010"), None).as_deref(),
+            Some("LX200 firmware Oct 10 2010")
+        );
+    }
+
+    #[test]
+    fn format_lx200_firmware_version_rejects_empty_metadata() {
+        assert_eq!(format_firmware_version(Some(""), Some(""), Some("")), None);
+    }
 }

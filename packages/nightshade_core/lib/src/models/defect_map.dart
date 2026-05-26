@@ -6,6 +6,70 @@
 /// boundary as an `int`.
 library;
 
+/// Replacement method used to fill a defective pixel during per-frame
+/// correction. The wire-form identifier matches the Rust
+/// [`nightshade_imaging::defect_map::CorrectionMethod`] enum and is
+/// what gets persisted in settings + pushed to the bridge.
+enum DefectMapMethod {
+  /// Median of healthy neighbours (default — robust to outliers,
+  /// preserves frame statistics, handles hot/cold pixels symmetrically).
+  median('median'),
+
+  /// Plain mean of healthy neighbours (faster but a single hot neighbour
+  /// skews the result — recommended only when the user wants smoother
+  /// fills than median produces).
+  mean('mean'),
+
+  /// Gaussian-weighted mean of healthy neighbours (smoothest fills
+  /// near sharp features like stars, but slightly more expensive).
+  gaussian('gaussian');
+
+  final String wireValue;
+  const DefectMapMethod(this.wireValue);
+
+  static DefectMapMethod fromWire(String? value, {DefectMapMethod fallback = DefectMapMethod.median}) {
+    if (value == null || value.isEmpty) return fallback;
+    for (final m in DefectMapMethod.values) {
+      if (m.wireValue == value) return m;
+    }
+    return fallback;
+  }
+
+  /// Human-readable label for the settings UI.
+  String get label {
+    switch (this) {
+      case DefectMapMethod.median:
+        return 'Median (recommended)';
+      case DefectMapMethod.mean:
+        return 'Mean';
+      case DefectMapMethod.gaussian:
+        return 'Gaussian-weighted';
+    }
+  }
+}
+
+/// Kernel diameter for defect-map correction. Restricted to the three
+/// sensible UI choices: 3x3, 5x5, 7x7. The detector validates the
+/// input rather than silently accepting arbitrary kernels.
+enum DefectMapKernelSize {
+  k3(3),
+  k5(5),
+  k7(7);
+
+  final int diameter;
+  const DefectMapKernelSize(this.diameter);
+
+  static DefectMapKernelSize fromDiameter(int diameter, {DefectMapKernelSize fallback = DefectMapKernelSize.k3}) {
+    for (final k in DefectMapKernelSize.values) {
+      if (k.diameter == diameter) return k;
+    }
+    return fallback;
+  }
+
+  /// Human-readable label for the settings UI.
+  String get label => '${diameter}x$diameter';
+}
+
 /// A temperature bucket: the nearest 5 C, expressed in deci-degrees
 /// Celsius (so -22.5C is `-225`). Wraps the small set of valid integer
 /// values to keep the rest of the codebase from juggling raw ints with

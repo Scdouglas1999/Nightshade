@@ -137,7 +137,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       await _applyEquipmentSnapshot(context.equipmentSnapshot);
 
       if (mounted) {
-        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text(
@@ -155,7 +155,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
             fields: {'stackTrace': st.toString()},
           );
       if (mounted) {
-        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text('Failed to start fresh: $e'),
@@ -200,7 +200,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
       await _applyEquipmentSnapshot(context.equipmentSnapshot);
 
       if (mounted) {
-        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text(
@@ -219,7 +219,7 @@ class _QuickStartCheckerState extends ConsumerState<QuickStartChecker> {
             fields: {'stackTrace': st.toString()},
           );
       if (mounted) {
-        final colors = Theme.of(this.context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(this.context);
         ScaffoldMessenger.of(this.context).showSnackBar(
           SnackBar(
             content: Text('Failed to resume progress: $e'),

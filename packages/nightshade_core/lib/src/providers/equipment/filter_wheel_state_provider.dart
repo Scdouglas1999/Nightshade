@@ -202,20 +202,20 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectFilterWheel();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName ?? state.deviceName ?? deviceId,
-      clearError: true,
     );
   }
 
@@ -232,7 +232,13 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
   }
 
   void setDisconnected() {
-    state = const FilterWheelState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = FilterWheelState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the filter wheel.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updatePosition(int position) {
@@ -306,6 +312,61 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
     _ref.read(sessionFilterNamesProvider.notifier).state = null;
   }
 }
+
+// =============================================================================
+// Effective Filters Provider
+// =============================================================================
+
+/// Matches generic ASCOM/INDI slot labels such as "Filter 1" or "filter2".
+final genericFilterSlotNamePattern =
+    RegExp(r'^filter\s*\d+$', caseSensitive: false);
+
+/// Returns true when [name] is a driver-default slot label with no band info.
+bool isGenericFilterSlotName(String name) =>
+    genericFilterSlotNamePattern.hasMatch(name.trim());
+
+/// Prefer profile filter names when the wheel reports only generic slot labels.
+///
+/// When every [wheelNames] entry is generic and [profileNames] contains at
+/// least one real band name, profile names are used (padded or trimmed to the
+/// wheel slot count). When both sides are generic, [wheelNames] is kept.
+List<String> resolveEffectiveFilterNames({
+  required List<String> wheelNames,
+  required List<String> profileNames,
+}) {
+  if (wheelNames.isEmpty) return profileNames;
+
+  final wheelAllGeneric = wheelNames.every(isGenericFilterSlotName);
+  final profileHasRealNames = profileNames.isNotEmpty &&
+      profileNames.any((name) => !isGenericFilterSlotName(name));
+
+  if (wheelAllGeneric && profileHasRealNames) {
+    if (profileNames.length >= wheelNames.length) {
+      return profileNames.sublist(0, wheelNames.length);
+    }
+    return [
+      ...profileNames,
+      ...wheelNames.sublist(profileNames.length),
+    ];
+  }
+
+  return wheelNames;
+}
+
+/// Connected filter wheel names when online; otherwise profile filter names.
+/// Generic wheel slot labels fall back to profile names when available.
+final effectiveFiltersProvider = Provider<List<String>>((ref) {
+  final wheel = ref.watch(filterWheelStateProvider);
+  final profileFilters = ref.watch(profileFiltersProvider);
+  if (wheel.connectionState == DeviceConnectionState.connected &&
+      wheel.filterNames.isNotEmpty) {
+    return resolveEffectiveFilterNames(
+      wheelNames: wheel.filterNames,
+      profileNames: profileFilters,
+    );
+  }
+  return profileFilters;
+});
 
 // =============================================================================
 // Session Filter Names Provider

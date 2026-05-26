@@ -19,15 +19,57 @@ enum TokenVerificationResult {
   invalid,
   deviceRevoked,
   deviceNotFound,
+
+  /// The device's session token is past its `expiresAt` timestamp. The DB
+  /// row may still be present (the headless sweep purges it on the next
+  /// tick). Treat the same as [deviceRevoked]: deny access and force re-pair.
+  expired,
 }
 
 typedef PairingCompletion = ({PairingResult result, String? sessionToken});
+
+/// Callback invoked by [TokenManager] whenever a paired device's session
+/// token is revoked or expires from the auth middleware's point of view.
+/// The headless server registers a listener so it can evict the
+/// corresponding entry from `_pairedSessionTokens` synchronously.
+///
+/// The callback receives the raw session token (NOT the device id) because
+/// the in-memory map is keyed by token value.
+typedef SessionTokenRevocationListener = void Function(String sessionToken);
+
+/// Result of a sweep over `paired_devices` to surface tokens that the
+/// in-memory auth map must no longer honour. See
+/// [TokenManager.purgeExpiredAndRevokedSessions].
+class TokenSweepResult {
+  /// Session tokens removed because their `expires_at` has passed. The DB
+  /// rows are also hard-deleted by the sweep.
+  final List<String> expiredTokens;
+
+  /// Session tokens removed because the device was revoked
+  /// (`is_active = false`). DB rows are RETAINED for audit purposes; only
+  /// the in-memory entry is evicted via the listener callback.
+  final List<String> revokedTokens;
+
+  const TokenSweepResult({
+    required this.expiredTokens,
+    required this.revokedTokens,
+  });
+
+  bool get isEmpty => expiredTokens.isEmpty && revokedTokens.isEmpty;
+  int get totalCount => expiredTokens.length + revokedTokens.length;
+}
 
 /// Manages authentication tokens and pairing for WebRTC connections
 class TokenManager {
   final PairingDatabase _database;
   final Random _random = Random.secure();
   static const int _maxPairingCreationAttempts = 5;
+
+  /// Listener invoked when a session token must be evicted from any in-memory
+  /// auth caches owned by the host (typically `HeadlessApiServer`).
+  /// Registered by the host via [setRevocationListener]; the manager does not
+  /// know about Shelf or in-memory maps itself.
+  SessionTokenRevocationListener? _revocationListener;
 
   /// Words for generating memorable pairing codes
   static const _codeWords = [
@@ -138,11 +180,19 @@ class TokenManager {
   }
 
   /// Verify a pairing attempt, persist the device, and return its session token.
+  ///
+  /// [tokenLifetime] sets the `expires_at` column on the persisted
+  /// `paired_devices` row, enforced by [verifySessionToken] and by the
+  /// headless auth-middleware sweep. The previous behaviour (no DB-side
+  /// expiry) is preserved by passing `null`, but callers SHOULD always
+  /// provide a finite lifetime — the headless server's `PairingService`
+  /// passes its `_defaultSessionTokenLifetime` here.
   Future<PairingCompletion> completePairing({
     required String pairingCode,
     required String deviceId,
     required String deviceName,
     String deviceType = 'mobile',
+    Duration? tokenLifetime,
   }) async {
     final normalizedPairingCode = pairingCode.trim().toUpperCase();
     final normalizedDeviceId = deviceId.trim();
@@ -179,11 +229,15 @@ class TokenManager {
       await _database.deletePairedDevice(normalizedDeviceId);
     }
 
+    final expiresAt =
+        tokenLifetime == null ? null : DateTime.now().add(tokenLifetime);
+
     await _database.addPairedDevice(
       deviceId: normalizedDeviceId,
       deviceName: normalizedDeviceName,
       sessionToken: session.sessionToken,
       deviceType: deviceType,
+      expiresAt: expiresAt,
     );
 
     // Clean up used session
@@ -213,6 +267,16 @@ class TokenManager {
       return TokenVerificationResult.deviceRevoked;
     }
 
+    // Reject expired tokens BEFORE the constant-time comparison so a network
+    // attacker cannot use timing to distinguish "right token, expired" from
+    // "wrong token, unexpired" — both paths short-circuit before the compare.
+    final expiresAt = device.expiresAt;
+    if (expiresAt != null && !DateTime.now().isBefore(expiresAt)) {
+      // Notify the host so any in-memory cache evicts the entry.
+      _revocationListener?.call(device.sessionToken);
+      return TokenVerificationResult.expired;
+    }
+
     // Constant-time comparison to prevent timing attacks
     if (_constantTimeCompare(device.sessionToken, token)) {
       // Update last connected timestamp
@@ -225,17 +289,87 @@ class TokenManager {
 
   /// Revoke a paired device
   Future<void> revokeDevice(String deviceId) async {
+    // Capture the session token BEFORE flipping `is_active`. The auth
+    // middleware's in-memory `_pairedSessionTokens` map is keyed by token
+    // value (it does not store device ids), so we need the raw token to
+    // propagate the eviction synchronously via [setRevocationListener].
+    final device = await _database.getPairedDevice(deviceId);
     await _database.revokeDevice(deviceId);
+    if (device != null) {
+      _revocationListener?.call(device.sessionToken);
+    }
   }
 
   /// Delete a paired device completely
   Future<void> deleteDevice(String deviceId) async {
+    final device = await _database.getPairedDevice(deviceId);
     await _database.deletePairedDevice(deviceId);
+    if (device != null) {
+      _revocationListener?.call(device.sessionToken);
+    }
   }
 
   /// Get all active paired devices
   Future<List<PairedDevice>> getActivePairedDevices() async {
     return await _database.getActivePairedDevices();
+  }
+
+  /// Active (`is_active = true`) AND not yet expired. This is the canonical
+  /// "tokens the auth middleware should accept" snapshot that the headless
+  /// server hydrates `_pairedSessionTokens` from at startup.
+  Future<List<PairedDevice>> getActiveUnexpiredPairedDevices() async {
+    return _database.getActiveUnexpiredPairedDevices(DateTime.now());
+  }
+
+  /// Register a callback the manager invokes whenever a session token must
+  /// be evicted from any in-memory caches (revoke, expiry sweep, delete).
+  ///
+  /// The headless server calls this at startup so revocation propagates
+  /// without a process restart (P0-10).
+  void setRevocationListener(SessionTokenRevocationListener? listener) {
+    _revocationListener = listener;
+  }
+
+  /// Sweep `paired_devices`: surface tokens that the in-memory auth map must
+  /// no longer honour, hard-delete expired rows, and keep revoked rows for
+  /// audit. Returns the set of tokens that were affected so the caller can
+  /// update its in-memory state. Also invokes the registered revocation
+  /// listener for each affected token.
+  ///
+  /// Called periodically by `HeadlessApiServer` (every 60s by default). Also
+  /// safe to call at startup so any tokens that expired while the server
+  /// was offline are purged before clients can attempt to use them.
+  Future<TokenSweepResult> purgeExpiredAndRevokedSessions() async {
+    final now = DateTime.now();
+    final rows = await _database.getExpiredOrRevokedDevices(now);
+    final expired = <String>[];
+    final revoked = <String>[];
+    for (final row in rows) {
+      final expiresAt = row.expiresAt;
+      final isExpired = expiresAt != null && !now.isBefore(expiresAt);
+      if (isExpired) {
+        expired.add(row.sessionToken);
+      } else if (!row.isActive) {
+        revoked.add(row.sessionToken);
+      }
+    }
+    // Hard-delete expired rows so the table does not grow without bound.
+    // Revoked rows are intentionally kept for audit (the operator may want
+    // to see which device id last had access).
+    if (expired.isNotEmpty) {
+      await _database.deleteExpiredPairedDevices(now);
+    }
+    // Notify the host so in-memory caches drop the entries.
+    final listener = _revocationListener;
+    if (listener != null) {
+      for (final token in expired) {
+        listener(token);
+      }
+      for (final token in revoked) {
+        listener(token);
+      }
+    }
+    return TokenSweepResult(expiredTokens: expired, revokedTokens: revoked);
   }
 
   // ============================================================================

@@ -99,6 +99,24 @@ pub enum HeartbeatStatus {
 }
 
 /// Equipment-specific events
+///
+/// Wave 6B (P2-1) follow-up — TODO: promote the wave-6b hot-plug events to
+/// first-class variants (`DeviceDiscovered { device_class, driver, id,
+/// name, unique_id }` and `DeviceLost { device_class, driver, id }`) once
+/// FRB bindings are regenerated. The current hot-plug task in
+/// `crate::hotplug` rides on `PropertyChanged { property:
+/// "device_discovered" | "device_lost", value: <json> }` because adding
+/// new variants here requires `melos run generate` to regen the Dart FFI
+/// bindings — see `crate::hotplug` for the full rationale. To land the
+/// typed variants:
+///   1. Add `DeviceDiscovered { device_class: String, driver: String, id:
+///      String, name: String, unique_id: Option<String> }` and
+///      `DeviceLost { device_class: String, driver: String, id: String }`
+///      below.
+///   2. After editing: run `melos run generate` to regenerate FRB bindings.
+///   3. Update `crate::hotplug::poll_once` to emit the typed variants
+///      instead of `PropertyChanged`.
+///   4. Update the Dart `bridge_event_mapper.dart` to map the new variants.
 #[frb]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum EquipmentEvent {
@@ -434,6 +452,342 @@ pub enum SequencerEvent {
         /// Detailed status message
         detail: String,
     },
+    /// Structured progress update for long-running instructions. This is
+    /// emitted alongside `InstructionProgress` so legacy consumers keep their
+    /// string detail while newer UI panels can bind to explicit fields.
+    InstructionProgressStructured {
+        /// Node ID for mapping progress to the correct tree node
+        node_id: String,
+        /// Name of the instruction (e.g., "Cool Camera", "Autofocus")
+        instruction: String,
+        /// Progress percentage (0.0 to 100.0)
+        progress_percent: f64,
+        /// `ProgressDetail` variant name (e.g. `Exposure`, `Autofocus`)
+        detail_kind: String,
+        /// JSON-stringified inner payload for the variant.
+        detail_json: String,
+    },
+
+    // ===== Pack H: typed Wave-3 progress payloads =====
+    //
+    // Pre-Pack-H, the Wave 3 image-grading + target-scheduler progress
+    // payloads (`ProgressDetail::FrameAccepted/FrameRejected/Scheduler/
+    // IntegrationBudget`) were stringified through `ProgressDetail::detail_text()`
+    // and shipped on `InstructionProgress.detail`. The Dart side parsed
+    // those strings with regex (`FrameGradeEvent.tryParseDetail`) — fragile,
+    // lossy, and silently dropped fields that didn't fit the format string.
+    //
+    // Pack H promotes the four high-value variants to first-class typed
+    // `SequencerEvent` variants. The bridge's `run_sequencer_event_loop`
+    // matches on the structured `ProgressDetail` directly and emits the
+    // typed variant; the legacy `InstructionProgress` is still emitted in
+    // parallel so any subscriber that hasn't migrated yet keeps working
+    // (back-compat: the typed variants are *additional*, not replacements).
+    /// Pack H — Wave 3 Image Grading: a frame passed every configured
+    /// quality threshold and was saved to the normal output folder.
+    /// Mirrors `ProgressDetail::FrameAccepted`.
+    FrameAccepted {
+        node_id: String,
+        /// 1-based frame index within the current TakeExposure burst.
+        frame: u32,
+        total: u32,
+        hfr: Option<f64>,
+        eccentricity: Option<f64>,
+        star_count: Option<u32>,
+        /// Running count of accepted frames for the whole run.
+        accepted_total: u32,
+        /// Running count of rejected frames for the whole run.
+        rejected_total: u32,
+        /// Wave 6 Pack P — on-disk save path of the accepted frame, so
+        /// the Wave 6 thumbnail strip can render an inline preview of
+        /// accepted frames the same way it already does for rejected
+        /// frames via `FrameRejected.reject_path`. `None` for legacy /
+        /// non-grading emit sites that did not thread the path through.
+        save_path: Option<String>,
+    },
+    /// Pack H — Wave 3 Image Grading: a frame failed at least one
+    /// quality threshold and was routed to the reject folder. Mirrors
+    /// `ProgressDetail::FrameRejected`. The consecutive-reject pause
+    /// behaviour is unchanged; this event surfaces the metrics so the
+    /// dashboard can render them without parsing.
+    FrameRejected {
+        node_id: String,
+        frame: u32,
+        total: u32,
+        reason: String,
+        hfr: Option<f64>,
+        eccentricity: Option<f64>,
+        star_count: Option<u32>,
+        reject_path: String,
+        /// Running consecutive-rejects counter. When this reaches the
+        /// configured `max_consecutive_rejects`, the executor pauses
+        /// the sequence and emits an additional `Error` event.
+        consecutive_rejects: u32,
+        accepted_total: u32,
+        rejected_total: u32,
+        // Wave 8 — Frame-Failure Forensics ----------------------------
+        /// Classified cause label (wire-stable snake_case string from
+        /// `LikelyCause::label()`). `None` when the classifier was not
+        /// consulted or could not pick a single best guess. Dart maps
+        /// this back to its `LikelyCause` enum via
+        /// `LikelyCauseExt.fromLabel`.
+        likely_cause_label: Option<String>,
+        /// Human-readable evidence bullets the dashboard surfaces in
+        /// the Forensics panel and Frame Detail dialog. Empty list
+        /// when no telemetry was available.
+        evidence: Vec<String>,
+        /// Sky brightness reading at capture time (mag/arcsec²).
+        sky_brightness_at_capture: Option<f64>,
+        /// Cloud cover percentage (0-100) at capture time.
+        cloud_cover_at_capture: Option<f64>,
+        /// Wind speed at capture time (km/h). `None` when no weather
+        /// feed is wired through to the sequencer.
+        wind_at_capture: Option<f64>,
+        /// Guide RMS (arc-seconds) sampled at capture time.
+        guide_rms_at_capture: Option<f64>,
+        /// Sensor temperature (°C) at capture time.
+        sensor_temp_at_capture: Option<f64>,
+    },
+    /// Pack H — Wave 3 Agent 1: TargetScheduler decision. Mirrors
+    /// `ProgressDetail::Scheduler`. The score table is exposed as a
+    /// flat `Vec<SchedulerScoreEntry>` so FRB doesn't have to bridge
+    /// the internal `SchedulerScoreSummary` type.
+    SchedulerDecision {
+        node_id: String,
+        /// 1-based decision counter for this scheduler instance.
+        decision_counter: u32,
+        /// `None` when no target cleared `min_score_to_run`.
+        picked_target_id: Option<String>,
+        picked_target_name: Option<String>,
+        /// Picked target's total score (0..=100). `None` when nothing
+        /// was picked.
+        picked_score: Option<f64>,
+        /// Flat score table (runnable first, then by descending total).
+        scores: Vec<SchedulerScoreEntry>,
+    },
+    /// Pack H — Wave 3 Agent 3: per-target integration budget tick.
+    /// Mirrors `ProgressDetail::IntegrationBudget`.
+    IntegrationBudget {
+        /// The TargetHeader node id this budget belongs to.
+        target_id: String,
+        /// Filter the credit was applied to (`""` for no-filter cameras).
+        filter: String,
+        completed_secs: f64,
+        budget_secs: f64,
+        fraction: f64,
+        budget_met: bool,
+    },
+    /// Wave 5 Agent 2 — sky-brightness adaptive exposure decision.
+    /// Mirrors `ProgressDetail::ExposureAdjusted`. Emitted before every
+    /// exposure burst whenever the adapter was consulted (regardless of
+    /// whether the duration actually changed), so the Run Dashboard can
+    /// surface live sky brightness + the most recent nominal/adapted
+    /// pair and the user understands why the camera is running longer
+    /// (or shorter) than configured.
+    ExposureAdjusted {
+        node_id: String,
+        /// Adapted (effective) exposure duration in seconds.
+        adapted_secs: f64,
+        /// User-configured nominal duration in seconds.
+        nominal_secs: f64,
+        /// Live sky brightness used in the decision (mag/arcsec²). `None`
+        /// when the adapter fell back due to missing telemetry.
+        sky_brightness_mag: Option<f64>,
+        /// Filter being captured through. `None` for monochrome / no
+        /// filter wheel rigs.
+        filter: Option<String>,
+        /// Lowercase tag: `adapted`, `clamped_min`, `clamped_max`,
+        /// `unavailable`, `disabled`, `out_of_nominal_bounds`.
+        reason: String,
+    },
+
+    // ===== Wave 4 Recovery Mode — typed entry / progress / exit events =====
+    //
+    // Pre-Wave-4.5, the Rust executor's `ExecutorEvent::Recovery*` events
+    // were routed through the legacy `InstructionProgress` channel with
+    // `node_id == "_recovery"` and a JSON-encoded context blob shoved in
+    // `detail`. The Dart side string-prefix-matched on `instruction` and
+    // jsonDecoded `detail` — fragile, lossy, and silently dropped fields
+    // that didn't fit. Wave 4.5 promotes the four variants to first-class
+    // typed payloads. All `context_*` fields are denormalised flat
+    // primitives so FRB doesn't need to bridge the chrono-dependent
+    // `RecoveryContext` struct. The Dart side rebuilds a `RecoveryStatus`
+    // from these flat fields in `_recoveryStatusFromTypedEvent`.
+    //
+    // `cause_kind` is the Rust enum variant name (`GuideStarLost`,
+    // `SlewFailed`, etc.) so the Dart side can map directly to
+    // `RecoveryCause.<factory>`. `cause_custom_label` carries the inner
+    // string for the `Custom(String)` variant — non-empty only when
+    // `cause_kind == "Custom"`.
+    //
+    // `phase` mirrors `RecoveryPhase` (`Waiting`, `Attempting`,
+    // `Recovered`, `GaveUp`) so the dashboard banner knows which row
+    // to render.
+    /// Wave 4 Recovery Mode: the executor just entered the `Recovering`
+    /// state. Subscribers (dashboard banner, audible alert player,
+    /// push-notification service) render the cause / attempt counter
+    /// / countdown without reaching back into the executor.
+    RecoveryStarted {
+        started_at_iso: String,
+        cause_kind: String,
+        cause_custom_label: Option<String>,
+        last_attempt_at_iso: Option<String>,
+        attempt_count: u32,
+        max_attempts: u32,
+        retry_interval_secs: f64,
+        max_duration_secs: f64,
+        phase: String,
+        last_error: Option<String>,
+    },
+    /// Wave 4 Recovery Mode: periodic update of the live recovery context
+    /// (attempt counter incremented, phase changed, last_error updated).
+    /// Subscribers refresh the dashboard banner from this; the
+    /// `RecoveryStarted` / `RecoveryCompleted` / `RecoveryGaveUp` events
+    /// bookend the loop while this carries deltas inside the loop.
+    RecoveryProgress {
+        started_at_iso: String,
+        cause_kind: String,
+        cause_custom_label: Option<String>,
+        last_attempt_at_iso: Option<String>,
+        attempt_count: u32,
+        max_attempts: u32,
+        retry_interval_secs: f64,
+        max_duration_secs: f64,
+        phase: String,
+        last_error: Option<String>,
+    },
+    /// Wave 4 Recovery Mode: recovery succeeded. The executor will
+    /// transition back to `Running`; subscribers clear the dashboard
+    /// banner and append to the history list.
+    RecoveryCompleted {
+        started_at_iso: String,
+        cause_kind: String,
+        cause_custom_label: Option<String>,
+        last_attempt_at_iso: Option<String>,
+        attempt_count: u32,
+        max_attempts: u32,
+        retry_interval_secs: f64,
+        max_duration_secs: f64,
+        phase: String,
+        last_error: Option<String>,
+    },
+    /// Wave 4 Recovery Mode: recovery exhausted attempts / time / was
+    /// aborted by the user. The executor will transition to `Failed` (or
+    /// run the configured ParkAndAbort policy). Subscribers append the
+    /// history entry and emit a critical-severity event.
+    RecoveryGaveUp {
+        started_at_iso: String,
+        cause_kind: String,
+        cause_custom_label: Option<String>,
+        last_attempt_at_iso: Option<String>,
+        attempt_count: u32,
+        max_attempts: u32,
+        retry_interval_secs: f64,
+        max_duration_secs: f64,
+        phase: String,
+        last_error: Option<String>,
+        /// True when the loop exited because the user pressed Abort.
+        /// Distinct from exhaustion so the UI can render different copy
+        /// ("Aborted by operator" vs "Exhausted retries").
+        aborted_by_user: bool,
+    },
+
+    // ===== Wave 6 Pack P — plugin sequence nodes (Rust dispatch) =====
+    //
+    // The Rust executor reaches a `NodeType::PluginNode`, registers a
+    // pending oneshot for the node id, and emits PluginNodeRequested.
+    // The Dart `SequenceExecutor` consumes this event, dispatches to
+    // `PluginNodeExecutor.run`, then calls `api_sequencer_plugin_node_finished`
+    // to push the verdict back into Rust via
+    // `ExecutorCommand::PluginNodeFinished`. The Rust instruction node
+    // unblocks with Success or Failure.
+    /// Wave 6 Pack P — the executor is waiting for the Dart side to
+    /// dispatch a plugin node and reply with the verdict.
+    PluginNodeRequested {
+        /// Executor-side node identifier. The reply MUST echo this.
+        node_id: String,
+        /// Stable plugin identifier (e.g. `com.example.pushover`).
+        plugin_id: String,
+        /// Stable per-plugin node type identifier (e.g. `pushover.notify`).
+        node_type_id: String,
+        /// Opaque JSON payload the plugin author authored on the Dart
+        /// side. Rust forwards verbatim.
+        config_json: String,
+        /// Optional human-readable label. `None` => UI uses
+        /// `node_type_id`.
+        display_name: Option<String>,
+        /// Effective timeout (seconds) the Rust side will wait. Dart
+        /// MUST honour this; a longer run on the Dart side will be
+        /// timed out by Rust first and surfaced as a failure.
+        timeout_secs: u32,
+    },
+    /// Wave 6 Pack P — live plugin-node progress payload. Mirrors
+    /// `ProgressDetail::PluginNode`. The JSON detail is serialised as a
+    /// string at the bridge boundary because FRB does not transport
+    /// `serde_json::Value` directly; Dart parses it with
+    /// `jsonDecode(detail_json)`.
+    PluginNodeProgress {
+        node_id: String,
+        plugin_id: String,
+        node_type_id: String,
+        /// Stringified plugin-authored payload. Empty string when the
+        /// plugin emitted no payload.
+        detail_json: String,
+    },
+
+    // ===== Wave 8 — Replay Debug: typed decision payload =====
+    /// Wave 8 Replay Debug — a structured decision emitted by the
+    /// sequencer (scheduler pick, trigger fire, recovery transition,
+    /// frame verdict, adaptive swap, plugin invocation, manual operator
+    /// action, or system event). Subscribers persist these to the
+    /// `sequence_decisions` Drift table and the Replay screen scrubs
+    /// chronologically through them.
+    ///
+    /// `details_json` is the JSON-stringified payload — FRB does not
+    /// bridge `serde_json::Value` directly, so the Dart side does
+    /// `jsonDecode(details_json)` to recover the structured map.
+    ///
+    /// `category` is the stable wire key (`scheduler_pick`,
+    /// `trigger_fired`, etc.) — see
+    /// `nightshade_sequencer::DecisionCategory::wire_key`.
+    DecisionLogged {
+        /// ISO-8601 UTC timestamp when the decision was made.
+        timestamp_iso: String,
+        /// Stable wire key for the underlying DecisionCategory variant.
+        category: String,
+        /// One-line human-readable summary.
+        summary: String,
+        /// JSON-stringified opaque details payload.
+        details_json: String,
+        /// Optional associated node id (scheduler / target / exposure
+        /// node).
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        node_id: Option<String>,
+        /// `sequence_runs.id` this decision belongs to, if the executor
+        /// has been stamped with one.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        sequence_run_id: Option<i64>,
+    },
+}
+
+/// Pack H — flat scheduler score row exposed across FRB. Mirrors
+/// `nightshade_sequencer::node::logic::target_scheduler::SchedulerScoreSummary`
+/// but lives in the bridge crate so we don't have to expose the sequencer
+/// type to FRB. The Dart side consumes this directly in the run-dashboard
+/// scheduler panel.
+#[frb]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SchedulerScoreEntry {
+    pub target_id: String,
+    pub target_name: String,
+    /// Total score (0..=100) the scheduler computed.
+    pub total_score: f64,
+    /// True when the target was eligible to run (cleared
+    /// `min_score_to_run` and any altitude / window gates).
+    pub runnable: bool,
+    /// Human-readable reason, populated when `runnable == false`
+    /// (e.g. "below altitude limit", "before start window").
+    pub reason: Option<String>,
 }
 
 /// Safety-specific events
@@ -463,6 +817,13 @@ pub enum SystemEvent {
         title: String,
         message: String,
         level: String,
+        /// Wave 5.5 Pack M follow-up — per-NotificationNode override list of
+        /// NotificationTransportKind names (Dart enum, serialised as strings).
+        /// The Dart NotificationRouter consumes this field to bypass the
+        /// matrix's `custom` rule and dispatch to the user-picked transports
+        /// directly. `None` or empty = use matrix routing.
+        #[serde(default, skip_serializing_if = "Option::is_none")]
+        explicit_transports: Option<Vec<String>>,
     },
     /// Notification that events were dropped due to slow consumer
     /// This is sent after the stream recovers to inform the Dart side

@@ -85,11 +85,14 @@ class PushNotificationConfig {
       enabled: enabled ?? this.enabled,
       notifySequenceCompleted:
           notifySequenceCompleted ?? this.notifySequenceCompleted,
-      notifySequenceFailed: notifySequenceFailed ?? this.notifySequenceFailed,
+      notifySequenceFailed:
+          notifySequenceFailed ?? this.notifySequenceFailed,
       notifyMeridianFlip: notifyMeridianFlip ?? this.notifyMeridianFlip,
-      notifyWeatherUnsafe: notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
+      notifyWeatherUnsafe:
+          notifyWeatherUnsafe ?? this.notifyWeatherUnsafe,
       notifyGuidingLost: notifyGuidingLost ?? this.notifyGuidingLost,
-      notifyExposureFailed: notifyExposureFailed ?? this.notifyExposureFailed,
+      notifyExposureFailed:
+          notifyExposureFailed ?? this.notifyExposureFailed,
       notifyAutofocusFailed:
           notifyAutofocusFailed ?? this.notifyAutofocusFailed,
       notifyEquipmentDisconnected:
@@ -140,8 +143,11 @@ class PushNotificationService {
     _subscription = _eventStream.listen(
       _handleEvent,
       onError: (error) {
-        developer.log('[PushNotificationService] Event stream error: $error',
-            name: 'PushNotificationService', level: 1000, error: error);
+        developer.log(
+            '[PushNotificationService] Event stream error: $error',
+            name: 'PushNotificationService',
+            level: 1000,
+            error: error);
       },
     );
     developer.log('[PushNotificationService] Started listening for events',
@@ -156,11 +162,41 @@ class PushNotificationService {
         name: 'PushNotificationService', level: 800);
   }
 
+  /// Inject a push notification that did NOT originate from the backend
+  /// event stream. Used by the Run Dashboard critical-events bridge to
+  /// dispatch a high-priority push when the user has enabled
+  /// `pushCriticalAlerts` in settings.
+  ///
+  /// Why a separate path: [_handleEvent] only fires for events the service
+  /// recognises via [_eventToNotification]; many critical events flagged by
+  /// `bridge_event.isCriticalEvent` (e.g. equipment errors, FITS save
+  /// failures, etc.) don't match those handlers. The bridge knows the full
+  /// criticality classification and explicitly forwards them here. The
+  /// `enabled` gate still applies — if the user has disabled push entirely,
+  /// nothing is broadcast.
+  void enqueueCriticalNotification({
+    required String title,
+    required String body,
+    required String eventType,
+    required EventCategory category,
+  }) {
+    if (!_config.enabled) return;
+    _notificationController.add(PushNotification(
+      title: title,
+      body: body,
+      priority: PushNotificationPriority.critical,
+      eventType: eventType,
+      category: category,
+      timestamp: DateTime.now(),
+    ));
+  }
+
   /// Emit a test push notification
   void sendTestNotification() {
     _notificationController.add(PushNotification(
       title: 'Test Notification',
-      body: 'Push notifications are working! This is a test from Nightshade.',
+      body:
+          'Push notifications are working! This is a test from Nightshade.',
       priority: PushNotificationPriority.normal,
       eventType: 'Test',
       category: EventCategory.system,
@@ -196,10 +232,19 @@ class PushNotificationService {
       case EventCategory.equipment:
         return _handleEquipmentEvent(event);
       case EventCategory.system:
+        // P1-11 — OTA update lifecycle events. Only `UpdateAvailable`
+        // gets escalated to a phone push; the other variants (download
+        // progress, verification, apply) are operator-driven and the
+        // dashboard surfaces them in the Updates panel.
+        return _handleSystemEvent(event);
       case EventCategory.polarAlignment:
       case EventCategory.job:
       case EventCategory.session:
       case EventCategory.catalog:
+        // P1-2/P1-3/P1-5/P1-12 — job/session/catalog lifecycle events
+        // surface in the mobile UI directly; we don't escalate them to
+        // push notifications (operators get progress toasts inside the
+        // app).
         return null;
     }
   }
@@ -219,7 +264,8 @@ class PushNotificationService {
 
       case 'Error':
         if (!_config.notifySequenceFailed) return null;
-        final message = event.data['message'] as String? ?? 'Unknown error';
+        final message =
+            event.data['message'] as String? ?? 'Unknown error';
         return PushNotification(
           title: 'Sequence Error',
           body: 'Sequence encountered an error: $message',
@@ -276,8 +322,7 @@ class PushNotificationService {
         final instruction = event.data['instruction'] as String? ?? '';
         if (instruction.toLowerCase().contains('meridian') &&
             _config.notifyMeridianFlip) {
-          final detail =
-              event.data['detail'] as String? ?? 'Performing meridian flip';
+          final detail = event.data['detail'] as String? ?? 'Performing meridian flip';
           return PushNotification(
             title: 'Meridian Flip',
             body: detail,
@@ -321,7 +366,8 @@ class PushNotificationService {
         if (!_config.notifyGuidingLost) return null;
         return PushNotification(
           title: 'Guiding Lost',
-          body: 'Guide star has been lost. Guiding has stopped.',
+          body:
+              'Guide star has been lost. Guiding has stopped.',
           priority: PushNotificationPriority.critical,
           eventType: event.eventType,
           category: event.category,
@@ -332,7 +378,8 @@ class PushNotificationService {
         if (!_config.notifyGuidingLost) return null;
         return PushNotification(
           title: 'Guider Disconnected',
-          body: 'PHD2 guiding has disconnected.',
+          body:
+              'PHD2 guiding has disconnected.',
           priority: PushNotificationPriority.high,
           eventType: event.eventType,
           category: event.category,
@@ -360,12 +407,37 @@ class PushNotificationService {
     );
   }
 
+  /// P1-11 — system / OTA events. Only `UpdateAvailable` surfaces as a
+  /// phone push so a remote operator gets notified that a new build is
+  /// ready to install. Download / verification / apply events fan out
+  /// through the regular WS event stream and the dashboard's Updates
+  /// panel; they don't warrant a system-level notification.
+  PushNotification? _handleSystemEvent(NightshadeEvent event) {
+    if (event.eventType == 'UpdateAvailable') {
+      final latest = event.data['latestVersion'] as String? ?? 'a new version';
+      final current =
+          event.data['currentVersion'] as String? ?? 'the current build';
+      return PushNotification(
+        title: 'Nightshade $latest available',
+        body:
+            'Open Settings > Updates to install the new build (currently on $current).',
+        priority: PushNotificationPriority.normal,
+        eventType: event.eventType,
+        category: event.category,
+        timestamp: DateTime.now(),
+      );
+    }
+    return null;
+  }
+
   PushNotification? _handleEquipmentEvent(NightshadeEvent event) {
     switch (event.eventType) {
       case 'Disconnected':
         if (!_config.notifyEquipmentDisconnected) return null;
-        final deviceType = event.data['device_type'] as String? ?? 'Unknown';
-        final deviceId = event.data['device_id'] as String? ?? 'Unknown';
+        final deviceType =
+            event.data['device_type'] as String? ?? 'Unknown';
+        final deviceId =
+            event.data['device_id'] as String? ?? 'Unknown';
         return PushNotification(
           title: 'Device Disconnected',
           body: '$deviceType device disconnected: $deviceId',
@@ -377,8 +449,10 @@ class PushNotificationService {
 
       case 'Error':
         if (!_config.notifyEquipmentDisconnected) return null;
-        final message = event.data['message'] as String? ?? 'Unknown error';
-        final deviceType = event.data['device_type'] as String? ?? 'Unknown';
+        final message =
+            event.data['message'] as String? ?? 'Unknown error';
+        final deviceType =
+            event.data['device_type'] as String? ?? 'Unknown';
         return PushNotification(
           title: 'Equipment Error',
           body: '$deviceType error: $message',

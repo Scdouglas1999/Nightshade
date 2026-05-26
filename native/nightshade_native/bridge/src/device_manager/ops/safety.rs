@@ -42,7 +42,10 @@ impl DeviceManager {
                     let safety = IndiSafetyMonitor::new(client.clone(), &device_name);
                     return safety.is_safe().await;
                 }
-                Err(format!("INDI client not connected for server {}", server_key))
+                Err(format!(
+                    "INDI client not connected for server {}",
+                    server_key
+                ))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -64,9 +67,11 @@ impl DeviceManager {
                 }
                 Err("Native safety monitor not connected".to_string())
             }
-            Some(DriverType::Simulator) => {
-                Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string())
-            }
+            Some(DriverType::Simulator) => Err(
+                crate::device_manager::ops::sim_gate::unsupported_simulator_device(
+                    "safety monitor",
+                ),
+            ),
             None => Err(format!("Device not found: {}", device_id)),
         }
     }

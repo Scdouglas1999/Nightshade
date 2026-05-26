@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
 import '../components/nightshade_button.dart';
-import '../utils/responsive_utils.dart';
+import '../dialogs/nightshade_dialog.dart';
 
 /// Dialog shown when an update is available.
 class UpdateAvailableDialog extends StatelessWidget {
@@ -61,172 +63,13 @@ class UpdateAvailableDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
-    return AlertDialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.primary.withValues(alpha: 0.3)),
-      ),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              LucideIcons.download,
-              color: colors.primary,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Update Available',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      content: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 480,
-          minWidth: 320,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Version info
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: colors.background,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Current Version',
-                          style: TextStyle(
-                            color: colors.textMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          currentVersion,
-                          style: TextStyle(
-                            color: colors.textSecondary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    LucideIcons.arrowRight,
-                    color: colors.primary,
-                    size: 20,
-                  ),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: [
-                        Text(
-                          'New Version',
-                          style: TextStyle(
-                            color: colors.textMuted,
-                            fontSize: 12,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          newVersion,
-                          style: TextStyle(
-                            color: colors.primary,
-                            fontSize: 16,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Download size
-            Row(
-              children: [
-                Icon(
-                  LucideIcons.hardDrive,
-                  color: colors.textMuted,
-                  size: 16,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Download size: ~$downloadSizeMb MB',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 13,
-                  ),
-                ),
-              ],
-            ),
-
-            // Release notes
-            if (releaseNotes != null) ...[
-              const SizedBox(height: 16),
-              Text(
-                'What\'s New:',
-                style: TextStyle(
-                  color: colors.textPrimary,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Container(
-                constraints: const BoxConstraints(maxHeight: 150),
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.background,
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: colors.border),
-                ),
-                child: SingleChildScrollView(
-                  child: Text(
-                    releaseNotes!,
-                    style: TextStyle(
-                      color: colors.textSecondary,
-                      fontSize: 13,
-                      height: 1.5,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ),
+    return NightshadeDialog(
+      title: 'Update Available',
+      icon: LucideIcons.download,
+      width: 520,
+      showCloseButton: false,
       actions: [
         NightshadeButton(
           label: 'Skip This Version',
@@ -248,6 +91,121 @@ class UpdateAvailableDialog extends StatelessWidget {
           size: ButtonSize.medium,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Version info
+          Container(
+            padding: NightshadeTokens.paddingMd,
+            decoration: BoxDecoration(
+              color: colors.background,
+              borderRadius: NightshadeTokens.borderRadiusMd,
+              border: Border.all(color: colors.border),
+            ),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Current Version',
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceXs),
+                      Text(
+                        currentVersion,
+                        style: NightshadeTypography.bodyLg.copyWith(
+                          color: colors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Icon(
+                  LucideIcons.arrowRight,
+                  color: colors.primary,
+                  size: NightshadeTokens.iconSm,
+                ),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text(
+                        'New Version',
+                        style: NightshadeTypography.caption.copyWith(
+                          color: colors.textMuted,
+                        ),
+                      ),
+                      const SizedBox(height: NightshadeTokens.spaceXs),
+                      Text(
+                        newVersion,
+                        style: NightshadeTypography.bodyLg.copyWith(
+                          color: colors.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          // Download size
+          Row(
+            children: [
+              Icon(
+                LucideIcons.hardDrive,
+                color: colors.textMuted,
+                size: NightshadeTokens.iconSm,
+              ),
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              Text(
+                'Download size: ~$downloadSizeMb MB',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+
+          // Release notes
+          if (releaseNotes != null) ...[
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Text(
+              'What\'s New:',
+              style: NightshadeTypography.bodyMedium.copyWith(
+                color: colors.textPrimary,
+              ),
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            Container(
+              constraints: const BoxConstraints(maxHeight: 150),
+              padding: NightshadeTokens.paddingMd,
+              decoration: BoxDecoration(
+                color: colors.background,
+                borderRadius: NightshadeTokens.borderRadiusMd,
+                border: Border.all(color: colors.border),
+              ),
+              child: SingleChildScrollView(
+                child: Text(
+                  releaseNotes!,
+                  style: NightshadeTypography.bodySm.copyWith(
+                    color: colors.textSecondary,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -273,94 +231,14 @@ class UpdateDownloadDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final percent = (progress * 100).toStringAsFixed(0);
 
-    return AlertDialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.border),
-      ),
-      title: Row(
-        children: [
-          SizedBox(
-            width: 24,
-            height: 24,
-            child: CircularProgressIndicator(
-              strokeWidth: 2.5,
-              valueColor: AlwaysStoppedAnimation(colors.primary),
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Downloading Update',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      content: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 400,
-          minWidth: 300,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Version $version',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 14,
-              ),
-            ),
-            const SizedBox(height: 16),
-
-            // Progress bar
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: progress,
-                minHeight: 8,
-                backgroundColor: colors.border,
-                valueColor: AlwaysStoppedAnimation(colors.primary),
-              ),
-            ),
-
-            const SizedBox(height: 12),
-
-            // Progress details
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  status,
-                  style: TextStyle(
-                    color: colors.textMuted,
-                    fontSize: 13,
-                  ),
-                ),
-                Text(
-                  '$percent% ($downloadedMb / $totalMb MB)',
-                  style: TextStyle(
-                    color: colors.textSecondary,
-                    fontSize: 13,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
+    return NightshadeDialog(
+      title: 'Downloading Update',
+      icon: LucideIcons.downloadCloud,
+      width: 440,
+      showCloseButton: false,
       actions: [
         if (onCancel != null)
           NightshadeButton(
@@ -370,6 +248,52 @@ class UpdateDownloadDialog extends StatelessWidget {
             size: ButtonSize.medium,
           ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Version $version',
+            style: NightshadeTypography.body.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+
+          // Progress bar
+          ClipRRect(
+            borderRadius: NightshadeTokens.borderRadiusXs,
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: colors.border,
+              valueColor: AlwaysStoppedAnimation(colors.primary),
+            ),
+          ),
+
+          const SizedBox(height: NightshadeTokens.spaceMd),
+
+          // Progress details
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                status,
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textMuted,
+                ),
+              ),
+              Text(
+                '$percent% ($downloadedMb / $totalMb MB)',
+                style: NightshadeTypography.bodySm.copyWith(
+                  color: colors.textSecondary,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -416,102 +340,13 @@ class UpdateReadyDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
-    return AlertDialog(
-      backgroundColor: colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.success.withValues(alpha: 0.3)),
-      ),
-      title: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.success.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Icon(
-              LucideIcons.checkCircle,
-              color: colors.success,
-              size: 24,
-            ),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Update Ready',
-              style: TextStyle(
-                color: colors.textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-      content: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
-          context,
-          preferredWidth: 420,
-          minWidth: 320,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Version $version has been downloaded and is ready to install.',
-              style: TextStyle(
-                color: colors.textSecondary,
-                fontSize: 14,
-                height: 1.5,
-              ),
-            ),
-            if (isSessionActive) ...[
-              const SizedBox(height: 16),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                  border:
-                      Border.all(color: colors.warning.withValues(alpha: 0.3)),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      LucideIcons.alertTriangle,
-                      color: colors.warning,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'An imaging session is in progress. It\'s recommended to wait until the session completes before restarting.',
-                        style: TextStyle(
-                          color: colors.textSecondary,
-                          fontSize: 13,
-                          height: 1.4,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 16),
-            Text(
-              'Nightshade will restart to complete the installation.',
-              style: TextStyle(
-                color: colors.textMuted,
-                fontSize: 13,
-              ),
-            ),
-          ],
-        ),
-      ),
+    return NightshadeDialog(
+      title: 'Update Ready',
+      icon: LucideIcons.checkCircle,
+      width: 460,
+      showCloseButton: false,
       actions: [
         NightshadeButton(
           label: 'Restart Later',
@@ -528,6 +363,55 @@ class UpdateReadyDialog extends StatelessWidget {
           size: ButtonSize.medium,
         ),
       ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Version $version has been downloaded and is ready to install.',
+            style: NightshadeTypography.body.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          if (isSessionActive) ...[
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            Container(
+              padding: NightshadeTokens.paddingMd,
+              decoration: BoxDecoration(
+                color: colors.warning.withValues(alpha: 0.1),
+                borderRadius: NightshadeTokens.borderRadiusMd,
+                border:
+                    Border.all(color: colors.warning.withValues(alpha: 0.3)),
+              ),
+              child: Row(
+                children: [
+                  Icon(
+                    LucideIcons.alertTriangle,
+                    color: colors.warning,
+                    size: NightshadeTokens.iconSm,
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceMd),
+                  Expanded(
+                    child: Text(
+                      'An imaging session is in progress. It\'s recommended to wait until the session completes before restarting.',
+                      style: NightshadeTypography.bodySm.copyWith(
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Text(
+            'Nightshade will restart to complete the installation.',
+            style: NightshadeTypography.bodySm.copyWith(
+              color: colors.textMuted,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -549,41 +433,38 @@ class UpdateReceivedBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Material(
       color: Colors.transparent,
       child: Container(
-        margin: const EdgeInsets.all(16),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+        margin: NightshadeTokens.paddingLg,
+        padding: const EdgeInsets.symmetric(
+          horizontal: NightshadeTokens.spaceLg,
+          vertical: NightshadeTokens.spaceMd,
+        ),
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(8),
+          borderRadius: NightshadeTokens.borderRadiusMd,
           border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.2),
-              blurRadius: 12,
-              offset: const Offset(0, 4),
-            ),
-          ],
+          boxShadow: NightshadeTokens.shadowMd,
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(8),
+              padding: NightshadeTokens.paddingSm,
               decoration: BoxDecoration(
                 color: colors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusMd,
               ),
               child: Icon(
                 LucideIcons.download,
                 color: colors.primary,
-                size: 20,
+                size: NightshadeTokens.iconSm,
               ),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: NightshadeTokens.spaceMd),
             Flexible(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -591,30 +472,27 @@ class UpdateReceivedBanner extends StatelessWidget {
                 children: [
                   Text(
                     'Update Received',
-                    style: TextStyle(
+                    style: NightshadeTypography.bodyMedium.copyWith(
                       color: colors.textPrimary,
-                      fontSize: 14,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
                   Text(
                     'Version $version from $source',
-                    style: TextStyle(
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
-                      fontSize: 12,
                     ),
                   ),
                 ],
               ),
             ),
-            TextButton(
+            NightshadeButton(
+              label: 'Later',
               onPressed: onDismiss,
-              child: Text(
-                'Later',
-                style: TextStyle(color: colors.textMuted),
-              ),
+              variant: ButtonVariant.ghost,
+              size: ButtonSize.small,
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             NightshadeButton(
               label: 'Restart',
               icon: LucideIcons.refreshCw,

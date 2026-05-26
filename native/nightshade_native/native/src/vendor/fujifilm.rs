@@ -1956,6 +1956,16 @@ impl NativeCamera for FujifilmCamera {
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError> {
         Err(NativeError::NotSupported) // Fujifilm cameras don't support offset
     }
+
+    async fn capture_preview(&self) -> Result<Vec<u8>, NativeError> {
+        if !self.is_live_view_active() {
+            return Err(NativeError::SdkError(
+                "Fujifilm live view is not active — start live view on the camera first"
+                    .to_string(),
+            ));
+        }
+        self.read_live_view_frame().await
+    }
 }
 
 // =============================================================================

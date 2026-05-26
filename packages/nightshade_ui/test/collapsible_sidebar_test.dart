@@ -25,9 +25,9 @@ class _HostState extends State<_Host> {
         body: Row(children: [
           CollapsibleSidebar(
             isCollapsed: _collapsed,
-            collapsedWidth: 56,
+            collapsedWidth: NightshadeTokens.sidebarCollapsed,
             expandedWidth: 280,
-            minExpandedWidth: 220,
+            minExpandedWidth: NightshadeTokens.sidebarExpanded,
             maxExpandedWidth: 400,
             onCollapsedChange: widget.onCollapsedChange,
             collapsedChild: const Center(
@@ -67,7 +67,7 @@ void main() {
     // Width starts at the collapsed width.
     final widgetFinder = find.byType(CollapsibleSidebar);
     var size = tester.getSize(widgetFinder);
-    expect(size.width, closeTo(56, 0.5));
+    expect(size.width, closeTo(NightshadeTokens.sidebarCollapsed, 0.5));
 
     // Trigger expand.
     key.currentState!.setCollapsed(false);
@@ -75,7 +75,7 @@ void main() {
     // Mid-animation: width should be growing past collapsed.
     await tester.pump(const Duration(milliseconds: 100));
     size = tester.getSize(widgetFinder);
-    expect(size.width, greaterThan(56));
+    expect(size.width, greaterThan(NightshadeTokens.sidebarCollapsed));
 
     await tester.pumpAndSettle();
     size = tester.getSize(widgetFinder);

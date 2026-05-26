@@ -3,19 +3,120 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+
 import 'package:flutter/services.dart';
+
 import 'package:lucide_icons/lucide_icons.dart';
+
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+/// Whether a [SettingRow] trailing control should use flexible width.
+bool settingsTrailingIsNarrow(
+  BuildContext context, {
+  bool isMobile = false,
+  BoxConstraints? constraints,
+  double fixedWidth = 260,
+}) {
+  if (isMobile || Responsive.isMobile(context)) return true;
+  if (constraints != null &&
+      constraints.hasBoundedWidth &&
+      constraints.maxWidth < fixedWidth + 48) {
+    return true;
+  }
+  return false;
+}
+
+/// Layout parameters for trailing settings inputs on [SettingRow].
+({bool flexible, double? width}) settingsTrailingLayout(
+  BuildContext context, {
+  double designWidth = 260,
+  bool isMobile = false,
+  BoxConstraints? constraints,
+}) {
+  final narrow = settingsTrailingIsNarrow(
+    context,
+    isMobile: isMobile,
+    constraints: constraints,
+    fixedWidth: designWidth,
+  );
+  return (flexible: narrow, width: narrow ? null : designWidth);
+}
+
+/// [SettingsTextInput] that shrinks on narrow setting rows / mobile viewports.
+Widget settingsTrailingTextInput({
+  required BuildContext context,
+  required TextEditingController controller,
+  ValueChanged<String>? onChanged,
+  String? hint,
+  double designWidth = 260,
+  bool isMobile = false,
+  bool obscure = false,
+}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final layout = settingsTrailingLayout(
+        context,
+        designWidth: designWidth,
+        isMobile: isMobile,
+        constraints: constraints,
+      );
+      return SettingsTextInput(
+        controller: controller,
+        hint: hint,
+        width: layout.width,
+        flexible: layout.flexible,
+        obscure: obscure,
+        isMobile: isMobile,
+        onChanged: onChanged,
+      );
+    },
+  );
+}
+
+/// [SettingsDropdown] that shrinks on narrow setting rows / mobile viewports.
+Widget settingsTrailingDropdown({
+  required BuildContext context,
+  required String value,
+  required List<String> items,
+  required ValueChanged<String?> onChanged,
+  double designWidth = 200,
+  bool isMobile = false,
+  List<String>? itemLabels,
+}) {
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final layout = settingsTrailingLayout(
+        context,
+        designWidth: designWidth,
+        isMobile: isMobile,
+        constraints: constraints,
+      );
+      return SettingsDropdown(
+        value: value,
+        items: items,
+        itemLabels: itemLabels,
+        onChanged: onChanged,
+        width: layout.width,
+        flexible: layout.flexible,
+        isMobile: isMobile,
+      );
+    },
+  );
+}
+
 /// A full-page settings layout with title, description, and children.
+
 class SettingsPage extends StatelessWidget {
   final String title;
+
   final String description;
+
   final List<Widget> children;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   /// If true, don't show title/description (used when mobile header already shows title)
+
   final bool hideHeader;
 
   const SettingsPage({
@@ -23,15 +124,17 @@ class SettingsPage extends StatelessWidget {
     required this.title,
     required this.description,
     required this.children,
-    required this.colors,
     this.isMobile = false,
     this.hideHeader = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final padding =
-        isMobile ? const EdgeInsets.all(16) : const EdgeInsets.all(32);
+    final colors = NightshadeColors.of(context);
+
+    final padding = isMobile
+        ? NightshadeTokens.paddingLg
+        : const EdgeInsets.all(NightshadeTokens.space3xl);
 
     return SingleChildScrollView(
       padding: padding,
@@ -41,21 +144,25 @@ class SettingsPage extends StatelessWidget {
           if (!hideHeader) ...[
             Text(
               title,
-              style: TextStyle(
-                fontSize: isMobile ? 20 : 24,
+              style:
+                  (isMobile ? NightshadeTypography.h3 : NightshadeTypography.h2)
+                      .copyWith(
                 fontWeight: FontWeight.w700,
                 color: colors.textPrimary,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: NightshadeTokens.spaceXs),
             Text(
               description,
-              style: TextStyle(
-                fontSize: isMobile ? 12 : 13,
-                color: colors.textSecondary,
-              ),
+              style: (isMobile
+                      ? NightshadeTypography.caption
+                      : NightshadeTypography.bodySm)
+                  .copyWith(color: colors.textSecondary),
             ),
-            SizedBox(height: isMobile ? 20 : 32),
+            SizedBox(
+                height: isMobile
+                    ? NightshadeTokens.spaceXl
+                    : NightshadeTokens.space3xl),
           ],
           ...children,
         ],
@@ -65,21 +172,23 @@ class SettingsPage extends StatelessWidget {
 }
 
 class SettingsLoadingState extends StatelessWidget {
-  final NightshadeColors colors;
   final bool isMobile;
+
   final String message;
 
   const SettingsLoadingState({
     super.key,
-    required this.colors,
     this.isMobile = false,
     this.message = 'Loading settings...',
   });
 
   @override
   Widget build(BuildContext context) {
-    final padding =
-        isMobile ? const EdgeInsets.all(16) : const EdgeInsets.all(32);
+    final colors = NightshadeColors.of(context);
+
+    final padding = isMobile
+        ? NightshadeTokens.paddingLg
+        : const EdgeInsets.all(NightshadeTokens.space3xl);
 
     return SingleChildScrollView(
       padding: padding,
@@ -92,49 +201,54 @@ class SettingsLoadingState extends StatelessWidget {
               height: isMobile ? 24 : 28,
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusMd,
               ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: NightshadeTokens.spaceSm),
             Container(
               width: 320,
               height: 14,
               decoration: BoxDecoration(
                 color: colors.surface,
-                borderRadius: BorderRadius.circular(6),
+                borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               ),
             ),
-            SizedBox(height: isMobile ? 20 : 32),
+            SizedBox(
+                height: isMobile
+                    ? NightshadeTokens.spaceXl
+                    : NightshadeTokens.space3xl),
             for (var i = 0; i < 2; i++) ...[
               Container(
                 width: 140,
                 height: 18,
                 decoration: BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(6),
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusSm),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: NightshadeTokens.spaceMd),
               Container(
                 width: double.infinity,
                 height: isMobile ? 164 : 188,
                 decoration: BoxDecoration(
                   color: colors.surface,
-                  borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+                  borderRadius: BorderRadius.circular(
+                      isMobile ? 10 : NightshadeTokens.radiusLg),
                   border: Border.all(color: colors.border),
                 ),
               ),
-              SizedBox(height: isMobile ? 20 : 28),
+              SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
             ],
             Center(
               child: Padding(
-                padding: const EdgeInsets.only(top: 8),
+                padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
                 child: Text(
                   message,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 13,
-                    color: colors.textMuted,
-                  ),
+                  style: (isMobile
+                          ? NightshadeTypography.caption
+                          : NightshadeTypography.bodySm)
+                      .copyWith(color: colors.textMuted),
                 ),
               ),
             ),
@@ -146,14 +260,14 @@ class SettingsLoadingState extends StatelessWidget {
 }
 
 class SettingsErrorState extends StatelessWidget {
-  final NightshadeColors colors;
   final bool isMobile;
+
   final Object error;
+
   final VoidCallback? onRetry;
 
   const SettingsErrorState({
     super.key,
-    required this.colors,
     required this.error,
     this.isMobile = false,
     this.onRetry,
@@ -161,18 +275,25 @@ class SettingsErrorState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPadding = isMobile ? 16.0 : 24.0;
+    final colors = NightshadeColors.of(context);
+
+    final horizontalPadding =
+        isMobile ? NightshadeTokens.spaceLg : NightshadeTokens.space2xl;
 
     return Center(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520),
+        constraints: BoxConstraints(
+          maxWidth: dialogMaxWidth(context, 520),
+        ),
         child: Padding(
           padding: EdgeInsets.all(horizontalPadding),
           child: Container(
-            padding: EdgeInsets.all(isMobile ? 20 : 24),
+            padding: EdgeInsets.all(isMobile
+                ? NightshadeTokens.spaceXl
+                : NightshadeTokens.space2xl),
             decoration: BoxDecoration(
               color: colors.surface,
-              borderRadius: BorderRadius.circular(8),
+              borderRadius: NightshadeTokens.borderRadiusMd,
               border: Border.all(color: colors.border),
             ),
             child: Column(
@@ -181,36 +302,36 @@ class SettingsErrorState extends StatelessWidget {
                 Container(
                   width: 56,
                   height: 56,
-                  decoration: BoxDecoration(
-                    color: colors.error.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(8),
+                  decoration: NightshadeDecorations.iconChip(
+                    colors.error,
+                    borderRadius: NightshadeTokens.borderRadiusMd,
                   ),
                   child: Icon(
                     LucideIcons.alertTriangle,
                     color: colors.error,
                   ),
                 ),
-                const SizedBox(height: 16),
+                const SizedBox(height: NightshadeTokens.spaceLg),
                 Text(
                   'Failed to load settings',
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: isMobile ? 16 : 18,
-                    fontWeight: FontWeight.w700,
-                    color: colors.textPrimary,
-                  ),
+                  style: NightshadeTypography.bold(
+                    isMobile
+                        ? NightshadeTypography.bodyLg
+                        : NightshadeTypography.bodyLg.copyWith(fontSize: 18),
+                  ).copyWith(color: colors.textPrimary),
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: NightshadeTokens.spaceSm),
                 Text(
                   error.toString(),
                   textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: isMobile ? 12 : 13,
-                    color: colors.textSecondary,
-                  ),
+                  style: (isMobile
+                          ? NightshadeTypography.caption
+                          : NightshadeTypography.bodySm)
+                      .copyWith(color: colors.textSecondary),
                 ),
                 if (onRetry != null) ...[
-                  const SizedBox(height: 16),
+                  const SizedBox(height: NightshadeTokens.spaceLg),
                   NightshadeButton(
                     label: 'Retry',
                     icon: LucideIcons.refreshCw,
@@ -228,62 +349,73 @@ class SettingsErrorState extends StatelessWidget {
 }
 
 /// A section container with a title and grouped settings rows.
+
 class SettingsSection extends StatelessWidget {
   final String title;
+
   final List<Widget> children;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   const SettingsSection({
     super.key,
     required this.title,
     required this.children,
-    required this.colors,
     this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
           title,
-          style: TextStyle(
-            fontSize: isMobile ? 13 : 14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          style:
+              (isMobile ? NightshadeTypography.label : NightshadeTypography.h5)
+                  .copyWith(color: colors.textPrimary),
         ),
-        SizedBox(height: isMobile ? 12 : 16),
+        SizedBox(
+            height:
+                isMobile ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg),
         Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
+            borderRadius: BorderRadius.circular(
+                isMobile ? 10 : NightshadeTokens.radiusLg),
             border: Border.all(color: colors.border),
           ),
           child: Column(
             children: children,
           ),
         ),
-        SizedBox(height: isMobile ? 20 : 28),
+        SizedBox(height: isMobile ? NightshadeTokens.spaceXl : 28),
       ],
     );
   }
 }
 
 /// A single row in a settings section with an icon, title, optional subtitle, and trailing widget.
+
 class SettingRow extends StatelessWidget {
   final IconData icon;
+
   final Color? iconColor;
+
   final String title;
+
   final String? subtitle;
+
   final Widget trailing;
+
   final bool isLast;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   /// If true, stack the trailing widget below the title on mobile
+
   final bool stackOnMobile;
 
   const SettingRow({
@@ -294,18 +426,23 @@ class SettingRow extends StatelessWidget {
     this.subtitle,
     required this.trailing,
     this.isLast = false,
-    required this.colors,
     this.isMobile = false,
     this.stackOnMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     final shouldStack = isMobile && stackOnMobile;
-    final horizontalPadding = isMobile ? 12.0 : 16.0;
+
+    final horizontalPadding = isMobile ? 12.0 : NightshadeTokens.spaceLg;
+
     final verticalPadding = isMobile ? 12.0 : 14.0;
+
     final iconSize = isMobile ? 32.0 : 36.0;
-    final iconInnerSize = isMobile ? 14.0 : 16.0;
+
+    final iconInnerSize = isMobile ? 14.0 : NightshadeTokens.iconSm;
 
     return Container(
       padding: EdgeInsets.symmetric(
@@ -318,12 +455,13 @@ class SettingRow extends StatelessWidget {
               ),
       ),
       child: shouldStack
-          ? _buildStackedLayout(iconSize, iconInnerSize)
-          : _buildRowLayout(iconSize, iconInnerSize),
+          ? _buildStackedLayout(colors, iconSize, iconInnerSize)
+          : _buildRowLayout(colors, iconSize, iconInnerSize),
     );
   }
 
-  Widget _buildRowLayout(double iconSize, double iconInnerSize) {
+  Widget _buildRowLayout(
+      NightshadeColors colors, double iconSize, double iconInnerSize) {
     return Row(
       children: [
         Container(
@@ -331,7 +469,7 @@ class SettingRow extends StatelessWidget {
           height: iconSize,
           decoration: BoxDecoration(
             color: colors.surfaceAlt,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: NightshadeTokens.borderRadiusMd,
           ),
           child: Icon(icon,
               size: iconInnerSize, color: iconColor ?? colors.textSecondary),
@@ -343,17 +481,16 @@ class SettingRow extends StatelessWidget {
             children: [
               Text(
                 title,
-                style: TextStyle(
-                  fontSize: isMobile ? 12 : 13,
-                  fontWeight: FontWeight.w500,
-                  color: colors.textPrimary,
-                ),
+                style: (isMobile
+                        ? NightshadeTypography.labelSm
+                        : NightshadeTypography.label)
+                    .copyWith(color: colors.textPrimary),
               ),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(
                   subtitle!,
-                  style: TextStyle(
+                  style: NightshadeTypography.captionSm.copyWith(
                     fontSize: isMobile ? 10 : 11,
                     color: colors.textMuted,
                   ),
@@ -367,7 +504,8 @@ class SettingRow extends StatelessWidget {
     );
   }
 
-  Widget _buildStackedLayout(double iconSize, double iconInnerSize) {
+  Widget _buildStackedLayout(
+      NightshadeColors colors, double iconSize, double iconInnerSize) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -378,7 +516,7 @@ class SettingRow extends StatelessWidget {
               height: iconSize,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
+                borderRadius: NightshadeTokens.borderRadiusMd,
               ),
               child: Icon(icon,
                   size: iconInnerSize,
@@ -391,20 +529,15 @@ class SettingRow extends StatelessWidget {
                 children: [
                   Text(
                     title,
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.textPrimary,
-                    ),
+                    style: NightshadeTypography.labelSm
+                        .copyWith(color: colors.textPrimary),
                   ),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(
                       subtitle!,
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colors.textMuted,
-                      ),
+                      style: NightshadeTypography.captionSm
+                          .copyWith(fontSize: 10, color: colors.textMuted),
                     ),
                   ],
                 ],
@@ -422,23 +555,33 @@ class SettingRow extends StatelessWidget {
   }
 }
 
-/// Custom toggle switch for settings.
+/// Debounced toggle for settings rows backed by [SettingRow].
+
 ///
-/// Debounces the write callback by 300ms so rapid toggles don't hammer the
-/// database. If the user toggles back and forth quickly, only the final
-/// value is written. The visual state is driven by the [value] prop from
-/// the parent, which updates when the provider's state changes after the
-/// debounced callback fires.
+
+/// Use inside [SettingRow.trailing] when the row already supplies icon, title,
+
+/// and subtitle. Wraps [NightshadeSwitch] with a 300 ms debounce so rapid
+
+/// toggles coalesce to the final value before persisting.
+
+///
+
+/// For a self-contained label + switch row (no icon column), use
+
+/// [NightshadeSwitchRow] instead. For a bare toggle with no label (toolbar,
+
+/// table cell), use [NightshadeSwitch] directly.
+
 class SettingsSwitch extends StatefulWidget {
   final bool value;
+
   final ValueChanged<bool> onChanged;
-  final NightshadeColors colors;
 
   const SettingsSwitch({
     super.key,
     required this.value,
     required this.onChanged,
-    required this.colors,
   });
 
   @override
@@ -451,20 +594,29 @@ class _SettingsSwitchState extends State<SettingsSwitch> {
   @override
   void dispose() {
     // If there's a pending write, fire it now so the last toggle isn't lost
+
     if (_debounceTimer?.isActive ?? false) {
       _debounceTimer!.cancel();
+
       // The pending value is the opposite of the current widget value,
+
       // since the timer was set to flip it
+
       widget.onChanged(!widget.value);
     }
+
     super.dispose();
   }
 
   void _onTap() {
     final newValue = !widget.value;
+
     // Cancel any previous pending write
+
     _debounceTimer?.cancel();
+
     // Delay the DB write by 300ms; rapid toggles coalesce to the final value
+
     _debounceTimer = Timer(const Duration(milliseconds: 300), () {
       widget.onChanged(newValue);
     });
@@ -472,54 +624,49 @@ class _SettingsSwitchState extends State<SettingsSwitch> {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: _onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 24,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color:
-              widget.value ? widget.colors.primary : widget.colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: widget.value ? widget.colors.primary : widget.colors.border,
-          ),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 200),
-          alignment:
-              widget.value ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: widget.colors.background,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ),
+    return NightshadeSwitch(
+      value: widget.value,
+      onChanged: (_) => _onTap(),
     );
   }
 }
 
 /// Dropdown selector for settings.
+
+///
+
+/// Compact trailing control sized for [SettingRow]. Styling mirrors
+
+/// [NightshadeDropdown] / theme [InputDecorationTheme] but uses fixed widths
+
+/// for settings layout — migrate to [NightshadeDropdown] when row sizing allows.
+
+/// Dropdown selector for settings rows.
+///
+/// Compact trailing control for [SettingRow]. Styling mirrors
+/// [NightshadeDropdown] (surfaceAlt fill, border, chevron) with fixed widths
+/// and optional [itemLabels] for value/label pairs.
 class SettingsDropdown extends StatelessWidget {
   final String value;
+
   final List<String> items;
+
   final ValueChanged<String?> onChanged;
-  final NightshadeColors colors;
+
   final double? width;
+
   final bool isMobile;
 
   /// If true, use flexible width (useful for stacked mobile layouts)
+
   final bool flexible;
 
   /// Optional display labels for items. When provided, must have same length
+
   /// as [items]. The dropdown shows these labels but emits the corresponding
+
   /// value from [items].
+
   final List<String>? itemLabels;
 
   const SettingsDropdown({
@@ -527,7 +674,6 @@ class SettingsDropdown extends StatelessWidget {
     required this.value,
     required this.items,
     required this.onChanged,
-    required this.colors,
     this.width,
     this.isMobile = false,
     this.flexible = false,
@@ -536,46 +682,17 @@ class SettingsDropdown extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWidth = width ?? (isMobile ? 120.0 : 140.0);
+    final designWidth = width ?? (isMobile ? 120.0 : 140.0);
+    final effectiveWidth = dialogMaxWidth(context, designWidth);
+    final effectiveValue = items.contains(value) ? value : items.first;
 
-    Widget dropdown = Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 0),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: items.contains(value) ? value : items.first,
-          isExpanded: true,
-          isDense: true,
-          icon: Icon(
-            LucideIcons.chevronDown,
-            size: 14,
-            color: colors.textMuted,
-          ),
-          dropdownColor: colors.surface,
-          style: TextStyle(
-            fontSize: isMobile ? 11 : 12,
-            color: colors.textPrimary,
-          ),
-          items: List.generate(items.length, (i) {
-            final item = items[i];
-            final label = (itemLabels != null && i < itemLabels!.length)
-                ? itemLabels![i]
-                : item;
-            return DropdownMenuItem<String>(
-              value: item,
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-              ),
-            );
-          }),
-          onChanged: onChanged,
-        ),
-      ),
+    Widget dropdown = NightshadeDropdown(
+      value: effectiveValue,
+      items: items,
+      itemLabels: itemLabels,
+      onChanged: onChanged,
+      isExpanded: true,
+      isDense: true,
     );
 
     if (flexible) {
@@ -590,16 +707,28 @@ class SettingsDropdown extends StatelessWidget {
 }
 
 /// Text input field for settings.
+
+///
+
+/// Compact trailing control for [SettingRow]. Styling mirrors
+
+/// [NightshadeTextField] / theme [InputDecorationTheme] with fixed widths.
+
 class SettingsTextInput extends StatefulWidget {
   final TextEditingController controller;
+
   final String? hint;
+
   final double? width;
+
   final bool obscure;
-  final ValueChanged<String> onChanged;
-  final NightshadeColors colors;
+
+  final ValueChanged<String>? onChanged;
+
   final bool isMobile;
 
   /// If true, use flexible width (useful for stacked mobile layouts)
+
   final bool flexible;
 
   const SettingsTextInput({
@@ -608,8 +737,7 @@ class SettingsTextInput extends StatefulWidget {
     this.hint,
     this.width,
     this.obscure = false,
-    required this.onChanged,
-    required this.colors,
+    this.onChanged,
     this.isMobile = false,
     this.flexible = false,
   });
@@ -623,55 +751,27 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWidth = widget.width ?? (widget.isMobile ? 140.0 : 160.0);
+    final designWidth = widget.width ?? (widget.isMobile ? 140.0 : 160.0);
+    final effectiveWidth = dialogMaxWidth(context, designWidth);
 
-    Widget input = Container(
-      height: widget.isMobile ? 36 : 32,
-      decoration: BoxDecoration(
-        color: widget.colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: widget.colors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: widget.controller,
-              obscureText: widget.obscure && _obscured,
-              style: TextStyle(
-                fontSize: widget.isMobile ? 13 : 12,
-                color: widget.colors.textPrimary,
-              ),
-              decoration: InputDecoration(
-                hintText: widget.hint,
-                hintStyle: TextStyle(
-                  fontSize: widget.isMobile ? 13 : 12,
-                  color: widget.colors.textMuted,
-                ),
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: widget.isMobile ? 10 : 8,
-                ),
-                isDense: true,
-              ),
-              onChanged: widget.onChanged,
-            ),
-          ),
-          if (widget.obscure)
-            GestureDetector(
+    Widget input = NightshadeTextField(
+      controller: widget.controller,
+      hint: widget.hint,
+      onChanged: widget.onChanged,
+      obscureText: widget.obscure && _obscured,
+      suffixWidget: widget.obscure
+          ? GestureDetector(
               onTap: () => setState(() => _obscured = !_obscured),
               child: Padding(
-                padding: const EdgeInsets.only(right: 8),
+                padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
                 child: Icon(
                   _obscured ? LucideIcons.eyeOff : LucideIcons.eye,
-                  size: 14,
-                  color: widget.colors.textMuted,
+                  size: NightshadeTokens.iconXs,
+                  color: context.nightshadeColors.textMuted,
                 ),
               ),
-            ),
-        ],
-      ),
+            )
+          : null,
     );
 
     if (widget.flexible) {
@@ -686,15 +786,22 @@ class _SettingsTextInputState extends State<SettingsTextInput> {
 }
 
 /// Number input field for settings.
+
 class SettingsNumberInput extends StatelessWidget {
   final TextEditingController controller;
+
   final String suffix;
+
   final double min;
+
   final double max;
+
   final int decimals;
+
   final ValueChanged<double> onChanged;
-  final NightshadeColors colors;
+
   final double? width;
+
   final bool isMobile;
 
   const SettingsNumberInput({
@@ -705,104 +812,84 @@ class SettingsNumberInput extends StatelessWidget {
     required this.max,
     required this.decimals,
     required this.onChanged,
-    required this.colors,
     this.width,
     this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final effectiveWidth = width ?? (isMobile ? 100.0 : 120.0);
+    final designWidth = width ?? (isMobile ? 100.0 : 120.0);
+    final effectiveWidth = dialogMaxWidth(context, designWidth);
 
-    return Container(
+    return SizedBox(
       width: effectiveWidth,
-      height: isMobile ? 36 : 32,
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.border),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: TextField(
-              controller: controller,
-              keyboardType:
-                  TextInputType.numberWithOptions(decimal: decimals > 0),
-              inputFormatters: [
-                FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
-              ],
-              style: TextStyle(
-                fontSize: isMobile ? 13 : 12,
-                color: colors.textPrimary,
-              ),
-              textAlign: TextAlign.right,
-              decoration: InputDecoration(
-                border: InputBorder.none,
-                contentPadding: EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: isMobile ? 10 : 8,
-                ),
-                isDense: true,
-                suffixText: suffix,
-                suffixStyle: TextStyle(
-                  fontSize: isMobile ? 11 : 11,
-                  color: colors.textMuted,
-                ),
-              ),
-              onChanged: (value) {
-                final parsed = double.tryParse(value);
-                if (parsed != null) {
-                  final clamped = parsed.clamp(min, max);
-                  onChanged(clamped);
-                }
-              },
-            ),
-          ),
+      child: NightshadeTextField(
+        controller: controller,
+        keyboardType: TextInputType.numberWithOptions(decimal: decimals > 0),
+        inputFormatters: [
+          FilteringTextInputFormatter.allow(RegExp(r'[0-9.\-]')),
         ],
+        textAlign: TextAlign.right,
+        suffix: suffix,
+        onChanged: (value) {
+          final parsed = double.tryParse(value);
+
+          if (parsed != null) {
+            final clamped = parsed.clamp(min, max);
+
+            onChanged(clamped);
+          }
+        },
       ),
     );
   }
 }
 
 /// Color picker for accent color selection.
+
 class SettingsColorPicker extends StatelessWidget {
   final String selectedColor;
+
   final ValueChanged<String> onColorSelected;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   const SettingsColorPicker({
     super.key,
     required this.selectedColor,
     required this.onColorSelected,
-    required this.colors,
     this.isMobile = false,
   });
 
   static const accentColors = [
-    ('#6366F1', 'Indigo'),
+    ('#5B9EC4', 'Cyan-blue'),
     ('#10B981', 'Emerald'),
     ('#F59E0B', 'Amber'),
     ('#EF4444', 'Red'),
-    ('#8B5CF6', 'Violet'),
+    ('#2878A8', 'Deep sky'),
     ('#EC4899', 'Pink'),
     ('#06B6D4', 'Cyan'),
   ];
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     final circleSize = isMobile ? 28.0 : 24.0;
-    final spacing = isMobile ? 8.0 : 6.0;
+
+    final spacing =
+        isMobile ? NightshadeTokens.spaceSm : NightshadeTokens.radiusSm;
 
     // Use Wrap for mobile to allow colors to wrap to next line if needed
+
     if (isMobile) {
       return Wrap(
         spacing: spacing,
         runSpacing: spacing,
         children: accentColors.map((colorData) {
           final (hex, _) = colorData;
-          return _buildColorCircle(hex, circleSize);
+
+          return _buildColorCircle(colors, hex, circleSize);
         }).toList(),
       );
     }
@@ -811,16 +898,18 @@ class SettingsColorPicker extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: accentColors.map((colorData) {
         final (hex, _) = colorData;
+
         return Padding(
           padding: EdgeInsets.only(left: spacing),
-          child: _buildColorCircle(hex, circleSize),
+          child: _buildColorCircle(colors, hex, circleSize),
         );
       }).toList(),
     );
   }
 
-  Widget _buildColorCircle(String hex, double size) {
+  Widget _buildColorCircle(NightshadeColors colors, String hex, double size) {
     final color = Color(int.parse(hex.substring(1), radix: 16) + 0xFF000000);
+
     final isSelected = selectedColor.toLowerCase() == hex.toLowerCase();
 
     return GestureDetector(
@@ -831,17 +920,10 @@ class SettingsColorPicker extends StatelessWidget {
         decoration: BoxDecoration(
           color: color,
           shape: BoxShape.circle,
-          border: isSelected
-              ? Border.all(color: colors.background, width: 2)
-              : null,
-          boxShadow: isSelected
-              ? [
-                  BoxShadow(
-                    color: color.withValues(alpha: 0.5),
-                    blurRadius: 8,
-                  ),
-                ]
-              : null,
+          border: Border.all(
+            color: isSelected ? colors.textPrimary : colors.border,
+            width: isSelected ? 2 : 1,
+          ),
         ),
       ),
     );
@@ -849,40 +931,47 @@ class SettingsColorPicker extends StatelessWidget {
 }
 
 /// Path input with browse button for file/directory selection.
+
 class SettingsPathInput extends StatelessWidget {
   final String path;
+
   final VoidCallback onBrowse;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   /// If true, use flexible width (useful for stacked mobile layouts)
+
   final bool flexible;
 
   const SettingsPathInput({
     super.key,
     required this.path,
     required this.onBrowse,
-    required this.colors,
     this.isMobile = false,
     this.flexible = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     Widget pathContainer = Container(
       padding: EdgeInsets.symmetric(
         horizontal: 10,
-        vertical: isMobile ? 8 : 6,
+        vertical:
+            isMobile ? NightshadeTokens.spaceSm : NightshadeTokens.radiusSm,
       ),
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
-        borderRadius: BorderRadius.circular(6),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
         border: Border.all(color: colors.border),
       ),
       child: Text(
         path.isEmpty ? 'Not set' : path,
-        style: TextStyle(
-          fontSize: isMobile ? 12 : 11,
+        style: (isMobile
+                ? NightshadeTypography.caption
+                : NightshadeTypography.captionSm)
+            .copyWith(
           color: path.isEmpty ? colors.textMuted : colors.textPrimary,
         ),
         overflow: TextOverflow.ellipsis,
@@ -900,19 +989,22 @@ class SettingsPathInput extends StatelessWidget {
       mainAxisSize: flexible ? MainAxisSize.max : MainAxisSize.min,
       children: [
         if (flexible) Expanded(child: pathContainer) else pathContainer,
-        const SizedBox(width: 8),
+        const SizedBox(width: NightshadeTokens.spaceSm),
         GestureDetector(
           onTap: onBrowse,
           child: Container(
-            padding: EdgeInsets.all(isMobile ? 8 : 6),
+            padding: EdgeInsets.all(isMobile
+                ? NightshadeTokens.spaceSm
+                : NightshadeTokens.radiusSm),
             decoration: BoxDecoration(
               color: colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(6),
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
               border: Border.all(color: colors.border),
             ),
             child: Icon(
               LucideIcons.folderOpen,
-              size: isMobile ? 16 : 14,
+              size:
+                  isMobile ? NightshadeTokens.iconSm : NightshadeTokens.iconXs,
               color: colors.textSecondary,
             ),
           ),
@@ -923,11 +1015,14 @@ class SettingsPathInput extends StatelessWidget {
 }
 
 /// A clickable link-style button with an icon and label.
+
 class SettingsLinkButton extends StatefulWidget {
   final IconData icon;
+
   final String label;
+
   final VoidCallback onTap;
-  final NightshadeColors colors;
+
   final bool compact;
 
   const SettingsLinkButton({
@@ -935,7 +1030,6 @@ class SettingsLinkButton extends StatefulWidget {
     required this.icon,
     required this.label,
     required this.onTap,
-    required this.colors,
     this.compact = false,
   });
 
@@ -948,10 +1042,19 @@ class _SettingsLinkButtonState extends State<SettingsLinkButton> {
 
   @override
   Widget build(BuildContext context) {
-    final horizontalPad = widget.compact ? 12.0 : 16.0;
-    final verticalPad = widget.compact ? 8.0 : 10.0;
-    final iconSize = widget.compact ? 14.0 : 16.0;
-    final fontSize = widget.compact ? 11.0 : 12.0;
+    final colors = NightshadeColors.of(context);
+
+    final horizontalPad =
+        widget.compact ? NightshadeTokens.spaceMd : NightshadeTokens.spaceLg;
+
+    final verticalPad = widget.compact ? NightshadeTokens.spaceSm : 10.0;
+
+    final iconSize =
+        widget.compact ? NightshadeTokens.iconXs : NightshadeTokens.iconSm;
+
+    final labelStyle = widget.compact
+        ? NightshadeTypography.captionSm
+        : NightshadeTypography.caption;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -959,15 +1062,13 @@ class _SettingsLinkButtonState extends State<SettingsLinkButton> {
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
+          duration: NightshadeTokens.durationQuick,
           padding: EdgeInsets.symmetric(
               horizontal: horizontalPad, vertical: verticalPad),
           decoration: BoxDecoration(
-            color: _isHovered
-                ? widget.colors.surfaceAlt
-                : widget.colors.background,
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.colors.border),
+            color: _isHovered ? colors.surfaceAlt : colors.background,
+            borderRadius: NightshadeTokens.borderRadiusMd,
+            border: Border.all(color: colors.border),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -975,15 +1076,15 @@ class _SettingsLinkButtonState extends State<SettingsLinkButton> {
               Icon(
                 widget.icon,
                 size: iconSize,
-                color: widget.colors.textSecondary,
+                color: colors.textSecondary,
               ),
-              SizedBox(width: widget.compact ? 6 : 8),
+              SizedBox(
+                  width: widget.compact
+                      ? NightshadeTokens.radiusSm
+                      : NightshadeTokens.spaceSm),
               Text(
                 widget.label,
-                style: TextStyle(
-                  fontSize: fontSize,
-                  color: widget.colors.textSecondary,
-                ),
+                style: labelStyle.copyWith(color: colors.textSecondary),
               ),
             ],
           ),
@@ -994,22 +1095,24 @@ class _SettingsLinkButtonState extends State<SettingsLinkButton> {
 }
 
 /// A label-value pair row for the About screen.
+
 class SettingsInfoRow extends StatelessWidget {
   final String label;
+
   final String value;
-  final NightshadeColors colors;
 
   const SettingsInfoRow({
     super.key,
     required this.label,
     required this.value,
-    required this.colors,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceXs),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -1017,19 +1120,14 @@ class SettingsInfoRow extends StatelessWidget {
             width: 100,
             child: Text(
               label,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textMuted,
-              ),
+              style: NightshadeTypography.caption
+                  .copyWith(color: colors.textMuted),
             ),
           ),
           Text(
             value,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
-              fontFamily: 'monospace',
-            ),
+            style: NightshadeTypography.monoSm
+                .copyWith(color: colors.textSecondary),
           ),
         ],
       ),
@@ -1038,14 +1136,26 @@ class SettingsInfoRow extends StatelessWidget {
 }
 
 /// Compact slider widget for settings.
+
+///
+
+/// Relies on theme [SliderThemeData] from [NightshadeTheme] for track/thumb
+
+/// styling; only adds fixed width and value label for [SettingRow] layout.
+
 class SettingsCompactSlider extends StatelessWidget {
   final double value;
+
   final double min;
+
   final double max;
+
   final int divisions;
+
   final String label;
+
   final ValueChanged<double> onChanged;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   const SettingsCompactSlider({
@@ -1056,13 +1166,15 @@ class SettingsCompactSlider extends StatelessWidget {
     required this.divisions,
     required this.label,
     required this.onChanged,
-    required this.colors,
     this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     final sliderWidth = isMobile ? 100.0 : 120.0;
+
     final labelWidth = isMobile ? 45.0 : 50.0;
 
     return Row(
@@ -1070,31 +1182,23 @@ class SettingsCompactSlider extends StatelessWidget {
       children: [
         SizedBox(
           width: sliderWidth,
-          child: SliderTheme(
-            data: SliderThemeData(
-              activeTrackColor: colors.primary,
-              inactiveTrackColor: colors.border,
-              thumbColor: colors.primary,
-              overlayColor: colors.primary.withValues(alpha: 0.2),
-              trackHeight: 4,
-              thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
-            ),
-            child: Slider(
-              value: value,
-              min: min,
-              max: max,
-              divisions: divisions,
-              onChanged: onChanged,
-            ),
+          child: Slider(
+            value: value,
+            min: min,
+            max: max,
+            divisions: divisions,
+            onChanged: onChanged,
           ),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: NightshadeTokens.spaceSm),
         SizedBox(
           width: labelWidth,
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: isMobile ? 11 : 12,
+            style: (isMobile
+                    ? NightshadeTypography.captionSm
+                    : NightshadeTypography.caption)
+                .copyWith(
               color: colors.textSecondary,
               fontWeight: FontWeight.w500,
             ),
@@ -1107,14 +1211,20 @@ class SettingsCompactSlider extends StatelessWidget {
 }
 
 /// Toggle widget for object type filters in annotation settings.
+
 class ObjectTypeToggle extends StatelessWidget {
   final String title;
+
   final IconData icon;
+
   final Color color;
+
   final bool isEnabled;
+
   final ValueChanged<bool> onChanged;
+
   final bool isLast;
-  final NightshadeColors colors;
+
   final bool isMobile;
 
   const ObjectTypeToggle({
@@ -1125,7 +1235,6 @@ class ObjectTypeToggle extends StatelessWidget {
     required this.isEnabled,
     required this.onChanged,
     this.isLast = false,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -1139,10 +1248,8 @@ class ObjectTypeToggle extends StatelessWidget {
       trailing: SettingsSwitch(
         value: isEnabled,
         onChanged: onChanged,
-        colors: colors,
       ),
       isLast: isLast,
-      colors: colors,
       isMobile: isMobile,
     );
   }

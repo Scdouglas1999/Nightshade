@@ -8,6 +8,8 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/auto_stretch_settings.dart';
+import '../models/imaging/imaging_models.dart' show RawLoadStatus;
+import '../models/imaging/imaging_models.dart';
 import '../services/imaging_service.dart';
 import 'backend_provider.dart';
 import 'equipment_provider.dart';
@@ -54,16 +56,21 @@ final stretchedImageProvider =
   }
 
   try {
-    // Get raw 16-bit data from the backend
-    final rawDataList = await backend.getLastRawImageData(cameraDeviceId);
+    Uint16List? rawData = imageData.rawU16;
 
-    if (rawDataList.isEmpty) {
-      // No raw data available - the display data is already stretched
-      return imageData.displayData;
+    if (rawData == null || !imageData.hasRawReady) {
+      if (imageData.rawLoadStatus == RawLoadStatus.loading ||
+          imageData.rawLoadStatus == RawLoadStatus.failed) {
+        // Progressive preview: JPEG is visible; raw loads in background or failed.
+        return imageData.displayData;
+      }
+
+      final rawDataList = await backend.getLastRawImageData(cameraDeviceId);
+      if (rawDataList.isEmpty) {
+        return imageData.displayData;
+      }
+      rawData = Uint16List.fromList(rawDataList);
     }
-
-    // Convert List<int> to Uint16List
-    final rawData = Uint16List.fromList(rawDataList);
 
     // Apply stretch based on method
     return await _applyStretch(

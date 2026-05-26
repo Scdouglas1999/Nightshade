@@ -5,6 +5,7 @@ import 'package:drift/native.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 
+import '../models/settings/app_settings.dart' show kDefaultAccentColorHex;
 import 'integrity_check.dart' as integrity;
 import 'integrity_check.dart' show DatabaseRecoveryMarker;
 import 'tables/equipment_profiles.dart';
@@ -23,6 +24,8 @@ import 'tables/observation_logs.dart';
 import 'tables/observing_lists.dart';
 import 'tables/sequence_runs.dart';
 import 'tables/defect_map_table.dart';
+import 'tables/focus_models.dart';
+import 'tables/guide_rms_history.dart';
 import 'daos/images_dao.dart';
 import 'daos/equipment_profiles_dao.dart';
 import 'daos/sessions_dao.dart';
@@ -39,6 +42,7 @@ import 'daos/dark_library_dao.dart';
 import 'daos/observation_logs_dao.dart';
 import 'daos/observing_lists_dao.dart';
 import 'daos/sequence_runs_dao.dart';
+import 'daos/guide_rms_history_dao.dart';
 
 part 'database.g.dart';
 
@@ -75,6 +79,8 @@ part 'database.g.dart';
     ObservingListItems,
     SequenceRuns,
     DefectMaps,
+    FocusModels,
+    GuideRmsHistory,
   ],
   daos: [
     ImagesDao,
@@ -93,22 +99,24 @@ part 'database.g.dart';
     ObservationLogsDao,
     ObservingListsDao,
     SequenceRunsDao,
+    GuideRmsHistoryDao,
   ],
 )
 class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase() : super(_openConnection());
 
   /// For testing with a custom QueryExecutor
-  NightshadeDatabase.forTesting(QueryExecutor e) : super(e);
+  NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 29;
+  int get schemaVersion => 37;
 
   @override
   MigrationStrategy get migration {
     return MigrationStrategy(
       onCreate: (Migrator m) async {
         await m.createAll();
+        await _ensureCapturedImagesProducingNodeColumns();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -1462,8 +1470,325 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           );
         }
 
-        // Version 29: Add safety monitor device id to equipment profiles.
+        // Version 29: Per-target / per-run notes/journal entries (Wave 6
+        // Agent 5). Managed with raw DDL — same convention as the v27
+        // scheduler tables and the v28 defect_maps table — so the
+        // migration lands without forcing a drift codegen pass. The
+        // accompanying [NotesService] performs all reads/writes via
+        // `customSelect`/`customStatement`.
+        //
+        // Schema design:
+        //   * `id` is a UUID string (TEXT PRIMARY KEY) for future
+        //     cross-machine sync; never reused on updates.
+        //   * `target_id` is a logical TEXT identifier (catalog id like
+        //     "M31", or display name) rather than an FK to `targets.id`
+        //     so that renaming or recreating a target row does not
+        //     silently NULL-out its notes.
+        //   * `sequence_run_id` is a soft INT pointer to the
+        //     `sequence_runs` row when the note is run-scoped; no FK so
+        //     deleting an old run record does not cascade-delete the
+        //     journal entry.
+        //   * `tags_json` / `attachments_json` store JSON arrays of
+        //     strings — search-by-tag uses plain LIKE which is enough
+        //     for the small per-user dataset (typically <10k notes).
+        //   * `sentiment` is the literal emoji string from the
+        //     auto-prompt sentiment dropdown, or NULL when not set.
         if (from < 29) {
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS notes_journal ('
+            'id TEXT PRIMARY KEY NOT NULL,'
+            'target_id TEXT NOT NULL,'
+            'sequence_run_id INTEGER,'
+            'created_at INTEGER NOT NULL,'
+            'updated_at INTEGER NOT NULL,'
+            'title TEXT,'
+            'body TEXT NOT NULL,'
+            'tags_json TEXT NOT NULL DEFAULT \'[]\','
+            'attachments_json TEXT NOT NULL DEFAULT \'[]\','
+            'sentiment TEXT)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_notes_journal_target '
+            'ON notes_journal (target_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_notes_journal_run '
+            'ON notes_journal (sequence_run_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_notes_journal_created '
+            'ON notes_journal (created_at)',
+          );
+        }
+
+        // Version 30: Inline frame thumbnails (Wave 6 Agent 4 — Thumbnails).
+        //
+        // Add provenance + grading columns to `captured_images` so each
+        // captured frame can be tied back to the ExposureNode that
+        // produced it and the sequence_runs row that was active at the
+        // time. This is what powers the inline thumbnail strip under
+        // each ExposureNode in the sequence tree.
+        //
+        // All three columns are nullable: legacy rows + ad-hoc captures
+        // outside a sequence simply leave them unset. We index
+        // producing_node_id (alone and paired with captured_at) because
+        // the new `watchImagesByProducingNode` DAO method is the hottest
+        // path — it queries by node id and orders by captured_at.
+        if (from < 30) {
+          if (!await _columnExists('captured_images', 'producing_node_id')) {
+            await customStatement(
+              'ALTER TABLE captured_images ADD COLUMN producing_node_id TEXT',
+            );
+          }
+          if (!await _columnExists('captured_images', 'producing_run_id')) {
+            await customStatement(
+              'ALTER TABLE captured_images ADD COLUMN producing_run_id TEXT',
+            );
+          }
+          if (!await _columnExists('captured_images', 'runtime_grade')) {
+            await customStatement(
+              'ALTER TABLE captured_images ADD COLUMN runtime_grade TEXT',
+            );
+          }
+          if (!await _columnExists('captured_images', 'eccentricity')) {
+            await customStatement(
+              'ALTER TABLE captured_images ADD COLUMN eccentricity REAL',
+            );
+          }
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_images_producing_node '
+            'ON captured_images (producing_node_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_images_producing_run '
+            'ON captured_images (producing_run_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_images_node_captured_at '
+            'ON captured_images (producing_node_id, captured_at)',
+          );
+
+          // I4 fix: guide_rms_history.exposure_seconds must be nullable
+          // post-v30. SQLite has no ALTER COLUMN, so we rename-create-copy-drop
+          // and recreate the helper index. We do this conditionally — only when
+          // the column currently has a NOT NULL constraint, so a fresh v30+
+          // install (created via the v30 raw DDL above) doesn't pay the rebuild
+          // cost on every startup.
+          final exposureNotNullInfo = await customSelect(
+            "SELECT \"notnull\" FROM pragma_table_info('guide_rms_history') "
+            "WHERE name = 'exposure_seconds'",
+          ).get();
+          if (exposureNotNullInfo.isNotEmpty &&
+              exposureNotNullInfo.first.data['notnull'] == 1) {
+            await customStatement(
+              'ALTER TABLE guide_rms_history RENAME TO guide_rms_history_v29',
+            );
+            await customStatement(
+              'CREATE TABLE guide_rms_history ('
+              'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+              'session_id TEXT NOT NULL, '
+              'mount_id TEXT NOT NULL, '
+              'target_id INTEGER NULL, '
+              'total_rms_arcsec REAL NOT NULL, '
+              'sample_count INTEGER NOT NULL, '
+              'exposure_seconds REAL, '
+              'recorded_at INTEGER NOT NULL'
+              ')',
+            );
+            await customStatement(
+              'INSERT INTO guide_rms_history '
+              '(id, session_id, mount_id, target_id, total_rms_arcsec, '
+              'sample_count, exposure_seconds, recorded_at) '
+              'SELECT id, session_id, mount_id, target_id, total_rms_arcsec, '
+              'sample_count, exposure_seconds, recorded_at '
+              'FROM guide_rms_history_v29',
+            );
+            await customStatement('DROP TABLE guide_rms_history_v29');
+          }
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_guide_rms_mount_recent '
+            'ON guide_rms_history (mount_id, recorded_at DESC)',
+          );
+        }
+
+        // Version 31: Persisted predictive autofocus models (per-filter).
+        //
+        // Adds the `focus_models` table that stores the learned linear
+        // regression between focuser temperature and best-focus position,
+        // keyed by (equipment_profile_id, filter_name). Powers the Wave 8
+        // predictive autofocus feature — confidence-gated prediction,
+        // cross-session persistence, and drift-detection notifications.
+        //
+        // Backwards compat: the legacy JSON-file
+        // [FocusModelService] continues to work unchanged. The DB rows
+        // here are written by [PredictiveAfService] and are additive.
+        if (from < 31) {
+          await _createFocusModelsTable();
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.enabled', 'true')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.min_samples_for_trust', '8')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.high_confidence_threshold', '0.8')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.low_confidence_threshold', '0.5')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.drift_threshold_steps', '200')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) VALUES ('predictive_af.drift_runs_before_warn', '5')",
+          );
+        }
+
+        // Version 32: Wave 8 — Frame-Failure Forensics persistence.
+        //
+        // Adds the `frame_forensics` table where every rejected frame's
+        // classified cause + evidence + environment snapshot is persisted.
+        // Raw DDL (matching the v27/v28/v29/v30/v31 convention) so the
+        // migration lands without forcing a drift codegen pass — the
+        // accompanying `ForensicsService` performs all reads/writes via
+        // `customSelect`/`customStatement`.
+        //
+        // Schema design:
+        //   * `id` is a UUID string so cross-process inserts don't fight
+        //     for an integer sequence (the same convention used by
+        //     `notes_journal`).
+        //   * `captured_image_id` is a soft FK to `captured_images.id` —
+        //     enforced when the row is created from a `FrameRejected`
+        //     event with a known capture id; otherwise `NULL` (the FITS
+        //     might be rejected before the row lands).
+        //   * `reject_path` is the on-disk path the FITS landed at so the
+        //     dashboard can offer a "Show file" link without a JOIN.
+        //   * `likely_cause` is the wire-stable snake_case label from
+        //     `LikelyCause.label`; never NULL — `unknown` is the explicit
+        //     "we don't know" value, NOT a NULL.
+        //   * `evidence_json` / `environment_json` store the structured
+        //     payload as JSON so future heuristic columns can be added
+        //     without breaking forward / backward compat.
+        if (from < 32) {
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS frame_forensics ('
+            'id TEXT PRIMARY KEY NOT NULL,'
+            'captured_image_id INTEGER REFERENCES captured_images(id) ON DELETE CASCADE,'
+            'session_id TEXT,'
+            'sequence_run_id INTEGER,'
+            'node_id TEXT,'
+            'frame_index INTEGER NOT NULL,'
+            'total_frames INTEGER NOT NULL,'
+            'reject_path TEXT NOT NULL,'
+            'reason TEXT NOT NULL,'
+            'likely_cause TEXT NOT NULL DEFAULT \'unknown\','
+            'evidence_json TEXT NOT NULL DEFAULT \'[]\','
+            'environment_json TEXT NOT NULL DEFAULT \'{}\','
+            'hfr REAL,'
+            'eccentricity REAL,'
+            'star_count INTEGER,'
+            'created_at INTEGER NOT NULL)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_session '
+            'ON frame_forensics (session_id, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_run '
+            'ON frame_forensics (sequence_run_id, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_cause '
+            'ON frame_forensics (likely_cause, created_at)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_frame_forensics_image '
+            'ON frame_forensics (captured_image_id)',
+          );
+        }
+
+        // Version 33: Wave 8 Replay Debug — `sequence_decisions` table.
+        //
+        // The Rust executor emits a structured `DecisionEvent` for every
+        // material decision (scheduler pick, trigger firing, recovery
+        // transition, frame verdict, adaptive swap, plugin invocation,
+        // manual operator action, system lifecycle). The Dart side
+        // subscribes to the bridge's typed `SequencerEvent::DecisionLogged`
+        // event and persists each row here so the Replay screen can
+        // scrub chronologically through the whole night the next
+        // morning — a step change from "open log file in Notepad".
+        //
+        // Storage notes:
+        //   * `sequence_run_id` is a soft INT pointer to the
+        //     `sequence_runs` row when the decision was emitted inside
+        //     a tracked run; NO FK so deleting an old run record does
+        //     NOT cascade-delete the decision log (the analytics
+        //     value persists past the run row).
+        //   * `timestamp_unix_ms` is millis since epoch (UTC) — kept
+        //     in milliseconds for indexable range queries and to
+        //     match the existing pattern in the notes_journal table.
+        //   * `category` is the snake_case wire key (`scheduler_pick`,
+        //     `trigger_fired`, …). Wire-stable; see
+        //     `DecisionCategory` in
+        //     `packages/nightshade_core/lib/src/models/replay_decision.dart`.
+        //   * `details_json` carries the opaque structured payload
+        //     the Rust emit site authored — defaults to `'{}'` so a
+        //     row with no extra context still parses to an empty map
+        //     on read.
+        if (from < 33) {
+          await customStatement(
+            'CREATE TABLE IF NOT EXISTS sequence_decisions ('
+            'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+            'sequence_run_id INTEGER,'
+            'timestamp_unix_ms INTEGER NOT NULL,'
+            'category TEXT NOT NULL,'
+            'summary TEXT NOT NULL,'
+            'details_json TEXT NOT NULL DEFAULT \'{}\','
+            'node_id TEXT)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_run '
+            'ON sequence_decisions (sequence_run_id)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_timestamp '
+            'ON sequence_decisions (timestamp_unix_ms)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_category '
+            'ON sequence_decisions (category)',
+          );
+          await customStatement(
+            'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_run_ts '
+            'ON sequence_decisions (sequence_run_id, timestamp_unix_ms)',
+          );
+          // Seed the user-tunable retention setting if it's not
+          // already present. Default 90 days matches the design spec.
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) "
+            "VALUES ('replay_debug.enabled', 'true')",
+          );
+          await customStatement(
+            "INSERT OR IGNORE INTO app_settings (key, value) "
+            "VALUES ('replay_debug.retention_days', '90')",
+          );
+        }
+
+        // Version 34: Smart Night guide RMS history.
+        //
+        // This append-only table feeds the Smart Night exposure
+        // calculator's mount-tracking ceiling once enough guided
+        // sessions exist for the active mount.
+        if (from < 34) {
+          await _createGuideRmsHistoryTable();
+        }
+
+        // Version 35: Promote safety monitor to a first-class equipment-profile
+        // device. Prior to this version, a connected safety monitor had to be
+        // re-selected manually every session because there was no profile
+        // column to persist it (Audit C1). The column is nullable so existing
+        // profiles upgrade cleanly without backfill.
+        if (from < 35) {
           final hasSafetyMonitorId = await _columnExists(
             'equipment_profiles',
             'safety_monitor_id',
@@ -1475,10 +1800,154 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           }
         }
 
+        // Version 36: Promote switch device to a first-class equipment-profile
+        // device (DEV-P2-1). Mirrors v35's safety-monitor promotion: prior to
+        // this column, a connected switch device had to be re-selected manually
+        // every session because there was no profile column to persist it.
+        // The column is nullable so existing profiles upgrade cleanly without
+        // backfill.
+        if (from < 36) {
+          final hasSwitchId = await _columnExists(
+            'equipment_profiles',
+            'switch_id',
+          );
+          if (!hasSwitchId) {
+            await customStatement(
+              'ALTER TABLE equipment_profiles ADD COLUMN switch_id TEXT',
+            );
+          }
+        }
+
+        // Version 37 (P1-13): Sidecar thumbnail caching for captured images.
+        //
+        // Mobile/Pi gallery load was dominated by 200+ cold FITS reads, one
+        // per thumbnail request. The fix is to write a `.thumb.jpg` next to
+        // each FITS at capture time and serve that cached file with ETag
+        // headers. The `thumbnail_path` column records the sidecar's on-disk
+        // path so the GET handler doesn't have to probe the filesystem on
+        // every call. Nullable for backward compatibility — legacy rows are
+        // healed lazily on first read or via the explicit
+        // `/api/images/backfill-thumbnails` job.
+        if (from < 37) {
+          await _ensureCapturedImagesThumbnailPathColumn();
+        }
+
         await _ensureDefaultSettings();
         await _createCustomIndexes();
       },
     );
+  }
+
+  /// Create the v31 `focus_models` table + its indexes. Called from both
+  /// `onCreate` (fresh installs run `m.createAll()` which already covers
+  /// the Drift-declared table) and `onUpgrade` (for in-place migrations).
+  ///
+  /// We use raw DDL with `IF NOT EXISTS` to make this idempotent — drift's
+  /// `createTable` is happy to fail if called twice, and we explicitly want
+  /// the migration path to be re-runnable in case the prior run aborted.
+  Future<void> _createFocusModelsTable() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS focus_models (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        uuid TEXT NOT NULL,
+        equipment_profile_id INTEGER REFERENCES equipment_profiles(id) ON DELETE SET NULL,
+        filter_name TEXT NOT NULL,
+        filter_index INTEGER,
+        temperature_compensation_slope REAL NOT NULL,
+        focus_offset_relative_to_lum INTEGER NOT NULL DEFAULT 0,
+        intercept_at_reference_temp INTEGER NOT NULL,
+        reference_temp_celsius REAL NOT NULL DEFAULT 10.0,
+        last_trained_at INTEGER NOT NULL,
+        training_run_count INTEGER NOT NULL DEFAULT 0,
+        confidence_score REAL NOT NULL DEFAULT 0.0,
+        last_used_at INTEGER,
+        training_samples_json TEXT NOT NULL DEFAULT '[]',
+        max_training_samples INTEGER NOT NULL DEFAULT 50,
+        consecutive_bad_predictions INTEGER NOT NULL DEFAULT 0,
+        accumulated_drift_steps INTEGER NOT NULL DEFAULT 0,
+        created_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now')),
+        updated_at INTEGER NOT NULL DEFAULT (strftime('%s', 'now'))
+      )
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_focus_models_profile '
+      'ON focus_models (equipment_profile_id)',
+    );
+    await customStatement(
+      'CREATE UNIQUE INDEX IF NOT EXISTS idx_focus_models_profile_filter '
+      'ON focus_models (equipment_profile_id, filter_name)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_focus_models_last_used '
+      'ON focus_models (last_used_at)',
+    );
+  }
+
+  /// Wave 6 Thumbnails (v30) — add producing-node provenance columns to
+  /// `captured_images` if missing. Lives here (called from both
+  /// `onCreate` and `onUpgrade`) because the columns are NOT declared on
+  /// the Drift `CapturedImages` table class — same convention as the
+  /// raw-DDL `notes_journal` / `defect_maps` tables — so a fresh install
+  /// would otherwise skip them entirely after `m.createAll()`.
+  /// Create the v34 `guide_rms_history` table + its lookup index.
+  ///
+  /// Drift creates the table on fresh installs through `m.createAll()`, but
+  /// this helper is intentionally idempotent so upgrades and fresh-install
+  /// index setup share the same schema path.
+  Future<void> _createGuideRmsHistoryTable() async {
+    await customStatement('''
+      CREATE TABLE IF NOT EXISTS guide_rms_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT NOT NULL,
+        mount_id TEXT NOT NULL,
+        target_id INTEGER,
+        total_rms_arcsec REAL NOT NULL,
+        sample_count INTEGER NOT NULL,
+        exposure_seconds REAL,
+        recorded_at INTEGER NOT NULL
+      )
+    ''');
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_guide_rms_mount_recent '
+      'ON guide_rms_history (mount_id, recorded_at DESC)',
+    );
+  }
+
+  Future<void> _ensureCapturedImagesProducingNodeColumns() async {
+    if (!await _columnExists('captured_images', 'producing_node_id')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN producing_node_id TEXT',
+      );
+    }
+    if (!await _columnExists('captured_images', 'producing_run_id')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN producing_run_id TEXT',
+      );
+    }
+    if (!await _columnExists('captured_images', 'runtime_grade')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN runtime_grade TEXT',
+      );
+    }
+    if (!await _columnExists('captured_images', 'eccentricity')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN eccentricity REAL',
+      );
+    }
+    // P1-13: thumbnail sidecar path. Declared as a raw-DDL column rather than
+    // a Drift table column to match the existing producing-node convention —
+    // additive nullable text columns don't need Drift codegen churn and the
+    // sidecar service reads/writes it via `customStatement`. Called from
+    // onCreate (fresh installs) and via the v37 onUpgrade branch.
+    await _ensureCapturedImagesThumbnailPathColumn();
+  }
+
+  Future<void> _ensureCapturedImagesThumbnailPathColumn() async {
+    if (!await _columnExists('captured_images', 'thumbnail_path')) {
+      await customStatement(
+        'ALTER TABLE captured_images ADD COLUMN thumbnail_path TEXT',
+      );
+    }
   }
 
   Future<void> _createCustomIndexes() async {
@@ -1492,6 +1961,85 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     await customStatement(
       'CREATE UNIQUE INDEX IF NOT EXISTS idx_profiles_single_active '
       'ON equipment_profiles (is_active) WHERE is_active = 1',
+    );
+
+    // Wave 6 Agent 5 — notes_journal table. Managed with raw DDL (matches
+    // the v27 scheduler tables + v28 defect_maps convention). Created
+    // here so fresh installs (which run `onCreate` rather than
+    // `onUpgrade`) also get the table; the v29 migration block above
+    // covers in-place upgrades. The accompanying [NotesService] also
+    // re-runs these statements through its own `_ensureSchema()` so
+    // newly-installed services are tolerant of a pre-v29 connection.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS notes_journal ('
+      'id TEXT PRIMARY KEY NOT NULL,'
+      'target_id TEXT NOT NULL,'
+      'sequence_run_id INTEGER,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL,'
+      'title TEXT,'
+      'body TEXT NOT NULL,'
+      'tags_json TEXT NOT NULL DEFAULT \'[]\','
+      'attachments_json TEXT NOT NULL DEFAULT \'[]\','
+      'sentiment TEXT)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_notes_journal_target '
+      'ON notes_journal (target_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_notes_journal_run '
+      'ON notes_journal (sequence_run_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_notes_journal_created '
+      'ON notes_journal (created_at)',
+    );
+    // Wave 6 Thumbnails (v30) — fresh-install indexes for the producing-
+    // node provenance columns added by `_ensureCapturedImagesProducingNodeColumns`.
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_images_producing_node '
+      'ON captured_images (producing_node_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_images_producing_run '
+      'ON captured_images (producing_run_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_images_node_captured_at '
+      'ON captured_images (producing_node_id, captured_at)',
+    );
+
+    await _createGuideRmsHistoryTable();
+
+    // Wave 8 Replay Debug (v33) — sequence_decisions table.
+    // Fresh-install path; the v33 onUpgrade block handles the
+    // in-place upgrade. Idempotent so re-running is safe.
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS sequence_decisions ('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'sequence_run_id INTEGER,'
+      'timestamp_unix_ms INTEGER NOT NULL,'
+      'category TEXT NOT NULL,'
+      'summary TEXT NOT NULL,'
+      'details_json TEXT NOT NULL DEFAULT \'{}\','
+      'node_id TEXT)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_run '
+      'ON sequence_decisions (sequence_run_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_timestamp '
+      'ON sequence_decisions (timestamp_unix_ms)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_category '
+      'ON sequence_decisions (category)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_sequence_decisions_run_ts '
+      'ON sequence_decisions (sequence_run_id, timestamp_unix_ms)',
     );
   }
 
@@ -1690,7 +2238,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
 const Map<String, String> _defaultSettings = {
   'theme': 'dark',
   'language': 'en',
-  'accent_color': '#6366F1',
+  'accent_color': kDefaultAccentColorHex,
   'font_size': 'Medium',
   'ui_scale': 'Auto',
   'sidebar_collapsed': 'false',
@@ -1799,6 +2347,13 @@ const Map<String, String> _defaultSettings = {
   'science.overlay.analysis_grid_cols': '32',
   'dark_library.auto_subtract': 'false',
   'dark_library.temp_tolerance': '2.0',
+  // Wave 8 predictive autofocus defaults. See migration v31 + PredictiveAfService.
+  'predictive_af.enabled': 'true',
+  'predictive_af.min_samples_for_trust': '8',
+  'predictive_af.high_confidence_threshold': '0.8',
+  'predictive_af.low_confidence_threshold': '0.5',
+  'predictive_af.drift_threshold_steps': '200',
+  'predictive_af.drift_runs_before_warn': '5',
 };
 
 /// Resolve the on-disk path the desktop/mobile database lives at. Exposed

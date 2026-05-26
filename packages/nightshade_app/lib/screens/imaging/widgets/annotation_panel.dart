@@ -120,6 +120,13 @@ final annotationPanelSortModeProvider =
   return AnnotationPanelSortMode.brightness;
 });
 
+ShapeBorder _annotationMenuShape(NightshadeColors colors) {
+  return RoundedRectangleBorder(
+    borderRadius: BorderRadius.circular(NightshadeTokens.radiusMd),
+    side: BorderSide(color: colors.border),
+  );
+}
+
 /// Banner shown when annotation catalog is not installed
 class AnnotationCatalogBanner extends StatelessWidget {
   final NightshadeColors colors;
@@ -139,9 +146,12 @@ class AnnotationCatalogBanner extends StatelessWidget {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
-        color: colors.primary.withValues(alpha: 0.15),
+        color: colors.primary.withValues(alpha: NightshadeTokens.opacityMedium),
         border: Border(
-          bottom: BorderSide(color: colors.primary.withValues(alpha: 0.3)),
+          bottom: BorderSide(
+            color: colors.primary
+                .withValues(alpha: NightshadeTokens.opacityStrong),
+          ),
         ),
       ),
       child: Row(
@@ -251,60 +261,15 @@ class AnnotationStatusIndicator extends ConsumerWidget {
   }
 
   Color _getBackgroundColor(AnnotationStatus status) {
-    switch (status) {
-      case AnnotationStatus.checkingCatalogs:
-      case AnnotationStatus.plateSolving:
-      case AnnotationStatus.searchingCatalogs:
-        return const Color(0xFF1E3A5F)
-            .withValues(alpha: 0.9); // Blue for processing
-      case AnnotationStatus.complete:
-        return const Color(0xFF1E4620)
-            .withValues(alpha: 0.9); // Green for success
-      case AnnotationStatus.error:
-      case AnnotationStatus.plateSolveFailed:
-        return const Color(0xFF5F1E1E).withValues(alpha: 0.9); // Red for error
-      case AnnotationStatus.catalogsNotInstalled:
-        return const Color(0xFF5F4D1E)
-            .withValues(alpha: 0.9); // Orange for warning
-      case AnnotationStatus.idle:
-        return Colors.transparent;
-    }
+    return AnnotationStatusColors.background(status, colors);
   }
 
   Color _getBorderColor(AnnotationStatus status) {
-    switch (status) {
-      case AnnotationStatus.checkingCatalogs:
-      case AnnotationStatus.plateSolving:
-      case AnnotationStatus.searchingCatalogs:
-        return const Color(0xFF3B82F6).withValues(alpha: 0.5);
-      case AnnotationStatus.complete:
-        return const Color(0xFF22C55E).withValues(alpha: 0.5);
-      case AnnotationStatus.error:
-      case AnnotationStatus.plateSolveFailed:
-        return const Color(0xFFEF4444).withValues(alpha: 0.5);
-      case AnnotationStatus.catalogsNotInstalled:
-        return const Color(0xFFF59E0B).withValues(alpha: 0.5);
-      case AnnotationStatus.idle:
-        return Colors.transparent;
-    }
+    return AnnotationStatusColors.border(status, colors);
   }
 
   Color _getTextColor(AnnotationStatus status) {
-    switch (status) {
-      case AnnotationStatus.checkingCatalogs:
-      case AnnotationStatus.plateSolving:
-      case AnnotationStatus.searchingCatalogs:
-        return const Color(0xFF93C5FD);
-      case AnnotationStatus.complete:
-        return const Color(0xFF86EFAC);
-      case AnnotationStatus.error:
-      case AnnotationStatus.plateSolveFailed:
-        return const Color(0xFFFCA5A5);
-      case AnnotationStatus.catalogsNotInstalled:
-        return const Color(0xFFFCD34D);
-      case AnnotationStatus.idle:
-        return Colors.white70;
-    }
+    return AnnotationStatusColors.text(status, colors);
   }
 
   Widget _getStatusIcon(AnnotationStatus status) {
@@ -638,20 +603,41 @@ class _AnnotationObjectsPanelState
         });
     }
 
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panelWidth = Responsive.previewOverlayMaxWidth(
+          constraints.maxWidth.isFinite
+              ? constraints.maxWidth
+              : MediaQuery.sizeOf(context).width,
+          maxAbsolute: 320,
+        );
+        return SizedBox(
+          width: panelWidth,
+          child: _buildPanelContent(
+            annotation,
+            filteredObjects,
+            displayableObjects,
+            settings,
+            typeCounts,
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildPanelContent(
+    ImageAnnotation? annotation,
+    List<CelestialObjectAnnotation> filteredObjects,
+    List<CelestialObjectAnnotation> displayableObjects,
+    AnnotationSettings settings,
+    Map<ObjectType, int> typeCounts,
+  ) {
     return Container(
-      width: 280,
       decoration: BoxDecoration(
-        color: widget.colors.surface.withValues(alpha: 0.95),
+        color: widget.colors.surface,
         border: Border(
           left: BorderSide(color: widget.colors.border),
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.3),
-            blurRadius: 8,
-            offset: const Offset(-2, 0),
-          ),
-        ],
       ),
       child: Column(
         children: [
@@ -660,7 +646,6 @@ class _AnnotationObjectsPanelState
 
           // Search bar
           AnnotationSearchBar(
-            colors: widget.colors,
             onChanged: (value) => setState(() => _searchQuery = value),
           ),
 
@@ -728,8 +713,8 @@ class _AnnotationObjectsPanelState
           // Object count badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            decoration: BoxDecoration(
-              color: widget.colors.primary.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.tintedBadge(
+              widget.colors.primary,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Text(
@@ -744,7 +729,10 @@ class _AnnotationObjectsPanelState
           const SizedBox(width: 8),
           PopupMenuButton<AnnotationPanelSortMode>(
             tooltip: 'Sort objects',
-            color: widget.colors.surfaceAlt,
+            color: widget.colors.surfaceElevated,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            shape: _annotationMenuShape(widget.colors),
             onSelected: (value) => ref
                 .read(annotationPanelSortModeProvider.notifier)
                 .state = value,
@@ -841,7 +829,10 @@ class _AnnotationObjectsPanelState
           // Export menu
           PopupMenuButton<String>(
             tooltip: 'Export annotations',
-            color: widget.colors.surfaceAlt,
+            color: widget.colors.surfaceElevated,
+            surfaceTintColor: Colors.transparent,
+            elevation: 0,
+            shape: _annotationMenuShape(widget.colors),
             enabled: displayableObjects.isNotEmpty,
             onSelected: (value) {
               switch (value) {
@@ -1315,7 +1306,7 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
   Future<void> _saveAsPreset() async {
     final name = await showDialog<String>(
       context: context,
-      builder: (ctx) => _PresetNameDialog(colors: widget.colors),
+      builder: (ctx) => const _PresetNameDialog(),
     );
     if (name == null || name.trim().isEmpty) return;
 
@@ -1371,19 +1362,25 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
   Future<void> _deletePreset(String name) async {
     final confirmed = await showDialog<bool>(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete Preset'),
-        content: Text('Delete preset "$name"? This cannot be undone.'),
+      builder: (ctx) => NightshadeDialog(
+        title: 'Delete Preset',
+        icon: LucideIcons.trash2,
+        width: 420,
         actions: [
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
+            label: 'Cancel',
+            variant: ButtonVariant.outline,
+            size: ButtonSize.small,
           ),
-          TextButton(
+          NightshadeButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Delete'),
+            label: 'Delete',
+            variant: ButtonVariant.destructive,
+            size: ButtonSize.small,
           ),
         ],
+        child: Text('Delete preset "$name"? This cannot be undone.'),
       ),
     );
     if (confirmed != true) return;
@@ -1490,8 +1487,8 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
               // Object count badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: widget.colors.primary.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.tintedBadge(
+                  widget.colors.primary,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Text(
@@ -1507,7 +1504,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
               // Sort menu
               PopupMenuButton<AnnotationPanelSortMode>(
                 tooltip: 'Sort objects',
-                color: widget.colors.surfaceAlt,
+                color: widget.colors.surfaceElevated,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                shape: _annotationMenuShape(widget.colors),
                 onSelected: (value) => ref
                     .read(annotationPanelSortModeProvider.notifier)
                     .state = value,
@@ -1606,7 +1606,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
               // Export menu
               PopupMenuButton<String>(
                 tooltip: 'Export annotations',
-                color: widget.colors.surfaceAlt,
+                color: widget.colors.surfaceElevated,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                shape: _annotationMenuShape(widget.colors),
                 enabled: displayableObjects.isNotEmpty,
                 onSelected: (value) {
                   switch (value) {
@@ -1661,7 +1664,10 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
               // Presets menu
               PopupMenuButton<String>(
                 tooltip: 'Annotation presets',
-                color: widget.colors.surfaceAlt,
+                color: widget.colors.surfaceElevated,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                shape: _annotationMenuShape(widget.colors),
                 onSelected: (value) {
                   if (value == '_save_as_preset') {
                     unawaited(_saveAsPreset());
@@ -1745,7 +1751,6 @@ class _AnnotationTabPanelState extends ConsumerState<AnnotationTabPanel> {
 
         // Search bar
         AnnotationSearchBar(
-          colors: widget.colors,
           onChanged: (value) => setState(() => _searchQuery = value),
         ),
 
@@ -2103,8 +2108,7 @@ class AnnotationMiniChips extends ConsumerWidget {
 }
 
 class _PresetNameDialog extends StatefulWidget {
-  final NightshadeColors colors;
-  const _PresetNameDialog({required this.colors});
+  const _PresetNameDialog();
 
   @override
   State<_PresetNameDialog> createState() => _PresetNameDialogState();
@@ -2121,27 +2125,29 @@ class _PresetNameDialogState extends State<_PresetNameDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return AlertDialog(
-      title: const Text('Save Preset'),
-      content: TextField(
-        controller: _controller,
-        autofocus: true,
-        decoration: const InputDecoration(
-          labelText: 'Preset name',
-          hintText: 'e.g. Deep sky defaults',
-        ),
-        onSubmitted: (value) => Navigator.of(context).pop(value),
-      ),
+    return NightshadeDialog(
+      title: 'Save Preset',
+      icon: LucideIcons.save,
+      width: 420,
       actions: [
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.of(context).pop(),
-          child: const Text('Cancel'),
+          label: 'Cancel',
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
         ),
-        TextButton(
+        NightshadeButton(
           onPressed: () => Navigator.of(context).pop(_controller.text),
-          child: const Text('Save'),
+          label: 'Save',
+          variant: ButtonVariant.primary,
+          size: ButtonSize.small,
         ),
       ],
+      child: NightshadeTextField(
+        label: 'Preset name',
+        hint: 'e.g. Deep sky defaults',
+        controller: _controller,
+      ),
     );
   }
 }

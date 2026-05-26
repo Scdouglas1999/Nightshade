@@ -436,13 +436,20 @@ impl DeviceManager {
             DeviceType::Focuser => {
                 let focusers = self.ascom_focusers.read().await;
                 if let Some(focuser) = focusers.get(device_id) {
-                    let connected = focuser.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM focuser {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
+                    match focuser.read().await.heartbeat().await {
+                        Ok(()) => {
+                            tracing::trace!("ASCOM focuser {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM focuser {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
                 } else {
                     Err(format!("ASCOM focuser {} not found", device_id))
                 }
@@ -450,13 +457,20 @@ impl DeviceManager {
             DeviceType::FilterWheel => {
                 let filter_wheels = self.ascom_filter_wheels.read().await;
                 if let Some(fw) = filter_wheels.get(device_id) {
-                    let connected = fw.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM filter wheel {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
+                    match fw.read().await.heartbeat().await {
+                        Ok(()) => {
+                            tracing::trace!("ASCOM filter wheel {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!(
+                                "ASCOM filter wheel {} heartbeat failed: {:?}",
+                                device_id,
+                                e
+                            );
+                            Ok(false)
+                        }
+                    }
                 } else {
                     Err(format!("ASCOM filter wheel {} not found", device_id))
                 }
@@ -464,13 +478,16 @@ impl DeviceManager {
             DeviceType::Dome => {
                 let domes = self.ascom_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    let connected = dome.read().await.is_connected();
-                    tracing::trace!(
-                        "ASCOM dome {} heartbeat: connected={}",
-                        device_id,
-                        connected
-                    );
-                    Ok(connected)
+                    match dome.read().await.heartbeat().await {
+                        Ok(()) => {
+                            tracing::trace!("ASCOM dome {} heartbeat: healthy", device_id);
+                            Ok(true)
+                        }
+                        Err(e) => {
+                            tracing::debug!("ASCOM dome {} heartbeat failed: {:?}", device_id, e);
+                            Ok(false)
+                        }
+                    }
                 } else {
                     Err(format!("ASCOM dome {} not found", device_id))
                 }

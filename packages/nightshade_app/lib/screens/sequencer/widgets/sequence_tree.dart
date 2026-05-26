@@ -8,12 +8,15 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/tutorial_keys/sequencer_keys.dart';
+import 'delete_node_confirmation.dart';
+import 'exposure_node_thumbnail_strip.dart';
 import 'node_duration_chip.dart';
 import 'node_progress_panels.dart';
 import 'sequence_minimap.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
 import 'target_header_card.dart';
+import 'target_queue_panel.dart';
 import 'visual_timeline.dart';
 
 /// Provider to track when a node is being dragged globally
@@ -31,52 +34,10 @@ final isDraggingNodeProvider =
 final followExecutionProvider =
     StateProvider.autoDispose<bool>((ref) => true);
 
-/// Confirm-then-delete: prompt the user with "Delete N nodes?" when the
-/// target has any descendants, otherwise delete without prompting. The
-/// keyboard Delete shortcut in sequencer_screen.dart applies the same
-/// policy through its own helper.
-Future<void> _confirmAndRemoveTreeNode(
-  BuildContext context,
-  WidgetRef ref,
-  String nodeId,
-) async {
-  final sequence = ref.read(currentSequenceProvider);
-  if (sequence == null) return;
-  final node = sequence.nodes[nodeId];
-  if (node == null) return;
-
-  final descendantCount = sequence.countDescendants(nodeId);
-  if (descendantCount > 0) {
-    final total = descendantCount + 1;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete node?'),
-        content: Text(
-          'This will delete "${node.name}" and $descendantCount '
-          'descendant ${descendantCount == 1 ? "node" : "nodes"} '
-          '($total total). This cannot be undone except via Undo (Ctrl+Z).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Delete $total nodes'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-  }
-
-  ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
-  if (ref.read(selectedNodeIdProvider) == nodeId) {
-    ref.read(selectedNodeIdProvider.notifier).state = null;
-  }
-}
+// Note: confirm-then-delete now lives in `delete_node_confirmation.dart`
+// as `confirmAndDeleteSequenceNode`. The tree's inline trash buttons and
+// the TargetHeaderCard delete button below route through that helper so
+// every user-initiated delete surface shares one policy.
 
 /// Handle node selection with modifier key support for multi-select.
 /// Ctrl+Click: toggle individual node in multi-selection.
@@ -209,6 +170,51 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     );
   }
 
+  Widget _buildEmptyState(BuildContext context) {
+    final colors = widget.colors;
+    final isMobile = Responsive.isMobile(context);
+    return EmptyState(
+      icon: LucideIcons.workflow,
+      title: 'Build Your Sequence',
+      body: isMobile
+          ? 'Tap + to add nodes'
+          : 'Drag nodes from the palette to start building',
+      action: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 12 : 16,
+          vertical: isMobile ? 8 : 10,
+        ),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: colors.border),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              LucideIcons.lightbulb,
+              size: isMobile ? 12 : 14,
+              color: colors.warning,
+            ),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                'Tip: Start with a Target Header',
+                style: TextStyle(
+                  fontSize: isMobile ? 11 : 12,
+                  color: colors.textSecondary,
+                ),
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final sequence = ref.watch(currentSequenceProvider);
@@ -234,12 +240,12 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
     });
 
     if (sequence == null) {
-      return _EmptyState(colors: widget.colors);
+      return _buildEmptyState(context);
     }
 
     final rootNode = sequence.rootNode;
     if (rootNode == null) {
-      return _EmptyState(colors: widget.colors);
+      return _buildEmptyState(context);
     }
 
     // Reconcile the key registry against the current sequence before we
@@ -277,8 +283,11 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
   ) {
     return DragTarget<Object>(
       onWillAcceptWithDetails: (details) =>
-          details.data is NodePaletteItem || details.data is TemplateSnippet,
+          details.data is NodePaletteItem ||
+          details.data is TemplateSnippet ||
+          details.data is TargetQueueDragPayload,
       onAcceptWithDetails: (details) {
+        if (!ref.read(canEditSequenceProvider)) return;
         final data = details.data;
         if (data is NodePaletteItem) {
           final node = data.createNode();
@@ -297,6 +306,13 @@ class _SequenceTreeState extends ConsumerState<SequenceTree> {
                 data,
                 profileFilterNames: profile?.filterNames,
               );
+        } else if (data is TargetQueueDragPayload) {
+          // Drag-drop a queued target → append the prebuilt
+          // TargetHeaderNode under the root. Selection follows the
+          // drop so the properties panel reveals the new target.
+          final notifier = ref.read(currentSequenceProvider.notifier);
+          notifier.addNode(data.node);
+          ref.read(selectedNodeIdProvider.notifier).state = data.node.id;
         }
       },
       builder: (context, candidateData, rejectedData) {
@@ -462,7 +478,11 @@ class _SequenceHeader extends ConsumerWidget {
                           horizontal: 6, vertical: 3),
                       decoration: BoxDecoration(
                         color: followExecution
-                            ? colors.info.withValues(alpha: 0.15)
+                            ? NightshadeDecorations.statusChip(
+                                colors.info,
+                                borderRadius: BorderRadius.circular(4),
+                                bordered: false,
+                              ).color
                             : colors.surfaceAlt,
                         borderRadius: BorderRadius.circular(4),
                         border: Border.all(
@@ -576,13 +596,19 @@ class _SequenceHeader extends ConsumerWidget {
           'Rename Sequence',
           style: TextStyle(color: colors.textPrimary),
         ),
-        content: TextField(
-          controller: controller,
-          autofocus: true,
-          style: TextStyle(color: colors.textPrimary),
-          decoration: InputDecoration(
-            hintText: 'Sequence name',
-            hintStyle: TextStyle(color: colors.textMuted),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 400,
+          ),
+          child: TextField(
+            controller: controller,
+            autofocus: true,
+            style: TextStyle(color: colors.textPrimary),
+            decoration: InputDecoration(
+              hintText: 'Sequence name',
+              hintStyle: TextStyle(color: colors.textMuted),
+            ),
           ),
         ),
         actions: [
@@ -730,7 +756,11 @@ class _NodeTreeView extends ConsumerWidget {
                       // Why: target headers usually own a non-trivial
                       // subtree; route through the confirm helper so a
                       // misclick can't nuke a fully-authored target.
-                      _confirmAndRemoveTreeNode(context, ref, nodeId);
+                      confirmAndDeleteSequenceNode(
+                        context: context,
+                        ref: ref,
+                        nodeId: nodeId,
+                      );
                     },
                   )
                 : _NodeItem(
@@ -743,6 +773,8 @@ class _NodeTreeView extends ConsumerWidget {
                     depth: depth,
                     progressPercent: progress.nodeProgressPercent[nodeId],
                     progressDetail: progress.nodeProgressDetail[nodeId],
+                    structuredProgressDetail:
+                        progress.nodeProgressStructuredDetail[nodeId],
                     isMobile: isMobile,
                     onSelect: () {
                       _handleNodeSelect(ref, nodeId);
@@ -757,7 +789,11 @@ class _NodeTreeView extends ConsumerWidget {
                       // Why: a node may be a container (Loop, Parallel,
                       // InstructionSet) holding many children; the helper
                       // gates with "Delete N nodes?" when descendants > 0.
-                      _confirmAndRemoveTreeNode(context, ref, nodeId);
+                      confirmAndDeleteSequenceNode(
+                        context: context,
+                        ref: ref,
+                        nodeId: nodeId,
+                      );
                     },
                     onDuplicate: () {
                       ref
@@ -804,15 +840,29 @@ class _NodeTreeView extends ConsumerWidget {
             ),
           ),
 
+        // Wave 6 Thumbnails — inline strip of captured frames produced
+        // by this ExposureNode. The strip lives directly under the
+        // ExposureNode row so the user sees frames appear in real time
+        // beneath the instruction that produced them. ThumbnailStrip
+        // collapses silently when no frames exist for the node, when
+        // the user has turned thumbnails off, or when prefs haven't
+        // loaded yet — so adding it here doesn't bloat empty trees.
+        if (node is ExposureNode)
+          Padding(
+            padding: EdgeInsets.only(left: isMobile ? 24 : 36, right: 8),
+            child: ExposureNodeThumbnailStrip(nodeId: nodeId),
+          ),
+
         // Children area
         if ((hasChildren || isContainer) && !isCollapsed)
           Padding(
             padding: EdgeInsets.only(left: isMobile ? 16 : 24),
             child: DragTarget<Object>(
               onWillAcceptWithDetails: (data) =>
-                  data is String ||
-                  data is NodePaletteItem ||
-                  data is TemplateSnippet,
+                  data.data is String ||
+                  data.data is NodePaletteItem ||
+                  data.data is TemplateSnippet ||
+                  data.data is TargetQueueDragPayload,
               onAcceptWithDetails: (details) {
                 final data = details.data;
                 if (data is String) {
@@ -843,6 +893,15 @@ class _NodeTreeView extends ConsumerWidget {
                         parentId: nodeId,
                         profileFilterNames: profile?.filterNames,
                       );
+                } else if (data is TargetQueueDragPayload) {
+                  // Drop a queued target into a container — appends
+                  // a fresh TargetHeaderNode at the end. Targets are
+                  // top-level by convention, but the tree allows
+                  // nesting under InstructionSet/RootContainer too.
+                  final notifier = ref.read(currentSequenceProvider.notifier);
+                  notifier.addNode(data.node, parentId: nodeId);
+                  ref.read(selectedNodeIdProvider.notifier).state =
+                      data.node.id;
                 }
               },
               builder: (context, candidateData, rejectedData) {
@@ -1004,6 +1063,7 @@ class _NodeItem extends ConsumerStatefulWidget {
   final bool isDragging;
   final double? progressPercent;
   final String? progressDetail;
+  final InstructionProgressDetail? structuredProgressDetail;
   final bool isMobile;
 
   const _NodeItem({
@@ -1023,6 +1083,7 @@ class _NodeItem extends ConsumerStatefulWidget {
     this.isDragging = false,
     this.progressPercent,
     this.progressDetail,
+    this.structuredProgressDetail,
     this.isMobile = false,
   });
 
@@ -1030,10 +1091,8 @@ class _NodeItem extends ConsumerStatefulWidget {
   ConsumerState<_NodeItem> createState() => _NodeItemState();
 }
 
-class _NodeItemState extends ConsumerState<_NodeItem>
-    with SingleTickerProviderStateMixin {
+class _NodeItemState extends ConsumerState<_NodeItem> {
   bool _isHovered = false;
-  late AnimationController _pulseController;
 
   // For progress panel persistence
   bool _showProgressPanel = false;
@@ -1044,12 +1103,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
   @override
   void initState() {
     super.initState();
-    _pulseController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
     if (widget.nodeStatus == NodeStatus.running) {
-      _pulseController.repeat();
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
     }
@@ -1059,13 +1113,9 @@ class _NodeItemState extends ConsumerState<_NodeItem>
   void didUpdateWidget(_NodeItem oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.nodeStatus == NodeStatus.running) {
-      _pulseController.repeat();
       _showProgressPanel = true;
       _lastRunningTime = DateTime.now();
     } else {
-      _pulseController.stop();
-      _pulseController.reset();
-
       // Keep panel visible for 20 seconds after node stops running. Owned so
       // we can cancel on dispose — a teardown mid-delay would otherwise leak
       // a pending Timer past the widget tree.
@@ -1083,7 +1133,6 @@ class _NodeItemState extends ConsumerState<_NodeItem>
   @override
   void dispose() {
     _panelPersistTimer?.cancel();
-    _pulseController.dispose();
     super.dispose();
   }
 
@@ -1134,8 +1183,11 @@ class _NodeItemState extends ConsumerState<_NodeItem>
               ),
             ],
           ),
-          content: SizedBox(
-            width: 360,
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              dialogContext,
+              designMaxWidth: 360,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1356,6 +1408,9 @@ class _NodeItemState extends ConsumerState<_NodeItem>
         return LucideIcons.code;
       case 'list':
         return LucideIcons.list;
+      // Wave 3 Agent 2: SmartExposure uses the layered-stack glyph.
+      case 'layers':
+        return LucideIcons.layers;
       default:
         return LucideIcons.box;
     }
@@ -1452,73 +1507,56 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                 'Select node. More actions include reorder and wrap commands.',
             child: GestureDetector(
               onTap: widget.onSelect,
-              child: AnimatedBuilder(
-                animation: _pulseController,
-                builder: (context, child) {
-                  return AnimatedContainer(
-                    duration: const Duration(milliseconds: 150),
-                    margin: EdgeInsets.symmetric(vertical: verticalMargin),
-                    padding: EdgeInsets.symmetric(
-                        horizontal: horizontalPadding,
-                        vertical: verticalPadding),
-                    decoration: BoxDecoration(
-                      color: widget.isDragging
-                          ? categoryColor.withValues(alpha: 0.2)
-                          : widget.isSelected
-                              ? categoryColor.withValues(alpha: 0.15)
-                              : isSuccess
-                                  ? widget.colors.success
-                                      .withValues(alpha: 0.06)
-                                  : isFailed
-                                      ? widget.colors.error
-                                          .withValues(alpha: 0.06)
-                                      : (isSkipped || isCancelled)
-                                          ? widget.colors.textMuted
-                                              .withValues(alpha: 0.04)
-                                          : isTargetHeader
-                                              ? categoryColor.withValues(
-                                                  alpha:
-                                                      0.08) // Slight tint for target headers
-                                              : _isHovered
-                                                  ? widget.colors.surfaceAlt
-                                                  : widget.colors.surface,
-                      borderRadius: BorderRadius.circular(borderRadius),
-                      border: Border.all(
-                        color: widget.isSelected
-                            ? categoryColor
-                            : isRunning
-                                ? Color.lerp(
-                                    widget.colors.info.withValues(alpha: 0.3),
-                                    widget.colors.info,
-                                    _pulseController.value,
-                                  )!
-                                : isTargetHeader
-                                    ? categoryColor.withValues(
-                                        alpha:
-                                            0.3) // Stronger border for target headers
-                                    : widget.colors.border,
-                        width: widget.isSelected || isTargetHeader
-                            ? 2
-                            : 1, // Thicker border for target headers
-                      ),
-                      boxShadow: widget.isDragging
-                          ? [
-                              BoxShadow(
-                                color: categoryColor.withValues(alpha: 0.3),
-                                blurRadius: 12,
-                                offset: const Offset(0, 4),
-                              ),
-                            ]
-                          : null,
-                    ),
-                    child: Opacity(
-                      opacity: isDisabled
-                          ? 0.5
-                          : (isSkipped || isCancelled)
-                              ? 0.6
-                              : 1.0,
-                      child: Row(
-                        children: [
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 150),
+                margin: EdgeInsets.symmetric(vertical: verticalMargin),
+                padding: EdgeInsets.symmetric(
+                    horizontal: horizontalPadding, vertical: verticalPadding),
+                decoration: BoxDecoration(
+                  color: widget.isDragging
+                      ? categoryColor.withValues(alpha: 0.2)
+                      : widget.isSelected
+                          ? NightshadeDecorations.selectedSurface(categoryColor)
+                              .color
+                          : isSuccess
+                              ? widget.colors.success.withValues(alpha: 0.06)
+                              : isFailed
+                                  ? widget.colors.error.withValues(alpha: 0.06)
+                                  : (isSkipped || isCancelled)
+                                      ? widget.colors.textMuted
+                                          .withValues(alpha: 0.04)
+                                      : isTargetHeader
+                                          ? categoryColor.withValues(
+                                              alpha:
+                                                  0.08) // Slight tint for target headers
+                                          : _isHovered
+                                              ? widget.colors.surfaceAlt
+                                              : widget.colors.surface,
+                  borderRadius: BorderRadius.circular(borderRadius),
+                  border: Border.all(
+                    color: widget.isSelected
+                        ? categoryColor
+                        : isRunning
+                            ? widget.colors.info.withValues(alpha: 0.65)
+                            : isTargetHeader
+                                ? categoryColor.withValues(
+                                    alpha:
+                                        0.3) // Stronger border for target headers
+                                : widget.colors.border,
+                    width: widget.isSelected || isTargetHeader
+                        ? 2
+                        : 1, // Thicker border for target headers
+                  ),
+                  boxShadow: null,
+                ),
+                child: Opacity(
+                  opacity: isDisabled
+                      ? 0.5
+                      : (isSkipped || isCancelled)
+                          ? 0.6
+                          : 1.0,
+                  child: Row(
+                    children: [
                           // Status indicator
                           if (widget.nodeStatus != null &&
                               widget.nodeStatus != NodeStatus.pending)
@@ -1537,8 +1575,8 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                           Container(
                             width: iconBoxSize,
                             height: iconBoxSize,
-                            decoration: BoxDecoration(
-                              color: categoryColor.withValues(alpha: 0.1),
+                            decoration: NightshadeDecorations.tintedBadge(
+                              categoryColor,
                               borderRadius:
                                   BorderRadius.circular(isMobile ? 10 : 8),
                             ),
@@ -1674,8 +1712,13 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                             Builder(builder: (context) {
                               final canEdit =
                                   ref.watch(canEditSequenceProvider);
-                              final disabledTooltip =
+                              const lockedSuffix =
                                   ' (locked while sequence is running)';
+                              final lockedTail =
+                                  canEdit ? '' : lockedSuffix;
+                              final toggleLabel = widget.node.isEnabled
+                                  ? 'Disable'
+                                  : 'Enable';
                               return Row(
                                 mainAxisSize: MainAxisSize.min,
                                 children: [
@@ -1683,10 +1726,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                                     icon: widget.node.isEnabled
                                         ? LucideIcons.eye
                                         : LucideIcons.eyeOff,
-                                    tooltip: (widget.node.isEnabled
-                                            ? 'Disable'
-                                            : 'Enable') +
-                                        (canEdit ? '' : disabledTooltip),
+                                    tooltip: '$toggleLabel$lockedTail',
                                     colors: widget.colors,
                                     onPressed: canEdit
                                         ? widget.onToggleEnabled
@@ -1694,16 +1734,14 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                                   ),
                                   _NodeActionButton(
                                     icon: LucideIcons.copy,
-                                    tooltip: 'Duplicate' +
-                                        (canEdit ? '' : disabledTooltip),
+                                    tooltip: 'Duplicate$lockedTail',
                                     colors: widget.colors,
                                     onPressed:
                                         canEdit ? widget.onDuplicate : null,
                                   ),
                                   _NodeActionButton(
                                     icon: LucideIcons.trash2,
-                                    tooltip: 'Delete' +
-                                        (canEdit ? '' : disabledTooltip),
+                                    tooltip: 'Delete$lockedTail',
                                     colors: widget.colors,
                                     color: widget.colors.error,
                                     onPressed:
@@ -1831,12 +1869,10 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                         ],
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
               ),
             ),
-          ),
-        ),
         // Progress panel for expanded details
         if (_shouldShowProgressPanel)
           getProgressPanelForNode(
@@ -1844,6 +1880,7 @@ class _NodeItemState extends ConsumerState<_NodeItem>
                 colors: widget.colors,
                 progressPercent: widget.progressPercent ?? 0,
                 progressDetail: widget.progressDetail,
+                structuredProgressDetail: widget.structuredProgressDetail,
               ) ??
               const SizedBox.shrink(),
       ],
@@ -1950,7 +1987,10 @@ class _NodeActionButtonState extends State<_NodeActionButton> {
             margin: const EdgeInsets.only(left: 4),
             decoration: BoxDecoration(
               color: !disabled && _isHovered
-                  ? color.withValues(alpha: 0.1)
+                  ? NightshadeDecorations.tintedBadge(
+                      color,
+                      borderRadius: BorderRadius.circular(4),
+                    ).color
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(4),
             ),
@@ -1988,7 +2028,8 @@ class _DropZone extends ConsumerWidget {
       onWillAcceptWithDetails: (data) =>
           data.data is String ||
           data.data is NodePaletteItem ||
-          data.data is TemplateSnippet,
+          data.data is TemplateSnippet ||
+          data.data is TargetQueueDragPayload,
       onAcceptWithDetails: (details) {
         final data = details.data;
         if (data is String) {
@@ -2020,6 +2061,15 @@ class _DropZone extends ConsumerWidget {
                 index: index,
                 profileFilterNames: profile?.filterNames,
               );
+        } else if (data is TargetQueueDragPayload) {
+          // Precise-position drop: insert the prebuilt
+          // TargetHeaderNode at the exact index where the dashed
+          // drop-zone lives. Mirrors the NodePaletteItem branch above
+          // so the queue payload feels like any other dragged
+          // toolbox item.
+          final notifier = ref.read(currentSequenceProvider.notifier);
+          notifier.addNode(data.node, parentId: parentId, index: index);
+          ref.read(selectedNodeIdProvider.notifier).state = data.node.id;
         }
         // Reset drag state after drop
         ref.read(isDraggingNodeProvider.notifier).state = false;
@@ -2034,9 +2084,11 @@ class _DropZone extends ConsumerWidget {
           height: isOver ? 48 : (showDropZone ? 28 : 4),
           margin: const EdgeInsets.symmetric(vertical: 2),
           decoration: isOver
-              ? BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.2),
+              ? NightshadeDecorations.selectedSurface(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(6),
+                  fillAlpha: 0.2,
+                ).copyWith(
                   border: Border.all(color: colors.primary, width: 2),
                 )
               : showDropZone
@@ -2085,8 +2137,8 @@ class _DropZone extends ConsumerWidget {
 
 /// Creates a dashed-border-style decoration for drop zone indicators.
 BoxDecoration _dashedDropDecoration(NightshadeColors colors) {
-  return BoxDecoration(
-    color: colors.primary.withValues(alpha: 0.06),
+  return NightshadeDecorations.tintedBadge(
+    colors.primary,
     borderRadius: BorderRadius.circular(6),
   );
 }
@@ -2223,102 +2275,6 @@ class _NodeColorLegend extends StatelessWidget {
           ),
         ),
       ],
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _EmptyState({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
-    final iconSize = isMobile ? 36.0 : 48.0;
-    final titleSize = isMobile ? 16.0 : 18.0;
-    final subtitleSize = isMobile ? 12.0 : 13.0;
-    final tipSize = isMobile ? 11.0 : 12.0;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              padding: EdgeInsets.all(isMobile ? 18 : 24),
-              decoration: BoxDecoration(
-                color: colors.surface.withValues(alpha: 0.8),
-                shape: BoxShape.circle,
-                border: Border.all(color: colors.border),
-              ),
-              child: Icon(
-                LucideIcons.workflow,
-                size: iconSize,
-                color: colors.textMuted,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text(
-              'Build Your Sequence',
-              style: TextStyle(
-                fontSize: titleSize,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-              textAlign: TextAlign.center,
-              softWrap: true,
-            ),
-            const SizedBox(height: 8),
-            Text(
-              isMobile
-                  ? 'Tap + to add nodes'
-                  : 'Drag nodes from the palette to start building',
-              style: TextStyle(
-                fontSize: subtitleSize,
-                color: colors.textMuted,
-              ),
-              textAlign: TextAlign.center,
-              softWrap: true,
-            ),
-            const SizedBox(height: 24),
-            Container(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 12 : 16,
-                vertical: isMobile ? 8 : 10,
-              ),
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    LucideIcons.lightbulb,
-                    size: isMobile ? 12 : 14,
-                    color: colors.warning,
-                  ),
-                  const SizedBox(width: 8),
-                  Flexible(
-                    child: Text(
-                      'Tip: Start with a Target Header',
-                      style: TextStyle(
-                        fontSize: tipSize,
-                        color: colors.textSecondary,
-                      ),
-                      softWrap: false,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -2494,9 +2450,10 @@ class _MiniCountBadge extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(8),
+        bordered: false,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2537,7 +2494,11 @@ class _MinimapToggle extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
             color: isVisible
-                ? colors.primary.withValues(alpha: 0.15)
+                ? NightshadeDecorations.statusChip(
+                    colors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                    bordered: false,
+                  ).color
                 : colors.surfaceAlt,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(
@@ -2591,7 +2552,11 @@ class _TimelineToggle extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
           decoration: BoxDecoration(
             color: isVisible
-                ? colors.primary.withValues(alpha: 0.15)
+                ? NightshadeDecorations.statusChip(
+                    colors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                    bordered: false,
+                  ).color
                 : colors.surfaceAlt,
             borderRadius: BorderRadius.circular(4),
             border: Border.all(

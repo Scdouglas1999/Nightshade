@@ -1,5 +1,9 @@
+import 'dart:io';
+
 import 'package:drift/drift.dart';
 
+import '../../models/calibration/dark_library_match_tolerances.dart';
+import '../../services/logging_service.dart';
 import '../database.dart';
 import '../tables/dark_library.dart';
 
@@ -67,12 +71,16 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
   /// Find the best matching dark/bias for a given light frame's parameters.
   ///
   /// Matching rules:
-  /// - Exposure time must match exactly
-  /// - Gain must match exactly
-  /// - Binning must match exactly
-  /// - Temperature must be within [tempToleranceDegC] (default ±2°C)
+  /// - Exposure time must be within [tolerances.exposureSecs] (default ±0.5s)
+  /// - Gain, offset, and binning must match exactly
+  /// - Temperature must be within [tolerances.temperatureC] (default ±1.0°C)
   /// - Prefers master darks over individual raws
   /// - Among matches, picks the one closest in temperature
+  ///
+  /// IMG-P0-2: the tolerances argument is the SAME value object consulted by
+  /// `DarkLibraryCoverageService.evaluate`. Before unification, the coverage
+  /// UI used ±1.0s while this DAO used ±0.001s, so the UI happily showed
+  /// "all darks present" while this method returned null at runtime.
   Future<DarkLibraryEntry?> findBestMatch({
     required double exposureTime,
     required int gain,
@@ -80,14 +88,16 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     required int binX,
     required int binY,
     double? temperature,
-    double tempToleranceDegC = 2.0,
+    DarkLibraryMatchTolerances tolerances =
+        DarkLibraryMatchTolerances.defaults,
     String frameType = 'dark',
   }) async {
-    // Build query: tolerance match on exposure (±0.001s), exact on gain, binning, frame type
+    // Build query: tolerance match on exposure, exact on gain/offset/binning/frame type.
+    final exposureTol = tolerances.exposureSecs;
     var query = select(darkLibrary)
       ..where((t) =>
-          t.exposureTime.isBiggerThanValue(exposureTime - 0.001) &
-          t.exposureTime.isSmallerThanValue(exposureTime + 0.001) &
+          t.exposureTime.isBiggerOrEqualValue(exposureTime - exposureTol) &
+          t.exposureTime.isSmallerOrEqualValue(exposureTime + exposureTol) &
           t.gain.equals(gain) &
           t.offset.equals(offset) &
           t.binX.equals(binX) &
@@ -101,9 +111,10 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
     List<DarkLibraryEntry> filtered;
     if (temperature != null) {
       filtered = candidates.where((c) {
-        if (c.temperature == null)
+        if (c.temperature == null) {
           return true; // Accept frames without temp data
-        return (c.temperature! - temperature).abs() <= tempToleranceDegC;
+        }
+        return (c.temperature! - temperature).abs() <= tolerances.temperatureC;
       }).toList();
     } else {
       filtered = candidates;
@@ -137,17 +148,24 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
 
   /// Get all entries that match a specific exposure/gain/binning combo.
   /// Useful for selecting frames to combine into a master dark.
+  ///
+  /// Uses the same exposure tolerance as [findBestMatch] (default ±0.5s) so
+  /// master-dark grouping cannot disagree with what calibration matches at
+  /// runtime.
   Future<List<DarkLibraryEntry>> getMatchingFrames({
     required double exposureTime,
     required int gain,
     required int binX,
     required int binY,
     String frameType = 'dark',
+    DarkLibraryMatchTolerances tolerances =
+        DarkLibraryMatchTolerances.defaults,
   }) {
+    final exposureTol = tolerances.exposureSecs;
     return (select(darkLibrary)
           ..where((t) =>
-              t.exposureTime.isBiggerThanValue(exposureTime - 0.001) &
-              t.exposureTime.isSmallerThanValue(exposureTime + 0.001) &
+              t.exposureTime.isBiggerOrEqualValue(exposureTime - exposureTol) &
+              t.exposureTime.isSmallerOrEqualValue(exposureTime + exposureTol) &
               t.gain.equals(gain) &
               t.binX.equals(binX) &
               t.binY.equals(binY) &
@@ -223,6 +241,179 @@ class DarkLibraryDao extends DatabaseAccessor<NightshadeDatabase>
       biasCount: biasCount,
       masterCount: masterCount,
     );
+  }
+
+  /// Filtered listing for the remote calibration API (P1-10).
+  ///
+  /// Arguments are independent filters; nulls mean "do not filter on this
+  /// dimension". Exposure tolerance is fractional (±10% of [exposureSeconds]
+  /// by default — matches the operator-facing UI behaviour for "find me
+  /// darks roughly like this"). Temperature tolerance is ±[temperatureWindow]
+  /// degrees C.
+  ///
+  /// Returns the newest-first slice up to [limit] rows. We deliberately do
+  /// NOT silently clamp [limit]; callers must validate and clamp at the
+  /// handler layer.
+  Future<List<DarkLibraryEntry>> listFiltered({
+    double? exposureSeconds,
+    double exposureSecondsRatio = 0.10,
+    int? gain,
+    double? temperatureCelsius,
+    double temperatureWindow = 5.0,
+    int limit = 100,
+  }) {
+    var query = select(darkLibrary)
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(limit);
+
+    if (gain != null) {
+      query = query..where((t) => t.gain.equals(gain));
+    }
+    if (exposureSeconds != null) {
+      final tol = exposureSeconds * exposureSecondsRatio;
+      query = query
+        ..where((t) =>
+            t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
+            t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+    }
+    if (temperatureCelsius != null) {
+      query = query
+        ..where((t) =>
+            t.temperature.isBiggerOrEqualValue(
+                temperatureCelsius - temperatureWindow) &
+            t.temperature.isSmallerOrEqualValue(
+                temperatureCelsius + temperatureWindow));
+    }
+    return query.get();
+  }
+
+  /// P1-10 #calibration: scan every dark-library row and verify the on-disk
+  /// FITS still exists. Counts how many rows refer to a file that has gone
+  /// missing (likely because the operator deleted the file directly), the
+  /// total disk bytes the library currently occupies, and how many rows
+  /// could not be stat'd.
+  ///
+  /// Why this replaces a `fileSize` backfill: unlike `captured_images`, the
+  /// `dark_library` schema does NOT store a `file_size` column. We don't
+  /// want to bump the schema version just for a remote-management nicety,
+  /// so the equivalent operator-facing endpoint becomes a real-time stat
+  /// scan returning the counts that the file-size backfill on the image
+  /// table provides.
+  Future<Map<String, int>> verifyOnDiskState({
+    LoggingService? logger,
+  }) async {
+    final entries = await getAllEntries();
+    int present = 0;
+    int missing = 0;
+    int errors = 0;
+    int totalBytes = 0;
+
+    for (final entry in entries) {
+      final file = File(entry.filePath);
+      try {
+        if (await file.exists()) {
+          present++;
+          totalBytes += await file.length();
+        } else {
+          missing++;
+          logger?.warning(
+            'verifyOnDiskState: dark library entry ${entry.id} '
+            'references missing file: ${entry.filePath}',
+            source: 'DarkLibraryDao',
+          );
+        }
+      } catch (e) {
+        errors++;
+        logger?.warning(
+          'verifyOnDiskState: failed to stat dark library entry '
+          '${entry.id} (${entry.filePath}): $e',
+          source: 'DarkLibraryDao',
+        );
+      }
+    }
+
+    return {
+      'total': entries.length,
+      'present': present,
+      'missing': missing,
+      'errors': errors,
+      'totalBytes': totalBytes,
+    };
+  }
+
+  /// P2-8: paginated listing for the remote read API. Supports the same
+  /// independent filters as [listFiltered] plus an offset for pagination
+  /// and a separate `gain` range (callers passing `gainMin`/`gainMax`).
+  /// Newest-first by `createdAt`. Caller MUST validate and clamp
+  /// [limit] / [offset] before delegating.
+  Future<List<DarkLibraryEntry>> listPaginated({
+    int? gainMin,
+    int? gainMax,
+    double? temperatureCelsius,
+    double temperatureWindow = 5.0,
+    double? exposureSeconds,
+    double exposureSecondsRatio = 0.10,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    var query = select(darkLibrary)
+      ..orderBy([(t) => OrderingTerm.desc(t.createdAt)])
+      ..limit(limit, offset: offset);
+    if (gainMin != null) {
+      query = query..where((t) => t.gain.isBiggerOrEqualValue(gainMin));
+    }
+    if (gainMax != null) {
+      query = query..where((t) => t.gain.isSmallerOrEqualValue(gainMax));
+    }
+    if (exposureSeconds != null) {
+      final tol = exposureSeconds * exposureSecondsRatio;
+      query = query
+        ..where((t) =>
+            t.exposureTime.isBiggerOrEqualValue(exposureSeconds - tol) &
+            t.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+    }
+    if (temperatureCelsius != null) {
+      query = query
+        ..where((t) =>
+            t.temperature.isBiggerOrEqualValue(
+                temperatureCelsius - temperatureWindow) &
+            t.temperature.isSmallerOrEqualValue(
+                temperatureCelsius + temperatureWindow));
+    }
+    return query.get();
+  }
+
+  /// P2-8: row count matching [listPaginated]'s filters.
+  Future<int> countFilteredForRemote({
+    int? gainMin,
+    int? gainMax,
+    double? temperatureCelsius,
+    double temperatureWindow = 5.0,
+    double? exposureSeconds,
+    double exposureSecondsRatio = 0.10,
+  }) async {
+    final countExpr = darkLibrary.id.count();
+    final query = selectOnly(darkLibrary)..addColumns([countExpr]);
+    if (gainMin != null) {
+      query.where(darkLibrary.gain.isBiggerOrEqualValue(gainMin));
+    }
+    if (gainMax != null) {
+      query.where(darkLibrary.gain.isSmallerOrEqualValue(gainMax));
+    }
+    if (exposureSeconds != null) {
+      final tol = exposureSeconds * exposureSecondsRatio;
+      query.where(darkLibrary.exposureTime
+              .isBiggerOrEqualValue(exposureSeconds - tol) &
+          darkLibrary.exposureTime.isSmallerOrEqualValue(exposureSeconds + tol));
+    }
+    if (temperatureCelsius != null) {
+      query.where(darkLibrary.temperature
+              .isBiggerOrEqualValue(temperatureCelsius - temperatureWindow) &
+          darkLibrary.temperature
+              .isSmallerOrEqualValue(temperatureCelsius + temperatureWindow));
+    }
+    final row = await query.getSingle();
+    return row.read(countExpr) ?? 0;
   }
 
   /// Get distinct exposure/gain/binning combinations present in the library.

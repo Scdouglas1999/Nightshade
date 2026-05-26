@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -10,7 +11,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../services/finder_chart_service.dart';
-import '../../utils/add_target_header_helper.dart';
+import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/filter_sidebar.dart';
 import 'widgets/top_overlay.dart';
 import 'widgets/bottom_info_bar.dart';
@@ -324,15 +325,25 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
     final obj = _popupObject!;
     final coords = _popupCoordinates ?? obj.coordinates;
+    final meta = celestialObjectMetadata(obj);
 
-    final added = await addTargetHeaderWithPrompt(
+    final target = await catalogTargetSuggestion(
+      ref: ref,
+      targetName: obj.name,
+      raHours: coords.ra,
+      decDegrees: coords.dec,
+      catalogId: meta.catalogId,
+      objectType: meta.objectType,
+      magnitude: obj.magnitude,
+      sizeArcmin: meta.sizeArcmin,
+      constellation: meta.constellation,
+    );
+
+    if (!mounted) return;
+    final added = await addPlanTonightTargetToSequencer(
       context: context,
       ref: ref,
-      targetNode: TargetHeaderNode(
-        targetName: obj.name,
-        raHours: coords.ra,
-        decDegrees: coords.dec,
-      ),
+      target: target,
     );
 
     if (added && mounted) {
@@ -629,7 +640,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   void _showFilterBottomSheet(BuildContext context) {
     // Tokenized colors so Red Night theme keeps its red wash across mobile
     // filter sheets — audit §4.15.
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     showModalBottomSheet(
       context: context,
       backgroundColor: colors.surfaceOverlay,
@@ -786,8 +797,6 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
     });
   }
 
-  static const double _mobileBreakpoint = 700;
-
   void _showObjectInfoBottomSheet(
       BuildContext context, NightshadeColors colors) {
     final selectedObject = ref.read(selectedObjectProvider);
@@ -878,7 +887,7 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final selectedObject = ref.watch(selectedObjectProvider);
 
     // Sync mount state from equipment provider to planetarium mount position provider
@@ -968,11 +977,10 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         child: GestureDetector(
           onTapDown: (details) {
             if (_showPopup) {
-              final popupRect = Rect.fromCenter(
-                center: _popupPosition,
-                width: 320,
-                height: 280,
-              );
+              final popupRect = resolveObjectInfoPopupLayout(
+                context,
+                _popupPosition,
+              ).rect;
               if (!popupRect.contains(details.globalPosition)) {
                 _dismissPopup();
               }
@@ -980,7 +988,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
           },
           child: LayoutBuilder(
             builder: (context, constraints) {
-              final isMobile = constraints.maxWidth < _mobileBreakpoint;
+              final isMobile =
+                  constraints.maxWidth < NightshadeTokens.breakpointTablet;
               if (isMobile) {
                 return _buildMobileLayout(context, colors, selectedObject);
               }
@@ -995,6 +1004,13 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
   Widget _buildMobileLayout(BuildContext context, NightshadeColors colors,
       SelectedObjectState selectedObject) {
     final sizing = AdaptiveSizing.of(context);
+    final media = MediaQuery.of(context);
+    final topBarHeight = media.padding.top + 48;
+    final viewControlsTop = topBarHeight + 8;
+    final slewControlsTop = viewControlsTop + 128;
+    final bottomHudInset = media.padding.bottom + 48;
+    final timePanelBottom = bottomHudInset + 2;
+    final fabColumnBottom = bottomHudInset + 12;
 
     return Stack(
       key: _skyViewKey,
@@ -1038,8 +1054,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         ),
 
         Positioned(
-          top: 70,
-          left: 12,
+          top: viewControlsTop,
+          left: sizing.edgePadding,
           child: MobileViewControls(
             colors: colors,
             showFOV: _showFOV,
@@ -1048,8 +1064,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         ),
 
         Positioned(
-          top: 200,
-          left: 12,
+          top: slewControlsTop,
+          left: sizing.edgePadding,
           child: MobileSlewControls(
             colors: colors,
             slewMode: _slewMode,
@@ -1125,8 +1141,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         ),
 
         Positioned(
-          bottom: 50,
-          left: 12,
+          bottom: timePanelBottom,
+          left: sizing.edgePadding,
           child: TimeControlPanel(
             backgroundColor: colors.surface.withValues(alpha: 0.9),
             textColor: colors.textPrimary,
@@ -1136,8 +1152,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
         ),
 
         Positioned(
-          right: 12,
-          bottom: 60,
+          right: sizing.edgePadding,
+          bottom: fabColumnBottom,
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1209,7 +1225,31 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
 
   Widget _buildDesktopLayout(BuildContext context, NightshadeColors colors,
       SelectedObjectState selectedObject) {
-    return Stack(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final panelMax = clampPanelWidth(
+          constraints.maxWidth,
+          fraction: 0.38,
+          min: 250,
+          max: 500,
+        );
+        final panelInitial = clampPanelWidth(
+          constraints.maxWidth,
+          fraction: 0.28,
+          min: 250,
+          max: 340,
+        );
+        final panelMin = math.min(
+          panelMax,
+          clampPanelWidth(
+            constraints.maxWidth,
+            fraction: 0.22,
+            min: 200,
+            max: 280,
+          ),
+        );
+
+        return Stack(
       children: [
         Row(
           children: [
@@ -1435,9 +1475,9 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
               ),
             ),
             ResizablePanel(
-              initialWidth: 340,
-              minWidth: 250,
-              maxWidth: 500,
+              initialWidth: panelInitial,
+              minWidth: panelMin,
+              maxWidth: panelMax,
               side: ResizeSide.left,
               child: Container(
                 decoration: BoxDecoration(
@@ -1511,6 +1551,8 @@ class _PlanetariumScreenState extends ConsumerState<PlanetariumScreen>
           ),
       ],
     );
+      },
+    );
   }
 }
 
@@ -1534,7 +1576,10 @@ class _KeyboardShortcutsOverlay extends StatelessWidget {
           child: GestureDetector(
             onTap: _consumeTap,
             child: Container(
-              constraints: const BoxConstraints(maxWidth: 420),
+              constraints: AdaptiveDialogConstraints.hybrid(
+                context,
+                designMaxWidth: 420,
+              ),
               margin: const EdgeInsets.all(32),
               padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(

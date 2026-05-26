@@ -59,13 +59,23 @@ jobs:
       - name: Build Linux release bundle
         run: dart run melos run build:desktop:linux --no-select
 
+      - name: Headless runtime smoke
+        run: |
+          set -euo pipefail
+          mkdir -p build/release-linux
+          dart run tools/production/headless_lan_linux_smoke.dart \
+            | tee build/release-linux/headless-runtime-smoke.log
+
       - name: Generate Linux package metadata
         run: |
           dart run tools/production/linux_release_package_metadata.dart \
             --bundle-dir=apps/desktop/build/linux/x64/release/bundle \
             --output-dir=build/release-linux \
             --artifact-name=nightshade-linux-x64-${{ github.sha }}.tar.gz \
-            --metadata-output=docs/production-readiness/linux-release-package-metadata.json
+            --metadata-output=docs/production-readiness/linux-release-package-metadata.json \
+            --runtime-smoke-log=build/release-linux/headless-runtime-smoke.log \
+            --runtime-smoke-passed \
+            --write-evidence
 
       - name: Upload Linux release package
         uses: actions/upload-artifact@v4

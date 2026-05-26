@@ -7,6 +7,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'adaptive_chart_container.dart';
+
 /// Panel that provides Lomb-Scargle and BLS period detection analysis
 /// for variable star and exoplanet transit detection.
 class PeriodAnalysisPanel extends ConsumerStatefulWidget {
@@ -85,7 +87,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
             // Results
             if (analysisState.isRunning)
-              SizedBox(
+              AdaptiveChartContainer.fixed(
                 height: 200,
                 child: Center(
                   child: Column(
@@ -321,8 +323,9 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
 
   Widget _buildEmptyState(NightshadeColors colors) {
     final pointCount = widget.lightCurve.length;
-    return Container(
+    return AdaptiveChartContainer.fixed(
       height: 120,
+      child: Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
@@ -344,6 +347,7 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -377,15 +381,15 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 200,
+        AdaptiveChartContainer(
+          preferredHeight: 200,
           child: _PeriodogramPainter(
             colors: colors,
             frequencies: ls.frequencies,
             powers: ls.powers,
             bestFrequency: ls.bestFrequency,
-            plotColor: const Color(0xFF60A5FA),
-            peakColor: const Color(0xFFF59E0B),
+            plotColor: NightshadeChartColors.seriesBlue,
+            peakColor: NightshadeChartColors.seriesAmber,
             xLabel: 'Frequency (1/day)',
             yLabel: 'Power',
           ),
@@ -402,12 +406,12 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
           ),
         ),
         const SizedBox(height: 8),
-        SizedBox(
-          height: 200,
+        AdaptiveChartContainer(
+          preferredHeight: 200,
           child: _PhaseFoldPainter(
             colors: colors,
             points: lsPhaseFold,
-            plotColor: const Color(0xFF60A5FA),
+            plotColor: NightshadeChartColors.seriesBlue,
           ),
         ),
         const SizedBox(height: 16),
@@ -428,12 +432,12 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 200,
+          AdaptiveChartContainer(
+            preferredHeight: 200,
             child: _PhaseFoldPainter(
               colors: colors,
               points: analysisState.customPhaseFold!,
-              plotColor: const Color(0xFFA78BFA),
+              plotColor: NightshadeChartColors.seriesViolet,
             ),
           ),
         ],
@@ -494,8 +498,8 @@ class _PeriodAnalysisPanelState extends ConsumerState<PeriodAnalysisPanel> {
         ),
         const SizedBox(height: 8),
         // BLS SR spectrum
-        SizedBox(
-          height: 180,
+        AdaptiveChartContainer(
+          preferredHeight: 180,
           child: _BlsSpectrumPainter(
             colors: colors,
             trialPeriods: bls.trialPeriods,
@@ -1065,8 +1069,8 @@ class _BlsSpectrumPainter extends StatelessWidget {
         trialPeriods: trialPeriods,
         srSpectrum: srSpectrum,
         bestPeriod: bestPeriod,
-        plotColor: const Color(0xFF34D399),
-        peakColor: const Color(0xFFF59E0B),
+        plotColor: NightshadeChartColors.seriesGreen,
+        peakColor: NightshadeChartColors.seriesAmber,
         borderColor: colors.border,
         textColor: colors.textSecondary,
         gridColor: colors.border.withValues(alpha: 0.3),

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:drift/native.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_core/src/services/imaging_records_repository.dart';
 
 void main() {
   late NightshadeDatabase database;
@@ -51,7 +52,10 @@ void main() {
 
     logger = LoggingService();
     sessionService = SessionService(
-      sessionsDao: sessionsDao,
+      records: ImagingRecordsRepository.local(
+        sessionsDao: sessionsDao,
+        imagesDao: ImagesDao(database),
+      ),
       checkpointsDao: checkpointsDao,
       logger: logger,
     );
@@ -274,7 +278,10 @@ void main() {
 
       // Simulate crash/restart - create new service instance
       final newService = SessionService(
-        sessionsDao: sessionsDao,
+        records: ImagingRecordsRepository.local(
+          sessionsDao: sessionsDao,
+          imagesDao: ImagesDao(database),
+        ),
         checkpointsDao: checkpointsDao,
         logger: logger,
       );

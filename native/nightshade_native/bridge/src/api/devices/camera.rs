@@ -1,12 +1,10 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -148,4 +146,54 @@ pub async fn api_set_camera_binning(
             .await
             .map_err(NightshadeError::OperationFailed)
     }
+}
+
+/// Capture a live-view / preview JPEG frame when the driver supports it.
+pub async fn api_camera_capture_preview(device_id: String) -> Result<Vec<u8>, NightshadeError> {
+    if device_id.starts_with("sim_") {
+        return Err(NightshadeError::OperationFailed(
+            "Simulator cameras do not support live view preview".to_string(),
+        ));
+    }
+
+    let mgr = get_device_manager();
+    mgr.camera_capture_preview(&device_id)
+        .await
+        .map_err(NightshadeError::OperationFailed)
+}
+
+// =============================================================================
+// Camera Auto-Detect Recommended Settings (IMG-P3-2)
+// =============================================================================
+
+/// Query the camera SDK for manufacturer-recommended gain/offset values.
+///
+/// Returns a [`CameraRecommendedSettings`] with whatever the vendor SDK
+/// actually reports:
+/// - ZWO: `default_value` from `ASIGetControlCaps` for gain and offset.
+/// - QHY: `DefaultGain` / `DefaultOffset` dedicated control IDs (probed
+///   via `IsQHYCCDControlAvailable`).
+/// - SVBony: `default_value` from `SVBGetControlCaps` for Gain and BlackLevel.
+/// - All other drivers: empty struct (every field `None`) — the vendor SDK
+///   does not expose this and we will NEVER fabricate a recommendation.
+///
+/// On the Dart side this is called right after camera connect; the active
+/// equipment profile's `defaultGain` / `defaultOffset` are populated from
+/// the result IFF they are currently `null` (user-set values are never
+/// overwritten).
+pub async fn api_camera_get_recommended_settings(
+    device_id: String,
+) -> Result<crate::device_capabilities::CameraRecommendedSettings, NightshadeError> {
+    if device_id.starts_with("sim_") {
+        // Simulator cameras have no manufacturer to recommend anything.
+        // Honest empty answer.
+        return Ok(crate::device_capabilities::CameraRecommendedSettings::default());
+    }
+
+    let mgr = get_device_manager();
+    let raw = mgr
+        .camera_get_recommended_settings(&device_id)
+        .await
+        .map_err(NightshadeError::OperationFailed)?;
+    Ok(raw.into())
 }

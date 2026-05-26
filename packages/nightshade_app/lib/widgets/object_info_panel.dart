@@ -15,10 +15,16 @@ class ObjectInfoPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
+    final panelWidth = clampPanelWidth(
+      MediaQuery.sizeOf(context).width,
+      fraction: 0.22,
+      min: 240,
+      max: 300,
+    );
 
     return Container(
-      width: 300,
+      width: panelWidth,
       decoration: BoxDecoration(
         color: colors.surface.withValues(alpha: 0.95),
         border: Border(left: BorderSide(color: colors.border)),

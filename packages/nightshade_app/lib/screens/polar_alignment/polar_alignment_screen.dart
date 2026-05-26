@@ -8,8 +8,11 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../utils/snackbar_helper.dart';
 import '../../widgets/contextual_tour_prompt.dart';
+import '../../widgets/plate_solver_required_banner.dart';
 import '../../widgets/tutorial_keys/polar_alignment_keys.dart';
+import 'polar_alignment_body_layout.dart';
 import 'widgets/all_sky_target_reticle.dart';
+import 'widgets/polar_alignment_segmented_button.dart';
 
 class PolarAlignmentScreen extends ConsumerStatefulWidget {
   const PolarAlignmentScreen({super.key});
@@ -21,16 +24,6 @@ class PolarAlignmentScreen extends ConsumerStatefulWidget {
 
 class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     with TickerProviderStateMixin {
-  // Panel expansion state
-  bool _showCommonSettings = false;
-  bool _showAdvancedSettings = false;
-  bool _showHistoryPanel = false;
-
-  /// Selected polar alignment algorithm. Defaults to TPPA for backward
-  /// compatibility; the All-Sky tab switches to the Sharpcap-style routine
-  /// that works from any direction in the sky.
-  PolarAlignmentMode _mode = PolarAlignmentMode.threePoint;
-
   late AnimationController _pulseController;
 
   @override
@@ -69,7 +62,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       return;
     }
 
-    if (_mode == PolarAlignmentMode.allSky) {
+    final mode = ref.read(polarAlignmentUiStateProvider).mode;
+    if (mode == PolarAlignmentMode.allSky) {
       // All-sky routine: route through the polar alignment service which
       // calls the bridge `apiStartAllSkyPolarAlignment` entry point. The
       // backend raises a structured "Plate solver required — install
@@ -123,7 +117,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
       }
     });
 
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final state = ref.watch(polarAlignmentStateProvider);
     final config = ref.watch(polarAlignmentConfigProvider);
 
@@ -143,34 +137,13 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             // Header bar
             _buildHeader(colors, isRunning),
 
-            // Main content
+            // Main content — responsive layout avoids squeezing the guide
+            // column when embedded beside the app shell or on smaller displays.
             Expanded(
-              child: Row(
-                children: [
-                  // Left panel - Equipment status & config
-                  SizedBox(
-                    width: 320,
-                    child: _buildLeftPanel(colors, state, config, isRunning),
-                  ),
-
-                  // Divider
-                  Container(width: 1, color: colors.border),
-
-                  // Center panel - Progress & Instructions
-                  Expanded(
-                    flex: 2,
-                    child: _buildCenterPanel(colors, state, config),
-                  ),
-
-                  // Divider
-                  Container(width: 1, color: colors.border),
-
-                  // Right panel - Error visualization
-                  SizedBox(
-                    width: 400,
-                    child: _buildRightPanel(colors, state, config),
-                  ),
-                ],
+              child: PolarAlignmentBodyLayout(
+                leftPanel: _buildLeftPanel(colors, state, config, isRunning),
+                centerPanel: _buildCenterPanel(colors, state, config),
+                rightPanel: _buildRightPanel(colors, state, config),
               ),
             ),
 
@@ -183,40 +156,64 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   }
 
   Widget _buildHeader(NightshadeColors colors, bool isRunning) {
-    return Container(
-      height: 56,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        border: Border(bottom: BorderSide(color: colors.border)),
-      ),
-      child: Row(
-        children: [
-          // Back button
-          IconButton(
-            icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
-            onPressed: isRunning
-                ? null
-                : () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/imaging');
-                    }
-                  },
-            tooltip: isRunning ? 'Stop alignment first' : 'Back',
-          ),
-          const SizedBox(width: 12),
+    final ui = ref.watch(polarAlignmentUiStateProvider);
+    final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
-          // Title
-          Icon(LucideIcons.compass, color: colors.primary, size: 24),
-          const SizedBox(width: 12),
-          Column(
+    final modeSelector = PolarAlignmentSegmentedButton<PolarAlignmentMode>(
+      segments: const [
+        ButtonSegment(
+          value: PolarAlignmentMode.threePoint,
+          label: Text('TPPA'),
+          icon: Icon(LucideIcons.target, size: 14),
+        ),
+        ButtonSegment(
+          value: PolarAlignmentMode.allSky,
+          label: Text('All-Sky'),
+          icon: Icon(LucideIcons.globe, size: 14),
+        ),
+      ],
+      selected: {ui.mode},
+      showSelectedIcon: false,
+      onSelectionChanged:
+          isRunning ? null : (selection) => uiNotifier.setMode(selection.first),
+    );
+
+    final historyButton = NightshadeButton(
+      label: 'History',
+      icon: LucideIcons.history,
+      variant:
+          ui.showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
+      size: ButtonSize.small,
+      onPressed: () => uiNotifier.toggleHistoryPanel(),
+    );
+
+    final backButton = IconButton(
+      icon: Icon(LucideIcons.arrowLeft, color: colors.textPrimary),
+      onPressed: isRunning
+          ? null
+          : () {
+              if (context.canPop()) {
+                context.pop();
+              } else {
+                context.go('/imaging');
+              }
+            },
+      tooltip: isRunning ? 'Stop alignment first' : 'Back',
+    );
+
+    final titleBlock = Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(LucideIcons.compass, color: colors.primary, size: 24),
+        const SizedBox(width: 12),
+        Flexible(
+          child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'Polar Alignment',
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
@@ -224,7 +221,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                 ),
               ),
               Text(
-                _mode.displayName,
+                ui.mode.displayName,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
                   fontSize: 11,
                   color: colors.textMuted,
@@ -232,48 +230,63 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               ),
             ],
           ),
-          const SizedBox(width: 20),
+        ),
+      ],
+    );
 
-          // Mode selector — TPPA vs All-Sky.
-          SegmentedButton<PolarAlignmentMode>(
-            segments: const [
-              ButtonSegment(
-                value: PolarAlignmentMode.threePoint,
-                label: Text('TPPA'),
-                icon: Icon(LucideIcons.target, size: 14),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final useCompactHeader = constraints.maxWidth < 960;
+
+          if (!useCompactHeader) {
+            return SizedBox(
+              height: 48,
+              child: Row(
+                children: [
+                  backButton,
+                  const SizedBox(width: 8),
+                  titleBlock,
+                  const SizedBox(width: 16),
+                  modeSelector,
+                  const Spacer(),
+                  historyButton,
+                  const SizedBox(width: 12),
+                  _buildEquipmentIndicators(colors),
+                ],
               ),
-              ButtonSegment(
-                value: PolarAlignmentMode.allSky,
-                label: Text('All-Sky'),
-                icon: Icon(LucideIcons.globe, size: 14),
+            );
+          }
+
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                height: 44,
+                child: Row(
+                  children: [
+                    backButton,
+                    Expanded(child: titleBlock),
+                    historyButton,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
+                children: [
+                  Expanded(child: modeSelector),
+                  const SizedBox(width: 8),
+                  _buildEquipmentIndicators(colors),
+                ],
               ),
             ],
-            selected: {_mode},
-            showSelectedIcon: false,
-            onSelectionChanged: isRunning
-                ? null
-                : (selection) {
-                    setState(() => _mode = selection.first);
-                  },
-          ),
-
-          const Spacer(),
-
-          // History toggle
-          NightshadeButton(
-            label: 'History',
-            icon: LucideIcons.history,
-            variant:
-                _showHistoryPanel ? ButtonVariant.primary : ButtonVariant.ghost,
-            size: ButtonSize.small,
-            onPressed: () =>
-                setState(() => _showHistoryPanel = !_showHistoryPanel),
-          ),
-          const SizedBox(width: 16),
-
-          // Equipment status indicators
-          _buildEquipmentIndicators(colors),
-        ],
+          );
+        },
       ),
     );
   }
@@ -309,6 +322,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     PolarAlignmentConfig config,
     bool isRunning,
   ) {
+    final ui = ref.watch(polarAlignmentUiStateProvider);
+
     return Container(
       color: colors.surface,
       child: Column(
@@ -349,7 +364,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                   ],
 
                   // History panel (shown when toggled)
-                  if (_showHistoryPanel) ...[
+                  if (ui.showHistoryPanel) ...[
                     const SizedBox(height: 24),
                     _buildHistoryPanel(colors),
                   ],
@@ -395,8 +410,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           tooltip:
               'Northern or Southern hemisphere determines celestial pole position',
           colors: colors,
-          child: SegmentedButton<bool>(
-            key: PolarAlignmentTutorialKeys.hemisphere,
+          child: PolarAlignmentSegmentedButton<bool>(
+            buttonKey: PolarAlignmentTutorialKeys.hemisphere,
             segments: const [
               ButtonSegment(value: true, label: Text('North')),
               ButtonSegment(value: false, label: Text('South')),
@@ -448,14 +463,16 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     bool isRunning,
   ) {
     final configNotifier = ref.read(polarAlignmentConfigProvider.notifier);
+    final ui = ref.watch(polarAlignmentUiStateProvider);
+    final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 8),
-        initiallyExpanded: _showCommonSettings,
-        onExpansionChanged: (v) => setState(() => _showCommonSettings = v),
+        initiallyExpanded: ui.showCommonSettings,
+        onExpansionChanged: uiNotifier.setShowCommonSettings,
         title: Row(
           children: [
             Icon(LucideIcons.sliders, size: 14, color: colors.textMuted),
@@ -476,7 +493,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             label: 'Binning',
             tooltip: 'Higher binning = faster plate solves, lower resolution',
             colors: colors,
-            child: SegmentedButton<int>(
+            child: PolarAlignmentSegmentedButton<int>(
               segments: const [
                 ButtonSegment(value: 1, label: Text('1x1')),
                 ButtonSegment(value: 2, label: Text('2x2')),
@@ -526,7 +543,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             tooltip:
                 'Which way to rotate for measurements. Use West if near Eastern meridian limit',
             colors: colors,
-            child: SegmentedButton<bool>(
+            child: PolarAlignmentSegmentedButton<bool>(
               segments: const [
                 ButtonSegment(value: true, label: Text('East')),
                 ButtonSegment(value: false, label: Text('West')),
@@ -548,14 +565,16 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     bool isRunning,
   ) {
     final configNotifier = ref.read(polarAlignmentConfigProvider.notifier);
+    final ui = ref.watch(polarAlignmentUiStateProvider);
+    final uiNotifier = ref.read(polarAlignmentUiStateProvider.notifier);
 
     return Theme(
       data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         childrenPadding: const EdgeInsets.only(bottom: 8),
-        initiallyExpanded: _showAdvancedSettings,
-        onExpansionChanged: (v) => setState(() => _showAdvancedSettings = v),
+        initiallyExpanded: ui.showAdvancedSettings,
+        onExpansionChanged: uiNotifier.setShowAdvancedSettings,
         title: Row(
           children: [
             Icon(LucideIcons.settings2, size: 14, color: colors.textMuted),
@@ -576,7 +595,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             label: 'Manual Rotation',
             tooltip: 'Enable for star trackers without GoTo capability',
             colors: colors,
-            child: Switch(
+            child: NightshadeSwitch(
               value: config.manualRotation,
               onChanged:
                   isRunning ? null : (v) => configNotifier.setManualRotation(v),
@@ -619,7 +638,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             label: 'Start From',
             tooltip: 'Use current telescope position or slew near pole first',
             colors: colors,
-            child: SegmentedButton<bool>(
+            child: PolarAlignmentSegmentedButton<bool>(
               segments: const [
                 ButtonSegment(value: true, label: Text('Current')),
                 ButtonSegment(value: false, label: Text('Pole')),
@@ -732,10 +751,9 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
 
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: magnitudeColor.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        magnitudeColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: magnitudeColor.withValues(alpha: 0.3)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -931,10 +949,10 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                             horizontal: 8,
                             vertical: 4,
                           ),
-                          decoration: BoxDecoration(
-                            color: improvementPercent > 50
-                                ? colors.success.withValues(alpha: 0.1)
-                                : colors.info.withValues(alpha: 0.1),
+                          decoration: NightshadeDecorations.tintedBadge(
+                            improvementPercent > 50
+                                ? colors.success
+                                : colors.info,
                             borderRadius: BorderRadius.circular(4),
                           ),
                           child: Text(
@@ -1003,6 +1021,13 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     PolarAlignmentState state,
     PolarAlignmentConfig config,
   ) {
+    final detectionAsync = ref.watch(plateSolverDetectionProvider);
+    final showSolverBanner = state.phase == PolarAlignPhase.idle &&
+        detectionAsync.maybeWhen(
+          data: (d) => !d.hasAnySolver,
+          orElse: () => false,
+        );
+
     return Container(
       color: colors.background,
       child: Column(
@@ -1012,18 +1037,53 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
               state.phase == PolarAlignPhase.adjusting)
             _buildProgressSteps(colors, state),
 
-          // Main content area
+          if (showSolverBanner)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: PlateSolverRequiredBanner(
+                contextMessage:
+                    'Polar alignment plate-solves each capture to measure '
+                    'mount error. Install and configure ASTAP (or '
+                    'Astrometry.net) before starting.',
+              ),
+            ),
+
+          // Main content area — scroll + width cap so idle copy never wraps
+          // one character per line in a narrow center column.
           Expanded(
-            child: Center(
-              child: state.phase == PolarAlignPhase.idle
-                  ? _buildSetupInstructions(colors)
-                  : state.phase == PolarAlignPhase.measuring
-                      ? _buildMeasuringStatus(colors, state)
-                      : state.phase == PolarAlignPhase.adjusting
-                          ? _buildAdjustmentInstructions(colors, state, config)
-                          : state.phase == PolarAlignPhase.complete
-                              ? _buildCompleteStatus(colors, state)
-                              : _buildErrorStatus(colors, state),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                return SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  child: ConstrainedBox(
+                    constraints:
+                        BoxConstraints(minHeight: constraints.maxHeight),
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: ConstrainedBox(
+                        constraints: BoxConstraints(
+                          maxWidth: constraints.maxWidth < 480
+                              ? constraints.maxWidth
+                              : 560,
+                          minWidth: constraints.maxWidth < 400
+                              ? constraints.maxWidth
+                              : 400,
+                        ),
+                        child: state.phase == PolarAlignPhase.idle
+                            ? _buildSetupInstructions(colors)
+                            : state.phase == PolarAlignPhase.measuring
+                                ? _buildMeasuringStatus(colors, state)
+                                : state.phase == PolarAlignPhase.adjusting
+                                    ? _buildAdjustmentInstructions(
+                                        colors, state, config)
+                                    : state.phase == PolarAlignPhase.complete
+                                        ? _buildCompleteStatus(colors, state)
+                                        : _buildErrorStatus(colors, state),
+                      ),
+                    ),
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -1084,19 +1144,25 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
   }
 
   Widget _buildSetupInstructions(NightshadeColors colors) {
+    final isAllSky = ref.watch(polarAlignmentUiStateProvider).mode ==
+        PolarAlignmentMode.allSky;
+
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Icon(
-            LucideIcons.compass,
+            isAllSky ? LucideIcons.globe : LucideIcons.compass,
             size: 64,
             color: colors.primary.withValues(alpha: 0.5),
           ),
           const SizedBox(height: 24),
           Text(
-            'Three-Point Polar Alignment',
+            isAllSky
+                ? 'All-Sky Polar Alignment'
+                : 'Three-Point Polar Alignment',
+            textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 20,
               fontWeight: FontWeight.bold,
@@ -1105,9 +1171,15 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           ),
           const SizedBox(height: 12),
           Text(
-            'This wizard will help you precisely align your mount to the celestial pole.\n'
-            'The process captures 3 images at different positions, plate solves them,\n'
-            'and calculates your polar alignment error.',
+            isAllSky
+                ? 'Align from any part of the sky — no need to point near the '
+                    'celestial pole. Nightshade plate-solves a live frame and '
+                    'shows azimuth/altitude error on the target reticle while '
+                    'you adjust the mount.'
+                : 'This wizard helps you precisely align your mount to the '
+                    'celestial pole. It captures three images at different '
+                    'positions, plate-solves each one, and calculates polar '
+                    'alignment error.',
             textAlign: TextAlign.center,
             style: TextStyle(
               fontSize: 13,
@@ -1116,26 +1188,51 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
             ),
           ),
           const SizedBox(height: 32),
-          _InstructionStep(
-            colors: colors,
-            number: 1,
-            text: 'Roughly align your mount to the pole (within a few degrees)',
-          ),
-          _InstructionStep(
-            colors: colors,
-            number: 2,
-            text: 'Point the telescope near the celestial pole',
-          ),
-          _InstructionStep(
-            colors: colors,
-            number: 3,
-            text: 'Ensure camera and mount are connected',
-          ),
-          _InstructionStep(
-            colors: colors,
-            number: 4,
-            text: 'Configure settings on the left and click Start',
-          ),
+          if (isAllSky) ...[
+            _InstructionStep(
+              colors: colors,
+              number: 1,
+              text: 'Point at any bright star field (not necessarily the pole)',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 2,
+              text: 'Ensure camera and mount are connected',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 3,
+              text: 'Configure exposure settings on the left and click Start',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 4,
+              text:
+                  'Follow the live reticle on the right while adjusting azimuth and altitude',
+            ),
+          ] else ...[
+            _InstructionStep(
+              colors: colors,
+              number: 1,
+              text:
+                  'Roughly align your mount to the pole (within a few degrees)',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 2,
+              text: 'Point the telescope near the celestial pole',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 3,
+              text: 'Ensure camera and mount are connected',
+            ),
+            _InstructionStep(
+              colors: colors,
+              number: 4,
+              text: 'Configure settings on the left and click Start',
+            ),
+          ],
         ],
       ),
     );
@@ -1713,181 +1810,194 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     final current = state.currentError!;
     final improvementPercent = state.improvementPercent ?? 0.0;
 
-    return Container(
-      width: 400,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.trendingDown, size: 18, color: colors.success),
-              const SizedBox(width: 8),
-              Text(
-                'Alignment Summary',
-                style: TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: colors.textPrimary,
-                ),
-              ),
-            ],
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final parentMax = constraints.maxWidth;
+        final cardWidth =
+            parentMax.isFinite ? (parentMax * 0.92).clamp(280.0, 400.0) : 400.0;
+
+        return Container(
+          width: cardWidth,
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border),
           ),
-          const SizedBox(height: 20),
-
-          // Before/After comparison
-          Row(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Before
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.error.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+              Row(
+                children: [
+                  Icon(LucideIcons.trendingDown,
+                      size: 18, color: colors.success),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Alignment Summary',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.textPrimary,
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Before',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: colors.error,
-                        ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // Before/After comparison
+              Row(
+                children: [
+                  // Before
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: NightshadeDecorations.tintedBadge(
+                        colors.error,
+                        borderRadius: BorderRadius.circular(8),
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${initial.totalError.toStringAsFixed(0)}"',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Before',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: colors.error,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${initial.totalError.toStringAsFixed(0)}"',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Az: ${initial.azimuthError.toStringAsFixed(1)}"',
+                            style: TextStyle(
+                                fontSize: 10, color: colors.textMuted),
+                          ),
+                          Text(
+                            'Alt: ${initial.altitudeError.toStringAsFixed(1)}"',
+                            style: TextStyle(
+                                fontSize: 10, color: colors.textMuted),
+                          ),
+                        ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Az: ${initial.azimuthError.toStringAsFixed(1)}"',
-                        style: TextStyle(fontSize: 10, color: colors.textMuted),
-                      ),
-                      Text(
-                        'Alt: ${initial.altitudeError.toStringAsFixed(1)}"',
-                        style: TextStyle(fontSize: 10, color: colors.textMuted),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+
+                  // Arrow
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Icon(
+                      LucideIcons.arrowRight,
+                      size: 20,
+                      color: colors.textMuted,
+                    ),
+                  ),
+
+                  // After
+                  Expanded(
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: NightshadeDecorations.tintedBadge(
+                        colors.success,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'After',
+                            style: TextStyle(
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              color: colors.success,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '${current.totalError.toStringAsFixed(0)}"',
+                            style: TextStyle(
+                              fontSize: 24,
+                              fontWeight: FontWeight.bold,
+                              color: colors.textPrimary,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Az: ${current.azimuthError.toStringAsFixed(1)}"',
+                            style: TextStyle(
+                                fontSize: 10, color: colors.textMuted),
+                          ),
+                          Text(
+                            'Alt: ${current.altitudeError.toStringAsFixed(1)}"',
+                            style: TextStyle(
+                                fontSize: 10, color: colors.textMuted),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
 
-              // Arrow
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Icon(
-                  LucideIcons.arrowRight,
-                  size: 20,
+              const SizedBox(height: 16),
+
+              // Improvement progress bar
+              Text(
+                'Improvement',
+                style: TextStyle(
+                  fontSize: 11,
                   color: colors.textMuted,
                 ),
               ),
-
-              // After
-              Expanded(
-                child: Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: colors.success.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(8),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: improvementPercent / 100.0,
+                        backgroundColor: colors.surfaceAlt,
+                        color: improvementPercent > 75
+                            ? colors.success
+                            : improvementPercent > 50
+                                ? colors.info
+                                : colors.warning,
+                        minHeight: 8,
+                      ),
+                    ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'After',
-                        style: TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: colors.success,
-                        ),
+                  const SizedBox(width: 12),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      colors.success,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      '+${improvementPercent.toStringAsFixed(0)}%',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: colors.success,
                       ),
-                      const SizedBox(height: 8),
-                      Text(
-                        '${current.totalError.toStringAsFixed(0)}"',
-                        style: TextStyle(
-                          fontSize: 24,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
-                        ),
-                      ),
-                      const SizedBox(height: 4),
-                      Text(
-                        'Az: ${current.azimuthError.toStringAsFixed(1)}"',
-                        style: TextStyle(fontSize: 10, color: colors.textMuted),
-                      ),
-                      Text(
-                        'Alt: ${current.altitudeError.toStringAsFixed(1)}"',
-                        style: TextStyle(fontSize: 10, color: colors.textMuted),
-                      ),
-                    ],
+                    ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
-
-          const SizedBox(height: 16),
-
-          // Improvement progress bar
-          Text(
-            'Improvement',
-            style: TextStyle(
-              fontSize: 11,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(4),
-                  child: LinearProgressIndicator(
-                    value: improvementPercent / 100.0,
-                    backgroundColor: colors.surfaceAlt,
-                    color: improvementPercent > 75
-                        ? colors.success
-                        : improvementPercent > 50
-                            ? colors.info
-                            : colors.warning,
-                    minHeight: 8,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                decoration: BoxDecoration(
-                  color: colors.success.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(4),
-                ),
-                child: Text(
-                  '+${improvementPercent.toStringAsFixed(0)}%',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: colors.success,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -1928,6 +2038,8 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
     PolarAlignmentConfig config,
   ) {
     final errorHistory = ref.watch(polarAlignmentErrorHistoryProvider);
+    final isAllSky = ref.watch(polarAlignmentUiStateProvider).mode ==
+        PolarAlignmentMode.allSky;
 
     return Container(
       key: PolarAlignmentTutorialKeys.errorDisplay,
@@ -1939,7 +2051,7 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
           // All-Sky mode shows the Sharpcap-style target reticle with a live
           // moving marker; TPPA mode keeps the legacy bar/dial visualization.
           Expanded(
-            child: _mode == PolarAlignmentMode.allSky
+            child: isAllSky
                 ? Center(
                     child: Padding(
                       padding: const EdgeInsets.all(16),
@@ -1948,19 +2060,40 @@ class _PolarAlignmentScreenState extends ConsumerState<PolarAlignmentScreen>
                             state.currentError?.azimuthError ?? 0.0,
                         altitudeErrorArcsec:
                             state.currentError?.altitudeError ?? 0.0,
-                        acceptanceThresholdArcsec:
-                            config.autoCompleteThreshold,
-                        waitingForFirstFrame: state.phase ==
-                                PolarAlignPhase.adjusting &&
-                            state.currentError == null,
+                        acceptanceThresholdArcsec: config.autoCompleteThreshold,
+                        waitingForFirstFrame:
+                            state.phase == PolarAlignPhase.adjusting &&
+                                state.currentError == null,
                       ),
                     ),
                   )
-                : _PolarErrorVisualization(
-                    colors: colors,
-                    error: state.currentError,
-                    phase: state.phase,
-                    pulseAnimation: _pulseController,
+                : Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      _PolarErrorVisualization(
+                        colors: colors,
+                        error: state.currentError,
+                        phase: state.phase,
+                        pulseAnimation: _pulseController,
+                      ),
+                      if (state.phase == PolarAlignPhase.idle)
+                        Positioned(
+                          left: 16,
+                          right: 16,
+                          bottom: 24,
+                          child: Text(
+                            'After you start, this bullseye shows live '
+                            'azimuth and altitude error while you adjust the '
+                            'mount. Rings mark 30", 60", and 120" error zones.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: colors.textSecondary,
+                              height: 1.4,
+                            ),
+                          ),
+                        ),
+                    ],
                   ),
           ),
 
@@ -2219,16 +2352,9 @@ class _StatusChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isConnected
-            ? colors.success.withValues(alpha: 0.1)
-            : colors.error.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.statusChip(
+        isConnected ? colors.success : colors.error,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(
-          color: isConnected
-              ? colors.success.withValues(alpha: 0.3)
-              : colors.error.withValues(alpha: 0.3),
-        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2494,9 +2620,10 @@ class _InstructionStep extends StatelessWidget {
           Container(
             width: 24,
             height: 24,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+            decoration: NightshadeDecorations.iconChip(
+              colors.primary,
+              borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+              bordered: false,
             ),
             child: Center(
               child: Text(
@@ -2878,10 +3005,6 @@ class _BullseyeOverlayPainter extends CustomPainter {
         ..strokeWidth = 2;
       canvas.drawLine(center, errorPos, linePaint);
 
-      // Error indicator with glow effect
-      final glowPaint = Paint()..color = colors.error.withValues(alpha: 0.3);
-      canvas.drawCircle(errorPos, 14, glowPaint);
-
       final errorPaint = Paint()
         ..color = colors.error
         ..style = PaintingStyle.fill;
@@ -3006,12 +3129,6 @@ class _PolarErrorPainter extends CustomPainter {
       final errorY = -error!.altitudeError.clamp(-120.0, 120.0) * scale;
       final errorPos = Offset(center.dx + errorX, center.dy + errorY);
 
-      // Error indicator
-      canvas.drawCircle(
-        errorPos,
-        10,
-        Paint()..color = colors.error.withValues(alpha: 0.3),
-      );
       canvas.drawCircle(
         errorPos,
         6,

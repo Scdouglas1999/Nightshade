@@ -26,6 +26,11 @@ class PostSessionStatsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final dateFormat = DateFormat('MMM d, yyyy HH:mm:ss');
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 600,
+      designHeight: 700,
+    );
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -33,10 +38,11 @@ class PostSessionStatsDialog extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         side: BorderSide(color: colors.border),
       ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 600, maxHeight: 700),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
             // Header
             Container(

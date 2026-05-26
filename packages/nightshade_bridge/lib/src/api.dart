@@ -12,13 +12,6 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
 /// Invalidate the per-(type, driver) discovery cache, forcing fresh discovery
 /// on the next call. Also invalidates the native SDK discovery cache so vendor
-/// SDKs are re-queried. Called when the user explicitly requests a rescan and
-/// when the hot-plug watcher observes an arrival/removal.
-///
-/// Note: there is intentionally no separate capability-cache invalidation
-/// here. The `device_capabilities` module re-queries each device per call
-/// rather than caching, so dropping a cache that does not exist would be a
-/// silent no-op — and silent no-ops mask real bugs (`CLAUDE.md`). If a
-/// capability cache is added later, invalidate it explicitly here.
+/// SDKs are re-queried. Called when the user explicitly requests a rescan.
 Future<void> apiInvalidateDiscoveryCache() =>
     RustLib.instance.api.crateApiApiInvalidateDiscoveryCache();

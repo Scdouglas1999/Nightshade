@@ -6,7 +6,7 @@ void main() {
     late SequenceTimeEstimator estimator;
 
     setUp(() {
-      estimator = SequenceTimeEstimator();
+      estimator = const SequenceTimeEstimator();
     });
 
     /// Helper to create a test sequence with nodes

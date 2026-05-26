@@ -50,7 +50,6 @@ use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -192,9 +191,8 @@ pub async fn api_run_autofocus(
     // the cloned handle is moved into `InstructionContext::event_tx`. When the
     // function returns and the binding is dropped, the background bridge task
     // exits naturally.
-    let event_tx = crate::util::executor_event_bridge::spawn_executor_event_bridge(
-        get_state().clone(),
-    );
+    let event_tx =
+        crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
     let ctx = InstructionContext {
         target_ra: None,
         target_dec: None,
@@ -216,6 +214,49 @@ pub async fn api_run_autofocus(
         trigger_state: None,
         filter_focus_offsets: std::collections::HashMap::new(),
         event_tx: Some(event_tx.clone()),
+        recovery_request_tx: None,
+        // Wave 3 Image Grading: standalone autofocus from the API does
+        // not save FITS frames, so empty FITS-metadata defaults are
+        // honest here. The InstructionContext fields exist to be passed
+        // through to execute_exposure; execute_autofocus ignores them.
+        session_id: String::new(),
+        target_id: None,
+        mosaic_panel: None,
+        current_filter_index: None,
+        set_temp_c: None,
+        bayer_pattern: None,
+        observer_name: None,
+        site_elevation_m: None,
+        camera_make: None,
+        camera_model: None,
+        telescope_name: None,
+        telescope_focal_length_mm: None,
+        telescope_aperture_mm: None,
+        last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
+        consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+        default_quality_check: None,
+        reject_folder_path: None,
+        // Wave 7 Agent 3 — defect map state. Standalone autofocus from
+        // the API does not save FITS frames so this is unused; pass an
+        // empty slot to satisfy the struct contract.
+        defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Wave 8 — Forensics: standalone autofocus doesn't grade frames.
+        forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
+            std::collections::VecDeque::new(),
+        )),
+        current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
+            nightshade_sequencer::CloudMotionSnapshot::default(),
+        )),
+        current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+        // Wave 8 Replay Debug — one-shot bridge API doesn't emit decisions.
+        decision_tx: None,
+        active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
     };
 
     // Execute (no progress callback when called directly from API)
@@ -667,33 +708,60 @@ pub async fn api_camera_start_exposure(
             // 2.5. Apply Auto White Balance (Histogram Peak Alignment)
             apply_auto_white_balance(&mut rgb_data);
 
-            // 3. Auto-stretch RGB (unified params for simplicity)
-            let rgb_pixels: Vec<f64> = rgb_data.par_iter().map(|&v| v as f64 / 65535.0).collect();
-            let mut sorted = rgb_pixels.clone();
-            // Use unwrap_or for float comparison to handle NaN safely
-            // NaN values are treated as equal to avoid panics
-            sorted
-                .par_sort_unstable_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
-            if sorted.is_empty() {
-                return Err(NightshadeError::ImageError(
-                    "Empty image data for median calculation".to_string(),
-                ));
-            }
-            let median = median_from_sorted_f64(&sorted).ok_or_else(|| {
-                NightshadeError::ImageError("Empty image data for median calculation".to_string())
-            })?;
-            let unified_params = nightshade_imaging::StretchParams {
-                shadows: (median - 0.1).max(0.0),
-                highlights: (median + 0.3).min(1.0),
-                midtones: 0.5,
-            };
-
-            // 4. Apply stretch to convert RGB u16 -> RGB u8
-            display_data_raw = nightshade_imaging::apply_stretch_rgb(
+            // 3. Auto-stretch RGB via the real STF engine (IMG-P0-1 audit fix).
+            //
+            // Previously this path hard-coded `shadows = median - 0.1`,
+            // `highlights = median + 0.3`, `midtones = 0.5` — a crude
+            // percentile-tracking heuristic that ignored noise scale. Mono
+            // captures used the proper MAD-based PixInsight STF
+            // (`auto_stretch_stf`); color captures got this fallback. Result:
+            // color cameras rendered with a perceptibly worse curve.
+            //
+            // Default to Unlinked (PixInsight's default): per-channel
+            // independent STF maximizes per-channel contrast. The user can
+            // still re-stretch with linked channels via the Dart-side
+            // `AutoStretchSettings.linkedChannels` flag once auto-stretch is
+            // explicitly enabled (see `auto_stretch_provider.dart`).
+            //
+            // # Degenerate-input contract (CLAUDE.md "errors are a feature")
+            //
+            // `auto_stretch_rgb_with_mode` returns `StretchParams::default()`
+            // (shadows=0, highlights=1, midtones=0.5 — the identity MTF)
+            // when a channel has MAD = 0 (constant data) or is empty. The
+            // downstream `apply_stretch_rgb_per_channel` then emits an
+            // identity stretch for that channel — never the old heuristic,
+            // never a silent black frame. The previous fallback path that
+            // erroneously errored on empty `sorted` is now unreachable
+            // because the validation happens inside the imaging crate.
+            let (r_params, g_params, b_params) = nightshade_imaging::auto_stretch_rgb_with_mode(
                 &rgb_data,
                 seq_image.width,
                 seq_image.height,
-                &unified_params,
+                nightshade_imaging::RgbStretchMode::Unlinked,
+            );
+
+            tracing::info!(
+                "[DIAGNOSTIC] RGB STF params (Unlinked): R(s={:.4}, h={:.4}, m={:.4}) \
+                G(s={:.4}, h={:.4}, m={:.4}) B(s={:.4}, h={:.4}, m={:.4})",
+                r_params.shadows,
+                r_params.highlights,
+                r_params.midtones,
+                g_params.shadows,
+                g_params.highlights,
+                g_params.midtones,
+                b_params.shadows,
+                b_params.highlights,
+                b_params.midtones,
+            );
+
+            // 4. Apply per-channel STF to convert RGB u16 -> RGB u8.
+            display_data_raw = nightshade_imaging::apply_stretch_rgb_per_channel(
+                &rgb_data,
+                seq_image.width,
+                seq_image.height,
+                &r_params,
+                &g_params,
+                &b_params,
             );
         } else {
             // Grayscale: auto-stretch to u8
@@ -1264,6 +1332,132 @@ pub async fn api_read_fits_file(file_path: String) -> Result<FitsReadResult, Nig
     })
 }
 
+// =============================================================================
+// FITS header keyword update (science writeback)
+// =============================================================================
+
+/// A single keyword to inject (or overwrite) on an existing FITS file.
+///
+/// Exactly one of `string_value`, `int_value`, `float_value` must be `Some`.
+/// The remaining fields must be `None`. The Rust side validates this and
+/// returns an `InvalidParameters` error rather than guessing — silent
+/// fallbacks would let a caller bury a typo and have the keyword vanish.
+#[derive(Debug, Clone)]
+pub struct FitsKeywordUpdate {
+    /// FITS keyword. Uppercased on insert. Must be 1..=8 ASCII chars per the
+    /// FITS Standard (4.4.2.1); longer keys are rejected at write time.
+    pub keyword: String,
+    /// Optional inline comment ("/ comment" segment of the value card).
+    pub comment: Option<String>,
+    pub string_value: Option<String>,
+    pub int_value: Option<i64>,
+    pub float_value: Option<f64>,
+}
+
+/// Update (overwrite or inject) one or more keywords on an existing FITS file.
+///
+/// Implementation: reads the full file into memory, mutates the header in
+/// place, writes the result to a sibling `<filename>.nshatmp` file, then
+/// atomically renames it over the original. If any step fails the original
+/// file is left untouched.
+///
+/// This is the writeback mechanism used by `ScienceProcessingService` to
+/// stamp `MAGZP`, `MAGZPERR`, `TRANSPAR`, etc. back onto captured frames so
+/// that PixInsight / AstroPixelProcessor / Siril can read Nightshade's
+/// science products without going through our database.
+pub async fn api_update_fits_keywords(
+    file_path: String,
+    updates: Vec<FitsKeywordUpdate>,
+) -> Result<(), NightshadeError> {
+    use std::path::Path;
+
+    if updates.is_empty() {
+        return Ok(());
+    }
+
+    // Validate every update first — fail fast before touching disk.
+    for u in &updates {
+        let provided = [
+            u.string_value.is_some(),
+            u.int_value.is_some(),
+            u.float_value.is_some(),
+        ]
+        .iter()
+        .filter(|x| **x)
+        .count();
+        if provided != 1 {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "FITS keyword update for `{}` must set exactly one of \
+                string_value/int_value/float_value (got {})",
+                u.keyword, provided
+            )));
+        }
+        if u.keyword.is_empty() || u.keyword.len() > 8 {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "FITS keyword `{}` must be 1..=8 ASCII chars (FITS 4.4.2.1)",
+                u.keyword
+            )));
+        }
+        if !u
+            .keyword
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+        {
+            return Err(NightshadeError::InvalidParameter(format!(
+                "FITS keyword `{}` contains illegal characters",
+                u.keyword
+            )));
+        }
+    }
+
+    let path = Path::new(&file_path);
+    if !path.exists() {
+        return Err(NightshadeError::IoError(format!(
+            "File not found: {}",
+            file_path
+        )));
+    }
+
+    let (image_data, mut header) = nightshade_imaging::read_fits(path)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to read FITS: {}", e)))?;
+
+    for u in &updates {
+        let key = u.keyword.to_uppercase();
+        if let Some(ref s) = u.string_value {
+            header.set_string(&key, s);
+        } else if let Some(i) = u.int_value {
+            header.set_int(&key, i);
+        } else if let Some(f) = u.float_value {
+            header.set_float(&key, f);
+        }
+        if let Some(ref c) = u.comment {
+            header.set_comment(&key, c);
+        }
+    }
+
+    // Atomic write: temp sibling, then rename. Why: a half-written FITS file
+    // is worse than no writeback at all — astronomers would lose the original
+    // capture data. The rename is atomic on Windows and POSIX when source and
+    // destination are on the same filesystem (which they are by construction).
+    let tmp_path = {
+        let mut p = path.to_path_buf();
+        let mut ext = p.extension().map(|e| e.to_owned()).unwrap_or_default();
+        ext.push(".nshatmp");
+        p.set_extension(ext);
+        p
+    };
+    nightshade_imaging::write_fits(&tmp_path, &image_data, &header)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to write FITS: {}", e)))?;
+    std::fs::rename(&tmp_path, path).map_err(|e| {
+        // Best-effort cleanup if rename failed.
+        let _ = std::fs::remove_file(&tmp_path);
+        NightshadeError::IoError(format!("Failed to atomically replace FITS: {}", e))
+    })?;
+
+    tracing::info!("Updated {} FITS keyword(s) on {}", updates.len(), file_path);
+    Ok(())
+}
+
 /// Read a FITS file and return unstretched linear pixel values for science analysis.
 pub async fn api_read_fits_linear_data(
     file_path: String,
@@ -1338,19 +1532,6 @@ pub(crate) fn percentile(values: &[f64], p: f64) -> f64 {
 
 pub(crate) fn median(values: &[f64]) -> f64 {
     percentile(values, 0.5)
-}
-
-pub(crate) fn median_from_sorted_f64(sorted: &[f64]) -> Option<f64> {
-    if sorted.is_empty() {
-        return None;
-    }
-
-    let mid = sorted.len() / 2;
-    if sorted.len() % 2 == 0 {
-        Some((sorted[mid - 1] + sorted[mid]) / 2.0)
-    } else {
-        Some(sorted[mid])
-    }
 }
 
 pub(crate) fn mad(values: &[f64], median_value: f64) -> f64 {
@@ -2435,7 +2616,18 @@ pub async fn api_get_next_frame_number(
 // FITS File Saving
 // =============================================================================
 
-/// Header data for FITS file writing
+/// Header data for FITS file writing.
+///
+/// Public FRB-exposed surface. Kept frozen at the original 22 fields so
+/// Dart consumers (Dart-driven snapshot saves, network-backend FITS writes)
+/// don't need a coordinated FRB regen.
+///
+/// Wave 3 Image Grading: the sequencer's per-frame save path uses
+/// [`FitsWriteHeaderRich`] instead, which carries every extended keyword
+/// (focuser position, rotator angle, guide RMS, plate-solve, mosaic
+/// panel, etc.). The rich path is internal — not exposed via FRB — so
+/// sequencer-driven saves can grow the FITS surface without disrupting
+/// Dart-side FRB schema.
 #[derive(Debug, Clone)]
 pub struct FitsWriteHeader {
     pub object_name: Option<String>,
@@ -2461,6 +2653,224 @@ pub struct FitsWriteHeader {
     pub site_latitude: Option<f64>,
     pub site_longitude: Option<f64>,
     pub site_elevation: Option<f64>,
+}
+
+/// Wave 3 Image Grading: internal FITS-header bundle used by the
+/// sequencer's per-frame save path. Carries every field the standard
+/// astrophotography FITS header expects PLUS the Nightshade-specific
+/// session / mosaic / plate-solve keywords.
+///
+/// Not FRB-exposed: only Rust code (the sequencer's `save_fits` impl in
+/// `real_device_ops.rs` / `unified_device_ops.rs` / `sequencer_ops.rs`)
+/// constructs this. Dart callers continue to use the simpler
+/// [`FitsWriteHeader`] for ad-hoc snapshot saves.
+#[derive(Debug, Clone, Default)]
+pub struct FitsWriteHeaderRich {
+    pub object_name: Option<String>,
+    pub exposure_time: f64,
+    pub capture_timestamp: String,
+    pub frame_type: String,
+    pub filter: Option<String>,
+    /// 1-based filter wheel position (FITS `FILTPOS`).
+    pub filter_position: Option<i32>,
+    pub gain: Option<i32>,
+    pub offset: Option<i32>,
+    pub ccd_temp: Option<f64>,
+    /// Cooler target temperature in °C (FITS `SET-TEMP`).
+    pub set_temp: Option<f64>,
+    pub ra: Option<f64>,
+    pub dec: Option<f64>,
+    pub altitude: Option<f64>,
+    pub telescope: Option<String>,
+    pub instrument: Option<String>,
+    pub observer: Option<String>,
+    pub bin_x: i32,
+    pub bin_y: i32,
+    pub focal_length: Option<f64>,
+    pub aperture: Option<f64>,
+    pub pixel_size_x: Option<f64>,
+    pub pixel_size_y: Option<f64>,
+    pub site_latitude: Option<f64>,
+    pub site_longitude: Option<f64>,
+    pub site_elevation: Option<f64>,
+    // -------------------------------------------------------------------
+    // Wave 3 Image Grading additions — populated from FrameContext.
+    // -------------------------------------------------------------------
+    /// Focuser absolute position (FITS `FOCUSPOS`).
+    pub focuser_position: Option<i32>,
+    /// Focuser temperature in °C (FITS `FOCTEMP`).
+    pub focuser_temperature: Option<f64>,
+    /// Rotator mechanical angle in degrees (FITS `ROTATPOS`).
+    pub rotator_angle: Option<f64>,
+    /// Total guiding RMS in arcseconds (FITS `GUIDERMS`).
+    pub guide_rms_arcsec: Option<f64>,
+    /// Plate-solved RA in hours (FITS `SOLVED-RA`).
+    pub solved_ra_hours: Option<f64>,
+    /// Plate-solved Dec in degrees (FITS `SOLVED-DEC`).
+    pub solved_dec_degrees: Option<f64>,
+    /// Solved pixel scale in arcsec/pixel (FITS `PIXSCALE`).
+    pub plate_solve_pixel_scale_arcsec: Option<f64>,
+    /// Solved field rotation in degrees (FITS `CROTA1` and `CROTA2`).
+    pub plate_solve_rotation_deg: Option<f64>,
+    /// Bayer pattern ("RGGB", "BGGR", etc.) (FITS `BAYERPAT`).
+    pub bayer_pattern: Option<String>,
+    /// Nightshade session identifier (FITS `NS-SESID`).
+    pub session_id: Option<String>,
+    /// 1-based frame index within the burst (FITS `NS-FIDX`).
+    pub frame_index: Option<u32>,
+    /// Total planned frames in the burst (FITS `NS-NPLN`).
+    pub total_planned_frames: Option<u32>,
+    /// Mosaic identification (FITS `NS-MOSNM`).
+    pub mosaic_name: Option<String>,
+    /// 0-based mosaic panel index (FITS `NS-PIDX`).
+    pub mosaic_panel_index: Option<i32>,
+    /// Mosaic panel row (FITS `NS-PROW`).
+    pub mosaic_panel_row: Option<i32>,
+    /// Mosaic panel column (FITS `NS-PCOL`).
+    pub mosaic_panel_column: Option<i32>,
+    /// Mosaic total panel count (FITS `NS-NPAN`).
+    pub mosaic_total_panels: Option<i32>,
+    // -------------------------------------------------------------------
+    // Wave 7 Agent 3 — per-frame defect-map correction provenance.
+    // Emitted as a FITS HISTORY card so the calibration trace is visible
+    // in any FITS viewer (PixInsight, APP, NINA's image viewer, ds9).
+    // `None` => no correction was applied (no map configured, or skipped
+    // due to camera/sensor mismatch).
+    // -------------------------------------------------------------------
+    pub defect_map_correction: Option<nightshade_sequencer::scheduling::DefectMapCorrectionRecord>,
+    // -------------------------------------------------------------------
+    // Wave 7 Science — photometric FITS keywords.
+    //
+    //   * OBJCAT   - target catalogue designation
+    //   * REFSTARS - comma-separated reference star catalogue IDs
+    //   * MJD-OBS  - Modified Julian Date at exposure midpoint
+    //   * INSTRMAG - instrumental magnitude (live-reduced)
+    //   * DIFFMAG  - differential magnitude (against references)
+    //   * FWHM     - measured FWHM in arcseconds
+    //   * SNR      - measured target SNR
+    //
+    // All fields are Option<_> so non-photometry captures omit the
+    // keywords entirely.
+    // -------------------------------------------------------------------
+    pub photometry_object_catalog: Option<String>,
+    pub photometry_reference_stars: Option<String>,
+    pub photometry_mjd_obs: Option<f64>,
+    pub photometry_instrumental_mag: Option<f64>,
+    pub photometry_differential_mag: Option<f64>,
+    pub photometry_fwhm_arcsec: Option<f64>,
+    pub photometry_snr: Option<f64>,
+}
+
+impl From<FitsWriteHeader> for FitsWriteHeaderRich {
+    fn from(h: FitsWriteHeader) -> Self {
+        Self {
+            object_name: h.object_name,
+            exposure_time: h.exposure_time,
+            capture_timestamp: h.capture_timestamp,
+            frame_type: h.frame_type,
+            filter: h.filter,
+            filter_position: None,
+            gain: h.gain,
+            offset: h.offset,
+            ccd_temp: h.ccd_temp,
+            set_temp: None,
+            ra: h.ra,
+            dec: h.dec,
+            altitude: h.altitude,
+            telescope: h.telescope,
+            instrument: h.instrument,
+            observer: h.observer,
+            bin_x: h.bin_x,
+            bin_y: h.bin_y,
+            focal_length: h.focal_length,
+            aperture: h.aperture,
+            pixel_size_x: h.pixel_size_x,
+            pixel_size_y: h.pixel_size_y,
+            site_latitude: h.site_latitude,
+            site_longitude: h.site_longitude,
+            site_elevation: h.site_elevation,
+            ..Default::default()
+        }
+    }
+}
+
+impl FitsWriteHeaderRich {
+    /// Build from a sequencer `FrameContext`. Pure data shuffling — no
+    /// I/O, used by the sequencer-driven save paths in the bridge.
+    ///
+    /// Pack H FRB regen: this helper is consumed only by Rust callers
+    /// (sequencer-driven `save_fits`). FRB picks up `&FrameContext` in the
+    /// signature and tries to expose `FrameContext` as a Dart opaque type,
+    /// which fails because `nightshade_sequencer::scheduling::FrameContext`
+    /// isn't imported in `frb_generated.rs`. Tagging the helper with
+    /// `frb(ignore)` keeps it Rust-only and unblocks the generator.
+    #[flutter_rust_bridge::frb(ignore)]
+    pub fn from_frame_context(ctx: &nightshade_sequencer::scheduling::FrameContext) -> Self {
+        let instrument = match (ctx.camera_make.as_deref(), ctx.camera_model.as_deref()) {
+            (Some(make), Some(model)) => Some(format!("{} {}", make, model)),
+            (Some(s), None) | (None, Some(s)) => Some(s.to_string()),
+            (None, None) => None,
+        };
+
+        Self {
+            object_name: ctx.target_name.clone(),
+            exposure_time: ctx.duration_secs,
+            capture_timestamp: chrono::Utc::now().format("%Y-%m-%dT%H:%M:%S").to_string(),
+            frame_type: ctx.frame_type.clone(),
+            filter: ctx.filter_name.clone(),
+            filter_position: ctx.filter_index,
+            gain: ctx.gain,
+            offset: ctx.offset,
+            ccd_temp: ctx.sensor_temp_c,
+            set_temp: ctx.set_temp_c,
+            ra: ctx.target_ra_hours,
+            dec: ctx.target_dec_degrees,
+            altitude: None,
+            telescope: ctx.telescope_name.clone(),
+            instrument,
+            observer: ctx.observer_name.clone(),
+            bin_x: ctx.binning_x as i32,
+            bin_y: ctx.binning_y as i32,
+            focal_length: ctx.telescope_focal_length_mm,
+            aperture: ctx.telescope_aperture_mm,
+            pixel_size_x: None,
+            pixel_size_y: None,
+            site_latitude: ctx.site_latitude_deg,
+            site_longitude: ctx.site_longitude_deg,
+            site_elevation: ctx.site_elevation_m,
+            focuser_position: ctx.focuser_position,
+            focuser_temperature: ctx.focuser_temperature_c,
+            rotator_angle: ctx.rotator_angle_deg,
+            guide_rms_arcsec: ctx.guide_rms_arcsec,
+            solved_ra_hours: ctx.plate_solve_ra_hours,
+            solved_dec_degrees: ctx.plate_solve_dec_degrees,
+            plate_solve_pixel_scale_arcsec: ctx.plate_solve_pixel_scale_arcsec,
+            plate_solve_rotation_deg: ctx.plate_solve_rotation_deg,
+            bayer_pattern: ctx.bayer_pattern.clone(),
+            session_id: Some(ctx.session_id.clone()).filter(|s| !s.is_empty()),
+            frame_index: Some(ctx.frame_index),
+            total_planned_frames: ctx.total_planned_frames,
+            mosaic_name: ctx.mosaic_panel.as_ref().map(|p| p.mosaic_name.clone()),
+            mosaic_panel_index: ctx.mosaic_panel.as_ref().map(|p| p.panel_index),
+            mosaic_panel_row: ctx.mosaic_panel.as_ref().map(|p| p.row),
+            mosaic_panel_column: ctx.mosaic_panel.as_ref().map(|p| p.column),
+            mosaic_total_panels: ctx.mosaic_panel.as_ref().map(|p| p.total_panels),
+            defect_map_correction: ctx.defect_map_correction.clone(),
+            // Wave 7 Science — photometric metadata. The
+            // SciencePhotometryInstruction stamps these onto the
+            // FrameContext just before the FITS save call.
+            photometry_object_catalog: ctx.photometry_object_catalog.clone(),
+            photometry_reference_stars: ctx
+                .photometry_reference_stars
+                .as_ref()
+                .map(|refs| refs.join(",")),
+            photometry_mjd_obs: ctx.photometry_mjd_obs,
+            photometry_instrumental_mag: ctx.photometry_instrumental_mag,
+            photometry_differential_mag: ctx.photometry_differential_mag,
+            photometry_fwhm_arcsec: ctx.photometry_fwhm_arcsec,
+            photometry_snr: ctx.photometry_snr,
+        }
+    }
 }
 
 /// Save image data to FITS file
@@ -2591,6 +3001,303 @@ pub async fn api_save_fits_file(
 
     // Write file
     // write_fits is blocking, so execute it in spawn_blocking.
+
+    let path = std::path::PathBuf::from(file_path);
+
+    tokio::task::spawn_blocking(move || write_fits(&path, &image, &header))
+        .await
+        .map_err(|e| NightshadeError::OperationFailed(format!("Task join error: {}", e)))?
+        .map_err(|e| NightshadeError::OperationFailed(format!("Failed to write FITS: {}", e)))?;
+
+    Ok(())
+}
+
+/// Wave 3 Image Grading: save FITS with the rich (~40-keyword) header
+/// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
+/// Dart callers continue to use [`api_save_fits_file`] / [`FitsWriteHeader`].
+///
+/// Writes every keyword the standard astrophotography workflow expects
+/// (NINA / SGP / APP / PixInsight / ASTAP all read these), plus the
+/// Nightshade-specific `NS-*` keywords for session / mosaic / frame
+/// accounting. Missing optional fields are silently omitted — never
+/// substituted with sentinel values.
+pub async fn save_fits_file_rich(
+    file_path: String,
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+    header_data: FitsWriteHeaderRich,
+) -> Result<(), NightshadeError> {
+    tracing::info!("Saving rich-header FITS file to: {}", file_path);
+
+    let image = ImageData::from_u16(width, height, 1, &data);
+
+    let validation = validate_image(&image, Some(width), Some(height));
+    if !validation.is_valid {
+        tracing::warn!("Image validation failed: {:?}", validation.errors);
+    }
+    for warning in &validation.warnings {
+        tracing::warn!("Image validation warning: {}", warning);
+    }
+
+    let mut header = FitsHeader::new();
+
+    // ------------------------------------------------------------------
+    // Core observation metadata.
+    // ------------------------------------------------------------------
+    header.set_float("EXPTIME", header_data.exposure_time);
+    header.set_string("DATE-OBS", &header_data.capture_timestamp);
+    header.set_string("IMAGETYP", &header_data.frame_type);
+
+    if let Some(name) = &header_data.object_name {
+        header.set_string("OBJECT", name);
+    }
+    if let Some(filter) = &header_data.filter {
+        header.set_string("FILTER", filter);
+    }
+    if let Some(pos) = header_data.filter_position {
+        header.set_int("FILTPOS", pos as i64);
+    }
+
+    // ------------------------------------------------------------------
+    // Camera / sensor configuration.
+    // ------------------------------------------------------------------
+    if let Some(gain) = header_data.gain {
+        header.set_int("GAIN", gain as i64);
+    }
+    if let Some(offset) = header_data.offset {
+        header.set_int("OFFSET", offset as i64);
+    }
+    if let Some(temp) = header_data.ccd_temp {
+        header.set_float("CCD-TEMP", temp);
+    }
+    if let Some(set_temp) = header_data.set_temp {
+        header.set_float("SET-TEMP", set_temp);
+    }
+
+    header.set_int("XBINNING", header_data.bin_x as i64);
+    header.set_int("YBINNING", header_data.bin_y as i64);
+
+    if let Some(pixel_x) = header_data.pixel_size_x {
+        header.set_float("PIXSIZE1", pixel_x);
+        header.set_float("XPIXSZ", pixel_x * header_data.bin_x as f64);
+    }
+    if let Some(pixel_y) = header_data.pixel_size_y {
+        header.set_float("PIXSIZE2", pixel_y);
+        header.set_float("YPIXSZ", pixel_y * header_data.bin_y as f64);
+    }
+
+    if let Some(bayer) = &header_data.bayer_pattern {
+        header.set_string("BAYERPAT", bayer);
+    }
+
+    // ------------------------------------------------------------------
+    // Telescope / optics identification.
+    // ------------------------------------------------------------------
+    if let Some(focal_length) = header_data.focal_length {
+        header.set_float("FOCALLEN", focal_length);
+    }
+    if let Some(aperture) = header_data.aperture {
+        header.set_float("APTDIA", aperture);
+    }
+    if let Some(telescope) = &header_data.telescope {
+        header.set_string("TELESCOP", telescope);
+    }
+    if let Some(instrument) = &header_data.instrument {
+        header.set_string("INSTRUME", instrument);
+    }
+
+    // ------------------------------------------------------------------
+    // Observer / site.
+    // ------------------------------------------------------------------
+    if let Some(observer) = &header_data.observer {
+        header.set_string("OBSERVER", observer);
+    }
+    if let Some(lat) = header_data.site_latitude {
+        header.set_float("SITELAT", lat);
+    }
+    if let Some(long) = header_data.site_longitude {
+        header.set_float("SITELONG", long);
+    }
+    if let Some(elev) = header_data.site_elevation {
+        header.set_float("SITEELEV", elev);
+    }
+
+    // ------------------------------------------------------------------
+    // Target coordinates + airmass.
+    // ------------------------------------------------------------------
+    if let Some(ra) = header_data.ra {
+        header.set_float("RA", ra);
+    }
+    if let Some(dec) = header_data.dec {
+        header.set_float("DEC", dec);
+    }
+    if let Some(altitude) = header_data.altitude {
+        let airmass = calculate_airmass(altitude).map_err(|e| {
+            NightshadeError::OperationFailed(format!(
+                "Cannot compute AIRMASS for altitude {}°: {}",
+                altitude, e
+            ))
+        })?;
+        header.set_float("AIRMASS", airmass);
+    }
+
+    // ------------------------------------------------------------------
+    // Wave 3 Image Grading: live device telemetry.
+    // ------------------------------------------------------------------
+    if let Some(pos) = header_data.focuser_position {
+        header.set_int("FOCUSPOS", pos as i64);
+    }
+    if let Some(t) = header_data.focuser_temperature {
+        header.set_float("FOCTEMP", t);
+    }
+    if let Some(angle) = header_data.rotator_angle {
+        header.set_float("ROTATPOS", angle);
+    }
+    if let Some(rms) = header_data.guide_rms_arcsec {
+        header.set_float("GUIDERMS", rms);
+    }
+
+    // ------------------------------------------------------------------
+    // Plate-solve result. SOLVED-RA / SOLVED-DEC are Nightshade
+    // conventions consumed by re-stacking workflows that want to
+    // compare the commanded pointing (RA/DEC) against where the field
+    // actually landed.
+    // ------------------------------------------------------------------
+    // Plate-solve result. FITS keywords are capped at 8 characters; we use
+    // `SOLVRA` / `SOLVDEC` (Nightshade convention, also used by Voyager and
+    // some PixInsight imports) plus the standard `PIXSCALE`.
+    if let Some(ra) = header_data.solved_ra_hours {
+        header.set_float("SOLVRA", ra);
+    }
+    if let Some(dec) = header_data.solved_dec_degrees {
+        header.set_float("SOLVDEC", dec);
+    }
+    if let Some(scale) = header_data.plate_solve_pixel_scale_arcsec {
+        header.set_float("PIXSCALE", scale);
+    }
+    if let Some(rot) = header_data.plate_solve_rotation_deg {
+        // CROTA1 and CROTA2 are the WCS-standard field-rotation keywords;
+        // every stacker reads at least one of them. Setting both follows
+        // NINA's convention so PI / APP pick it up without configuration.
+        header.set_float("CROTA1", rot);
+        header.set_float("CROTA2", rot);
+    }
+
+    // ------------------------------------------------------------------
+    // Nightshade-specific session / frame / mosaic accounting (NS-*).
+    // ------------------------------------------------------------------
+    if let Some(session_id) = &header_data.session_id {
+        header.set_string("NS-SESID", session_id);
+    }
+    if let Some(idx) = header_data.frame_index {
+        header.set_int("NS-FIDX", idx as i64);
+    }
+    if let Some(total) = header_data.total_planned_frames {
+        header.set_int("NS-NPLN", total as i64);
+    }
+    if let Some(name) = &header_data.mosaic_name {
+        // MOSAIC=1 is the boolean "this frame is part of a mosaic"
+        // flag, kept as an integer keyword for maximum reader
+        // compatibility (some tools refuse BOOLEAN FITS values).
+        header.set_int("MOSAIC", 1);
+        header.set_string("NS-MOSNM", name);
+    }
+    if let Some(idx) = header_data.mosaic_panel_index {
+        // 1-based for human readability in viewers (panel 1, 2, 3 ...)
+        // while keeping the original 0-based index in NS-PIDX for the
+        // re-import path.
+        header.set_int("PANELIDX", (idx + 1) as i64);
+        header.set_int("NS-PIDX", idx as i64);
+    }
+    if let Some(row) = header_data.mosaic_panel_row {
+        header.set_int("PANELROW", row as i64);
+        header.set_int("NS-PROW", row as i64);
+    }
+    if let Some(col) = header_data.mosaic_panel_column {
+        header.set_int("PANELCOL", col as i64);
+        header.set_int("NS-PCOL", col as i64);
+    }
+    if let Some(total) = header_data.mosaic_total_panels {
+        header.set_int("NS-NPAN", total as i64);
+    }
+
+    // ------------------------------------------------------------------
+    // Wave 7 Agent 3 — defect-map correction HISTORY card. When the
+    // sequencer applied a defect map to this frame, record the
+    // provenance so re-stacking workflows know the cosmetic correction
+    // has already been done (and can skip re-applying it).
+    // ------------------------------------------------------------------
+    if let Some(record) = &header_data.defect_map_correction {
+        let history = format!(
+            "Nightshade applied defect map v1 for camera {}: corrected {} of {} \
+             defective pixels with {}x{} kernel using {} replacement.",
+            record.camera_id,
+            record.corrected_count,
+            record.defect_count,
+            record.kernel_diameter,
+            record.kernel_diameter,
+            record.method,
+        );
+        header.add_history(&history);
+    }
+
+    // ------------------------------------------------------------------
+    // Wave 7 Science — photometric metadata. Stamped when the frame
+    // was captured by the SciencePhotometryInstruction. Non-photometric
+    // captures omit every keyword.
+    // ------------------------------------------------------------------
+    if let Some(catalog) = &header_data.photometry_object_catalog {
+        if !catalog.is_empty() {
+            header.set_string("OBJCAT", catalog);
+        }
+    }
+    if let Some(refs) = &header_data.photometry_reference_stars {
+        if !refs.is_empty() {
+            // FITS keyword values are 70 chars after the equals sign;
+            // the joined reference-star list can exceed that, so we
+            // store it on a CONTINUE-style card as a comment. For
+            // ergonomic readability via FITS viewers we use a single
+            // REFSTARS card and truncate beyond 68 characters (the
+            // standard one-card payload).
+            let truncated = if refs.len() > 68 {
+                format!("{}...", &refs[..65])
+            } else {
+                refs.clone()
+            };
+            header.set_string("REFSTARS", &truncated);
+        }
+    }
+    if let Some(mjd) = header_data.photometry_mjd_obs {
+        header.set_float("MJD-OBS", mjd);
+    }
+    if let Some(mag) = header_data.photometry_instrumental_mag {
+        header.set_float("INSTRMAG", mag);
+    }
+    if let Some(mag) = header_data.photometry_differential_mag {
+        header.set_float("DIFFMAG", mag);
+    }
+    if let Some(fwhm) = header_data.photometry_fwhm_arcsec {
+        header.set_float("FWHM", fwhm);
+    }
+    if let Some(snr) = header_data.photometry_snr {
+        header.set_float("SNR", snr);
+    }
+
+    // ------------------------------------------------------------------
+    // Validate header completeness — warnings only; we never refuse to
+    // write a frame because of a missing nice-to-have keyword.
+    // ------------------------------------------------------------------
+    let header_validation = validate_fits_header(&header);
+    for warning in &header_validation.warnings {
+        tracing::debug!("FITS header warning: {}", warning);
+    }
+
+    if let Some(parent) = std::path::Path::new(&file_path).parent() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            NightshadeError::OperationFailed(format!("Failed to create directory: {}", e))
+        })?;
+    }
 
     let path = std::path::PathBuf::from(file_path);
 
@@ -3736,6 +4443,104 @@ pub async fn api_defect_map_clear(
     Ok(())
 }
 
+/// Wave 7 Agent 3 — push the active defect-map application state to the
+/// running sequencer.
+///
+/// When `enabled == true`, the bridge loads the `.ndm` file for
+/// `(camera_id, width, height, sensor_temperature_celsius)` from disk
+/// (returning an error if no map exists), wraps it in a
+/// `DefectMapApplyState` along with the configured method + kernel +
+/// save-original flag, and pushes the state via
+/// `executor.update_defect_map(Some(state))`. When `enabled == false`,
+/// `None` is pushed (the sequencer disables per-frame correction).
+///
+/// Method / kernel come from the user's settings (validated here so a
+/// bad combination is rejected at the FFI boundary rather than at
+/// per-frame application time).
+pub async fn api_sequencer_apply_defect_map(
+    camera_id: String,
+    width: u32,
+    height: u32,
+    sensor_temperature_celsius: f64,
+    enabled: bool,
+    method: String,
+    kernel_diameter: u8,
+    save_original: bool,
+) -> Result<(), NightshadeError> {
+    if camera_id.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "camera_id is empty".to_string(),
+        ));
+    }
+
+    if !enabled {
+        // Clear the live state. Also reset the apply flag so a future
+        // `api_defect_map_get_status` call honestly reflects the off
+        // state.
+        {
+            let mut flags = defect_apply_flags().lock().await;
+            flags.insert(camera_id.clone(), false);
+        }
+        let mut executor = crate::api::sequencer::get_sequence_executor().write().await;
+        executor.update_defect_map(None).await;
+        tracing::info!(
+            "Defect map application disabled for camera {} (no map pushed to sequencer)",
+            camera_id
+        );
+        return Ok(());
+    }
+
+    let kernel = nightshade_imaging::defect_map::KernelSize::from_diameter(kernel_diameter)
+        .ok_or_else(|| {
+            NightshadeError::InvalidParameter(format!(
+                "kernel_diameter must be 3, 5, or 7; got {}",
+                kernel_diameter
+            ))
+        })?;
+    let method_parsed = nightshade_imaging::defect_map::CorrectionMethod::from_wire(&method);
+
+    let bucket = nightshade_imaging::defect_map::bucket_temperature(sensor_temperature_celsius);
+    let path = defect_map_path(&camera_id, width, height, bucket);
+    if !path.exists() {
+        return Err(NightshadeError::InvalidParameter(format!(
+            "No defect map stored for camera={} {}x{} at {} deci-celsius; \
+             build one before enabling apply-during-capture.",
+            camera_id, width, height, bucket,
+        )));
+    }
+    let map = nightshade_imaging::defect_map::DefectMap::read_from_file(&path)
+        .map_err(|e| NightshadeError::ImageError(e.to_string()))?;
+
+    // Mirror the persisted apply flag so `get_status` round-trips the
+    // user's preference correctly.
+    {
+        let mut flags = defect_apply_flags().lock().await;
+        flags.insert(camera_id.clone(), true);
+    }
+
+    let state = nightshade_sequencer::DefectMapApplyState {
+        camera_id: camera_id.clone(),
+        map: std::sync::Arc::new(map),
+        method: method_parsed,
+        kernel,
+        save_original,
+    };
+
+    let mut executor = crate::api::sequencer::get_sequence_executor().write().await;
+    executor.update_defect_map(Some(state)).await;
+    tracing::info!(
+        "Defect map application enabled for camera {} ({}x{}, bucket={} dC) method={}, kernel={}, save_original={}",
+        camera_id,
+        width,
+        height,
+        bucket,
+        method,
+        kernel_diameter,
+        save_original,
+    );
+    Ok(())
+}
+
 /// Look up the status of the stored defect map for a camera at the given
 /// sensor size and temperature. Returns `Ok(None)` if no map is stored
 /// for that combination.
@@ -3906,5 +4711,700 @@ mod unified_image_storage_tests {
             vec![4u16],
             "last write must win for an existing key"
         );
+    }
+}
+
+// ============================================================================
+// Wave 3 Image Grading: round-trip test for the rich-header save path.
+// ============================================================================
+
+#[cfg(test)]
+mod rich_header_tests {
+    use super::{save_fits_file_rich, FitsWriteHeaderRich};
+    use nightshade_imaging::read_fits;
+    use nightshade_sequencer::scheduling::FrameContext;
+    use nightshade_sequencer::MosaicPanelInfo;
+
+    /// End-to-end: build a FrameContext with every meaningful field set,
+    /// route it through `save_fits_file_rich`, then read the FITS back from
+    /// disk and assert every keyword survived.
+    ///
+    /// This is the "production-finished" gate the audit asks for: open the
+    /// file in a reader and see all the new keywords populated.
+    #[tokio::test]
+    async fn fits_round_trip_preserves_all_frame_context_keywords() {
+        // 8x8 image with arbitrary pixel data so the FITS writer has
+        // something to write. Pixel data is not what we're testing.
+        let width = 8u32;
+        let height = 8u32;
+        let pixels = (0..(width * height) as u16).collect::<Vec<u16>>();
+
+        let temp_dir = std::env::temp_dir();
+        let temp_path = temp_dir.join(format!(
+            "ns_round_trip_{}.fits",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        // Build a FrameContext with every Wave 3 field set so we can
+        // verify each one survives the round-trip.
+        let mut ctx = FrameContext::new_light("session-uuid-abc", 2, 2, 60.0, 7);
+        ctx.target_id = Some("tgt-42".to_string());
+        ctx.target_name = Some("M31".to_string());
+        ctx.target_ra_hours = Some(0.7123);
+        ctx.target_dec_degrees = Some(41.269);
+        ctx.filter_name = Some("Ha".to_string());
+        ctx.filter_index = Some(5);
+        ctx.gain = Some(100);
+        ctx.offset = Some(50);
+        ctx.total_planned_frames = Some(20);
+        ctx.sensor_temp_c = Some(-10.5);
+        ctx.set_temp_c = Some(-10.0);
+        ctx.focuser_position = Some(25_400);
+        ctx.focuser_temperature_c = Some(12.3);
+        ctx.rotator_angle_deg = Some(123.7);
+        ctx.guide_rms_arcsec = Some(0.78);
+        ctx.plate_solve_ra_hours = Some(0.7124);
+        ctx.plate_solve_dec_degrees = Some(41.2691);
+        ctx.plate_solve_pixel_scale_arcsec = Some(1.42);
+        ctx.plate_solve_rotation_deg = Some(-1.3);
+        ctx.bayer_pattern = Some("RGGB".to_string());
+        ctx.mosaic_panel = Some(MosaicPanelInfo {
+            mosaic_name: "M31 Wide".to_string(),
+            panel_index: 2,
+            total_panels: 9,
+            row: 1,
+            column: 2,
+        });
+        ctx.observer_name = Some("Test Observer".to_string());
+        ctx.site_latitude_deg = Some(40.7128);
+        ctx.site_longitude_deg = Some(-74.0060);
+        ctx.site_elevation_m = Some(50.0);
+        ctx.camera_make = Some("ZWO".to_string());
+        ctx.camera_model = Some("ASI2600MM Pro".to_string());
+        ctx.telescope_name = Some("Askar 65PHQ".to_string());
+        ctx.telescope_focal_length_mm = Some(416.0);
+        ctx.telescope_aperture_mm = Some(65.0);
+
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("rich FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back should succeed");
+
+        // Core observation metadata.
+        assert_eq!(parsed.get_string("OBJECT"), Some("M31"));
+        assert_eq!(parsed.get_string("FILTER"), Some("Ha"));
+        assert_eq!(parsed.get_int("FILTPOS"), Some(5));
+        assert_eq!(parsed.get_string("IMAGETYP"), Some("Light"));
+        assert_eq!(parsed.get_float("EXPTIME"), Some(60.0));
+        // Bayer pattern.
+        assert_eq!(parsed.get_string("BAYERPAT"), Some("RGGB"));
+
+        // Camera settings.
+        assert_eq!(parsed.get_int("GAIN"), Some(100));
+        assert_eq!(parsed.get_int("OFFSET"), Some(50));
+        assert_eq!(parsed.get_int("XBINNING"), Some(2));
+        assert_eq!(parsed.get_int("YBINNING"), Some(2));
+        assert_eq!(parsed.get_float("SET-TEMP"), Some(-10.0));
+        // CCD-TEMP set from ctx.sensor_temp_c.
+        assert_eq!(parsed.get_float("CCD-TEMP"), Some(-10.5));
+
+        // Telescope / equipment.
+        assert_eq!(parsed.get_string("TELESCOP"), Some("Askar 65PHQ"));
+        // INSTRUME is "<make> <model>" when both are present.
+        assert_eq!(parsed.get_string("INSTRUME"), Some("ZWO ASI2600MM Pro"));
+        assert_eq!(parsed.get_float("FOCALLEN"), Some(416.0));
+        assert_eq!(parsed.get_float("APTDIA"), Some(65.0));
+
+        // Observer + site.
+        assert_eq!(parsed.get_string("OBSERVER"), Some("Test Observer"));
+        assert_eq!(parsed.get_float("SITELAT"), Some(40.7128));
+        assert_eq!(parsed.get_float("SITELONG"), Some(-74.0060));
+        assert_eq!(parsed.get_float("SITEELEV"), Some(50.0));
+
+        // Target coordinates.
+        assert_eq!(parsed.get_float("RA"), Some(0.7123));
+        assert_eq!(parsed.get_float("DEC"), Some(41.269));
+
+        // Live device telemetry — the audit's key complaint that these
+        // weren't being written.
+        assert_eq!(parsed.get_int("FOCUSPOS"), Some(25_400));
+        assert_eq!(parsed.get_float("FOCTEMP"), Some(12.3));
+        assert_eq!(parsed.get_float("ROTATPOS"), Some(123.7));
+        assert_eq!(parsed.get_float("GUIDERMS"), Some(0.78));
+
+        // Plate-solve results. FITS keywords are capped at 8 chars so we
+        // use SOLVRA/SOLVDEC.
+        assert_eq!(parsed.get_float("SOLVRA"), Some(0.7124));
+        assert_eq!(parsed.get_float("SOLVDEC"), Some(41.2691));
+        assert_eq!(parsed.get_float("PIXSCALE"), Some(1.42));
+        assert_eq!(parsed.get_float("CROTA1"), Some(-1.3));
+        assert_eq!(parsed.get_float("CROTA2"), Some(-1.3));
+
+        // Nightshade-specific session / frame accounting.
+        assert_eq!(parsed.get_string("NS-SESID"), Some("session-uuid-abc"));
+        assert_eq!(parsed.get_int("NS-FIDX"), Some(7));
+        assert_eq!(parsed.get_int("NS-NPLN"), Some(20));
+
+        // Mosaic — the audit's most-specific complaint: mosaic_panel
+        // existed in config but was never written to FITS headers.
+        assert_eq!(parsed.get_int("MOSAIC"), Some(1));
+        assert_eq!(parsed.get_string("NS-MOSNM"), Some("M31 Wide"));
+        // PANELIDX is 1-based for human readability; NS-PIDX preserves
+        // the 0-based form for re-import.
+        assert_eq!(parsed.get_int("PANELIDX"), Some(3));
+        assert_eq!(parsed.get_int("NS-PIDX"), Some(2));
+        assert_eq!(parsed.get_int("PANELROW"), Some(1));
+        assert_eq!(parsed.get_int("NS-PROW"), Some(1));
+        assert_eq!(parsed.get_int("PANELCOL"), Some(2));
+        assert_eq!(parsed.get_int("NS-PCOL"), Some(2));
+        assert_eq!(parsed.get_int("NS-NPAN"), Some(9));
+
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    /// A monochrome capture should NOT emit a BAYERPAT keyword (writing
+    /// one would tell PixInsight to debayer the mono frame as if it were
+    /// OSC, producing colour artefacts on what is just a luminance frame).
+    #[tokio::test]
+    async fn monochrome_capture_omits_bayer_pattern() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![0u16; (width * height) as usize];
+
+        let temp_dir = std::env::temp_dir();
+        let temp_path = temp_dir.join(format!(
+            "ns_mono_{}.fits",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let mut ctx = FrameContext::new_light("s", 1, 1, 30.0, 1);
+        ctx.target_name = Some("FocusTest".to_string());
+        // bayer_pattern is None — mono camera.
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("mono FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+        assert_eq!(
+            parsed.get_string("BAYERPAT"),
+            None,
+            "monochrome captures must NOT emit BAYERPAT"
+        );
+
+        let _ = std::fs::remove_file(&temp_path);
+    }
+
+    /// Absent optional fields must be omitted, not stamped with sentinel
+    /// values. This is the audit's silent-fallback rule applied to FITS
+    /// writing: writing CCD-TEMP=-273.15 for "no temperature" lies to
+    /// downstream tools.
+    #[tokio::test]
+    async fn missing_optional_fields_are_omitted_not_zeroed() {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![0u16; (width * height) as usize];
+
+        let temp_dir = std::env::temp_dir();
+        let temp_path = temp_dir.join(format!(
+            "ns_omit_{}.fits",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ));
+
+        let ctx = FrameContext::new_light("sess", 1, 1, 10.0, 1);
+        // Nothing else set — every optional field stays None.
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        save_fits_file_rich(
+            temp_path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("FITS save should succeed");
+
+        let (_image, parsed) = read_fits(&temp_path).expect("FITS read-back");
+        // Every optional keyword must be absent.
+        for absent_key in &[
+            "OBJECT", "FILTER", "FILTPOS", "GAIN", "OFFSET", "CCD-TEMP", "SET-TEMP", "FOCUSPOS",
+            "ROTATPOS", "GUIDERMS", "SOLVRA", "SOLVDEC", "PIXSCALE", "CROTA1", "BAYERPAT",
+            "MOSAIC", "PANELIDX", "NS-MOSNM", "OBSERVER", "SITELAT", "TELESCOP", "INSTRUME",
+            "FOCALLEN", "APTDIA",
+        ] {
+            let s = parsed.get_string(absent_key);
+            let i = parsed.get_int(absent_key);
+            let f = parsed.get_float(absent_key);
+            assert!(
+                s.is_none() && i.is_none() && f.is_none(),
+                "{} should be absent for an unset FrameContext field (got string={:?} int={:?} float={:?})",
+                absent_key,
+                s,
+                i,
+                f
+            );
+        }
+
+        // SESSIONID is also omitted when session_id is the empty string
+        // (the rich-header builder maps empty -> None).
+        let mut empty_ctx = FrameContext::new_light("", 1, 1, 10.0, 1);
+        empty_ctx.session_id = String::new();
+        let header_empty = FitsWriteHeaderRich::from_frame_context(&empty_ctx);
+        assert!(
+            header_empty.session_id.is_none(),
+            "empty session_id should be normalised to None"
+        );
+
+        let _ = std::fs::remove_file(&temp_path);
+    }
+}
+
+// =============================================================================
+// Master calibration frame combination (IMG-P2-1)
+// =============================================================================
+//
+// Why this lives here: master-frame combine is a sibling of the existing
+// `api_calibrate_image_*` and `api_defect_map_build` entry points — both
+// operate on a list of FITS/XISF inputs and write a single calibration
+// product to disk. Dart-side `dark_library_service.dart::_medianCombine`
+// is the legacy isolate path we are superseding; new code (and the OTA
+// flat / bias library that will follow) calls these instead.
+
+/// Combine method exposed across the FFI surface.
+///
+/// Dart sends a tag string ("MEAN", "MEDIAN", "SIGMA_CLIP") with optional
+/// sigma parameters. We deliberately use a flat struct rather than a
+/// tagged enum here because flutter_rust_bridge handles plain structs
+/// with optional fields cleanly across both Dart isolates and the new
+/// codec path.
+pub struct ApiCombineMethod {
+    /// "MEAN" | "MEDIAN" | "SIGMA_CLIP" (case-insensitive)
+    pub method: String,
+    /// Kappa threshold for sigma clip; required for SIGMA_CLIP, ignored otherwise.
+    pub sigma_kappa: Option<f64>,
+    /// Number of clip iterations; required for SIGMA_CLIP, ignored otherwise.
+    pub sigma_iterations: Option<u32>,
+}
+
+/// Result returned from a master-frame build.
+pub struct ApiMasterFrameResult {
+    /// Where the master FITS was written.
+    pub output_path: String,
+    /// "BIAS" | "DARK" | "FLAT"
+    pub kind: String,
+    /// "U16" | "F32"
+    pub output_type: String,
+    /// How many input frames contributed.
+    pub frame_count: u32,
+    /// String rendering of the combine method actually used.
+    pub method: String,
+    /// Width of the resulting master in pixels.
+    pub width: u32,
+    /// Height of the resulting master in pixels.
+    pub height: u32,
+    /// Channel count of the resulting master.
+    pub channels: u32,
+    /// Pre-normalisation mean of the combined master.
+    pub input_mean: f64,
+    /// Post-normalisation mean (equals `input_mean` for bias/dark, 1.0 / 32768 for flat).
+    pub output_mean: f64,
+}
+
+fn parse_master_kind(
+    s: &str,
+) -> Result<nightshade_imaging::stacking::MasterFrameKind, NightshadeError> {
+    match s.trim().to_ascii_uppercase().as_str() {
+        "BIAS" => Ok(nightshade_imaging::stacking::MasterFrameKind::Bias),
+        "DARK" => Ok(nightshade_imaging::stacking::MasterFrameKind::Dark),
+        "FLAT" => Ok(nightshade_imaging::stacking::MasterFrameKind::Flat),
+        other => Err(NightshadeError::InvalidParameter(format!(
+            "unknown master frame kind '{}': expected BIAS, DARK, or FLAT",
+            other
+        ))),
+    }
+}
+
+fn parse_output_type(
+    s: &str,
+) -> Result<nightshade_imaging::stacking::MasterOutputType, NightshadeError> {
+    match s.trim().to_ascii_uppercase().as_str() {
+        "U16" => Ok(nightshade_imaging::stacking::MasterOutputType::U16),
+        "F32" => Ok(nightshade_imaging::stacking::MasterOutputType::F32),
+        other => Err(NightshadeError::InvalidParameter(format!(
+            "unknown master output type '{}': expected U16 or F32",
+            other
+        ))),
+    }
+}
+
+fn parse_combine_method(
+    m: &ApiCombineMethod,
+) -> Result<nightshade_imaging::stacking::CombineMethod, NightshadeError> {
+    use nightshade_imaging::stacking::CombineMethod;
+    match m.method.trim().to_ascii_uppercase().as_str() {
+        "MEAN" => Ok(CombineMethod::Mean),
+        "MEDIAN" => Ok(CombineMethod::Median),
+        "SIGMA_CLIP" | "SIGMACLIP" => {
+            let kappa = m.sigma_kappa.ok_or_else(|| {
+                NightshadeError::InvalidParameter("SIGMA_CLIP requires sigma_kappa".to_string())
+            })?;
+            let iterations = m.sigma_iterations.ok_or_else(|| {
+                NightshadeError::InvalidParameter(
+                    "SIGMA_CLIP requires sigma_iterations".to_string(),
+                )
+            })?;
+            Ok(CombineMethod::SigmaClip { kappa, iterations })
+        }
+        other => Err(NightshadeError::InvalidParameter(format!(
+            "unknown combine method '{}': expected MEAN, MEDIAN, or SIGMA_CLIP",
+            other
+        ))),
+    }
+}
+
+/// Combine a set of calibration frames into a single master and write it
+/// to disk as FITS.
+///
+/// Inputs:
+/// - `input_paths`: paths to each constituent calibration frame. All must
+///   exist, share dimensions/channels/pixel type, and be readable by the
+///   normal Nightshade image reader (FITS/XISF/PNG/TIFF/etc).
+/// - `kind`: "BIAS" | "DARK" | "FLAT" — controls normalisation (flats only).
+/// - `method`: combine algorithm + parameters; see `ApiCombineMethod`.
+/// - `output_type`: "U16" | "F32" — pixel type of the produced master.
+/// - `output_path`: where to write the FITS master.
+///
+/// Errors:
+/// - Empty input list, mismatched dimensions/channels/pixel types, or any
+///   read failure surfaces as `NightshadeError::ImageError`/`InvalidParameter`.
+///   No silent fallback to a partial result.
+pub async fn api_combine_master_frames(
+    input_paths: Vec<String>,
+    kind: String,
+    method: ApiCombineMethod,
+    output_type: String,
+    output_path: String,
+) -> Result<ApiMasterFrameResult, NightshadeError> {
+    if input_paths.is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "api_combine_master_frames: input_paths is empty".to_string(),
+        ));
+    }
+    if output_path.trim().is_empty() {
+        return Err(NightshadeError::InvalidParameter(
+            "api_combine_master_frames: output_path is empty".to_string(),
+        ));
+    }
+
+    let kind_enum = parse_master_kind(&kind)?;
+    let method_enum = parse_combine_method(&method)?;
+    let output_type_enum = parse_output_type(&output_type)?;
+
+    // Frame I/O and the combine itself run on a blocking pool — they are
+    // CPU-bound and allocate proportional to (frames * pixels), so we keep
+    // them off the tokio worker threads. Mirrors `api_defect_map_build`.
+    let paths_clone = input_paths.clone();
+    let frames: Vec<ImageData> = tokio::task::spawn_blocking(move || {
+        let mut out = Vec::with_capacity(paths_clone.len());
+        for path in &paths_clone {
+            let result = nightshade_imaging::read_image(std::path::Path::new(path))
+                .map_err(|e| format!("failed to read {}: {}", path, e))?;
+            out.push(result.image);
+        }
+        Ok::<_, String>(out)
+    })
+    .await
+    .map_err(|e| {
+        NightshadeError::ImageError(format!("join error reading master frame inputs: {}", e))
+    })?
+    .map_err(NightshadeError::ImageError)?;
+
+    let combine_kind = kind_enum;
+    let combine_method = method_enum;
+    let combine_output_type = output_type_enum;
+    let master = tokio::task::spawn_blocking(move || {
+        nightshade_imaging::stacking::combine_master_frames(
+            &frames,
+            combine_kind,
+            combine_method,
+            combine_output_type,
+        )
+    })
+    .await
+    .map_err(|e| NightshadeError::ImageError(format!("join error combining frames: {}", e)))?
+    .map_err(NightshadeError::ImageError)?;
+
+    // Write the master as FITS with rich provenance so downstream tooling
+    // (and humans inspecting the file) know exactly how it was produced.
+    let out_path = std::path::PathBuf::from(&output_path);
+    if let Some(parent) = out_path.parent() {
+        if !parent.as_os_str().is_empty() {
+            std::fs::create_dir_all(parent).map_err(|e| {
+                NightshadeError::ImageError(format!(
+                    "failed to create output directory {}: {}",
+                    parent.display(),
+                    e
+                ))
+            })?;
+        }
+    }
+
+    let mut header = FitsHeader::new();
+    let kind_str = master.kind.as_str();
+    header.set_string("IMAGETYP", kind_str);
+    header.set_string("FRAMETYP", "MASTER");
+    header.set_string("CALSTAT", &format!("Nightshade master {}", kind_str));
+    header.set_int("NFRAMES", master.frame_count as i64);
+    header.set_string("COMBMETH", &master.method.as_str());
+    header.set_string(
+        "MASTRTYP",
+        match master.output_type {
+            nightshade_imaging::stacking::MasterOutputType::U16 => "U16",
+            nightshade_imaging::stacking::MasterOutputType::F32 => "F32",
+        },
+    );
+    header.set_float("INPUTMEAN", master.input_mean);
+    header.set_float("OUTPTMEAN", master.output_mean);
+
+    let master_image_for_write = master.image.clone();
+    let out_path_for_write = out_path.clone();
+    tokio::task::spawn_blocking(move || {
+        write_fits(&out_path_for_write, &master_image_for_write, &header).map_err(|e| {
+            format!(
+                "failed to write master FITS {}: {:?}",
+                out_path_for_write.display(),
+                e
+            )
+        })
+    })
+    .await
+    .map_err(|e| NightshadeError::ImageError(format!("join error writing master: {}", e)))?
+    .map_err(NightshadeError::ImageError)?;
+
+    tracing::info!(
+        "Wrote master {} ({} frames, {}) to {}",
+        kind_str,
+        master.frame_count,
+        master.method.as_str(),
+        output_path
+    );
+
+    Ok(ApiMasterFrameResult {
+        output_path,
+        kind: kind_str.to_string(),
+        output_type: match master.output_type {
+            nightshade_imaging::stacking::MasterOutputType::U16 => "U16".to_string(),
+            nightshade_imaging::stacking::MasterOutputType::F32 => "F32".to_string(),
+        },
+        frame_count: master.frame_count,
+        method: master.method.as_str(),
+        width: master.image.width,
+        height: master.image.height,
+        channels: master.image.channels,
+        input_mean: master.input_mean,
+        output_mean: master.output_mean,
+    })
+}
+
+// ============================================================================
+// FITS keyword update round-trip test
+// ============================================================================
+
+#[cfg(test)]
+mod fits_keyword_update_tests {
+    use super::{
+        api_update_fits_keywords, save_fits_file_rich, FitsKeywordUpdate, FitsWriteHeaderRich,
+    };
+    use nightshade_imaging::read_fits;
+    use nightshade_sequencer::scheduling::FrameContext;
+
+    fn temp_fits_path(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "ns_kw_{}_{}.fits",
+            tag,
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_nanos()
+        ))
+    }
+
+    async fn write_baseline_fits(path: &std::path::Path) {
+        let width = 4u32;
+        let height = 4u32;
+        let pixels = vec![0u16; (width * height) as usize];
+        let ctx = FrameContext::new_light("sess", 1, 1, 10.0, 1);
+        let header = FitsWriteHeaderRich::from_frame_context(&ctx);
+        save_fits_file_rich(
+            path.to_string_lossy().to_string(),
+            width,
+            height,
+            pixels,
+            header,
+        )
+        .await
+        .expect("baseline FITS save should succeed");
+    }
+
+    #[tokio::test]
+    async fn injects_science_keywords_round_trip() {
+        let path = temp_fits_path("inject");
+        write_baseline_fits(&path).await;
+
+        let updates = vec![
+            FitsKeywordUpdate {
+                keyword: "MAGZP".to_string(),
+                comment: Some("Photometric zero point [mag]".to_string()),
+                string_value: None,
+                int_value: None,
+                float_value: Some(24.317),
+            },
+            FitsKeywordUpdate {
+                keyword: "MAGZPERR".to_string(),
+                comment: Some("MAGZP 1-sigma uncertainty".to_string()),
+                string_value: None,
+                int_value: None,
+                float_value: Some(0.041),
+            },
+            FitsKeywordUpdate {
+                keyword: "MAGZPSRC".to_string(),
+                comment: Some("Catalog used for MAGZP".to_string()),
+                string_value: Some("GAIA-DR3".to_string()),
+                int_value: None,
+                float_value: None,
+            },
+            FitsKeywordUpdate {
+                keyword: "TRANSPAR".to_string(),
+                comment: Some("Atmospheric transparency [%]".to_string()),
+                string_value: None,
+                int_value: None,
+                float_value: Some(92.0),
+            },
+        ];
+
+        api_update_fits_keywords(path.to_string_lossy().to_string(), updates)
+            .await
+            .expect("keyword update should succeed");
+
+        let (_image, parsed) = read_fits(&path).expect("FITS read-back");
+        assert_eq!(parsed.get_float("MAGZP"), Some(24.317));
+        assert_eq!(parsed.get_float("MAGZPERR"), Some(0.041));
+        assert_eq!(parsed.get_string("MAGZPSRC"), Some("GAIA-DR3"));
+        assert_eq!(parsed.get_float("TRANSPAR"), Some(92.0));
+        // Existing keywords are preserved.
+        assert_eq!(
+            parsed.get_string("IMAGETYP").map(str::to_uppercase),
+            Some("LIGHT".to_string())
+        );
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn overwrites_existing_keyword_value() {
+        let path = temp_fits_path("overwrite");
+        write_baseline_fits(&path).await;
+
+        // First write 1.0, then overwrite with 24.5; the second value must win.
+        for value in &[1.0_f64, 24.5_f64] {
+            api_update_fits_keywords(
+                path.to_string_lossy().to_string(),
+                vec![FitsKeywordUpdate {
+                    keyword: "MAGZP".to_string(),
+                    comment: None,
+                    string_value: None,
+                    int_value: None,
+                    float_value: Some(*value),
+                }],
+            )
+            .await
+            .expect("update should succeed");
+        }
+        let (_image, parsed) = read_fits(&path).expect("FITS read-back");
+        assert_eq!(parsed.get_float("MAGZP"), Some(24.5));
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn rejects_keywords_with_multiple_value_types() {
+        let path = temp_fits_path("multi");
+        write_baseline_fits(&path).await;
+
+        let result = api_update_fits_keywords(
+            path.to_string_lossy().to_string(),
+            vec![FitsKeywordUpdate {
+                keyword: "MAGZP".to_string(),
+                comment: None,
+                string_value: Some("bad".to_string()),
+                int_value: None,
+                float_value: Some(1.0),
+            }],
+        )
+        .await;
+        assert!(result.is_err(), "must reject ambiguous value");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn rejects_oversize_keyword() {
+        let path = temp_fits_path("oversize");
+        write_baseline_fits(&path).await;
+
+        let result = api_update_fits_keywords(
+            path.to_string_lossy().to_string(),
+            vec![FitsKeywordUpdate {
+                keyword: "TOOLONGKEY".to_string(), // 10 chars; FITS max 8
+                comment: None,
+                string_value: None,
+                int_value: None,
+                float_value: Some(1.0),
+            }],
+        )
+        .await;
+        assert!(result.is_err(), "must reject >8 char keyword");
+
+        let _ = std::fs::remove_file(&path);
+    }
+
+    #[tokio::test]
+    async fn missing_file_returns_io_error() {
+        let result = api_update_fits_keywords(
+            "/definitely/not/a/real/file.fits".to_string(),
+            vec![FitsKeywordUpdate {
+                keyword: "MAGZP".to_string(),
+                comment: None,
+                string_value: None,
+                int_value: None,
+                float_value: Some(1.0),
+            }],
+        )
+        .await;
+        assert!(result.is_err(), "missing file must surface an error");
     }
 }

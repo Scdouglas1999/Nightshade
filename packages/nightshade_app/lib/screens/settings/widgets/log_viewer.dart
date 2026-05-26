@@ -11,10 +11,9 @@ import 'package:path_provider/path_provider.dart';
 
 /// Log viewer settings page with live-tailing, filtering, and export.
 class LogViewer extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
-  const LogViewer({super.key, required this.colors, this.isMobile = false});
+  const LogViewer({super.key, this.isMobile = false});
 
   @override
   ConsumerState<LogViewer> createState() => _LogViewerState();
@@ -77,6 +76,42 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   void _refreshLogs() {
+    // [Wave 6E log tail] — when the active backend is a NetworkBackend we
+    // pull from /api/logs/recent so a remote session shows the host's
+    // logs, not the local (empty) ring buffer. The local LoggingService
+    // path is preserved for FFI / disconnected backends.
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      // Fire-and-forget refresh; the user's filters apply once the
+      // response lands. Errors silently fall back to whatever was last
+      // rendered — surfaced via the SnackBars on Clear/Export so the
+      // operator still gets feedback when the action they triggered
+      // failed.
+      backend.fetchRecentServerLogs(limit: 500).then((logs) {
+        if (!mounted) return;
+        setState(() {
+          _allLogs = logs;
+          _availableSources = logs
+              .where((e) => e.source != null)
+              .map((e) => e.source!)
+              .toSet();
+          _applyFilters();
+        });
+        if (_autoScroll && _scrollController.hasClients) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (_scrollController.hasClients) {
+              _scrollController
+                  .jumpTo(_scrollController.position.maxScrollExtent);
+            }
+          });
+        }
+      }).catchError((Object e) {
+        // Keep the previous frame on-screen. The 1-Hz refresh timer will
+        // retry on the next tick.
+      });
+      return;
+    }
+
     final loggingService = ref.read(loggingServiceProvider);
     final logs = loggingService.getRecentLogs();
 
@@ -114,7 +149,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Color _levelColor(LogLevel level) {
-    final colors = widget.colors;
+    final colors = NightshadeColors.of(context);
     switch (level) {
       case LogLevel.debug:
         return colors.textMuted;
@@ -185,7 +220,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Export failed: $e'),
-            backgroundColor: widget.colors.error,
+            backgroundColor: NightshadeColors.of(context).error,
           ),
         );
       }
@@ -193,6 +228,36 @@ class _LogViewerState extends ConsumerState<LogViewer>
   }
 
   Future<void> _clearLogs() async {
+    // [Wave 6E log tail] — Clear on a remote session must target the
+    // server's log files; otherwise the operator presses Clear and sees
+    // no change because we're clearing the local (already-empty) buffer.
+    final backend = ref.read(backendProvider);
+    if (backend is NetworkBackend) {
+      try {
+        await backend.clearServerLogs();
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Clear failed: $e'),
+              backgroundColor: NightshadeColors.of(context).error,
+            ),
+          );
+        }
+        return;
+      }
+      _refreshLogs();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Server log files cleared'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+      return;
+    }
+
     final loggingService = ref.read(loggingServiceProvider);
     await loggingService.clearLogs();
     _refreshLogs();
@@ -208,7 +273,7 @@ class _LogViewerState extends ConsumerState<LogViewer>
 
   @override
   Widget build(BuildContext context) {
-    final colors = widget.colors;
+    final colors = NightshadeColors.of(context);
     final isMobile = widget.isMobile;
     final padding =
         isMobile ? const EdgeInsets.all(16) : const EdgeInsets.all(32);
@@ -304,7 +369,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
             _minLevel = LogLevel.debug;
             _applyFilters();
           }),
-          colors: colors,
         ),
         _LevelFilterButton(
           label: 'Warn+',
@@ -314,7 +378,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
             _minLevel = LogLevel.warning;
             _applyFilters();
           }),
-          colors: colors,
         ),
         _LevelFilterButton(
           label: 'Error+',
@@ -324,7 +387,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
             _minLevel = LogLevel.error;
             _applyFilters();
           }),
-          colors: colors,
         ),
         // Source dropdown
         if (_availableSources.isNotEmpty) _buildSourceDropdown(colors),
@@ -426,7 +488,6 @@ class _LogViewerState extends ConsumerState<LogViewer>
           label: 'Auto-scroll',
           isActive: _autoScroll,
           onTap: () => setState(() => _autoScroll = !_autoScroll),
-          colors: colors,
         ),
         NightshadeButton(
           label: 'Copy All',
@@ -478,9 +539,10 @@ class _LogViewerState extends ConsumerState<LogViewer>
           // Level badge
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-            decoration: BoxDecoration(
-              color: levelColor.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              levelColor,
               borderRadius: BorderRadius.circular(3),
+              bordered: false,
             ),
             child: Text(
               levelLabel,
@@ -538,18 +600,17 @@ class _LevelFilterButton extends StatelessWidget {
   final bool isSelected;
   final Color? color;
   final VoidCallback onTap;
-  final NightshadeColors colors;
 
   const _LevelFilterButton({
     required this.label,
     required this.isSelected,
     this.color,
     required this.onTap,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final effectiveColor = color ?? colors.primary;
 
     return GestureDetector(
@@ -557,17 +618,16 @@ class _LevelFilterButton extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? effectiveColor.withValues(alpha: 0.15)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isSelected
-                ? effectiveColor.withValues(alpha: 0.5)
-                : colors.border,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                effectiveColor,
+                borderRadius: BorderRadius.circular(6),
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: colors.border),
+              ),
         child: Text(
           label,
           style: TextStyle(
@@ -586,34 +646,32 @@ class _ActionToggle extends StatelessWidget {
   final String label;
   final bool isActive;
   final VoidCallback onTap;
-  final NightshadeColors colors;
 
   const _ActionToggle({
     required this.icon,
     required this.label,
     required this.isActive,
     required this.onTap,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return GestureDetector(
       onTap: onTap,
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 150),
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: isActive
-              ? colors.primary.withValues(alpha: 0.1)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: isActive
-                ? colors.primary.withValues(alpha: 0.4)
-                : colors.border,
-          ),
-        ),
+        decoration: isActive
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(6),
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(6),
+                border: Border.all(color: colors.border),
+              ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

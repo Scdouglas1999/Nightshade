@@ -365,7 +365,7 @@ Application:
 ### Community and Support
 
 - **Documentation**: You're reading it!
-- **GitHub**: https://github.com/Scodouglas1999/Nightshade
+- **GitHub**: https://github.com/Scdouglas1999/Nightshade
 - **Issues**: https://github.com/Scodouglas1999/Nightshade/issues
 
 ### Developer Resources

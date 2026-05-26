@@ -108,7 +108,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final weatherStatus = ref.watch(weatherStatusProvider);
     final appSettings = ref.watch(appSettingsProvider).valueOrNull;
     final motionAsync = ref.watch(analyzeCloudMotionProvider);
@@ -497,8 +497,8 @@ class _WeatherHeader extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: colors.info.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              colors.info,
               borderRadius: BorderRadius.circular(10),
             ),
             child: Icon(
@@ -710,8 +710,11 @@ class _NoLocationContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 400),
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogMaxWidth(context, 400),
+        ),
+        child: Container(
         padding: const EdgeInsets.all(32),
         decoration: BoxDecoration(
           color: colors.surface,
@@ -723,10 +726,9 @@ class _NoLocationContent extends StatelessWidget {
           children: [
             Container(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.warning,
+              ).copyWith(shape: BoxShape.circle),
               child: Icon(
                 LucideIcons.mapPin,
                 size: 48,
@@ -761,6 +763,7 @@ class _NoLocationContent extends StatelessWidget {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -793,10 +796,8 @@ class _WeatherSafetyCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: isSafe
-                      ? colors.success.withValues(alpha: 0.1)
-                      : colors.error.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  isSafe ? colors.success : colors.error,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -919,8 +920,8 @@ class _WeatherSettingsCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -1085,8 +1086,8 @@ class _CloudCoverCard extends StatelessWidget {
           // Icon
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: coverColor.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              coverColor,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -1116,11 +1117,10 @@ class _CloudCoverCard extends StatelessWidget {
                   children: [
                     Text(
                       cloudCoverPercent != null ? '${percent.toInt()}%' : '--',
-                      style: TextStyle(
-                        fontSize: 28,
+                      style: NightshadeTypography.telemetryLg.copyWith(
                         fontWeight: FontWeight.w700,
                         color: coverColor,
-                        letterSpacing: -1,
+                        letterSpacing: -0.5,
                       ),
                     ),
                     const SizedBox(width: 8),
@@ -1195,15 +1195,7 @@ class _HardwareSensorsCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            colors.surface,
-            colors.primary.withValues(alpha: 0.05),
-          ],
-        ),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1213,8 +1205,8 @@ class _HardwareSensorsCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(

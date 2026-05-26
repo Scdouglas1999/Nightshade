@@ -2,10 +2,7 @@
 //!
 //! Reference values from `packages/nightshade_planetarium/lib/src/rendering/sky_renderer.dart`.
 
-#[path = "../src/astrometry/extinction.rs"]
-mod extinction;
-
-use extinction::{lookup, lut_entry, ExtinctionSample};
+use nightshade_planetarium::astrometry::extinction::{lookup, lut_entry, ExtinctionSample};
 
 const EPS: f64 = 1e-14;
 

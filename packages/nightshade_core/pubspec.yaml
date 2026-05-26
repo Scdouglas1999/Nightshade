@@ -20,6 +20,11 @@ dependencies:
   file_selector: ^1.0.3
   web_socket_channel: ^2.4.0
   csv: ^6.0.0
+  # Wave 7 Agent 2 — broadcast JPEG rendering for the live-stacking
+  # outreach endpoint. `image` is already used by apps/desktop's
+  # run_watch_handlers; promoting the dependency here makes the
+  # broadcast service work from any consumer of nightshade_core.
+  image: ^4.1.7
 
   # Database
   drift: ^2.15.0
@@ -37,7 +42,24 @@ dependencies:
   # series already used by nightshade_updater so transitive resolution is a
   # no-op.
   archive: ^3.4.10
-  
+  # Snippet share/import/export uses SHA-256 over the canonical-encoded
+  # snippet body as a tamper-evidence checksum so re-imports of a
+  # corrupted / hand-edited file surface a loud, listable error instead
+  # of silently loading a malformed snippet. Already a transitive dep of
+  # the workspace (via http/drift) — promoting to direct so the import
+  # site is explicit and pub-bound.
+  crypto: ^3.0.3
+
+  # Wave 5 Agent 5 — secure storage for notification credentials.
+  # SMTP passwords, Pushover api_token/user_key, Telegram bot_token,
+  # Discord webhook URLs, and MQTT passwords live in the OS keyring
+  # (Keychain on macOS, Credential Manager on Windows, libsecret on
+  # Linux, EncryptedSharedPreferences/Keychain on Android/iOS). The
+  # non-secret config (host, port, from-address, etc.) stays in the
+  # app_settings DAO. Plaintext secrets in legacy `app_settings` blobs
+  # are migrated on first launch via SecretsStore.migrateFromPlaintext().
+  flutter_secure_storage: ^9.2.2
+
   # Native bridge
   nightshade_bridge:
     path: ../nightshade_bridge

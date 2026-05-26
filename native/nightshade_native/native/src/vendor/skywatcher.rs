@@ -9,8 +9,9 @@ use crate::traits::*;
 use crate::NativeVendor;
 use async_trait::async_trait;
 use std::io::{Read, Write};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use std::time::Duration;
+use tokio::sync::Notify;
 
 // =============================================================================
 // CONSTANTS
@@ -51,6 +52,7 @@ mod commands {
     // Inquiry commands
     pub const GET_POSITION: char = 'j'; // Get axis position
     pub const GET_STATUS: char = 'f'; // Get axis status
+    pub const GET_MOTOR_BOARD_VERSION: char = 'e'; // Inquire motor board version
     pub const INIT_CHECK: &str = ":F3"; // Check initialization
 
     // Motion commands
@@ -153,6 +155,49 @@ fn degrees_to_hours(degrees: f64) -> f64 {
     degrees / 15.0
 }
 
+fn normalize_motor_board_version_response(response: &str) -> Option<String> {
+    let version = response
+        .trim()
+        .trim_start_matches(commands::RESPONSE_OK)
+        .trim_end_matches('\r')
+        .trim();
+
+    if version.len() < 4 || !version.chars().all(|c| c.is_ascii_hexdigit()) {
+        return None;
+    }
+
+    Some(version.to_ascii_uppercase())
+}
+
+fn format_motor_board_versions(ra: Option<String>, dec: Option<String>) -> Option<String> {
+    match (ra, dec) {
+        (Some(ra), Some(dec)) if ra == dec => {
+            Some(format!("Sky-Watcher motor board firmware {}", ra))
+        }
+        (Some(ra), Some(dec)) => Some(format!(
+            "Sky-Watcher motor board firmware RA {}, Dec {}",
+            ra, dec
+        )),
+        (Some(ra), None) => Some(format!("Sky-Watcher motor board firmware RA {}", ra)),
+        (None, Some(dec)) => Some(format!("Sky-Watcher motor board firmware Dec {}", dec)),
+        (None, None) => None,
+    }
+}
+
+fn query_motor_board_version(port: &mut dyn serialport::SerialPort, axis: char) -> Option<String> {
+    let cmd = format!(":{}{}\r", commands::GET_MOTOR_BOARD_VERSION, axis);
+    if port.write_all(cmd.as_bytes()).is_err() {
+        return None;
+    }
+    let _ = port.flush();
+
+    let mut buf = [0u8; 32];
+    std::thread::sleep(Duration::from_millis(100));
+    let n = port.read(&mut buf).ok()?;
+    let response = String::from_utf8_lossy(&buf[..n]);
+    normalize_motor_board_version_response(&response)
+}
+
 // =============================================================================
 // CONNECTION TYPES
 // =============================================================================
@@ -189,6 +234,42 @@ pub struct SkyWatcherMount {
     is_tracking: Mutex<bool>,
     is_slewing: Mutex<bool>,
     is_parked: Mutex<bool>,
+    pulse_guide_cancel: Arc<Notify>,
+}
+
+struct AxisMotionStopGuard<'a> {
+    mount: &'a SkyWatcherMount,
+    axis: char,
+    armed: bool,
+}
+
+impl<'a> AxisMotionStopGuard<'a> {
+    fn new(mount: &'a SkyWatcherMount, axis: char) -> Self {
+        Self {
+            mount,
+            axis,
+            armed: true,
+        }
+    }
+
+    fn stop(mut self) -> Result<(), NativeError> {
+        self.armed = false;
+        self.mount.stop_axis_motion(self.axis)
+    }
+}
+
+impl Drop for AxisMotionStopGuard<'_> {
+    fn drop(&mut self) {
+        if self.armed {
+            if let Err(err) = self.mount.stop_axis_motion(self.axis) {
+                tracing::warn!(
+                    "SkyWatcher pulse-guide stop guard failed to stop axis {}: {}",
+                    self.axis,
+                    err
+                );
+            }
+        }
+    }
 }
 
 impl std::fmt::Debug for SkyWatcherMount {
@@ -219,6 +300,7 @@ impl SkyWatcherMount {
             is_tracking: Mutex::new(false),
             is_slewing: Mutex::new(false),
             is_parked: Mutex::new(false),
+            pulse_guide_cancel: Arc::new(Notify::new()),
         }
     }
 
@@ -236,6 +318,7 @@ impl SkyWatcherMount {
             is_tracking: Mutex::new(false),
             is_slewing: Mutex::new(false),
             is_parked: Mutex::new(false),
+            pulse_guide_cancel: Arc::new(Notify::new()),
         }
     }
 
@@ -363,6 +446,14 @@ impl SkyWatcherMount {
         let encoded = format!("{:02X}", mode);
         self.send_axis_command(commands::SET_MOTION_MODE, axis, Some(&encoded))?;
         Ok(())
+    }
+
+    async fn pulse_guide_wait(&self, duration: Duration) -> bool {
+        let cancel = Arc::clone(&self.pulse_guide_cancel);
+        tokio::select! {
+            _ = tokio::time::sleep(duration) => false,
+            _ = cancel.notified() => true,
+        }
     }
 
     /// Sync axis position
@@ -595,11 +686,23 @@ impl NativeMount for SkyWatcherMount {
         let mode = build_motion_mode(true, false, !is_positive);
         self.set_axis_motion_mode(axis, mode)?;
 
+        let requested_duration = Duration::from_millis(u64::from(duration_ms));
+        let started_at = tokio::time::Instant::now();
         self.start_axis_motion(axis)?;
+        let stop_guard = AxisMotionStopGuard::new(self, axis);
 
-        tokio::time::sleep(Duration::from_millis(duration_ms as u64)).await;
+        let remaining = requested_duration.saturating_sub(started_at.elapsed());
+        let cancelled = stop_guard.mount.pulse_guide_wait(remaining).await;
 
-        self.stop_axis_motion(axis)?;
+        stop_guard.stop()?;
+
+        if cancelled {
+            tracing::debug!(
+                "SkyWatcher pulse_guide cancelled before {}ms elapsed; stopped axis {} immediately",
+                duration_ms,
+                axis
+            );
+        }
 
         Ok(())
     }
@@ -611,6 +714,7 @@ impl NativeMount for SkyWatcherMount {
 
         tracing::info!("Aborting slew");
 
+        self.pulse_guide_cancel.notify_waiters();
         self.stop_axis_motion(AXIS_RA)?;
         self.stop_axis_motion(AXIS_DEC)?;
 
@@ -728,6 +832,7 @@ impl NativeMount for SkyWatcherMount {
 pub struct SkyWatcherMountInfo {
     pub port: String,
     pub name: String,
+    pub firmware_version: Option<String>,
     /// Baud rate that was successful during discovery
     pub baud_rate: u32,
 }
@@ -806,9 +911,14 @@ pub async fn discover_mounts() -> Result<Vec<SkyWatcherMountInfo>, NativeError> 
                             );
                             if response.contains('=') || response.contains('!') {
                                 let display_name = format!("Sky-Watcher ({})", port_name);
+                                let firmware_version = format_motor_board_versions(
+                                    query_motor_board_version(&mut *port, AXIS_RA),
+                                    query_motor_board_version(&mut *port, AXIS_DEC),
+                                );
                                 mounts.push(SkyWatcherMountInfo {
                                     port: port_name.clone(),
                                     name: display_name.clone(),
+                                    firmware_version,
                                     baud_rate,
                                 });
                                 tracing::info!(
@@ -913,6 +1023,24 @@ mod tests {
     // with two meanings depending on bit `0x01`. Lock the encoding behavior
     // in tests so the protocol overload cannot be silently broken by a
     // refactor that "fixes" the apparent duplication.
+    #[tokio::test]
+    async fn pulse_guide_wait_wakes_on_cancel_notify() {
+        let mount = fake_connected_mount();
+        let cancel = Arc::clone(&mount.pulse_guide_cancel);
+
+        tokio::spawn(async move {
+            tokio::time::sleep(Duration::from_millis(10)).await;
+            cancel.notify_waiters();
+        });
+
+        let started = tokio::time::Instant::now();
+        assert!(mount.pulse_guide_wait(Duration::from_secs(5)).await);
+        assert!(
+            started.elapsed() < Duration::from_secs(1),
+            "cancel notification should end the guide wait promptly"
+        );
+    }
+
     #[test]
     fn build_motion_mode_goto_uses_bit2_for_fast_and_bit4_for_ccw() {
         // Goto, slow, CW
@@ -934,5 +1062,32 @@ mod tests {
         // Tracking, fast, CW => 0x01 | 0x02 (the encoder does not suppress
         // the fast bit in tracking mode; protocol ignores it on the wire).
         assert_eq!(build_motion_mode(true, true, false), 0x03);
+    }
+
+    #[test]
+    fn normalize_motor_board_version_accepts_protocol_shape() {
+        assert_eq!(
+            normalize_motor_board_version_response("=030700\r").as_deref(),
+            Some("030700")
+        );
+        assert_eq!(
+            normalize_motor_board_version_response("=030701").as_deref(),
+            Some("030701")
+        );
+    }
+
+    #[test]
+    fn normalize_motor_board_version_rejects_empty_or_non_hex() {
+        assert_eq!(normalize_motor_board_version_response("="), None);
+        assert_eq!(normalize_motor_board_version_response("=nothex"), None);
+    }
+
+    #[test]
+    fn format_motor_board_versions_preserves_axis_specific_values() {
+        assert_eq!(
+            format_motor_board_versions(Some("030700".to_string()), Some("030701".to_string()))
+                .as_deref(),
+            Some("Sky-Watcher motor board firmware RA 030700, Dec 030701")
+        );
     }
 }

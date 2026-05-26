@@ -160,7 +160,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.watch(onboardingDraftProvider.notifier);
@@ -180,48 +180,54 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   Widget _buildWizard(BuildContext context, ThemeData theme,
       NightshadeColors colors, OnboardingDraft draft) {
     return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 1080),
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          children: [
-            _Header(
-              currentStep: draft.currentStep,
-              onExit: _saving ? null : _onExitWizard,
-            ),
-            const SizedBox(height: 16),
-            Expanded(
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  _StepSidebar(currentStep: draft.currentStep),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: colors.background,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: colors.border),
-                      ),
-                      child: _StepBody(currentStep: draft.currentStep),
-                    ),
-                  ),
-                ],
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          maxWidth: dialogMaxWidth(context, 1080),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            children: [
+              _Header(
+                currentStep: draft.currentStep,
+                onExit: _saving ? null : _onExitWizard,
               ),
-            ),
-            const SizedBox(height: 16),
-            _Footer(
-              currentStep: draft.currentStep,
-              isSaving: _saving,
-              onBack: draft.currentStep == OnboardingStep.welcome || _saving
-                  ? null
-                  : _onBack,
-              onSkipStep:
-                  draft.currentStep.isOptional && !_saving ? _onSkipStep : null,
-              onNext: _saving ? null : _onNext,
-            ),
-          ],
+              const SizedBox(height: 16),
+              Expanded(
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    _StepSidebar(currentStep: draft.currentStep),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: colors.background,
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusLg),
+                          border: Border.all(color: colors.border),
+                        ),
+                        child: _StepBody(currentStep: draft.currentStep),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              _Footer(
+                currentStep: draft.currentStep,
+                isSaving: _saving,
+                onBack: draft.currentStep == OnboardingStep.welcome || _saving
+                    ? null
+                    : _onBack,
+                onSkipStep: draft.currentStep.isOptional && !_saving
+                    ? _onSkipStep
+                    : null,
+                onNext: _saving ? null : _onNext,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -236,18 +242,16 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     return Row(
       children: [
         Container(
           width: 40,
           height: 40,
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.12),
+          decoration: NightshadeDecorations.iconChip(
+            colors.primary,
             borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: colors.primary.withValues(alpha: 0.3)),
           ),
           child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
         ),
@@ -274,8 +278,7 @@ class _Header extends StatelessWidget {
         ),
         TextButton.icon(
           onPressed: onExit,
-          icon: Icon(LucideIcons.logOut,
-              size: 14, color: colors.textSecondary),
+          icon: Icon(LucideIcons.logOut, size: 14, color: colors.textSecondary),
           label: Text(
             'Skip onboarding',
             style: TextStyle(color: colors.textSecondary),
@@ -318,7 +321,7 @@ class _StepSidebar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final currentIdx = currentStep.order;
 
@@ -327,7 +330,7 @@ class _StepSidebar extends StatelessWidget {
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: colors.surface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         border: Border.all(color: colors.border),
       ),
       child: ListView(
@@ -359,8 +362,7 @@ class _StepSidebar extends StatelessWidget {
                     child: isCompleted
                         ? Icon(LucideIcons.check,
                             size: 12,
-                            color:
-                                Theme.of(context).colorScheme.onPrimary)
+                            color: Theme.of(context).colorScheme.onPrimary)
                         : Icon(
                             _stepIcons[step] ?? LucideIcons.circle,
                             size: 12,
@@ -375,12 +377,9 @@ class _StepSidebar extends StatelessWidget {
                   child: Text(
                     _stepLabels[step] ?? '',
                     style: theme.textTheme.bodySmall?.copyWith(
-                      color: isActive
-                          ? colors.textPrimary
-                          : colors.textSecondary,
-                      fontWeight: isActive
-                          ? FontWeight.w600
-                          : FontWeight.w400,
+                      color:
+                          isActive ? colors.textPrimary : colors.textSecondary,
+                      fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
                     ),
                     overflow: TextOverflow.ellipsis,
                   ),

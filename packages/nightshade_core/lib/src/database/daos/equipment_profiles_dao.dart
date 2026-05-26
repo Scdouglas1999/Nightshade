@@ -177,6 +177,7 @@ class EquipmentProfilesDao extends DatabaseAccessor<NightshadeDatabase>
         rotatorId: Value(source.rotatorId),
         domeId: Value(source.domeId),
         weatherId: Value(source.weatherId),
+        safetyMonitorId: Value(source.safetyMonitorId),
         coverCalibratorId: Value(source.coverCalibratorId),
         focalLength: Value(source.focalLength),
         aperture: Value(source.aperture),

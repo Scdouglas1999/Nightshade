@@ -233,6 +233,39 @@ pub trait NativeCamera: NativeDevice {
     /// Returns (min_offset, max_offset) tuple.
     /// If the camera does not support offset adjustment, returns Err(NotSupported).
     async fn get_offset_range(&self) -> Result<(i32, i32), NativeError>;
+
+    /// Query the camera SDK for manufacturer-recommended gain/offset values.
+    ///
+    /// Returns a [`CameraRecommendedSettings`] populated with whatever the
+    /// vendor SDK actually exposes:
+    /// - `unity_gain`: gain value where the sensor reads 1 e-/ADU, if the SDK
+    ///   reports it (ZWO publishes the default gain control caps, QHY exposes
+    ///   `DefaultGain` as a dedicated control ID, SVBony provides control
+    ///   default values).
+    /// - `hcg_gain`: high-conversion-gain transition point, if exposed.
+    /// - `default_offset`: manufacturer-recommended offset.
+    ///
+    /// The default implementation returns an empty
+    /// [`CameraRecommendedSettings`] (all fields `None`) — this is the honest
+    /// answer for vendors whose SDK does not expose these values. Drivers that
+    /// CAN query them override this method.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` only when the SDK call genuinely failed (e.g. camera
+    /// disconnected mid-query). A camera that doesn't expose any recommended
+    /// settings should return `Ok` with an empty struct — never fabricate a
+    /// value.
+    async fn get_recommended_settings(
+        &self,
+    ) -> Result<crate::camera::CameraRecommendedSettings, NativeError> {
+        Ok(crate::camera::CameraRecommendedSettings::default())
+    }
+
+    /// Capture a live-view / preview frame as JPEG bytes when the driver supports it.
+    async fn capture_preview(&self) -> Result<Vec<u8>, NativeError> {
+        Err(NativeError::NotSupported)
+    }
 }
 
 /// Tracking rate for mount
@@ -679,6 +712,87 @@ pub trait NativeDome: NativeDevice {
 
     /// Get altitude (if supported)
     async fn get_altitude(&self) -> Result<Option<f64>, NativeError>;
+}
+
+/// Cover (dust cap) state for native cover-calibrator devices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeCoverState {
+    NotPresent,
+    Closed,
+    Moving,
+    Open,
+    Unknown,
+    Error,
+}
+
+/// Flat-field calibrator state for native cover-calibrator devices.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum NativeCalibratorState {
+    NotPresent,
+    Off,
+    NotReady,
+    Ready,
+    Unknown,
+    Error,
+}
+
+/// Native cover-calibrator device interface.
+///
+/// Mirrors the ASCOM/Alpaca cover-calibrator shape without importing those
+/// protocol crates into the native crate. Native flat panels and dust covers
+/// can implement this directly once their SDK bindings exist.
+#[async_trait]
+pub trait NativeCoverCalibrator: NativeDevice {
+    async fn open_cover(&mut self) -> Result<(), NativeError>;
+    async fn close_cover(&mut self) -> Result<(), NativeError>;
+    async fn halt_cover(&mut self) -> Result<(), NativeError>;
+
+    async fn calibrator_on(&mut self, brightness: i32) -> Result<(), NativeError>;
+    async fn calibrator_off(&mut self) -> Result<(), NativeError>;
+
+    async fn get_cover_state(&self) -> Result<NativeCoverState, NativeError>;
+    async fn get_calibrator_state(&self) -> Result<NativeCalibratorState, NativeError>;
+    async fn get_brightness(&self) -> Result<i32, NativeError>;
+    async fn get_max_brightness(&self) -> Result<i32, NativeError>;
+}
+
+/// Snapshot of one native switch channel.
+#[derive(Debug, Clone, PartialEq)]
+pub struct NativeSwitchChannel {
+    pub id: i32,
+    pub name: String,
+    pub description: String,
+    pub state: bool,
+    pub value: f64,
+    pub min_value: f64,
+    pub max_value: f64,
+    pub step: f64,
+    pub can_write: bool,
+    pub is_boolean: bool,
+}
+
+/// Native switch/power-output device interface.
+///
+/// Uses the ASCOM/Alpaca ISwitchV2 numeric model so devices such as power
+/// boxes can expose both boolean relays and analog/PWM channels without
+/// losing value range or step-size metadata.
+#[async_trait]
+pub trait NativeSwitch: NativeDevice {
+    async fn get_switch_count(&self) -> Result<i32, NativeError>;
+    async fn get_switches(&self) -> Result<Vec<NativeSwitchChannel>, NativeError>;
+
+    async fn get_switch_state(&self, switch_id: i32) -> Result<bool, NativeError>;
+    async fn set_switch_state(&mut self, switch_id: i32, state: bool) -> Result<(), NativeError>;
+
+    async fn get_switch_value(&self, switch_id: i32) -> Result<f64, NativeError>;
+    async fn set_switch_value(&mut self, switch_id: i32, value: f64) -> Result<(), NativeError>;
+
+    async fn get_switch_name(&self, switch_id: i32) -> Result<String, NativeError>;
+    async fn get_switch_description(&self, switch_id: i32) -> Result<String, NativeError>;
+    async fn get_switch_min_value(&self, switch_id: i32) -> Result<f64, NativeError>;
+    async fn get_switch_max_value(&self, switch_id: i32) -> Result<f64, NativeError>;
+    async fn get_switch_step(&self, switch_id: i32) -> Result<f64, NativeError>;
+    async fn can_write(&self, switch_id: i32) -> Result<bool, NativeError>;
 }
 
 /// Native weather station device interface

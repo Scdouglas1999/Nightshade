@@ -110,7 +110,7 @@ class _ProjectTrackingPanelState extends ConsumerState<ProjectTrackingPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final progressAsync = ref.watch(projectProgressListProvider);
     final filterDataAsync = ref.watch(perFilterIntegrationProvider);
 
@@ -369,15 +369,15 @@ class _SortBar extends StatelessWidget {
       onTap: () => onSortChanged(mode),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.15)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isSelected ? colors.primary : colors.border,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(8),
+              )
+            : BoxDecoration(
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
         child: Text(
           label,
           style: TextStyle(
@@ -424,7 +424,12 @@ class _EnhancedProjectCard extends ConsumerWidget {
               params: {'target': progress.target.name},
             ),
           ),
-          content: TextField(
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              dialogContext,
+              designMaxWidth: 420,
+            ),
+            child: TextField(
             controller: controller,
             autofocus: true,
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -433,6 +438,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
               hintText: 'e.g. 10.0',
               suffixText: 'hours',
             ),
+          ),
           ),
           actions: [
             TextButton(
@@ -475,7 +481,7 @@ class _EnhancedProjectCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final completionPct = progress.completionFraction * 100.0;
     final l10n = context.l10n;
 
@@ -757,10 +763,9 @@ class _FilterBreakdownRow extends StatelessWidget {
         final color = _filterColor(entry.key);
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.15),
+          decoration: NightshadeDecorations.statusChip(
+            color,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,

@@ -32,6 +32,7 @@ void main() {
 
     when(() => mockBackend.eventStream).thenAnswer((_) => eventStreamController.stream);
     when(() => mockBackend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
+    when(() => mockBackend.getConnectedDevices()).thenAnswer((_) async => []);
     container = ProviderContainer(
       overrides: [
         backendProvider.overrideWith((ref) => TestBackendNotifier(ref, mockBackend)),
@@ -109,5 +110,50 @@ void main() {
       service.setFilterWheelPosition(1),
       throwsA(isA<Exception>()),
     );
+  });
+
+  test('setFilterWheelPosition verify failure keeps moving when hardware still moving (DV-P0-6)',
+      () async {
+    const deviceId = TestFixtures.filterWheelId;
+    final filterNames = List<String>.from(TestFixtures.sampleFilterNames);
+
+    final filterWheelNotifier = container.read(filterWheelStateProvider.notifier);
+    filterWheelNotifier.setConnecting(deviceId, 'Test Filter Wheel');
+    filterWheelNotifier.setConnected(filterNames: filterNames);
+    filterWheelNotifier.updatePosition(0);
+
+    when(() => mockBackend.filterWheelSetPosition(deviceId, 1))
+        .thenAnswer((_) async {});
+
+    var pollCount = 0;
+    when(() => mockBackend.getFilterWheelStatus(deviceId)).thenAnswer((_) async {
+      pollCount++;
+      if (pollCount == 1) {
+        // Verify loop: stopped but wrong slot → immediate failure.
+        return FilterWheelStatus(
+          connected: true,
+          position: 2,
+          moving: false,
+          filterCount: filterNames.length,
+          filterNames: filterNames,
+        );
+      }
+      // Recovery poll: wheel is still physically moving.
+      return FilterWheelStatus(
+        connected: true,
+        position: -1,
+        moving: true,
+        filterCount: filterNames.length,
+        filterNames: filterNames,
+      );
+    });
+
+    final service = container.read(deviceServiceProvider);
+    await expectLater(
+      service.setFilterWheelPosition(1),
+      throwsA(isA<Exception>()),
+    );
+
+    expect(container.read(filterWheelStateProvider).isMoving, isTrue);
   });
 }

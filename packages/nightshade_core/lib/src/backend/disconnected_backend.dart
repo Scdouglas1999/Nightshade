@@ -5,6 +5,8 @@ import '../models/imaging/imaging_models.dart';
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
+import '../models/sequence/sequence_models.dart'
+    show AdaptiveSwapSnapshot, ConditionsScore;
 import '../providers/settings_provider.dart';
 import 'nightshade_backend.dart';
 
@@ -17,6 +19,9 @@ import 'nightshade_backend.dart';
 /// execute local logic (like FFI) when it should be acting as a thin client.
 class DisconnectedBackend implements NightshadeBackend {
   final _eventController = StreamController<NightshadeEvent>.broadcast();
+
+  @override
+  bool get dispatchPluginNodesLocally => true;
 
   @override
   Stream<NightshadeEvent> get eventStream => _eventController.stream;
@@ -88,6 +93,11 @@ class DisconnectedBackend implements NightshadeBackend {
 
   @override
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<Uint8List> cameraLiveViewFrame(String deviceId) async {
     _throwNotConnected();
   }
 
@@ -471,6 +481,21 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSkipToNode(String nodeId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerPluginNodeFinished({
+    required String nodeId,
+    required bool success,
+    String? message,
+    String? structuredDetailJson,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> sequencerReset() async {
     _throwNotConnected();
   }
@@ -504,7 +529,22 @@ class DisconnectedBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds) async {
+    _throwNotConnected();
+  }
+
+  @override
   Future<void> sequencerSetSavePath(String? path) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerSetDecisionLoggingEnabled(bool enabled) async {
     _throwNotConnected();
   }
 
@@ -531,6 +571,130 @@ class DisconnectedBackend implements NightshadeBackend {
   Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets) async {
     _throwNotConnected();
   }
+
+  @override
+  Future<void> sequencerUpdatePendingIntegrationCarryOver(
+    Map<String, Map<String, double>> carryOver,
+  ) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateAutofocusInterval(int everyNFrames) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateDefaultQualityCheck({
+    double? hfrThreshold,
+    double? hfrBaselinePercent,
+    double? eccentricityThreshold,
+    int? starCountMin,
+    required int maxConsecutiveRejects,
+    required bool enabled,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateRejectFolderPath(String? path) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateObserverProfile({
+    String? observerName,
+    double? siteElevationM,
+    String? cameraMake,
+    String? cameraModel,
+    String? telescopeName,
+    double? telescopeFocalLengthMm,
+    double? telescopeApertureMm,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateCloudMotion({
+    double? currentCoverPercent,
+    double? predictedArrivalMinutes,
+    double? predictedOpeningMinutes,
+    double? predictedOpeningDurationSecs,
+    double? predictedClearSkyAlt,
+    double? predictedClearSkyAz,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<String?> sequencerGetCloudMotionJson() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateConditionsScore(ConditionsScore? score) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<AdaptiveSwapSnapshot?> sequencerGetAdaptiveSwapSnapshot() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerUpdateDefaultAdaptiveExposure({
+    required bool enabled,
+    required double targetSnr,
+    required double referenceSkyBrightnessMag,
+    required double minExposureSecs,
+    required double maxExposureSecs,
+    required Map<String, bool> perFilterEnabled,
+    required Map<String, double> perFilterMinSecs,
+    required Map<String, double> perFilterMaxSecs,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> sequencerClearDefaultAdaptiveExposure() async {
+    _throwNotConnected();
+  }
+
+  // =========================================================================
+  // Wave 4 Recovery Mode
+  // =========================================================================
+
+  @override
+  Future<void> recoveryTryNow() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> recoveryAbort() async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> updateRecoveryConfig({
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required bool stopTrackingDuringRecovery,
+    required bool abortOnMeridian,
+    required bool audibleAlertWhenEntered,
+  }) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<String?> getCurrentRecoveryJson() async => null;
+
+  @override
+  Future<String> getRecoveryHistoryJson() async => '[]';
 
   @override
   Future<SequencerStatus> sequencerGetStatus() async {
@@ -746,6 +910,17 @@ class DisconnectedBackend implements NightshadeBackend {
     String pattern,
     String algorithm,
   ) async {
+    _throwNotConnected();
+  }
+
+  @override
+  Future<void> calibrateImageFile({
+    required String lightPath,
+    String? darkPath,
+    String? flatPath,
+    String? biasPath,
+    required String outputPath,
+  }) async {
     _throwNotConnected();
   }
 

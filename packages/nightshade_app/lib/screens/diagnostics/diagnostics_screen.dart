@@ -39,7 +39,7 @@ class _DiagnosticsTabContentState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isMobile = Responsive.isMobile(context);
     final sessionsAsync = ref.watch(allSessionsProvider);
     final l10n = context.l10n;
@@ -266,7 +266,7 @@ class _DiagnosticsContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final diagnosticsAsync =
         ref.watch(opticalTrainDiagnosticsProvider(sessionId));
     final psfAsync = ref.watch(psfTilesForSessionProvider(sessionId));
@@ -278,20 +278,26 @@ class _DiagnosticsContent extends ConsumerWidget {
         final psfTiles = psfAsync.valueOrNull ?? const [];
         final residuals = residualsAsync.valueOrNull ?? const [];
 
-        if (isMobile) {
-          return _MobileLayout(
-            diagnostics: diagnostics,
-            psfTiles: psfTiles,
-            residuals: residuals,
-            colors: colors,
-          );
-        }
-
-        return _DesktopLayout(
-          diagnostics: diagnostics,
-          psfTiles: psfTiles,
-          residuals: residuals,
-          colors: colors,
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            final stackLayout = isMobile ||
+                constraints.maxWidth < NightshadeTokens.breakpointTablet;
+            if (stackLayout) {
+              return _MobileLayout(
+                diagnostics: diagnostics,
+                psfTiles: psfTiles,
+                residuals: residuals,
+                colors: colors,
+              );
+            }
+            return _DesktopLayout(
+              diagnostics: diagnostics,
+              psfTiles: psfTiles,
+              residuals: residuals,
+              colors: colors,
+              maxWidth: constraints.maxWidth,
+            );
+          },
         );
       },
       // Shimmer grid placeholder keeps the diagnostics card layout in place
@@ -343,22 +349,30 @@ class _DesktopLayout extends StatelessWidget {
   final List<PsfFieldTileRow> psfTiles;
   final List<AstrometryResidualVectorRow> residuals;
   final NightshadeColors colors;
+  final double maxWidth;
 
   const _DesktopLayout({
     required this.diagnostics,
     required this.psfTiles,
     required this.residuals,
     required this.colors,
+    required this.maxWidth,
   });
 
   @override
   Widget build(BuildContext context) {
+    final panelWidth = clampPanelWidth(
+      maxWidth,
+      fraction: 0.32,
+      min: 280,
+      max: 320,
+    );
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Left column: health grade + issues
         SizedBox(
-          width: 320,
+          width: panelWidth,
           child: SingleChildScrollView(
             child: Column(
               children: [
@@ -465,20 +479,14 @@ class _HealthGradeCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          // Large grade letter
           Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: gradeColor.withValues(alpha: 0.15),
-              border: Border.all(color: gradeColor, width: 3),
-            ),
+            width: 44,
+            height: 44,
+            decoration: NightshadeDecorations.kpiBadge(gradeColor),
             child: Center(
               child: Text(
                 health.letterGrade,
-                style: TextStyle(
-                  fontSize: 36,
+                style: NightshadeTypography.telemetryLg.copyWith(
                   fontWeight: FontWeight.w800,
                   color: gradeColor,
                 ),
@@ -981,12 +989,6 @@ class _CollimationPainter extends CustomPainter {
       ..color = statusColor
       ..style = PaintingStyle.fill;
     canvas.drawCircle(offsetDot, 5, dotPaint);
-
-    // Draw glow around dot
-    final glowPaint = Paint()
-      ..color = statusColor.withValues(alpha: 0.3)
-      ..style = PaintingStyle.fill;
-    canvas.drawCircle(offsetDot, 10, glowPaint);
   }
 
   @override
@@ -1094,7 +1096,7 @@ class _LegendDot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -1610,7 +1612,7 @@ class _DiagnosticsLoadingSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     Widget card(double height) => ShimmerLoading(
           child: Container(
             height: height,

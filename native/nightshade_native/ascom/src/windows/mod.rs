@@ -45,12 +45,12 @@ pub use focuser::{AscomFocuser, FocuserCapabilities, FocuserFullStatus};
 pub use health::{ConnectionHealth, HealthMonitor};
 pub use mount::{
     AscomMount, MountCapabilities, MountFullStatus, MountGuideRates, MountMotionStatus,
-    MountPositionStatus,
+    MountPositionStatus, MountSiteStatus,
 };
 pub use observing_conditions::{
     AscomObservingConditions, ObservingConditionsFullStatus, SkyStatus, WeatherStatus, WindStatus,
 };
 pub use rotator::{AscomRotator, RotatorFullStatus};
 pub use safety_monitor::{AscomSafetyMonitor, SafetyMonitorFullStatus};
-pub use switch::{AscomSwitch, SwitchFullStatus};
+pub use switch::{AscomSwitch, SwitchChannelState, SwitchFullStatus};
 pub use timeout::{get_timeout_config, set_timeout_config, TimeoutConfig};

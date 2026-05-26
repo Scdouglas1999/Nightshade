@@ -521,6 +521,20 @@ extension ImageFileFormatSettingsX on ImageFileFormat {
   }
 }
 
+/// Progressive raw load state for host-authoritative capture previews.
+enum RawLoadStatus {
+  idle,
+  loading,
+  ready,
+  failed,
+}
+
+/// Whether the preview pixels came from a local FFI backend or remote host.
+enum CapturePreviewSource {
+  local,
+  remote,
+}
+
 /// Captured image data with display buffer
 class CapturedImageData extends Equatable {
   final int width;
@@ -535,6 +549,15 @@ class CapturedImageData extends Equatable {
   final bool
       isColor; // true if source was color (RGB), false if grayscale — displayData is always RGBA
 
+  /// Host-authoritative 16-bit raw pixels (width * height), when loaded.
+  final Uint16List? rawU16;
+
+  /// Background raw fetch lifecycle (JPEG/display buffer is always shown first).
+  final RawLoadStatus rawLoadStatus;
+
+  /// Where the JPEG/display buffer was obtained.
+  final CapturePreviewSource previewSource;
+
   const CapturedImageData({
     required this.width,
     required this.height,
@@ -546,7 +569,48 @@ class CapturedImageData extends Equatable {
     this.targetName,
     this.filePath,
     this.isColor = false, // default to grayscale for backward compatibility
+    this.rawU16,
+    this.rawLoadStatus = RawLoadStatus.idle,
+    this.previewSource = CapturePreviewSource.local,
   });
+
+  bool get hasRawReady =>
+      rawLoadStatus == RawLoadStatus.ready &&
+      rawU16 != null &&
+      rawU16!.length == width * height;
+
+  CapturedImageData copyWith({
+    int? width,
+    int? height,
+    Uint8List? displayData,
+    List<int>? histogram,
+    ImageStats? stats,
+    DateTime? capturedAt,
+    ExposureSettings? settings,
+    String? targetName,
+    String? filePath,
+    bool? isColor,
+    Uint16List? rawU16,
+    RawLoadStatus? rawLoadStatus,
+    CapturePreviewSource? previewSource,
+    bool clearRawU16 = false,
+  }) {
+    return CapturedImageData(
+      width: width ?? this.width,
+      height: height ?? this.height,
+      displayData: displayData ?? this.displayData,
+      histogram: histogram ?? this.histogram,
+      stats: stats ?? this.stats,
+      capturedAt: capturedAt ?? this.capturedAt,
+      settings: settings ?? this.settings,
+      targetName: targetName ?? this.targetName,
+      filePath: filePath ?? this.filePath,
+      isColor: isColor ?? this.isColor,
+      rawU16: clearRawU16 ? null : (rawU16 ?? this.rawU16),
+      rawLoadStatus: rawLoadStatus ?? this.rawLoadStatus,
+      previewSource: previewSource ?? this.previewSource,
+    );
+  }
 
   @override
   List<Object?> get props => [
@@ -559,7 +623,10 @@ class CapturedImageData extends Equatable {
         settings,
         targetName,
         filePath,
-        isColor
+        isColor,
+        rawU16,
+        rawLoadStatus,
+        previewSource,
       ];
 }
 

@@ -36,6 +36,7 @@ use async_trait::async_trait;
 use nightshade_imaging::buffer_pool::global_u8_pool;
 use std::ffi::{c_char, c_double, c_int, c_uint, c_void, CStr, CString};
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::OnceLock;
 use std::time::Duration;
@@ -132,6 +133,9 @@ pub enum QhyControl {
 // =============================================================================
 
 /// QHY SDK library wrapper
+type GetQhyccdSdkVersion =
+    unsafe extern "C" fn(*mut c_uint, *mut c_uint, *mut c_uint, *mut c_uint) -> c_uint;
+
 struct QhySdk {
     #[allow(dead_code)]
     lib: libloading::Library,
@@ -204,6 +208,9 @@ struct QhySdk {
 
     // Color Filter Wheel (CFW) control
     is_qhyccd_cfw_plugged: unsafe extern "C" fn(QhyCamHandle) -> c_uint,
+
+    // SDK metadata. Older QHY SDK builds may not export this, so keep it optional.
+    get_sdk_version: Option<GetQhyccdSdkVersion>,
 }
 
 // SAFETY: QhySdk holds a libloading::Library plus function pointers. The Library is OS-loaded
@@ -216,6 +223,8 @@ unsafe impl Sync for QhySdk {}
 
 static QHY_SDK: OnceLock<Option<QhySdk>> = OnceLock::new();
 static SDK_INITIALIZED: OnceLock<bool> = OnceLock::new();
+
+const QHY_VENDOR_NAME: &str = "QHY Camera";
 
 // =============================================================================
 // QHY DISCOVERY CONFIGURATION
@@ -298,87 +307,254 @@ fn get_discovery_config() -> QhyDiscoveryConfig {
     }
 }
 
+fn qhy_candidate_library_paths() -> Vec<PathBuf> {
+    if cfg!(target_os = "windows") {
+        vec![
+            PathBuf::from("qhyccd.dll"),
+            PathBuf::from("C:\\Program Files\\QHYCCD\\AllInOne\\sdk\\x64\\qhyccd.dll"),
+            PathBuf::from("C:\\Program Files (x86)\\QHYCCD\\AllInOne\\sdk\\qhyccd.dll"),
+        ]
+    } else if cfg!(target_os = "macos") {
+        vec![
+            PathBuf::from("libqhyccd.dylib"),
+            PathBuf::from("/usr/local/lib/libqhyccd.dylib"),
+            PathBuf::from("/Library/Frameworks/QHYCCD.framework/QHYCCD"),
+        ]
+    } else {
+        vec![
+            PathBuf::from("libqhyccd.so"),
+            PathBuf::from("libqhyccd.so.21"),
+            PathBuf::from("/usr/lib/libqhyccd.so"),
+            PathBuf::from("/usr/local/lib/libqhyccd.so"),
+        ]
+    }
+}
+
+unsafe fn resolve_qhy_symbol<T: Copy>(
+    library: &libloading::Library,
+    library_path: &Path,
+    symbol_name_with_nul: &'static [u8],
+    symbol_name_for_log: &'static str,
+) -> Result<T, crate::vendor::sdk_loader::VendorLoadError> {
+    crate::vendor::sdk_loader::resolve_symbol::<T>(
+        QHY_VENDOR_NAME,
+        library,
+        library_path,
+        symbol_name_with_nul,
+        symbol_name_for_log,
+    )
+}
+
+fn load_qhy_sdk() -> Option<QhySdk> {
+    let candidate_paths = qhy_candidate_library_paths();
+    let (lib, library_path) =
+        match crate::vendor::sdk_loader::open_vendor_library(QHY_VENDOR_NAME, &candidate_paths) {
+            Ok(pair) => pair,
+            Err(e) => {
+                tracing::debug!("{}: SDK unavailable: {}", QHY_VENDOR_NAME, e);
+                return None;
+            }
+        };
+
+    // SAFETY: each FFI signature below mirrors qhyccd.h for the named symbol.
+    // The `lib` handle is stored in QhySdk so resolved function pointers cannot
+    // outlive the library that owns them.
+    let sdk = unsafe {
+        (|| -> Result<QhySdk, crate::vendor::sdk_loader::VendorLoadError> {
+            Ok(QhySdk {
+                init_sdk: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"InitQHYCCDResource\0",
+                    "InitQHYCCDResource",
+                )?,
+                release_sdk: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"ReleaseQHYCCDResource\0",
+                    "ReleaseQHYCCDResource",
+                )?,
+                scan_qhyccd: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"ScanQHYCCD\0",
+                    "ScanQHYCCD",
+                )?,
+                get_qhyccd_id: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDId\0",
+                    "GetQHYCCDId",
+                )?,
+                open_qhyccd: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"OpenQHYCCD\0",
+                    "OpenQHYCCD",
+                )?,
+                close_qhyccd: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"CloseQHYCCD\0",
+                    "CloseQHYCCD",
+                )?,
+                set_qhyccd_stream_mode: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDStreamMode\0",
+                    "SetQHYCCDStreamMode",
+                )?,
+                init_qhyccd: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"InitQHYCCD\0",
+                    "InitQHYCCD",
+                )?,
+                get_qhyccd_chip_info: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDChipInfo\0",
+                    "GetQHYCCDChipInfo",
+                )?,
+                is_qhyccd_control_available: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"IsQHYCCDControlAvailable\0",
+                    "IsQHYCCDControlAvailable",
+                )?,
+                get_qhyccd_effective_area: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDEffectiveArea\0",
+                    "GetQHYCCDEffectiveArea",
+                )?,
+                set_qhyccd_param: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDParam\0",
+                    "SetQHYCCDParam",
+                )?,
+                get_qhyccd_param: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDParam\0",
+                    "GetQHYCCDParam",
+                )?,
+                get_qhyccd_param_min_max_step: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDParamMinMaxStep\0",
+                    "GetQHYCCDParamMinMaxStep",
+                )?,
+                set_qhyccd_resolution: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDResolution\0",
+                    "SetQHYCCDResolution",
+                )?,
+                set_qhyccd_binmode: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDBinMode\0",
+                    "SetQHYCCDBinMode",
+                )?,
+                set_qhyccd_bits_mode: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDBitsMode\0",
+                    "SetQHYCCDBitsMode",
+                )?,
+                exp_single_frame: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"ExpQHYCCDSingleFrame\0",
+                    "ExpQHYCCDSingleFrame",
+                )?,
+                get_qhyccd_single_frame: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDSingleFrame\0",
+                    "GetQHYCCDSingleFrame",
+                )?,
+                cancel_qhyccd_exposing_and_readout: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"CancelQHYCCDExposingAndReadout\0",
+                    "CancelQHYCCDExposingAndReadout",
+                )?,
+                get_qhyccd_memory_length: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDMemLength\0",
+                    "GetQHYCCDMemLength",
+                )?,
+                get_qhyccd_read_mode_name: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDReadModeName\0",
+                    "GetQHYCCDReadModeName",
+                )?,
+                get_qhyccd_number_of_read_modes: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDNumberOfReadModes\0",
+                    "GetQHYCCDNumberOfReadModes",
+                )?,
+                set_qhyccd_read_mode: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"SetQHYCCDReadMode\0",
+                    "SetQHYCCDReadMode",
+                )?,
+                get_qhyccd_read_mode: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"GetQHYCCDReadMode\0",
+                    "GetQHYCCDReadMode",
+                )?,
+                is_qhyccd_cfw_plugged: resolve_qhy_symbol(
+                    &lib,
+                    &library_path,
+                    b"IsQHYCCDCFWPlugged\0",
+                    "IsQHYCCDCFWPlugged",
+                )?,
+                get_sdk_version: match lib.get::<GetQhyccdSdkVersion>(b"GetQHYCCDSDKVersion\0") {
+                    Ok(symbol) => Some(*symbol),
+                    Err(error) => {
+                        tracing::debug!(
+                            "{}: optional symbol GetQHYCCDSDKVersion unavailable in {}: {}",
+                            QHY_VENDOR_NAME,
+                            library_path.display(),
+                            error
+                        );
+                        None
+                    }
+                },
+                lib,
+            })
+        })()
+    };
+
+    match sdk {
+        Ok(sdk) => {
+            tracing::info!("{}: all required symbols resolved", QHY_VENDOR_NAME);
+            Some(sdk)
+        }
+        Err(e) => {
+            tracing::error!(
+                "{}: SDK present but symbol resolution failed: {}",
+                QHY_VENDOR_NAME,
+                e
+            );
+            None
+        }
+    }
+}
+
 impl QhySdk {
     /// Load the QHY SDK library
     fn load() -> Option<Self> {
-        let lib_paths = if cfg!(target_os = "windows") {
-            vec![
-                "qhyccd.dll",
-                "C:\\Program Files\\QHYCCD\\AllInOne\\sdk\\x64\\qhyccd.dll",
-                "C:\\Program Files (x86)\\QHYCCD\\AllInOne\\sdk\\qhyccd.dll",
-            ]
-        } else if cfg!(target_os = "macos") {
-            vec![
-                "libqhyccd.dylib",
-                "/usr/local/lib/libqhyccd.dylib",
-                "/Library/Frameworks/QHYCCD.framework/QHYCCD",
-            ]
-        } else {
-            vec![
-                "libqhyccd.so",
-                "libqhyccd.so.21",
-                "/usr/lib/libqhyccd.so",
-                "/usr/local/lib/libqhyccd.so",
-            ]
-        };
-
-        for path in lib_paths {
-            // SAFETY: libloading::Library::new performs platform dynamic loading; each `path`
-            // is a hard-coded string literal from `lib_paths` above (no user input). The
-            // subsequent `lib.get::<FnType>(symbol)` calls return libloading::Symbol values
-            // that deref to function pointers — the FFI signatures below mirror qhyccd.h
-            // exactly (vendor header) so the ABI is correct. `lib` is moved into the QhySdk
-            // struct to outlive the function pointers it backs.
-            unsafe {
-                if let Ok(lib) = libloading::Library::new(path) {
-                    tracing::info!("Loaded QHY SDK from: {}", path);
-
-                    // Load all function pointers
-                    let sdk = Self {
-                        init_sdk: *lib.get(b"InitQHYCCDResource\0").ok()?,
-                        release_sdk: *lib.get(b"ReleaseQHYCCDResource\0").ok()?,
-                        scan_qhyccd: *lib.get(b"ScanQHYCCD\0").ok()?,
-                        get_qhyccd_id: *lib.get(b"GetQHYCCDId\0").ok()?,
-                        open_qhyccd: *lib.get(b"OpenQHYCCD\0").ok()?,
-                        close_qhyccd: *lib.get(b"CloseQHYCCD\0").ok()?,
-                        set_qhyccd_stream_mode: *lib.get(b"SetQHYCCDStreamMode\0").ok()?,
-                        init_qhyccd: *lib.get(b"InitQHYCCD\0").ok()?,
-                        get_qhyccd_chip_info: *lib.get(b"GetQHYCCDChipInfo\0").ok()?,
-                        is_qhyccd_control_available: *lib
-                            .get(b"IsQHYCCDControlAvailable\0")
-                            .ok()?,
-                        get_qhyccd_effective_area: *lib.get(b"GetQHYCCDEffectiveArea\0").ok()?,
-                        set_qhyccd_param: *lib.get(b"SetQHYCCDParam\0").ok()?,
-                        get_qhyccd_param: *lib.get(b"GetQHYCCDParam\0").ok()?,
-                        get_qhyccd_param_min_max_step: *lib
-                            .get(b"GetQHYCCDParamMinMaxStep\0")
-                            .ok()?,
-                        set_qhyccd_resolution: *lib.get(b"SetQHYCCDResolution\0").ok()?,
-                        set_qhyccd_binmode: *lib.get(b"SetQHYCCDBinMode\0").ok()?,
-                        set_qhyccd_bits_mode: *lib.get(b"SetQHYCCDBitsMode\0").ok()?,
-                        exp_single_frame: *lib.get(b"ExpQHYCCDSingleFrame\0").ok()?,
-                        get_qhyccd_single_frame: *lib.get(b"GetQHYCCDSingleFrame\0").ok()?,
-                        cancel_qhyccd_exposing_and_readout: *lib
-                            .get(b"CancelQHYCCDExposingAndReadout\0")
-                            .ok()?,
-                        get_qhyccd_memory_length: *lib.get(b"GetQHYCCDMemLength\0").ok()?,
-                        get_qhyccd_read_mode_name: *lib.get(b"GetQHYCCDReadModeName\0").ok()?,
-                        get_qhyccd_number_of_read_modes: *lib
-                            .get(b"GetQHYCCDNumberOfReadModes\0")
-                            .ok()?,
-                        set_qhyccd_read_mode: *lib.get(b"SetQHYCCDReadMode\0").ok()?,
-                        get_qhyccd_read_mode: *lib.get(b"GetQHYCCDReadMode\0").ok()?,
-                        is_qhyccd_cfw_plugged: *lib.get(b"IsQHYCCDCFWPlugged\0").ok()?,
-                        lib,
-                    };
-
-                    return Some(sdk);
-                }
-            }
-        }
-
-        tracing::debug!("QHY SDK not found");
-        None
+        load_qhy_sdk()
     }
 
     /// Get the global SDK instance
@@ -410,6 +586,31 @@ impl QhySdk {
         } else {
             Err(NativeError::SdkNotLoaded)
         }
+    }
+}
+
+fn sdk_version_from_sdk(sdk: &QhySdk) -> Option<String> {
+    let get_sdk_version = sdk.get_sdk_version?;
+    let mut year = 0;
+    let mut month = 0;
+    let mut day = 0;
+    let mut subday = 0;
+
+    // SAFETY: GetQHYCCDSDKVersion takes four valid c_uint out-pointers and writes SDK
+    // version components. It has no device-handle dependency.
+    let result = unsafe { get_sdk_version(&mut year, &mut month, &mut day, &mut subday) };
+    if result == 0 && year > 0 {
+        Some(format!("QHY SDK v{year}.{month:02}.{day:02}.{subday}"))
+    } else {
+        tracing::debug!(
+            "QHY SDK version query failed or returned an invalid version: result={}, year={}, month={}, day={}, subday={}",
+            result,
+            year,
+            month,
+            day,
+            subday
+        );
+        None
     }
 }
 
@@ -1190,6 +1391,17 @@ impl NativeCamera for QhyCamera {
             return Err(NativeError::NotSupported);
         }
 
+        if enabled {
+            if let Some((min_temp, max_temp)) = crate::quirks::get_cooler_range(&self.device_id) {
+                if target_temp < min_temp || target_temp > max_temp {
+                    return Err(NativeError::InvalidParameter(format!(
+                        "QHY cooler target {target_temp}C is outside the supported range {min_temp}C..={max_temp}C for {}",
+                        self.device_id
+                    )));
+                }
+            }
+        }
+
         // Use async versions with mutex protection
         if enabled {
             self.set_control_async(QhyControl::CONTROL_MANULPWM, 0.0)
@@ -1214,6 +1426,14 @@ impl NativeCamera for QhyCamera {
     }
 
     async fn get_temperature(&self) -> Result<f64, NativeError> {
+        if let Some(delay_ms) = crate::quirks::get_temperature_delay_ms(&self.device_id) {
+            tracing::debug!(
+                "Applying temperature RequiresDelayMs quirk: sleeping {}ms before reading {}",
+                delay_ms,
+                self.device_id
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(delay_ms)).await;
+        }
         self.get_control_async(QhyControl::CONTROL_CURTEMP).await
     }
 
@@ -1472,6 +1692,77 @@ impl NativeCamera for QhyCamera {
         // f64 by QHY's range API. f64 -> i32 with saturation is sound here.
         Ok((min as i32, max as i32))
     }
+
+    /// Surface the SDK-advertised recommended settings.
+    ///
+    /// QHY exposes manufacturer-recommended values through two dedicated
+    /// control IDs:
+    /// - `DefaultGain` (control 53): per-camera recommended unity-gain value.
+    /// - `DefaultOffset` (control 54): per-camera recommended offset.
+    ///
+    /// These are only present on cameras whose firmware publishes them
+    /// (modern QHY CMOS cameras like QHY183/268/600/MiniGuider series do; older
+    /// CCD cameras do not). We probe with `IsQHYCCDControlAvailable` and
+    /// honestly return `None` when the camera doesn't expose them.
+    ///
+    /// QHY does NOT expose the HCG transition point through the SDK — it's
+    /// documented per-camera in the manual.
+    async fn get_recommended_settings(
+        &self,
+    ) -> Result<crate::camera::CameraRecommendedSettings, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        let sdk = QhySdk::get().ok_or(NativeError::SdkNotLoaded)?;
+        let _lock = qhy_mutex().lock().await;
+        let handle = self.handle.ok_or(NativeError::NotConnected)?;
+
+        let mut out = crate::camera::CameraRecommendedSettings::default();
+        let mut notes: Vec<String> = Vec::new();
+
+        // QHY returns 0 (QHYCCD_SUCCESS) from IsQHYCCDControlAvailable when the
+        // control is present. Anything else means "not available" — that is an
+        // honest "no recommendation", not an error.
+
+        // DefaultGain (control 53)
+        // SAFETY: qhy_mutex held; handle validated; IsQHYCCDControlAvailable takes (handle, c_int).
+        let default_gain_available =
+            unsafe { (sdk.is_qhyccd_control_available)(handle, QhyControl::DefaultGain as c_int) };
+        if default_gain_available == 0 {
+            // SAFETY: qhy_mutex held; handle validated; GetQHYCCDParam returns c_double by value.
+            let val = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::DefaultGain as c_int) };
+            // QHY returns a sentinel (0xFFFFFFFF as f64) on failure for some
+            // firmware versions. Reject obviously bogus values.
+            if val.is_finite() && (0.0..10_000.0).contains(&val) {
+                let gain = val as i32;
+                out.unity_gain = Some(gain);
+                notes.push(format!("QHY DefaultGain control reports {}", gain));
+            } else {
+                tracing::warn!("QHY: DefaultGain returned out-of-range value {}", val);
+            }
+        }
+
+        // DefaultOffset (control 54)
+        // SAFETY: qhy_mutex held; handle validated; same FFI shape as above.
+        let default_offset_available = unsafe {
+            (sdk.is_qhyccd_control_available)(handle, QhyControl::DefaultOffset as c_int)
+        };
+        if default_offset_available == 0 {
+            // SAFETY: qhy_mutex held; handle validated; GetQHYCCDParam returns c_double by value.
+            let val = unsafe { (sdk.get_qhyccd_param)(handle, QhyControl::DefaultOffset as c_int) };
+            if val.is_finite() && (0.0..10_000.0).contains(&val) {
+                let off = val as i32;
+                out.default_offset = Some(off);
+                notes.push(format!("QHY DefaultOffset control reports {}", off));
+            } else {
+                tracing::warn!("QHY: DefaultOffset returned out-of-range value {}", val);
+            }
+        }
+
+        out.notes = notes.join("; ");
+        Ok(out)
+    }
 }
 
 // =============================================================================
@@ -1486,6 +1777,8 @@ pub struct QhyCameraInfo {
     pub name: String,
     /// Serial number parsed from ID (e.g., "123456789")
     pub serial_number: Option<String>,
+    /// QHY SDK version reported by the loaded native library, when available
+    pub sdk_version: Option<String>,
 }
 
 impl QhyCameraInfo {
@@ -1513,6 +1806,8 @@ pub fn is_sdk_available() -> bool {
 /// Internal function to perform the actual SDK discovery.
 /// This is separated out to allow catch_unwind wrapping.
 fn discover_devices_internal(sdk: &QhySdk) -> Result<Vec<QhyCameraInfo>, NativeError> {
+    let sdk_version = sdk_version_from_sdk(sdk);
+
     // Scan for cameras
     // SAFETY: This helper is invoked only from discover_devices() (and the catch_unwind path it
     // dispatches), which acquires qhy_mutex() before calling. ScanQHYCCD takes no arguments and
@@ -1542,6 +1837,7 @@ fn discover_devices_internal(sdk: &QhySdk) -> Result<Vec<QhyCameraInfo>, NativeE
                 camera_id: id,
                 name,
                 serial_number,
+                sdk_version: sdk_version.clone(),
             });
         }
     }
@@ -1676,6 +1972,8 @@ pub struct QhyFilterWheelInfo {
     pub name: String,
     /// Number of filter slots
     pub slot_count: i32,
+    /// QHY SDK version reported by the loaded native library, when available
+    pub sdk_version: Option<String>,
 }
 
 /// QHY Filter Wheel implementation
@@ -1956,6 +2254,8 @@ impl NativeFilterWheel for QhyFilterWheel {
 
 /// Internal function to perform the actual CFW discovery.
 fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInfo>, NativeError> {
+    let sdk_version = sdk_version_from_sdk(sdk);
+
     // Scan for cameras
     // SAFETY: caller (discover_filter_wheels) holds qhy_mutex(); ScanQHYCCD takes no args.
     let num_cameras = unsafe { (sdk.scan_qhyccd)() };
@@ -2024,6 +2324,7 @@ fn discover_filter_wheels_internal(sdk: &QhySdk) -> Result<Vec<QhyFilterWheelInf
                 camera_id: camera_id.clone(),
                 name: format!("{} CFW", model_name),
                 slot_count,
+                sdk_version: sdk_version.clone(),
             });
 
             tracing::info!(

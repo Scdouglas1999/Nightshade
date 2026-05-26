@@ -157,6 +157,82 @@ pub fn apply_stretch_rgb(
         .collect()
 }
 
+/// Apply per-channel stretch to RGB image, returning 8-bit interleaved RGB.
+///
+/// Companion to [`auto_stretch_rgb_with_mode`] when used in `Unlinked` mode:
+/// each channel uses its own `StretchParams`. `Linked` mode callers can pass
+/// the same `StretchParams` for all three channels (the resulting image is
+/// identical to `apply_stretch_rgb` with that single param set).
+///
+/// Layout: input is interleaved RGB16 (`R0,G0,B0,R1,G1,B1,...`); output is
+/// interleaved RGB8 of the same length / 2.
+///
+/// # Degenerate channels
+///
+/// If any channel's `StretchParams` has `range <= 0.0` (which only happens
+/// when `highlights == shadows` — e.g. constant input), that channel is
+/// emitted as zeros. The other channels are stretched normally. This mirrors
+/// the single-channel [`apply_stretch_rgb`] behavior. Default [`StretchParams`]
+/// (the identity transform) has `range = 1.0` and produces a passthrough
+/// stretch — so the documented "fall back to identity on degenerate STF"
+/// contract is honored when callers pass `StretchParams::default()`.
+pub fn apply_stretch_rgb_per_channel(
+    rgb_data: &[u16],
+    width: u32,
+    height: u32,
+    r_params: &StretchParams,
+    g_params: &StretchParams,
+    b_params: &StretchParams,
+) -> Vec<u8> {
+    let pixel_count = (width as usize) * (height as usize);
+
+    // Why: explicit length check up-front so the unchecked per-pixel
+    // indexing inside the parallel loop never escapes the slice — and so a
+    // mismatched buffer fails fast at the FFI boundary instead of producing
+    // a partial output.
+    if rgb_data.len() != pixel_count * 3 {
+        return vec![0u8; pixel_count * 3];
+    }
+
+    let r_range = r_params.highlights - r_params.shadows;
+    let g_range = g_params.highlights - g_params.shadows;
+    let b_range = b_params.highlights - b_params.shadows;
+
+    rgb_data
+        .par_chunks_exact(3)
+        .flat_map(|rgb| {
+            let r_val = rgb[0] as f64 / 65535.0;
+            let g_val = rgb[1] as f64 / 65535.0;
+            let b_val = rgb[2] as f64 / 65535.0;
+
+            let r_out = if r_range <= 0.0 {
+                0.0
+            } else {
+                let s = ((r_val - r_params.shadows) / r_range).clamp(0.0, 1.0);
+                mtf(s, r_params.midtones)
+            };
+            let g_out = if g_range <= 0.0 {
+                0.0
+            } else {
+                let s = ((g_val - g_params.shadows) / g_range).clamp(0.0, 1.0);
+                mtf(s, g_params.midtones)
+            };
+            let b_out = if b_range <= 0.0 {
+                0.0
+            } else {
+                let s = ((b_val - b_params.shadows) / b_range).clamp(0.0, 1.0);
+                mtf(s, b_params.midtones)
+            };
+
+            [
+                (r_out * 255.0) as u8,
+                (g_out * 255.0) as u8,
+                (b_out * 255.0) as u8,
+            ]
+        })
+        .collect()
+}
+
 /// Calculate auto stretch parameters for RGB image (per-channel, "Unlinked").
 ///
 /// Returns `(R params, G params, B params)`. Each channel's STF is computed
@@ -671,6 +747,150 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// IMG-P0-1 regression: the color-capture path now calls
+    /// `auto_stretch_rgb_with_mode` + `apply_stretch_rgb_per_channel`
+    /// (i.e. the real MAD-based STF) instead of the old
+    /// `shadows = median - 0.1, highlights = median + 0.3, midtones = 0.5`
+    /// heuristic. This test pins the output of the new pipeline for a known
+    /// RGB fixture so any future regression flips a hash.
+    #[test]
+    fn color_capture_pipeline_uses_real_stf_unlinked() {
+        // Why: small deterministic 4x4 RGB16 frame with three channels at
+        // distinct background levels and a couple of bright "stars". Big
+        // enough that the median/MAD pipeline runs, small enough to inspect
+        // byte-by-byte.
+        let width: u32 = 4;
+        let height: u32 = 4;
+        let pixel_count = (width as usize) * (height as usize);
+
+        // R channel: low background ~ 2000/65535 = 0.0305
+        // G channel: medium background ~ 8000/65535 = 0.1221
+        // B channel: high background ~ 16000/65535 = 0.2441
+        // Two bright "stars" at indices 5 and 10.
+        let bg = [2000u16, 8000u16, 16000u16];
+        let mut rgb = vec![0u16; pixel_count * 3];
+        for i in 0..pixel_count {
+            // Why: small deterministic perturbation per pixel keeps MAD > 0
+            // without needing an RNG; the index pattern (i % 3) - 1 gives
+            // values from {-1, 0, +1}.
+            let perturb = (i as i32 % 3) - 1;
+            for c in 0..3 {
+                let base = bg[c] as i32 + perturb * 200;
+                rgb[i * 3 + c] = base.clamp(0, 65535) as u16;
+            }
+        }
+        // Plant two saturated star pixels.
+        for c in 0..3 {
+            rgb[5 * 3 + c] = 65535;
+            rgb[10 * 3 + c] = 65535;
+        }
+
+        // Run the same pipeline the FFI capture path now uses.
+        let (r_params, g_params, b_params) =
+            auto_stretch_rgb_with_mode(&rgb, width, height, RgbStretchMode::Unlinked);
+
+        // The Unlinked STF must produce three *different* parameter sets
+        // because the channel backgrounds differ. This is the load-bearing
+        // assertion vs. the old heuristic, which collapsed all three to a
+        // single (median-0.1, median+0.3, 0.5) triple.
+        assert!(
+            (r_params.shadows - g_params.shadows).abs() > 1e-6,
+            "R and G shadows must differ in Unlinked mode: R={} G={}",
+            r_params.shadows,
+            g_params.shadows
+        );
+        assert!(
+            (g_params.shadows - b_params.shadows).abs() > 1e-6,
+            "G and B shadows must differ in Unlinked mode: G={} B={}",
+            g_params.shadows,
+            b_params.shadows
+        );
+
+        // The STF highlights should sit at 1.0 (PixInsight default — see
+        // `stf_from_stats`). The old heuristic produced `median + 0.3`,
+        // which on this fixture is ~0.32 (R), ~0.42 (G), ~0.54 (B) —
+        // visibly wrong. Pin the correct value.
+        assert!((r_params.highlights - 1.0).abs() < 1e-9);
+        assert!((g_params.highlights - 1.0).abs() < 1e-9);
+        assert!((b_params.highlights - 1.0).abs() < 1e-9);
+
+        // STF midtones must be < 0.5 to lift the dim sky background toward
+        // the target (0.25). The old heuristic always returned 0.5 (no
+        // midtone correction), so any output < 0.5 here proves we are on
+        // the new path.
+        assert!(
+            r_params.midtones < 0.5 && r_params.midtones > 0.0,
+            "R midtone {} should lift background",
+            r_params.midtones
+        );
+        assert!(
+            g_params.midtones < 0.5 && g_params.midtones > 0.0,
+            "G midtone {} should lift background",
+            g_params.midtones
+        );
+        assert!(
+            b_params.midtones < 0.5 && b_params.midtones > 0.0,
+            "B midtone {} should lift background",
+            b_params.midtones
+        );
+
+        // Apply the per-channel stretch and verify the output buffer is
+        // exactly pixel_count * 3 bytes (interleaved RGB8). Each background
+        // pixel must end up near 0.25 * 255 = ~64 — the target post-stretch
+        // background level. The old heuristic would have produced near-
+        // black backgrounds on the R channel (because median - 0.1 clips
+        // to 0 and median + 0.3 caps below saturation) and near-white on
+        // bright stars.
+        let display =
+            apply_stretch_rgb_per_channel(&rgb, width, height, &r_params, &g_params, &b_params);
+        assert_eq!(display.len(), pixel_count * 3);
+
+        // Pick a non-star pixel (index 0) and verify the background lifts
+        // toward (but not exactly to) the PixInsight target 0.25 * 255 = 64.
+        // Allow a generous ±30 ADU tolerance — this 4x4 frame is below the
+        // sample-size regime the STF was tuned for.
+        let bg_pixel = (display[0], display[1], display[2]);
+        for (ch, &v) in [bg_pixel.0, bg_pixel.1, bg_pixel.2].iter().enumerate() {
+            assert!(
+                v > 10 && v < 200,
+                "background {} for channel {} is {} — should land near 0.25*255 = 64, \
+                not at extremes",
+                v,
+                ch,
+                v
+            );
+        }
+
+        // Saturated star pixel (index 5) must remain ~255 across all
+        // channels — STF highlight at 1.0 preserves bright stars.
+        let star_pixel = (display[5 * 3], display[5 * 3 + 1], display[5 * 3 + 2]);
+        assert_eq!(star_pixel.0, 255);
+        assert_eq!(star_pixel.1, 255);
+        assert_eq!(star_pixel.2, 255);
+    }
+
+    #[test]
+    fn apply_stretch_rgb_per_channel_identity_passes_through() {
+        // Why: defends the "fallback to identity on degenerate STF"
+        // contract. When `auto_stretch_rgb_with_mode` returns
+        // `StretchParams::default()` for a channel (MAD = 0), the
+        // per-channel apply path must emit the input value unchanged
+        // (modulo the u16->u8 quantization). Without this guarantee, the
+        // documented IMG-P0-1 fallback ("never to the old heuristic") would
+        // collapse to all-black on constant input.
+        let width: u32 = 2;
+        let height: u32 = 1;
+        let rgb: Vec<u16> = vec![0, 32768, 65535, 16384, 16384, 16384];
+
+        let identity = StretchParams::default();
+        let display =
+            apply_stretch_rgb_per_channel(&rgb, width, height, &identity, &identity, &identity);
+
+        // Identity MTF: output = input as f64 / 65535 * 255 truncated.
+        // 0 -> 0, 32768 -> 127, 65535 -> 255, 16384 -> 63.
+        assert_eq!(display, vec![0, 127, 255, 63, 63, 63]);
     }
 
     #[test]

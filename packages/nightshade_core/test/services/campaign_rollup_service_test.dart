@@ -7,6 +7,7 @@ import 'package:nightshade_core/src/database/daos/targets_dao.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/models/scheduler/integration_goal.dart';
 import 'package:nightshade_core/src/services/campaign_rollup_service.dart';
+import 'package:nightshade_core/src/services/imaging_records_repository.dart';
 import 'package:nightshade_core/src/services/scheduler/integration_goal_service.dart';
 
 void main() {
@@ -27,8 +28,10 @@ void main() {
       targetsDao = TargetsDao(db);
       goalService = IntegrationGoalService(db);
       service = CampaignRollupService(
-        sessionsDao: sessionsDao,
-        imagesDao: imagesDao,
+        records: ImagingRecordsRepository.local(
+          sessionsDao: sessionsDao,
+          imagesDao: imagesDao,
+        ),
         targetsDao: targetsDao,
         goalService: goalService,
       );

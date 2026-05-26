@@ -73,15 +73,21 @@ class _ImportSummaryDialogState extends State<ImportSummaryDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final result = widget.result;
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 640,
+      designHeight: 720,
+    );
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _Header(colors: colors, result: result),
@@ -181,11 +187,9 @@ class _Header extends StatelessWidget {
           if (result.forcedImport)
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.statusChip(
+                colors.warning,
                 borderRadius: BorderRadius.circular(4),
-                border: Border.all(
-                    color: colors.warning.withValues(alpha: 0.4)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -290,10 +294,10 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.iconChip(
+        color,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: color.withValues(alpha: 0.4)),
+        borderAlpha: 0.4,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -451,50 +455,25 @@ class _UnsupportedSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: colors.warning.withValues(alpha: 0.08),
-        border: Border.all(color: colors.warning.withValues(alpha: 0.3)),
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(LucideIcons.alertTriangle,
-                  size: 14, color: colors.warning),
-              const SizedBox(width: 6),
-              Text('Unsupported nodes (${unsupported.length})',
-                  style: TextStyle(
-                      fontSize: 12,
-                      color: colors.warning,
-                      fontWeight: FontWeight.w700)),
-            ],
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SectionHeader(
+          title: 'Unsupported nodes (${unsupported.length})',
+          subtitle: forced
+              ? 'These were skipped because force-import was requested. '
+                  'Your sequence will run without them.'
+              : 'These would have aborted the import in strict mode.',
+        ),
+        const SizedBox(height: 8),
+        for (final u in unsupported)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 2),
+            child: Text('• ${u.sourceType} — ${u.name}',
+                style:
+                    TextStyle(fontSize: 12, color: colors.textSecondary)),
           ),
-          const SizedBox(height: 6),
-          if (forced)
-            Text(
-              'These were skipped because force-import was requested. '
-              'Your sequence will run without them.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-            )
-          else
-            Text(
-              'These would have aborted the import in strict mode.',
-              style: TextStyle(fontSize: 12, color: colors.textSecondary),
-            ),
-          const SizedBox(height: 6),
-          for (final u in unsupported)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 2),
-              child: Text('• ${u.sourceType} — ${u.name}',
-                  style: TextStyle(
-                      fontSize: 12, color: colors.textSecondary)),
-            ),
-        ],
-      ),
+      ],
     );
   }
 }

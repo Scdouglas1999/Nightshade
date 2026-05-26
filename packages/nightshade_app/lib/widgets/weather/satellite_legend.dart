@@ -18,8 +18,7 @@ class SatelliteLegend extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>() ??
-        NightshadeColors.dark;
+    final colors = NightshadeColors.of(context);
 
     if (compact) {
       return _buildCompactLegend(colors);

@@ -37,7 +37,7 @@ class _TransientCardState extends State<TransientCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final effectiveState = widget.state ?? TransientAlertState.newAlert;
 
     return GestureDetector(
@@ -100,9 +100,8 @@ class _TransientCardState extends State<TransientCard> {
         // Type icon
         Container(
           padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-          decoration: BoxDecoration(
-            color: _getTypeColor(colors).withValues(alpha: 0.1),
-            borderRadius: NightshadeTokens.borderRadiusMd,
+          decoration: NightshadeDecorations.tintedBadge(
+            _getTypeColor(colors),
           ),
           child: Icon(
             _getTypeIcon(),
@@ -277,8 +276,8 @@ class _TransientCardState extends State<TransientCard> {
                 horizontal: NightshadeTokens.spaceMd,
                 vertical: NightshadeTokens.spaceSm,
               ),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.warning,
                 borderRadius: NightshadeTokens.borderRadiusSm,
               ),
               child: Row(
@@ -309,8 +308,8 @@ class _TransientCardState extends State<TransientCard> {
                 horizontal: NightshadeTokens.spaceMd,
                 vertical: NightshadeTokens.spaceSm,
               ),
-              decoration: BoxDecoration(
-                color: colors.success.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.success,
                 borderRadius: NightshadeTokens.borderRadiusSm,
               ),
               child: Row(
@@ -570,10 +569,9 @@ class _MagnitudeIndicator extends StatelessWidget {
         horizontal: NightshadeTokens.spaceSm,
         vertical: NightshadeTokens.spaceXs,
       ),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.emphasisSurface(
+        color,
         borderRadius: NightshadeTokens.borderRadiusSm,
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,

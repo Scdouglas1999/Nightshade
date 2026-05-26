@@ -65,11 +65,27 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
       case 'door-closed': return LucideIcons.doorClosed;
       case 'lightbulb': return LucideIcons.lightbulb;
       case 'lightbulb-off': return LucideIcons.lightbulbOff;
+      // Wave 3 Agent 2: SmartExposure uses the "layers" icon for the
+      // tabular multi-filter editor.
+      case 'layers': return LucideIcons.layers;
+      // Audit §11 — plugin-contributed nodes default to the puzzle-piece
+      // glyph; the same icon flags the per-plugin category header in the
+      // palette so users learn to spot extension-provided entries at a
+      // glance.
+      case 'puzzle': return LucideIcons.puzzle;
       default: return LucideIcons.box;
     }
   }
 
   Color _getCategoryColor(String categoryName) {
+    // Audit §11 — every plugin-contributed category is prefixed with
+    // "Plugins / " so we can colour the whole family identically without
+    // needing to enumerate per-plugin sub-categories. Keep this branch
+    // BEFORE the literal cases so a plugin that names its category
+    // "Target" doesn't accidentally adopt the warning colour.
+    if (categoryName.startsWith('Plugins / ') || categoryName == 'Plugins') {
+      return widget.colors.accent;
+    }
     switch (categoryName) {
       case 'Target': return widget.colors.warning;
       case 'Imaging': return widget.colors.primary;
@@ -402,10 +418,10 @@ class _NodePaletteState extends ConsumerState<NodePalette> {
             Container(
               padding: EdgeInsets.all(tipPadding),
               margin: EdgeInsets.all(tipPadding),
-              decoration: BoxDecoration(
-                color: widget.colors.info.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.iconChip(
+                widget.colors.info,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+                borderAlpha: 0.2,
               ),
               child: Row(
                 children: [
@@ -486,9 +502,10 @@ class _CategorySectionState extends ConsumerState<_CategorySection> {
                 Container(
                   width: badgeSize,
                   height: badgeSize,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.statusChip(
+                    widget.categoryColor,
                     borderRadius: BorderRadius.circular(isMobile ? 8 : 6),
+                    bordered: false,
                   ),
                   child: Icon(
                     widget.getIcon(widget.category.icon),
@@ -646,8 +663,8 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
-                  color: widget.categoryColor.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  widget.categoryColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -713,17 +730,10 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
           color: Colors.transparent,
           child: Container(
             padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: vPadding),
-            decoration: BoxDecoration(
-              color: widget.categoryColor.withValues(alpha: 0.2),
+            decoration: NightshadeDecorations.selectedSurface(
+              widget.categoryColor,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
-              boxShadow: [
-                BoxShadow(
-                  color: widget.categoryColor.withValues(alpha: 0.3),
-                  blurRadius: 12,
-                  offset: const Offset(0, 4),
-                ),
-              ],
+              fillAlpha: 0.2,
             ),
             child: Row(
               mainAxisSize: MainAxisSize.min,
@@ -776,8 +786,8 @@ class _DraggableNodeItemState extends ConsumerState<_DraggableNodeItem> {
                   Container(
                     width: iconBoxSize,
                     height: iconBoxSize,
-                    decoration: BoxDecoration(
-                      color: widget.categoryColor.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      widget.categoryColor,
                       borderRadius: BorderRadius.circular(6),
                     ),
                     child: Icon(

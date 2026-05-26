@@ -72,20 +72,20 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectSafetyMonitor();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, String deviceName) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName,
-      clearError: true,
     );
   }
 
@@ -97,7 +97,13 @@ class SafetyMonitorStateNotifier extends StateNotifier<SafetyMonitorState> {
   }
 
   void setDisconnected() {
-    state = const SafetyMonitorState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = SafetyMonitorState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the safety monitor.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updateSafetyStatus(bool isSafe) {

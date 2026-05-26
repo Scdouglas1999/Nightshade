@@ -12,7 +12,6 @@
 // - **i32 step distance → f64 move time** (lines 551, 593): exact widening.
 // - **i32 ↔ i32 filter wheel pos** (lines 786, 804): no-op widenings
 //   around `Option::map` plumbing.
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;

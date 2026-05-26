@@ -4,7 +4,7 @@
 //! in the `sgp4` crate). TEME example satellite NORAD 00005 and ISS sample TLE.
 
 use glam::DVec3;
-use nightshade_planetarium::astrometry::time::sgp4_prop::{
+use nightshade_planetarium::astrometry::sgp4_prop::{
     position_error_km, propagate_tle_minutes_since_epoch, SatellitePropagator,
     VERIFICATION_POSITION_TOLERANCE_KM, VERIFICATION_VELOCITY_TOLERANCE_KM_S,
 };

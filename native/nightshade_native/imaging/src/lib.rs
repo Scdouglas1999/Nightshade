@@ -250,6 +250,23 @@ impl PixelType {
     }
 }
 
+/// Errors produced by `ImageData` display-conversion routines.
+///
+/// We surface these explicitly rather than papering over them with a synthetic
+/// gray buffer: a mid-gray image at the display layer is indistinguishable
+/// from a failed capture, and silently hiding an unsupported channel layout
+/// has historically masked debayer/reader bugs for months. Callers must
+/// decide how to report the failure (snackbar, log, abort frame, etc.).
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ImageDisplayError {
+    /// The image has a channel count the display pipeline does not know how
+    /// to render. Supported layouts are 1 (mono), 3 (RGB), and 4 (RGBA).
+    #[error(
+        "unsupported channel layout for display: {channels} channel(s); supported counts are 1 (mono), 3 (RGB), and 4 (RGBA)"
+    )]
+    UnsupportedChannelLayout { channels: u32 },
+}
+
 /// Image data container
 #[derive(Debug, Clone)]
 pub struct ImageData {
@@ -408,10 +425,17 @@ impl ImageData {
         }
     }
 
-    /// Convert to RGBA for Flutter display
-    /// Handles flexible channel counts: 1 (mono), 3 (RGB), 4 (RGBA)
-    /// This solves the Fujifilm display issue where NINA couldn't handle 3-channel RGB
-    pub fn to_rgba(&self) -> Vec<u8> {
+    /// Convert to RGBA for Flutter display.
+    ///
+    /// Handles channel counts of 1 (mono), 3 (RGB), and 4 (RGBA). Any other
+    /// channel count returns `ImageDisplayError::UnsupportedChannelLayout`
+    /// rather than silently producing a mid-gray buffer; a gray frame at the
+    /// display layer is indistinguishable from a failed capture and hides
+    /// real upstream bugs (debayer, reader, calibration).
+    ///
+    /// This is the critical fix for the Fujifilm X-Trans / 3-channel RGB case
+    /// that NINA couldn't handle.
+    pub fn to_rgba(&self) -> Result<Vec<u8>, ImageDisplayError> {
         let grayscale = self.to_display_u8();
 
         match self.channels {
@@ -419,35 +443,28 @@ impl ImageData {
             1 => {
                 // Convert grayscale to RGBA by replicating to R=G=B
                 // Parallel processing for large images
-                grayscale
+                Ok(grayscale
                     .par_iter()
                     .flat_map(|&v| [v, v, v, 255u8])
-                    .collect()
+                    .collect())
             }
 
             // Fujifilm X-Trans RGB or Bayer demosaiced RGB
-            // This is the critical fix - NINA couldn't handle this case!
             3 => {
                 // Add alpha channel to RGB data
                 // Parallel processing
-                grayscale
+                Ok(grayscale
                     .par_chunks_exact(3)
                     .flat_map(|chunk| [chunk[0], chunk[1], chunk[2], 255u8])
-                    .collect()
+                    .collect())
             }
 
             // Already RGBA (some TIFFs, PNGs)
-            4 => grayscale,
+            4 => Ok(grayscale),
 
-            // Unsupported channel count
-            _ => {
-                tracing::warn!(
-                    "Unsupported channel count: {}, defaulting to grayscale",
-                    self.channels
-                );
-                // Fallback: treat as grayscale
-                vec![128u8; self.width as usize * self.height as usize * 4]
-            }
+            // Unsupported channel count: fail loudly so the caller can surface
+            // a real error to the user instead of displaying a gray placeholder.
+            other => Err(ImageDisplayError::UnsupportedChannelLayout { channels: other }),
         }
     }
 }
@@ -962,5 +979,96 @@ mod tests {
         assert!(display[0] > display[1]);
         assert!(display[0] > display[2]);
         assert!(display[5] >= display[4]);
+    }
+
+    #[test]
+    fn to_rgba_returns_ok_for_supported_mono_layout() {
+        // 2x2 mono u16 image; supported, must not error.
+        let image = ImageData::from_u16(2, 2, 1, &[0, 32768, 32768, 65535]);
+        let rgba = image
+            .to_rgba()
+            .expect("mono (1-channel) layout must be supported");
+        assert_eq!(rgba.len(), 2 * 2 * 4);
+        // Alpha channel must be fully opaque on every pixel.
+        for px in rgba.chunks_exact(4) {
+            assert_eq!(px[3], 255);
+        }
+    }
+
+    #[test]
+    fn to_rgba_returns_ok_for_supported_rgb_layout() {
+        let image = ImageData::from_u16(1, 2, 3, &[65535, 0, 0, 0, 32768, 65535]);
+        let rgba = image
+            .to_rgba()
+            .expect("3-channel RGB layout must be supported");
+        // 1 x 2 pixels x 4 bytes (RGBA).
+        assert_eq!(rgba.len(), 2 * 4);
+    }
+
+    #[test]
+    fn to_rgba_returns_ok_for_supported_rgba_layout() {
+        let image = ImageData {
+            width: 1,
+            height: 1,
+            channels: 4,
+            pixel_type: PixelType::U8,
+            data: vec![10, 20, 30, 200],
+        };
+        let rgba = image
+            .to_rgba()
+            .expect("4-channel RGBA layout must be supported");
+        assert_eq!(rgba, vec![10, 20, 30, 200]);
+    }
+
+    #[test]
+    fn to_rgba_returns_loud_error_on_unsupported_five_channel_layout() {
+        // IMG-P3-3 regression: previously this returned vec![128u8; w*h*4]
+        // (a silent gray buffer indistinguishable from a failed capture).
+        // It must now surface a typed error naming the bad channel count.
+        let image = ImageData {
+            width: 4,
+            height: 4,
+            channels: 5,
+            pixel_type: PixelType::U16,
+            data: vec![0u8; 4 * 4 * 5 * 2],
+        };
+
+        let err = image
+            .to_rgba()
+            .expect_err("5-channel layout must surface an error, not a gray fallback");
+
+        assert_eq!(
+            err,
+            ImageDisplayError::UnsupportedChannelLayout { channels: 5 }
+        );
+
+        // The display message must name the offending channel count so it is
+        // useful in a snackbar / log without further inspection.
+        let msg = err.to_string();
+        assert!(
+            msg.contains('5'),
+            "error message must name the channel count, got: {msg}"
+        );
+        assert!(
+            msg.to_lowercase().contains("channel"),
+            "error message must reference channels, got: {msg}"
+        );
+    }
+
+    #[test]
+    fn to_rgba_returns_loud_error_on_zero_channel_layout() {
+        // Degenerate-but-possible case from a corrupt header; must error,
+        // not produce a gray buffer.
+        let image = ImageData {
+            width: 1,
+            height: 1,
+            channels: 0,
+            pixel_type: PixelType::U16,
+            data: vec![],
+        };
+        assert_eq!(
+            image.to_rgba().unwrap_err(),
+            ImageDisplayError::UnsupportedChannelLayout { channels: 0 }
+        );
     }
 }

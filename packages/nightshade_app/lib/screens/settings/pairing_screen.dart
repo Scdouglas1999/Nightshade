@@ -398,7 +398,7 @@ class PairingScreen extends ConsumerWidget {
 
   Widget _buildDeviceListItem(
       BuildContext context, WidgetRef ref, PairedDevice device) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final statusText = _deviceStatus(device);
     final statusColor = _deviceStatusColor(colors, device);
 
@@ -688,7 +688,7 @@ class _PairingErrorBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Container(
       padding: const EdgeInsets.all(16),

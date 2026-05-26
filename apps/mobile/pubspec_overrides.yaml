@@ -1,3 +1,5 @@
+# melos_managed_dependency_overrides: nightshade_planetarium_v2
+# melos_managed_dependency_overrides: nightshade_desktop
 # melos_managed_dependency_overrides: nightshade_app,nightshade_bridge,nightshade_core,nightshade_planetarium,nightshade_plugins,nightshade_ui,nightshade_remote_protocol,nightshade_updater
 dependency_overrides:
   nightshade_app:
@@ -16,3 +18,7 @@ dependency_overrides:
     path: ../../packages/nightshade_updater
   nightshade_remote_protocol:
     path: ../../packages/nightshade_remote_protocol
+  nightshade_desktop:
+    path: ..\\desktop
+  nightshade_planetarium_v2:
+    path: ..\\..\\packages\\nightshade_planetarium_v2

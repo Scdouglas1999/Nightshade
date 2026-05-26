@@ -13,8 +13,8 @@ thiserror.workspace = true
 anyhow.workspace = true
 tracing.workspace = true
 reqwest.workspace = true
-
-
-
+chrono.workspace = true
+if-addrs = "0.13"
+socket2 = { version = "0.5", features = ["all"] }
 
 

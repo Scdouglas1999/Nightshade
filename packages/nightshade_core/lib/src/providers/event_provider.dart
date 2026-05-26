@@ -4,8 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/src/api_barrel.dart' show apiEventStream;
 import 'package:nightshade_bridge/src/event.dart'
     show NightshadeEvent, EventCategory, EventSeverity;
+import '../backend/bridge_event_mapper.dart';
+import '../backend/ffi_backend.dart';
+import '../backend/network_backend.dart';
 import '../models/backend/event_types.dart' as core;
 import 'backend_provider.dart';
+import 'host_mutation_event_provider.dart';
 import 'ui_notification_provider.dart';
 
 /// Provider for the global event stream from the Rust native layer
@@ -38,17 +42,64 @@ import 'ui_notification_provider.dart';
 /// });
 /// ```
 final nightshadeEventsProvider = StreamProvider<NightshadeEvent>((ref) {
-  // Connect to the Rust event stream
-  // This stream delivers events from the sequencer, devices, imaging, etc.
-  return apiEventStream();
+  final backend = ref.watch(backendProvider);
+
+  // Remote clients receive the same typed bridge events as local FFI
+  // backends by reconstructing `EventPayload_*` variants from the
+  // collapsed envelope on `NetworkBackend.eventStream` (WebSocket).
+  if (backend is NetworkBackend) {
+    return backend.eventStream.map(bridgeEventFromCoreEvent);
+  }
+
+  // Local desktop/headless: FRB stream plus host REST mutation events so the
+  // GUI EventBus sees remote companion writes while the embedded API server
+  // is enabled.
+  final nativeStream = apiEventStream();
+  if (backend is! FfiBackend) {
+    return nativeStream;
+  }
+
+  final mutationStream = ref
+      .watch(hostMutationEventStreamProvider)
+      .map(bridgeEventFromCoreEvent);
+  return _mergeEventStreams(nativeStream, mutationStream);
 });
+
+Stream<NightshadeEvent> _mergeEventStreams(
+  Stream<NightshadeEvent> primary,
+  Stream<NightshadeEvent> secondary,
+) {
+  late final StreamController<NightshadeEvent> controller;
+  StreamSubscription<NightshadeEvent>? primarySub;
+  StreamSubscription<NightshadeEvent>? secondarySub;
+
+  controller = StreamController<NightshadeEvent>.broadcast(
+    onListen: () {
+      primarySub = primary.listen(
+        controller.add,
+        onError: controller.addError,
+      );
+      secondarySub = secondary.listen(
+        controller.add,
+        onError: controller.addError,
+      );
+    },
+    onCancel: () async {
+      await primarySub?.cancel();
+      await secondarySub?.cancel();
+      primarySub = null;
+      secondarySub = null;
+    },
+  );
+
+  return controller.stream;
+}
 
 /// Provider to track the last received event
 ///
 /// Useful for displaying the most recent event in the UI
 /// or for debugging purposes.
-final lastEventProvider =
-    StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
+final lastEventProvider = StateNotifierProvider<LastEventNotifier, NightshadeEvent?>((ref) {
   final notifier = LastEventNotifier();
 
   ref.listen(nightshadeEventsProvider, (previous, next) {
@@ -76,8 +127,7 @@ class LastEventNotifier extends StateNotifier<NightshadeEvent?> {
 ///
 /// Keeps a rolling buffer of the most recent events for
 /// displaying in an event log or notification center.
-final eventHistoryProvider =
-    StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
+final eventHistoryProvider = StateNotifierProvider<EventHistoryNotifier, List<NightshadeEvent>>((ref) {
   final notifier = EventHistoryNotifier();
 
   ref.listen(nightshadeEventsProvider, (previous, next) {
@@ -156,8 +206,11 @@ final errorNotificationBridgeProvider = Provider<void>((ref) {
         break;
     }
   }, onError: (error) {
-    developer.log('[ErrorNotificationBridge] Event stream error: $error',
-        name: 'ErrorNotificationBridge', level: 1000, error: error);
+    developer.log(
+        '[ErrorNotificationBridge] Event stream error: $error',
+        name: 'ErrorNotificationBridge',
+        level: 1000,
+        error: error);
   });
 
   ref.onDispose(() {
@@ -170,19 +223,13 @@ String _extractEventMessage(core.NightshadeEvent event) {
   final data = event.data;
 
   // Try common message keys in order of specificity
-  if (data.containsKey('message') &&
-      data['message'] is String &&
-      (data['message'] as String).isNotEmpty) {
+  if (data.containsKey('message') && data['message'] is String && (data['message'] as String).isNotEmpty) {
     return data['message'] as String;
   }
-  if (data.containsKey('error') &&
-      data['error'] is String &&
-      (data['error'] as String).isNotEmpty) {
+  if (data.containsKey('error') && data['error'] is String && (data['error'] as String).isNotEmpty) {
     return data['error'] as String;
   }
-  if (data.containsKey('reason') &&
-      data['reason'] is String &&
-      (data['reason'] as String).isNotEmpty) {
+  if (data.containsKey('reason') && data['reason'] is String && (data['reason'] as String).isNotEmpty) {
     return data['reason'] as String;
   }
 

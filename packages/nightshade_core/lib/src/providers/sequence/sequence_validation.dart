@@ -1,14 +1,28 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/sequence/sequence_models.dart';
+// Wave 5 Agent 2: sky-brightness adaptive exposure validation rules.
+import 'rules/adaptive_exposure_rules.dart';
+// Wave 7 Agent 3: per-frame defect-map validation rules.
+import 'rules/defect_map_rules.dart';
 import 'rules/disk_space_rules.dart';
 import 'rules/equipment_rules.dart';
 import 'rules/exposure_rules.dart';
 import 'rules/filter_rules.dart';
 import 'rules/logic_node_rules.dart';
+// Wave 5 Agent 3 — Pre-flight checks (darks + equipment health + optical train).
+import 'rules/preflight_rules.dart';
 import 'rules/settings_rules.dart';
+// Wave 7 Agent 2: LiveStacking node validation rules.
+import 'rules/live_stacking_rules.dart';
+// Wave 7 Science: SciencePhotometry node validation rules.
+import 'rules/science_photometry_rules.dart';
+// Wave 3 Agent 2: SmartExposure node validation rules.
+import 'rules/smart_exposure_rules.dart';
 import 'rules/structure_rules.dart';
 import 'rules/target_rules.dart';
+// Wave 3 Agent 1: TargetScheduler node validation rules.
+import 'rules/target_scheduler_rules.dart';
 import 'rules/timing_rules.dart';
 
 // =============================================================================
@@ -51,6 +65,20 @@ enum ValidationCategory {
   timing,
   settings,
   diskSpace,
+  // Wave 5 Agent 3 — Pre-flight checks. New categories so the pre-flight
+  // dialog can group these in their own collapsible sections instead of
+  // mixing them with the structural / equipment-connection issues.
+  /// Dark library coverage (matching dark frames for the sequence's
+  /// (gain, offset, temp, duration, binning) combinations).
+  darkLibrary,
+
+  /// Long-term equipment health (USB stability, focuser range, mount
+  /// alignment freshness, time sync, cooler delta, filter wheel
+  /// homing).
+  equipmentHealth,
+
+  /// Optical-train drift / pre-session calibration comparison.
+  opticalTrain,
 }
 
 /// Display label for [ValidationCategory] — used by the dialog UI.
@@ -71,6 +99,12 @@ extension ValidationCategoryLabel on ValidationCategory {
         return 'Settings';
       case ValidationCategory.diskSpace:
         return 'Storage';
+      case ValidationCategory.darkLibrary:
+        return 'Dark Library';
+      case ValidationCategory.equipmentHealth:
+        return 'Equipment Health';
+      case ValidationCategory.opticalTrain:
+        return 'Optical Train';
     }
   }
 }
@@ -95,6 +129,12 @@ class ValidationIssue {
   /// matching coloured border / badge on that node.
   final String? affectedNodeId;
 
+  /// Optional stable machine-readable code (e.g.
+  /// `image_output_path_not_configured`). Set on issues that REST
+  /// clients need to programmatically branch on so the wire payload
+  /// doesn't depend on the human-readable `title` text.
+  final String? code;
+
   const ValidationIssue({
     required this.severity,
     required this.category,
@@ -102,6 +142,7 @@ class ValidationIssue {
     required this.description,
     this.resolutionHint,
     this.affectedNodeId,
+    this.code,
   });
 
   @override
@@ -114,7 +155,8 @@ class ValidationIssue {
           title == other.title &&
           description == other.description &&
           resolutionHint == other.resolutionHint &&
-          affectedNodeId == other.affectedNodeId;
+          affectedNodeId == other.affectedNodeId &&
+          code == other.code;
 
   @override
   int get hashCode => Object.hash(
@@ -124,11 +166,12 @@ class ValidationIssue {
         description,
         resolutionHint,
         affectedNodeId,
+        code,
       );
 
   @override
   String toString() =>
-      'ValidationIssue($severity, $category, "$title"${affectedNodeId != null ? ", node=$affectedNodeId" : ""})';
+      'ValidationIssue($severity, $category, "$title"${affectedNodeId != null ? ", node=$affectedNodeId" : ""}${code != null ? ", code=$code" : ""})';
 }
 
 /// Aggregated result of running all validators against a sequence.
@@ -245,6 +288,17 @@ final List<SequenceValidator> defaultSequenceValidators =
   TargetCoordinatesRule(),
   EmptyTargetRule(),
   LowAltitudeLimitRule(),
+  // Wave 3 Agent 3 — per-target integration budget validators.
+  IntegrationBudgetEmptyRule(),
+  IntegrationBudgetRatioZeroSumRule(),
+  IntegrationBudgetRatioWithoutTotalRule(),
+  // Wave 4 — per-target altitude/time crossing validators. The
+  // ImpossibleAltitude rule needs an observer latitude to be useful; we
+  // wire it up below in `sequenceValidatorsFor(latitude)` if/when the
+  // caller has one. The structural rules (empty compound,
+  // start/end contradiction) work without an observer.
+  TargetTriggerEmptyCompoundRule(),
+  TargetTriggerStartEndContradictionRule(),
   NoTargetForExposuresRule(),
   ExposureParamsRule(),
   HighBinningRule(),
@@ -256,9 +310,29 @@ final List<SequenceValidator> defaultSequenceValidators =
   LoopEndTimePastRule(),
   // Logic-node-specific rules (Recovery / Parallel / Conditional).
   RecoveryNodeConfigRule(),
+  // Wave 5 Agent 4 — cloud-motion-aware trigger config validation.
+  CloudTriggerConfigRule(),
   ParallelNodeRequiredSuccessesRule(),
   ConditionalNodeEmptyBranchRule(),
   LoopUnreachableTerminationRule(),
+  // Wave 3 Agent 2: SmartExposure validation.
+  SmartExposureEmptyPlansRule(),
+  SmartExposureNegativeCountRule(),
+  // Wave 7 Science: SciencePhotometry validation.
+  SciencePhotometryFilterRule(),
+  SciencePhotometryReferenceStarsEmptyRule(),
+  SciencePhotometryCadenceRule(),
+  // Wave 7 Agent 2: LiveStacking node validation.
+  LiveStackingNoExposureRule(),
+  LiveStackingPortClashRule(),
+  // Wave 3 Agent 1: TargetScheduler validation.
+  TargetSchedulerNoChildrenRule(),
+  TargetSchedulerNonTargetChildRule(),
+  TargetSchedulerWeightsRule(),
+  // Wave 5 Agent 2: Sky-brightness adaptive exposure validation.
+  AdaptiveExposureBoundsRule(),
+  AdaptiveExposureNoFilterEnabledRule(),
+  AdaptiveExposureNominalOutOfBoundsRule(),
 ]);
 
 /// The full set of ref-aware validators (read providers but no I/O).
@@ -271,12 +345,34 @@ final List<RefAwareSequenceValidator> defaultRefAwareSequenceValidators =
   DefaultSequenceNameRule(),
   LongEstimatedDurationRule(),
   MeridianFlipTriggerRule(),
+  // Wave 3 Agent 2: SmartExposure needs a filter wheel.
+  SmartExposureFilterWheelMissingRule(),
+  // Audit C6: every SmartExposure row's filterName must match a filter
+  // configured in the active equipment profile.
+  SmartExposureFilterUnknownRule(),
+  // Wave 5 Agent 3 — Pre-flight equipment-health checks (synchronous —
+  // they only read providers, no network / disk I/O).
+  UsbStabilityRule(),
+  FocuserRangeRule(),
+  PolarAlignmentFreshnessRule(),
+  CoolerDeltaRule(),
+  FilterWheelHomingRule(),
+  OpticalTrainPreflightRule(),
+  // Wave 7 Agent 3 — defect-map calibration check. Warns when the user
+  // enabled auto-apply but no map exists for the current camera/bucket.
+  DefectMapAppliedButCalibrationOffRule(),
 ]);
 
 /// The full set of async validators (perform I/O — disk space).
 final List<AsyncSequenceValidator> defaultAsyncSequenceValidators =
     List<AsyncSequenceValidator>.unmodifiable(<AsyncSequenceValidator>[
   DiskSpaceProjectionRule(),
+  // Wave 5 Agent 3 — Pre-flight async checks (query dark library DAO,
+  // NTP). Live in the async tier so the live in-tree validator (which
+  // runs on every keystroke) doesn't trigger them.
+  DarkLibraryCoverageRule(),
+  HistoryDrivenQualityRule(),
+  TimeSyncRule(),
 ]);
 
 /// Provider that exposes the canonical validator. UI / providers consume
@@ -361,6 +457,68 @@ List<ValidationIssue> validateSequence(Sequence sequence) {
   return issues;
 }
 
+/// Audit C3: typed exception thrown by start paths (executor.start(),
+/// sequence_action_service.start(), the headless POST /sequencer/start
+/// handler) when pre-flight validation finds at least one
+/// [ValidationSeverity.error] issue.
+///
+/// Carries the full [ValidationResult] so callers can surface ALL findings
+/// to the user instead of the historical "first error wins" `Exception`.
+/// CLAUDE.md mandate: errors are a feature; silent truncation of additional
+/// errors is a bug.
+class SequenceValidationException implements Exception {
+  /// Complete validation result. Includes errors, warnings, and info-level
+  /// issues. Callers should typically only block on `result.errorCount`.
+  final ValidationResult result;
+
+  const SequenceValidationException(this.result);
+
+  /// All blocking issues (severity == error). Convenience accessor.
+  List<ValidationIssue> get errors => result.issues
+      .where((i) => i.severity == ValidationSeverity.error)
+      .toList(growable: false);
+
+  /// Concise one-line summary suitable for a snackbar / log line. Includes
+  /// the count and the title of every error (joined with `; `) so callers
+  /// that simply `print(e)` still surface every blocking finding.
+  @override
+  String toString() {
+    final errs = errors;
+    if (errs.isEmpty) {
+      // Defensive: callers should not throw this without errors, but if
+      // they do we still produce a useful string instead of an empty one.
+      return 'SequenceValidationException(no errors)';
+    }
+    final titles = errs.map((e) => e.title).join('; ');
+    return 'Cannot start sequence: ${errs.length} validation '
+        '${errs.length == 1 ? 'error' : 'errors'}: $titles';
+  }
+
+  /// Structured form for the headless API / remote callers. Mirrors the
+  /// shape of the in-app pre-flight dialog so a remote dashboard can
+  /// render the same UI as the desktop.
+  Map<String, Object?> toJsonBody() => {
+        'code': 'sequence_validation_failed',
+        'message': toString(),
+        'errorCount': result.errorCount,
+        'warningCount': result.warningCount,
+        'infoCount': result.infoCount,
+        'issues': result.issues
+            .map((i) => {
+                  'severity': i.severity.name,
+                  'category': i.category.name,
+                  'title': i.title,
+                  'description': i.description,
+                  if (i.resolutionHint != null)
+                    'resolutionHint': i.resolutionHint,
+                  if (i.affectedNodeId != null)
+                    'affectedNodeId': i.affectedNodeId,
+                  if (i.code != null) 'code': i.code,
+                })
+            .toList(),
+      };
+}
+
 /// True for node types that own a child list (Target/Loop/Parallel/Conditional/
 /// Recovery/InstructionSet). Used by validation rules to flag empty
 /// containers and by editor logic that decides where to attach new nodes.
@@ -375,7 +533,10 @@ bool isContainerNode(SequenceNode node) {
     ParallelNode _ ||
     ConditionalNode _ ||
     RecoveryNode _ ||
-    InstructionSetNode _ =>
+    InstructionSetNode _ ||
+    // Wave 3 Agent 1: TargetScheduler holds child target headers and picks
+    // among them at runtime.
+    TargetSchedulerNode _ =>
       true,
     // Leaf nodes (instructions / triggers) do not own children
     ExposureNode _ ||
@@ -403,7 +564,16 @@ bool isContainerNode(SequenceNode node) {
     OpenCoverNode _ ||
     CloseCoverNode _ ||
     CalibratorOnNode _ ||
-    CalibratorOffNode _ =>
+    CalibratorOffNode _ ||
+    // Wave 3 Agent 2: SmartExposure — leaf instruction (per-filter
+    // behaviour is encoded in `plans`, no children).
+    SmartExposureNode _ ||
+    // Wave 7 Agent 2: LiveStacking — leaf side-effect instruction.
+    LiveStackingNode _ ||
+    // Wave 7 Science: SciencePhotometry — leaf instruction.
+    SciencePhotometryNode _ ||
+    // Audit §11 — plugin-contributed instruction. Leaf.
+    PluginInstructionNode _ =>
       false,
   };
 }

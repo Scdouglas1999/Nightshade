@@ -91,7 +91,7 @@ class _OnboardingOpticalTrainStepState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     final imageScale = draft.imageScaleArcsecPerPixel;
@@ -179,18 +179,18 @@ class _OnboardingOpticalTrainStepState
               _row(theme, colors, 'Effective focal length',
                   effectiveFocal != null
                       ? '${effectiveFocal.toStringAsFixed(1)} mm'
-                      : '--'),
+                      : 'Awaiting inputs...'),
               _row(theme, colors, 'Focal ratio',
                   fRatio != null
                       ? 'f/${fRatio.toStringAsFixed(2)}'
-                      : '--'),
+                      : 'Awaiting inputs...'),
               _row(
                 theme,
                 colors,
                 'Image scale',
                 imageScale != null
                     ? '${imageScale.toStringAsFixed(2)} arcsec/px'
-                    : '--',
+                    : 'Awaiting inputs...',
               ),
             ],
           ),
@@ -247,7 +247,7 @@ class _NumericField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
+import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:mocktail/mocktail.dart';
@@ -1267,6 +1268,359 @@ void main() {
 
       expect(a, equals(b));
       expect(a, isNot(equals(c)));
+    });
+  });
+
+  // IMG-P1-4: the "Calibrated" badge in the imaging screen binds to this
+  // provider. It must be true if and only if the current image's saved
+  // path actually carries the `_cal.fits` suffix that the calibration
+  // service produces. Anything looser (e.g. matching `cal` anywhere in
+  // the name) would lie about uncalibrated frames that happen to live in
+  // a folder named "calibration".
+  group('currentImageIsCalibratedProvider', () {
+    CapturedImageData makeImageWithPath(String? filePath) {
+      return CapturedImageData(
+        width: 4,
+        height: 4,
+        displayData: Uint8List(4 * 4 * 4),
+        histogram: List<int>.filled(256, 0),
+        stats: const ImageStats(mean: 0, stdDev: 0),
+        capturedAt: DateTime.utc(2026, 1, 1),
+        settings: const ExposureSettings(
+          exposureTime: 1.0,
+          gain: 0,
+          offset: 0,
+        ),
+        filePath: filePath,
+      );
+    }
+
+    test('returns false when no current image is published', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      expect(container.read(currentImageIsCalibratedProvider), isFalse);
+    });
+
+    test('returns false when filePath is null or empty', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath(null);
+      expect(container.read(currentImageIsCalibratedProvider), isFalse);
+
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath('');
+      expect(container.read(currentImageIsCalibratedProvider), isFalse);
+    });
+
+    test('returns false for a raw .fits frame', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath('/captures/2026-01-01/light_001.fits');
+      expect(container.read(currentImageIsCalibratedProvider), isFalse);
+    });
+
+    test('returns true for a `_cal.fits` suffixed frame', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath('/captures/2026-01-01/light_001_cal.fits');
+      expect(container.read(currentImageIsCalibratedProvider), isTrue);
+    });
+
+    test('returns true for a `_cal.fit` suffix on Windows-style path', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath(r'C:\captures\2026-01-01\m31_002_cal.fit');
+      expect(container.read(currentImageIsCalibratedProvider), isTrue);
+    });
+
+    test(
+        'returns false for paths whose directory contains "cal" but file does '
+        'not end in _cal.fits', () {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+      // A "calibration" folder used to hold master darks/flats shouldn't
+      // make a raw light frame inside it look calibrated.
+      container.read(currentImageProvider.notifier).state =
+          makeImageWithPath('/library/calibration/master_dark.fits');
+      expect(container.read(currentImageIsCalibratedProvider), isFalse);
+    });
+  });
+
+  // IMG-P2-5 / IMG-P3-4: naming-pattern expansion. The user's pattern is a
+  // '/'-separated path whose last segment is the filename stem; earlier
+  // segments become subdirectories under the configured base path. Date/time
+  // substitutions use UTC so the on-disk folder matches the UTC timestamp
+  // written into FITS DATE-OBS.
+  group('ImagingService.buildImageFilePath', () {
+    const settings = ExposureSettings(
+      exposureTime: 120.0,
+      gain: 100,
+      offset: 50,
+      binningX: 1,
+      binningY: 1,
+      filter: 'L',
+      frameType: FrameType.light,
+    );
+
+    test('subdirectory-only pattern places filename last', () {
+      // Pattern: subdirectory hierarchy + an implicit filename-stem segment.
+      // `$TARGET/$FILTER/$DATE` has three segments; the last (`$DATE`) is the
+      // filename stem and the first two are subdirectories.
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      final fullPath = ImagingService.buildImageFilePath(
+        pattern: r'$TARGET/$FILTER/$DATE',
+        basePath: '/captures',
+        extension: 'fits',
+        substitutions: subs,
+      );
+
+      // Last segment is the filename stem; expect M31/L as subdirs and the
+      // date as the filename.
+      expect(fullPath, contains('M31'));
+      expect(fullPath, contains('L'));
+      expect(fullPath, endsWith('2026-05-23.fits'));
+    });
+
+    test('full pattern with filename segment honours the filename portion',
+        () {
+      // The user's pattern ends in `$TARGET_$FILTER_$FRAMENUM`. Pre-fix the
+      // service would have ignored the trailing segment and hard-coded
+      // ${target}_${filter}_${frameNumber}; post-fix it must use what the
+      // user wrote.
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      final fullPath = ImagingService.buildImageFilePath(
+        pattern: r'$TARGET/$FILTER/$DATE/$TARGET_$FILTER_$FRAMENUM',
+        basePath: '/captures',
+        extension: 'fits',
+        substitutions: subs,
+      );
+
+      expect(fullPath, endsWith('M31_L_0001.fits'),
+          reason: 'Filename portion of pattern must be honoured');
+      expect(fullPath, contains('2026-05-23'),
+          reason: 'Subdirectory hierarchy still applies');
+    });
+
+    test('unknown variable in pattern throws with descriptive error', () {
+      // CLAUDE.md: silent fallbacks hide bugs for months. A typo like
+      // `$BANANA` must surface immediately rather than landing in the
+      // filename as a literal "$BANANA" string.
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      expect(
+        () => ImagingService.buildImageFilePath(
+          pattern: r'$TARGET/$BANANA/$FRAMENUM',
+          basePath: '/captures',
+          extension: 'fits',
+          substitutions: subs,
+        ),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          allOf(
+            contains(r'$BANANA'),
+            contains('Unknown naming-pattern variable'),
+            // The error must enumerate the supported set so the user can
+            // fix the typo without grepping the codebase.
+            contains(r'$TARGET'),
+          ),
+        )),
+      );
+    });
+
+    test('multiple unknown variables are all reported in one error', () {
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      expect(
+        () => ImagingService.buildImageFilePath(
+          pattern: r'$FOO/$BAR/$BAZ',
+          basePath: '/captures',
+          extension: 'fits',
+          substitutions: subs,
+        ),
+        throwsA(isA<Exception>().having(
+          (e) => e.toString(),
+          'message',
+          allOf(contains(r'$FOO'), contains(r'$BAR'), contains(r'$BAZ')),
+        )),
+      );
+    });
+
+    test('pattern without "/" places file directly in base path', () {
+      // No subdirectory separators ⇒ the whole pattern is the filename stem.
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 7,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      final fullPath = ImagingService.buildImageFilePath(
+        pattern: r'$TARGET_$FILTER_$FRAMENUM',
+        basePath: '/captures',
+        extension: 'fits',
+        substitutions: subs,
+      );
+
+      expect(fullPath, endsWith('M31_L_0007.fits'));
+    });
+
+    test('prefix-overlap variables disambiguate correctly', () {
+      // Regression: a naive chained `replaceAll` would correctly handle
+      // `$EXPTIME` and `$EXPOSURE` because neither is a strict prefix of the
+      // other, but the regex-based pass must keep that behavior. Likewise
+      // `$FRAMENUM` and `$FRAMETYPE`.
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 3,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      final fullPath = ImagingService.buildImageFilePath(
+        pattern: r'$FRAMETYPE/$EXPOSURE/$EXPTIME_$FRAMENUM',
+        basePath: '/c',
+        extension: 'fits',
+        substitutions: subs,
+      );
+
+      // Both EXPOSURE and EXPTIME resolve to "120.0"; FRAMETYPE -> "light";
+      // FRAMENUM -> "0003".
+      expect(fullPath, contains('light'));
+      expect(fullPath, contains('120.0'));
+      expect(fullPath, endsWith('120.0_0003.fits'));
+    });
+
+    test('SEQ alias resolves to padded frame number', () {
+      // Documented in settings_screen subtitle as `$SEQ`; legacy users have
+      // this in their pattern (it ships as a default in
+      // `database.dart` / `settings_provider.dart`).
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 12,
+        timestamp: DateTime.utc(2026, 5, 23, 12, 0, 0),
+      );
+
+      final fullPath = ImagingService.buildImageFilePath(
+        pattern: r'$TARGET_$FILTER_$DATE_$SEQ',
+        basePath: '/c',
+        extension: 'fits',
+        substitutions: subs,
+      );
+
+      expect(fullPath, endsWith('M31_L_2026-05-23_0012.fits'));
+    });
+  });
+
+  // IMG-P3-4: UTC-consistent naming. FITS DATE-OBS is UTC; the on-disk
+  // folder name must match so a 19:00 PST capture lands in the same UTC
+  // date as the FITS header timestamp embedded in the file.
+  group('ImagingService.buildTimestampSubstitutions UTC convention', () {
+    const settings = ExposureSettings(
+      exposureTime: 60.0,
+      gain: 100,
+      offset: 50,
+      binningX: 1,
+      binningY: 1,
+      filter: 'L',
+      frameType: FrameType.light,
+    );
+
+    test('19:00 PST capture resolves \$DATE to next UTC day', () {
+      // 2026-01-15 19:00 PST  ==  2026-01-16 03:00 UTC.
+      // The PRE-fix behaviour used `.toIso8601String()` on the local
+      // DateTime, which on a PST machine returned "2026-01-15" — i.e. one
+      // day BEHIND the FITS DATE-OBS. After this fix `$DATE` follows the
+      // UTC clock and matches the FITS header.
+      final localTs = DateTime(2026, 1, 15, 19, 0, 0); // local-time ctor
+      // Force the test to behave the same on any host TZ: construct an
+      // explicit offset relative to UTC by using a known UTC moment and
+      // re-deriving a local DateTime from it.
+      final utcEquivalent =
+          DateTime.utc(2026, 1, 16, 3, 0, 0); // 19:00 PST → 03:00 UTC
+      // Either ctor must give a UTC date of 2026-01-16 after `.toUtc()`.
+      final subs1 = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: utcEquivalent,
+      );
+      expect(subs1[r'$DATE'], '2026-01-16');
+      expect(subs1[r'$TIME'], '03-00-00');
+
+      // And a local-time DateTime that resolves to the same instant must
+      // produce the same UTC date (regardless of host TZ, because
+      // `localTs.toUtc()` normalises). This guarantees the implementation
+      // calls `.toUtc()` before formatting.
+      final subs2 = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: localTs,
+      );
+      // We can't assert the exact value because the test host TZ is
+      // unknown, but the formatted date MUST equal `localTs.toUtc()`'s
+      // ISO date — proving the conversion path runs.
+      final expectedDate = localTs.toUtc().toIso8601String().substring(0, 10);
+      expect(subs2[r'$DATE'], expectedDate);
+    });
+
+    test('midnight-UTC capture resolves \$DATE to that UTC day', () {
+      final ts = DateTime.utc(2026, 5, 23, 0, 0, 0);
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: ts,
+      );
+      expect(subs[r'$DATE'], '2026-05-23');
+      expect(subs[r'$TIME'], '00-00-00');
+      expect(subs[r'$DATETIME'], '2026-05-23_00-00-00');
+      // $SESSION is documented as compact yyyymmdd in the Rust naming.rs;
+      // we mirror that so cross-language users see consistent strings.
+      expect(subs[r'$SESSION'], '20260523');
+    });
+
+    test('one-second-before-UTC-midnight is correctly classified', () {
+      // 23:59:59 UTC on 2026-05-23 must NOT spill into 2026-05-24. This
+      // verifies we are formatting from UTC, not adding any offset.
+      final ts = DateTime.utc(2026, 5, 23, 23, 59, 59);
+      final subs = ImagingService.buildTimestampSubstitutions(
+        exposureSettings: settings,
+        targetName: 'M31',
+        frameNumber: 1,
+        timestamp: ts,
+      );
+      expect(subs[r'$DATE'], '2026-05-23');
+      expect(subs[r'$TIME'], '23-59-59');
     });
   });
 }

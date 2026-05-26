@@ -193,6 +193,104 @@ CREATE TABLE captured_images (
     }
   });
 
+  test('schema 35 database upgrades to add switch_id column (DEV-P2-1)',
+      () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('nightshade_v35_to_v36_');
+    final dbFile = File('${tempDir.path}/nightshade.db');
+
+    // Set up a database at schema version 35 (the version that introduced
+    // safety_monitor_id but predates the switch_id column).
+    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      // Drop the switch_id column (and recreate the table) so we look like
+      // a real v35 database that never had this column.
+      await setupDb.customStatement('PRAGMA foreign_keys = OFF');
+      // The freshly-created Drift schema already has switch_id at v36, so
+      // we strip it back to simulate an older install.
+      await setupDb.customStatement(
+          'ALTER TABLE equipment_profiles DROP COLUMN switch_id');
+      await setupDb.customStatement('PRAGMA user_version = 35');
+    } finally {
+      await setupDb.close();
+    }
+
+    // Re-open at the current schema version — onUpgrade should add the
+    // switch_id column back via the v36 migration.
+    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      final upgradedVersion =
+          await db.customSelect('PRAGMA user_version').getSingle();
+      expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
+
+      final columns = await db
+          .customSelect("PRAGMA table_info('equipment_profiles')")
+          .get();
+      final hasSwitchId =
+          columns.any((row) => row.data['name'] == 'switch_id');
+
+      expect(
+        hasSwitchId,
+        isTrue,
+        reason: 'equipment_profiles should include switch_id after '
+            'v36 migration (DEV-P2-1)',
+      );
+
+      // Existing profiles upgrade cleanly with switch_id = null.
+      final profileId = await db.into(db.equipmentProfiles).insert(
+            EquipmentProfilesCompanion.insert(name: 'Migrated Profile'),
+          );
+      final row = await (db.select(db.equipmentProfiles)
+            ..where((t) => t.id.equals(profileId)))
+          .getSingle();
+      expect(row.switchId, equals(null));
+    } finally {
+      await db.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    }
+  });
+
+  test('equipment profile round-trips switchId through Drift companion '
+      '(DEV-P2-1)', () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    try {
+      const switchId = 'native:zwo-eaf:switch:0';
+      final id = await db.into(db.equipmentProfiles).insert(
+            EquipmentProfilesCompanion.insert(
+              name: 'Switch Profile',
+              switchId: const Value(switchId),
+            ),
+          );
+
+      final fetched = await (db.select(db.equipmentProfiles)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      expect(fetched.switchId, equals(switchId));
+
+      // copyWith with absent leaves the value intact, present overwrites.
+      await db.update(db.equipmentProfiles).replace(
+            fetched.copyWith(switchId: const Value('alpaca:host:11111:0')),
+          );
+      final updated = await (db.select(db.equipmentProfiles)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      expect(updated.switchId, equals('alpaca:host:11111:0'));
+
+      // Clearing the column.
+      await db.update(db.equipmentProfiles).replace(
+            updated.copyWith(switchId: const Value(null)),
+          );
+      final cleared = await (db.select(db.equipmentProfiles)
+            ..where((t) => t.id.equals(id)))
+          .getSingle();
+      expect(cleared.switchId, equals(null));
+    } finally {
+      await db.close();
+    }
+  });
+
   test('latest schema enforces at most one active equipment profile', () async {
     final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
     try {

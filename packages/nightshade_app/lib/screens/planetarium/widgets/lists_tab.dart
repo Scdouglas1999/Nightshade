@@ -310,7 +310,12 @@ class _CreateListButton extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Create Observing List'),
-        content: Column(
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 400,
+          ),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             TextField(
@@ -333,6 +338,7 @@ class _CreateListButton extends ConsumerWidget {
               maxLines: 2,
             ),
           ],
+        ),
         ),
         actions: [
           TextButton(

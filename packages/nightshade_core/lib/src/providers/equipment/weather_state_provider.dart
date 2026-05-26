@@ -71,20 +71,20 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectWeather();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, String deviceName) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName,
-      clearError: true,
     );
   }
 
@@ -96,7 +96,13 @@ class WeatherStateNotifier extends StateNotifier<WeatherState> {
   }
 
   void setDisconnected() {
-    state = const WeatherState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = WeatherState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the weather device.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updateConditions({

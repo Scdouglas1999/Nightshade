@@ -66,7 +66,11 @@ class TargetsTab extends ConsumerWidget {
                 }
 
                 if (filtered.isEmpty) {
-                  return _EmptyState(colors: colors);
+                  return const EmptyState(
+                    icon: LucideIcons.target,
+                    title: 'No targets found',
+                    body: 'Add your first target or import from a catalog',
+                  );
                 }
 
                 return ListView.separated(
@@ -286,7 +290,7 @@ class _TargetsHeaderState extends ConsumerState<_TargetsHeader> {
   void _showAddTargetDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => _AddTargetDialog(colors: widget.colors),
+      builder: (context) => const _AddTargetDialog(),
     );
   }
 
@@ -559,15 +563,6 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                 : widget.colors.border,
             width: _isHovered ? 2 : 1,
           ),
-          boxShadow: _isHovered
-              ? [
-                  BoxShadow(
-                    color: typeColor.withValues(alpha: 0.1),
-                    blurRadius: 12,
-                    offset: const Offset(0, 4),
-                  ),
-                ]
-              : null,
         ),
         child: Column(
           children: [
@@ -583,9 +578,10 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                     Container(
                       width: 48,
                       height: 48,
-                      decoration: BoxDecoration(
-                        color: typeColor.withValues(alpha: 0.1),
+                      decoration: NightshadeDecorations.iconChip(
+                        typeColor,
                         borderRadius: BorderRadius.circular(8),
+                        bordered: false,
                       ),
                       child: Icon(
                         _getTypeIcon(),
@@ -768,7 +764,6 @@ class _TargetCardState extends ConsumerState<_TargetCard> {
                           showDialog(
                             context: context,
                             builder: (context) => EditTargetDialog(
-                              colors: widget.colors,
                               target: widget.target,
                             ),
                           );
@@ -993,57 +988,8 @@ class _IconButtonState extends State<_IconButton> {
   }
 }
 
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _EmptyState({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.border),
-            ),
-            child: Icon(
-              LucideIcons.target,
-              size: 48,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            'No targets found',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Add your first target or import from a catalog',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 class _AddTargetDialog extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
-
-  const _AddTargetDialog({required this.colors});
+  const _AddTargetDialog();
 
   @override
   ConsumerState<_AddTargetDialog> createState() => _AddTargetDialogState();
@@ -1067,124 +1013,101 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.plus, color: widget.colors.primary),
-                const SizedBox(width: 12),
-                Text(
-                  'Add Target',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildField('Name', _nameController, 'e.g., Orion Nebula'),
-            _buildField(
-                'Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
-            _buildField('RA (hours)', _raController, 'e.g., 5.588'),
-            _buildField('Dec (degrees)', _decController, 'e.g., -5.391'),
-            Text(
-              'Object Type',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.colors.border),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _objectType,
-                  isExpanded: true,
-                  dropdownColor: widget.colors.surface,
-                  style:
-                      TextStyle(fontSize: 13, color: widget.colors.textPrimary),
-                  items: [
-                    'Galaxy',
-                    'Nebula',
-                    'Cluster',
-                    'Star',
-                    'Planet',
-                    'Other'
-                  ]
-                      .map((type) =>
-                          DropdownMenuItem(value: type, child: Text(type)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _objectType = value);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: widget.colors.textSecondary),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  label: 'Add Target',
-                  icon: LucideIcons.plus,
-                  onPressed: () {
-                    final ra = double.tryParse(_raController.text);
-                    final dec = double.tryParse(_decController.text);
+    final colors = NightshadeColors.of(context);
 
-                    if (_nameController.text.isNotEmpty &&
-                        ra != null &&
-                        dec != null) {
-                      ref.read(targetsDaoProvider).createTarget(
-                            TargetsCompanion.insert(
-                              name: _nameController.text,
-                              catalogId: Value(_catalogIdController.text.isEmpty
-                                  ? null
-                                  : _catalogIdController.text),
-                              ra: ra,
-                              dec: dec,
-                              objectType: Value(_objectType),
-                            ),
-                          );
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ],
+    return NightshadeDialog(
+      title: 'Add Target',
+      icon: LucideIcons.plus,
+      width: 400,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.pop(context),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
+        NightshadeButton(
+          label: 'Add Target',
+          icon: LucideIcons.plus,
+          size: ButtonSize.small,
+          onPressed: () {
+            final ra = double.tryParse(_raController.text);
+            final dec = double.tryParse(_decController.text);
+
+            if (_nameController.text.isNotEmpty && ra != null && dec != null) {
+              ref.read(targetsDaoProvider).createTarget(
+                    TargetsCompanion.insert(
+                      name: _nameController.text,
+                      catalogId: Value(_catalogIdController.text.isEmpty
+                          ? null
+                          : _catalogIdController.text),
+                      ra: ra,
+                      dec: dec,
+                      objectType: Value(_objectType),
+                    ),
+                  );
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildField(colors, 'Name', _nameController, 'e.g., Orion Nebula'),
+          _buildField(colors, 'Catalog ID', _catalogIdController,
+              'e.g., M42, NGC 7000'),
+          _buildField(colors, 'RA (hours)', _raController, 'e.g., 5.588'),
+          _buildField(
+              colors, 'Dec (degrees)', _decController, 'e.g., -5.391'),
+          Text(
+            'Object Type',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _objectType,
+                isExpanded: true,
+                dropdownColor: colors.surface,
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                items: [
+                  'Galaxy',
+                  'Nebula',
+                  'Cluster',
+                  'Star',
+                  'Planet',
+                  'Other'
+                ]
+                    .map((type) =>
+                        DropdownMenuItem(value: type, child: Text(type)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _objectType = value);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildField(
-      String label, TextEditingController controller, String hint) {
+  Widget _buildField(NightshadeColors colors, String label,
+      TextEditingController controller, String hint) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1195,24 +1118,23 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: widget.colors.textSecondary,
+              color: colors.textSecondary,
             ),
           ),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
+              color: colors.surfaceAlt,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: widget.colors.border),
+              border: Border.all(color: colors.border),
             ),
             child: TextField(
               controller: controller,
-              style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
+              style: TextStyle(fontSize: 13, color: colors.textPrimary),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle:
-                    TextStyle(fontSize: 13, color: widget.colors.textMuted),
+                hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),
@@ -1225,11 +1147,9 @@ class _AddTargetDialogState extends ConsumerState<_AddTargetDialog> {
 }
 
 class EditTargetDialog extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final dynamic target;
 
-  const EditTargetDialog(
-      {super.key, required this.colors, required this.target});
+  const EditTargetDialog({super.key, required this.target});
 
   @override
   ConsumerState<EditTargetDialog> createState() => _EditTargetDialogState();
@@ -1264,124 +1184,101 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.pencil, color: widget.colors.primary),
-                const SizedBox(width: 12),
-                Text(
-                  'Edit Target',
-                  style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: widget.colors.textPrimary,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            _buildField('Name', _nameController, 'e.g., Orion Nebula'),
-            _buildField(
-                'Catalog ID', _catalogIdController, 'e.g., M42, NGC 7000'),
-            _buildField('RA (hours)', _raController, 'e.g., 5.588'),
-            _buildField('Dec (degrees)', _decController, 'e.g., -5.391'),
-            Text(
-              'Object Type',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: widget.colors.textSecondary,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-              decoration: BoxDecoration(
-                color: widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: widget.colors.border),
-              ),
-              child: DropdownButtonHideUnderline(
-                child: DropdownButton<String>(
-                  value: _objectType,
-                  isExpanded: true,
-                  dropdownColor: widget.colors.surface,
-                  style:
-                      TextStyle(fontSize: 13, color: widget.colors.textPrimary),
-                  items: [
-                    'Galaxy',
-                    'Nebula',
-                    'Cluster',
-                    'Star',
-                    'Planet',
-                    'Other'
-                  ]
-                      .map((type) =>
-                          DropdownMenuItem(value: type, child: Text(type)))
-                      .toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _objectType = value);
-                  },
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'Cancel',
-                    style: TextStyle(color: widget.colors.textSecondary),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                NightshadeButton(
-                  label: 'Save Changes',
-                  icon: LucideIcons.check,
-                  onPressed: () {
-                    final ra = double.tryParse(_raController.text);
-                    final dec = double.tryParse(_decController.text);
+    final colors = NightshadeColors.of(context);
 
-                    if (_nameController.text.isNotEmpty &&
-                        ra != null &&
-                        dec != null) {
-                      ref.read(targetsDaoProvider).updateTarget(
-                            widget.target.copyWith(
-                              name: _nameController.text,
-                              catalogId: _catalogIdController.text.isEmpty
-                                  ? null
-                                  : _catalogIdController.text,
-                              ra: ra,
-                              dec: dec,
-                              objectType: _objectType,
-                            ),
-                          );
-                      Navigator.pop(context);
-                    }
-                  },
-                ),
-              ],
-            ),
-          ],
+    return NightshadeDialog(
+      title: 'Edit Target',
+      icon: LucideIcons.pencil,
+      width: 400,
+      actions: [
+        NightshadeButton(
+          onPressed: () => Navigator.pop(context),
+          label: 'Cancel',
+          variant: ButtonVariant.ghost,
+          size: ButtonSize.small,
         ),
+        NightshadeButton(
+          label: 'Save Changes',
+          icon: LucideIcons.check,
+          size: ButtonSize.small,
+          onPressed: () {
+            final ra = double.tryParse(_raController.text);
+            final dec = double.tryParse(_decController.text);
+
+            if (_nameController.text.isNotEmpty && ra != null && dec != null) {
+              ref.read(targetsDaoProvider).updateTarget(
+                    widget.target.copyWith(
+                      name: _nameController.text,
+                      catalogId: _catalogIdController.text.isEmpty
+                          ? null
+                          : _catalogIdController.text,
+                      ra: ra,
+                      dec: dec,
+                      objectType: _objectType,
+                    ),
+                  );
+              Navigator.pop(context);
+            }
+          },
+        ),
+      ],
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildField(colors, 'Name', _nameController, 'e.g., Orion Nebula'),
+          _buildField(colors, 'Catalog ID', _catalogIdController,
+              'e.g., M42, NGC 7000'),
+          _buildField(colors, 'RA (hours)', _raController, 'e.g., 5.588'),
+          _buildField(
+              colors, 'Dec (degrees)', _decController, 'e.g., -5.391'),
+          Text(
+            'Object Type',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+              color: colors.surfaceAlt,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.border),
+            ),
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: _objectType,
+                isExpanded: true,
+                dropdownColor: colors.surface,
+                style: TextStyle(fontSize: 13, color: colors.textPrimary),
+                items: [
+                  'Galaxy',
+                  'Nebula',
+                  'Cluster',
+                  'Star',
+                  'Planet',
+                  'Other'
+                ]
+                    .map((type) =>
+                        DropdownMenuItem(value: type, child: Text(type)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _objectType = value);
+                },
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildField(
-      String label, TextEditingController controller, String hint) {
+  Widget _buildField(NightshadeColors colors, String label,
+      TextEditingController controller, String hint) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: Column(
@@ -1392,24 +1289,23 @@ class _EditTargetDialogState extends ConsumerState<EditTargetDialog> {
             style: TextStyle(
               fontSize: 11,
               fontWeight: FontWeight.w600,
-              color: widget.colors.textSecondary,
+              color: colors.textSecondary,
             ),
           ),
           const SizedBox(height: 6),
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(
-              color: widget.colors.surfaceAlt,
+              color: colors.surfaceAlt,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: widget.colors.border),
+              border: Border.all(color: colors.border),
             ),
             child: TextField(
               controller: controller,
-              style: TextStyle(fontSize: 13, color: widget.colors.textPrimary),
+              style: TextStyle(fontSize: 13, color: colors.textPrimary),
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle:
-                    TextStyle(fontSize: 13, color: widget.colors.textMuted),
+                hintStyle: TextStyle(fontSize: 13, color: colors.textMuted),
                 border: InputBorder.none,
                 contentPadding: const EdgeInsets.symmetric(vertical: 10),
               ),

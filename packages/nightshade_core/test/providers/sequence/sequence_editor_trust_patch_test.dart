@@ -111,6 +111,69 @@ void main() {
         expect(e.message, contains('Stop the sequence first'));
       }
     });
+
+    test('undo throws when sequence is running (trust-patch §B item 1)', () {
+      // Load-bearing Wave-1 §B gate: Ctrl+Z mid-run used to roll back
+      // Dart state while Rust kept executing the old tree (split-brain).
+      // The notifier itself must refuse, even though the UI also gates
+      // Ctrl+Z and the undo button via canEditSequenceProvider.
+      final c = _newContainer();
+      _notifier(c).createSequence();
+      _notifier(c).setName('baseline');
+      expect(_notifier(c).canUndo, isTrue);
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+      expect(
+        () => _notifier(c).undo(),
+        throwsA(isA<SequenceLockedException>()),
+      );
+    });
+
+    test('redo throws when sequence is running (trust-patch §B item 1)', () {
+      final c = _newContainer();
+      _notifier(c).createSequence();
+      _notifier(c).setName('one');
+      // Undo creates a redo entry.
+      _notifier(c).undo();
+      expect(_notifier(c).canRedo, isTrue);
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+      expect(
+        () => _notifier(c).redo(),
+        throwsA(isA<SequenceLockedException>()),
+      );
+    });
+
+    test('undo carries the "undo" operation description', () {
+      final c = _newContainer();
+      _notifier(c).createSequence();
+      _notifier(c).setName('baseline');
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.paused;
+      try {
+        _notifier(c).undo();
+        fail('expected SequenceLockedException');
+      } on SequenceLockedException catch (e) {
+        expect(e.attemptedOperation, 'undo');
+        expect(e.executionState, SequenceExecutionState.paused);
+      }
+    });
+
+    test('undo/redo permitted again after sequence transitions to idle', () {
+      // Verifies the gate releases when the run ends — important so a
+      // completed/failed run doesn't leave the editor permanently locked.
+      final c = _newContainer();
+      _notifier(c).createSequence();
+      _notifier(c).setName('one');
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.running;
+      expect(() => _notifier(c).undo(),
+          throwsA(isA<SequenceLockedException>()));
+      // Run terminates -> editing restored.
+      c.read(sequenceExecutionStateProvider.notifier).state =
+          SequenceExecutionState.completed;
+      expect(() => _notifier(c).undo(), returnsNormally);
+    });
   });
 
   group('NoActiveSequenceException', () {

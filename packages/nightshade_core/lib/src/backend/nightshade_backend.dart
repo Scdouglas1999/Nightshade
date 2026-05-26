@@ -2,13 +2,18 @@ import 'dart:async';
 import 'dart:typed_data';
 import 'package:nightshade_bridge/src/api/plate_solve.dart'
     show PlateSolveResult;
+import 'package:nightshade_bridge/src/device_capabilities.dart'
+    show CameraRecommendedSettings;
 import '../models/autofocus_progress.dart' show StarCrop;
 import '../models/imaging/imaging_models.dart'
     show FrameType, ImageStats, CapturedImage;
 import '../models/equipment_profile.dart';
 import '../models/phd2_models.dart';
 import '../models/settings/app_settings.dart' as models;
+import '../models/sequence/sequence_models.dart'
+    show AdaptiveSwapSnapshot, ConditionsScore;
 import '../providers/settings_provider.dart' show LocationSettings;
+import '../services/adaptive_swap_service.dart' show AdaptiveSwapBackend;
 
 // Import extracted backend types (pure Dart, no bridge dependency)
 import '../models/backend/backend_types.dart';
@@ -19,49 +24,26 @@ export '../models/backend/backend_types.dart';
 // just `nightshade_backend.dart` after the model-layer copy was deleted.
 export 'package:nightshade_bridge/src/api/plate_solve.dart'
     show PlateSolveResult;
-
-/// Optional camera gain/offset defaults reported by a driver.
-///
-/// Every field is independently nullable because camera SDKs expose different
-/// notions of "recommended": some provide unity gain, some provide an offset,
-/// and many provide neither.
-class CameraRecommendedSettings {
-  final int? unityGain;
-  final int? hcgGain;
-  final int? defaultOffset;
-  final String notes;
-
-  const CameraRecommendedSettings({
-    this.unityGain,
-    this.hcgGain,
-    this.defaultOffset,
-    required this.notes,
-  });
-
-  factory CameraRecommendedSettings.fromJson(Map<String, dynamic> json) {
-    return CameraRecommendedSettings(
-      unityGain: (json['unityGain'] as num?)?.toInt(),
-      hcgGain: (json['hcgGain'] as num?)?.toInt(),
-      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
-      notes: json['notes'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() => {
-        'unityGain': unityGain,
-        'hcgGain': hcgGain,
-        'defaultOffset': defaultOffset,
-        'notes': notes,
-      };
-}
+// Re-export CameraRecommendedSettings so device service / UI code can stay
+// on the nightshade_backend import path.
+export 'package:nightshade_bridge/src/device_capabilities.dart'
+    show CameraRecommendedSettings;
 
 /// Abstract backend interface for device control
 ///
 /// This interface defines all device control methods that can be implemented
 /// by different backends (FFI, Network, etc.)
-abstract class NightshadeBackend {
+abstract class NightshadeBackend implements AdaptiveSwapBackend {
   /// Event stream for backend events
   Stream<NightshadeEvent> get eventStream;
+
+  /// Whether this process should execute PluginNode requests from the event
+  /// stream and post the verdict back to the sequencer.
+  ///
+  /// Local FFI/headless backends own the native executor and return true.
+  /// Network clients return false because the remote host is responsible for
+  /// dispatching plugin nodes from its own installed plugin host.
+  bool get dispatchPluginNodesLocally;
 
   /// Event stream for polar alignment updates
   Stream<Map<String, dynamic>> get polarAlignmentEvents;
@@ -127,6 +109,12 @@ abstract class NightshadeBackend {
   /// Get the last captured image for a specific device
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId);
 
+  /// Capture a live-view preview JPEG from the camera when the driver supports it.
+  ///
+  /// Throws [NightshadeError] when the driver rejects the operation. Remote
+  /// clients should treat HTTP 503 from the headless host as "preview unavailable".
+  Future<Uint8List> cameraLiveViewFrame(String deviceId);
+
   /// Get the last captured raw image data (u16 pixels) for a specific device
   Future<List<int>> getLastRawImageData(String deviceId);
 
@@ -169,7 +157,13 @@ abstract class NightshadeBackend {
   /// Set camera offset
   Future<void> cameraSetOffset(String deviceId, int offset);
 
-  /// Query driver-reported gain/offset defaults for a camera.
+  /// Query the camera SDK for manufacturer-recommended gain/offset values.
+  ///
+  /// Returns a [CameraRecommendedSettings] with whatever the vendor SDK
+  /// reports. All fields are `null` on cameras whose SDK does not expose
+  /// per-camera recommendations (Touptek, Player One, Atik, FLI, Moravian,
+  /// ASCOM, Alpaca, INDI, gphoto2/Fujifilm). Callers MUST treat `null` as
+  /// "no recommendation available" and never fabricate values.
   Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
       String deviceId);
 
@@ -267,9 +261,6 @@ abstract class NightshadeBackend {
 
   /// Get filter names
   Future<List<String>> filterWheelGetNames(String deviceId);
-
-  /// Set the driver-visible filter names for a wheel.
-  Future<void> filterWheelSetNames(String deviceId, List<String> names);
 
   /// Set filter by name
   Future<void> filterWheelSetByName(String deviceId, String name);
@@ -467,6 +458,31 @@ abstract class NightshadeBackend {
   /// Skip the current node in the sequencer
   Future<void> sequencerSkip();
 
+  /// Wave 1.5 Pack A: jump execution to a specific node id, skipping siblings
+  /// that precede it. The currently-running instruction continues to
+  /// completion first; the jump takes effect on the next container tree-walk
+  /// step. Should be gated by execution-state in the UI (only enabled while
+  /// running). Throws if the executor is not running.
+  Future<void> sequencerSkipToNode(String nodeId);
+
+  /// Wave 6 Pack P: report the verdict of a plugin-dispatched
+  /// `NodeType::PluginNode` back to the Rust executor. The Rust side has
+  /// a pending `tokio::sync::oneshot` keyed on [nodeId]; the verdict
+  /// resolves it and the awaiting instruction returns Success / Failure.
+  ///
+  /// [structuredDetailJson] is forwarded verbatim and surfaced via the
+  /// final `ProgressDetail::PluginNode` event. Invalid JSON is logged
+  /// and dropped on the Rust side; the verdict still applies.
+  ///
+  /// Throws if the executor is not running (treat as a stale reply —
+  /// the run was cancelled between dispatch and reply).
+  Future<void> sequencerPluginNodeFinished({
+    required String nodeId,
+    required bool success,
+    String? message,
+    String? structuredDetailJson,
+  });
+
   /// Reset the sequencer to its initial state
   Future<void> sequencerReset();
 
@@ -496,10 +512,27 @@ abstract class NightshadeBackend {
   /// - legacy aliases ("fail_open", "warn_only") are coerced to fail-closed
   Future<void> sequencerSetSafetyFailMode(String mode);
 
+  /// Set the live safety/humidity polling interval for the sequencer.
+  /// Valid backend values are 5..3600 seconds.
+  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds);
+
   /// Set the save path for sequencer images.
   /// This is the base directory where captured images will be saved.
   /// If null or empty, images will NOT be saved to disk.
   Future<void> sequencerSetSavePath(String? path);
+
+  /// Wave 8 Replay Debug — stamp the active `sequence_runs.id` on the
+  /// Rust executor so every subsequent emitted DecisionEvent carries
+  /// it as `sequence_run_id`. Called immediately after the Dart side
+  /// inserts the run row. Pass `null` (e.g. at run end / reset) to
+  /// clear the slot.
+  Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId);
+
+  /// Wave 8 Replay Debug — runtime toggle for the decision-logging
+  /// channel. When `false`, the Rust executor short-circuits all
+  /// `DecisionEvent` emission (zero allocation, zero channel writes).
+  /// Defaults to ON; the settings UI flips it via this method.
+  Future<void> sequencerSetDecisionLoggingEnabled(bool enabled);
 
   /// Update dither configuration at runtime during sequence execution.
   /// Values are propagated to the Rust executor for use by subsequent operations.
@@ -521,6 +554,160 @@ abstract class NightshadeBackend {
   /// Update filter focus offsets at runtime during sequence execution.
   /// Propagates new offsets to the executor for focus compensation.
   Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets);
+
+  /// Wave 7.5 — stage per-target / per-filter carry-over integration so
+  /// the next `sequencerStart()` seeds the IntegrationBudget tracker
+  /// with frames already captured in prior sessions. The Dart
+  /// `SequenceExecutor.start()` reads
+  /// `sessionHandoffDecisionProvider(family)` per TargetHeader and
+  /// calls this method with the resolved per-filter totals.
+  ///
+  /// Map shape: `target_id` -> { `filter_name` -> `seconds_captured` }.
+  ///
+  ///   * `Resume`      → populate the entry from
+  ///                     `SessionCarryOver.perFilterIntegrationSecs`.
+  ///   * `Restart`     → populate with an empty inner map (explicitly
+  ///                     zeroes any pre-existing carry-over).
+  ///   * `ContinueNew` → omit the target entirely (no carry-over, no
+  ///                     zeroing).
+  Future<void> sequencerUpdatePendingIntegrationCarryOver(
+    Map<String, Map<String, double>> carryOver,
+  );
+
+  /// Wave 1.5 Pack A: update the standard `AutofocusInterval` trigger's
+  /// `every_n_frames` cadence at runtime. The Rust default (25 frames) is
+  /// the wrong order of magnitude for most subs, so this MUST be tunable.
+  /// `everyNFrames` must be >= 1 (the bridge rejects 0).
+  Future<void> sequencerUpdateAutofocusInterval(int everyNFrames);
+
+  /// Pack G — update the global default image-grading thresholds. When
+  /// `enabled` is false, grading is disabled globally (per-node
+  /// `quality_check` on TakeExposure still wins). Drives the FITS-time
+  /// frame Pass/Reject gate.
+  Future<void> sequencerUpdateDefaultQualityCheck({
+    double? hfrThreshold,
+    double? hfrBaselinePercent,
+    double? eccentricityThreshold,
+    int? starCountMin,
+    required int maxConsecutiveRejects,
+    required bool enabled,
+  });
+
+  /// Pack G — update the reject-folder override at runtime. `null` or
+  /// empty string => fall back to `<save_path>/Reject/`.
+  Future<void> sequencerUpdateRejectFolderPath(String? path);
+
+  /// Pack G — push observer / equipment identification so subsequent FITS
+  /// headers carry real OBSERVER, TELESCOP, FOCALLEN, APTDIA, INSTRUME,
+  /// SITEELEV keywords. Every field is optional — null / empty values are
+  /// omitted from FITS rather than emitted as sentinels.
+  Future<void> sequencerUpdateObserverProfile({
+    String? observerName,
+    double? siteElevationM,
+    String? cameraMake,
+    String? cameraModel,
+    String? telescopeName,
+    double? telescopeFocalLengthMm,
+    double? telescopeApertureMm,
+  });
+
+  /// Wave 5 Agent 2 — push the latest live sky-brightness reading
+  /// (mag/arcsec²; bigger = darker) so the next TakeExposure burst's
+  /// adaptive-exposure decision honours it. Pass `null` when the
+  /// tracker has lost lock — the adapter falls back to nominal and
+  /// emits a structured `Unavailable` reason.
+  Future<void> sequencerUpdateSkyBrightness({required double? mag});
+
+  /// Wave 5 Agent 2 — push the global default sky-brightness adaptive
+  /// exposure config. Per-node overrides still win; this is the runtime
+  /// fallback for TakeExposure nodes that don't carry their own block.
+  Future<void> sequencerUpdateDefaultAdaptiveExposure({
+    required bool enabled,
+    required double targetSnr,
+    required double referenceSkyBrightnessMag,
+    required double minExposureSecs,
+    required double maxExposureSecs,
+    required Map<String, bool> perFilterEnabled,
+    required Map<String, double> perFilterMinSecs,
+    required Map<String, double> perFilterMaxSecs,
+  });
+
+  /// Wave 5 Agent 2 — disable the global default sky-brightness
+  /// adaptive exposure config.
+  Future<void> sequencerClearDefaultAdaptiveExposure();
+
+  /// Wave 5 Agent 4 — push the latest cloud-motion analyzer output to the
+  /// Rust sequencer. Drives the `CloudArrivingIn`, `CloudOpeningIn`, and
+  /// `CloudCoverThreshold` triggers. All fields are optional; `null`
+  /// values disable the corresponding evaluator branch rather than
+  /// firing on a default (CLAUDE.md "errors are a feature").
+  ///
+  /// `predictedClearSkyAlt` / `predictedClearSkyAz` must be either both
+  /// set or both null; a half-specified direction is logged at WARN and
+  /// treated as "no direction reported".
+  Future<void> sequencerUpdateCloudMotion({
+    double? currentCoverPercent,
+    double? predictedArrivalMinutes,
+    double? predictedOpeningMinutes,
+    double? predictedOpeningDurationSecs,
+    double? predictedClearSkyAlt,
+    double? predictedClearSkyAz,
+  });
+
+  /// Wave 5 Agent 4 — JSON-serialised snapshot of the latest cloud-motion
+  /// reading for the run dashboard. Returns `null` until the first push
+  /// has been received. The shape mirrors the `CloudMotionSnapshot` Rust
+  /// struct with `last_update_secs_ago` instead of the raw monotonic
+  /// `Instant`.
+  Future<String?> sequencerGetCloudMotionJson();
+
+  /// Wave 8 — push the latest composite sky-conditions score to the
+  /// running executor. `null` clears the slot so the target scheduler
+  /// knows telemetry is missing instead of receiving a fabricated score.
+  @override
+  Future<void> sequencerUpdateConditionsScore(ConditionsScore? score);
+
+  /// Wave 8 — snapshot of the adaptive target-swap state for the Run
+  /// Dashboard. Returns `null` until the first conditions score has been
+  /// pushed.
+  @override
+  Future<AdaptiveSwapSnapshot?> sequencerGetAdaptiveSwapSnapshot();
+
+  // =========================================================================
+  // Wave 4 Recovery Mode
+  // =========================================================================
+
+  /// Operator pressed "Try Now" on the Run Dashboard banner — fires the
+  /// next recovery attempt immediately (skipping the wait timer). No-op
+  /// when the executor is not currently in `Recovering`.
+  Future<void> recoveryTryNow();
+
+  /// Operator pressed "Abort" on the Run Dashboard banner — exits the
+  /// recovery loop and transitions the executor to `Failed`. No-op when
+  /// the executor is not currently in `Recovering`.
+  Future<void> recoveryAbort();
+
+  /// Push updated recovery defaults (retry interval, max duration,
+  /// stop-tracking flag, abort-on-meridian flag, audible-alert flag) into
+  /// the executor's runtime config. The next recovery entry uses these
+  /// values.
+  Future<void> updateRecoveryConfig({
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required bool stopTrackingDuringRecovery,
+    required bool abortOnMeridian,
+    required bool audibleAlertWhenEntered,
+  });
+
+  /// Snapshot of the current in-flight recovery context. Returns `null`
+  /// when the executor is not in `Recovering`. Wire format is the
+  /// JSON-serialised Rust `RecoveryContext`.
+  Future<String?> getCurrentRecoveryJson();
+
+  /// Dump of every completed recovery loop since the executor was
+  /// constructed. Returned as a JSON array of `RecoveryHistoryEntry`
+  /// records.
+  Future<String> getRecoveryHistoryJson();
 
   // =========================================================================
   // Checkpoint / Crash Recovery
@@ -634,6 +821,16 @@ abstract class NightshadeBackend {
     String pattern,
     String algorithm,
   );
+
+  /// Calibrate a light frame file on the host filesystem using optional
+  /// master dark/flat/bias paths (also host-local when remote).
+  Future<void> calibrateImageFile({
+    required String lightPath,
+    String? darkPath,
+    String? flatPath,
+    String? biasPath,
+    required String outputPath,
+  });
 
   // =========================================================================
   // Polar Alignment

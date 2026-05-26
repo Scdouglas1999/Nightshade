@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 /// Screen for scanning QR codes to connect to Nightshade servers.
 ///
@@ -27,14 +28,50 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   // leaving the scanner.
   bool _hasScanned = false;
   bool _confirming = false;
+  String? _cameraError;
+
+  NightshadeColors _colors(BuildContext context) {
+    return Theme.of(context).extension<NightshadeColors>() ??
+        NightshadeColors.dark;
+  }
 
   @override
   void initState() {
     super.initState();
-    _controller = MobileScannerController(
-      detectionSpeed: DetectionSpeed.normal,
-      facing: CameraFacing.back,
-    );
+    _initCamera();
+  }
+
+  Future<void> _initCamera() async {
+    try {
+      final status = await Permission.camera.request();
+      if (!status.isGranted) {
+        if (mounted) {
+          setState(() {
+            _cameraError =
+                'Camera permission is required to scan pairing QR codes. '
+                'Allow camera access for Nightshade in system settings, then '
+                'tap Scan QR again.';
+          });
+        }
+        return;
+      }
+
+      _controller = MobileScannerController(
+        detectionSpeed: DetectionSpeed.normal,
+        facing: CameraFacing.back,
+      );
+      if (mounted) {
+        setState(() => _cameraError = null);
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _cameraError =
+              'Camera unavailable. Allow camera permission for Nightshade '
+              'in system settings, then try again.\n\n($e)';
+        });
+      }
+    }
   }
 
   @override
@@ -44,7 +81,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<void> _onDetect(BarcodeCapture capture) async {
-    if (_hasScanned || _confirming) return;
+    if (_hasScanned || _confirming || _controller == null) return;
 
     for (final barcode in capture.barcodes) {
       final value = barcode.rawValue;
@@ -57,6 +94,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
       try {
         final data = QrConnectionData.parseStrict(value);
+        if (data.host == 'localhost' || data.host == '127.0.0.1') {
+          throw const QrValidationException(
+            QrRejectionReason.hostNotLocal,
+            'QR code points at this computer only (localhost). '
+            'Regenerate the code on the desktop after LAN IP is detected.',
+          );
+        }
         final confirmed = await _confirmConnection(data);
         if (!mounted) return;
         if (confirmed) {
@@ -83,75 +127,90 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 
   Future<bool> _confirmConnection(QrConnectionData data) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = _colors(context);
     final result = await showModalBottomSheet<bool>(
       context: context,
       isScrollControlled: true,
-      backgroundColor: colors.surface,
+      backgroundColor: Colors.transparent,
+      barrierColor: colors.background.withValues(alpha: 0.72),
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(NightshadeTokens.radiusLg),
+        ),
+      ),
       builder: (context) {
         return SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.all(24),
+          child: Container(
+            decoration: BoxDecoration(
+              color: colors.surfaceElevated,
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(NightshadeTokens.radiusLg),
+              ),
+              border: Border(top: BorderSide(color: colors.border)),
+              boxShadow: NightshadeTokens.shadowLg,
+            ),
+            padding: NightshadeTokens.dialogPadding,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Text(
                   'Confirm pairing',
-                  style: TextStyle(
+                  style: NightshadeTypography.h4.copyWith(
                     color: colors.textPrimary,
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
                   ),
                 ),
-                const SizedBox(height: 16),
-                Text.rich(
-                  TextSpan(
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontSize: 15,
-                    ),
-                    children: [
-                      const TextSpan(text: 'Connect to '),
-                      TextSpan(
-                        text: '${data.host}:${data.webPort}',
-                        style: const TextStyle(fontWeight: FontWeight.w600),
+                const SizedBox(height: NightshadeTokens.spaceLg),
+                NightshadeCard(
+                  padding: NightshadeTokens.cardPadding,
+                  variant: CardVariant.elevated,
+                  child: Text.rich(
+                    TextSpan(
+                      style: NightshadeTypography.body.copyWith(
+                        color: colors.textPrimary,
                       ),
-                      const TextSpan(
-                        text: '?\n\nServer fingerprint: ',
-                      ),
-                      TextSpan(
-                        text: data.shortFingerprint,
-                        style: const TextStyle(
-                          fontFamily: 'monospace',
-                          fontWeight: FontWeight.w600,
+                      children: [
+                        const TextSpan(text: 'Connect to '),
+                        TextSpan(
+                          text: '${data.host}:${data.webPort}',
+                          style: const TextStyle(fontWeight: FontWeight.w600),
                         ),
-                      ),
-                    ],
+                        const TextSpan(
+                          text: '?\n\nServer fingerprint: ',
+                        ),
+                        TextSpan(
+                          text: data.shortFingerprint,
+                          style: NightshadeTypography.mono.copyWith(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: NightshadeTokens.spaceMd),
                 Text(
                   'Verify this fingerprint matches the desktop app before continuing.',
-                  style: TextStyle(
+                  style: NightshadeTypography.bodySm.copyWith(
                     color: colors.textSecondary,
-                    fontSize: 13,
                   ),
                 ),
-                const SizedBox(height: 24),
+                const SizedBox(height: NightshadeTokens.space2xl),
                 Row(
                   children: [
                     Expanded(
-                      child: OutlinedButton(
+                      child: NightshadeButton(
                         onPressed: () => Navigator.of(context).pop(false),
-                        child: const Text('Cancel'),
+                        label: 'Cancel',
+                        variant: ButtonVariant.outline,
                       ),
                     ),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: NightshadeTokens.spaceMd),
                     Expanded(
-                      child: FilledButton(
+                      child: NightshadeButton(
                         onPressed: () => Navigator.of(context).pop(true),
-                        child: const Text('Connect'),
+                        label: 'Connect',
                       ),
                     ),
                   ],
@@ -167,7 +226,7 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = _colors(context);
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -180,14 +239,16 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           onPressed: () => Navigator.of(context).pop(),
         ),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.flash_on),
-            onPressed: () => _controller?.toggleTorch(),
-          ),
-          IconButton(
-            icon: const Icon(Icons.flip_camera_ios),
-            onPressed: () => _controller?.switchCamera(),
-          ),
+          if (_controller != null) ...[
+            IconButton(
+              icon: const Icon(Icons.flash_on),
+              onPressed: () => _controller?.toggleTorch(),
+            ),
+            IconButton(
+              icon: const Icon(Icons.flip_camera_ios),
+              onPressed: () => _controller?.switchCamera(),
+            ),
+          ],
         ],
       ),
       body: Column(
@@ -195,24 +256,43 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           Expanded(
             child: Stack(
               children: [
-                MobileScanner(
-                  controller: _controller,
-                  onDetect: _onDetect,
-                ),
-                // Scanning overlay
-                Center(
-                  child: Container(
-                    width: 250,
-                    height: 250,
-                    decoration: BoxDecoration(
-                      border: Border.all(
-                        color: colors.primary,
-                        width: 3,
+                if (_cameraError != null)
+                  Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Text(
+                        _cameraError!,
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: colors.textSecondary),
                       ),
-                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  )
+                else if (_controller != null)
+                  MobileScanner(
+                    controller: _controller,
+                    onDetect: _onDetect,
+                  ),
+                if (_controller != null)
+                  Center(
+                    child: Builder(
+                      builder: (context) {
+                        final viewport = MediaQuery.sizeOf(context);
+                        final overlaySize =
+                            (viewport.shortestSide * 0.65).clamp(200.0, 280.0);
+                        return Container(
+                          width: overlaySize,
+                          height: overlaySize,
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: colors.primary,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        );
+                      },
                     ),
                   ),
-                ),
               ],
             ),
           ),
@@ -232,7 +312,8 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'The QR code can be found in the desktop app\'s status bar or headless mode console output',
+                  'On the desktop: Settings → Remote Access → Start pairing, '
+                  'then scan the QR shown there.',
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: colors.textSecondary,

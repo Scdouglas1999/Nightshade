@@ -1,7 +1,34 @@
 import 'package:equatable/equatable.dart';
 
 /// Source format the canonical node was parsed from.
-enum SourceFormat { nina, sgp }
+enum SourceFormat {
+  nina,
+  sgp,
+
+  /// Telescopius target / mosaic CSV export (the most common target-import
+  /// path per real-world usage). Schema: `"Pane","Designation","Right
+  /// Ascension","Declination","Rotation","Magnitude",...`.
+  telescopiusCsv,
+
+  /// Nightshade-native observing-list JSON. Round-trippable: Nightshade can
+  /// export the user's current observing list to this format, share with a
+  /// friend, and the friend imports it.
+  observingListJson,
+
+  /// Astrobin per-user CSV export (object designations + integration totals).
+  /// Used as a seed for an observing list. RA/Dec may be absent — we
+  /// cross-reference the catalog service to fill them in.
+  astrobinCsv,
+
+  /// iCalendar (.ics) export with VEVENT entries describing imaging sessions
+  /// (SUMMARY → target name, LOCATION optional, DESCRIPTION may contain
+  /// "RA: 05h35m, Dec: -05deg23m").
+  icsCalendar,
+
+  /// Unknown CSV — schema not recognized. The UI prompts for a column mapping
+  /// before mapping into a canonical tree.
+  genericCsv,
+}
 
 extension SourceFormatExtension on SourceFormat {
   String get displayName {
@@ -10,6 +37,16 @@ extension SourceFormatExtension on SourceFormat {
         return 'NINA';
       case SourceFormat.sgp:
         return 'Sequence Generator Pro';
+      case SourceFormat.telescopiusCsv:
+        return 'Telescopius CSV';
+      case SourceFormat.observingListJson:
+        return 'Observing List (JSON)';
+      case SourceFormat.astrobinCsv:
+        return 'Astrobin CSV';
+      case SourceFormat.icsCalendar:
+        return 'iCalendar (.ics)';
+      case SourceFormat.genericCsv:
+        return 'Generic CSV';
     }
   }
 }

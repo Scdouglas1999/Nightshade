@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:intl/intl.dart';
+import '../../../utils/plan_tonight_sequencer_helper.dart';
 import '../planetarium_screen.dart';
 import 'sidebar_shared_widgets.dart';
 
@@ -13,6 +14,64 @@ class TonightTab extends ConsumerWidget {
   final NightshadeColors colors;
 
   const TonightTab({super.key, required this.colors});
+
+  Future<void> _sendToFraming(
+    BuildContext context,
+    WidgetRef ref,
+    DeepSkyObject dso,
+    String displayName,
+    ObjectVisibility visibility,
+  ) async {
+    final target = await catalogTargetSuggestion(
+      ref: ref,
+      targetName: displayName,
+      raHours: dso.coordinates.ra,
+      decDegrees: dso.coordinates.dec,
+      catalogId: dso.catalogIds.isNotEmpty ? dso.catalogIds.first : dso.name,
+      objectType: dsoTypeLabel(dso.type),
+      magnitude: dso.magnitude,
+      sizeArcmin: dso.sizeArcMin,
+      constellation: dso.constellation,
+      visibility: visibility,
+    );
+    if (!context.mounted) return;
+    ref.read(framingProvider.notifier).setTargetSuggestion(target);
+    context.goNamed('framing');
+  }
+
+  Future<void> _addToSequencer(
+    BuildContext context,
+    WidgetRef ref,
+    DeepSkyObject dso,
+    String displayName,
+    ObjectVisibility visibility,
+  ) async {
+    final target = await catalogTargetSuggestion(
+      ref: ref,
+      targetName: displayName,
+      raHours: dso.coordinates.ra,
+      decDegrees: dso.coordinates.dec,
+      catalogId: dso.catalogIds.isNotEmpty ? dso.catalogIds.first : dso.name,
+      objectType: dsoTypeLabel(dso.type),
+      magnitude: dso.magnitude,
+      sizeArcmin: dso.sizeArcMin,
+      constellation: dso.constellation,
+      visibility: visibility,
+    );
+
+    if (!context.mounted) return;
+    final added = await addPlanTonightTargetToSequencer(
+      context: context,
+      ref: ref,
+      target: target,
+    );
+
+    if (added && context.mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Added $displayName to sequence')),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -289,6 +348,20 @@ class TonightTab extends ConsumerWidget {
                           .read(skyViewStateProvider.notifier)
                           .lookAt(dso.coordinates);
                     },
+                    onSendToFraming: () => _sendToFraming(
+                      context,
+                      ref,
+                      dso,
+                      displayName,
+                      visibility,
+                    ),
+                    onAddToSequencer: () => _addToSequencer(
+                      context,
+                      ref,
+                      dso,
+                      displayName,
+                      visibility,
+                    ),
                   );
                 }).toList(),
               );

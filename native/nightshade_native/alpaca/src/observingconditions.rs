@@ -18,15 +18,11 @@ impl AlpacaObservingConditions {
 
     /// Create from server details
     pub fn from_server(base_url: &str, device_number: u32) -> Self {
-        let device = AlpacaDevice {
-            device_type: AlpacaDeviceType::ObservingConditions,
+        let device = AlpacaDevice::from_server(
+            AlpacaDeviceType::ObservingConditions,
+            base_url,
             device_number,
-            server_name: String::new(),
-            manufacturer: String::new(),
-            device_name: String::new(),
-            unique_id: String::new(),
-            base_url: base_url.to_string(),
-        };
+        );
         Self::new(&device)
     }
 

@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -63,18 +64,6 @@ class NightshadeApp extends ConsumerWidget {
     return 1.0;
   }
 
-  /// Parse hex color string (e.g., '#6366F1' or '6366F1') to Color
-  Color? _parseAccentColor(String? hexColor) {
-    if (hexColor == null || hexColor.isEmpty) return null;
-    try {
-      final hex = hexColor.replaceFirst('#', '');
-      if (hex.length != 6) return null;
-      return Color(int.parse('0xFF$hex'));
-    } catch (e) {
-      return null;
-    }
-  }
-
   /// Get text scale factor from font size setting
   double _getTextScaleFactor(String fontSize) {
     switch (fontSize) {
@@ -85,33 +74,6 @@ class NightshadeApp extends ConsumerWidget {
       case 'Medium':
       default:
         return 1.0;
-    }
-  }
-
-  ThemeData _getThemeForSetting(String themeSetting, Color? accentColor) {
-    // Red night theme always uses red - don't apply custom accent
-    if (themeSetting == 'redNight') {
-      return NightshadeTheme.redNight;
-    }
-
-    // If no custom accent, use default themes
-    if (accentColor == null) {
-      switch (themeSetting) {
-        case 'light':
-          return NightshadeTheme.light;
-        case 'dark':
-        default:
-          return NightshadeTheme.dark;
-      }
-    }
-
-    // Apply custom accent color
-    switch (themeSetting) {
-      case 'light':
-        return NightshadeTheme.lightWithAccent(accentColor);
-      case 'dark':
-      default:
-        return NightshadeTheme.darkWithAccent(accentColor);
     }
   }
 
@@ -133,27 +95,36 @@ class NightshadeApp extends ConsumerWidget {
     // Activate location sync to keep planetarium in sync with settings
     ref.watch(locationSyncProvider);
     ref.watch(pushNotificationServiceProvider);
+    ref.watch(remoteSessionSyncProvider);
+    ref.watch(hostLocalSyncProvider);
+    ref.watch(sequenceLibrarySyncProvider);
+    ref.watch(remoteSequenceEditorSyncProvider);
 
     // Get settings
     final settingsAsync = ref.watch(appSettingsProvider);
     final settings = settingsAsync.valueOrNull;
     final themeSetting = settings?.theme ?? 'dark';
-    final accentColor = _parseAccentColor(settings?.accentColor);
     final textScaleFactor = _getTextScaleFactor(settings?.fontSize ?? 'Medium');
     final uiScaleSetting = settings?.uiScale;
+    final theme = resolveNightshadeThemeData(
+      themeSetting: themeSetting,
+      accentColorHex: settings?.accentColor,
+    );
 
     return AutoDiscoveryLauncher(
       child: QuickStartChecker(
-        child: MaterialApp.router(
-          title: 'Nightshade',
-          theme: _getThemeForSetting(themeSetting, accentColor),
-          debugShowCheckedModeBanner: false,
-          routerConfig: router,
-          localizationsDelegates:
-              NightshadeLocalizations.localizationsDelegates,
-          supportedLocales: NightshadeLocalizations.supportedLocales,
-          locale: _resolveLocale(settings?.language),
-          builder: (context, child) {
+        child: AnnotatedRegion<SystemUiOverlayStyle>(
+          value: systemUiOverlayStyleFor(theme),
+          child: MaterialApp.router(
+            title: 'Nightshade',
+            theme: theme,
+            debugShowCheckedModeBanner: false,
+            routerConfig: router,
+            localizationsDelegates:
+                NightshadeLocalizations.localizationsDelegates,
+            supportedLocales: NightshadeLocalizations.supportedLocales,
+            locale: _resolveLocale(settings?.language),
+            builder: (context, child) {
             // Calculate UI scale factor INSIDE builder where we have proper MediaQuery
             // The outer context doesn't have accurate devicePixelRatio from the window
             final uiScaleFactor =
@@ -215,6 +186,7 @@ class NightshadeApp extends ConsumerWidget {
             }
             return result;
           },
+          ),
         ),
       ),
     );

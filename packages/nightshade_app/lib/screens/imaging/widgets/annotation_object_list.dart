@@ -26,12 +26,10 @@ class AnnotationObjectListItem extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
           color: isSelected
-              ? colors.primary.withValues(alpha: 0.08)
+              ? colors.primary.withValues(alpha: NightshadeTokens.opacitySubtle)
               : Colors.transparent,
           border: Border(
-            bottom: BorderSide(
-              color: colors.border.withValues(alpha: 0.5),
-            ),
+            bottom: BorderSide(color: colors.border),
           ),
         ),
         child: Row(
@@ -40,8 +38,8 @@ class AnnotationObjectListItem extends StatelessWidget {
             Container(
               width: 28,
               height: 28,
-              decoration: BoxDecoration(
-                color: _getTypeColor(object.type).withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.iconChip(
+                _getTypeColor(object.type),
                 borderRadius: BorderRadius.circular(6),
               ),
               child: Center(
@@ -142,24 +140,7 @@ class AnnotationObjectListItem extends StatelessWidget {
   }
 
   Color _getTypeColor(ObjectType type) {
-    switch (type) {
-      case ObjectType.galaxy:
-        return const Color(0xFFE879F9); // Purple/Pink for galaxies
-      case ObjectType.nebula:
-        return const Color(0xFF60A5FA); // Blue for nebulae
-      case ObjectType.starCluster:
-        return const Color(0xFFFBBF24); // Yellow for clusters
-      case ObjectType.planetaryNebula:
-        return const Color(0xFF34D399); // Green for planetary nebulae
-      case ObjectType.star:
-        return const Color(0xFFFFF7ED); // Warm white for stars
-      case ObjectType.doubleStar:
-        return const Color(0xFFF472B6); // Pink for double stars
-      case ObjectType.asterism:
-        return const Color(0xFFA78BFA); // Violet for asterisms
-      case ObjectType.unknown:
-        return const Color(0xFF9CA3AF); // Gray for unknown
-    }
+    return AnnotationTypeColors.forType(type, colors);
   }
 }
 

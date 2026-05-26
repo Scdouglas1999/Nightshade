@@ -23,6 +23,15 @@ impl AscomFilterWheel {
         self.device.disconnect()
     }
 
+    /// Query the underlying ASCOM driver for its current `Connected` state.
+    ///
+    /// Used by capability probes that must NOT kick an active UI connection:
+    /// if the driver reports `Ok(true)`, the probe reuses the connection
+    /// instead of opening/closing its own session.
+    pub fn is_connected(&self) -> Result<bool, String> {
+        self.device.is_connected()
+    }
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -62,6 +71,11 @@ impl AscomFilterWheel {
         self.device.get_string_array_property("Names")
     }
 
+    /// Per-filter focus offsets in focuser steps (IFilterWheelV2 `FocusOffsets`).
+    pub fn focus_offsets(&self) -> Result<Vec<i32>, String> {
+        self.device.get_int_array_property("FocusOffsets")
+    }
+
     // ========================================================================
     // Batch Property Queries
     // ========================================================================
@@ -71,6 +85,7 @@ impl AscomFilterWheel {
         FilterWheelFullStatus {
             position: self.position().ok(),
             names: self.names().ok(),
+            focus_offsets: self.focus_offsets().ok(),
         }
     }
 
@@ -90,4 +105,36 @@ impl AscomFilterWheel {
 pub struct FilterWheelFullStatus {
     pub position: Option<i32>,
     pub names: Option<Vec<String>>,
+    pub focus_offsets: Option<Vec<i32>>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::FilterWheelFullStatus;
+
+    #[test]
+    fn full_status_carries_focus_offsets_when_present() {
+        let status = FilterWheelFullStatus {
+            position: Some(2),
+            names: Some(vec!["L".into(), "R".into(), "G".into()]),
+            focus_offsets: Some(vec![0, 120, 240]),
+        };
+
+        assert_eq!(
+            status.focus_offsets.as_deref(),
+            Some([0, 120, 240].as_slice())
+        );
+        assert_eq!(status.names.as_ref().map(Vec::len), Some(3));
+    }
+
+    #[test]
+    fn full_status_leaves_focus_offsets_none_on_read_failure() {
+        let status = FilterWheelFullStatus {
+            position: Some(0),
+            names: Some(vec!["Ha".into()]),
+            focus_offsets: None,
+        };
+
+        assert!(status.focus_offsets.is_none());
+    }
 }

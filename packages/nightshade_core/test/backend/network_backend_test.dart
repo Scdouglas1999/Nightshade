@@ -13,10 +13,17 @@
 // These are intentionally a small set of high-signal cases; full coverage
 // of every endpoint is the follow-on scope of W-TEST.
 
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:nightshade_core/src/backend/network_backend.dart';
 import 'package:nightshade_core/src/models/backend/device_types.dart';
+import 'package:nightshade_core/src/models/backend/image_result.dart';
 import 'package:nightshade_core/src/models/errors/nightshade_error.dart';
+import 'package:nightshade_core/src/providers/backend_provider.dart';
 
 import '../fakes/fakes.dart';
 
@@ -224,6 +231,139 @@ void main() {
       // header — the headless server treats presence-but-empty as a
       // misconfigured client.
       expect(_headerValue(captured.headers, 'Authorization'), isNull);
+    });
+
+    test('cameraGetLastImage uses GET /api/camera/last-image/jpeg', () async {
+      final bitmap = img.Image(width: 4, height: 2);
+      bitmap.setPixelRgba(0, 0, 10, 20, 30, 255);
+      final jpegBytes = img.encodeJpg(bitmap, quality: 90);
+      final metaHeader = base64Encode(utf8.encode(jsonEncode({
+        'width': 4,
+        'height': 2,
+        'encodedWidth': 4,
+        'encodedHeight': 2,
+        'histogram': List<int>.filled(256, 0),
+        'stats': const ImageStatsResult(
+          min: 0,
+          max: 100,
+          mean: 50,
+          median: 50,
+          stdDev: 10,
+          starCount: 3,
+        ).toJson(),
+        'exposureTime': 1.5,
+        'timestamp': '2026-05-23T12:00:00.000Z',
+        'isColor': false,
+      })));
+
+      fake.setBinaryResponse(
+        '/api/camera/last-image/jpeg',
+        bodyBytes: jpegBytes,
+        headers: {
+          'content-type': 'image/jpeg',
+          'x-image-meta': metaHeader,
+        },
+      );
+      backend = _buildBackend(fake);
+
+      final image = await backend.cameraGetLastImage('cam-1');
+
+      expect(image, isNotNull);
+      expect(image!.width, 4);
+      expect(image.height, 2);
+      expect(image.displayData.length, 4 * 2 * 4);
+      expect(image.stats.starCount, 3);
+
+      final issued = fake.requestsFor('/api/camera/last-image/jpeg');
+      expect(issued, hasLength(1));
+      expect(issued.single.method, 'GET');
+      expect(issued.single.url.queryParameters['deviceId'], 'cam-1');
+      expect(fake.requestsFor('/api/camera/last-image'), isEmpty);
+    });
+
+    test('cameraGetLastImage returns null when JPEG endpoint is 404', () async {
+      fake.setBinaryResponse(
+        '/api/camera/last-image/jpeg',
+        status: 404,
+        bodyBytes: utf8.encode(
+          '{"error":"no_image","message":"No image captured"}',
+        ),
+        headers: const {'content-type': 'application/json'},
+      );
+      backend = _buildBackend(fake);
+
+      final image = await backend.cameraGetLastImage('cam-1');
+      expect(image, isNull);
+    });
+
+    test('getImageStats rejects client pixel upload on remote backend',
+        () async {
+      backend = _buildBackend(fake);
+
+      await expectLater(
+        backend.getImageStats(10, 10, Uint16List(100)),
+        throwsA(isA<NightshadeError>().having(
+          (e) => e.message,
+          'message',
+          contains('host-only'),
+        )),
+      );
+      expect(fake.requests, isEmpty);
+    });
+
+    test('getConnectedDevices decodes deviceType field from host API', () async {
+      fake.setResponse(
+        '/api/devices/connected',
+        method: 'GET',
+        body: '{"devices":[{"id":"ascom:mount:0","name":"My Mount",'
+            '"deviceType":"mount","driverType":"ascom",'
+            '"description":"","driverVersion":"1.0"}]}',
+      );
+      backend = _buildBackend(fake);
+
+      final devices = await backend.getConnectedDevices();
+
+      expect(devices, hasLength(1));
+      expect(devices.single.id, 'ascom:mount:0');
+      expect(devices.single.deviceType, DeviceType.mount);
+      expect(devices.single.driverType, DriverType.ascom);
+    });
+
+    test('webSocketPort defaults to serverPort when explicitly set', () {
+      backend = NetworkBackend(
+        serverHost: '127.0.0.1',
+        serverPort: 4321,
+        webSocketPort: 4321,
+        autoConnectWebSocket: false,
+      );
+      expect(backend.serverPort, 4321);
+      expect(backend.webSocketPort, 4321);
+      backend.dispose();
+    });
+  });
+
+  group('BackendNotifier remote connect', () {
+    test('creates NetworkBackend with matching HTTP and WebSocket ports',
+        () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      try {
+        await container.read(backendProvider.notifier).connect(
+              '127.0.0.1',
+              8765,
+              authToken: 'test-token',
+            );
+      } catch (_) {
+        // No server listening in unit tests; construction is what we verify.
+      }
+
+      final backend = container.read(backendProvider);
+      expect(backend, isA<NetworkBackend>());
+      final remote = backend as NetworkBackend;
+      expect(remote.serverPort, 8765);
+      expect(remote.webSocketPort, 8765);
+      expect(remote.serverHost, '127.0.0.1');
     });
   });
 }

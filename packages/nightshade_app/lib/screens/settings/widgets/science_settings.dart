@@ -7,11 +7,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'settings_widgets.dart';
 
 class ScienceSettingsPage extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const ScienceSettingsPage(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -20,12 +19,10 @@ class ScienceSettingsPage extends ConsumerWidget {
 
     return scienceAsync.when(
       loading: () => SettingsLoadingState(
-        colors: colors,
         isMobile: isMobile,
         message: 'Loading science settings...',
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: colors,
         isMobile: isMobile,
         error: error,
         onRetry: () => ref.invalidate(scienceSettingsProvider),
@@ -35,13 +32,11 @@ class ScienceSettingsPage extends ConsumerWidget {
           title: 'Science',
           description:
               'Advanced, informational-only scientific analysis. No frames are auto-deleted.',
-          colors: colors,
           isMobile: isMobile,
           hideHeader: isMobile,
           children: [
             SettingsSection(
               title: 'Mode',
-              colors: colors,
               isMobile: isMobile,
               children: [
                 SettingRow(
@@ -52,9 +47,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                     value: science.advancedModeEnabled,
                     onChanged: (value) =>
                         scienceNotifier.setAdvancedModeEnabled(value),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -66,17 +59,14 @@ class ScienceSettingsPage extends ConsumerWidget {
                     value: science.overlayEnabled,
                     onChanged: (value) =>
                         scienceNotifier.setOverlayEnabled(value),
-                    colors: colors,
                   ),
                   isLast: true,
-                  colors: colors,
                   isMobile: isMobile,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Features',
-              colors: colors,
               isMobile: isMobile,
               children: [
                 SettingRow(
@@ -89,9 +79,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.photometry,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -104,9 +92,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.photometricCalibration,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -119,9 +105,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.transparency,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -134,9 +118,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.psfMap,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -149,9 +131,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.astrometricResiduals,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -164,9 +144,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.movingObjects,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -179,9 +157,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.narrowbandRatios,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -195,9 +171,7 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.frameQualityMaps,
                       value,
                     ),
-                    colors: colors,
                   ),
-                  colors: colors,
                   isMobile: isMobile,
                 ),
                 SettingRow(
@@ -211,36 +185,58 @@ class ScienceSettingsPage extends ConsumerWidget {
                       ScienceFeature.surface3d,
                       value,
                     ),
-                    colors: colors,
+                  ),
+                  isMobile: isMobile,
+                ),
+                SettingRow(
+                  icon: LucideIcons.sliders,
+                  title: 'Auto-reject bad frames',
+                  subtitle:
+                      'After each light frame, reject captures that exceed '
+                      'the thresholds set in Analytics → Science → Grade frames. '
+                      'Files are never deleted — only excluded from stacks.',
+                  trailing: SettingsSwitch(
+                    value: science.autoFrameGradingEnabled,
+                    onChanged: scienceNotifier.setAutoFrameGradingEnabled,
+                  ),
+                  isMobile: isMobile,
+                ),
+                SettingRow(
+                  icon: LucideIcons.fileText,
+                  title: 'Write science keywords to FITS',
+                  subtitle:
+                      'Stamp MAGZP / MAGZPERR / TRANSPAR back into the FITS '
+                      'header so PixInsight, AstroPixelProcessor, and Siril '
+                      'can read Nightshade\'s photometric measurements '
+                      'directly from the captured frame.',
+                  trailing: SettingsSwitch(
+                    value: science.fitsHeaderWritebackEnabled,
+                    onChanged: scienceNotifier.setFitsHeaderWritebackEnabled,
                   ),
                   isLast: true,
-                  colors: colors,
                   isMobile: isMobile,
                 ),
               ],
             ),
             SettingsSection(
               title: 'AAVSO',
-              colors: colors,
               isMobile: isMobile,
               children: [
-                _AavsoObserverCodeRow(colors: colors, isMobile: isMobile),
+                _AavsoObserverCodeRow(isMobile: isMobile),
               ],
             ),
             SettingsSection(
               title: 'Minor Planet Center (MPC)',
-              colors: colors,
               isMobile: isMobile,
               children: [
-                _MpcObservatoryCodeRow(colors: colors, isMobile: isMobile),
+                _MpcObservatoryCodeRow(isMobile: isMobile),
               ],
             ),
             SettingsSection(
               title: 'Camera',
-              colors: colors,
               isMobile: isMobile,
               children: [
-                _ScienceReadNoiseRow(colors: colors, isMobile: isMobile),
+                _ScienceReadNoiseRow(isMobile: isMobile),
               ],
             ),
           ],
@@ -251,9 +247,8 @@ class ScienceSettingsPage extends ConsumerWidget {
 }
 
 class _AavsoObserverCodeRow extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
-  const _AavsoObserverCodeRow({required this.colors, this.isMobile = false});
+  const _AavsoObserverCodeRow({this.isMobile = false});
   @override
   ConsumerState<_AavsoObserverCodeRow> createState() =>
       _AavsoObserverCodeRowState();
@@ -298,7 +293,7 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
           maxLength: 5,
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
-            color: widget.colors.textPrimary,
+            color: NightshadeColors.of(context).textPrimary,
             fontSize: 13,
           ),
           decoration: InputDecoration(
@@ -306,18 +301,18 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
             counterText: '',
             hintText: 'e.g. XYZ',
             hintStyle: TextStyle(
-              color: widget.colors.textMuted,
+              color: NightshadeColors.of(context).textMuted,
               fontSize: 13,
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: widget.colors.border),
+              borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
             errorBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: widget.colors.error),
+              borderSide: BorderSide(color: NightshadeColors.of(context).error),
             ),
           ),
           onSubmitted: (value) async {
@@ -339,16 +334,14 @@ class _AavsoObserverCodeRowState extends ConsumerState<_AavsoObserverCodeRow> {
         ),
       ),
       isLast: true,
-      colors: widget.colors,
       isMobile: widget.isMobile,
     );
   }
 }
 
 class _MpcObservatoryCodeRow extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
-  const _MpcObservatoryCodeRow({required this.colors, this.isMobile = false});
+  const _MpcObservatoryCodeRow({this.isMobile = false});
   @override
   ConsumerState<_MpcObservatoryCodeRow> createState() =>
       _MpcObservatoryCodeRowState();
@@ -392,7 +385,7 @@ class _MpcObservatoryCodeRowState
           maxLength: 3,
           textCapitalization: TextCapitalization.characters,
           style: TextStyle(
-            color: widget.colors.textPrimary,
+            color: NightshadeColors.of(context).textPrimary,
             fontSize: 13,
           ),
           decoration: InputDecoration(
@@ -400,14 +393,14 @@ class _MpcObservatoryCodeRowState
             counterText: '',
             hintText: 'e.g. G40',
             hintStyle: TextStyle(
-              color: widget.colors.textMuted,
+              color: NightshadeColors.of(context).textMuted,
               fontSize: 13,
             ),
             contentPadding:
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: widget.colors.border),
+              borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           onSubmitted: (value) async {
@@ -425,16 +418,14 @@ class _MpcObservatoryCodeRowState
         ),
       ),
       isLast: true,
-      colors: widget.colors,
       isMobile: widget.isMobile,
     );
   }
 }
 
 class _ScienceReadNoiseRow extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
-  const _ScienceReadNoiseRow({required this.colors, this.isMobile = false});
+  const _ScienceReadNoiseRow({this.isMobile = false});
   @override
   ConsumerState<_ScienceReadNoiseRow> createState() =>
       _ScienceReadNoiseRowState();
@@ -477,7 +468,7 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
           controller: _controller,
           keyboardType: const TextInputType.numberWithOptions(decimal: true),
           style: TextStyle(
-            color: widget.colors.textPrimary,
+            color: NightshadeColors.of(context).textPrimary,
             fontSize: 13,
           ),
           decoration: InputDecoration(
@@ -486,7 +477,7 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
                 const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(6),
-              borderSide: BorderSide(color: widget.colors.border),
+              borderSide: BorderSide(color: NightshadeColors.of(context).border),
             ),
           ),
           onSubmitted: (value) async {
@@ -499,7 +490,6 @@ class _ScienceReadNoiseRowState extends ConsumerState<_ScienceReadNoiseRow> {
         ),
       ),
       isLast: true,
-      colors: widget.colors,
       isMobile: widget.isMobile,
     );
   }

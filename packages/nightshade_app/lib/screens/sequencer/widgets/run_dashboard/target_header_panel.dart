@@ -24,7 +24,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final target = ref.watch(runDashboardActiveTargetProvider);
     final sky = ref.watch(runDashboardSkyStatsProvider);
     final settingsAsync = ref.watch(appSettingsProvider);
@@ -114,10 +114,10 @@ class RunDashboardTargetHeader extends ConsumerWidget {
         const SizedBox(width: 4),
         Text(
           '${formatRA(target.raHours)}   ${formatDec(target.decDegrees)}',
-          style: TextStyle(
-            fontSize: 12,
-            color: colors.textSecondary,
-            fontFeatures: const [FontFeature.tabularFigures()],
+          style: NightshadeTypography.withTabular(
+            NightshadeTypography.labelSm.copyWith(
+              color: colors.textSecondary,
+            ),
           ),
         ),
       ],
@@ -138,6 +138,11 @@ class RunDashboardTargetHeader extends ConsumerWidget {
       targetNodeId: target.id,
     );
 
+    // Wave 3 Agent 3 — render the integration budget panel below the
+    // frame-count progress when configured. Same target id so all
+    // rows stay aligned visually.
+    final budgetPanel = _BudgetProgressPanel(colors: colors);
+
     if (isMobile) {
       return _HeaderShell(
         colors: colors,
@@ -153,6 +158,7 @@ class RunDashboardTargetHeader extends ConsumerWidget {
             ),
             const SizedBox(height: NightshadeTokens.spaceMd),
             progress,
+            budgetPanel,
           ],
         ),
       );
@@ -174,7 +180,146 @@ class RunDashboardTargetHeader extends ConsumerWidget {
           ),
           const SizedBox(height: NightshadeTokens.spaceMd),
           progress,
+          budgetPanel,
         ],
+      ),
+    );
+  }
+}
+
+/// Wave 3 Agent 3 — per-target integration budget progress card. Renders
+/// only when the active target has a budget configured. Pulls from
+/// [runDashboardActiveBudgetProvider] so the math stays consistent with
+/// the runtime.
+class _BudgetProgressPanel extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _BudgetProgressPanel({required this.colors});
+
+  String _formatDuration(double secs) {
+    if (secs <= 0) return '0m';
+    final h = secs ~/ 3600;
+    final m = ((secs % 3600) / 60).round();
+    if (h > 0 && m > 0) return '${h}h ${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final budget = ref.watch(runDashboardActiveBudgetProvider);
+    if (budget == null) return const SizedBox.shrink();
+
+    // Sort filters by canonical photometric order, then alphabetic.
+    const preferred = ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'];
+    final filters = budget.resolvedCapSecs.keys.toList()
+      ..sort((a, b) {
+        final ia = preferred.indexOf(a);
+        final ib = preferred.indexOf(b);
+        if (ia == ib) return a.compareTo(b);
+        if (ia == -1) return 1;
+        if (ib == -1) return -1;
+        return ia.compareTo(ib);
+      });
+
+    final rows = <Widget>[];
+    for (final f in filters) {
+      final cap = budget.resolvedCapSecs[f]!;
+      final done = budget.completedSecs[f] ?? 0;
+      final fraction = cap > 0 ? (done / cap).clamp(0.0, 1.5) : 0.0;
+      final isMet = done >= cap && cap > 0;
+      rows.add(
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 3),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 40,
+                child: Text(
+                  f,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
+                    color: isMet ? colors.success : colors.textSecondary,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(3),
+                  child: LinearProgressIndicator(
+                    value: fraction.clamp(0.0, 1.0),
+                    minHeight: 6,
+                    backgroundColor: colors.surfaceAlt,
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      isMet ? colors.success : colors.primary,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                '${_formatDuration(done)} / ${_formatDuration(cap)}',
+                style: NightshadeTypography.withTabular(
+                  NightshadeTypography.captionSm.copyWith(
+                    color: isMet ? colors.success : colors.textMuted,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
+    final title = budget.budgetMet ? 'BUDGET MET' : 'BUDGET';
+    final titleColor = budget.budgetMet ? colors.success : colors.textMuted;
+    final overallText = budget.totalSecs > 0
+        ? '${_formatDuration(budget.completedTotalSecs)} / ${_formatDuration(budget.totalSecs)}'
+        : _formatDuration(budget.completedTotalSecs);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceMd),
+      child: Container(
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        decoration: BoxDecoration(
+          color: colors.surfaceAlt,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(
+              color: budget.budgetMet ? colors.success : colors.border),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.target, size: 12, color: titleColor),
+                const SizedBox(width: 6),
+                Text(
+                  title,
+                  style: TextStyle(
+                    fontSize: 10,
+                    letterSpacing: 0.6,
+                    fontWeight: FontWeight.w700,
+                    color: titleColor,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  overallText,
+                  style: NightshadeTypography.withTabular(
+                    NightshadeTypography.labelQuiet.copyWith(
+                      color: titleColor,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            ...rows,
+          ],
+        ),
       ),
     );
   }
@@ -325,11 +470,11 @@ class _HeaderStat extends StatelessWidget {
         const SizedBox(height: 2),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w700,
-            color: valueColor ?? colors.textPrimary,
-            fontFeatures: const [FontFeature.tabularFigures()],
+          style: NightshadeTypography.withTabular(
+            NightshadeTypography.h4.copyWith(
+              fontWeight: FontWeight.w700,
+              color: valueColor ?? colors.textPrimary,
+            ),
           ),
         ),
       ],

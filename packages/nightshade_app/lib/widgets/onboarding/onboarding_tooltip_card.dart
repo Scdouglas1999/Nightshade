@@ -55,13 +55,15 @@ class OnboardingTooltipCard extends StatelessWidget {
     this.onSecondary,
   });
 
-  /// Pick a fixed tooltip width by breakpoint so the card never tries to
-  /// stretch full-screen on a 4K monitor or compress unreadably on a
-  /// phone-width window.
-  double _cardWidth() {
+  /// Pick a viewport-capped tooltip width so the card never stretches
+  /// full-screen on a 4K monitor or compresses unreadably on a phone window.
+  double _cardWidth(BuildContext context) {
     if (screenSize.width < 600) return screenSize.width - 32;
-    if (screenSize.width < 1200) return 380;
-    return 420;
+    if (screenSize.width < 1200) return dialogMaxWidth(context, 380);
+    return dialogMaxWidth(
+      context,
+      ShellChromeMetrics.shareDialogPreferredWidth,
+    );
   }
 
   /// Compute the (left, top) of the card.
@@ -107,8 +109,8 @@ class OnboardingTooltipCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final cardWidth = _cardWidth();
+    final colors = NightshadeColors.of(context);
+    final cardWidth = _cardWidth(context);
     // Conservative estimate that fits any of our copy without
     // measure-then-place ping-pong. The card paints with mainAxisSize.min
     // so this is only used for the placement math, not for the rendered

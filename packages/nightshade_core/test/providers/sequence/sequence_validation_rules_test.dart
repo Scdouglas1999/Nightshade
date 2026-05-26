@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/exposure_rules.dart';
+import 'package:nightshade_core/src/providers/sequence/rules/logic_node_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/structure_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/target_rules.dart';
 import 'package:nightshade_core/src/providers/sequence/rules/timing_rules.dart';
@@ -480,6 +481,205 @@ void main() {
     });
   });
 
+  group('RecoveryNodeConfigRule', () {
+    final rule = RecoveryNodeConfigRule();
+
+    test('fires when triggerType is null', () {
+      final r = RecoveryNode(name: 'R');
+      final s = _sequenceWith([r]);
+      final issues = rule.validate(s);
+      final missing = _findIssue(issues, 'Recovery Has No Trigger');
+      expect(missing.severity, ValidationSeverity.error);
+      expect(missing.affectedNodeId, r.id);
+    });
+
+    test(
+        'fires when recoveryAction is customBranch but no children',
+        () {
+      final r = RecoveryNode(
+        name: 'R',
+        triggerType: TriggerType.hfrDegraded,
+        recoveryAction: RecoveryActionType.customBranch,
+      );
+      final s = _sequenceWith([r]);
+      final issues = rule.validate(s);
+      final hit = _findIssue(issues, 'Custom Branch Has No Children');
+      expect(hit.severity, ValidationSeverity.error);
+      expect(hit.affectedNodeId, r.id);
+    });
+
+    test('clean when trigger set and built-in action selected', () {
+      final r = RecoveryNode(
+        name: 'R',
+        triggerType: TriggerType.guidingFailed,
+        recoveryAction: RecoveryActionType.retry,
+      );
+      final s = _sequenceWith([r]);
+      expect(rule.validate(s), isEmpty);
+    });
+
+    test('clean when customBranch has children to execute', () {
+      final child = DelayNode();
+      final r = RecoveryNode(
+        name: 'R',
+        triggerType: TriggerType.hfrDegraded,
+        recoveryAction: RecoveryActionType.customBranch,
+        childIds: [child.id],
+      );
+      final s = Sequence(
+        name: 'T',
+        nodes: {
+          r.id: r,
+          child.id: child.copyWith(parentId: r.id),
+        },
+        rootNodeId: r.id,
+      );
+      final issues = rule.validate(s);
+      expect(
+        issues.where((issue) => issue.title.startsWith('Custom Branch')),
+        isEmpty,
+      );
+    });
+  });
+
+  group('ParallelNodeRequiredSuccessesRule', () {
+    final rule = ParallelNodeRequiredSuccessesRule();
+
+    test('fires when requiredSuccesses > childIds.length', () {
+      // Two children but require 5 successes — unreachable.
+      final c1 = ExposureNode();
+      final c2 = ExposureNode();
+      final p = ParallelNode(
+        name: 'P',
+        requiredSuccesses: 5,
+        childIds: [c1.id, c2.id],
+      );
+      final s = Sequence(
+        name: 'T',
+        nodes: {
+          p.id: p,
+          c1.id: c1.copyWith(parentId: p.id),
+          c2.id: c2.copyWith(parentId: p.id),
+        },
+        rootNodeId: p.id,
+      );
+      final issues = rule.validate(s);
+      expect(issues.single.severity, ValidationSeverity.error);
+      expect(issues.single.title, 'Parallel Requires Too Many Successes');
+      expect(issues.single.affectedNodeId, p.id);
+    });
+
+    test('clean when requiredSuccesses == childIds.length', () {
+      final c1 = ExposureNode();
+      final c2 = ExposureNode();
+      final p = ParallelNode(
+        name: 'P',
+        requiredSuccesses: 2,
+        childIds: [c1.id, c2.id],
+      );
+      final s = Sequence(
+        name: 'T',
+        nodes: {
+          p.id: p,
+          c1.id: c1.copyWith(parentId: p.id),
+          c2.id: c2.copyWith(parentId: p.id),
+        },
+        rootNodeId: p.id,
+      );
+      expect(rule.validate(s), isEmpty);
+    });
+
+    test('clean when requiredSuccesses is null', () {
+      final c1 = ExposureNode();
+      final p = ParallelNode(name: 'P', childIds: [c1.id]);
+      final s = Sequence(
+        name: 'T',
+        nodes: {
+          p.id: p,
+          c1.id: c1.copyWith(parentId: p.id),
+        },
+        rootNodeId: p.id,
+      );
+      expect(rule.validate(s), isEmpty);
+    });
+  });
+
+  group('ConditionalNodeEmptyBranchRule', () {
+    final rule = ConditionalNodeEmptyBranchRule();
+
+    test('fires when conditional has no children', () {
+      final c = ConditionalNode(name: 'If');
+      final s = _sequenceWith([c]);
+      final issues = rule.validate(s);
+      expect(issues.single.severity, ValidationSeverity.warning);
+      expect(issues.single.title, 'Conditional Has No Branch');
+      expect(issues.single.affectedNodeId, c.id);
+    });
+
+    test('clean when conditional has children', () {
+      final child = ExposureNode();
+      final c = ConditionalNode(name: 'If', childIds: [child.id]);
+      final s = Sequence(
+        name: 'T',
+        nodes: {
+          c.id: c,
+          child.id: child.copyWith(parentId: c.id),
+        },
+        rootNodeId: c.id,
+      );
+      expect(rule.validate(s), isEmpty);
+    });
+  });
+
+  group('LoopUnreachableTerminationRule', () {
+    final rule = LoopUnreachableTerminationRule();
+
+    test('fires on whileDark loop with past repeatUntil', () {
+      final loop = LoopNode(
+        name: 'WD',
+        conditionType: LoopConditionType.whileDark,
+        repeatUntil: DateTime.now().subtract(const Duration(hours: 2)),
+      );
+      final s = _sequenceWith([loop]);
+      final issues = rule.validate(s);
+      final hit = _findIssue(issues, 'WhileDark Loop With Past End Time');
+      expect(hit.severity, ValidationSeverity.warning);
+      expect(hit.affectedNodeId, loop.id);
+    });
+
+    test('fires on integrationTime loop with non-positive target', () {
+      final loop = LoopNode(
+        name: 'IT',
+        conditionType: LoopConditionType.integrationTime,
+        integrationTimeTarget: 0,
+      );
+      final s = _sequenceWith([loop]);
+      final issues = rule.validate(s);
+      expect(issues.single.title,
+          'Integration-Time Loop Has No Target');
+    });
+
+    test('clean on whileDark loop with future repeatUntil', () {
+      final loop = LoopNode(
+        name: 'WD',
+        conditionType: LoopConditionType.whileDark,
+        repeatUntil: DateTime.now().add(const Duration(hours: 2)),
+      );
+      final s = _sequenceWith([loop]);
+      expect(rule.validate(s), isEmpty);
+    });
+
+    test('clean on count-based loop', () {
+      final loop = LoopNode(
+        name: 'C',
+        conditionType: LoopConditionType.count,
+        repeatCount: 3,
+      );
+      final s = _sequenceWith([loop]);
+      expect(rule.validate(s), isEmpty);
+    });
+  });
+
   group('Public API: validateSequence (top-level)', () {
     test('runs all default structural rules', () {
       // Sequence with two issues: empty + no root.
@@ -536,6 +736,212 @@ void main() {
     test('worstSeverityForNode returns null for unknown node', () {
       final result = ValidationResult.empty();
       expect(result.worstSeverityForNode('missing'), isNull);
+    });
+  });
+
+  // ==========================================================================
+  // Wave 4 — Per-target altitude crossings (TargetTrigger model + validators)
+  // ==========================================================================
+
+  group('TargetTrigger JSON round-trip', () {
+    test('AltitudeAbove round-trips', () {
+      const t = AltitudeAboveTrigger(35.0);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('AltitudeBelow round-trips', () {
+      const t = AltitudeBelowTrigger(30.0);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('TimeAfter round-trips', () {
+      const t = TimeAfterTrigger(1768557600);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('And round-trips with nested children', () {
+      const t = AndTrigger([
+        TimeAfterTrigger(1768557600),
+        AltitudeAboveTrigger(35.0),
+      ]);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('Or round-trips with nested children', () {
+      const t = OrTrigger([
+        TimeBeforeTrigger(1768557600),
+        AltitudeBelowTrigger(20.0),
+      ]);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('HourAngleBetween round-trips', () {
+      const t = HourAngleBetweenTrigger(minHa: -1.5, maxHa: 1.5);
+      final back = TargetTrigger.fromJson(t.toJson());
+      expect(back, equals(t));
+    });
+
+    test('Unknown kind throws FormatException', () {
+      expect(
+        () => TargetTrigger.fromJson({'kind': 'Bogus', 'value': 0}),
+        throwsFormatException,
+      );
+    });
+  });
+
+  group('evaluateTargetTrigger', () {
+    test('AltitudeAbove fires when altitude meets threshold', () {
+      expect(
+        evaluateTargetTrigger(
+          const AltitudeAboveTrigger(35.0),
+          altitudeDeg: 35.0,
+          hourAngleHours: 0,
+          nowUnix: 0,
+        ),
+        isTrue,
+      );
+      expect(
+        evaluateTargetTrigger(
+          const AltitudeAboveTrigger(35.0),
+          altitudeDeg: 34.9,
+          hourAngleHours: 0,
+          nowUnix: 0,
+        ),
+        isFalse,
+      );
+    });
+
+    test('Empty And/Or return false (fail-closed)', () {
+      expect(
+        evaluateTargetTrigger(
+          const AndTrigger([]),
+          altitudeDeg: 90,
+          hourAngleHours: 0,
+          nowUnix: 0,
+        ),
+        isFalse,
+      );
+      expect(
+        evaluateTargetTrigger(
+          const OrTrigger([]),
+          altitudeDeg: 90,
+          hourAngleHours: 0,
+          nowUnix: 0,
+        ),
+        isFalse,
+      );
+    });
+  });
+
+  group('TargetTriggerEmptyCompoundRule', () {
+    test('flags empty And in startWhen', () {
+      final target = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.27,
+        startWhen: const AndTrigger([]),
+      );
+      final seq = _sequenceWith([target]);
+      final rule = TargetTriggerEmptyCompoundRule();
+      final issues = rule.validate(seq);
+      expect(issues, hasLength(1));
+      expect(issues.first.severity, ValidationSeverity.error);
+      expect(issues.first.title, 'Empty Compound Trigger');
+    });
+
+    test('does not fire on populated compound', () {
+      final target = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.27,
+        startWhen: const AndTrigger([AltitudeAboveTrigger(35.0)]),
+      );
+      final seq = _sequenceWith([target]);
+      final rule = TargetTriggerEmptyCompoundRule();
+      expect(rule.validate(seq), isEmpty);
+    });
+  });
+
+  group('TargetTriggerImpossibleAltitudeRule', () {
+    test('flags unreachable altitude at lat=40', () {
+      // M42 culminates at ~45° from lat=40N; threshold 60° unreachable.
+      final target = TargetHeaderNode(
+        targetName: 'M42',
+        raHours: 5.59,
+        decDegrees: -5.39,
+        startWhen: const AltitudeAboveTrigger(60.0),
+      );
+      final seq = _sequenceWith([target]);
+      const rule =
+          TargetTriggerImpossibleAltitudeRule(observerLatitudeDeg: 40.0);
+      final issues = rule.validate(seq);
+      expect(issues, hasLength(1));
+      expect(issues.first.title, 'Unreachable Altitude');
+    });
+
+    test('silent without observer latitude', () {
+      final target = TargetHeaderNode(
+        targetName: 'M42',
+        raHours: 5.59,
+        decDegrees: -5.39,
+        startWhen: const AltitudeAboveTrigger(60.0),
+      );
+      final seq = _sequenceWith([target]);
+      const rule = TargetTriggerImpossibleAltitudeRule();
+      expect(rule.validate(seq), isEmpty);
+    });
+  });
+
+  group('TargetTriggerStartEndContradictionRule', () {
+    test('flags endWhen TimeBefore that is already true at start time', () {
+      final target = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.27,
+        startWhen: const TimeAfterTrigger(1000),
+        endWhen: const TimeBeforeTrigger(2000),
+      );
+      final seq = _sequenceWith([target]);
+      const rule = TargetTriggerStartEndContradictionRule();
+      final issues = rule.validate(seq);
+      expect(issues, hasLength(1));
+      expect(issues.first.title, 'End Trigger Already Satisfied');
+    });
+
+    test('does not fire when TimeBefore cutoff is before start time', () {
+      final target = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.27,
+        startWhen: const TimeAfterTrigger(2000),
+        endWhen: const TimeBeforeTrigger(1000),
+      );
+      final seq = _sequenceWith([target]);
+      const rule = TargetTriggerStartEndContradictionRule();
+      expect(rule.validate(seq), isEmpty);
+    });
+
+    test('flags compound startWhen that delays until TimeAfter', () {
+      final target = TargetHeaderNode(
+        targetName: 'M31',
+        raHours: 0.7,
+        decDegrees: 41.27,
+        startWhen: const AndTrigger([
+          TimeAfterTrigger(1000),
+          AltitudeAboveTrigger(35.0),
+        ]),
+        endWhen: const TimeBeforeTrigger(2000),
+      );
+      final seq = _sequenceWith([target]);
+      const rule = TargetTriggerStartEndContradictionRule();
+      final issues = rule.validate(seq);
+      expect(issues, hasLength(1));
+      expect(issues.first.title, 'End Trigger Already Satisfied');
     });
   });
 }

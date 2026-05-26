@@ -17,6 +17,22 @@
 use crate::client::IndiClient;
 use crate::error::{IndiError, IndiResult};
 use crate::protocol::{standard_properties::*, CcdFrameType};
+
+/// Bayer / CFA pattern parsed from INDI `CCD_CFA`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndiBayerPattern {
+    pub pattern: String,
+    pub offset_x: Option<i32>,
+    pub offset_y: Option<i32>,
+}
+
+/// Active CCD readout mode (element name + on-state).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct IndiReadoutMode {
+    pub element: String,
+    pub label: String,
+}
+
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -459,7 +475,9 @@ impl IndiCamera {
     // Frame Type
     // =========================================================================
 
-    /// Set frame type (Light, Bias, Dark, Flat)
+    /// Set frame type (Light, Bias, Dark, Flat).
+    ///
+    /// Forces a full `CCD_FRAME_TYPE` vector so only one frame switch is On (ND-P1-7).
     pub async fn set_frame_type(&self, frame_type: CcdFrameType) -> IndiResult<()> {
         let mut client = self.client.write().await;
         let element = match frame_type {
@@ -469,7 +487,158 @@ impl IndiCamera {
             CcdFrameType::Flat => "FRAME_FLAT",
         };
         client
-            .set_switch(&self.device_name, CCD_FRAME_TYPE, element, true)
+            .set_switch_exclusive(&self.device_name, CCD_FRAME_TYPE, element)
+            .await
+    }
+
+    /// Gain range from `CCD_GAIN` element limits, if advertised.
+    pub async fn get_gain_range(&self) -> Option<(i32, i32)> {
+        let client = self.client.read().await;
+        let limits = if let Some(limits) = client
+            .get_number_limits(&self.device_name, CCD_GAIN, "GAIN")
+            .await
+        {
+            limits
+        } else {
+            client
+                .get_number_limits(&self.device_name, "CCD_CONTROLS", "Gain")
+                .await?
+        };
+        Some((
+            limits.min.map(|v| v as i32).unwrap_or(0),
+            limits.max.map(|v| v as i32).unwrap_or(0),
+        ))
+    }
+
+    /// Maximum ADU from `CCD_MAX_PIXEL_VALUE` or `CCD_INFO/CCD_MAX_PIXEL`.
+    pub async fn get_max_adu(&self) -> Option<i32> {
+        let client = self.client.read().await;
+        if let Some(v) = client
+            .get_number(
+                &self.device_name,
+                CCD_MAX_PIXEL_VALUE,
+                "CCD_MAX_PIXEL_VALUE",
+            )
+            .await
+        {
+            return Some(v as i32);
+        }
+        client
+            .get_number(&self.device_name, CCD_INFO, "CCD_MAX_PIXEL")
+            .await
+            .map(|v| v as i32)
+    }
+
+    /// Sensor type from `CCD_SENSOR_TYPE` (first switch that is On).
+    pub async fn get_sensor_type(&self) -> Option<String> {
+        let client = self.client.read().await;
+        let prop = client
+            .get_property(&self.device_name, CCD_SENSOR_TYPE)
+            .await?;
+        for element in &prop.elements {
+            if client
+                .get_switch(&self.device_name, CCD_SENSOR_TYPE, element)
+                .await
+                .unwrap_or(false)
+            {
+                return Some(element.clone());
+            }
+        }
+        None
+    }
+
+    /// Bayer pattern from `CCD_CFA` or legacy `CCD_BAYER_PATTERN`.
+    pub async fn get_bayer_pattern(&self) -> Option<IndiBayerPattern> {
+        let client = self.client.read().await;
+        if client.has_property(&self.device_name, CCD_CFA).await {
+            let pattern = client
+                .get_property_value(&self.device_name, CCD_CFA, "CFA_TYPE")
+                .await?;
+            let offset_x = client
+                .get_number(&self.device_name, CCD_CFA, "CFA_OFFSET_X")
+                .await
+                .map(|v| v as i32);
+            let offset_y = client
+                .get_number(&self.device_name, CCD_CFA, "CFA_OFFSET_Y")
+                .await
+                .map(|v| v as i32);
+            return Some(IndiBayerPattern {
+                pattern,
+                offset_x,
+                offset_y,
+            });
+        }
+        client
+            .get_property_value(&self.device_name, "CCD_BAYER_PATTERN", "BAYERPAT")
+            .await
+            .map(|pattern| IndiBayerPattern {
+                pattern,
+                offset_x: None,
+                offset_y: None,
+            })
+    }
+
+    /// Available readout modes from `CCD_READ_MODE` or `CCD_READOUT_MODE`.
+    pub async fn get_readout_modes(&self) -> Vec<IndiReadoutMode> {
+        let client = self.client.read().await;
+        let property_name = if client.has_property(&self.device_name, CCD_READ_MODE).await {
+            CCD_READ_MODE
+        } else if client
+            .has_property(&self.device_name, "CCD_READOUT_MODE")
+            .await
+        {
+            "CCD_READOUT_MODE"
+        } else {
+            return Vec::new();
+        };
+
+        let prop = match client.get_property(&self.device_name, property_name).await {
+            Some(p) => p,
+            None => return Vec::new(),
+        };
+
+        prop.elements
+            .iter()
+            .map(|element| IndiReadoutMode {
+                element: element.clone(),
+                label: prop.label.clone(),
+            })
+            .collect()
+    }
+
+    /// Active readout mode element name, if any.
+    pub async fn get_active_readout_mode(&self) -> Option<String> {
+        let client = self.client.read().await;
+        for property in [CCD_READ_MODE, "CCD_READOUT_MODE"] {
+            if !client.has_property(&self.device_name, property).await {
+                continue;
+            }
+            if let Some(prop) = client.get_property(&self.device_name, property).await {
+                for element in &prop.elements {
+                    if client
+                        .get_switch(&self.device_name, property, element)
+                        .await
+                        .unwrap_or(false)
+                    {
+                        return Some(element.clone());
+                    }
+                }
+            }
+        }
+        None
+    }
+
+    /// Select readout mode by switch element name.
+    pub async fn set_readout_mode(&self, element: &str) -> IndiResult<()> {
+        let client = self.client.read().await;
+        let property = if client.has_property(&self.device_name, CCD_READ_MODE).await {
+            CCD_READ_MODE
+        } else {
+            "CCD_READOUT_MODE"
+        };
+        let mut client = self.client.write().await;
+        client
+            .set_switch_exclusive(&self.device_name, property, element)
             .await
     }
 

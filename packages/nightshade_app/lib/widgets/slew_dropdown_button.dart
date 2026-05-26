@@ -67,7 +67,7 @@ class SlewDropdownButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final rotatorState = ref.watch(rotatorStateProvider);
     final hasRotator =
         rotatorState.connectionState == DeviceConnectionState.connected;
@@ -352,82 +352,87 @@ class _CenteringDialogWithResultState
   @override
   Widget build(BuildContext context) {
     final centeringStatus = ref.watch(centeringStatusProvider);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
-      child: Container(
-        width: 400,
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Row(
-              children: [
-                Icon(LucideIcons.target, color: colors.primary, size: 24),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Centering Target',
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: colors.textPrimary,
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 400,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Icon(LucideIcons.target, color: colors.primary, size: 24),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Centering Target',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: colors.textPrimary,
+                          ),
                         ),
-                      ),
-                      Text(
-                        widget.targetName,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: colors.textSecondary,
+                        Text(
+                          widget.targetName,
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: colors.textSecondary,
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 24),
-            if (_isCentering) ...[
-              CircularProgressIndicator(color: colors.primary),
-              const SizedBox(height: 16),
-              Text(
-                centeringStatus.message ?? 'Centering...',
-                style: TextStyle(color: colors.textSecondary),
-                textAlign: TextAlign.center,
+                ],
               ),
-              const SizedBox(height: 8),
-              Text(
-                'Iteration ${centeringStatus.currentIteration}/${centeringStatus.maxIterations}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textMuted,
+              const SizedBox(height: 24),
+              if (_isCentering) ...[
+                CircularProgressIndicator(color: colors.primary),
+                const SizedBox(height: 16),
+                Text(
+                  centeringStatus.message ?? 'Centering...',
+                  style: TextStyle(color: colors.textSecondary),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-              if (centeringStatus.currentOffsetArcmin != null) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'Offset: ${centeringStatus.currentOffsetArcmin!.toStringAsFixed(2)} arcmin',
+                  'Iteration ${centeringStatus.currentIteration}/${centeringStatus.maxIterations}',
                   style: TextStyle(
                     fontSize: 12,
-                    color: colors.textSecondary,
+                    color: colors.textMuted,
                   ),
                 ),
+                if (centeringStatus.currentOffsetArcmin != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    'Offset: ${centeringStatus.currentOffsetArcmin!.toStringAsFixed(2)} arcmin',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
               ],
+              const SizedBox(height: 16),
+              if (_isCentering)
+                NightshadeButton(
+                  onPressed: () {
+                    Navigator.of(context).pop(null);
+                  },
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
             ],
-            const SizedBox(height: 16),
-            if (_isCentering)
-              NightshadeButton(
-                onPressed: () {
-                  Navigator.of(context).pop(null);
-                },
-                label: 'Cancel',
-                variant: ButtonVariant.ghost,
-                size: ButtonSize.small,
-              ),
-          ],
+          ),
         ),
       ),
     );

@@ -166,6 +166,22 @@ pub struct Trigger {
     /// no clamping occurred.
     #[serde(skip, default)]
     pub clamp_warning: Option<TriggerClampWarning>,
+    /// Wave 5 Agent 4: monotonic timestamp at which the `CloudCoverThreshold`
+    /// trigger first observed cover above its `max_percent`. Reset to `None`
+    /// whenever a sample drops back below the threshold; reused to implement
+    /// the user's `duration_secs` debounce. Per-trigger (not on shared
+    /// `TriggerState`) so multiple `CloudCoverThreshold` triggers with
+    /// different thresholds debounce independently.
+    #[serde(skip, default)]
+    pub cloud_cover_above_threshold_since: Option<Instant>,
+    /// Wave 7 Science: monotonic timestamp at which a
+    /// `TransparencyDropped` trigger first observed transparency at or
+    /// below its `below_threshold`. Reset to `None` whenever the sample
+    /// recovers above the threshold; used to implement the user's
+    /// `duration_secs` debounce. Per-trigger so multiple triggers with
+    /// different thresholds debounce independently.
+    #[serde(skip, default)]
+    pub transparency_below_threshold_since: Option<Instant>,
 }
 
 /// Wave 1.5 Pack A: trigger-creation-time clamping diagnostic. Built by
@@ -207,6 +223,8 @@ impl Trigger {
             hfr_bad_frame_count: 0,
             focus_drift_hfr_window: VecDeque::new(),
             clamp_warning,
+            cloud_cover_above_threshold_since: None,
+            transparency_below_threshold_since: None,
         }
     }
 
@@ -629,8 +647,8 @@ impl Trigger {
                 // deque is empty, but the `len() < min_count` early return
                 // above guarantees at least `min_count >= 2` samples are
                 // present here. The unwrap documents that invariant.
-                let total_increase = window.back().expect("non-empty window invariant")
-                    - window[run_start];
+                let total_increase =
+                    window.back().expect("non-empty window invariant") - window[run_start];
                 total_increase >= *min_total_increase
             }
             TriggerType::HumidityThreshold { max_percent } => {
@@ -652,6 +670,105 @@ impl Trigger {
                 // already returns absolute values.
                 let drift = (ra_px * ra_px + dec_px * dec_px).sqrt();
                 drift > *max_pixels
+            }
+            TriggerType::CloudArrivingIn {
+                minutes_before,
+                coverage_threshold,
+            } => {
+                // Wave 5 Agent 4: fire when (a) the analyzer says clouds
+                // arrive within `minutes_before` minutes AND (b) the
+                // predicted coverage exceeds `coverage_threshold`. The two
+                // gates together prevent firing for a passing wisp.
+                //
+                // Coverage threshold reads `current_cloud_coverage_percent`
+                // — this is the analyzer's best-known coverage at the
+                // (predicted) arrival time. Using a separate "predicted
+                // coverage" field would be more accurate but the analyzer
+                // does not yet model that; treating the current value as
+                // the prediction is the documented behaviour until the
+                // analyzer exposes a forecast curve.
+                let Some(arrival) = state.predicted_cloud_arrival_minutes else {
+                    return false;
+                };
+                let Some(coverage) = state.current_cloud_coverage_percent else {
+                    return false;
+                };
+                arrival <= *minutes_before && coverage > *coverage_threshold
+            }
+            TriggerType::CloudOpeningIn {
+                minutes_before,
+                minimum_duration_secs,
+            } => {
+                // Wave 5 Agent 4: fire when the analyzer predicts a clear
+                // opening within `minutes_before` minutes AND the opening's
+                // duration is at least `minimum_duration_secs`. Used by
+                // `RecoveryAction::PauseAndWaitForClear` to auto-resume.
+                let Some(opening) = state.predicted_cloud_opening_minutes else {
+                    return false;
+                };
+                if opening > *minutes_before {
+                    return false;
+                }
+                // A missing duration is treated as "unknown" rather than
+                // "any" — firing on an unknown-length opening would lead
+                // the recovery layer to slew into a hole that closes
+                // before settle. CLAUDE.md "errors are a feature": no
+                // duration => don't fire.
+                let Some(duration) = state.predicted_cloud_opening_duration_secs else {
+                    return false;
+                };
+                duration >= *minimum_duration_secs
+            }
+            TriggerType::CloudCoverThreshold {
+                max_percent,
+                duration_secs,
+            } => {
+                // Wave 5 Agent 4: fire when the current cloud cover has been
+                // above `max_percent` for at least `duration_secs` consecutive
+                // seconds. The debounce is implemented via the per-trigger
+                // `cloud_cover_above_threshold_since` timestamp so multiple
+                // CloudCoverThreshold triggers with different thresholds
+                // (e.g. 50% warn / 80% park) debounce independently.
+                let Some(coverage) = state.current_cloud_coverage_percent else {
+                    // No data => reset our debounce timer so a stale arming
+                    // from a previous reading does not fire.
+                    self.cloud_cover_above_threshold_since = None;
+                    return false;
+                };
+                if coverage <= *max_percent {
+                    self.cloud_cover_above_threshold_since = None;
+                    return false;
+                }
+                // We are above threshold. Arm the debounce timer on the
+                // first crossing and check elapsed on subsequent samples.
+                let since = *self
+                    .cloud_cover_above_threshold_since
+                    .get_or_insert_with(Instant::now);
+                since.elapsed().as_secs_f64() >= *duration_secs
+            }
+            TriggerType::TransparencyDropped {
+                below_threshold,
+                duration_secs,
+            } => {
+                // Wave 7 Science: fire when the live transparency reading
+                // has been at or below `below_threshold` for at least
+                // `duration_secs` consecutive seconds. Same debounce
+                // pattern as `CloudCoverThreshold` so multiple triggers
+                // (e.g. 0.7 warn / 0.4 swap) debounce independently.
+                let Some(transparency) = state.current_transparency else {
+                    // No data => reset our debounce timer so a stale
+                    // arming from a previous reading does not fire.
+                    self.transparency_below_threshold_since = None;
+                    return false;
+                };
+                if transparency > *below_threshold {
+                    self.transparency_below_threshold_since = None;
+                    return false;
+                }
+                let since = *self
+                    .transparency_below_threshold_since
+                    .get_or_insert_with(Instant::now);
+                since.elapsed().as_secs_f64() >= *duration_secs
             }
         };
 
@@ -829,6 +946,55 @@ pub struct TriggerState {
     /// Current position index in the NxN grid dither pattern (0-based).
     /// Incremented after each dither, wraps around to 0 after grid_size*grid_size.
     pub grid_dither_index: u32,
+
+    // ---------------------------------------------------------------------
+    // Wave 5 Agent 4 — Cloud-motion telemetry.
+    //
+    // Fed by `ExecutorCommand::UpdateCloudMotion` which the Dart side
+    // pushes from the live `cloudMotionAnalyzerProvider` (currently every
+    // 60 seconds). All fields are `Option` because the analyzer may not
+    // yet have enough radar history; an absent field disables the
+    // corresponding trigger evaluation rather than firing spuriously.
+    // ---------------------------------------------------------------------
+    /// Current cloud coverage percentage (0-100). Source: Dart
+    /// `cloudCoverPercentageProvider` (Open-Meteo) merged with analyzer.
+    pub current_cloud_coverage_percent: Option<f64>,
+    /// Predicted minutes until significant clouds reach the user location.
+    /// `Some(n)` when the analyzer reports an approaching cloud bank;
+    /// `None` when clouds are absent, stationary, or moving away.
+    pub predicted_cloud_arrival_minutes: Option<f64>,
+    /// Predicted minutes until a clear opening (gap in the cloud field)
+    /// reaches the user. `Some(n)` while currently overcast and a hole
+    /// is approaching; `None` when no opening is predicted.
+    pub predicted_cloud_opening_minutes: Option<f64>,
+    /// Predicted opening duration in seconds. Pairs with
+    /// `predicted_cloud_opening_minutes`; the `CloudOpeningIn` trigger
+    /// rejects openings shorter than the user's `minimum_duration_secs`.
+    pub predicted_cloud_opening_duration_secs: Option<f64>,
+    /// (alt, az) of a clear-sky direction reported by the analyzer. Used
+    /// by `RecoveryAction::SlewToGapAndContinue` to choose where to
+    /// re-point. `None` => no usable gap; the recovery action falls
+    /// back to `PauseAndWaitForClear`.
+    pub predicted_clear_sky_direction: Option<(f64, f64)>,
+    /// Most recent timestamp at which we received a cloud-motion update.
+    /// Surfaced to the run dashboard so the operator can tell whether the
+    /// telemetry is fresh; also used by validation to flag stale data.
+    pub cloud_motion_last_update: Option<Instant>,
+
+    // ---------------------------------------------------------------------
+    // Wave 7 Science — Sky transparency telemetry.
+    //
+    // Fed by `ExecutorCommand::UpdateTransparency` which the Dart science
+    // pipeline pushes whenever the transparency sampler produces a new
+    // reading. `None` until the science pipeline has a first sample;
+    // `Some(fraction)` carries the live 0.0..=1.0 transparency reading.
+    // ---------------------------------------------------------------------
+    /// Live transparency reading (0.0..=1.0; 1.0 = clear). Consumed by
+    /// `TransparencyDropped`.
+    pub current_transparency: Option<f64>,
+    /// Most recent timestamp at which we received a transparency update.
+    /// Surfaced to the run dashboard for staleness checks.
+    pub transparency_last_update: Option<Instant>,
 }
 
 impl Default for TriggerState {
@@ -881,6 +1047,18 @@ impl Default for TriggerState {
             dome_shutter_status: None,
             dome_shutter_open_expected: false,
             grid_dither_index: 0,
+            // Wave 5 Agent 4 — cloud-motion telemetry. All None until Dart
+            // pushes the first `UpdateCloudMotion`.
+            current_cloud_coverage_percent: None,
+            predicted_cloud_arrival_minutes: None,
+            predicted_cloud_opening_minutes: None,
+            predicted_cloud_opening_duration_secs: None,
+            predicted_clear_sky_direction: None,
+            cloud_motion_last_update: None,
+            // Wave 7 Science — transparency telemetry. Both None until the
+            // Dart science pipeline pushes the first `UpdateTransparency`.
+            current_transparency: None,
+            transparency_last_update: None,
         }
     }
 }
@@ -1038,8 +1216,73 @@ impl TriggerState {
     }
 
     /// Update current humidity reading
+    /// Wave 5 Agent 4 — push the latest cloud-motion analyzer reading into
+    /// the trigger state. Called from the executor when a Dart-side
+    /// `UpdateCloudMotion` command arrives. Every argument is optional so the
+    /// caller can express "analyzer says no arrival predicted" by passing
+    /// `predicted_arrival_minutes: None`.
+    ///
+    /// `current_cover_percent` outside `[0, 100]` is clamped, but the original
+    /// out-of-range value is logged at WARN so a buggy data source is loud
+    /// (CLAUDE.md "errors are a feature"). NaN / inf flow through `.filter`
+    /// — they would have been treated as "fire" by the comparison operators
+    /// otherwise, which is exactly the silent-fallback bug we forbid.
+    pub fn update_cloud_motion(
+        &mut self,
+        current_cover_percent: Option<f64>,
+        predicted_arrival_minutes: Option<f64>,
+        predicted_opening_minutes: Option<f64>,
+        predicted_opening_duration_secs: Option<f64>,
+        predicted_clear_sky_alt_az: Option<(f64, f64)>,
+    ) {
+        let sanitize_finite = |v: Option<f64>| v.filter(|x| x.is_finite());
+
+        let cover = sanitize_finite(current_cover_percent).map(|v| {
+            if !(0.0..=100.0).contains(&v) {
+                tracing::warn!(
+                    "update_cloud_motion: cover {:.2}% out of [0,100]; clamping",
+                    v
+                );
+                v.clamp(0.0, 100.0)
+            } else {
+                v
+            }
+        });
+
+        // Negative predicted minutes are clamped to 0 ("any second now") because
+        // the user's intent for "fire within N minutes" still applies: if the
+        // analyzer says "-2 minutes" the cloud is already arriving.
+        let arrival = sanitize_finite(predicted_arrival_minutes).map(|v| v.max(0.0));
+        let opening = sanitize_finite(predicted_opening_minutes).map(|v| v.max(0.0));
+        let duration = sanitize_finite(predicted_opening_duration_secs).map(|v| v.max(0.0));
+
+        self.current_cloud_coverage_percent = cover;
+        self.predicted_cloud_arrival_minutes = arrival;
+        self.predicted_cloud_opening_minutes = opening;
+        self.predicted_cloud_opening_duration_secs = duration;
+        self.predicted_clear_sky_direction = predicted_clear_sky_alt_az;
+        self.cloud_motion_last_update = Some(Instant::now());
+    }
+
     pub fn update_humidity(&mut self, humidity: f64) {
         self.current_humidity = Some(humidity);
+    }
+
+    /// Wave 7 Science: store the latest transparency reading. `None`
+    /// clears the slot (used when the science pipeline loses lock).
+    /// NaN / infinite values are dropped via `is_finite` rather than
+    /// silently stored — CLAUDE.md "errors are a feature".
+    pub fn update_transparency(&mut self, transparency: Option<f64>) {
+        let sanitised = transparency.filter(|v| v.is_finite()).map(|v| {
+            if !(0.0..=1.5).contains(&v) {
+                tracing::warn!("update_transparency: {:.3} out of [0,1.5]; clamping", v);
+                v.clamp(0.0, 1.5)
+            } else {
+                v
+            }
+        });
+        self.current_transparency = sanitised;
+        self.transparency_last_update = Some(Instant::now());
     }
 
     /// Set mount tracking expected state
@@ -2678,5 +2921,360 @@ mod tests {
             guard.guiding_rms_retention_secs, 600,
             "sync_state_from_config must push rms_retention_secs into TriggerState"
         );
+    }
+
+    // =========================================================================
+    // Wave 5 Agent 4 — cloud-motion-aware trigger tests
+    // =========================================================================
+
+    /// CloudArrivingIn fires when both the arrival-time AND coverage gates
+    /// are satisfied. Without coverage data the trigger stays quiescent.
+    #[tokio::test]
+    async fn wave_5_cloud_arriving_in_fires_when_both_gates_satisfied() {
+        let mut trigger = Trigger::new(
+            "test_cloud_arriving",
+            "Test Cloud Arriving",
+            TriggerType::CloudArrivingIn {
+                minutes_before: 10.0,
+                coverage_threshold: 70.0,
+            },
+            RecoveryAction::PauseAndWaitForClear,
+        );
+        let mut state = TriggerState::new();
+
+        // No data => no fire.
+        assert!(!trigger.check(&state).await);
+
+        // Far away clouds (30 min) but high coverage => no fire (time gate).
+        state.update_cloud_motion(Some(80.0), Some(30.0), None, None, None);
+        assert!(!trigger.check(&state).await);
+
+        // Reset & close clouds but low coverage => no fire (coverage gate).
+        let mut trigger2 = Trigger::new(
+            "test_cloud_arriving_2",
+            "Test Cloud Arriving 2",
+            TriggerType::CloudArrivingIn {
+                minutes_before: 10.0,
+                coverage_threshold: 70.0,
+            },
+            RecoveryAction::PauseAndWaitForClear,
+        );
+        let mut state2 = TriggerState::new();
+        state2.update_cloud_motion(Some(50.0), Some(8.0), None, None, None);
+        assert!(!trigger2.check(&state2).await);
+
+        // Both gates satisfied => fire.
+        let mut trigger3 = Trigger::new(
+            "test_cloud_arriving_3",
+            "Test Cloud Arriving 3",
+            TriggerType::CloudArrivingIn {
+                minutes_before: 10.0,
+                coverage_threshold: 70.0,
+            },
+            RecoveryAction::PauseAndWaitForClear,
+        );
+        let mut state3 = TriggerState::new();
+        state3.update_cloud_motion(Some(85.0), Some(8.0), None, None, None);
+        assert!(trigger3.check(&state3).await);
+    }
+
+    /// CloudOpeningIn requires the opening to be both within the lead time
+    /// AND of at-least the configured minimum duration.
+    #[tokio::test]
+    async fn wave_5_cloud_opening_in_requires_lead_time_and_duration() {
+        let mut trigger = Trigger::new(
+            "test_cloud_opening",
+            "Test Cloud Opening",
+            TriggerType::CloudOpeningIn {
+                minutes_before: 5.0,
+                minimum_duration_secs: 300.0,
+            },
+            RecoveryAction::Continue,
+        );
+        let mut state = TriggerState::new();
+
+        // No data => no fire.
+        assert!(!trigger.check(&state).await);
+
+        // Opening in 10 min (too far) but 600s duration => no fire.
+        state.update_cloud_motion(Some(80.0), None, Some(10.0), Some(600.0), None);
+        assert!(!trigger.check(&state).await);
+
+        // Reset & opening in 3 min but 100s duration (too short) => no fire.
+        let mut trigger2 = Trigger::new(
+            "test_cloud_opening_2",
+            "Test Cloud Opening 2",
+            TriggerType::CloudOpeningIn {
+                minutes_before: 5.0,
+                minimum_duration_secs: 300.0,
+            },
+            RecoveryAction::Continue,
+        );
+        let mut state2 = TriggerState::new();
+        state2.update_cloud_motion(Some(80.0), None, Some(3.0), Some(100.0), None);
+        assert!(!trigger2.check(&state2).await);
+
+        // Both gates satisfied => fire.
+        let mut trigger3 = Trigger::new(
+            "test_cloud_opening_3",
+            "Test Cloud Opening 3",
+            TriggerType::CloudOpeningIn {
+                minutes_before: 5.0,
+                minimum_duration_secs: 300.0,
+            },
+            RecoveryAction::Continue,
+        );
+        let mut state3 = TriggerState::new();
+        state3.update_cloud_motion(Some(80.0), None, Some(3.0), Some(600.0), None);
+        assert!(trigger3.check(&state3).await);
+
+        // Duration unknown => refuse to fire (CLAUDE.md silent-fallback rule).
+        let mut trigger4 = Trigger::new(
+            "test_cloud_opening_4",
+            "Test Cloud Opening 4",
+            TriggerType::CloudOpeningIn {
+                minutes_before: 5.0,
+                minimum_duration_secs: 300.0,
+            },
+            RecoveryAction::Continue,
+        );
+        let mut state4 = TriggerState::new();
+        state4.update_cloud_motion(Some(80.0), None, Some(3.0), None, None);
+        assert!(!trigger4.check(&state4).await);
+    }
+
+    /// CloudCoverThreshold honours the per-trigger debounce: a single sample
+    /// above the threshold does not fire until `duration_secs` has elapsed.
+    #[tokio::test]
+    async fn wave_5_cloud_cover_threshold_debounces() {
+        let mut trigger = Trigger::new(
+            "test_cover_threshold",
+            "Test Cover Threshold",
+            TriggerType::CloudCoverThreshold {
+                max_percent: 50.0,
+                duration_secs: 60.0,
+            },
+            RecoveryAction::Pause,
+        );
+        let mut state = TriggerState::new();
+
+        // Below threshold => no arm.
+        state.update_cloud_motion(Some(20.0), None, None, None, None);
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.cloud_cover_above_threshold_since.is_none());
+
+        // First above-threshold sample arms the debounce timer.
+        state.update_cloud_motion(Some(80.0), None, None, None, None);
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.cloud_cover_above_threshold_since.is_some());
+
+        // duration_secs=0 should fire immediately on the first sample.
+        let mut trigger_no_debounce = Trigger::new(
+            "test_cover_immediate",
+            "Test Cover Immediate",
+            TriggerType::CloudCoverThreshold {
+                max_percent: 50.0,
+                duration_secs: 0.0,
+            },
+            RecoveryAction::Pause,
+        );
+        let mut state2 = TriggerState::new();
+        state2.update_cloud_motion(Some(80.0), None, None, None, None);
+        assert!(trigger_no_debounce.check(&state2).await);
+    }
+
+    /// Cover dropping back below the threshold must reset the debounce
+    /// timer — otherwise a flapping cover would eventually fire after the
+    /// total elapsed time crossed the threshold.
+    #[tokio::test]
+    async fn wave_5_cloud_cover_threshold_resets_on_drop() {
+        let mut trigger = Trigger::new(
+            "test_cover_reset",
+            "Test Cover Reset",
+            TriggerType::CloudCoverThreshold {
+                max_percent: 50.0,
+                duration_secs: 60.0,
+            },
+            RecoveryAction::Pause,
+        );
+        let mut state = TriggerState::new();
+
+        // Above threshold arms.
+        state.update_cloud_motion(Some(80.0), None, None, None, None);
+        assert!(!trigger.check(&state).await);
+        let armed_at = trigger.cloud_cover_above_threshold_since;
+        assert!(armed_at.is_some());
+
+        // Drop below threshold clears the arm.
+        state.update_cloud_motion(Some(20.0), None, None, None, None);
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.cloud_cover_above_threshold_since.is_none());
+    }
+
+    /// Trigger respects the per-Trigger cooldown after firing.
+    #[tokio::test]
+    async fn wave_5_cloud_arriving_respects_cooldown() {
+        let mut trigger = Trigger::new(
+            "test_cooldown",
+            "Test Cooldown",
+            TriggerType::CloudArrivingIn {
+                minutes_before: 10.0,
+                coverage_threshold: 70.0,
+            },
+            RecoveryAction::PauseAndWaitForClear,
+        )
+        .with_cooldown(60);
+        let mut state = TriggerState::new();
+        state.update_cloud_motion(Some(85.0), Some(8.0), None, None, None);
+        assert!(trigger.check(&state).await);
+        // Cooldown should suppress the second fire.
+        assert!(!trigger.check(&state).await);
+    }
+
+    /// `update_cloud_motion` rejects NaN / Inf and clamps cover to [0,100].
+    #[tokio::test]
+    async fn wave_5_update_cloud_motion_sanitises_inputs() {
+        let mut state = TriggerState::new();
+        state.update_cloud_motion(Some(150.0), Some(-5.0), None, None, None);
+        assert_eq!(state.current_cloud_coverage_percent, Some(100.0));
+        assert_eq!(state.predicted_cloud_arrival_minutes, Some(0.0));
+
+        state.update_cloud_motion(Some(f64::NAN), Some(f64::INFINITY), None, None, None);
+        assert_eq!(
+            state.current_cloud_coverage_percent, None,
+            "NaN cover must produce None"
+        );
+        assert_eq!(
+            state.predicted_cloud_arrival_minutes, None,
+            "Inf arrival must produce None"
+        );
+    }
+
+    /// JSON round-trip for the three new TriggerType variants.
+    #[test]
+    fn wave_5_cloud_trigger_types_round_trip_through_serde() {
+        for original in [
+            TriggerType::CloudArrivingIn {
+                minutes_before: 12.5,
+                coverage_threshold: 65.0,
+            },
+            TriggerType::CloudOpeningIn {
+                minutes_before: 4.0,
+                minimum_duration_secs: 420.0,
+            },
+            TriggerType::CloudCoverThreshold {
+                max_percent: 75.0,
+                duration_secs: 30.0,
+            },
+        ] {
+            let json = serde_json::to_string(&original).expect("serialize");
+            let back: TriggerType = serde_json::from_str(&json).expect("deserialize");
+            // We compare via the round-tripped JSON because TriggerType
+            // doesn't implement PartialEq.
+            let back_json = serde_json::to_string(&back).expect("re-serialize");
+            assert_eq!(json, back_json, "trigger type JSON must round-trip");
+        }
+    }
+
+    /// JSON round-trip for the two new RecoveryAction variants.
+    #[test]
+    fn wave_5_cloud_recovery_actions_round_trip_through_serde() {
+        for original in [
+            RecoveryAction::PauseAndWaitForClear,
+            RecoveryAction::SlewToGapAndContinue,
+        ] {
+            let json = serde_json::to_string(&original).expect("serialize");
+            let back: RecoveryAction = serde_json::from_str(&json).expect("deserialize");
+            let back_json = serde_json::to_string(&back).expect("re-serialize");
+            assert_eq!(json, back_json, "recovery action JSON must round-trip");
+        }
+    }
+
+    // =============================================================
+    // Wave 7 Science — TransparencyDropped trigger tests.
+    // =============================================================
+
+    #[tokio::test]
+    async fn wave_7_transparency_dropped_fires_below_threshold_immediately() {
+        let mut trigger = Trigger::new(
+            "test_transparency_immediate",
+            "Test Transparency Immediate",
+            TriggerType::TransparencyDropped {
+                below_threshold: 0.7,
+                // duration_secs = 0.0 => fire on the first sample below
+                // threshold (matches `CloudCoverThreshold` semantics).
+                duration_secs: 0.0,
+            },
+            RecoveryAction::SwitchTargetOrFilter,
+        );
+        let mut state = TriggerState::new();
+
+        // Above threshold => no fire, no arm.
+        state.update_transparency(Some(0.95));
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.transparency_below_threshold_since.is_none());
+
+        // Below threshold + duration=0 => fires immediately.
+        state.update_transparency(Some(0.5));
+        assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn wave_7_transparency_dropped_debounces() {
+        let mut trigger = Trigger::new(
+            "test_transparency_debounce",
+            "Test Transparency Debounce",
+            TriggerType::TransparencyDropped {
+                below_threshold: 0.7,
+                duration_secs: 60.0,
+            },
+            RecoveryAction::SwitchTargetOrFilter,
+        );
+        let mut state = TriggerState::new();
+
+        // First below-threshold sample arms but does NOT fire.
+        state.update_transparency(Some(0.5));
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.transparency_below_threshold_since.is_some());
+
+        // Drop back above threshold => arm cleared, no fire.
+        state.update_transparency(Some(0.9));
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.transparency_below_threshold_since.is_none());
+    }
+
+    #[tokio::test]
+    async fn wave_7_transparency_dropped_handles_missing_data() {
+        let mut trigger = Trigger::new(
+            "test_transparency_no_data",
+            "Test Transparency No Data",
+            TriggerType::TransparencyDropped {
+                below_threshold: 0.7,
+                duration_secs: 0.0,
+            },
+            RecoveryAction::SwitchTargetOrFilter,
+        );
+        let mut state = TriggerState::new();
+
+        // No transparency telemetry yet — must NOT fire (CLAUDE.md "no
+        // silent fallbacks": absent data is not a trigger condition).
+        assert!(!trigger.check(&state).await);
+        assert!(trigger.transparency_below_threshold_since.is_none());
+
+        // After Dart pushes None (lock lost), still no fire.
+        state.update_transparency(None);
+        assert!(!trigger.check(&state).await);
+    }
+
+    #[test]
+    fn wave_7_update_transparency_drops_non_finite() {
+        let mut state = TriggerState::new();
+        state.update_transparency(Some(f64::NAN));
+        assert_eq!(state.current_transparency, None);
+        state.update_transparency(Some(f64::INFINITY));
+        assert_eq!(state.current_transparency, None);
+        // Valid values flow through.
+        state.update_transparency(Some(0.6));
+        assert_eq!(state.current_transparency, Some(0.6));
     }
 }

@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
@@ -268,33 +270,81 @@ void main() {
     });
   });
 
-  group('ImageOutputPathRule', () {
-    test('fires when no output path is configured and exposures exist',
+  group('ImageOutputPathRule (P0-7)', () {
+    test('fires ERROR when no output path is configured and exposures exist',
         () async {
+      // P0-7 — empty path must hard-block sequence start. Pre-P0-7 this
+      // was only a warning so the start handler ignored it; the Rust
+      // sequencer would then either fail to write or land frames in
+      // the working directory with no operator signal.
       final container = _container(imageOutputPath: '');
       // Force settings to load
       await container.read(appSettingsProvider.future);
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([ExposureNode()]);
-      final issues = _withRef(container, (ref) => rule.validate(s, ValidationContext(ref)));
-      expect(issues.single.title, 'No Image Save Path');
-      expect(issues.single.severity, ValidationSeverity.warning);
+      final issues = _withRef(
+          container, (ref) => rule.validate(s, ValidationContext(ref)));
+      expect(issues.single.title, 'Image Output Path Not Configured');
+      expect(issues.single.severity, ValidationSeverity.error);
     });
 
-    test('clean when output path is configured', () async {
-      final container = _container(imageOutputPath: '/tmp/out');
+    test('fires ERROR for whitespace-only output path', () async {
+      final container = _container(imageOutputPath: '   \t  ');
       await container.read(appSettingsProvider.future);
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([ExposureNode()]);
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      final issues = _withRef(
+          container, (ref) => rule.validate(s, ValidationContext(ref)));
+      expect(issues.single.title, 'Image Output Path Not Configured');
+      expect(issues.single.severity, ValidationSeverity.error);
+    });
+
+    test('fires ERROR when output directory does not exist', () async {
+      // Pick a path that definitely cannot exist — appending a random
+      // suffix under tempdir without creating it.
+      final missingDir = '${Directory.systemTemp.path}'
+          '${Platform.pathSeparator}nightshade_does_not_exist_'
+          '${DateTime.now().microsecondsSinceEpoch}';
+      final container = _container(imageOutputPath: missingDir);
+      await container.read(appSettingsProvider.future);
+      final rule = ImageOutputPathRule();
+      final s = _sequenceWith([ExposureNode()]);
+      final issues = _withRef(
+          container, (ref) => rule.validate(s, ValidationContext(ref)));
+      expect(issues.single.title, 'Image Output Path Missing');
+      expect(issues.single.severity, ValidationSeverity.error);
+      expect(issues.single.description, contains(missingDir));
+    });
+
+    test('clean when output directory exists and is writable', () async {
+      final tempDir = await Directory.systemTemp
+          .createTemp('nightshade_imageoutput_ok_');
+      addTearDown(() async {
+        try {
+          await tempDir.delete(recursive: true);
+        } catch (_) {}
+      });
+      final container = _container(imageOutputPath: tempDir.path);
+      await container.read(appSettingsProvider.future);
+      final rule = ImageOutputPathRule();
+      final s = _sequenceWith([ExposureNode()]);
+      expect(
+          _withRef(container,
+              (ref) => rule.validate(s, ValidationContext(ref))),
+          isEmpty);
     });
 
     test('skips check when sequence has no enabled exposures', () async {
+      // Even with an empty path, a sequence that doesn't capture (e.g.
+      // a pure slew test) should pass — no images means no save target.
       final container = _container(imageOutputPath: '');
       await container.read(appSettingsProvider.future);
       final rule = ImageOutputPathRule();
       final s = _sequenceWith([SlewNode(useTargetCoords: true)]);
-      expect(_withRef(container, (ref) => rule.validate(s, ValidationContext(ref))), isEmpty);
+      expect(
+          _withRef(container,
+              (ref) => rule.validate(s, ValidationContext(ref))),
+          isEmpty);
     });
   });
 

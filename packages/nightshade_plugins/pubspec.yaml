@@ -11,6 +11,11 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^2.5.1
   path: ^1.8.3
+  # Wave 6 plugin examples (Pushover, Discord, Home Assistant) POST to
+  # external HTTP services. Production-grade error handling lives in each
+  # plugin; the http package is the lowest-common-denominator HTTP client
+  # already used elsewhere in the workspace.
+  http: ^1.2.0
 
 dev_dependencies:
   flutter_test:

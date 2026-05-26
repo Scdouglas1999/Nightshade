@@ -40,13 +40,16 @@ class StretchControls extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final settings = ref.watch(autoStretchSettingsProvider);
+    final rawLoading =
+        ref.watch(currentImageProvider)?.rawLoadStatus == RawLoadStatus.loading;
 
     if (compact) {
       return _CompactStretchControls(
         settings: settings,
         colors: colors,
+        rawLoading: rawLoading,
         onSettingsChanged: (newSettings) {
           ref.read(autoStretchSettingsProvider.notifier).update(newSettings);
         },
@@ -67,11 +70,13 @@ class StretchControls extends ConsumerWidget {
 class _CompactStretchControls extends StatelessWidget {
   final AutoStretchSettings settings;
   final NightshadeColors colors;
+  final bool rawLoading;
   final ValueChanged<AutoStretchSettings> onSettingsChanged;
 
   const _CompactStretchControls({
     required this.settings,
     required this.colors,
+    required this.rawLoading,
     required this.onSettingsChanged,
   });
 
@@ -93,29 +98,23 @@ class _CompactStretchControls extends StatelessWidget {
       children: [
         // Toggle switch with label
         NightshadeTooltip(
-          message:
-              'Enable auto-stretch to enhance faint details in linear data',
+          message: rawLoading
+              ? 'Loading HQ raw — stretch will apply when ready'
+              : 'Enable auto-stretch to enhance faint details in linear data',
           position: NightshadeTooltipPosition.bottom,
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'Stretch',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: settings.enabled
-                      ? colors.textPrimary
-                      : colors.textSecondary,
-                ),
-              ),
-              const SizedBox(width: 8),
-              NightshadeSwitch(
-                value: settings.enabled,
-                onChanged: (value) {
-                  onSettingsChanged(settings.copyWith(enabled: value));
-                },
-              ),
-            ],
+          child: NightshadeSwitchRow(
+            label: rawLoading ? 'Stretch (HQ…)' : 'Stretch',
+            expanded: false,
+            compact: true,
+            value: settings.enabled,
+            labelStyle: TextStyle(
+              fontSize: 12,
+              color:
+                  settings.enabled ? colors.textPrimary : colors.textSecondary,
+            ),
+            onChanged: (value) {
+              onSettingsChanged(settings.copyWith(enabled: value));
+            },
           ),
         ),
 
@@ -174,24 +173,17 @@ class _ExpandedStretchControls extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       children: [
         // Enable toggle and method selection
-        Row(
-          children: [
-            Text(
-              'Auto-Stretch',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            const Spacer(),
-            NightshadeSwitch(
-              value: settings.enabled,
-              onChanged: (value) {
-                onSettingsChanged(settings.copyWith(enabled: value));
-              },
-            ),
-          ],
+        NightshadeSwitchRow(
+          label: 'Auto-Stretch',
+          value: settings.enabled,
+          labelStyle: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: colors.textPrimary,
+          ),
+          onChanged: (value) {
+            onSettingsChanged(settings.copyWith(enabled: value));
+          },
         ),
 
         const SizedBox(height: 16),
@@ -277,21 +269,18 @@ class _ExpandedStretchControls extends StatelessWidget {
         const SizedBox(height: 12),
 
         // Linked channels toggle
-        _SettingRow(
+        NightshadeSwitchRow(
           label: 'Linked Channels',
           tooltip:
               'When enabled, uses the same stretch for all RGB channels to preserve color balance. '
               'Disable for independent channel stretching.',
-          colors: colors,
-          child: NightshadeSwitch(
-            value: settings.linkedChannels,
-            enabled: settings.enabled,
-            onChanged: settings.enabled
-                ? (value) {
-                    onSettingsChanged(settings.copyWith(linkedChannels: value));
-                  }
-                : null,
-          ),
+          value: settings.linkedChannels,
+          enabled: settings.enabled,
+          onChanged: settings.enabled
+              ? (value) {
+                  onSettingsChanged(settings.copyWith(linkedChannels: value));
+                }
+              : null,
         ),
 
         // Gamma value slider (only shown for gamma method)
@@ -397,98 +386,58 @@ class _StretchSettingsDialogState extends State<_StretchSettingsDialog> {
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      backgroundColor: widget.colors.surface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: widget.colors.border),
-      ),
+    final colors = context.nightshadeColors;
+
+    return NightshadeDialog(
+      title: 'Auto-Stretch Settings',
+      icon: LucideIcons.sliders,
+      width: 420,
+      onClose: _close,
+      scrollableBody: false,
+      actions: [
+        NightshadeButton(
+          label: 'Close',
+          variant: ButtonVariant.ghost,
+          onPressed: _close,
+        ),
+        NightshadeButton(
+          label: 'Apply',
+          variant: ButtonVariant.primary,
+          onPressed: _hasChanges ? _apply : null,
+        ),
+      ],
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400),
-        child: Padding(
-          padding: const EdgeInsets.all(20),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Icon(
-                    LucideIcons.sliders,
-                    size: 20,
-                    color: widget.colors.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'Auto-Stretch Settings',
-                    style: TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
-                      color: widget.colors.textPrimary,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    icon: Icon(
-                      LucideIcons.x,
-                      size: 18,
-                      color: widget.colors.textSecondary,
-                    ),
-                    // Header X behaves like Close: discard local edits.
-                    onPressed: _close,
-                    splashRadius: 16,
-                  ),
-                ],
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 400,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Configure how auto-stretch processes your images',
+              style: NightshadeTypography.bodySm.copyWith(
+                color: colors.textMuted,
               ),
+            ),
 
-              const SizedBox(height: 4),
+            const SizedBox(height: NightshadeTokens.spaceLg),
 
-              Text(
-                'Configure how auto-stretch processes your images',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: widget.colors.textMuted,
-                ),
-              ),
+            Divider(color: colors.border, height: 1),
 
-              const SizedBox(height: 20),
+            const SizedBox(height: NightshadeTokens.spaceLg),
 
-              Divider(color: widget.colors.border, height: 1),
+            // Expanded controls — these mutate local state only; the
+            // provider isn't updated until the user presses Apply.
+            _ExpandedStretchControls(
+              settings: _localSettings,
+              colors: colors,
+              onSettingsChanged: _updateLocalSettings,
+            ),
 
-              const SizedBox(height: 20),
-
-              // Expanded controls — these mutate local state only; the
-              // provider isn't updated until the user presses Apply.
-              _ExpandedStretchControls(
-                settings: _localSettings,
-                colors: widget.colors,
-                onSettingsChanged: _updateLocalSettings,
-              ),
-
-              const SizedBox(height: 20),
-
-              // Footer: explicit Close + Apply (audit §4.11). Apply is
-              // disabled when there's nothing to commit so users can tell
-              // at a glance whether they have unsaved edits.
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  NightshadeButton(
-                    label: 'Close',
-                    variant: ButtonVariant.ghost,
-                    onPressed: _close,
-                  ),
-                  const SizedBox(width: 8),
-                  NightshadeButton(
-                    label: 'Apply',
-                    variant: ButtonVariant.primary,
-                    onPressed: _hasChanges ? _apply : null,
-                  ),
-                ],
-              ),
-            ],
-          ),
+            // Footer: explicit Close + Apply (audit §4.11). Apply is
+          ],
         ),
       ),
     );

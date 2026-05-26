@@ -12,6 +12,7 @@ import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/providers/sequence_provider.dart';
 import 'package:nightshade_core/src/models/sequence/sequence_models.dart';
+import 'package:nightshade_core/src/services/device_exceptions.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
@@ -39,6 +40,14 @@ void main() {
         .thenAnswer((_) => eventStreamController.stream);
     when(() => mockBackend.polarAlignmentEvents)
         .thenAnswer((_) => const Stream.empty());
+    when(() => mockBackend.getConnectedDevices()).thenAnswer((_) async => []);
+
+    // IMG-P3-2: default to "SDK reports nothing" so existing tests that do
+    // not care about auto-detect behavior do not hit unstubbed-call errors.
+    // Specific tests below override this to assert recommendation handling.
+    when(() => mockBackend.cameraGetRecommendedSettings(any())).thenAnswer(
+      (_) async => const CameraRecommendedSettings(notes: ''),
+    );
 
     container = ProviderContainer(
       overrides: [
@@ -220,21 +229,28 @@ void main() {
       expect(state.dec, 45.0);
     });
 
-    test('connectMount throws and resets state when device not found',
+    test(
+        'connectMount throws InvalidDeviceIdException when id is malformed',
         () async {
+      // DEV-P1-7: connect methods no longer do a precondition discovery
+      // sweep. A malformed id (no recognized driver prefix) is rejected
+      // up front with a typed exception so callers can distinguish "bad
+      // input" from "backend rejected the connect attempt".
       const deviceId = 'nonexistent-mount';
-
-      when(() => mockBackend.discoverDevices(DeviceType.mount))
-          .thenAnswer((_) async => []);
 
       final service = container.read(deviceServiceProvider);
       await expectLater(
         service.connectMount(deviceId),
-        throwsA(isA<Exception>()),
+        throwsA(isA<InvalidDeviceIdException>()
+            .having((e) => e.deviceType, 'deviceType', 'mount')
+            .having((e) => e.deviceId, 'deviceId', deviceId)),
       );
 
+      // State must remain disconnected; the connect attempt never reached
+      // the backend.
       final state = container.read(mountStateProvider);
       expect(state.connectionState, DeviceConnectionState.disconnected);
+      verifyNever(() => mockBackend.connectDevice(DeviceType.mount, any()));
     });
   });
 
@@ -687,8 +703,9 @@ void main() {
 
     test('stale temperature poll result is ignored after camera switch',
         () async {
-      const firstDeviceId = 'camera-1';
-      const secondDeviceId = 'camera-2';
+      // DEV-P1-7: ids must match a known driver prefix; use simulator:.
+      const firstDeviceId = 'simulator:camera-1';
+      const secondDeviceId = 'simulator:camera-2';
       final firstPoll = Completer<CameraStatus>();
 
       when(() => mockBackend.discoverDevices(DeviceType.camera))
@@ -801,6 +818,207 @@ void main() {
       // is disabled. The connect call would require discoverDevices, so
       // verify it was never called for a camera reconnection.
       verifyNever(() => mockBackend.connectDevice(DeviceType.camera, any()));
+    });
+
+    // -------------------------------------------------------------------------
+    // DEV-P1-1: auto-reconnect plumbed through every device type.
+    //
+    // Before DEV-P1-1, only [DeviceType.camera] honored the toggle. Mount,
+    // focuser, etc. silently reconnected regardless of user preference.
+    // These regression tests pin every device type's behavior:
+    //   - default is `true` so we never silently disable for upgraders;
+    //   - flipping `setAutoReconnect(false)` actually short-circuits the
+    //     reconnect path so the user can opt out.
+    //
+    // The reconnect path schedules a 5s+ backoff Timer which is too slow
+    // to drive synchronously in CI, so we assert the boolean wiring + the
+    // negative case (no backend call) rather than waiting for a positive
+    // call. The positive case is covered by the existing camera reconnect
+    // test above which exercises the same _attemptReconnect entrypoint.
+    // -------------------------------------------------------------------------
+
+    test('mount auto-reconnect defaults to true', () {
+      final state = container.read(mountStateProvider);
+      expect(state.autoReconnectEnabled, isTrue);
+    });
+
+    test('mount setAutoReconnect(false) flips the flag', () {
+      final notifier = container.read(mountStateProvider.notifier);
+      notifier.setAutoReconnect(false);
+      expect(container.read(mountStateProvider).autoReconnectEnabled, isFalse);
+    });
+
+    test(
+        'mount disconnect event with autoReconnect=false does NOT attempt reconnect',
+        () async {
+      final mountNotifier = container.read(mountStateProvider.notifier);
+      mountNotifier.setConnecting('mount-1', 'Test Mount');
+      mountNotifier.setConnected();
+      mountNotifier.setAutoReconnect(false);
+
+      eventStreamController.add(NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.warning,
+        category: EventCategory.equipment,
+        eventType: 'Disconnected',
+        data: {
+          'device_type': 'mount',
+          'device_id': 'mount-1',
+        },
+      ));
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      // State should be disconnected (autoReconnectEnabled preserved through
+      // setDisconnected so the user's "off" choice survives the drop).
+      final mountState = container.read(mountStateProvider);
+      expect(mountState.connectionState, DeviceConnectionState.disconnected);
+      expect(mountState.autoReconnectEnabled, isFalse);
+
+      // Critically: no reconnect attempt should have been queued. With the
+      // flag honored, _attemptReconnect short-circuits before scheduling
+      // its 5s timer, so the backend should never see a connect call.
+      verifyNever(() => mockBackend.connectDevice(DeviceType.mount, any()));
+    });
+
+    test(
+        'mount disconnect event with default autoReconnect=true DOES schedule reconnect',
+        () async {
+      // Stub the connectDevice call so the eventual reconnect attempt
+      // doesn't blow up the test. We use FakeAsync to fast-forward the
+      // 5s backoff so we can observe that the reconnect path actually
+      // tried to connect.
+      // DEV-P1-7: device ids must match a known prefix to pass the format
+      // check inside connectMount. Use `simulator:` so the reconnect path
+      // reaches the backend.
+      const mount2 = 'simulator:mount-2';
+      when(() => mockBackend.connectDevice(DeviceType.mount, any()))
+          .thenAnswer((_) async {});
+      when(() => mockBackend.getMountStatus(any())).thenAnswer(
+        (_) async => const MountStatus(
+          connected: true,
+          tracking: true,
+          slewing: false,
+          parked: false,
+          atHome: false,
+          sideOfPier: PierSide.east,
+          rightAscension: 0.0,
+          declination: 0.0,
+          altitude: 0.0,
+          azimuth: 0.0,
+          siderealTime: 0.0,
+          trackingRate: TrackingRate.sidereal,
+          canPark: true,
+          canSlew: true,
+          canSync: true,
+          canPulseGuide: true,
+          canSetTrackingRate: true,
+        ),
+      );
+      when(() => mockBackend.startDeviceHeartbeat(
+            deviceType: any(named: 'deviceType'),
+            deviceId: any(named: 'deviceId'),
+            intervalMs: any(named: 'intervalMs'),
+          )).thenAnswer((_) async {});
+
+      final mountNotifier = container.read(mountStateProvider.notifier);
+      mountNotifier.setConnecting(mount2, 'Test Mount');
+      mountNotifier.setConnected();
+      // Leave autoReconnectEnabled at its default (true). Sanity check:
+      expect(
+        container.read(mountStateProvider).autoReconnectEnabled,
+        isTrue,
+      );
+
+      eventStreamController.add(NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.warning,
+        category: EventCategory.equipment,
+        eventType: 'Disconnected',
+        data: {
+          'device_type': 'mount',
+          'device_id': mount2,
+        },
+      ));
+
+      // Wait long enough for the first backoff (5s) to elapse. Real time
+      // because the disconnect event is async and DeviceService uses a
+      // real Timer. We bump to 6s to be safe.
+      await Future.delayed(const Duration(seconds: 6));
+
+      // The reconnect path went through _performReconnection → mount
+      // notifier.connect → deviceService.connectMount → backend. If the
+      // flag was ignored or short-circuited, this call would never fire.
+      verify(() => mockBackend.connectDevice(DeviceType.mount, mount2))
+          .called(greaterThanOrEqualTo(1));
+    }, timeout: const Timeout(Duration(seconds: 30)));
+
+    test('focuser auto-reconnect defaults to true', () {
+      final state = container.read(focuserStateProvider);
+      expect(state.autoReconnectEnabled, isTrue);
+    });
+
+    test('focuser setAutoReconnect(false) flips the flag', () {
+      final notifier = container.read(focuserStateProvider.notifier);
+      notifier.setAutoReconnect(false);
+      expect(
+          container.read(focuserStateProvider).autoReconnectEnabled, isFalse);
+    });
+
+    test(
+        'focuser disconnect event with autoReconnect=false does NOT attempt reconnect',
+        () async {
+      final focuserNotifier = container.read(focuserStateProvider.notifier);
+      focuserNotifier.setConnecting('focuser-1', 'Test Focuser');
+      focuserNotifier.setConnected();
+      focuserNotifier.setAutoReconnect(false);
+
+      eventStreamController.add(NightshadeEvent(
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+        severity: EventSeverity.warning,
+        category: EventCategory.equipment,
+        eventType: 'Disconnected',
+        data: {
+          'device_type': 'focuser',
+          'device_id': 'focuser-1',
+        },
+      ));
+
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      final focuserState = container.read(focuserStateProvider);
+      expect(focuserState.connectionState, DeviceConnectionState.disconnected);
+      // Preference survives the disconnect; we don't silently flip back
+      // to "true" the moment the drop happens.
+      expect(focuserState.autoReconnectEnabled, isFalse);
+
+      verifyNever(() => mockBackend.connectDevice(DeviceType.focuser, any()));
+    });
+
+    test('setDisconnected preserves autoReconnectEnabled across drops', () {
+      // Regression test: the original camera implementation reset the
+      // entire snapshot, silently flipping autoReconnectEnabled back to
+      // true on every disconnect. We now preserve it for every device
+      // type so the toggle remains a stable user preference.
+      final mountNotifier = container.read(mountStateProvider.notifier);
+      mountNotifier.setConnecting('mount-3', 'Mount 3');
+      mountNotifier.setConnected();
+      mountNotifier.setAutoReconnect(false);
+      expect(
+        container.read(mountStateProvider).autoReconnectEnabled,
+        isFalse,
+      );
+
+      mountNotifier.setDisconnected();
+
+      // After disconnect: state cleared, but the preference survives.
+      final state = container.read(mountStateProvider);
+      expect(state.connectionState, DeviceConnectionState.disconnected);
+      expect(state.deviceId, isNull);
+      expect(state.autoReconnectEnabled, isFalse,
+          reason:
+              'autoReconnectEnabled must be preserved across setDisconnected '
+              'so the user toggle is not silently undone on every drop.');
     });
   });
 
@@ -1075,6 +1293,225 @@ void main() {
 
       // Should have called getCameraStatus at least once (the immediate poll)
       verify(() => mockBackend.getCameraStatus(deviceId)).called(greaterThan(0));
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  // DEV-P2-6: typed exception for disconnecting an already-disconnected device
+  //
+  // Replaces a fragile `e.toString().contains('not connected')` filter in
+  // `EquipmentScreen._disconnectAllDevices`. Every `disconnect<Type>` method
+  // must throw [DeviceNotConnectedException] when invoked with no device in
+  // the matching state provider, so callers can distinguish "nothing to do"
+  // from "actual disconnect failure".
+  // ---------------------------------------------------------------------------
+  group('DEV-P2-6: DeviceNotConnectedException on already-disconnected', () {
+    test('disconnectCamera throws DeviceNotConnectedException when no '
+        'camera state is present', () async {
+      // No setConnecting / setConnected → cameraStateProvider has no deviceId.
+      final service = container.read(deviceServiceProvider);
+
+      await expectLater(
+        service.disconnectCamera(),
+        throwsA(isA<DeviceNotConnectedException>()
+            .having((e) => e.deviceType, 'deviceType', 'camera')),
+      );
+
+      // Backend must NOT have been called — there is no device id to send.
+      verifyNever(() => mockBackend.disconnectDevice(DeviceType.camera, any()));
+
+      // State must still be disconnected (no spurious mutation).
+      final state = container.read(cameraStateProvider);
+      expect(state.connectionState, DeviceConnectionState.disconnected);
+    });
+
+    test('disconnectMount throws DeviceNotConnectedException when not '
+        'connected', () async {
+      final service = container.read(deviceServiceProvider);
+
+      await expectLater(
+        service.disconnectMount(),
+        throwsA(isA<DeviceNotConnectedException>()
+            .having((e) => e.deviceType, 'deviceType', 'mount')),
+      );
+      verifyNever(() => mockBackend.disconnectDevice(DeviceType.mount, any()));
+    });
+
+    test('disconnectFocuser throws DeviceNotConnectedException when not '
+        'connected', () async {
+      final service = container.read(deviceServiceProvider);
+
+      await expectLater(
+        service.disconnectFocuser(),
+        throwsA(isA<DeviceNotConnectedException>()
+            .having((e) => e.deviceType, 'deviceType', 'focuser')),
+      );
+      verifyNever(() => mockBackend.disconnectDevice(DeviceType.focuser, any()));
+    });
+
+    test('disconnectFilterWheel throws DeviceNotConnectedException when not '
+        'connected', () async {
+      final service = container.read(deviceServiceProvider);
+
+      await expectLater(
+        service.disconnectFilterWheel(),
+        throwsA(isA<DeviceNotConnectedException>()
+            .having((e) => e.deviceType, 'deviceType', 'filter wheel')),
+      );
+      verifyNever(
+          () => mockBackend.disconnectDevice(DeviceType.filterWheel, any()));
+    });
+
+    test('disconnectGuider / disconnectRotator / disconnectDome / '
+        'disconnectWeather / disconnectSafetyMonitor / disconnectSwitch / '
+        'disconnectCoverCalibrator all throw DeviceNotConnectedException',
+        () async {
+      final service = container.read(deviceServiceProvider);
+
+      await expectLater(service.disconnectGuider(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectRotator(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectDome(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectWeather(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectSafetyMonitor(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectSwitch(),
+          throwsA(isA<DeviceNotConnectedException>()));
+      await expectLater(service.disconnectCoverCalibrator(),
+          throwsA(isA<DeviceNotConnectedException>()));
+    });
+
+    test('disconnectCamera does NOT throw DeviceNotConnectedException when '
+        'a camera is connected', () async {
+      const deviceId = TestFixtures.cameraId;
+
+      // Establish connected state.
+      final notifier = container.read(cameraStateProvider.notifier);
+      notifier.setConnecting(deviceId, 'Test Camera');
+      notifier.setConnected();
+
+      when(() => mockBackend.stopDeviceHeartbeat(deviceId))
+          .thenAnswer((_) async {});
+      when(() => mockBackend.disconnectDevice(DeviceType.camera, deviceId))
+          .thenAnswer((_) async {});
+
+      final service = container.read(deviceServiceProvider);
+      // Should complete without throwing.
+      await service.disconnectCamera();
+
+      // Backend was contacted, state was cleared.
+      verify(() => mockBackend.disconnectDevice(DeviceType.camera, deviceId))
+          .called(1);
+      expect(
+        container.read(cameraStateProvider).connectionState,
+        DeviceConnectionState.disconnected,
+      );
+    });
+
+    test('disconnectAll silently skips DeviceNotConnectedException and '
+        'propagates real failures', () async {
+      const cameraDeviceId = TestFixtures.cameraId;
+      const mountDeviceId = TestFixtures.mountId;
+
+      // Only camera and mount are connected; everything else is not.
+      container
+          .read(cameraStateProvider.notifier)
+        ..setConnecting(cameraDeviceId, 'Test Camera')
+        ..setConnected();
+      container
+          .read(mountStateProvider.notifier)
+        ..setConnecting(mountDeviceId, 'Test Mount')
+        ..setConnected();
+
+      when(() => mockBackend.stopDeviceHeartbeat(any()))
+          .thenAnswer((_) async {});
+      // Camera disconnect succeeds.
+      when(() => mockBackend.disconnectDevice(
+              DeviceType.camera, cameraDeviceId))
+          .thenAnswer((_) async {});
+      // Mount disconnect fails with a *real* error (NOT DeviceNotConnected).
+      when(() =>
+              mockBackend.disconnectDevice(DeviceType.mount, mountDeviceId))
+          .thenThrow(Exception('Mount driver refused to disconnect'));
+
+      final service = container.read(deviceServiceProvider);
+
+      // The real failure should still propagate. The other 8 device types
+      // are all not-connected and should be silently skipped (NOT counted
+      // as errors).
+      await expectLater(
+        service.disconnectAll(),
+        throwsA(predicate<Exception>(
+          (e) =>
+              e.toString().contains('Mount driver refused to disconnect') &&
+              !e.toString().contains('DeviceNotConnectedException'),
+        )),
+      );
+    });
+
+    test('_disconnectAllDevices-style sweep continues past '
+        'DeviceNotConnectedException and reports real failures', () async {
+      // This mirrors EquipmentScreen._disconnectAllDevices: a typed-catch
+      // sweep that calls each disconnect method in turn.
+      const focuserDeviceId = TestFixtures.focuserId;
+
+      // Only focuser is connected; everything else is not.
+      container
+          .read(focuserStateProvider.notifier)
+        ..setConnecting(focuserDeviceId)
+        ..setConnected();
+
+      when(() =>
+              mockBackend.disconnectDevice(DeviceType.focuser, focuserDeviceId))
+          .thenAnswer((_) async {});
+
+      final service = container.read(deviceServiceProvider);
+      final disconnects = <Future<void> Function()>[
+        service.disconnectCamera,
+        service.disconnectMount,
+        service.disconnectFocuser,
+        service.disconnectFilterWheel,
+        service.disconnectGuider,
+        service.disconnectRotator,
+        service.disconnectDome,
+        service.disconnectWeather,
+        service.disconnectSafetyMonitor,
+        service.disconnectSwitch,
+        service.disconnectCoverCalibrator,
+      ];
+
+      var successCount = 0;
+      var notConnectedCount = 0;
+      var otherErrorCount = 0;
+
+      for (final disconnect in disconnects) {
+        try {
+          await disconnect();
+          successCount++;
+        } on DeviceNotConnectedException catch (_) {
+          notConnectedCount++;
+        } catch (_) {
+          otherErrorCount++;
+        }
+      }
+
+      // Exactly one device (the focuser) was connected and disconnected
+      // cleanly. The other 10 throw DeviceNotConnectedException and are
+      // caught by the typed handler. No "other" errors leaked through.
+      expect(successCount, 1);
+      expect(notConnectedCount, 10);
+      expect(otherErrorCount, 0);
+
+      // Backend was only contacted for the connected device.
+      verify(() => mockBackend.disconnectDevice(
+          DeviceType.focuser, focuserDeviceId)).called(1);
+      verifyNever(
+          () => mockBackend.disconnectDevice(DeviceType.camera, any()));
+      verifyNever(
+          () => mockBackend.disconnectDevice(DeviceType.mount, any()));
     });
   });
 }

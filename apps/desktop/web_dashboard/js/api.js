@@ -221,6 +221,85 @@ class NightshadeApi {
     return this._get('/api/camera/last-image?deviceId=' + encodeURIComponent(deviceId));
   }
 
+  /**
+   * JPEG preview of the last capture (preferred for browser clients).
+   * Stats/histogram arrive in the `x-image-meta` header (base64 JSON).
+   */
+  async cameraGetLastImageJpeg(deviceId, opts) {
+    const o = opts || {};
+    const q = ['deviceId=' + encodeURIComponent(deviceId || '')];
+    if (o.maxWidth != null) q.push('maxWidth=' + encodeURIComponent(o.maxWidth));
+    if (o.quality != null) q.push('quality=' + encodeURIComponent(o.quality));
+    const path = '/api/camera/last-image/jpeg?' + q.join('&');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), this._requestTimeoutMs);
+    let resp;
+    try {
+      resp = await fetch(this._baseUrl + path, {
+        method: 'GET',
+        headers: this._headers(undefined, 'GET'),
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (resp.status === 404) {
+      return { image: null, blob: null, meta: null };
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error('GET ' + path + ' failed (' + resp.status + '): ' + text);
+    }
+    const metaHeader = resp.headers.get('x-image-meta');
+    let meta = null;
+    if (metaHeader) {
+      try {
+        const json = atob(metaHeader);
+        meta = JSON.parse(json);
+      } catch (_) {
+        meta = null;
+      }
+    }
+    const blob = await resp.blob();
+    return { image: meta, blob, meta };
+  }
+
+  /**
+   * Host-authoritative 16-bit raw pixels for the last capture (little-endian u16).
+   */
+  async getLastRawImageData(deviceId) {
+    const path =
+      '/api/imaging/raw-data?deviceId=' + encodeURIComponent(deviceId || '');
+    const controller = new AbortController();
+    const timeout = setTimeout(
+      () => controller.abort(),
+      Math.max(this._requestTimeoutMs, 60000),
+    );
+    let resp;
+    try {
+      resp = await fetch(this._baseUrl + path, {
+        method: 'GET',
+        headers: this._headers(undefined, 'GET'),
+        credentials: 'include',
+        signal: controller.signal,
+      });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (resp.status === 404 || resp.status === 503) {
+      const err = new Error('GET ' + path + ' failed (' + resp.status + ')');
+      err.status = resp.status;
+      throw err;
+    }
+    if (!resp.ok) {
+      const text = await resp.text();
+      throw new Error('GET ' + path + ' failed (' + resp.status + '): ' + text);
+    }
+    const buffer = await resp.arrayBuffer();
+    return new Uint16Array(buffer);
+  }
+
   async cameraSetCooling(deviceId, enabled, targetTemp) {
     return this._post('/api/camera/cooling', { deviceId, enabled, targetTemp });
   }
@@ -578,36 +657,8 @@ class NightshadeApi {
 
   async getWeatherSafeImaging() { return this._get('/api/weather/safe-imaging'); }
 
-  // TODO[W5-BACKEND-EXTEND]: there is no /api/weather/current endpoint that
-  // returns live telemetry (temperature, humidity, dewpoint, wind, cloud
-  // cover) from a connected ObservingConditions / hardware weather device.
-  // The current weather routes only expose radar/forecast/alerts/safe-imaging.
-  // Until a dedicated handler is added, the dashboard's weather panel fans
-  // out across the alerts + safe-imaging endpoints so the operator still has
-  // some signal; we explicitly do NOT fabricate the missing fields.
   async weatherGetCurrent() {
-    const [safeImaging, alertsResp] = await Promise.all([
-      this._get('/api/weather/safe-imaging'),
-      this._get('/api/weather/alerts'),
-    ]);
-    const alerts = (alertsResp && Array.isArray(alertsResp.alerts))
-      ? alertsResp.alerts : [];
-    return {
-      safeToImage: !!(safeImaging && safeImaging.safeToImage),
-      alertLevel: (safeImaging && safeImaging.alertLevel) || 'none',
-      message: (safeImaging && safeImaging.message) || '',
-      // Surface the most recent alert (the server emits at most one current
-      // alert today) so the panel can show its details without re-querying.
-      currentAlert: alerts.length > 0 ? alerts[0] : null,
-      // These fields are placeholders to match the §2.17 brief shape. They
-      // are explicitly null so the UI renders '--' rather than 0 — the
-      // panel must NOT pretend it knows the telemetry.
-      temperature: null,
-      humidity: null,
-      cloudCover: null,
-      windSpeed: null,
-      dewPoint: null,
-    };
+    return this._get('/api/weather/current');
   }
 
   // =========================================================================
@@ -863,16 +914,20 @@ class NightshadeApi {
     return this._post('/api/polar-alignment/stop', {});
   }
 
-  // TODO[W5-BACKEND-EXTEND]: there is no dedicated all-sky polar alignment
-  // start endpoint on the headless server yet. W5-ALL-SKY-PA landed the
-  // desktop-side notifier (PolarAlignmentStateNotifier.startAllSkyAlignment)
-  // but the REST surface only exposes the TPPA path through
-  // /api/polar-alignment/start. The dashboard surfaces both modes in its UI
-  // and routes both to /api/polar-alignment/start until the backend gains a
-  // dedicated /api/polar-alignment/start-all-sky route; until then both
-  // modes drive the same TPPA flow on the server.
   async polarAlignmentStartAllSky(opts) {
-    return this.polarAlignmentStart(opts);
+    const o = opts || {};
+    return this._post('/api/polar-alignment/all-sky/start', {
+      exposure_time: o.exposureTime != null ? o.exposureTime : 3.0,
+      solve_timeout: o.solveTimeout != null ? o.solveTimeout : 60.0,
+      binning: o.binning != null ? o.binning : 2,
+      is_north: o.isNorth != null ? o.isNorth : true,
+      acceptance_threshold_arcsec: o.acceptanceThresholdArcsec != null
+        ? o.acceptanceThresholdArcsec : 120.0,
+      iteration_cadence_secs: o.iterationCadenceSecs != null
+        ? o.iterationCadenceSecs : 30.0,
+      gain: o.gain,
+      offset: o.offset,
+    });
   }
 
   // =========================================================================
@@ -951,6 +1006,10 @@ class NightshadeApi {
     return this._post('/api/mosaic/estimate-time', body);
   }
 
+  async mosaicRecommendedExposure() {
+    return this._get('/api/mosaic/recommended-exposure');
+  }
+
   async mosaicValidate(config) {
     return this._post('/api/mosaic/validate', { config });
   }
@@ -1005,6 +1064,18 @@ class NightshadeApi {
   // now"). Optional — the wizard offers it as a sanity step after centering.
   async framingSyncMount(ra, dec) {
     return this._post('/api/framing/sync', { ra, dec });
+  }
+
+  async framingSave(payload) {
+    return this._post('/api/framing/save', payload);
+  }
+
+  async planetariumSlewTo(ra, dec) {
+    return this._post('/api/planetarium/slew-to', { ra, dec });
+  }
+
+  async planetariumGetMountPosition() {
+    return this._get('/api/planetarium/mount-position');
   }
 
   // =========================================================================

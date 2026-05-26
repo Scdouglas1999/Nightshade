@@ -25,8 +25,8 @@ pub(crate) mod ops;
 use crate::device::*;
 use crate::state::SharedAppState;
 use nightshade_native::traits::{
-    NativeCamera, NativeDevice, NativeDome, NativeFilterWheel, NativeFocuser, NativeMount,
-    NativeRotator, NativeSafetyMonitor, NativeWeather,
+    NativeCamera, NativeCoverCalibrator, NativeDevice, NativeDome, NativeFilterWheel,
+    NativeFocuser, NativeMount, NativeRotator, NativeSafetyMonitor, NativeSwitch, NativeWeather,
 };
 // Vendor SDK imports moved to crate::dispatch::native (the only consumer of
 // the camera/mount/filter wheel/focuser constructors).
@@ -214,6 +214,45 @@ impl HeartbeatConfig {
         }
     }
 
+    /// Create config optimized for guiders (critical during active guiding)
+    pub fn for_guider() -> Self {
+        Self {
+            base_interval_secs: 5,
+            max_interval_secs: 30,
+            failure_threshold: 2,
+            backoff_multiplier: 1.5,
+            auto_reconnect: true,
+            max_reconnect_attempts: 5,
+            reconnect_delay_secs: 3,
+        }
+    }
+
+    /// Create config optimized for switch devices (slow-changing power/relay state)
+    pub fn for_switch() -> Self {
+        Self {
+            base_interval_secs: 20,
+            max_interval_secs: 120,
+            failure_threshold: 3,
+            backoff_multiplier: 2.0,
+            auto_reconnect: false,
+            max_reconnect_attempts: 2,
+            reconnect_delay_secs: 5,
+        }
+    }
+
+    /// Create config optimized for cover calibrators (session-safety accessory)
+    pub fn for_cover_calibrator() -> Self {
+        Self {
+            base_interval_secs: 10,
+            max_interval_secs: 60,
+            failure_threshold: 3,
+            backoff_multiplier: 2.0,
+            auto_reconnect: true,
+            max_reconnect_attempts: 5,
+            reconnect_delay_secs: 5,
+        }
+    }
+
     /// Get configuration for a specific device type
     pub fn for_device_type(device_type: &DeviceType) -> Self {
         match device_type {
@@ -225,7 +264,9 @@ impl HeartbeatConfig {
             DeviceType::Rotator => Self::for_rotator(),
             DeviceType::Weather => Self::for_weather(),
             DeviceType::SafetyMonitor => Self::for_safety_monitor(),
-            _ => Self::default(),
+            DeviceType::Guider => Self::for_guider(),
+            DeviceType::Switch => Self::for_switch(),
+            DeviceType::CoverCalibrator => Self::for_cover_calibrator(),
         }
     }
 }
@@ -407,8 +448,37 @@ pub struct DeviceManager {
     pub(crate) native_safety_monitors:
         RwLock<HashMap<String, Box<dyn NativeSafetyMonitor + Send + Sync>>>,
 
+    /// Active Native SDK switches (stored separately for typed access)
+    pub(crate) native_switches: RwLock<HashMap<String, Box<dyn NativeSwitch + Send + Sync>>>,
+
+    /// Active Native SDK cover calibrators (stored separately for typed access)
+    pub(crate) native_cover_calibrators:
+        RwLock<HashMap<String, Box<dyn NativeCoverCalibrator + Send + Sync>>>,
+
     /// Active heartbeat monitoring tasks (device_id -> join handle)
     heartbeat_tasks: RwLock<HashMap<String, tokio::task::JoinHandle<()>>>,
+
+    /// Per-device cancellation tokens for in-flight reconnect attempts.
+    ///
+    /// The `reconnection_loop` (see `device_manager::connection`) sleeps for
+    /// backoff and then issues a `connect_device_internal` call OUTSIDE the
+    /// `devices` lock. If a user manually disconnects the device during that
+    /// window, `disconnect_device` flips the token to `true` so the reconnect
+    /// path bails before publishing a spurious `Connected` event.
+    ///
+    /// Lock ordering (audit-rust §race-fix DEV-P1-3):
+    ///   1. `devices`           (read or write)
+    ///   2. `reconnect_cancel_tokens`  (read or write)
+    ///
+    /// Never hold `devices` while awaiting on a token; never hold a token-map
+    /// lock across a sleep or a driver dispatch call.
+    ///
+    /// `disconnect_device` trips the token AFTER releasing the `devices` write
+    /// lock (so the reconnect path can acquire it to bail), and the reconnect
+    /// loop checks the token both during backoff and immediately after the
+    /// driver dispatch returns so a late-arriving `Connected` event from a
+    /// just-canceled attempt never reaches subscribers.
+    pub(crate) reconnect_cancel_tokens: RwLock<HashMap<String, tokio::sync::watch::Sender<bool>>>,
 }
 
 impl DeviceManager {
@@ -459,7 +529,10 @@ impl DeviceManager {
             native_domes: RwLock::new(HashMap::new()),
             native_weather: RwLock::new(HashMap::new()),
             native_safety_monitors: RwLock::new(HashMap::new()),
+            native_switches: RwLock::new(HashMap::new()),
+            native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
+            reconnect_cancel_tokens: RwLock::new(HashMap::new()),
         });
 
         // Start the reconnection background task
@@ -525,7 +598,10 @@ impl DeviceManager {
             native_domes: RwLock::new(HashMap::new()),
             native_weather: RwLock::new(HashMap::new()),
             native_safety_monitors: RwLock::new(HashMap::new()),
+            native_switches: RwLock::new(HashMap::new()),
+            native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
+            reconnect_cancel_tokens: RwLock::new(HashMap::new()),
         });
 
         // Start the reconnection background task
@@ -595,6 +671,108 @@ impl DeviceManager {
             .map(|d| d.connection_state == ConnectionState::Connected)
             .unwrap_or(false)
     }
+
+    /// Whether a device of the given type and id is in the `Connected` state.
+    pub async fn is_device_connected(&self, device_type: DeviceType, device_id: &str) -> bool {
+        let devices = self.devices.read().await;
+        devices
+            .get(device_id)
+            .map(|d| {
+                d.info.device_type == device_type
+                    && d.connection_state == ConnectionState::Connected
+            })
+            .unwrap_or(false)
+    }
+
+    /// First connected device id for a type (live `DeviceManager` registry).
+    pub async fn first_connected_device_id(&self, device_type: DeviceType) -> Option<String> {
+        let devices = self.devices.read().await;
+        devices
+            .values()
+            .find(|d| {
+                d.info.device_type == device_type
+                    && d.connection_state == ConnectionState::Connected
+            })
+            .map(|d| d.info.id.clone())
+    }
+
+    /// Connected devices for FFI / Dart (`api_get_connected_devices` source of truth).
+    pub async fn get_connected_device_infos(&self) -> Vec<DeviceInfo> {
+        let devices = self.devices.read().await;
+        devices
+            .values()
+            .filter(|d| d.connection_state == ConnectionState::Connected)
+            .map(|d| d.info.clone())
+            .collect()
+    }
+
+    /// Clone the shared Alpaca HTTP client for a connected device, if present.
+    ///
+    /// Reads the typed Alpaca maps owned by `DeviceManager` (not the legacy
+    /// `ALPACA_CLIENTS` static in `api/connection.rs`).
+    pub async fn alpaca_client_for_device(
+        &self,
+        device_id: &str,
+    ) -> Option<Arc<nightshade_alpaca::AlpacaClient>> {
+        let registered = self.alpaca_cameras.read().await.contains_key(device_id)
+            || self.alpaca_mounts.read().await.contains_key(device_id)
+            || self.alpaca_focusers.read().await.contains_key(device_id)
+            || self
+                .alpaca_filter_wheels
+                .read()
+                .await
+                .contains_key(device_id)
+            || self.alpaca_rotators.read().await.contains_key(device_id)
+            || self.alpaca_domes.read().await.contains_key(device_id)
+            || self.alpaca_weather.read().await.contains_key(device_id)
+            || self
+                .alpaca_safety_monitors
+                .read()
+                .await
+                .contains_key(device_id)
+            || self.alpaca_switches.read().await.contains_key(device_id)
+            || self
+                .alpaca_cover_calibrators
+                .read()
+                .await
+                .contains_key(device_id);
+
+        if registered {
+            Self::alpaca_client_from_device_id(device_id)
+        } else {
+            None
+        }
+    }
+
+    /// Construct an Alpaca HTTP client from a canonical device id (legacy API helper).
+    fn alpaca_client_from_device_id(
+        device_id: &str,
+    ) -> Option<Arc<nightshade_alpaca::AlpacaClient>> {
+        use crate::device_id::{parse_device_id_cached, ConnectionInfo};
+        use nightshade_alpaca::{AlpacaClient, AlpacaDevice, AlpacaDeviceType};
+
+        let parsed = parse_device_id_cached(device_id).ok()?;
+        let ConnectionInfo::Alpaca {
+            base_url,
+            device_type,
+            device_num,
+            ..
+        } = parsed.connection_info
+        else {
+            return None;
+        };
+        let alpaca_type = AlpacaDeviceType::from_str(&device_type)?;
+        let device = AlpacaDevice {
+            device_type: alpaca_type,
+            device_number: device_num,
+            server_name: base_url.clone(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: device_id.to_string(),
+            base_url,
+        };
+        Some(Arc::new(AlpacaClient::new(&device)))
+    }
 }
 
 // =============================================================================
@@ -651,6 +829,21 @@ mod tests {
         assert!(config.auto_reconnect);
         // Unlimited reconnect attempts for safety
         assert_eq!(config.max_reconnect_attempts, 0);
+    }
+
+    #[test]
+    fn test_heartbeat_config_for_accessory_device_types() {
+        let guider = HeartbeatConfig::for_device_type(&DeviceType::Guider);
+        assert_eq!(guider.base_interval_secs, 5);
+        assert!(guider.auto_reconnect);
+
+        let switch = HeartbeatConfig::for_device_type(&DeviceType::Switch);
+        assert_eq!(switch.base_interval_secs, 20);
+        assert!(!switch.auto_reconnect);
+
+        let cover = HeartbeatConfig::for_device_type(&DeviceType::CoverCalibrator);
+        assert_eq!(cover.base_interval_secs, 10);
+        assert!(cover.auto_reconnect);
     }
 
     #[test]
@@ -802,7 +995,10 @@ mod tests {
             native_domes: RwLock::new(HashMap::new()),
             native_weather: RwLock::new(HashMap::new()),
             native_safety_monitors: RwLock::new(HashMap::new()),
+            native_switches: RwLock::new(HashMap::new()),
+            native_cover_calibrators: RwLock::new(HashMap::new()),
             heartbeat_tasks: RwLock::new(HashMap::new()),
+            reconnect_cancel_tokens: RwLock::new(HashMap::new()),
         }
     }
 
@@ -929,5 +1125,771 @@ mod tests {
 
         let err = manager.switch_get_max(device_id).await.unwrap_err();
         assert!(err.contains("Alpaca switch"));
+    }
+
+    // -------------------------------------------------------------------------
+    // DEV-P1-6: stop_heartbeat must not emit HeartbeatStopped when there was
+    // no heartbeat task to stop. Otherwise every connect (which defensively
+    // calls stop_heartbeat first) emits a spurious stop event.
+    // -------------------------------------------------------------------------
+    #[tokio::test]
+    async fn stop_heartbeat_on_unknown_device_emits_no_event() {
+        use crate::event::{EquipmentEvent, EventPayload};
+        use tokio::sync::broadcast::error::TryRecvError;
+
+        let manager = build_device_manager();
+        // Subscribe BEFORE the call so we'd catch any published event.
+        let mut rx = manager.app_state.event_bus.subscribe();
+
+        // Device id that was never registered and never had a heartbeat.
+        manager
+            .stop_heartbeat("nonexistent-device-id")
+            .await
+            .expect("stop_heartbeat on unknown device should succeed");
+
+        // Drain any events and assert NONE of them are HeartbeatStopped for
+        // our device id. Other events from background tasks are tolerated.
+        loop {
+            match rx.try_recv() {
+                Ok(event) => {
+                    if let EventPayload::Equipment(EquipmentEvent::HeartbeatStopped {
+                        device_id,
+                        ..
+                    }) = &event.payload
+                    {
+                        panic!(
+                            "stop_heartbeat on unknown device unexpectedly published \
+                             HeartbeatStopped for {}",
+                            device_id
+                        );
+                    }
+                }
+                Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => break,
+                Err(TryRecvError::Lagged(_)) => continue,
+            }
+        }
+    }
+
+    // Same protection for a registered device that simply never had a heartbeat
+    // started — `start_heartbeat_with_config` calls `stop_heartbeat` defensively
+    // first, so the very first connect would otherwise publish a stop event.
+    #[tokio::test]
+    async fn stop_heartbeat_on_registered_but_inactive_device_emits_no_event() {
+        use crate::event::{EquipmentEvent, EventPayload};
+        use tokio::sync::broadcast::error::TryRecvError;
+
+        let manager = build_device_manager();
+        let device_id = "alpaca:test-mount";
+        let info = build_mount_info(device_id, DriverType::Alpaca);
+        manager.register_device(info, false).await;
+
+        let mut rx = manager.app_state.event_bus.subscribe();
+
+        manager
+            .stop_heartbeat(device_id)
+            .await
+            .expect("stop_heartbeat on registered-but-inactive device should succeed");
+
+        loop {
+            match rx.try_recv() {
+                Ok(event) => {
+                    if let EventPayload::Equipment(EquipmentEvent::HeartbeatStopped {
+                        device_id: published_id,
+                        ..
+                    }) = &event.payload
+                    {
+                        assert_ne!(
+                            published_id, device_id,
+                            "stop_heartbeat on registered-but-inactive device must not \
+                             publish HeartbeatStopped"
+                        );
+                    }
+                }
+                Err(TryRecvError::Empty) | Err(TryRecvError::Closed) => break,
+                Err(TryRecvError::Lagged(_)) => continue,
+            }
+        }
+    }
+
+    // -------------------------------------------------------------------------
+    // DEV-P1-8: `disconnect_device` must route PHD2 device ids through the
+    // PHD2-specific disconnect helper (mirroring the built-in-guider check),
+    // otherwise the PHD2 client is leaked on disconnect.
+    //
+    // We can't run the real PHD2 dispatch in a unit test (no server), but we
+    // can at least lock down the contract that:
+    //   - the helper name we depend on exists and has the expected signature
+    //     (this is a compile-time check: a typo would break the build)
+    //   - `is_phd2_device_id` recognizes the canonical PHD2 ids the
+    //     `disconnect_device` arm dispatches on.
+    // -------------------------------------------------------------------------
+    #[tokio::test]
+    async fn disconnect_phd2_via_generic_route_calls_phd2_disconnect() {
+        // Compile-time check: ensure both helpers referenced by
+        // `disconnect_device` exist with the expected signatures. If either
+        // changes name or shape, this test stops compiling — which is the
+        // signal we want, because the dispatch arm in connection.rs depends
+        // on them. The `let _ = ...` pattern with explicit return-type
+        // bindings forces the compiler to resolve the symbols without
+        // actually invoking them.
+        let _is_id_fn: fn(&str) -> bool = crate::api::connection::is_phd2_device_id;
+        // `api_phd2_disconnect` is async; binding the call (not the await)
+        // produces a future we discard. This both proves the symbol exists
+        // AND that its return type unifies with `Result<(), _>` shape.
+        let _disconnect_fut = async {
+            let _: Result<(), crate::error::NightshadeError> =
+                crate::api::phd2::api_phd2_disconnect().await;
+        };
+
+        // Behavioral check: the id-recognition helper must accept every form
+        // a PHD2 device id can take, so the dispatch arm fires for all of
+        // them. If a new id format is added, both this list and
+        // `is_phd2_device_id` need to be updated together.
+        for id in ["phd2", "phd2_guider", "phd2:localhost:4400", "phd2://host"] {
+            assert!(
+                crate::api::connection::is_phd2_device_id(id),
+                "is_phd2_device_id must recognize {} so disconnect_device dispatches \
+                 PHD2-specific cleanup",
+                id
+            );
+        }
+
+        // And a non-PHD2 id must NOT trigger the dispatch arm.
+        assert!(!crate::api::connection::is_phd2_device_id(
+            "alpaca:test-guider"
+        ));
+        assert!(!crate::api::connection::is_phd2_device_id(
+            "phd2x-not-really-phd2"
+        ));
+    }
+
+    // -------------------------------------------------------------------------
+    // DEV-P1-3: a manual `disconnect_device` arriving while a reconnect attempt
+    // is between backoff and dispatch (i.e. inside `connect_device_internal`)
+    // must trip the per-device cancel token so the connect attempt bails with
+    // `RECONNECT_CANCELED_MSG` instead of overwriting the user's Disconnected
+    // state with Connected.
+    //
+    // This test exercises the contract directly:
+    //   1. Install the cancel token (mirrors what `reconnection_loop` does
+    //      after backoff begins).
+    //   2. Run `disconnect_device`, which must call `trip_reconnect_cancel_
+    //      token` AFTER releasing the devices write lock.
+    //   3. A subsequent `connect_device_internal` call (mirrors the dispatch
+    //      the loop would issue after backoff) must short-circuit with
+    //      `RECONNECT_CANCELED_MSG` and must NOT flip the device back to
+    //      `Connected`.
+    // -------------------------------------------------------------------------
+    #[tokio::test]
+    async fn manual_disconnect_trips_in_flight_reconnect_cancel_token() {
+        use crate::device_manager::connection::RECONNECT_CANCELED_MSG;
+
+        let manager = build_device_manager();
+        let device_id = "simulator:test-reconnect-cancel";
+        let info = DeviceInfo {
+            id: device_id.to_string(),
+            name: "Sim Cancel Mount".to_string(),
+            device_type: DeviceType::Mount,
+            driver_type: DriverType::Simulator,
+            description: "Test mount for cancel token wiring".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: "Sim Cancel Mount".to_string(),
+        };
+
+        // Step 1: register and mark the device as in the Error state, which is
+        // what reconnection_loop sees when it picks it up. Auto-reconnect ON.
+        manager.register_device(info.clone(), true).await;
+        {
+            let mut devices = manager.devices.write().await;
+            let dev = devices
+                .get_mut(device_id)
+                .expect("device should be registered");
+            dev.connection_state = ConnectionState::Error;
+            dev.last_error = Some("simulated transient failure".to_string());
+        }
+
+        // Step 2: install the cancel token (mirrors reconnection_loop before
+        // its backoff sleep). We hold a receiver to assert the trip below.
+        let mut cancel_rx = manager.install_reconnect_cancel_token(device_id).await;
+        assert!(!*cancel_rx.borrow(), "token must start un-tripped");
+
+        // Step 3: user calls disconnect_device. This must trip the token.
+        manager
+            .disconnect_device(device_id)
+            .await
+            .expect("disconnect_device should succeed for registered simulator device");
+
+        // The cancel token must now be tripped. `changed()` resolves
+        // immediately because `send_replace(true)` woke the watcher.
+        cancel_rx
+            .changed()
+            .await
+            .expect("trip_reconnect_cancel_token must signal watchers");
+        assert!(
+            *cancel_rx.borrow(),
+            "disconnect_device must trip the in-flight reconnect cancel token"
+        );
+
+        // Auto-reconnect must also be off so the loop wouldn't re-pick this
+        // device on its next tick (defense-in-depth: even if the dispatch
+        // call below somehow ignored the token, the loop's filter would).
+        {
+            let devices = manager.devices.read().await;
+            let dev = devices.get(device_id).expect("device still registered");
+            assert!(
+                !dev.auto_reconnect,
+                "disconnect_device must clear auto_reconnect"
+            );
+            assert_eq!(
+                dev.connection_state,
+                ConnectionState::Disconnected,
+                "disconnect_device must leave state Disconnected"
+            );
+        }
+
+        // Step 4: the reconnection loop, unaware of the disconnect, now
+        // dispatches `connect_device_internal`. Because the token is tripped,
+        // this must return RECONNECT_CANCELED_MSG and must NOT mutate the
+        // device's state back to Connected.
+        let result = manager.connect_device_internal(&info).await;
+        match result {
+            Err(e) if e == RECONNECT_CANCELED_MSG => {}
+            other => panic!(
+                "connect_device_internal with tripped token must return \
+                 RECONNECT_CANCELED_MSG, got {:?}",
+                other
+            ),
+        }
+
+        // The device state must remain Disconnected — the reconnect attempt
+        // is not allowed to silently re-Connect a device the user released.
+        let devices = manager.devices.read().await;
+        let dev = devices.get(device_id).expect("device still registered");
+        assert_eq!(
+            dev.connection_state,
+            ConnectionState::Disconnected,
+            "canceled reconnect must NOT flip state back to Connected"
+        );
+    }
+
+    // -------------------------------------------------------------------------
+    // DEV-P3-3: `connect_simulator` / `disconnect_simulator` must actually flip
+    // the matching `simulation.rs` singleton's `connected` flag, and the
+    // heartbeat path for `DriverType::Simulator` must read that flag instead
+    // of trivially reporting healthy. Previously `connect_simulator` was a
+    // no-op and the heartbeat returned `Ok(true)` unconditionally — so a
+    // "connected" simulator had no real driver state behind it.
+    //
+    // Tests use distinct device_type prefixes to avoid cross-test interference
+    // through the process-wide simulation.rs singletons.
+    // -------------------------------------------------------------------------
+    fn build_sim_info(id: &str, device_type: DeviceType) -> DeviceInfo {
+        DeviceInfo {
+            id: id.to_string(),
+            name: format!("Simulated {}", device_type.as_str()),
+            device_type,
+            driver_type: DriverType::Simulator,
+            description: "Simulator under test".to_string(),
+            driver_version: "1.0".to_string(),
+            serial_number: None,
+            unique_id: None,
+            display_name: format!("Simulated {}", device_type.as_str()),
+        }
+    }
+
+    #[tokio::test]
+    async fn connect_simulator_marks_singleton_connected() {
+        use crate::api::devices::simulation::get_sim_focuser;
+
+        let manager = build_device_manager();
+        let info = build_sim_info("sim_focuser_1", DeviceType::Focuser);
+
+        // Reset the singleton to disconnected so this test is independent of
+        // any earlier test that may have left state behind.
+        {
+            let mut focuser = get_sim_focuser().write().await;
+            focuser.status.connected = false;
+        }
+
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator should succeed for a valid sim focuser id");
+
+        let connected = get_sim_focuser().read().await.status.connected;
+        assert!(
+            connected,
+            "connect_simulator must set the focuser singleton's connected flag to true"
+        );
+
+        // Idempotency: a second connect must succeed and leave connected=true.
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator must be idempotent");
+        assert!(get_sim_focuser().read().await.status.connected);
+
+        // Unrecognized id (no `sim_` prefix) must surface a descriptive error.
+        let bogus = build_sim_info("not_a_sim", DeviceType::Focuser);
+        let err = manager
+            .connect_simulator(&bogus)
+            .await
+            .expect_err("non-sim id must fail loudly");
+        assert!(
+            err.contains("not a simulator id"),
+            "error message must call out the prefix mismatch: {}",
+            err
+        );
+
+        // Unsupported device type (no simulation.rs singleton) must error.
+        // Dome/Weather/SafetyMonitor have no singleton in simulation.rs.
+        let dome = build_sim_info("sim_dome_1", DeviceType::Dome);
+        let err = manager
+            .connect_simulator(&dome)
+            .await
+            .expect_err("unsupported sim device type must fail loudly");
+        assert!(
+            err.contains("no simulator implementation"),
+            "error message must call out the missing implementation: {}",
+            err
+        );
+
+        // Cleanup: restore the singleton to the default disconnected state so
+        // other tests that touch SIM_FOCUSER aren't affected.
+        get_sim_focuser().write().await.status.connected = false;
+    }
+
+    #[tokio::test]
+    async fn disconnect_simulator_marks_singleton_disconnected() {
+        use crate::api::devices::simulation::get_sim_filterwheel;
+
+        let manager = build_device_manager();
+        let info = build_sim_info("sim_filterwheel_1", DeviceType::FilterWheel);
+
+        // Pre-condition: bring the singleton to connected.
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator setup should succeed");
+        assert!(get_sim_filterwheel().read().await.status.connected);
+
+        manager
+            .disconnect_simulator(&info)
+            .await
+            .expect("disconnect_simulator should succeed for a valid sim fw id");
+
+        let connected = get_sim_filterwheel().read().await.status.connected;
+        assert!(
+            !connected,
+            "disconnect_simulator must clear the filter wheel singleton's connected flag"
+        );
+
+        // Idempotency: a second disconnect must succeed and leave it false.
+        manager
+            .disconnect_simulator(&info)
+            .await
+            .expect("disconnect_simulator must be idempotent");
+        assert!(!get_sim_filterwheel().read().await.status.connected);
+
+        // Non-sim id surfaces an error.
+        let bogus = build_sim_info("ascom:foo", DeviceType::FilterWheel);
+        let err = manager
+            .disconnect_simulator(&bogus)
+            .await
+            .expect_err("non-sim id must fail loudly");
+        assert!(
+            err.contains("not a simulator id"),
+            "error message must call out the prefix mismatch: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn heartbeat_reflects_simulator_singleton_state() {
+        use crate::api::devices::simulation::get_sim_mount;
+
+        let manager = build_device_manager();
+        let device_id = "sim_mount_1";
+        let info = build_sim_info(device_id, DeviceType::Mount);
+
+        // Register and connect the simulator so the heartbeat target exists.
+        manager.register_device(info.clone(), false).await;
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator should succeed");
+
+        // Health check uses the private `perform_health_check`; exercise it
+        // through `perform_simulator_health_check` directly via the public
+        // surface that exists. Because `perform_health_check` is private to
+        // the device_manager module we can call it from this in-module test.
+        let healthy = manager
+            .perform_health_check(device_id, &DeviceType::Mount, &DriverType::Simulator)
+            .await
+            .expect("simulator health check should not error for a valid sim mount");
+        assert!(
+            healthy,
+            "heartbeat must report healthy while the mount singleton is connected"
+        );
+
+        // Flip the singleton state out-of-band — this mirrors what a future
+        // user-triggered disconnect (or a forced state change) would do.
+        get_sim_mount().write().await.status.connected = false;
+
+        let unhealthy = manager
+            .perform_health_check(device_id, &DeviceType::Mount, &DriverType::Simulator)
+            .await
+            .expect("simulator health check should not error when the singleton is disconnected");
+        assert!(
+            !unhealthy,
+            "heartbeat must report unhealthy after the mount singleton is flipped to disconnected"
+        );
+
+        // Restoring the flag must restore healthy reporting.
+        get_sim_mount().write().await.status.connected = true;
+        let healthy_again = manager
+            .perform_health_check(device_id, &DeviceType::Mount, &DriverType::Simulator)
+            .await
+            .expect("simulator health check should succeed after re-connect");
+        assert!(
+            healthy_again,
+            "heartbeat must report healthy again once the mount singleton is reconnected"
+        );
+
+        // Cleanup so we leave the global singleton in a deterministic state
+        // for any tests that run after us.
+        get_sim_mount().write().await.status.connected = false;
+    }
+
+    // -------------------------------------------------------------------------
+    // ND-P0-1: INDI heartbeat must invoke the INDI client's own recovery path.
+    //
+    // The previous health check read `client.is_connected()` and returned
+    // `Ok(false)` when the server connection had already dropped. That made
+    // the bridge heartbeat mark the device unhealthy but never called the
+    // INDI client's implemented `recover_reader` / reconnect machinery. This
+    // test locks down the new contract: a disconnected INDI client must attempt
+    // reader recovery, and if that recovery cannot reconnect it must surface a
+    // real error instead of a passive "not healthy" result.
+    // -------------------------------------------------------------------------
+    #[tokio::test]
+    async fn indi_health_check_attempts_reader_recovery_when_server_disconnected() {
+        let manager = build_device_manager();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind ephemeral localhost port");
+        let port = listener.local_addr().expect("read listener address").port();
+        drop(listener);
+
+        let device_id = format!("indi:127.0.0.1:{}:Test Mount", port);
+        let info = build_mount_info(&device_id, DriverType::Indi);
+        manager.register_device(info, false).await;
+
+        let mut timeout_config = nightshade_indi::IndiTimeoutConfig::default();
+        timeout_config.connection_timeout_secs = 1;
+        let client = nightshade_indi::IndiClient::with_timeout_config(
+            "127.0.0.1",
+            Some(port),
+            timeout_config,
+        );
+
+        manager
+            .indi_clients
+            .write()
+            .await
+            .insert(format!("127.0.0.1:{}", port), Arc::new(RwLock::new(client)));
+
+        let err = manager
+            .perform_health_check(&device_id, &DeviceType::Mount, &DriverType::Indi)
+            .await
+            .expect_err("disconnected INDI client must attempt recovery and surface failure");
+
+        assert!(
+            err.contains("reader recovery failed"),
+            "INDI health check must call recover_reader instead of returning Ok(false): {}",
+            err
+        );
+        assert!(
+            err.contains("Failed to connect") || err.contains("timeout"),
+            "recovery failure should include the underlying connect error: {}",
+            err
+        );
+    }
+
+    #[tokio::test]
+    async fn indi_health_check_reissues_device_connect_after_server_recovery() {
+        use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+        let manager = build_device_manager();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake INDI server");
+        let port = listener.local_addr().expect("read listener address").port();
+        let device_name = "Test Mount";
+        let device_id = format!("indi:127.0.0.1:{}:{}", port, device_name);
+
+        let (connect_seen_tx, connect_seen_rx) = tokio::sync::oneshot::channel::<String>();
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
+            let mut buf = vec![0_u8; 4096];
+
+            let _ = socket
+                .read(&mut buf)
+                .await
+                .expect("read initial getProperties");
+            socket
+                .write_all(
+                    br#"
+<defSwitchVector device="Test Mount" name="CONNECTION" state="Idle" perm="rw">
+  <defSwitch name="CONNECT">Off</defSwitch>
+  <defSwitch name="DISCONNECT">On</defSwitch>
+</defSwitchVector>
+<setSwitchVector device="Test Mount" name="CONNECTION" state="Ok">
+  <oneSwitch name="CONNECT">Off</oneSwitch>
+  <oneSwitch name="DISCONNECT">On</oneSwitch>
+</setSwitchVector>
+"#,
+                )
+                .await
+                .expect("write disconnected device state");
+
+            loop {
+                buf.fill(0);
+                let n = socket.read(&mut buf).await.expect("read reconnect command");
+                if n == 0 {
+                    break;
+                }
+                let command = String::from_utf8_lossy(&buf[..n]).to_string();
+                if command.contains("<newSwitchVector")
+                    && command.contains("name=\"CONNECTION\"")
+                    && command.contains("name=\"CONNECT\">On")
+                {
+                    let _ = connect_seen_tx.send(command);
+                    break;
+                }
+            }
+        });
+
+        let info = build_mount_info(&device_id, DriverType::Indi);
+        manager.register_device(info, false).await;
+
+        let mut timeout_config = nightshade_indi::IndiTimeoutConfig::default();
+        timeout_config.connection_timeout_secs = 1;
+        let mut client = nightshade_indi::IndiClient::with_timeout_config(
+            "127.0.0.1",
+            Some(port),
+            timeout_config,
+        );
+        client.connect().await.expect("connect fake INDI client");
+
+        let property_deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while client
+            .get_property(device_name, "CONNECTION")
+            .await
+            .is_none()
+        {
+            assert!(
+                tokio::time::Instant::now() < property_deadline,
+                "fake INDI CONNECTION property was not parsed in time"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+        assert!(
+            !client.is_device_connected(device_name).await,
+            "test setup expects the fake server to report the device disconnected"
+        );
+
+        manager
+            .indi_clients
+            .write()
+            .await
+            .insert(format!("127.0.0.1:{}", port), Arc::new(RwLock::new(client)));
+
+        let healthy = manager
+            .perform_health_check(&device_id, &DeviceType::Mount, &DriverType::Indi)
+            .await
+            .expect("INDI health check should send device reconnect command");
+        assert!(
+            !healthy,
+            "health stays false until the INDI driver confirms CONNECT=On"
+        );
+
+        let command = tokio::time::timeout(std::time::Duration::from_secs(2), connect_seen_rx)
+            .await
+            .expect("fake INDI server should receive CONNECT command")
+            .expect("server task should send observed command");
+        assert!(
+            command.contains("Test Mount"),
+            "CONNECT command must target the managed INDI device: {}",
+            command
+        );
+
+        server.await.expect("fake INDI server task should finish");
+    }
+
+    // -------------------------------------------------------------------------
+    // DEV-P3-3 follow-up: ops/* simulator arms must consult the singleton
+    // instead of returning hardcoded `Ok(value)` constants. These tests
+    // exercise the connect → read → disconnect → read cycle for two
+    // representative shapes (read-side + write-side) and one no-singleton
+    // device type (switch).
+    //
+    // Note: the simulation.rs singletons are process-wide, so each test
+    // explicitly resets them to disconnected at the start AND at the end to
+    // avoid cross-test contamination.
+    // -------------------------------------------------------------------------
+
+    #[tokio::test]
+    async fn camera_ops_simulator_gates_on_singleton_connected() {
+        use crate::api::devices::simulation::get_sim_camera;
+
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_camera_ops_1";
+        let info = build_sim_info(device_id, DeviceType::Camera);
+        manager.register_device(info.clone(), false).await;
+
+        // Pre-condition: singleton starts disconnected.
+        get_sim_camera().write().await.status.connected = false;
+
+        // Read before connect → loud error.
+        let err = manager
+            .camera_get_status(device_id)
+            .await
+            .expect_err("disconnected sim camera must surface an error");
+        assert!(
+            err.contains("not connected"),
+            "error must call out missing connection: {}",
+            err
+        );
+
+        // Connect flips the singleton; ops reads now succeed and reflect
+        // the singleton's defaults.
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator should succeed");
+
+        let status = manager
+            .camera_get_status(device_id)
+            .await
+            .expect("connected sim camera status read must succeed");
+        assert!(status.connected, "status must reflect connected singleton");
+        let default_gain = status.gain;
+
+        // Write-side: setting gain mutates the singleton (singleton-as-state)
+        // and the next read returns the new value — no silent drop.
+        manager
+            .camera_set_gain(device_id, default_gain + 25)
+            .await
+            .expect("connected sim camera set_gain must succeed");
+        let status_after = manager
+            .camera_get_status(device_id)
+            .await
+            .expect("re-read connected sim camera status");
+        assert_eq!(status_after.gain, default_gain + 25);
+
+        // Disconnect flips the singleton back; reads and writes both fail loud.
+        manager
+            .disconnect_simulator(&info)
+            .await
+            .expect("disconnect_simulator should succeed");
+        let err = manager
+            .camera_get_status(device_id)
+            .await
+            .expect_err("disconnected sim camera must surface an error");
+        assert!(err.contains("not connected"));
+        let err = manager
+            .camera_set_gain(device_id, 999)
+            .await
+            .expect_err("disconnected sim camera set_gain must surface an error");
+        assert!(err.contains("not connected"));
+
+        // Cleanup so any later tests using SIM_CAMERA see a clean slate.
+        get_sim_camera().write().await.status.connected = false;
+    }
+
+    #[tokio::test]
+    async fn focuser_ops_simulator_gates_on_singleton_connected() {
+        use crate::api::devices::simulation::get_sim_focuser;
+
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_focuser_ops_1";
+        let info = build_sim_info(device_id, DeviceType::Focuser);
+        manager.register_device(info.clone(), false).await;
+
+        get_sim_focuser().write().await.status.connected = false;
+
+        // Disconnected read fails loud.
+        let err = manager
+            .focuser_get_position(device_id)
+            .await
+            .expect_err("disconnected sim focuser must surface an error");
+        assert!(err.contains("not connected"));
+
+        // Connect, then read the singleton's default position.
+        manager
+            .connect_simulator(&info)
+            .await
+            .expect("connect_simulator should succeed");
+        let default_pos = manager
+            .focuser_get_position(device_id)
+            .await
+            .expect("connected sim focuser position read must succeed");
+
+        // Move absolute mutates the singleton.
+        manager
+            .focuser_move_abs(device_id, default_pos + 100)
+            .await
+            .expect("connected sim focuser move_abs must succeed");
+        let new_pos = manager
+            .focuser_get_position(device_id)
+            .await
+            .expect("re-read connected sim focuser position");
+        assert_eq!(new_pos, default_pos + 100);
+
+        // Disconnect → write fails loud (no silent acceptance).
+        manager
+            .disconnect_simulator(&info)
+            .await
+            .expect("disconnect_simulator should succeed");
+        let err = manager
+            .focuser_move_abs(device_id, 12345)
+            .await
+            .expect_err("disconnected sim focuser move_abs must surface an error");
+        assert!(err.contains("not connected"));
+
+        get_sim_focuser().write().await.status.connected = false;
+    }
+
+    #[tokio::test]
+    async fn switch_ops_simulator_always_errors_no_singleton() {
+        // Switch has no simulator singleton in simulation.rs, so every op
+        // must loud-error regardless of any "connect" attempt.
+        let manager = Arc::new(build_device_manager());
+        let device_id = "sim_switch_ops_1";
+        let info = build_sim_info(device_id, DeviceType::Switch);
+        manager.register_device(info.clone(), false).await;
+
+        let err = manager
+            .switch_get_max(device_id)
+            .await
+            .expect_err("simulator switch has no singleton; must loud-error");
+        assert!(
+            err.contains("simulator") || err.contains("Simulator") || err.contains("disabled"),
+            "error must mention the missing simulator implementation: {}",
+            err
+        );
+
+        // Confirm `connect_simulator` itself refuses unsupported device types
+        // (mirrors the existing DEV-P3-3 test) so the contract is symmetric:
+        // ops can never observe a "connected" sim switch.
+        let connect_err = manager
+            .connect_simulator(&info)
+            .await
+            .expect_err("connect_simulator must reject unsupported sim device types");
+        assert!(connect_err.contains("no simulator implementation"));
     }
 }

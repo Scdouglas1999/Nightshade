@@ -76,6 +76,14 @@ class CatalogOverlayWidget extends ConsumerWidget {
     final includeStars = ref.watch(catalogOverlayIncludeStarsProvider);
     final includeDsos = ref.watch(catalogOverlayIncludeDsosProvider);
 
+    if (!includeStars && !includeDsos) {
+      return const CatalogOverlayBanner(
+        icon: LucideIcons.layers,
+        title: 'No catalog layers selected',
+        message: 'Enable DSOs or bright stars in catalog overlay settings.',
+      );
+    }
+
     final query = CatalogOverlayQuery(
       wcs: w,
       magnitudeLimit: magnitudeLimit,
@@ -104,6 +112,21 @@ class CatalogOverlayWidget extends ConsumerWidget {
             message: 'Install the planetarium catalog in Settings → Catalogs.',
           );
         }
+        final missingRequestedSource =
+            (includeDsos && !result.dsoCatalogAvailable) ||
+                (includeStars && !result.starCatalogAvailable);
+        if (result.objects.isEmpty && missingRequestedSource) {
+          return CatalogOverlayBanner(
+            icon: LucideIcons.download,
+            title: 'Selected catalog missing',
+            message: _missingCatalogMessage(
+              includeDsos: includeDsos,
+              includeStars: includeStars,
+              dsoCatalogAvailable: result.dsoCatalogAvailable,
+              starCatalogAvailable: result.starCatalogAvailable,
+            ),
+          );
+        }
         return _CatalogOverlayLayer(
           result: result,
           zoomLevel: zoomLevel,
@@ -112,6 +135,21 @@ class CatalogOverlayWidget extends ConsumerWidget {
         );
       },
     );
+  }
+
+  static String _missingCatalogMessage({
+    required bool includeDsos,
+    required bool includeStars,
+    required bool dsoCatalogAvailable,
+    required bool starCatalogAvailable,
+  }) {
+    if (includeDsos && !dsoCatalogAvailable) {
+      return 'Install the DSO catalog in Settings > Catalogs.';
+    }
+    if (includeStars && !starCatalogAvailable) {
+      return 'Install the HYG star catalog in Settings > Catalogs.';
+    }
+    return 'Install the selected catalog in Settings > Catalogs.';
   }
 }
 
@@ -186,62 +224,103 @@ class _CatalogOverlayLayerState extends ConsumerState<_CatalogOverlayLayer> {
   }
 
   @override
+  void didUpdateWidget(covariant _CatalogOverlayLayer oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final selected = ref.read(selectedCatalogOverlayObjectProvider);
+    if (selected == null) return;
+    final stillVisible = widget.result.objects.any(
+      (obj) =>
+          obj.id == selected.id &&
+          obj.source == selected.source &&
+          obj.imageX == selected.imageX &&
+          obj.imageY == selected.imageY,
+    );
+    if (!stillVisible) {
+      ref.read(selectedCatalogOverlayObjectProvider.notifier).state = null;
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final paint = CustomPaint(
-      painter: CatalogOverlayPainter(
-        objects: widget.result.objects,
-        zoomLevel: widget.zoomLevel,
-        imageOffset: widget.imageOffset,
-        highlighted: _hovered,
-      ),
-      size: Size.infinite,
-    );
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final colors = context.nightshadeColors;
+        final tooltipMaxWidth = clampPanelWidth(
+          constraints.maxWidth,
+          fraction: 0.35,
+          min: 160,
+          max: 260,
+        );
 
-    final children = <Widget>[];
-
-    if (_isTouchPlatform) {
-      children.add(
-        GestureDetector(
-          onTapUp: _onTapUp,
-          behavior: HitTestBehavior.translucent,
-          child: paint,
-        ),
-      );
-    } else {
-      children.add(
-        MouseRegion(
-          onHover: _onHover,
-          onExit: _onExit,
-          child: GestureDetector(
-            onTapUp: _onTapUp,
-            behavior: HitTestBehavior.translucent,
-            child: paint,
+        final paint = CustomPaint(
+          painter: CatalogOverlayPainter(
+            objects: widget.result.objects,
+            zoomLevel: widget.zoomLevel,
+            imageOffset: widget.imageOffset,
+            highlighted: _hovered,
           ),
-        ),
-      );
-    }
+          size: Size.infinite,
+        );
 
-    if (_hovered != null) {
-      children.add(
-        Positioned(
-          left: _hoverScreenPoint.dx + 14,
-          top: _hoverScreenPoint.dy + 14,
-          child: IgnorePointer(
-            child: _CatalogObjectTooltip(object: _hovered!),
+        final children = <Widget>[];
+
+        if (_isTouchPlatform) {
+          children.add(
+            GestureDetector(
+              onTapUp: _onTapUp,
+              behavior: HitTestBehavior.translucent,
+              child: paint,
+            ),
+          );
+        } else {
+          children.add(
+            MouseRegion(
+              onHover: _onHover,
+              onExit: _onExit,
+              child: GestureDetector(
+                onTapUp: _onTapUp,
+                behavior: HitTestBehavior.translucent,
+                child: paint,
+              ),
+            ),
+          );
+        }
+
+        if (_hovered != null) {
+          children.add(
+            Positioned(
+              left: _hoverScreenPoint.dx + 14,
+              top: _hoverScreenPoint.dy + 14,
+              child: IgnorePointer(
+                child: _CatalogObjectTooltip(
+                  object: _hovered!,
+                  maxWidth: tooltipMaxWidth,
+                ),
+              ),
+            ),
+          );
+        }
+
+        children.add(
+          Positioned(
+            right: 12,
+            top: 88,
+            child: _CatalogOverlayHud(result: widget.result),
           ),
-        ),
-      );
-    }
+        );
 
-    children.add(
-      Positioned(
-        right: 12,
-        top: 88,
-        child: _CatalogOverlayHud(result: widget.result),
-      ),
+        children.add(
+          Positioned(
+            top: 0,
+            right: 0,
+            bottom: 0,
+            child: CatalogOverlayDetailsPanel(colors: colors),
+          ),
+        );
+
+        return Stack(children: children);
+      },
     );
-
-    return Stack(children: children);
   }
 }
 
@@ -279,9 +358,8 @@ class CatalogOverlayPainter extends CustomPainter {
         zoomLevel: zoomLevel,
       );
       final isHighlighted = identical(obj, highlighted);
-      final color = obj.kind == CatalogOverlayKind.star
-          ? _markerStarColor
-          : _markerColor;
+      final color =
+          obj.kind == CatalogOverlayKind.star ? _markerStarColor : _markerColor;
 
       final markerSize = _markerSizeFor(obj);
       _drawMarker(canvas, centre, obj.kind, markerSize, color, isHighlighted);
@@ -290,10 +368,7 @@ class CatalogOverlayPainter extends CustomPainter {
   }
 
   double _markerSizeFor(CatalogOverlayObject obj) {
-    final base = obj.sizeArcMin != null
-        ? (obj.sizeArcMin! * 2.0).clamp(16.0, 240.0)
-        : 16.0;
-    return base * zoomLevel;
+    return obj.markerRadiusPx * 2.0 * zoomLevel;
   }
 
   void _drawMarker(
@@ -439,17 +514,24 @@ class CatalogOverlayPainter extends CustomPainter {
 
 class _CatalogObjectTooltip extends StatelessWidget {
   final CatalogOverlayObject object;
-  const _CatalogObjectTooltip({required this.object});
+  final double maxWidth;
+
+  const _CatalogObjectTooltip({
+    required this.object,
+    required this.maxWidth,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     return Container(
-      constraints: const BoxConstraints(maxWidth: 260),
+      constraints: BoxConstraints(maxWidth: maxWidth),
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withValues(alpha: 0.95),
+        color: colors.surfaceOverlay.withValues(alpha: 0.95),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2D2D44)),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -514,12 +596,14 @@ class _CatalogOverlayHud extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
       decoration: BoxDecoration(
-        color: const Color(0xFF1A1A2E).withValues(alpha: 0.7),
+        color: colors.surfaceOverlay.withValues(alpha: 0.7),
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: const Color(0xFF2D2D44)),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
@@ -579,61 +663,72 @@ class CatalogOverlayBanner extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final accent = tone == CatalogOverlayBannerTone.error
-        ? const Color(0xFFEF5350)
-        : const Color(0xFF82B1FF);
+    final colors = NightshadeColors.of(context);
+    final accent =
+        tone == CatalogOverlayBannerTone.error ? colors.error : colors.info;
     return Stack(
       children: [
         Positioned(
           top: 88,
           right: 12,
-          child: _bannerCard(accent),
+          child: _bannerCard(context, colors, accent),
         ),
       ],
     );
   }
 
-  Widget _bannerCard(Color accent) {
+  Widget _bannerCard(
+    BuildContext context,
+    NightshadeColors colors,
+    Color accent,
+  ) {
+    final bannerMaxWidth = clampPanelWidth(
+      MediaQuery.sizeOf(context).width,
+      fraction: 0.35,
+      min: 200,
+      max: 280,
+    );
+
     return Container(
-        constraints: const BoxConstraints(maxWidth: 280),
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-        decoration: BoxDecoration(
-          color: const Color(0xFF1A1A2E).withValues(alpha: 0.92),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(color: accent.withValues(alpha: 0.6)),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Icon(icon, color: accent, size: 16),
-            const SizedBox(width: 8),
-            Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      color: _labelColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
+      constraints: BoxConstraints(maxWidth: bannerMaxWidth),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: colors.surfaceOverlay.withValues(alpha: 0.92),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: accent.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, color: accent, size: 16),
+          const SizedBox(width: 8),
+          Flexible(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: const TextStyle(
+                    color: _labelColor,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    message,
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.7),
-                      fontSize: 11,
-                    ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  message,
+                  style: TextStyle(
+                    color: Colors.white.withValues(alpha: 0.7),
+                    fontSize: 11,
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -652,74 +747,84 @@ class CatalogOverlayPopover extends ConsumerWidget {
     final includeDsos = ref.watch(catalogOverlayIncludeDsosProvider);
     final includeStars = ref.watch(catalogOverlayIncludeStarsProvider);
 
-    return Container(
-      width: 240,
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.border),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Catalog overlay',
-            style: TextStyle(
-              color: colors.textPrimary,
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
+    final popoverWidth = clampPanelWidth(
+      MediaQuery.sizeOf(context).width,
+      fraction: 0.3,
+      min: 200,
+      max: 240,
+    );
+
+    return SizedBox(
+      width: popoverWidth,
+      child: NightshadeCard(
+        variant: CardVariant.elevated,
+        borderRadius: NightshadeTokens.radiusMd,
+        padding: const EdgeInsets.all(NightshadeTokens.spaceMd),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Catalog overlay',
+              style: NightshadeTypography.label.copyWith(
+                color: colors.textPrimary,
+                fontWeight: FontWeight.w600,
+              ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Magnitude limit',
-            style: TextStyle(color: colors.textMuted, fontSize: 11),
-          ),
-          const SizedBox(height: 4),
-          DropdownButton<double>(
-            isExpanded: true,
-            value: _snapMagnitude(magnitudeLimit),
-            items: const [
-              DropdownMenuItem(value: 6.0, child: Text('Mag ≤ 6')),
-              DropdownMenuItem(value: 8.0, child: Text('Mag ≤ 8')),
-              DropdownMenuItem(value: 10.0, child: Text('Mag ≤ 10')),
-              DropdownMenuItem(value: 12.0, child: Text('Mag ≤ 12')),
-              DropdownMenuItem(value: 14.0, child: Text('Mag ≤ 14')),
-            ],
-            onChanged: (v) {
-              if (v == null) return;
-              ref.read(catalogOverlayMagnitudeLimitProvider.notifier).state =
-                  v;
-            },
-          ),
-          const SizedBox(height: 4),
-          SwitchListTile.adaptive(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'DSOs (Messier / NGC / IC)',
-              style: TextStyle(color: colors.textPrimary, fontSize: 12),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            Text(
+              'Magnitude limit',
+              style: NightshadeTypography.caption.copyWith(
+                color: colors.textMuted,
+              ),
             ),
-            value: includeDsos,
-            onChanged: (v) => ref
-                .read(catalogOverlayIncludeDsosProvider.notifier)
-                .state = v,
-          ),
-          SwitchListTile.adaptive(
-            dense: true,
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Bright stars (HYG)',
-              style: TextStyle(color: colors.textPrimary, fontSize: 12),
+            const SizedBox(height: NightshadeTokens.spaceXs),
+            NightshadeDropdown(
+              isExpanded: true,
+              isDense: true,
+              value: _snapMagnitude(magnitudeLimit).toStringAsFixed(0),
+              items: const [
+                '6',
+                '8',
+                '10',
+                '12',
+                '14',
+              ],
+              itemLabels: const [
+                'Mag <= 6',
+                'Mag <= 8',
+                'Mag <= 10',
+                'Mag <= 12',
+                'Mag <= 14',
+              ],
+              onChanged: (v) {
+                if (v == null) return;
+                final magnitude = double.tryParse(v);
+                if (magnitude == null) return;
+                ref.read(catalogOverlayMagnitudeLimitProvider.notifier).state =
+                    magnitude;
+              },
             ),
-            value: includeStars,
-            onChanged: (v) => ref
-                .read(catalogOverlayIncludeStarsProvider.notifier)
-                .state = v,
-          ),
-        ],
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            NightshadeSwitchRow(
+              label: 'DSOs (Messier / NGC / IC)',
+              value: includeDsos,
+              compact: true,
+              onChanged: (v) => ref
+                  .read(catalogOverlayIncludeDsosProvider.notifier)
+                  .state = v,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceSm),
+            NightshadeSwitchRow(
+              label: 'Bright stars (HYG)',
+              value: includeStars,
+              compact: true,
+              onChanged: (v) => ref
+                  .read(catalogOverlayIncludeStarsProvider.notifier)
+                  .state = v,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -758,8 +863,15 @@ class CatalogOverlayDetailsPanel extends ConsumerWidget {
     final object = ref.watch(selectedCatalogOverlayObjectProvider);
     if (object == null) return const SizedBox.shrink();
 
+    final panelWidth = clampPanelWidth(
+      MediaQuery.sizeOf(context).width,
+      fraction: 0.28,
+      min: 200,
+      max: width,
+    );
+
     return Container(
-      width: width,
+      width: panelWidth,
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(left: BorderSide(color: colors.border)),
@@ -804,8 +916,7 @@ class CatalogOverlayDetailsPanel extends ConsumerWidget {
             _row(colors, 'RA', _formatRA(object.raHours)),
             _row(colors, 'Dec', _formatDec(object.decDegrees)),
             if (object.magnitude != null)
-              _row(colors, 'Magnitude',
-                  object.magnitude!.toStringAsFixed(2)),
+              _row(colors, 'Magnitude', object.magnitude!.toStringAsFixed(2)),
             if (object.sizeArcMin != null)
               _row(colors, 'Size',
                   "${object.sizeArcMin!.toStringAsFixed(2)} arcmin"),
@@ -826,8 +937,7 @@ class CatalogOverlayDetailsPanel extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       object.alternateIds!,
-                      style:
-                          TextStyle(color: colors.textPrimary, fontSize: 12),
+                      style: TextStyle(color: colors.textPrimary, fontSize: 12),
                     ),
                   ],
                 ),

@@ -30,7 +30,7 @@ class TargetScoreRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final eligible = !score.hardConstraintFailed;
     final statusLabel = _statusLabel();
     final statusColor = _statusColor(colors);

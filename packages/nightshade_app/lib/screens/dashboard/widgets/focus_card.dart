@@ -49,8 +49,8 @@ class FocusCard extends ConsumerWidget {
                 children: [
                   Container(
                     padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: colors.accent.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      colors.accent,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(

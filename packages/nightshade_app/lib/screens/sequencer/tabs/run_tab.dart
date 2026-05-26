@@ -13,12 +13,21 @@ import '../widgets/run_dashboard/filter_integration_panel.dart';
 import '../widgets/run_dashboard/guiding_panel_card.dart';
 import '../widgets/run_dashboard/live_frame_panel.dart';
 import '../widgets/run_dashboard/playback_footer.dart';
+import '../widgets/run_dashboard/recovery_banner.dart';
 import '../widgets/run_dashboard/run_dashboard_prefs.dart';
 import '../widgets/run_dashboard/run_dashboard_providers.dart';
+// Wave 8.5: adaptive conditions / target-swap state panel.
+import '../widgets/run_dashboard/adaptive_conditions_panel.dart';
+// Wave 3 Agent 1: TargetScheduler decision panel.
+import '../widgets/run_dashboard/scheduler_panel.dart';
 import '../widgets/run_dashboard/session_warnings_panel.dart';
 import '../widgets/run_dashboard/target_header_panel.dart';
 import '../widgets/run_dashboard/trigger_feed_panel.dart';
 import '../widgets/run_dashboard/weather_safety_card.dart';
+// Wave 5 Agent 4: cloud-motion panel.
+import '../widgets/run_dashboard/cloud_motion_panel.dart';
+// Wave 7.5: live light-curve panel for SciencePhotometry runs.
+import '../widgets/run_dashboard/light_curve_panel.dart';
 import 'history_tab.dart' show historyOpenRunIdProvider;
 
 /// "Run" dashboard tab — one-glance, read-only view of an in-progress
@@ -39,7 +48,7 @@ class RunTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final executionState = ref.watch(sequenceExecutionStateProvider);
 
     // Activate the critical-event bridge. The provider has no value but
@@ -57,14 +66,16 @@ class RunTab extends ConsumerWidget {
     final isMobile = Responsive.isMobile(context);
     return Column(
       children: [
+        // Wave 4 Recovery Mode — pinned above the critical-event banner
+        // so the highest-priority surface (an in-flight recovery loop) is
+        // visually first. Self-hides when no recovery is active.
+        const RunDashboardRecoveryBanner(),
         // Critical event banner — pinned above the header so the
         // operator sees it regardless of which panels are visible.
         const RunDashboardCriticalBanner(),
         _DashboardHeaderBar(colors: colors),
         Expanded(
-          child: isMobile
-              ? const _MobileBody()
-              : const _WideBody(),
+          child: isMobile ? const _MobileBody() : const _WideBody(),
         ),
         const RunDashboardPlaybackFooter(),
       ],
@@ -133,8 +144,7 @@ class _IdleState extends ConsumerWidget {
       runSpacing: NightshadeTokens.spaceSm,
       children: [
         ElevatedButton.icon(
-          onPressed: () =>
-              ref.read(sequencerTabProvider.notifier).state = 0,
+          onPressed: () => ref.read(sequencerTabProvider.notifier).state = 0,
           icon: const Icon(LucideIcons.workflow, size: 16),
           label: const Text('Go to Builder'),
         ),
@@ -145,17 +155,13 @@ class _IdleState extends ConsumerWidget {
               // and schedules the post-session dialog.
               ref.read(historyOpenRunIdProvider.notifier).state =
                   mostRecent!.id;
-              // History tab is index 5 in the sequencer's TabController
-              // (Builder=0, Run=1, Targets=2, Templates=3, Library=4,
-              // History=5). Keep this in sync with sequencer_screen.dart.
-              ref.read(sequencerTabProvider.notifier).state = 5;
+              // History tab is index 6 in the sequencer's TabController
+              // (Builder=0, Run=1, Targets=2, Templates=3, Sequences=4,
+              // Samples=5, History=6). Keep in sync with sequencer_screen.dart.
+              ref.read(sequencerTabProvider.notifier).state = 6;
             },
             icon: const Icon(LucideIcons.history, size: 16),
             label: Text('Open last run · ${mostRecent.sequenceName}'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: colors.textSecondary,
-              side: BorderSide(color: colors.border),
-            ),
           ),
       ],
     );
@@ -206,6 +212,23 @@ class _WideBody extends ConsumerWidget {
       const RunDashboardSessionWarningsPanel(),
       if (prefs.isVisible(RunDashboardPanelId.triggerFeed))
         const RunDashboardTriggerFeed(),
+      // Wave 3 Agent 1: scheduler decisions appear under the trigger feed so
+      // a user scanning the column sees: live events → which target the
+      // scheduler last picked. Opt-in via the customize menu.
+      if (prefs.isVisible(RunDashboardPanelId.scheduler))
+        const RunDashboardSchedulerPanel(),
+      // Wave 5 Agent 4: live cloud-motion analyzer (opt-in).
+      if (prefs.isVisible(RunDashboardPanelId.cloudMotion))
+        const RunDashboardCloudMotionPanel(),
+      // Wave 8.5: conditions score + adaptive swap runtime state.
+      if (prefs.isVisible(RunDashboardPanelId.adaptiveConditions))
+        const RunDashboardAdaptiveConditionsPanel(),
+      // Wave 7.5: live light-curve plot for SciencePhotometry bursts.
+      // Self-hides when no Science Photometry frame has been emitted in
+      // the current run, so the panel stays out of the way for
+      // non-science sequences even when the visibility flag is on.
+      if (prefs.isVisible(RunDashboardPanelId.lightCurve))
+        const LightCurvePanel(),
     ];
 
     return SingleChildScrollView(
@@ -257,6 +280,20 @@ class _MobileBody extends ConsumerWidget {
       const RunDashboardSessionWarningsPanel(),
       if (prefs.isVisible(RunDashboardPanelId.triggerFeed))
         const RunDashboardTriggerFeed(),
+      // Wave 3 Agent 1: scheduler decisions appear under the trigger feed so
+      // a user scanning the column sees: live events → which target the
+      // scheduler last picked. Opt-in via the customize menu.
+      if (prefs.isVisible(RunDashboardPanelId.scheduler))
+        const RunDashboardSchedulerPanel(),
+      // Wave 5 Agent 4: live cloud-motion analyzer (opt-in).
+      if (prefs.isVisible(RunDashboardPanelId.cloudMotion))
+        const RunDashboardCloudMotionPanel(),
+      // Wave 8.5: conditions score + adaptive swap runtime state.
+      if (prefs.isVisible(RunDashboardPanelId.adaptiveConditions))
+        const RunDashboardAdaptiveConditionsPanel(),
+      // Wave 7.5: light curve (self-hides when no Photometry burst ran).
+      if (prefs.isVisible(RunDashboardPanelId.lightCurve))
+        const LightCurvePanel(),
     ];
 
     return SingleChildScrollView(

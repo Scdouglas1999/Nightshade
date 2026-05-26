@@ -12,6 +12,7 @@ use std::sync::{
     Arc,
 };
 use std::time::Duration;
+use tokio::sync::mpsc;
 use tokio::time::sleep;
 
 /// Result of an instruction execution
@@ -76,10 +77,32 @@ impl InstructionResult {
     /// Get the status, logging any failure or cancellation message.
     /// This ensures error messages are not silently discarded.
     pub fn log_and_get_status(self, node_name: &str) -> NodeStatus {
+        self.log_and_get_status_with_recovery(node_name, None)
+    }
+
+    /// Get the status, logging failures and promoting disconnected-device
+    /// failures to the executor recovery loop when the live context exposes
+    /// a recovery request channel.
+    pub fn log_and_get_status_with_context(
+        self,
+        node_name: &str,
+        ctx: &InstructionContext,
+    ) -> NodeStatus {
+        self.log_and_get_status_with_recovery(node_name, ctx.recovery_request_tx.as_ref())
+    }
+
+    fn log_and_get_status_with_recovery(
+        self,
+        node_name: &str,
+        recovery_request_tx: Option<&mpsc::Sender<crate::recovery::RecoveryCause>>,
+    ) -> NodeStatus {
         match self.status {
             NodeStatus::Failure => {
                 if let Some(msg) = &self.message {
                     tracing::error!("{} failed: {}", node_name, msg);
+                    if is_device_disconnected_message(msg) {
+                        request_device_disconnected_recovery(node_name, msg, recovery_request_tx);
+                    }
                 } else {
                     tracing::error!("{} failed (no details)", node_name);
                 }
@@ -92,6 +115,66 @@ impl InstructionResult {
             _ => {}
         }
         self.status
+    }
+}
+
+pub(crate) fn is_device_disconnected_message(message: &str) -> bool {
+    let lower = message.to_ascii_lowercase();
+    if lower.contains("please reconnect") {
+        return true;
+    }
+    if lower.contains("device") && lower.contains("not connected") {
+        return true;
+    }
+
+    const DEVICE_PREFIXES: &[&str] = &[
+        "camera",
+        "mount",
+        "focuser",
+        "filter wheel",
+        "filterwheel",
+        "rotator",
+        "dome",
+        "cover calibrator",
+        "flat panel",
+    ];
+    DEVICE_PREFIXES.iter().any(|prefix| {
+        lower.contains(&format!("no {prefix} connected"))
+            || lower.contains(&format!("{prefix} is not connected"))
+            || lower.contains(&format!("{prefix} not connected"))
+    })
+}
+
+fn request_device_disconnected_recovery(
+    node_name: &str,
+    message: &str,
+    recovery_request_tx: Option<&mpsc::Sender<crate::recovery::RecoveryCause>>,
+) {
+    let Some(tx) = recovery_request_tx else {
+        tracing::warn!(
+            "[RECOVERY] {} detected a device disconnect but no recovery channel is installed: {}",
+            node_name,
+            message
+        );
+        return;
+    };
+
+    match tx.try_send(crate::recovery::RecoveryCause::DeviceDisconnected) {
+        Ok(()) => tracing::warn!(
+            "[RECOVERY] {} promoted device disconnect to recovery: {}",
+            node_name,
+            message
+        ),
+        Err(tokio::sync::mpsc::error::TrySendError::Full(_)) => tracing::warn!(
+            "[RECOVERY] Recovery channel full; dropping duplicate device-disconnect request from {}: {}",
+            node_name,
+            message
+        ),
+        Err(tokio::sync::mpsc::error::TrySendError::Closed(_)) => tracing::warn!(
+            "[RECOVERY] Recovery channel closed; {} device-disconnect failure cannot enter recovery: {}",
+            node_name,
+            message
+        ),
     }
 }
 
@@ -146,6 +229,81 @@ pub struct InstructionContext {
     /// must use `if let Some(tx) = ...` and ignore send errors (no subscribers
     /// is a benign case for headless runs).
     pub event_tx: Option<tokio::sync::broadcast::Sender<crate::executor::ExecutorEvent>>,
+    /// Recovery request channel for first-class recoverable instruction failures.
+    pub recovery_request_tx: Option<mpsc::Sender<crate::recovery::RecoveryCause>>,
+    // -------------------------------------------------------------------
+    // Wave 3 Image Grading: FITS-header metadata propagated from
+    // ExecutionContext so `execute_exposure` can assemble a FrameContext
+    // for save_fits.
+    // -------------------------------------------------------------------
+    pub session_id: String,
+    pub target_id: Option<String>,
+    pub mosaic_panel: Option<crate::MosaicPanelInfo>,
+    pub current_filter_index: Option<i32>,
+    pub set_temp_c: Option<f64>,
+    pub bayer_pattern: Option<String>,
+    pub observer_name: Option<String>,
+    pub site_elevation_m: Option<f64>,
+    pub camera_make: Option<String>,
+    pub camera_model: Option<String>,
+    pub telescope_name: Option<String>,
+    pub telescope_focal_length_mm: Option<f64>,
+    pub telescope_aperture_mm: Option<f64>,
+    /// Shared handle to last plate-solve result (set by CenterTarget).
+    pub last_plate_solve: Arc<tokio::sync::RwLock<Option<crate::device_ops::PlateSolveResult>>>,
+    // -------------------------------------------------------------------
+    // Wave 3 Image Grading: per-run grading state, shared via Arc with
+    // ExecutionContext so progress events carry consistent totals across
+    // the entire sequence.
+    // -------------------------------------------------------------------
+    pub hfr_baseline: Arc<tokio::sync::RwLock<Option<f64>>>,
+    pub hfr_baseline_samples: Arc<tokio::sync::RwLock<Vec<f64>>>,
+    pub consecutive_rejects: Arc<std::sync::atomic::AtomicU32>,
+    pub frames_accepted: Arc<std::sync::atomic::AtomicU32>,
+    pub frames_rejected: Arc<std::sync::atomic::AtomicU32>,
+    /// Global default image-quality thresholds. Used as the fallback when
+    /// `ExposureConfig.quality_check` is None.
+    pub default_quality_check: Option<crate::quality::ImageQualityCheck>,
+    /// Optional reject-folder override (relative to save_path or absolute).
+    /// None => use `<save_path>/Reject/`.
+    pub reject_folder_path: Option<String>,
+    /// Wave 7 Agent 3 — per-frame defect-map application state. Cloned
+    /// from `ExecutionContext::defect_map_apply` at instruction-context
+    /// construction time. Pre-loading is bridge-side, so a `Some(...)`
+    /// value carries the parsed `DefectMap` ready for per-frame
+    /// `correct_u16_slice` application.
+    pub defect_map_apply: Arc<tokio::sync::RwLock<Option<crate::executor::DefectMapApplyState>>>,
+    // -------------------------------------------------------------------
+    // Wave 8 — Frame-Failure Forensics.
+    //
+    // `emit_grade_progress` snapshots live env values, looks at the
+    // rolling history, classifies the rejection, then pushes the new
+    // sample into the history. All five Arcs are shared with
+    // ExecutionContext so other instructions can keep mutating them.
+    // -------------------------------------------------------------------
+    /// Rolling buffer of the last `FORENSIC_HISTORY_LEN` frame samples.
+    pub forensics_history:
+        Arc<tokio::sync::RwLock<std::collections::VecDeque<crate::quality::RecentFrameSample>>>,
+    /// Sky brightness reading (mag/arcsec²) shared with the adaptive
+    /// exposure adapter.
+    pub current_sky_brightness_mag: Arc<tokio::sync::RwLock<Option<f64>>>,
+    /// Cloud motion snapshot pushed by the Dart weather pipeline.
+    pub cloud_motion_snapshot: Arc<tokio::sync::RwLock<crate::node::context::CloudMotionSnapshot>>,
+    /// Current wind speed (km/h).
+    pub current_wind_kph: Arc<tokio::sync::RwLock<Option<f64>>>,
+    /// Current sensor temperature (°C).
+    pub current_sensor_temp_c: Arc<tokio::sync::RwLock<Option<f64>>>,
+    /// Wave 8 Replay Debug — broadcast handle for [`crate::decision::DecisionEvent`]s
+    /// (FrameAccepted / FrameRejected emit from `emit_grade_progress`,
+    /// AdaptiveSwap emit from the adaptive-exposure path, BudgetMet from
+    /// the budget tracker, PluginNodeInvoked from the plugin instruction).
+    /// `None` outside the live executor (test contexts / one-shot bridge
+    /// calls); emission is a no-op then.
+    pub decision_tx: Option<crate::decision::DecisionSender>,
+    /// Wave 8 Replay Debug — active sequence_runs.id, populated for every
+    /// emitted DecisionEvent so persistence can write the FK without
+    /// re-joining on wall-clock windows.
+    pub active_sequence_run_id: Arc<parking_lot::RwLock<Option<i64>>>,
 }
 
 impl InstructionContext {
@@ -204,6 +362,20 @@ impl InstructionContext {
         self.cover_calibrator_id
             .as_deref()
             .ok_or_else(|| InstructionResult::failure("No cover calibrator (flat panel) connected"))
+    }
+
+    /// Wave 8 Replay Debug — emit a structured decision into the
+    /// broadcast channel. No-op when `decision_tx` is `None` (one-shot
+    /// instruction sites, unit tests). Stamps the active sequence_run_id
+    /// before forwarding so the persistence layer has the FK.
+    pub fn emit_decision(&self, mut event: crate::decision::DecisionEvent) {
+        let Some(tx) = self.decision_tx.as_ref() else {
+            return;
+        };
+        if event.sequence_run_id.is_none() {
+            event.sequence_run_id = *self.active_sequence_run_id.read();
+        }
+        let _ = tx.send(event);
     }
 }
 
@@ -311,10 +483,7 @@ pub async fn execute_slew(
     tracing::info!("Slewing to RA: {:.4}h, Dec: {:.4}°", ra, dec);
 
     if let Some(cb) = progress_callback {
-        cb(
-            0.0,
-            format!("Slewing to RA: {:.2}h, Dec: {:.1}°", ra, dec),
-        );
+        cb(0.0, format!("Slewing to RA: {:.2}h, Dec: {:.1}°", ra, dec));
     }
 
     if let Some(result) = ctx.check_cancelled() {
@@ -801,7 +970,9 @@ pub async fn execute_center(
             );
             tracing::debug!(
                 "Updated trigger state with plate solve: RA={:.4}°, Dec={:.4}°, scale={:.2}\"/px",
-                solve_result.ra_degrees, solve_result.dec_degrees, solve_result.pixel_scale
+                solve_result.ra_degrees,
+                solve_result.dec_degrees,
+                solve_result.pixel_scale
             );
         }
 
@@ -907,10 +1078,46 @@ fn calculate_separation_arcsec(ra1_deg: f64, dec1_deg: f64, ra2_deg: f64, dec2_d
 // EXPOSURE INSTRUCTION
 // =============================================================================
 
-/// Execute an exposure instruction
+/// Per-frame save-path renderer. Wave 4 added interpolation to the
+/// `ExposureConfig.save_to` template; the renderer is built once in the
+/// expose-instruction wrapper (which has ExecutionContext access) and
+/// invoked per-frame so the same engine can resolve `${frame:04}` and
+/// `${exposure.duration:.0f}`.
+///
+/// Returns `Ok((dir, filename))` where:
+/// * `dir` is the directory portion (absolute, with any user-specified
+///   sub-directories from the template already expanded), and
+/// * `filename` is the rendered file-name portion.
+///
+/// Errors surface as `InstructionResult::failure` from the caller — a
+/// broken save-path template must abort the exposure rather than silently
+/// drop frames into the wrong place.
+pub type FrameSavePathRenderer =
+    Box<dyn Fn(u32, u32) -> Result<(PathBuf, String), String> + Send + Sync>;
+
+/// Execute an exposure instruction.
+///
+/// `path_renderer` is `Some` when a Wave-4-aware caller (the `ExposeInstruction`
+/// node wrapper) has built a save-path renderer from the active
+/// ExecutionContext. When `None`, the function falls back to the legacy
+/// hardcoded `<target>_<filter>_<NNNN>.fits` layout — keeping pre-Wave-4
+/// call sites (tests, direct invocations) working without modification.
 pub async fn execute_exposure(
     config: &ExposureConfig,
     ctx: &InstructionContext,
+    progress_callback: impl Fn(u32, u32),
+) -> InstructionResult {
+    execute_exposure_with_renderer(config, ctx, None, progress_callback).await
+}
+
+/// Wave 4 entry point that accepts a save-path renderer. Use this from
+/// the expose-instruction node wrapper so user templates in
+/// `ExposureConfig.save_to` (including hierarchical paths and per-frame
+/// placeholders) take effect.
+pub async fn execute_exposure_with_renderer(
+    config: &ExposureConfig,
+    ctx: &InstructionContext,
+    path_renderer: Option<FrameSavePathRenderer>,
     progress_callback: impl Fn(u32, u32),
 ) -> InstructionResult {
     let camera_id = match ctx.camera_id() {
@@ -1012,6 +1219,17 @@ pub async fn execute_exposure(
     let mut completed_exposures = 0u32;
     let mut hfr_values = Vec::new();
 
+    // Wave 3 Image Grading: local bindings for the per-frame grading state.
+    // All these are Arc<_> handles shared with ExecutionContext so the
+    // dashboard sees consistent totals across instruction boundaries.
+    let frame_baseline_handle = ctx.hfr_baseline.clone();
+    let frame_baseline_samples_handle = ctx.hfr_baseline_samples.clone();
+    let consecutive_rejects_handle = ctx.consecutive_rejects.clone();
+    let frames_accepted_handle = ctx.frames_accepted.clone();
+    let frames_rejected_handle = ctx.frames_rejected.clone();
+    let quality_check_default = ctx.default_quality_check.clone();
+    let reject_folder_override = ctx.reject_folder_path.clone();
+
     for frame in 1..=config.count {
         if let Some(result) = ctx.check_cancelled() {
             return result;
@@ -1028,7 +1246,7 @@ pub async fn execute_exposure(
         // blocking exposure without driver support; the abort branch tells
         // the camera to stop so it does not continue exposing in the
         // background after we abandon the future.
-        let image_data = tokio::select! {
+        let mut image_data = tokio::select! {
             result = ctx.device_ops.camera_start_exposure(
                 &camera_id,
                 config.duration_secs,
@@ -1057,13 +1275,54 @@ pub async fn execute_exposure(
             }
         };
 
+        // Wave 7 Agent 3 — per-frame defect-map application.
+        //
+        // The capture path applies the pre-loaded defect map (pushed in
+        // via `ExecutorCommand::UpdateDefectMap`) before HFR / grading
+        // / FITS save. We deliberately run BEFORE star detection so the
+        // grader doesn't reject frames over hot-pixel-induced false
+        // stars; HFR / detection costs are unaffected because the map
+        // is sparse (~10k of 26M pixels for typical CMOS sensors) and
+        // the correction is O(defects · kernel_area).
+        //
+        // Mismatches (camera id changed, sensor size changed) are
+        // surfaced as warn-level logs and the correction is skipped —
+        // applying a map built for a different sensor would silently
+        // poison the data, but failing the burst would over-react to
+        // an operator hot-swapping cameras. The user sees the warn
+        // and the frame's FITS HISTORY card records that no correction
+        // ran.
+        //
+        // When `save_original = true` we snapshot the pre-correction
+        // pixels here so the Raw/ archive step can save them alongside
+        // the corrected frame later. A pre-clone is a ~50 MB heap
+        // copy per 26 MP frame, so we only do it when the user
+        // explicitly opted in — opt-out users pay zero.
+        let mut original_pixels_snapshot: Option<Vec<u16>> = None;
+        let should_snapshot_original = {
+            let guard = ctx.defect_map_apply.read().await;
+            guard.as_ref().map(|s| s.save_original).unwrap_or(false)
+        };
+        if should_snapshot_original {
+            original_pixels_snapshot = Some(image_data.data.clone());
+        }
+        let defect_map_outcome =
+            apply_defect_map_if_configured(ctx, &camera_id, &mut image_data, frame).await;
+        // Drop the snapshot if no correction actually happened — saving a
+        // verbatim copy of an uncorrected frame would just duplicate the
+        // canonical save and waste disk space.
+        if !matches!(defect_map_outcome, DefectMapOutcome::Applied { .. }) {
+            original_pixels_snapshot = None;
+        }
+
         // Per-frame HFR feeds the HfrDegraded / FocusDrift triggers; computing
         // it here (rather than only on autofocus) gives the triggers real-time
         // visibility into focus health between AF runs.
-        match ctx.device_ops.calculate_image_hfr(&image_data).await {
+        let measured_hfr = match ctx.device_ops.calculate_image_hfr(&image_data).await {
             Ok(Some(hfr)) => {
                 tracing::info!("Frame {}/{} HFR: {:.2} pixels", frame, config.count, hfr);
                 hfr_values.push(hfr);
+                Some(hfr)
             }
             Ok(None) => {
                 tracing::warn!(
@@ -1071,6 +1330,7 @@ pub async fn execute_exposure(
                     frame,
                     config.count
                 );
+                None
             }
             Err(e) => {
                 tracing::warn!(
@@ -1079,16 +1339,68 @@ pub async fn execute_exposure(
                     config.count,
                     e
                 );
+                None
             }
-        }
+        };
 
-        let save_path = config
-            .save_to
-            .as_ref()
-            .map(PathBuf::from)
-            .or_else(|| ctx.save_path.clone());
+        // Wave 3 Image Grading: derive star count from the star detector
+        // (cheap because the detector ran inside calculate_image_hfr and is
+        // cached) so the grading check can apply the star_count_min floor.
+        // Eccentricity is not yet measured by the existing star detector; left
+        // as `None` until that path is added in a follow-on (the grading
+        // logic treats None as "unknown, don't reject").
+        let measured_star_count = match ctx.device_ops.detect_stars_in_image(&image_data).await {
+            Ok(stars) => Some(stars.len() as u32),
+            Err(e) => {
+                tracing::debug!(
+                    "Frame {}/{} - star detection failed for grading: {}",
+                    frame,
+                    config.count,
+                    e
+                );
+                None
+            }
+        };
+        let metrics = crate::quality::FrameMetrics {
+            hfr: measured_hfr,
+            eccentricity: None,
+            star_count: measured_star_count,
+        };
 
-        if let Some(base_path) = save_path {
+        // Wave 4 — Pick the (base_path, filename) pair. When a path_renderer
+        // is supplied (the normal in-sequence case) it owns interpolation of
+        // the `ExposureConfig.save_to` template and produces a fully resolved
+        // directory + filename; an error from the renderer is fatal because
+        // a broken template silently writing to the wrong place would be a
+        // data-integrity disaster.
+        //
+        // When no renderer is supplied (legacy direct invocations from
+        // tests), we fall back to the pre-Wave-4 hardcoded layout: base
+        // path from `ctx.save_path`, filename `<target>_<filter>_<NNNN>.fits`.
+        let (base_path, filename_template) = if let Some(renderer) = path_renderer.as_ref() {
+            match renderer(frame, config.count) {
+                Ok((dir, name)) => (Some(dir), Some(name)),
+                Err(msg) => {
+                    let error_message = format!(
+                        "Save-path template render failed for frame {}/{}: {}. \
+                         Aborting exposure — silently saving to the wrong path \
+                         would corrupt the session's data integrity.",
+                        frame, config.count, msg
+                    );
+                    tracing::error!("{}", error_message);
+                    if let Some(event_tx) = &ctx.event_tx {
+                        let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                            message: error_message.clone(),
+                        });
+                    }
+                    return InstructionResult::failure(error_message);
+                }
+            }
+        } else {
+            (ctx.save_path.clone(), None)
+        };
+
+        if let Some(base_path) = base_path {
             // Audit §1.15: never silently substitute target name or filter.
             // A missing target name during normal imaging is a configuration
             // bug — emitting `image_L_0001.fits` hides which session the
@@ -1099,28 +1411,163 @@ pub async fn execute_exposure(
             // We log at warn! and use distinct synthetic placeholders that
             // are obvious in directory listings so an operator can audit
             // the run. If both fields are present this code path is silent.
-            let target_label = match ctx.target_name.as_deref() {
-                Some(name) if !name.is_empty() => name.to_string(),
-                _ => {
-                    tracing::warn!(
-                        "[CAPTURE] Saving frame with no target name — using synthetic label \"untargeted\". \
-                         This indicates the sequence was started without a TargetHeader/TargetGroup; review the configuration."
-                    );
-                    "untargeted".to_string()
-                }
+            let filename = if let Some(name) = filename_template {
+                name
+            } else {
+                // Legacy renderer-less fallback retained verbatim from the
+                // pre-Wave-4 contract.
+                let target_label = match ctx.target_name.as_deref() {
+                    Some(name) if !name.is_empty() => name.to_string(),
+                    _ => {
+                        tracing::warn!(
+                            "[CAPTURE] Saving frame with no target name — using synthetic label \"untargeted\". \
+                             This indicates the sequence was started without a TargetHeader/TargetGroup; review the configuration."
+                        );
+                        "untargeted".to_string()
+                    }
+                };
+                let filter_label = match config.filter.as_deref() {
+                    Some(name) if !name.is_empty() => name.to_string(),
+                    _ => {
+                        tracing::warn!(
+                            "[CAPTURE] Saving frame with no filter set — using synthetic label \"nofilter\" (NOT \"L\"). \
+                             A missing filter for narrowband/RGB captures would mis-label the frame as luminance."
+                        );
+                        "nofilter".to_string()
+                    }
+                };
+                format!("{}_{}_{:04}.fits", target_label, filter_label, frame)
             };
-            let filter_label = match config.filter.as_deref() {
-                Some(name) if !name.is_empty() => name.to_string(),
-                _ => {
-                    tracing::warn!(
-                        "[CAPTURE] Saving frame with no filter set — using synthetic label \"nofilter\" (NOT \"L\"). \
-                         A missing filter for narrowband/RGB captures would mis-label the frame as luminance."
-                    );
-                    "nofilter".to_string()
+
+            // Wave 3 Image Grading: decide accept/reject BEFORE picking the
+            // final path — rejects go to a sibling Reject/ folder. The
+            // grading honours the per-burst override (`config.quality_check`)
+            // first, then falls back to the global default from runtime_config
+            // (set by the executor at start time). If neither is configured
+            // the frame is accepted unconditionally and the path stays the
+            // canonical capture folder.
+            let active_check = config
+                .quality_check
+                .as_ref()
+                .or(quality_check_default.as_ref());
+            let (grade, save_dir, was_graded) = if let Some(qc) = active_check {
+                // Read baseline (None until the warmup window fills).
+                let baseline = { *frame_baseline_handle.read().await };
+                let g = crate::quality::grade_frame(qc, &metrics, baseline);
+                match g {
+                    crate::quality::FrameGrade::Pass => {
+                        // Update the rolling baseline with this accepted HFR.
+                        {
+                            let mut baseline_guard = frame_baseline_handle.write().await;
+                            let mut samples_guard = frame_baseline_samples_handle.write().await;
+                            crate::quality::update_hfr_baseline(
+                                &mut baseline_guard,
+                                &mut samples_guard,
+                                measured_hfr,
+                            );
+                        }
+                        (g, base_path.clone(), true)
+                    }
+                    crate::quality::FrameGrade::Reject { .. } => {
+                        let dir = resolve_reject_dir(&base_path, reject_folder_override.as_deref());
+                        (g, dir, true)
+                    }
                 }
+            } else {
+                (crate::quality::FrameGrade::Pass, base_path.clone(), false)
             };
-            let filename = format!("{}_{}_{:04}.fits", target_label, filter_label, frame);
-            let full_path = ensure_unique_save_path(base_path.join(&filename));
+
+            // Ensure reject dir exists if grading routed us there. The dir
+            // create error is fatal because writing into a non-existent path
+            // would be a data-loss event identical to the FITS save failure
+            // below.
+            if grade.is_reject() {
+                if let Err(e) = std::fs::create_dir_all(&save_dir) {
+                    let error_message = format!(
+                        "Reject folder '{}' could not be created: {}. \
+                         Frame {}/{} not saved; sequence aborted.",
+                        save_dir.display(),
+                        e,
+                        frame,
+                        config.count
+                    );
+                    tracing::error!("{}", error_message);
+                    if let Some(event_tx) = &ctx.event_tx {
+                        let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                            message: error_message.clone(),
+                        });
+                    }
+                    return InstructionResult::failure(error_message);
+                }
+            }
+
+            let full_path = ensure_unique_save_path(save_dir.join(&filename));
+
+            // Wave 7 Agent 3 — archive the uncorrected frame to
+            // `<save_dir>/Raw/` BEFORE the canonical save if the user
+            // opted in. The raw is written via a minimal FITS header
+            // (no defect-map history, IMAGETYP=Light) so re-runs of
+            // the correction or independent calibration workflows can
+            // re-derive results from the original pixels.
+            if matches!(
+                defect_map_outcome,
+                DefectMapOutcome::Applied {
+                    save_original: true,
+                    ..
+                }
+            ) {
+                if let Some(original) = &original_pixels_snapshot {
+                    if let Err(e) = save_uncorrected_raw_frame(
+                        &save_dir,
+                        &filename,
+                        image_data.width,
+                        image_data.height,
+                        original,
+                    )
+                    .await
+                    {
+                        // Save-original failure is non-fatal — we still
+                        // want the corrected frame to land. Log at warn
+                        // so the operator sees the partial outcome.
+                        tracing::warn!(
+                            "[DEFECT] Raw/ archive save failed for frame {}/{}: {}. \
+                             The corrected frame will still be saved.",
+                            frame,
+                            config.count,
+                            e,
+                        );
+                    }
+                } else {
+                    // Defensive: snapshot is taken only when
+                    // save_original was true at correction time, so an
+                    // Applied{save_original:true} without snapshot
+                    // means an ordering bug in this function.
+                    tracing::error!(
+                        "[DEFECT] save_original requested but no pre-correction snapshot \
+                         exists for frame {}/{}; Raw/ archive skipped.",
+                        frame,
+                        config.count,
+                    );
+                }
+            }
+
+            // Wave 3 Image Grading: build the per-frame FITS-header bundle
+            // from InstructionContext (session-static + per-target fields)
+            // plus live device telemetry (sensor temp, focuser position,
+            // rotator angle, guide RMS). Each field is best-effort — a
+            // device that fails to report its position simply omits that
+            // FITS keyword (silent fallbacks would lie about the data).
+            //
+            // Wave 7 Agent 3: thread the defect-map application outcome
+            // so the FITS HISTORY card records the correction provenance.
+            let frame_ctx = build_frame_context_for_save(
+                ctx,
+                config,
+                &image_data,
+                frame,
+                defect_map_outcome.clone(),
+            )
+            .await;
 
             if let Err(e) = ctx
                 .device_ops
@@ -1133,10 +1580,7 @@ pub async fn execute_exposure(
                     // filename keeps the save call going against the platform's CWD; the
                     // FITS writer downstream will surface any path-resolution error.
                     full_path.to_str().unwrap_or(&filename),
-                    ctx.target_name.as_deref(),
-                    config.filter.as_deref(),
-                    ctx.target_ra,
-                    ctx.target_dec,
+                    &frame_ctx,
                 )
                 .await
             {
@@ -1173,6 +1617,27 @@ pub async fn execute_exposure(
                 return InstructionResult::failure(error_message);
             }
             tracing::info!("Saved: {}", full_path.display());
+
+            // Wave 3 Image Grading: emit Accepted / Rejected progress event
+            // so the dashboard quality panel updates + Agent 3's budget
+            // tracker can skip rejected frames.
+            if was_graded {
+                emit_grade_progress(
+                    ctx,
+                    grade,
+                    &metrics,
+                    frame,
+                    config.count,
+                    &full_path,
+                    &frames_accepted_handle,
+                    &frames_rejected_handle,
+                    &consecutive_rejects_handle,
+                    active_check
+                        .map(|c| c.max_consecutive_rejects)
+                        .unwrap_or(u32::MAX),
+                )
+                .await;
+            }
         }
 
         completed_exposures += 1;
@@ -1211,6 +1676,813 @@ pub async fn execute_exposure(
         })),
         hfr_values,
     }
+}
+
+// =============================================================================
+// IMAGE-GRADING HELPERS (Wave 3 Image Grading)
+// =============================================================================
+
+// =============================================================================
+// DEFECT-MAP HELPERS (Wave 7 Agent 3)
+// =============================================================================
+
+/// Outcome of the per-frame defect-map application step. Threaded into
+/// the FITS HISTORY card emitter so the saved frame carries provenance
+/// of the correction (or its skip reason).
+#[derive(Debug, Clone)]
+pub(crate) enum DefectMapOutcome {
+    /// No defect map is configured for the current run. Common case
+    /// for users who haven't opted in to defect correction.
+    Disabled,
+    /// A map was configured but the connected camera id did not match
+    /// the map's camera id, OR the map's dimensions did not match the
+    /// frame's. In either case the frame is left as-is and a warn line
+    /// is logged so the operator sees the skip.
+    ///
+    /// `reason` is constructed at the call sites (with the specific
+    /// mismatch detail) and surfaced in the warn log line emitted there
+    /// — keeping the field in the enum means future code paths that
+    /// need to inspect or re-emit the reason (e.g. a richer skip event)
+    /// can do so without changing the shape.
+    SkippedMismatch {
+        #[allow(dead_code)]
+        reason: String,
+    },
+    /// The map matched and was applied. The corrected pixel count may
+    /// be smaller than the map's defective_count when some defects had
+    /// no healthy neighbours inside the expanded kernel.
+    Applied {
+        camera_id: String,
+        defect_count: u32,
+        corrected_count: u32,
+        kernel_diameter: u8,
+        method: &'static str,
+        save_original: bool,
+    },
+}
+
+impl DefectMapOutcome {
+    /// Convert to a FrameContext-side record. Returns `None` when no
+    /// correction was actually applied — callers must not emit a
+    /// HISTORY card claiming a correction happened when one did not.
+    fn into_record(self) -> Option<crate::scheduling::DefectMapCorrectionRecord> {
+        match self {
+            DefectMapOutcome::Applied {
+                camera_id,
+                defect_count,
+                corrected_count,
+                kernel_diameter,
+                method,
+                save_original: _,
+            } => Some(crate::scheduling::DefectMapCorrectionRecord {
+                camera_id,
+                defect_count,
+                corrected_count,
+                kernel_diameter,
+                method: method.to_string(),
+            }),
+            DefectMapOutcome::Disabled | DefectMapOutcome::SkippedMismatch { .. } => None,
+        }
+    }
+}
+
+/// Apply the per-frame defect map to the just-captured image data, in
+/// place. Returns the outcome (disabled / skipped / applied) so the
+/// FITS HISTORY card emitter and the Raw/ archival step know what
+/// happened.
+///
+/// Pre-conditions / safety:
+/// * Camera id mismatch returns `SkippedMismatch` rather than
+///   silently applying a map built for a different sensor — that
+///   would poison the data with the wrong hot-pixel coordinates.
+/// * Dimension mismatch returns `SkippedMismatch` for the same
+///   reason; the map's bitmap is sized to the sensor it was built
+///   against and applying it to a different frame size would write
+///   neighbour medians at coordinates that don't correspond to real
+///   defects.
+///
+/// Why a separate helper: keeping the borrow of
+/// `defect_map_apply` to a short read-guard scope means the rest of
+/// the capture loop is unaffected. Cloning the inner `Arc<DefectMap>`
+/// is cheap (refcount bump) and lets us drop the guard before doing
+/// the actual O(defects × kernel) correction work.
+pub(crate) async fn apply_defect_map_if_configured(
+    ctx: &InstructionContext,
+    camera_id: &str,
+    image_data: &mut crate::device_ops::ImageData,
+    frame_idx: u32,
+) -> DefectMapOutcome {
+    let snapshot = {
+        let guard = ctx.defect_map_apply.read().await;
+        guard.clone()
+    };
+    let Some(state) = snapshot else {
+        return DefectMapOutcome::Disabled;
+    };
+
+    if state.camera_id != camera_id {
+        tracing::warn!(
+            "[DEFECT] Frame {} skipping defect-map correction: connected camera id `{}` \
+             does not match map's camera id `{}`. The map was built for a different \
+             sensor and applying it would poison the data.",
+            frame_idx,
+            camera_id,
+            state.camera_id,
+        );
+        return DefectMapOutcome::SkippedMismatch {
+            reason: format!(
+                "camera mismatch: map=`{}`, frame=`{}`",
+                state.camera_id, camera_id
+            ),
+        };
+    }
+
+    if state.map.width != image_data.width || state.map.height != image_data.height {
+        tracing::warn!(
+            "[DEFECT] Frame {} skipping defect-map correction: map dimensions {}x{} do not \
+             match frame dimensions {}x{}. A subframe / ROI change has invalidated the map; \
+             rebuild it at the new sensor crop.",
+            frame_idx,
+            state.map.width,
+            state.map.height,
+            image_data.width,
+            image_data.height,
+        );
+        return DefectMapOutcome::SkippedMismatch {
+            reason: format!(
+                "size mismatch: map={}x{}, frame={}x{}",
+                state.map.width, state.map.height, image_data.width, image_data.height,
+            ),
+        };
+    }
+
+    if state.map.defective_count() == 0 {
+        // Empty map = no work, but emit a HISTORY card so the operator
+        // sees the map was selected (this catches "I built the map but
+        // it has zero defects so nothing happened" confusion).
+        return DefectMapOutcome::Applied {
+            camera_id: state.camera_id.clone(),
+            defect_count: 0,
+            corrected_count: 0,
+            kernel_diameter: state.kernel.diameter(),
+            method: state.method.as_str(),
+            save_original: state.save_original,
+        };
+    }
+
+    let pixels_slice = image_data.data.as_mut_slice();
+    let width = image_data.width;
+    let height = image_data.height;
+    // The sequencer's ImageData is mono u16 (camera output before
+    // debayering). channels = 1 is enforced by the capture-side
+    // contract; if a driver ever returns a multi-channel buffer we
+    // skip correction rather than slice into the wrong storage.
+    let channels = 1u32;
+    let expected_len = (width as usize) * (height as usize) * (channels as usize);
+    if pixels_slice.len() != expected_len {
+        tracing::warn!(
+            "[DEFECT] Frame {} skipping defect-map correction: pixel buffer length \
+             {} does not match {}x{}x{} = {} expected u16 samples.",
+            frame_idx,
+            pixels_slice.len(),
+            width,
+            height,
+            channels,
+            expected_len,
+        );
+        return DefectMapOutcome::SkippedMismatch {
+            reason: format!(
+                "buffer length {} != expected {}",
+                pixels_slice.len(),
+                expected_len
+            ),
+        };
+    }
+
+    let start = std::time::Instant::now();
+    let result = nightshade_imaging::defect_map::correct_u16_slice(
+        pixels_slice,
+        width,
+        height,
+        channels,
+        &state.map,
+        state.method,
+        state.kernel,
+    );
+    let elapsed = start.elapsed();
+    match result {
+        Ok(corrected) => {
+            tracing::info!(
+                "[DEFECT] Frame {} corrected {} of {} defective pixels in {:.1}ms (kernel={}x{}, method={})",
+                frame_idx,
+                corrected,
+                state.map.defective_count(),
+                elapsed.as_secs_f64() * 1000.0,
+                state.kernel.diameter(),
+                state.kernel.diameter(),
+                state.method.as_str(),
+            );
+            DefectMapOutcome::Applied {
+                camera_id: state.camera_id.clone(),
+                defect_count: state.map.defective_count(),
+                corrected_count: corrected,
+                kernel_diameter: state.kernel.diameter(),
+                method: state.method.as_str(),
+                save_original: state.save_original,
+            }
+        }
+        Err(e) => {
+            // Defensive: the slice-level corrector validates dimensions
+            // before mutating, so we should never reach this branch
+            // given the earlier checks. Surface the error rather than
+            // silently swallowing it.
+            tracing::error!(
+                "[DEFECT] Frame {} defect-map correction failed: {}",
+                frame_idx,
+                e,
+            );
+            DefectMapOutcome::SkippedMismatch {
+                reason: format!("corrector returned error: {}", e),
+            }
+        }
+    }
+}
+
+/// Archive the uncorrected (pre-defect-map) pixels to `<save_dir>/Raw/`.
+///
+/// We use a minimal FITS writer here that only writes width/height +
+/// the u16 sample data — the canonical FITS header (with target,
+/// telescope, observer, etc.) is reserved for the corrected frame.
+/// This keeps the Raw/ folder a literal "what the sensor produced"
+/// archive that a re-stacking workflow can pull through a different
+/// correction pipeline without having to subtract out the previous
+/// Nightshade correction.
+///
+/// Why this writer (and not a DeviceOps call): the device-ops
+/// `save_fits` writes the full FrameContext header. We deliberately
+/// want a bare-bones FITS here so the raw archive can be replayed
+/// through external calibration with no Nightshade-specific keywords
+/// already on it.
+pub(crate) async fn save_uncorrected_raw_frame(
+    save_dir: &std::path::Path,
+    filename: &str,
+    width: u32,
+    height: u32,
+    pixels: &[u16],
+) -> Result<(), String> {
+    let raw_dir = save_dir.join("Raw");
+    std::fs::create_dir_all(&raw_dir).map_err(|e| {
+        format!(
+            "could not create Raw/ directory `{}`: {}",
+            raw_dir.display(),
+            e
+        )
+    })?;
+    let raw_path = raw_dir.join(filename);
+
+    // We rely on the imaging crate's FITS writer for consistency with
+    // the rest of the save pipeline. Constructing the ImageData here
+    // is a u16→bytes shuffle — for a 26 MP frame that's ~50 MB but
+    // it happens off-thread inside spawn_blocking so the capture loop
+    // is not blocked.
+    let pixels = pixels.to_vec();
+    let raw_path_clone = raw_path.clone();
+    let join = tokio::task::spawn_blocking(move || {
+        let image = nightshade_imaging::ImageData::from_u16(width, height, 1, &pixels);
+        let mut header = nightshade_imaging::FitsHeader::new();
+        header.set_string("IMAGETYP", "LIGHT");
+        header.set_string(
+            "COMMENT",
+            "Nightshade uncorrected raw (defect map not yet applied)",
+        );
+        nightshade_imaging::write_fits(&raw_path_clone, &image, &header)
+            .map_err(|e| format!("write_fits failed: {}", e))
+    })
+    .await;
+    match join {
+        Ok(Ok(())) => {
+            tracing::info!("[DEFECT] Raw archive written: {}", raw_path.display());
+            Ok(())
+        }
+        Ok(Err(e)) => Err(e),
+        Err(e) => Err(format!("spawn_blocking join failed: {}", e)),
+    }
+}
+
+/// Resolve the directory where rejected frames go.
+///
+/// * `override_path = None`: use `<base>/Reject/`.
+/// * `override_path = Some(absolute)`: use that path verbatim.
+/// * `override_path = Some(relative)`: resolve against `base`.
+pub fn resolve_reject_dir(base: &std::path::Path, override_path: Option<&str>) -> PathBuf {
+    match override_path {
+        Some(p) => {
+            let candidate = std::path::Path::new(p);
+            if candidate.is_absolute() {
+                candidate.to_path_buf()
+            } else {
+                base.join(candidate)
+            }
+        }
+        None => base.join("Reject"),
+    }
+}
+
+/// Wave 8 forensics — snapshot the live environmental telemetry into a
+/// single `EnvironmentSnapshot`. Each field is read independently with
+/// `try_read()` semantics emulated by an `await`; the analyzer treats
+/// `None` honestly (no fabrication of stand-ins).
+async fn build_environment_snapshot(
+    ctx: &InstructionContext,
+) -> crate::quality::EnvironmentSnapshot {
+    let sky_brightness_mag = *ctx.current_sky_brightness_mag.read().await;
+    let cloud_cover_percent = ctx.cloud_motion_snapshot.read().await.current_cover_percent;
+    let wind_kph = *ctx.current_wind_kph.read().await;
+    // Guide RMS — pull the most recent sample from the trigger state's
+    // rolling guide-RMS history. The history is a `Vec<(Instant, f64)>`
+    // already maintained for the GuidingFailed trigger evaluator.
+    let guide_rms_arcsec = if let Some(trigger_state_lock) = &ctx.trigger_state {
+        let state = trigger_state_lock.read().await;
+        state
+            .guiding_rms_history
+            .as_ref()
+            .and_then(|h| h.last())
+            .map(|(_, rms)| *rms)
+    } else {
+        None
+    };
+    let sensor_temp_c = *ctx.current_sensor_temp_c.read().await;
+    crate::quality::EnvironmentSnapshot {
+        sky_brightness_mag,
+        cloud_cover_percent,
+        wind_kph,
+        guide_rms_arcsec,
+        sensor_temp_c,
+    }
+}
+
+/// Wave 8 forensics — append a sample to the rolling history, enforcing
+/// the [`crate::quality::FORENSIC_HISTORY_LEN`] bound. Lock window is
+/// minimal (one write_lock acquisition per frame) and the push is
+/// guaranteed O(1) regardless of run length.
+async fn push_forensic_sample(ctx: &InstructionContext, sample: crate::quality::RecentFrameSample) {
+    let mut history = ctx.forensics_history.write().await;
+    history.push_back(sample);
+    while history.len() > crate::quality::FORENSIC_HISTORY_LEN {
+        history.pop_front();
+    }
+}
+
+/// Emit a structured FrameAccepted / FrameRejected progress event and (on
+/// reject) update the consecutive-rejects atomic. Escalates to an
+/// `ExecutorEvent::Error` once the consecutive-rejects threshold is hit —
+/// Wave 1.5 Pack C's critical-event banner picks that up automatically.
+///
+/// Wave 8 — Frame-Failure Forensics: in addition to the existing event,
+/// this function:
+///
+/// 1. Snapshots live environmental telemetry (sky brightness, cloud cover,
+///    wind, guide RMS, sensor temperature) from the shared
+///    `ExecutionContext` Arcs.
+/// 2. On reject, consults [`crate::quality::analyze_rejection`] with the
+///    rolling history to classify the rejection (`LikelyCause`) and
+///    produce an evidence-bullet list.
+/// 3. Pushes the new frame sample (accepted or rejected) onto the rolling
+///    history so subsequent rejects have full context.
+#[allow(clippy::too_many_arguments)]
+async fn emit_grade_progress(
+    ctx: &InstructionContext,
+    grade: crate::quality::FrameGrade,
+    metrics: &crate::quality::FrameMetrics,
+    frame: u32,
+    total: u32,
+    full_path: &std::path::Path,
+    frames_accepted: &Arc<std::sync::atomic::AtomicU32>,
+    frames_rejected: &Arc<std::sync::atomic::AtomicU32>,
+    consecutive_rejects: &Arc<std::sync::atomic::AtomicU32>,
+    max_consecutive: u32,
+) {
+    use std::sync::atomic::Ordering;
+    // Wave 8 forensics — snapshot the environment once up-front so the
+    // values reported in the event match the values fed to the
+    // classifier. (Two separate reads could race against the
+    // ExecutorCommand::UpdateCloudMotion / UpdateSkyBrightness handlers.)
+    let env_snapshot = build_environment_snapshot(ctx).await;
+    match &grade {
+        crate::quality::FrameGrade::Pass => {
+            let accepted = frames_accepted.fetch_add(1, Ordering::Relaxed) + 1;
+            consecutive_rejects.store(0, Ordering::Relaxed);
+            let rejected = frames_rejected.load(Ordering::Relaxed);
+            // Wave 8 forensics: log the accepted sample so subsequent
+            // rejects can compare against it. We capture the env
+            // snapshot too — the SeeingSpike / FocusDrift heuristics
+            // require trailing accepted frames to have HFR populated.
+            push_forensic_sample(
+                ctx,
+                crate::quality::RecentFrameSample {
+                    unix_secs: chrono::Utc::now().timestamp() as f64,
+                    accepted: true,
+                    hfr: metrics.hfr,
+                    eccentricity: metrics.eccentricity,
+                    star_count: metrics.star_count,
+                    sky_brightness_mag: env_snapshot.sky_brightness_mag,
+                    cloud_cover_percent: env_snapshot.cloud_cover_percent,
+                    wind_kph: env_snapshot.wind_kph,
+                    guide_rms_arcsec: env_snapshot.guide_rms_arcsec,
+                    sensor_temp_c: env_snapshot.sensor_temp_c,
+                },
+            )
+            .await;
+            // Pack H: emit a structured `ProgressDetail::FrameAccepted` so
+            // the bridge can dispatch the typed `SequencerEvent::FrameAccepted`
+            // variant. The legacy `detail` string is still populated from
+            // `ProgressDetail::detail_text()` so any subscriber that hasn't
+            // migrated keeps working. The metrics come from `_metrics` (the
+            // `FrameMetrics` computed by the grader) because `FrameGrade::Pass`
+            // is a unit variant.
+            let structured = crate::node::ProgressDetail::FrameAccepted {
+                frame,
+                total,
+                hfr: metrics.hfr,
+                eccentricity: metrics.eccentricity,
+                star_count: metrics.star_count,
+                accepted_total: accepted,
+                rejected_total: rejected,
+                // Wave 6 Pack P — surface the on-disk save path so the
+                // Wave 6 thumbnail strip can render an inline preview of
+                // accepted frames the same way it already does for
+                // rejected ones via `FrameRejected.reject_path`. The
+                // path is the resolved FITS file we just wrote (so the
+                // strip's path resolver can hand it straight to the
+                // image-loader without further translation).
+                save_path: Some(full_path.display().to_string()),
+            };
+            let detail_text = structured.detail_text();
+            if let Some(event_tx) = &ctx.event_tx {
+                let _ = event_tx.send(crate::executor::ExecutorEvent::NodeProgress {
+                    node_id: String::new(),
+                    instruction: "Exposure".to_string(),
+                    progress_percent: 100.0 * frame as f64 / total.max(1) as f64,
+                    detail: detail_text,
+                    structured_detail: Some(Box::new(structured)),
+                });
+            }
+            // Wave 8 Replay Debug — record a FrameAccepted decision so
+            // the replay timeline surfaces every accepted frame next
+            // to the rejected ones. We hand the path through too so
+            // the replay UI can cross-link to the captured-image row.
+            ctx.emit_decision(crate::decision::DecisionEvent::new(
+                crate::decision::DecisionCategory::FrameAccepted,
+                format!(
+                    "Frame {}/{} accepted{}",
+                    frame,
+                    total,
+                    metrics
+                        .hfr
+                        .map(|h| format!(" (HFR {:.2})", h))
+                        .unwrap_or_default(),
+                ),
+                serde_json::json!({
+                    "frame": frame,
+                    "total": total,
+                    "hfr": metrics.hfr,
+                    "eccentricity": metrics.eccentricity,
+                    "star_count": metrics.star_count,
+                    "save_path": full_path.display().to_string(),
+                    "accepted_total": accepted,
+                    "rejected_total": rejected,
+                }),
+            ));
+        }
+        crate::quality::FrameGrade::Reject {
+            reason,
+            hfr,
+            eccentricity,
+            star_count,
+        } => {
+            let rejected = frames_rejected.fetch_add(1, Ordering::Relaxed) + 1;
+            let accepted = frames_accepted.load(Ordering::Relaxed);
+            let consecutive = consecutive_rejects.fetch_add(1, Ordering::Relaxed) + 1;
+
+            tracing::warn!(
+                "[GRADE] Frame {}/{} REJECTED ({}× consecutive): {} (HFR={:?}, ecc={:?}, stars={:?}, path={})",
+                frame,
+                total,
+                consecutive,
+                reason,
+                hfr,
+                eccentricity,
+                star_count,
+                full_path.display()
+            );
+
+            // Wave 8 forensics — read the rolling history (cheap clone of
+            // VecDeque -> Vec since only the analyzer needs a contiguous
+            // slice) and consult the classifier. The history read MUST
+            // happen before `push_forensic_sample` below so the current
+            // frame doesn't classify against itself. We snapshot the HFR
+            // baseline from the shared Arc the grader already uses, so
+            // the classifier sees the same "what counts as elevated"
+            // anchor.
+            let history_snapshot: Vec<crate::quality::RecentFrameSample> = {
+                let lock = ctx.forensics_history.read().await;
+                lock.iter().cloned().collect()
+            };
+            let baseline_snapshot = *ctx.hfr_baseline.read().await;
+            let verdict = crate::quality::analyze_rejection(&crate::quality::ForensicInputs {
+                hfr: *hfr,
+                eccentricity: *eccentricity,
+                star_count: *star_count,
+                hfr_baseline: baseline_snapshot,
+                environment: env_snapshot.clone(),
+                recent_frames: &history_snapshot,
+                grader_reason: reason.as_str(),
+            });
+            tracing::info!(
+                "[FORENSICS] Frame {}/{} cause={} evidence={:?}",
+                frame,
+                total,
+                verdict.likely_cause.map(|c| c.label()).unwrap_or("none"),
+                verdict.evidence,
+            );
+
+            // Pack H: structured FrameRejected payload mirrors what the
+            // bridge needs to dispatch SequencerEvent::FrameRejected; the
+            // legacy detail string remains for back-compat. Wave 8
+            // forensics fields are populated from the verdict + the
+            // pre-classification environment snapshot.
+            let structured = crate::node::ProgressDetail::FrameRejected {
+                frame,
+                total,
+                reason: reason.clone(),
+                hfr: *hfr,
+                eccentricity: *eccentricity,
+                star_count: *star_count,
+                reject_path: full_path.display().to_string(),
+                consecutive_rejects: consecutive,
+                accepted_total: accepted,
+                rejected_total: rejected,
+                likely_cause: verdict.likely_cause,
+                evidence: verdict.evidence.clone(),
+                sky_brightness_at_capture: env_snapshot.sky_brightness_mag,
+                cloud_cover_at_capture: env_snapshot.cloud_cover_percent,
+                wind_at_capture: env_snapshot.wind_kph,
+                guide_rms_at_capture: env_snapshot.guide_rms_arcsec,
+                sensor_temp_at_capture: env_snapshot.sensor_temp_c,
+            };
+            // Append the rejected sample to the history AFTER
+            // classification so the next reject sees this one in its
+            // neighbour cluster.
+            push_forensic_sample(
+                ctx,
+                crate::quality::RecentFrameSample {
+                    unix_secs: chrono::Utc::now().timestamp() as f64,
+                    accepted: false,
+                    hfr: *hfr,
+                    eccentricity: *eccentricity,
+                    star_count: *star_count,
+                    sky_brightness_mag: env_snapshot.sky_brightness_mag,
+                    cloud_cover_percent: env_snapshot.cloud_cover_percent,
+                    wind_kph: env_snapshot.wind_kph,
+                    guide_rms_arcsec: env_snapshot.guide_rms_arcsec,
+                    sensor_temp_c: env_snapshot.sensor_temp_c,
+                },
+            )
+            .await;
+            let detail_text = structured.detail_text();
+            if let Some(event_tx) = &ctx.event_tx {
+                let _ = event_tx.send(crate::executor::ExecutorEvent::NodeProgress {
+                    node_id: String::new(),
+                    instruction: "Exposure".to_string(),
+                    progress_percent: 100.0 * frame as f64 / total.max(1) as f64,
+                    detail: detail_text,
+                    structured_detail: Some(Box::new(structured)),
+                });
+            }
+            // Wave 8 Replay Debug — record a FrameRejected decision so
+            // the replay timeline carries the verdict + forensics
+            // payload alongside the consecutive-rejects escalation.
+            // Cross-links to forensics via the `reject_path` field
+            // which the replay UI uses to deep-link.
+            ctx.emit_decision(crate::decision::DecisionEvent::new(
+                crate::decision::DecisionCategory::FrameRejected,
+                format!(
+                    "Frame {}/{} REJECTED: {}{}",
+                    frame,
+                    total,
+                    reason,
+                    if consecutive > 1 {
+                        format!(" ({}× consecutive)", consecutive)
+                    } else {
+                        String::new()
+                    },
+                ),
+                serde_json::json!({
+                    "frame": frame,
+                    "total": total,
+                    "reason": reason,
+                    "hfr": hfr,
+                    "eccentricity": eccentricity,
+                    "star_count": star_count,
+                    "reject_path": full_path.display().to_string(),
+                    "consecutive_rejects": consecutive,
+                    "accepted_total": accepted,
+                    "rejected_total": rejected,
+                }),
+            ));
+
+            // Escalation: max_consecutive_rejects in a row => emit Error
+            // (Wave 1.5 Pack C critical-event banner) and pause the
+            // sequence. We do NOT cancel — the user may want to inspect
+            // the rejects and resume.
+            if consecutive >= max_consecutive && max_consecutive > 0 {
+                let escalation = format!(
+                    "Image grading: {} consecutive rejects (limit {}). \
+                     Sequence paused for inspection. Frame {}/{}, last reason: {}. \
+                     Most recent reject: {}. Accepted so far: {}, rejected: {}.",
+                    consecutive,
+                    max_consecutive,
+                    frame,
+                    total,
+                    reason,
+                    full_path.display(),
+                    accepted,
+                    rejected,
+                );
+                tracing::error!("{}", escalation);
+                if let Some(event_tx) = &ctx.event_tx {
+                    let _ = event_tx.send(crate::executor::ExecutorEvent::Error {
+                        message: escalation,
+                    });
+                }
+                // The executor watches its own pause flag separately; we
+                // can't reach across into ExecutionContext from here, so we
+                // signal via Error which Pack C handles as critical.
+            }
+            // _ silence — used only for tracing above.
+            let _ = (hfr, eccentricity, star_count);
+        }
+    }
+}
+
+// =============================================================================
+// FRAME CONTEXT BUILDER (Wave 3 Image Grading)
+// =============================================================================
+
+/// Build the per-frame FITS-header bundle for the current capture.
+///
+/// Reads everything the FITS writer needs:
+/// - session-static fields from `InstructionContext` (session_id, observer,
+///   equipment ID, site coords)
+/// - per-target fields from `InstructionContext` (target_name/id, mosaic_panel)
+/// - exposure settings from the active `ExposureConfig`
+/// - live device telemetry by querying the connected focuser / rotator /
+///   guider via `DeviceOps`. Each query is best-effort: a device that fails
+///   to report its state simply omits the corresponding FITS keyword. We
+///   never substitute sentinel values (the audit's silent-fallback rule).
+/// - the most recent plate-solve result, if CenterTarget ran for this target
+///
+/// The live-telemetry reads are bounded: the focuser/rotator/guide queries
+/// are simple status reads (no motion commands) and the existing DeviceOps
+/// implementations cache the values, so this adds <10 ms of overhead per
+/// frame — negligible compared to the multi-second exposure.
+async fn build_frame_context_for_save(
+    ctx: &InstructionContext,
+    config: &ExposureConfig,
+    image_data: &ImageData,
+    frame_index: u32,
+    defect_map_outcome: DefectMapOutcome,
+) -> crate::scheduling::FrameContext {
+    let (bin_x, bin_y) = match config.binning {
+        Binning::One => (1u32, 1u32),
+        Binning::Two => (2, 2),
+        Binning::Three => (3, 3),
+        Binning::Four => (4, 4),
+    };
+
+    let mut frame_ctx = crate::scheduling::FrameContext::new_light(
+        ctx.session_id.clone(),
+        bin_x,
+        bin_y,
+        config.duration_secs,
+        frame_index,
+    );
+
+    frame_ctx.total_planned_frames = Some(config.count);
+
+    // Target identification — use the running target from the executor (not
+    // the synthesized "untargeted" label used for the filename, which is a
+    // legitimate operator-visible signal but should not pollute the FITS
+    // OBJECT keyword).
+    frame_ctx.target_id = ctx.target_id.clone();
+    frame_ctx.target_name = ctx.target_name.clone();
+    frame_ctx.target_ra_hours = ctx.target_ra;
+    frame_ctx.target_dec_degrees = ctx.target_dec;
+
+    // Filter.
+    frame_ctx.filter_name = config.filter.clone().or_else(|| ctx.current_filter.clone());
+    frame_ctx.filter_index = config.filter_index.or(ctx.current_filter_index);
+
+    // Camera settings (already on ImageData from the capture).
+    frame_ctx.gain = image_data.gain.or(config.gain);
+    frame_ctx.offset = image_data.offset.or(config.offset);
+    frame_ctx.sensor_temp_c = image_data.temperature;
+    frame_ctx.set_temp_c = ctx.set_temp_c;
+
+    // Bayer pattern — prefer the camera-reported sensor type over a stale
+    // ExecutionContext value. A camera reporting "Monochrome" overrides any
+    // stale "RGGB" left from a previous (different-camera) session.
+    frame_ctx.bayer_pattern = match image_data.sensor_type.as_deref() {
+        Some(s) if s.eq_ignore_ascii_case("Monochrome") || s.eq_ignore_ascii_case("Mono") => None,
+        _ => ctx.bayer_pattern.clone(),
+    };
+
+    // Mosaic panel.
+    frame_ctx.mosaic_panel = ctx.mosaic_panel.clone();
+
+    // Observer / site.
+    frame_ctx.observer_name = ctx.observer_name.clone();
+    frame_ctx.site_latitude_deg = ctx.latitude;
+    frame_ctx.site_longitude_deg = ctx.longitude;
+    frame_ctx.site_elevation_m = ctx.site_elevation_m;
+
+    // Equipment identification.
+    frame_ctx.camera_make = ctx.camera_make.clone();
+    frame_ctx.camera_model = ctx.camera_model.clone();
+    frame_ctx.telescope_name = ctx.telescope_name.clone();
+    frame_ctx.telescope_focal_length_mm = ctx.telescope_focal_length_mm;
+    frame_ctx.telescope_aperture_mm = ctx.telescope_aperture_mm;
+
+    // Live focuser telemetry. We use match arms so a driver error just
+    // omits the keyword — never overrides with a fake value. The focuser
+    // temperature is `Option<f64>` even on success because not every
+    // focuser model has a thermistor.
+    if let Some(focuser_id) = &ctx.focuser_id {
+        match ctx.device_ops.focuser_get_position(focuser_id).await {
+            Ok(pos) => frame_ctx.focuser_position = Some(pos),
+            Err(e) => tracing::debug!(
+                "[CAPTURE] focuser_get_position failed; FOCUSPOS omitted: {}",
+                e
+            ),
+        }
+        match ctx.device_ops.focuser_get_temperature(focuser_id).await {
+            Ok(temp) => frame_ctx.focuser_temperature_c = temp,
+            Err(e) => tracing::debug!(
+                "[CAPTURE] focuser_get_temperature failed; FOCTEMP omitted: {}",
+                e
+            ),
+        }
+    }
+
+    // Live rotator telemetry.
+    if let Some(rotator_id) = &ctx.rotator_id {
+        match ctx.device_ops.rotator_get_angle(rotator_id).await {
+            Ok(angle) => frame_ctx.rotator_angle_deg = Some(angle),
+            Err(e) => tracing::debug!(
+                "[CAPTURE] rotator_get_angle failed; ROTATPOS omitted: {}",
+                e
+            ),
+        }
+    }
+
+    // Live guide RMS (PHD2 / built-in guider). The guider may be off (no
+    // guiding for short subs), in which case the keyword is omitted.
+    match ctx.device_ops.guider_get_status().await {
+        Ok(status) if status.is_guiding => {
+            frame_ctx.guide_rms_arcsec = Some(status.rms_total);
+        }
+        Ok(_) => {
+            // Guider connected but not currently guiding — omit the keyword.
+        }
+        Err(e) => tracing::debug!(
+            "[CAPTURE] guider_get_status failed; GUIDERMS omitted: {}",
+            e
+        ),
+    }
+
+    // Plate-solve result (only available once CenterTarget has run for
+    // this target). Stored as Arc<RwLock<_>> so the executor and exposure
+    // share state without cloning.
+    {
+        let solve_guard = ctx.last_plate_solve.read().await;
+        if let Some(solve) = solve_guard.as_ref() {
+            // PlateSolveResult stores RA in DEGREES; convert to hours for
+            // the SOLVED-RA keyword (which is FITS-standard in degrees).
+            // Wait — read the spec: api_save_fits writes RA in HOURS for
+            // the RA keyword. Stay consistent: SOLVED-RA in HOURS too.
+            frame_ctx.plate_solve_ra_hours = Some(solve.ra_degrees / 15.0);
+            frame_ctx.plate_solve_dec_degrees = Some(solve.dec_degrees);
+            frame_ctx.plate_solve_pixel_scale_arcsec = Some(solve.pixel_scale);
+            frame_ctx.plate_solve_rotation_deg = Some(solve.rotation);
+        }
+    }
+
+    // Wave 7 Agent 3 — defect-map correction provenance. Only set when
+    // the correction actually ran; skipped / disabled outcomes leave
+    // the field None and no HISTORY card is emitted by the FITS writer.
+    frame_ctx.defect_map_correction = defect_map_outcome.into_record();
+
+    frame_ctx
 }
 
 // =============================================================================
@@ -1975,6 +3247,78 @@ pub async fn execute_start_guiding(
                 ));
             }
 
+            // P3-7: post-start calibration quality validation. A guider can
+            // report `is_guiding == true` and still be hopelessly miscalibrated
+            // — wrong axis directions, mirror-flipped pulses, near-singular
+            // matrix. The audit specifically flagged that bad calibrations
+            // were "slipping through" the existing is_guiding poll, so this
+            // gate is fail-closed (errors fail the StartGuiding instruction
+            // rather than letting the night drift away silently).
+            if config.validate_calibration {
+                if let Some(cb) = progress_callback {
+                    cb(90.0, "Validating calibration quality".to_string());
+                }
+
+                // Step 1: axis geometry — fetch calibration data and check
+                // that the reported axis angles are reasonably perpendicular.
+                match ctx.device_ops.guider_get_calibration().await {
+                    Ok(calib) => {
+                        if let Err(reason) = validate_calibration_quality(&calib, config) {
+                            return InstructionResult::failure(reason);
+                        }
+                    }
+                    Err(e) => {
+                        // Driver doesn't expose calibration angles (some Alpaca
+                        // backends): warn but don't fail — the RMS check below
+                        // is the safety net.
+                        tracing::warn!(
+                            "Skipping calibration-axis validation: {} \
+                             (driver does not report calibration data)",
+                            e
+                        );
+                    }
+                }
+
+                // Step 2: post-settle RMS sanity — sample over a short window
+                // to catch calibrations whose RMS only blows up after the
+                // initial settle (drift / over-correction).
+                let rms_samples: u32 = 3;
+                let rms_interval = Duration::from_secs(2);
+                let mut max_rms: f64 = 0.0;
+                let mut sample_count: u32 = 0;
+                for _ in 0..rms_samples {
+                    if let Some(result) = ctx.check_cancelled() {
+                        return result;
+                    }
+                    sleep(rms_interval).await;
+                    match ctx.device_ops.guider_get_status().await {
+                        Ok(status) => {
+                            max_rms = max_rms.max(status.rms_total);
+                            sample_count += 1;
+                        }
+                        Err(e) => {
+                            tracing::warn!("RMS sample failed during validation: {}", e);
+                        }
+                    }
+                }
+                if sample_count > 0 && max_rms > config.max_post_settle_rms_pixels {
+                    return InstructionResult::failure(format!(
+                        "Post-settle guiding RMS too high: {:.2}px peak across {} sample(s) \
+                         over {}s (limit {:.2}px). Calibration looks poor — \
+                         recalibrate the guider before continuing.",
+                        max_rms,
+                        sample_count,
+                        rms_samples as u64 * rms_interval.as_secs(),
+                        config.max_post_settle_rms_pixels
+                    ));
+                }
+                tracing::info!(
+                    "Calibration validation passed: peak RMS {:.2}px over {}s window",
+                    max_rms,
+                    rms_samples as u64 * rms_interval.as_secs()
+                );
+            }
+
             if let Some(cb) = progress_callback {
                 cb(100.0, "Guiding active".to_string());
             }
@@ -1982,6 +3326,43 @@ pub async fn execute_start_guiding(
         }
         Err(e) => InstructionResult::failure(format!("Failed to start guiding: {}", e)),
     }
+}
+
+/// P3-7: pure validation function over a `GuidingCalibration` snapshot.
+/// Extracted from `execute_start_guiding` so it can be unit-tested without
+/// spinning up a full device stack.
+///
+/// Returns `Err(reason)` with a user-facing message if calibration looks
+/// broken; `Ok(())` if it should proceed.
+pub fn validate_calibration_quality(
+    calib: &crate::GuidingCalibration,
+    config: &StartGuidingConfig,
+) -> Result<(), String> {
+    if !calib.is_calibrated {
+        return Err(
+            "Guider reports it is not calibrated after StartGuiding completed. \
+             This usually means calibration was cancelled or failed silently."
+                .to_string(),
+        );
+    }
+
+    if let (Some(ra), Some(dec)) = (calib.ra_angle_deg, calib.dec_angle_deg) {
+        // The axes should be ~90° apart (modulo 180°, since either axis
+        // could be the "positive" direction). Compute the deviation from
+        // perpendicularity in degrees in [0, 90].
+        let raw_diff = (ra - dec).abs() % 180.0;
+        let perpendicularity_error = (raw_diff - 90.0).abs();
+        if perpendicularity_error > config.max_calibration_axis_error_deg {
+            return Err(format!(
+                "Calibration axes look broken: RA angle {:.1}°, Dec angle {:.1}° \
+                 — off-perpendicular by {:.1}° (limit {:.1}°). \
+                 The guider may have miscalibrated; recalibrate before continuing.",
+                ra, dec, perpendicularity_error, config.max_calibration_axis_error_deg
+            ));
+        }
+    }
+
+    Ok(())
 }
 
 /// Execute stop guiding - stops PHD2 guiding
@@ -2300,10 +3681,7 @@ pub async fn execute_cool_camera(
     if let Some(cb) = progress_callback {
         cb(
             0.0,
-            format!(
-                "Starting: {:.1}°C → {:.1}°C",
-                start_temp, target_temp
-            ),
+            format!("Starting: {:.1}°C → {:.1}°C", start_temp, target_temp),
         );
     }
 
@@ -2444,10 +3822,7 @@ pub async fn execute_warm_camera(
     if let Some(cb) = progress_callback {
         cb(
             0.0,
-            format!(
-                "Warming: {:.1}°C → {:.1}°C",
-                start_temp, target_temp
-            ),
+            format!("Warming: {:.1}°C → {:.1}°C", start_temp, target_temp),
         );
     }
 
@@ -2478,10 +3853,7 @@ pub async fn execute_warm_camera(
         if let Some(cb) = progress_callback {
             cb(
                 progress_percent,
-                format!(
-                    "Warming: {:.1}°C → {:.1}°C",
-                    progress_temp, target_temp
-                ),
+                format!("Warming: {:.1}°C → {:.1}°C", progress_temp, target_temp),
             );
         }
 
@@ -2937,7 +4309,12 @@ pub async fn execute_notification(
 
     if let Err(e) = ctx
         .device_ops
-        .send_notification(level, &config.title, &config.message)
+        .send_notification(
+            level,
+            &config.title,
+            &config.message,
+            config.explicit_transports.as_deref(),
+        )
         .await
     {
         tracing::warn!("Failed to send notification: {}", e);
@@ -2950,8 +4327,19 @@ pub async fn execute_notification(
 // SCRIPT INSTRUCTION
 // =============================================================================
 
-/// Execute script
-pub async fn execute_script(config: &ScriptConfig, ctx: &InstructionContext) -> InstructionResult {
+/// Execute script. Wave 4 expanded the env-var contract: every variable
+/// declared in `expressions::catalog` is exposed as `NIGHTSHADE_<NAME>`
+/// where `NAME` is the dotted variable converted to UPPER_SNAKE
+/// (e.g. `target.alt` → `NIGHTSHADE_TARGET_ALT`). Variables that fail to
+/// resolve are simply omitted (a missing env var is a normal "no data"
+/// signal to a shell script, unlike a `${...}` template inside an
+/// argument which is a hard failure).
+pub async fn execute_script(
+    config: &ScriptConfig,
+    ctx: &InstructionContext,
+    exec_ctx: &crate::node::context::ExecutionContext,
+    frame: &crate::expressions::EvaluationFrame,
+) -> InstructionResult {
     tracing::info!(
         "Running script: {} {:?}",
         config.script_path,
@@ -2966,18 +4354,23 @@ pub async fn execute_script(config: &ScriptConfig, ctx: &InstructionContext) -> 
     let mut cmd = tokio::process::Command::new(&config.script_path);
     cmd.args(&config.arguments);
 
-    // Add environment variables with session context
-    if let Some(target) = &ctx.target_name {
-        cmd.env("NIGHTSHADE_TARGET", target);
-    }
-    if let Some(ra) = ctx.target_ra {
-        cmd.env("NIGHTSHADE_TARGET_RA", ra.to_string());
-    }
-    if let Some(dec) = ctx.target_dec {
-        cmd.env("NIGHTSHADE_TARGET_DEC", dec.to_string());
-    }
-    if let Some(filter) = &ctx.current_filter {
-        cmd.env("NIGHTSHADE_FILTER", filter);
+    // Expose every catalog variable as an env var. Anything that does not
+    // resolve (e.g. `target.alt` without an observer location) is silently
+    // skipped — the script can detect missing data via `env -u` semantics.
+    // We deliberately do NOT propagate InterpolationError here: an env-var
+    // contract is "this MAY be present", whereas an argument template's
+    // contract is "this MUST resolve".
+    for entry in crate::expressions::variable_catalog() {
+        if let Ok(value) = crate::expressions::resolve_variable(entry.name, 0, exec_ctx, frame) {
+            let env_name = format!(
+                "NIGHTSHADE_{}",
+                crate::expressions::catalog_name_to_env(entry.name)
+            );
+            cmd.env(
+                env_name,
+                crate::expressions::format_variable_for_env(&value),
+            );
+        }
     }
 
     // Set timeout
@@ -3321,58 +4714,16 @@ pub async fn execute_park_dome(
 // MOSAIC INSTRUCTION
 // =============================================================================
 
-/// Execute mosaic panel iteration
-/// This is a container instruction that iterates through mosaic panels
-/// The actual panel calculation is done in the mosaic module
+/// Execute mosaic panel iteration. Delegates to [`crate::mosaic::run_mosaic_wizard`]
+/// which drives a [`crate::wizard::Wizard`] for per-panel checkpoint
+/// support. Behavior is byte-identical to the pre-refactor monolithic
+/// implementation.
 pub async fn execute_mosaic(
     config: &crate::MosaicConfig,
-    _ctx: &InstructionContext,
+    ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> InstructionResult {
-    // Emit initial progress
-    if let Some(cb) = progress_callback {
-        cb(0.0, "Starting mosaic".to_string());
-    }
-
-    tracing::info!(
-        "Starting mosaic: {}x{} panels, {:.1}% overlap",
-        config.panels_horizontal,
-        config.panels_vertical,
-        config.overlap_percent
-    );
-
-    // Emit progress for calculating panels
-    if let Some(cb) = progress_callback {
-        cb(30.0, "Calculating panel positions".to_string());
-    }
-
-    // Calculate all panel positions
-    let panels = crate::mosaic::calculate_mosaic_panels(config);
-    let total_panels = panels.len();
-
-    tracing::info!("Mosaic contains {} panels", total_panels);
-
-    // Note: The actual execution of visiting each panel will be handled by the
-    // node execution logic which will create child slew/center/expose nodes
-    // for each panel. This instruction just validates the configuration.
-
-    // Emit final progress
-    if let Some(cb) = progress_callback {
-        cb(100.0, format!("Mosaic configured: {} panels", total_panels));
-    }
-
-    InstructionResult {
-        status: NodeStatus::Success,
-        message: Some(format!("Mosaic configured: {} panels", total_panels)),
-        data: Some(serde_json::json!({
-            "total_panels": total_panels,
-            "panels_horizontal": config.panels_horizontal,
-            "panels_vertical": config.panels_vertical,
-            "overlap_percent": config.overlap_percent,
-            "total_area_arcmin2": crate::mosaic::calculate_mosaic_area(config),
-        })),
-        hfr_values: Vec::new(),
-    }
+    crate::mosaic::run_mosaic_wizard(config, ctx, progress_callback).await
 }
 
 // =============================================================================
@@ -3810,5 +5161,173 @@ mod tests {
         // With 1 arcminute tolerance, 0.2h = 3 degrees should fail
         let result = validate_slew_position(0.1, 45.0, 23.9, 45.0, 1.0 / 60.0);
         assert!(result.is_err());
+    }
+
+    // -------------------------------------------------------------------
+    // P3-7: post-start calibration quality validation
+    // -------------------------------------------------------------------
+
+    fn _cfg() -> StartGuidingConfig {
+        StartGuidingConfig::default()
+    }
+
+    #[test]
+    fn validate_calibration_rejects_uncalibrated_guider() {
+        let calib = crate::GuidingCalibration {
+            is_calibrated: false,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(90.0),
+        };
+        let result = validate_calibration_quality(&calib, &_cfg());
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("not calibrated"));
+    }
+
+    #[test]
+    fn validate_calibration_accepts_perpendicular_axes() {
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(90.0),
+        };
+        assert!(validate_calibration_quality(&calib, &_cfg()).is_ok());
+    }
+
+    #[test]
+    fn validate_calibration_accepts_perpendicular_axes_modulo_180() {
+        // Same physical geometry as (0°, 90°) — either axis could be the
+        // "positive" pulse direction. The validator must not penalise this.
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(180.0),
+            dec_angle_deg: Some(90.0),
+        };
+        assert!(validate_calibration_quality(&calib, &_cfg()).is_ok());
+    }
+
+    #[test]
+    fn validate_calibration_accepts_axes_within_tolerance() {
+        // 15° off perpendicular — under the 20° default ceiling.
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(75.0),
+        };
+        assert!(validate_calibration_quality(&calib, &_cfg()).is_ok());
+    }
+
+    #[test]
+    fn validate_calibration_rejects_grossly_non_perpendicular_axes() {
+        // Axes parallel — calibration was almost certainly broken (mount
+        // pulsed in the same direction for both axes).
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(0.0),
+        };
+        let result = validate_calibration_quality(&calib, &_cfg());
+        assert!(result.is_err());
+        let msg = result.unwrap_err();
+        assert!(msg.contains("off-perpendicular"), "got: {}", msg);
+    }
+
+    #[test]
+    fn validate_calibration_passes_when_angles_missing() {
+        // Driver didn't report angles — we can't validate geometry, but the
+        // is_calibrated flag is true so we let it through. The RMS sampling
+        // step is the safety net for this case.
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: None,
+            dec_angle_deg: None,
+        };
+        assert!(validate_calibration_quality(&calib, &_cfg()).is_ok());
+    }
+
+    #[test]
+    fn validate_calibration_honours_custom_tolerance() {
+        // 25° off perpendicular — over default 20° ceiling but under custom 30°.
+        let calib = crate::GuidingCalibration {
+            is_calibrated: true,
+            ra_angle_deg: Some(0.0),
+            dec_angle_deg: Some(65.0),
+        };
+        let strict = StartGuidingConfig::default();
+        assert!(validate_calibration_quality(&calib, &strict).is_err());
+
+        let lax = StartGuidingConfig {
+            max_calibration_axis_error_deg: 30.0,
+            ..StartGuidingConfig::default()
+        };
+        assert!(validate_calibration_quality(&calib, &lax).is_ok());
+    }
+
+    // -------------------------------------------------------------------
+    // Wave 3 Image Grading: reject folder resolution
+    // -------------------------------------------------------------------
+
+    #[test]
+    fn reject_dir_defaults_to_reject_subfolder_of_save_path() {
+        let base = std::path::Path::new("/captures/M31/L");
+        let dir = resolve_reject_dir(base, None);
+        assert_eq!(dir, std::path::Path::new("/captures/M31/L/Reject"));
+    }
+
+    #[test]
+    fn reject_dir_relative_override_resolves_against_save_path() {
+        let base = std::path::Path::new("/captures/M31/L");
+        let dir = resolve_reject_dir(base, Some("BadFrames"));
+        assert_eq!(dir, std::path::Path::new("/captures/M31/L/BadFrames"));
+    }
+
+    #[test]
+    fn reject_dir_absolute_override_used_verbatim() {
+        // Use platform-appropriate absolute path.
+        #[cfg(windows)]
+        let abs = r"C:\nightshade\rejects";
+        #[cfg(not(windows))]
+        let abs = "/var/nightshade/rejects";
+
+        let base = std::path::Path::new("/captures/M31/L");
+        let dir = resolve_reject_dir(base, Some(abs));
+        assert_eq!(dir, std::path::Path::new(abs));
+    }
+
+    #[test]
+    fn device_disconnect_messages_are_classified_narrowly() {
+        assert!(is_device_disconnected_message("No camera connected"));
+        assert!(is_device_disconnected_message(
+            "Device 'cam1' is not connected. Cannot perform: exposure. Please reconnect the device first."
+        ));
+        assert!(is_device_disconnected_message(
+            "Filter wheel is not connected"
+        ));
+
+        assert!(!is_device_disconnected_message(
+            "No target coordinates available"
+        ));
+        assert!(!is_device_disconnected_message(
+            "Plate solve returned no solution"
+        ));
+        assert!(!is_device_disconnected_message("Script exited with code 1"));
+    }
+
+    #[test]
+    fn disconnected_instruction_failure_posts_recovery_request() {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async {
+            let (tx, mut rx) = tokio::sync::mpsc::channel(1);
+            let result = InstructionResult::failure("No camera connected");
+            let status = result.log_and_get_status_with_recovery("Exposure", Some(&tx));
+
+            assert_eq!(status, NodeStatus::Failure);
+            assert_eq!(
+                rx.recv().await,
+                Some(crate::recovery::RecoveryCause::DeviceDisconnected)
+            );
+        });
     }
 }

@@ -30,6 +30,15 @@ impl AscomCoverCalibrator {
         self.device.disconnect()
     }
 
+    /// Query the underlying ASCOM driver for its current `Connected` state.
+    ///
+    /// Used by capability probes that must NOT kick an active UI connection:
+    /// if the driver reports `Ok(true)`, the probe reuses the connection
+    /// instead of opening/closing its own session.
+    pub fn is_connected(&self) -> Result<bool, String> {
+        self.device.is_connected()
+    }
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }

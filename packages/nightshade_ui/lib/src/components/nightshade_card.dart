@@ -7,7 +7,7 @@ enum CardVariant {
   /// Standard card with surface background
   standard,
 
-  /// Elevated card with stronger shadow
+  /// Elevated card with stronger border contrast
   elevated,
 
   /// Subtle card with minimal styling
@@ -45,10 +45,9 @@ class _NightshadeCardState extends State<NightshadeCard> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final shouldAnimate = widget.enableHover || widget.onTap != null;
 
-    // Determine base background color
     final baseBackground = widget.backgroundColor ??
         switch (widget.variant) {
           CardVariant.standard => colors.surfaceAlt,
@@ -56,53 +55,24 @@ class _NightshadeCardState extends State<NightshadeCard> {
           CardVariant.subtle => colors.surface,
         };
 
-    // Determine shadow based on variant and hover state
-    final List<BoxShadow> shadow;
-    if (widget.variant == CardVariant.subtle) {
-      shadow = [];
-    } else if (_isHovered && shouldAnimate) {
-      shadow = NightshadeTokens.elevationLevel2;
-    } else if (widget.variant == CardVariant.elevated || widget.isSelected) {
-      shadow = NightshadeTokens.elevationLevel1to2;
-    } else {
-      shadow = NightshadeTokens.elevationLevel1;
-    }
-
-    // Border color with hover and selected states
-    final borderColor = widget.isSelected
-        ? colors.primary.withValues(alpha: 0.55)
+    final backgroundColor = widget.isSelected
+        ? Color.alphaBlend(
+            colors.primary.withValues(alpha: 0.04),
+            baseBackground,
+          )
         : _isHovered && shouldAnimate
-            ? colors.borderHighlight.withValues(alpha: 0.8)
-            : colors.border.withValues(alpha: 0.65);
+            ? colors.surfaceHover
+            : baseBackground;
 
-    // Build the card content with optional padding
+    final borderColor = widget.isSelected
+        ? colors.primary.withValues(alpha: 0.45)
+        : _isHovered && shouldAnimate
+            ? colors.borderHighlight.withValues(alpha: 0.85)
+            : colors.border.withValues(alpha: 0.55);
+
     Widget content = widget.child;
     if (widget.padding != null) {
       content = Padding(padding: widget.padding!, child: content);
-    }
-
-    // Selected state indicator (accent left border)
-    if (widget.isSelected) {
-      content = Stack(
-        children: [
-          content,
-          Positioned(
-            left: 0,
-            top: 0,
-            bottom: 0,
-            child: Container(
-              width: 3,
-              decoration: BoxDecoration(
-                color: colors.primary,
-                borderRadius: BorderRadius.only(
-                  topLeft: Radius.circular(widget.borderRadius),
-                  bottomLeft: Radius.circular(widget.borderRadius),
-                ),
-              ),
-            ),
-          ),
-        ],
-      );
     }
 
     return MouseRegion(
@@ -116,42 +86,13 @@ class _NightshadeCardState extends State<NightshadeCard> {
         child: AnimatedContainer(
           duration: NightshadeTokens.durationNormal,
           curve: NightshadeTokens.curveSnappy,
-          transform: _isHovered && shouldAnimate
-              ? (Matrix4.identity()..setTranslationRaw(0.0, -2.0, 0.0))
-              : Matrix4.identity(),
           decoration: BoxDecoration(
-            color: baseBackground,
+            color: backgroundColor,
             borderRadius: BorderRadius.circular(widget.borderRadius),
             border: Border.all(color: borderColor),
-            boxShadow: shadow,
           ),
           clipBehavior: Clip.antiAlias,
-          child: Stack(
-            children: [
-              // Highlight edge at top (catches light effect)
-              if (widget.variant != CardVariant.subtle)
-                Positioned(
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  child: Container(
-                    height: 1,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          colors.borderHighlight
-                              .withValues(alpha: _isHovered ? 0.3 : 0.15),
-                          colors.borderHighlight.withValues(alpha: 0.0),
-                        ],
-                        stops: const [0.0, 0.7],
-                      ),
-                    ),
-                  ),
-                ),
-              // Main content
-              content,
-            ],
-          ),
+          child: content,
         ),
       ),
     );

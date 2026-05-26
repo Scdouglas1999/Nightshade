@@ -1,15 +1,14 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:drift/drift.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/network_backend.dart';
-import '../database/database.dart';
 import '../database/daos/settings_dao.dart';
 import '../models/alerts/transient_alert.dart';
 import '../models/target/target_models.dart';
 import '../services/logging_service.dart';
+import '../services/target_library_service.dart';
 import '../services/transient_alert_service.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
@@ -527,8 +526,6 @@ Future<CelestialTarget?> queueTransientForTonight(WidgetRef ref, TransientAlert 
   final logger = ref.read(loggingServiceProvider);
   final statesNotifier = ref.read(transientAlertStatesProvider.notifier);
   final notificationNotifier = ref.read(uiNotificationProvider.notifier);
-  final targetsDao = ref.read(targetsDaoProvider);
-
   try {
     // Mark as queued
     await statesNotifier.queue(alert.id);
@@ -551,20 +548,18 @@ Future<CelestialTarget?> queueTransientForTonight(WidgetRef ref, TransientAlert 
       alertNotes.writeln('Source URL: ${alert.sourceUrl}');
     }
 
-    // Create target from alert
-    final targetCompanion = TargetsCompanion.insert(
-      name: alert.name,
-      catalogId: Value(alert.id),
-      ra: alert.raHours,
-      dec: alert.decDegrees,
-      objectType: Value(targetType.name),
-      magnitude: Value(alert.magnitude),
-      isFavorite: const Value(false),
-      priority: Value(alert.priority),
-      notes: Value(alertNotes.toString()),
-    );
-
-    final targetId = await targetsDao.createTarget(targetCompanion);
+    final targetId =
+        await ref.read(targetLibraryServiceProvider).createTarget(
+              name: alert.name,
+              catalogId: alert.id,
+              raHours: alert.raHours,
+              decDegrees: alert.decDegrees,
+              objectType: targetType.name,
+              magnitude: alert.magnitude,
+              isFavorite: false,
+              priority: alert.priority,
+              notes: alertNotes.toString(),
+            );
 
     // Create the target object to return
     final target = CelestialTarget(

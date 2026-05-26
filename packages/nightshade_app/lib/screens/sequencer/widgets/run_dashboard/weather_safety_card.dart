@@ -13,7 +13,7 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final safety = ref.watch(weatherSafetyProvider);
 
     final (statusText, statusColor, statusIcon) = switch (safety.status) {
@@ -59,13 +59,11 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
                 child: Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                  decoration: BoxDecoration(
-                    color: statusColor.withValues(alpha: 0.15),
-                    borderRadius:
-                        BorderRadius.circular(NightshadeTokens.radiusXs),
-                    border: Border.all(
-                        color: statusColor.withValues(alpha: 0.4)),
-                  ),
+                    decoration: NightshadeDecorations.statusChip(
+                      statusColor,
+                      borderRadius:
+                          BorderRadius.circular(NightshadeTokens.radiusXs),
+                    ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -99,13 +97,11 @@ class RunDashboardWeatherSafetyCard extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceSm),
             Container(
               padding: const EdgeInsets.all(NightshadeTokens.spaceSm),
-              decoration: BoxDecoration(
-                color: colors.warning.withValues(alpha: 0.1),
-                borderRadius:
-                    BorderRadius.circular(NightshadeTokens.radiusXs),
-                border: Border.all(
-                    color: colors.warning.withValues(alpha: 0.3)),
-              ),
+                decoration: NightshadeDecorations.emphasisSurface(
+                  colors.warning,
+                  borderRadius:
+                      BorderRadius.circular(NightshadeTokens.radiusXs),
+                ),
               child: Row(
                 children: [
                   Icon(LucideIcons.alertTriangle,

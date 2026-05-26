@@ -18,7 +18,7 @@ class LibraryTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final samplesAsync = ref.watch(sampleSequencesProvider);
 
     return Padding(
@@ -56,8 +56,8 @@ class _LibraryHeader extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.12),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.primary,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(LucideIcons.library, size: 22, color: colors.primary),
@@ -164,10 +164,10 @@ class _SampleCard extends ConsumerWidget {
                 Container(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    color: _skillColor(colors, sample.skillLevel)
-                        .withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.statusChip(
+                    _skillColor(colors, sample.skillLevel),
                     borderRadius: BorderRadius.circular(8),
+                    bordered: false,
                   ),
                   child: Icon(
                     _iconFor(sample.iconName),
@@ -330,10 +330,9 @@ class _SkillBadge extends StatelessWidget {
     final color = _SampleCard._skillColor(colors, skillLevel);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        color,
         borderRadius: BorderRadius.circular(4),
-        border: Border.all(color: color.withValues(alpha: 0.3)),
       ),
       child: Text(
         skillLevel.label,

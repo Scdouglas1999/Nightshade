@@ -167,7 +167,7 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Stepper renders its own controls row, so the dialog scaffold's footer
     // slot is intentionally empty.
@@ -283,10 +283,9 @@ class _FlatWizardDialogState extends ConsumerState<FlatWizardDialog> {
                 else
                   Container(
                     padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: colors.success.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.emphasisSurface(
+                      colors.success,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colors.success),
                     ),
                     child: Column(
                       children: [

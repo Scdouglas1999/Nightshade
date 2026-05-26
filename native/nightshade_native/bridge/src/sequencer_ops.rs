@@ -26,12 +26,15 @@
 //! Sites with a local `Why:` comment override the module-level reasoning.
 
 use crate::api::*;
+use crate::device::DeviceType;
 use crate::event::{EquipmentEvent, EventSeverity};
 use crate::filter_matching::find_filter_match;
 use crate::state::SharedAppState;
 use crate::unified_device_ops::create_unified_device_ops;
 use async_trait::async_trait;
-use nightshade_sequencer::{DeviceOps, DeviceResult, GuidingStatus, ImageData, PlateSolveResult};
+use nightshade_sequencer::{
+    DeviceOps, DeviceResult, GuidingCalibration, GuidingStatus, ImageData, PlateSolveResult,
+};
 use std::sync::Arc;
 
 /// Real device operations implementation that uses connected devices
@@ -42,6 +45,32 @@ pub struct BridgeDeviceOps {
 impl BridgeDeviceOps {
     pub fn new(app_state: SharedAppState) -> Self {
         Self { app_state }
+    }
+
+    async fn resolve_safety_device_id(&self, explicit_id: Option<&str>) -> DeviceResult<String> {
+        if let Some(id) = explicit_id {
+            return Ok(id.to_string());
+        }
+
+        if let Some(id) = get_device_manager()
+            .first_connected_device_id(DeviceType::SafetyMonitor)
+            .await
+        {
+            return Ok(id);
+        }
+
+        if let Some(id) = self
+            .app_state
+            .get_profile_device_id(DeviceType::Weather)
+            .await
+        {
+            return Ok(id);
+        }
+
+        Err(
+            "No safety monitor or weather device configured for sequencer safety checks"
+                .to_string(),
+        )
     }
 }
 
@@ -631,6 +660,20 @@ impl DeviceOps for BridgeDeviceOps {
         })
     }
 
+    async fn guider_get_calibration(&self) -> DeviceResult<GuidingCalibration> {
+        let guider_id = get_active_guider_id_for_ops()
+            .await
+            .ok_or_else(|| "No active guider configured".to_string())?;
+        let calib = crate::api::phd2::api_guider_get_calibration(guider_id)
+            .await
+            .map_err(|e| format!("Failed to get guider calibration: {}", e))?;
+        Ok(GuidingCalibration {
+            is_calibrated: calib.is_calibrated,
+            ra_angle_deg: calib.ra_angle,
+            dec_angle_deg: calib.dec_angle,
+        })
+    }
+
     async fn guider_start(
         &self,
         settle_pixels: f64,
@@ -758,57 +801,51 @@ impl DeviceOps for BridgeDeviceOps {
         &self,
         image_data: &ImageData,
         file_path: &str,
-        target_name: Option<&str>,
-        filter: Option<&str>,
-        ra_hours: Option<f64>,
-        dec_degrees: Option<f64>,
+        frame_ctx: &nightshade_sequencer::scheduling::FrameContext,
     ) -> DeviceResult<()> {
-        tracing::info!("Saving FITS image to: {}", file_path);
-
-        // Convert to imaging::ImageData
-        let img = nightshade_imaging::ImageData::from_u16(
-            image_data.width,
-            image_data.height,
-            1,
-            &image_data.data,
+        tracing::info!(
+            "Saving FITS image to: {} ({})",
+            file_path,
+            frame_ctx.log_label()
         );
 
-        // Create header
-        let mut header = nightshade_imaging::FitsHeader::new();
-        if let Some(name) = target_name {
-            header.set_string("OBJECT", name);
+        // Wave 3 Image Grading: rich-header path. Replaces the previous
+        // 9-keyword hand-rolled FitsHeader so this adapter writes the same
+        // full keyword set as the real device path.
+        let mut header = crate::api::FitsWriteHeaderRich::from_frame_context(frame_ctx);
+        if let Some(g) = image_data.gain {
+            header.gain = Some(g);
         }
-        header.set_float("EXPTIME", image_data.exposure_secs);
-        if let Some(f) = filter {
-            header.set_string("FILTER", f);
+        if let Some(o) = image_data.offset {
+            header.offset = Some(o);
         }
-        if let Some(gain) = image_data.gain {
-            header.set_int("GAIN", gain as i64);
+        if let Some(t) = image_data.temperature {
+            header.ccd_temp = Some(t);
         }
-        if let Some(offset) = image_data.offset {
-            header.set_int("OFFSET", offset as i64);
-        }
-        if let Some(temp) = image_data.temperature {
-            header.set_float("CCD-TEMP", temp);
-        }
-        if let Some(ra) = ra_hours {
-            header.set_float("RA", ra);
-        }
-        if let Some(dec) = dec_degrees {
-            header.set_float("DEC", dec);
-        }
-        header.set_string("DATE-OBS", &chrono::Utc::now().to_rfc3339());
+        header.exposure_time = image_data.exposure_secs;
 
-        // Save FITS
-        nightshade_imaging::write_fits(std::path::Path::new(file_path), &img, &header)
-            .map_err(|e| format!("Save FITS failed: {}", e))
+        crate::api::save_fits_file_rich(
+            file_path.to_string(),
+            image_data.width,
+            image_data.height,
+            image_data.data.clone(),
+            header,
+        )
+        .await
+        .map_err(|e| format!("Save FITS failed: {}", e))
     }
 
     // =========================================================================
     // NOTIFICATIONS
     // =========================================================================
 
-    async fn send_notification(&self, level: &str, title: &str, message: &str) -> DeviceResult<()> {
+    async fn send_notification(
+        &self,
+        level: &str,
+        title: &str,
+        message: &str,
+        explicit_transports: Option<&[String]>,
+    ) -> DeviceResult<()> {
         tracing::info!(
             "[NOTIFICATION][{}] {}: {}",
             level.to_uppercase(),
@@ -832,6 +869,7 @@ impl DeviceOps for BridgeDeviceOps {
                 title: title.to_string(),
                 message: message.to_string(),
                 level: level.to_string(),
+                explicit_transports: explicit_transports.map(|s| s.to_vec()),
             }),
         ));
 
@@ -961,24 +999,10 @@ impl DeviceOps for BridgeDeviceOps {
     }
 
     async fn safety_is_safe(&self, safety_id: Option<&str>) -> DeviceResult<bool> {
-        // Resolve safety source from explicit ID or active profile.
-        // We intentionally return errors when no source is configured so the sequencer
-        // enforces fail-closed safety behavior.
-        let device_id = match safety_id {
-            Some(id) => id.to_string(),
-            None => {
-                let profile = self.app_state.get_profile().await;
-                match profile.and_then(|p| p.weather_id) {
-                    Some(id) => id,
-                    None => {
-                        return Err(
-                            "No safety/weather device configured for sequencer safety checks"
-                                .to_string(),
-                        );
-                    }
-                }
-            }
-        };
+        // Prefer a connected SafetyMonitor device. Equipment profiles still
+        // only store weather_id, so weather remains a fallback rather than the
+        // primary safety source.
+        let device_id = self.resolve_safety_device_id(safety_id).await?;
 
         tracing::debug!("Checking safety status for device: {}", device_id);
 
@@ -1005,10 +1029,7 @@ impl DeviceOps for BridgeDeviceOps {
     ///   * `Err(_)`           when no weather device is configured or the
     ///                        DeviceManager call fails (the trigger monitor
     ///                        retains the previous reading on Err).
-    async fn weather_get_humidity(
-        &self,
-        weather_id: Option<&str>,
-    ) -> DeviceResult<Option<f64>> {
+    async fn weather_get_humidity(&self, weather_id: Option<&str>) -> DeviceResult<Option<f64>> {
         let device_id = match weather_id {
             Some(id) => id.to_string(),
             None => {
@@ -1025,7 +1046,10 @@ impl DeviceOps for BridgeDeviceOps {
             }
         };
 
-        match get_device_manager().weather_get_conditions(&device_id).await {
+        match get_device_manager()
+            .weather_get_conditions(&device_id)
+            .await
+        {
             Ok(conditions) => Ok(conditions.humidity),
             Err(e) => Err(format!("Humidity poll failed for {}: {}", device_id, e)),
         }

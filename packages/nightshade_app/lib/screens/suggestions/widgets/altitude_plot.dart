@@ -42,7 +42,7 @@ class AltitudePlot extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return SizedBox(
       height: height,

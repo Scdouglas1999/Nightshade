@@ -10,10 +10,51 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
 
+/// INDI equatorial coordinate property used for reads, writes, and slew-busy detection.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EquatorialCoordProperty {
+    J2000,
+    OfDate,
+}
+
+impl EquatorialCoordProperty {
+    fn as_str(self) -> &'static str {
+        match self {
+            Self::J2000 => EQUATORIAL_COORD,
+            Self::OfDate => EQUATORIAL_EOD_COORD,
+        }
+    }
+}
+
+/// Pick the equatorial coordinate vector for reads, writes, and slew-busy checks.
+///
+/// INDI standard GOTO/sync examples use `EQUATORIAL_EOD_COORD` when present; J2000 is
+/// used only when the driver does not define the of-date vector (audit ND-P0-13).
+fn resolve_equatorial_coord_property(has_eod: bool, has_j2000: bool) -> EquatorialCoordProperty {
+    if has_eod {
+        EquatorialCoordProperty::OfDate
+    } else if has_j2000 {
+        EquatorialCoordProperty::J2000
+    } else {
+        EquatorialCoordProperty::OfDate
+    }
+}
+
+/// Timed pulse-guide direction (INDI `TELESCOPE_TIMED_GUIDE_*`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum IndiMountGuideDirection {
+    North,
+    South,
+    East,
+    West,
+}
+
 /// INDI Mount device wrapper
 pub struct IndiMount {
     client: Arc<RwLock<IndiClient>>,
     device_name: String,
+    /// Resolved on first coordinate operation; matches the property the driver exposes.
+    equatorial_coord_property: RwLock<Option<EquatorialCoordProperty>>,
 }
 
 impl IndiMount {
@@ -61,6 +102,54 @@ impl IndiMount {
         Self {
             client,
             device_name: device_name.to_string(),
+            equatorial_coord_property: RwLock::new(None),
+        }
+    }
+
+    async fn detect_equatorial_coord_property(
+        client: &IndiClient,
+        device_name: &str,
+    ) -> (EquatorialCoordProperty, bool) {
+        let has_eod = client
+            .get_property_state(device_name, EQUATORIAL_EOD_COORD)
+            .await
+            .is_some();
+        let has_j2000 = client
+            .get_property_state(device_name, EQUATORIAL_COORD)
+            .await
+            .is_some();
+        let prop = resolve_equatorial_coord_property(has_eod, has_j2000);
+        (prop, has_eod || has_j2000)
+    }
+
+    /// Detect which equatorial coordinate vector this mount uses (J2000 vs of-date).
+    ///
+    /// Resolved via `get_property_state` on connect and on first use; reads, slews, syncs,
+    /// and slew-busy checks all use the same property (audit ND-P0-13).
+    async fn equatorial_coord_property(&self) -> EquatorialCoordProperty {
+        if let Some(prop) = *self.equatorial_coord_property.read().await {
+            return prop;
+        }
+
+        let client = self.client.read().await;
+        let (prop, resolved) =
+            Self::detect_equatorial_coord_property(&client, &self.device_name).await;
+        if resolved {
+            *self.equatorial_coord_property.write().await = Some(prop);
+        }
+        prop
+    }
+
+    /// Re-detect equatorial coordinate property after connect or property discovery.
+    async fn refresh_equatorial_coord_property(&self) {
+        let client = self.client.read().await;
+        let (prop, resolved) =
+            Self::detect_equatorial_coord_property(&client, &self.device_name).await;
+        let mut cache = self.equatorial_coord_property.write().await;
+        if resolved {
+            *cache = Some(prop);
+        } else {
+            *cache = None;
         }
     }
 
@@ -71,14 +160,20 @@ impl IndiMount {
 
     /// Connect to the mount
     pub async fn connect(&self) -> IndiResult<()> {
-        let mut client = self.client.write().await;
-        client.connect_device(&self.device_name).await
+        {
+            let mut client = self.client.write().await;
+            client.connect_device(&self.device_name).await?;
+        }
+        self.refresh_equatorial_coord_property().await;
+        Ok(())
     }
 
     /// Disconnect from the mount
     pub async fn disconnect(&self) -> IndiResult<()> {
         let mut client = self.client.write().await;
-        client.disconnect_device(&self.device_name).await
+        let result = client.disconnect_device(&self.device_name).await;
+        *self.equatorial_coord_property.write().await = None;
+        result
     }
 
     /// Check if connected
@@ -89,30 +184,26 @@ impl IndiMount {
 
     /// Get current coordinates (RA in hours, Dec in degrees)
     pub async fn get_coordinates(&self) -> Result<(f64, f64), String> {
+        let coord = self.equatorial_coord_property().await;
         let client = self.client.read().await;
+        let prop = coord.as_str();
 
-        // Try J2000 coordinates first, then fall back to EOD coordinates
         let ra = client
-            .get_number(&self.device_name, EQUATORIAL_COORD, RA)
+            .get_number(&self.device_name, prop, RA)
             .await
-            .or(client
-                .get_number(&self.device_name, EQUATORIAL_EOD_COORD, RA)
-                .await)
-            .ok_or_else(|| "RA not available".to_string())?;
+            .ok_or_else(|| format!("RA not available on {}", prop))?;
 
         let dec = client
-            .get_number(&self.device_name, EQUATORIAL_COORD, DEC)
+            .get_number(&self.device_name, prop, DEC)
             .await
-            .or(client
-                .get_number(&self.device_name, EQUATORIAL_EOD_COORD, DEC)
-                .await)
-            .ok_or_else(|| "Dec not available".to_string())?;
+            .ok_or_else(|| format!("Dec not available on {}", prop))?;
 
         Ok((ra, dec))
     }
 
     /// Slew to coordinates (RA in hours, Dec in degrees)
     pub async fn slew_to_coordinates(&self, ra_hours: f64, dec_degrees: f64) -> IndiResult<()> {
+        let coord = self.equatorial_coord_property().await;
         let mut client = self.client.write().await;
         let previous_mode = Self::current_on_coord_set_mode(&client, &self.device_name).await;
 
@@ -125,7 +216,7 @@ impl IndiMount {
         if let Err(error) = client
             .set_numbers(
                 &self.device_name,
-                EQUATORIAL_EOD_COORD,
+                coord.as_str(),
                 &[(RA, ra_hours), (DEC, dec_degrees)],
             )
             .await
@@ -152,6 +243,9 @@ impl IndiMount {
             Duration::from_secs(client.timeout_config().mount_slew_timeout_secs)
         };
 
+        let coord = self.equatorial_coord_property().await;
+        let coord_prop = coord.as_str();
+
         // Start the slew
         {
             let mut client = self.client.write().await;
@@ -162,7 +256,7 @@ impl IndiMount {
             if let Err(error) = client
                 .set_numbers(
                     &self.device_name,
-                    EQUATORIAL_EOD_COORD,
+                    coord_prop,
                     &[(RA, ra_hours), (DEC, dec_degrees)],
                 )
                 .await
@@ -176,7 +270,7 @@ impl IndiMount {
         // Wait for slew to complete
         let client = self.client.read().await;
         client
-            .wait_for_property_not_busy(&self.device_name, EQUATORIAL_EOD_COORD, timeout_duration)
+            .wait_for_property_not_busy(&self.device_name, coord_prop, timeout_duration)
             .await
             .map_err(|e| {
                 format!(
@@ -188,6 +282,7 @@ impl IndiMount {
 
     /// Sync to coordinates (RA in hours, Dec in degrees)
     pub async fn sync_to_coordinates(&self, ra_hours: f64, dec_degrees: f64) -> IndiResult<()> {
+        let coord = self.equatorial_coord_property().await;
         let mut client = self.client.write().await;
 
         // Set coordinate mode to SYNC
@@ -199,7 +294,7 @@ impl IndiMount {
         client
             .set_numbers(
                 &self.device_name,
-                EQUATORIAL_EOD_COORD,
+                coord.as_str(),
                 &[(RA, ra_hours), (DEC, dec_degrees)],
             )
             .await
@@ -290,21 +385,20 @@ impl IndiMount {
     /// Check if slewing.
     ///
     /// Returns:
-    /// * `Ok(true)` — `EQUATORIAL_EOD_COORD` is in the `Busy` state.
+    /// * `Ok(true)` — the mount's primary equatorial coordinate property is `Busy`.
     /// * `Ok(false)` — the property is defined and not `Busy`.
     /// * `Err(IndiError::PropertyNotFound)` — the property has not been
     ///   defined yet, so the mount may not be initialised. Per audit §5.15
     ///   this is distinct from "definitely not slewing".
     pub async fn try_is_slewing(&self) -> Result<bool, IndiError> {
+        let coord = self.equatorial_coord_property().await;
+        let prop = coord.as_str();
         let client = self.client.read().await;
-        match client
-            .get_property_state(&self.device_name, EQUATORIAL_EOD_COORD)
-            .await
-        {
+        match client.get_property_state(&self.device_name, prop).await {
             Some(state) => Ok(state == crate::IndiPropertyState::Busy),
             None => Err(IndiError::PropertyNotFound {
                 device: self.device_name.clone(),
-                property: EQUATORIAL_EOD_COORD.to_string(),
+                property: prop.to_string(),
             }),
         }
     }
@@ -351,36 +445,90 @@ impl IndiMount {
             .await
     }
 
-    /// Set slew rate (0-4 typically, where 0 is slowest)
-    pub async fn set_slew_rate(&self, rate: i32) -> IndiResult<()> {
+    /// Pulse-guide for `duration_ms` using standard timed-guide number properties.
+    pub async fn pulse_guide(
+        &self,
+        direction: IndiMountGuideDirection,
+        duration_ms: u32,
+    ) -> IndiResult<()> {
+        let (property, element) = match direction {
+            IndiMountGuideDirection::North => (TELESCOPE_TIMED_GUIDE_NS, "TIMED_GUIDE_N"),
+            IndiMountGuideDirection::South => (TELESCOPE_TIMED_GUIDE_NS, "TIMED_GUIDE_S"),
+            IndiMountGuideDirection::East => (TELESCOPE_TIMED_GUIDE_WE, "TIMED_GUIDE_E"),
+            IndiMountGuideDirection::West => (TELESCOPE_TIMED_GUIDE_WE, "TIMED_GUIDE_W"),
+        };
         let mut client = self.client.write().await;
-        // Different mounts use different switch names, try common patterns
-        let rate_names = ["1x", "2x", "4x", "8x", "16x", "32x", "64x", "MAX"];
-        // Why: rate is i32 (0..7 expected). Clamp negatives to 0 explicitly
-        // rather than relying on i32->usize sign-wrap + .min() accidentally
-        // landing at MAX. Negative input is a caller bug; clamping to slowest
-        // rate is the safest fallback for a mount slew request.
-        let rate_clamped = rate.max(0);
-        let rate_idx = usize::try_from(rate_clamped)
-            .unwrap_or(0)
-            .min(rate_names.len() - 1);
+        client
+            .set_number(&self.device_name, property, element, f64::from(duration_ms))
+            .await
+    }
 
-        // Try numbered rate first
-        if client
-            .set_switch(
+    /// Custom tracking rates in arcsec/s (`TELESCOPE_TRACK_RATE`).
+    pub async fn set_tracking_rate(&self, ra_rate: f64, dec_rate: f64) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_numbers(
                 &self.device_name,
-                TELESCOPE_SLEW_RATE,
-                rate_names[rate_idx],
-                true,
+                TELESCOPE_TRACK_RATE,
+                &[("TRACK_RATE_RA", ra_rate), ("TRACK_RATE_DE", dec_rate)],
             )
             .await
-            .is_ok()
+    }
+
+    /// Select a predefined tracking mode (`TELESCOPE_TRACK_MODE`).
+    pub async fn set_track_mode(&self, element: &str) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_switch_exclusive(&self.device_name, TELESCOPE_TRACK_MODE, element)
+            .await
+    }
+
+    /// Active pier side element name from `TELESCOPE_PIER_SIDE`, if published.
+    pub async fn get_pier_side(&self) -> Option<String> {
+        let client = self.client.read().await;
+        let prop = client
+            .get_property(&self.device_name, TELESCOPE_PIER_SIDE)
+            .await?;
+        for element in &prop.elements {
+            if client
+                .get_switch(&self.device_name, TELESCOPE_PIER_SIDE, element)
+                .await
+                .unwrap_or(false)
+            {
+                return Some(element.clone());
+            }
+        }
+        None
+    }
+
+    /// Set alignment mode when the driver exposes `TELESCOPE_ALIGNMENT_MODE`.
+    pub async fn set_alignment_mode(&self, element: &str) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_switch_exclusive(&self.device_name, TELESCOPE_ALIGNMENT_MODE, element)
+            .await
+    }
+
+    /// Set slew rate index using driver-advertised `TELESCOPE_SLEW_RATE` element names.
+    ///
+    /// Prefers standard INDI names (`SLEW_GUIDE`, `SLEW_CENTERING`, `SLEW_FIND`, `SLEW_MAX`)
+    /// instead of hard-coded `1x`/`MAX` labels (audit ND-P1-12).
+    pub async fn set_slew_rate(&self, rate: i32) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        let rate_clamped = rate.max(0);
+
+        if let Some(prop) = client
+            .get_property(&self.device_name, TELESCOPE_SLEW_RATE)
+            .await
         {
-            return Ok(());
+            if let Some(element) = pick_slew_rate_element(rate_clamped, &prop.elements) {
+                return client
+                    .set_switch_exclusive(&self.device_name, TELESCOPE_SLEW_RATE, &element)
+                    .await;
+            }
         }
 
-        // Try SLEWMODE pattern
-        let mode = format!("SLEW{}", rate);
+        let mode = format!("SLEW{rate_clamped}");
         client
             .set_switch(&self.device_name, "SLEWMODE", &mode, true)
             .await
@@ -430,10 +578,308 @@ impl IndiMount {
     }
 }
 
+/// Map a logical slew-rate index to a driver element name.
+fn pick_slew_rate_element(rate: i32, elements: &[String]) -> Option<String> {
+    if elements.is_empty() {
+        return None;
+    }
+
+    let idx = usize::try_from(rate.max(0)).unwrap_or(0);
+    const STANDARD: [&str; 4] = ["SLEW_GUIDE", "SLEW_CENTERING", "SLEW_FIND", "SLEW_MAX"];
+
+    if let Some(name) = STANDARD.get(idx) {
+        if elements.iter().any(|e| e == name) {
+            return Some((*name).to_string());
+        }
+    }
+    for name in STANDARD.iter().skip(idx) {
+        if elements.iter().any(|e| e == name) {
+            return Some((*name).to_string());
+        }
+    }
+
+    const LEGACY: [&str; 8] = ["1x", "2x", "4x", "8x", "16x", "32x", "64x", "MAX"];
+    if let Some(name) = LEGACY.get(idx) {
+        if elements.iter().any(|e| e == name) {
+            return Some((*name).to_string());
+        }
+    }
+
+    elements
+        .get(idx)
+        .cloned()
+        .or_else(|| elements.last().cloned())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::IndiClient;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    #[test]
+    fn pick_slew_rate_element_prefers_standard_names() {
+        let elements = vec![
+            "SLEW_GUIDE".to_string(),
+            "SLEW_CENTERING".to_string(),
+            "SLEW_FIND".to_string(),
+            "SLEW_MAX".to_string(),
+        ];
+        assert_eq!(
+            pick_slew_rate_element(2, &elements).as_deref(),
+            Some("SLEW_FIND")
+        );
+    }
+
+    #[test]
+    fn pick_slew_rate_element_falls_back_to_legacy_multiplier_labels() {
+        let elements = vec!["1x".to_string(), "4x".to_string(), "MAX".to_string()];
+        assert_eq!(pick_slew_rate_element(0, &elements).as_deref(), Some("1x"));
+        assert_eq!(pick_slew_rate_element(1, &elements).as_deref(), Some("4x"));
+        assert_eq!(pick_slew_rate_element(7, &elements).as_deref(), Some("MAX"));
+    }
+
+    #[test]
+    fn resolve_equatorial_coord_property_prefers_eod_when_both_defined() {
+        assert_eq!(
+            resolve_equatorial_coord_property(true, true),
+            EquatorialCoordProperty::OfDate
+        );
+    }
+
+    #[test]
+    fn resolve_equatorial_coord_property_uses_j2000_when_only_j2000() {
+        assert_eq!(
+            resolve_equatorial_coord_property(false, true),
+            EquatorialCoordProperty::J2000
+        );
+    }
+
+    #[test]
+    fn resolve_equatorial_coord_property_uses_eod_when_only_eod() {
+        assert_eq!(
+            resolve_equatorial_coord_property(true, false),
+            EquatorialCoordProperty::OfDate
+        );
+    }
+
+    async fn wait_for_captured_property(
+        captured: &Arc<tokio::sync::Mutex<Option<String>>>,
+    ) -> String {
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(500);
+        loop {
+            if let Some(property) = captured.lock().await.clone() {
+                return property;
+            }
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "timed out waiting for mount slew newNumberVector"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+    }
+
+    #[test]
+    fn resolve_equatorial_coord_property_defaults_to_eod_when_neither_defined() {
+        assert_eq!(
+            resolve_equatorial_coord_property(false, false),
+            EquatorialCoordProperty::OfDate
+        );
+    }
+
+    fn extract_new_number_vector_property(request: &str) -> Option<String> {
+        let marker = "newNumberVector";
+        let start = request.find(marker)?;
+        let chunk = &request[start..];
+        let name_key = "name=\"";
+        let name_start = chunk.find(name_key)? + name_key.len();
+        let name_end = chunk[name_start..].find('"')? + name_start;
+        Some(chunk[name_start..name_end].to_string())
+    }
+
+    async fn mount_from_fake_server(
+        payload: impl AsRef<[u8]>,
+        wait_property: &str,
+    ) -> (
+        IndiMount,
+        tokio::task::JoinHandle<()>,
+        Arc<tokio::sync::Mutex<Option<String>>>,
+    ) {
+        let slew_property = Arc::new(tokio::sync::Mutex::new(None));
+        let captured = slew_property.clone();
+        let payload_bytes = payload.as_ref().to_vec();
+
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake INDI mount server");
+        let port = listener.local_addr().expect("read listener address").port();
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
+            let mut buf = [0_u8; 8192];
+            let mut received = String::new();
+            let _ = socket
+                .read(&mut buf)
+                .await
+                .expect("read initial getProperties");
+            socket
+                .write_all(&payload_bytes)
+                .await
+                .expect("write fake mount payload");
+            loop {
+                match socket.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(n) => {
+                        received.push_str(&String::from_utf8_lossy(&buf[..n]));
+                        if let Some(property) = extract_new_number_vector_property(&received) {
+                            *captured.lock().await = Some(property);
+                        }
+                    }
+                }
+            }
+        });
+
+        let mut timeout_config = crate::IndiTimeoutConfig::default();
+        timeout_config.connection_timeout_secs = 1;
+        let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
+        client.connect().await.expect("connect fake INDI client");
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while client.get_property("Mount", wait_property).await.is_none() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "fake INDI property {wait_property} was not parsed in time"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        let mount = IndiMount::new(Arc::new(RwLock::new(client)), "Mount");
+        (mount, server, slew_property)
+    }
+
+    const MOUNT_BASE_PROPERTIES: &str = r#"
+<defSwitchVector device="Mount" name="CONNECTION" state="Idle" perm="rw">
+  <defSwitch name="CONNECT"/>
+  <defSwitch name="DISCONNECT"/>
+</defSwitchVector>
+<setSwitchVector device="Mount" name="CONNECTION" state="Ok">
+  <oneSwitch name="CONNECT">Off</oneSwitch>
+  <oneSwitch name="DISCONNECT">On</oneSwitch>
+</setSwitchVector>
+<defSwitchVector device="Mount" name="ON_COORD_SET" state="Idle" perm="rw">
+  <defSwitch name="TRACK"/>
+  <defSwitch name="SLEW"/>
+  <defSwitch name="SYNC"/>
+</defSwitchVector>
+<setSwitchVector device="Mount" name="ON_COORD_SET" state="Ok">
+  <oneSwitch name="TRACK">On</oneSwitch>
+  <oneSwitch name="SLEW">Off</oneSwitch>
+  <oneSwitch name="SYNC">Off</oneSwitch>
+</setSwitchVector>
+"#;
+
+    #[tokio::test]
+    async fn slew_writes_j2000_when_driver_only_defines_equatorial_coord() {
+        let payload = format!(
+            "{MOUNT_BASE_PROPERTIES}
+<defNumberVector device=\"Mount\" name=\"EQUATORIAL_COORD\" state=\"Idle\" perm=\"rw\">
+  <defNumber name=\"RA\" min=\"0\" max=\"24\">10.0</defNumber>
+  <defNumber name=\"DEC\" min=\"-90\" max=\"90\">45.0</defNumber>
+</defNumberVector>
+"
+        );
+        let (mount, server, captured) =
+            mount_from_fake_server(payload.as_bytes(), EQUATORIAL_COORD).await;
+
+        mount.connect().await.expect("connect mount on fake server");
+        mount
+            .slew_to_coordinates(11.0, 46.0)
+            .await
+            .expect("slew on fake server");
+
+        assert_eq!(
+            wait_for_captured_property(&captured).await.as_str(),
+            EQUATORIAL_COORD
+        );
+
+        drop(mount);
+        server.await.expect("fake server should finish");
+    }
+
+    #[tokio::test]
+    async fn slew_writes_eod_when_driver_only_defines_equatorial_eod_coord() {
+        let payload = format!(
+            "{MOUNT_BASE_PROPERTIES}
+<defNumberVector device=\"Mount\" name=\"EQUATORIAL_EOD_COORD\" state=\"Idle\" perm=\"rw\">
+  <defNumber name=\"RA\" min=\"0\" max=\"24\">10.0</defNumber>
+  <defNumber name=\"DEC\" min=\"-90\" max=\"90\">45.0</defNumber>
+</defNumberVector>
+"
+        );
+        let (mount, server, captured) =
+            mount_from_fake_server(payload.as_bytes(), EQUATORIAL_EOD_COORD).await;
+
+        mount.connect().await.expect("connect mount on fake server");
+        mount
+            .slew_to_coordinates(11.0, 46.0)
+            .await
+            .expect("slew on fake server");
+
+        assert_eq!(
+            wait_for_captured_property(&captured).await.as_str(),
+            EQUATORIAL_EOD_COORD
+        );
+
+        drop(mount);
+        server.await.expect("fake server should finish");
+    }
+
+    #[tokio::test]
+    async fn slew_and_read_use_eod_when_driver_defines_both_coord_vectors() {
+        let payload = format!(
+            "{MOUNT_BASE_PROPERTIES}
+<defNumberVector device=\"Mount\" name=\"EQUATORIAL_COORD\" state=\"Idle\" perm=\"rw\">
+  <defNumber name=\"RA\" min=\"0\" max=\"24\">10.0</defNumber>
+  <defNumber name=\"DEC\" min=\"-90\" max=\"90\">45.0</defNumber>
+</defNumberVector>
+<setNumberVector device=\"Mount\" name=\"EQUATORIAL_COORD\" state=\"Ok\">
+  <oneNumber name=\"RA\">10.0</oneNumber>
+  <oneNumber name=\"DEC\">45.0</oneNumber>
+</setNumberVector>
+<defNumberVector device=\"Mount\" name=\"EQUATORIAL_EOD_COORD\" state=\"Idle\" perm=\"rw\">
+  <defNumber name=\"RA\" min=\"0\" max=\"24\">12.0</defNumber>
+  <defNumber name=\"DEC\" min=\"-90\" max=\"90\">50.0</defNumber>
+</defNumberVector>
+<setNumberVector device=\"Mount\" name=\"EQUATORIAL_EOD_COORD\" state=\"Ok\">
+  <oneNumber name=\"RA\">12.0</oneNumber>
+  <oneNumber name=\"DEC\">50.0</oneNumber>
+</setNumberVector>
+"
+        );
+        let (mount, server, captured) =
+            mount_from_fake_server(payload.as_bytes(), EQUATORIAL_EOD_COORD).await;
+
+        mount.connect().await.expect("connect mount on fake server");
+
+        let (ra, dec) = mount
+            .get_coordinates()
+            .await
+            .expect("read coordinates from fake server");
+        assert!((ra - 12.0).abs() < f64::EPSILON);
+        assert!((dec - 50.0).abs() < f64::EPSILON);
+
+        mount
+            .slew_to_coordinates(11.0, 46.0)
+            .await
+            .expect("slew on fake server");
+        assert_eq!(
+            wait_for_captured_property(&captured).await.as_str(),
+            EQUATORIAL_EOD_COORD
+        );
+
+        drop(mount);
+        server.await.expect("fake server should finish");
+    }
 
     #[tokio::test]
     async fn test_mount_creation() {

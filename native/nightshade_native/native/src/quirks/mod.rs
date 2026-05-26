@@ -231,6 +231,39 @@ pub fn apply_temperature_quirks(device_id: &str, raw_temp: f64) -> f64 {
     temp
 }
 
+/// Look up the settle delay required before trusting a temperature read.
+///
+/// Callers should apply this before issuing the SDK read. The helper returns
+/// only `RequiresDelayMs`; scale/offset/inversion corrections are handled by
+/// `apply_temperature_quirks` after the raw value is available.
+pub fn get_temperature_delay_ms(device_id: &str) -> Option<u64> {
+    let quirks = get_quirks_for_device(device_id);
+    for quirk in quirks {
+        if let Quirk::Temperature(TemperatureQuirk::RequiresDelayMs(ms)) = quirk {
+            return Some(ms);
+        }
+    }
+    None
+}
+
+/// Return true when the driver's first temperature read after connect must be discarded.
+pub fn should_skip_first_temperature_read(device_id: &str) -> bool {
+    get_quirks_for_device(device_id)
+        .iter()
+        .any(|q| matches!(q, Quirk::Temperature(TemperatureQuirk::SkipFirstRead)))
+}
+
+/// Look up the cooler target range declared for a device.
+pub fn get_cooler_range(device_id: &str) -> Option<(f64, f64)> {
+    let quirks = get_quirks_for_device(device_id);
+    for quirk in quirks {
+        if let Quirk::Camera(CameraQuirk::CoolerRange { min_temp, max_temp }) = quirk {
+            return Some((min_temp, max_temp));
+        }
+    }
+    None
+}
+
 /// Look up the focuser step size (microns per motor step) declared for a device.
 ///
 /// Vendor SDKs that omit this datum (notably ZWO EAF) require a per-model lookup
@@ -242,6 +275,22 @@ pub fn get_focuser_step_size_um(device_id: &str) -> Option<f64> {
     for quirk in quirks {
         if let Quirk::Position(PositionQuirk::FocuserStepSizeMicrons(um)) = quirk {
             return Some(um);
+        }
+    }
+    None
+}
+
+/// Look up the `DelayAfterMoveMs` position quirk for a device.
+///
+/// Used by filter wheel and rotator drivers whose firmware briefly reports a
+/// stale position immediately after a move completes. Returns the first
+/// matching delay; absence means no quirk is registered for this device and
+/// the caller may skip the post-move settle.
+pub fn get_position_delay_after_move_ms(device_id: &str) -> Option<u64> {
+    let quirks = get_quirks_for_device(device_id);
+    for quirk in quirks {
+        if let Quirk::Position(PositionQuirk::DelayAfterMoveMs(ms)) = quirk {
+            return Some(ms);
         }
     }
     None
@@ -323,13 +372,19 @@ mod tests {
     #[test]
     fn test_get_zwo_quirks() {
         let quirks = get_quirks_for_device("native:zwo:ASI294MC Pro");
-        assert!(!quirks.is_empty(), "ZWO cameras should have quirks");
+        assert!(!quirks.is_empty(), "ZWO ASI294 should have model quirks");
 
-        // Check for temperature scale factor
-        let has_temp_scale = quirks
+        // The ZWO ASI driver divides `ASI_TEMPERATURE` by 10 inline, so the
+        // temperature ScaleFactor quirk was intentionally removed from the
+        // database (would have double-scaled). The ASI294-specific
+        // `SkipFirstRead` quirk must still be present.
+        let has_skip_first = quirks
             .iter()
-            .any(|q| matches!(q, Quirk::Temperature(TemperatureQuirk::ScaleFactor(10.0))));
-        assert!(has_temp_scale, "ZWO should have temperature scale factor");
+            .any(|q| matches!(q, Quirk::Temperature(TemperatureQuirk::SkipFirstRead)));
+        assert!(
+            has_skip_first,
+            "ASI294 should retain its SkipFirstRead temperature quirk"
+        );
     }
 
     #[test]
@@ -346,14 +401,102 @@ mod tests {
     }
 
     #[test]
-    fn test_apply_temperature_quirks() {
-        // ZWO cameras report temperature * 10
-        let raw_temp = 200.0; // Actually 20.0 degrees
+    fn test_apply_temperature_quirks_passthrough_for_zwo() {
+        // The ZWO ASI driver already divides ASI_TEMPERATURE by 10 inline (see
+        // `vendor/zwo.rs` ~828/1162), so the database intentionally has no
+        // ScaleFactor quirk for ZWO cameras. apply_temperature_quirks must
+        // therefore be a no-op for ZWO cameras to avoid double-scaling.
+        let raw_temp = 20.0;
         let corrected = apply_temperature_quirks("native:zwo:ASI294MC Pro", raw_temp);
         assert!(
             (corrected - 20.0).abs() < 0.01,
-            "Temperature should be scaled: got {}",
+            "ZWO temperature must not be re-scaled by quirks layer: got {}",
             corrected
+        );
+    }
+
+    #[test]
+    fn test_apply_temperature_quirks_with_runtime_override() {
+        // When a runtime override declares a ScaleFactor, the helper must apply
+        // it — this is the wire-up that diagnostics and per-device tuning rely
+        // on.
+        let device_id = "test:scale:device";
+        set_quirk_overrides(
+            device_id,
+            vec![Quirk::Temperature(TemperatureQuirk::ScaleFactor(10.0))],
+        );
+
+        let corrected = apply_temperature_quirks(device_id, 200.0);
+        assert!(
+            (corrected - 20.0).abs() < 0.01,
+            "ScaleFactor override should scale temperature: got {}",
+            corrected
+        );
+
+        clear_quirk_overrides(device_id);
+    }
+
+    #[test]
+    fn test_get_temperature_delay_player_one_vendor_wide() {
+        let delay = get_temperature_delay_ms("native:playerone:0");
+        assert_eq!(
+            delay,
+            Some(50),
+            "Player One vendor-wide temperature settle delay must be exposed"
+        );
+    }
+
+    #[test]
+    fn test_should_skip_first_temperature_read_zwo_asi294() {
+        assert!(
+            should_skip_first_temperature_read("native:zwo:ZWO ASI294MC Pro"),
+            "ASI294 first temperature read quirk must be exposed"
+        );
+    }
+
+    #[test]
+    fn test_get_cooler_range_qhy268() {
+        assert_eq!(
+            get_cooler_range("native:qhy:QHY268M-123"),
+            Some((-35.0, 25.0)),
+            "QHY268 cooler range quirk must be exposed"
+        );
+    }
+
+    #[test]
+    fn test_get_position_delay_after_move_ms_zwo_efw() {
+        // ZWO EFW filter wheels carry a 500ms DelayAfterMoveMs quirk that
+        // `ZwoFilterWheel::move_to_position` consumes after a successful
+        // EFWSetPosition. This test guards the lookup contract that wiring
+        // depends on.
+        let delay = get_position_delay_after_move_ms("native:zwo:efw:0");
+        assert_eq!(
+            delay,
+            Some(500),
+            "ZWO EFW must declare a 500ms post-move settle delay"
+        );
+    }
+
+    #[test]
+    fn test_get_timing_delay_zwo_asi533_connect() {
+        // ASI533 cameras carry a 200ms DelayAfterConnect quirk that
+        // `ZwoCamera::connect` consumes after open+init.
+        let delay = get_timing_delay("native:zwo:ZWO ASI533MC Pro", "connect");
+        assert_eq!(
+            delay,
+            Some(200),
+            "ASI533 must declare a 200ms post-connect settle delay"
+        );
+    }
+
+    #[test]
+    fn test_get_timing_delay_other_zwo_camera_no_connect_quirk() {
+        // Cameras without a DelayAfterConnect entry must return None so the
+        // caller knows to skip the sleep, not silently apply a default.
+        let delay = get_timing_delay("native:zwo:ZWO ASI294MC Pro", "connect");
+        assert_eq!(
+            delay, None,
+            "ASI294 must not carry a DelayAfterConnect quirk"
         );
     }
 
@@ -383,9 +526,9 @@ mod tests {
     #[test]
     fn test_disable_quirks() {
         // Use a different device ID to avoid conflicts with parallel tests
-        let device_id = "native:zwo:ASI6200MM";
+        let device_id = "native:zwo:ASI294MC Pro";
 
-        // Should have quirks by default (ZWO vendor-wide quirks)
+        // Should have quirks by default (model-specific SkipFirstRead)
         let quirks = get_quirks_for_device(device_id);
         assert!(!quirks.is_empty(), "ZWO device should have vendor quirks");
 

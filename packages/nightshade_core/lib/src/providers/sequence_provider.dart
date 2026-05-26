@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/sequence/sequence_models.dart';
+import '../models/sequence/instruction_progress_detail.dart';
 import 'sequence/sequence_editor.dart';
 
 // Public surface for the sequencer providers. The heavy implementation pieces
@@ -27,6 +28,12 @@ export 'sequence/sequencer_defaults.dart';
 export 'sequence/node_palette.dart';
 export 'sequence/node_duration_provider.dart';
 export 'sequence/target_progress_provider.dart';
+export 'sequence/sequence_catalog_sync.dart';
+// Wave 5 Agent 3 — Pre-flight checks (rule registrations + post-session
+// diagnostics helpers + the providers the rules + dialog consume).
+export 'sequence/rules/postsession_rules.dart';
+export 'sequence/rules/preflight_rules.dart';
+export 'preflight_providers.dart';
 
 // =============================================================================
 // EXECUTION STATE
@@ -96,6 +103,26 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     state = state.copyWith(
       nodeProgressPercent: newProgressPercent,
       nodeProgressDetail: newProgressDetail,
+    );
+  }
+
+  void updateNodeStructuredProgress(
+    String nodeId,
+    double progressPercent,
+    InstructionProgressDetail detail,
+  ) {
+    final newProgressPercent =
+        Map<String, double>.from(state.nodeProgressPercent);
+    final newStructuredDetail =
+        Map<String, InstructionProgressDetail>.from(
+            state.nodeProgressStructuredDetail);
+
+    newProgressPercent[nodeId] = progressPercent;
+    newStructuredDetail[nodeId] = detail;
+
+    state = state.copyWith(
+      nodeProgressPercent: newProgressPercent,
+      nodeProgressStructuredDetail: newStructuredDetail,
     );
   }
 

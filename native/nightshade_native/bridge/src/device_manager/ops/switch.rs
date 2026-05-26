@@ -54,8 +54,16 @@ impl DeviceManager {
                 // any realistic device.
                 Ok(i32::try_from(switches.len()).unwrap_or(i32::MAX))
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.get_switch_count().await.map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -90,8 +98,19 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.state)
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_state(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -130,20 +149,37 @@ impl DeviceManager {
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 if !sw.writable {
-                    return Err(format!("INDI switch '{}' / '{}' is read-only", sw.property_name, sw.element_name));
+                    return Err(format!(
+                        "INDI switch '{}' / '{}' is read-only",
+                        sw.property_name, sw.element_name
+                    ));
                 }
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
                 let server_key = format!("{}:{}", host, port);
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
-                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
-                    return switch_dev.set_switch_state(&sw.property_name, &sw.element_name, state).await
+                    let switch_dev =
+                        nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    return switch_dev
+                        .set_switch_state(&sw.property_name, &sw.element_name, state)
+                        .await
                         .map_err(|e| e.to_string());
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let mut switches = self.native_switches.write().await;
+                if let Some(sw) = switches.get_mut(device_id) {
+                    return sw
+                        .set_switch_state(switch_id, state)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -178,8 +214,19 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.element_name.clone())
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_name(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -219,8 +266,19 @@ impl DeviceManager {
                 // For INDI, description is "property_name / label"
                 Ok(format!("{} / {}", sw.property_name, sw.label))
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_description(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -259,8 +317,12 @@ impl DeviceManager {
                 let device_name = parts[3..].join(":");
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
-                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
-                    if let Some(val) = switch_dev.get_switch_value(&sw.property_name, &sw.element_name).await {
+                    let switch_dev =
+                        nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    if let Some(val) = switch_dev
+                        .get_switch_value(&sw.property_name, &sw.element_name)
+                        .await
+                    {
                         return Ok(val);
                     }
                     // If no numeric value, return 1.0 for on, 0.0 for off
@@ -268,8 +330,19 @@ impl DeviceManager {
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_value(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -308,20 +381,37 @@ impl DeviceManager {
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 if !sw.writable {
-                    return Err(format!("INDI switch '{}' / '{}' is read-only", sw.property_name, sw.element_name));
+                    return Err(format!(
+                        "INDI switch '{}' / '{}' is read-only",
+                        sw.property_name, sw.element_name
+                    ));
                 }
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
                 let server_key = format!("{}:{}", host, port);
                 let clients = self.indi_clients.read().await;
                 if let Some(client) = clients.get(&server_key) {
-                    let switch_dev = nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
-                    return switch_dev.set_switch_value(&sw.property_name, &sw.element_name, value).await
+                    let switch_dev =
+                        nightshade_indi::IndiSwitchDevice::new(client.clone(), &device_name);
+                    return switch_dev
+                        .set_switch_value(&sw.property_name, &sw.element_name, value)
+                        .await
                         .map_err(|e| e.to_string());
                 }
                 Err("INDI switch device not connected".to_string())
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let mut switches = self.native_switches.write().await;
+                if let Some(sw) = switches.get_mut(device_id) {
+                    return sw
+                        .set_switch_value(switch_id, value)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -360,8 +450,19 @@ impl DeviceManager {
                 // INDI boolean switches have min 0.0
                 Ok(0.0)
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_min_value(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -400,8 +501,19 @@ impl DeviceManager {
                 // INDI boolean switches have max 1.0
                 Ok(1.0)
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw
+                        .get_switch_max_value(switch_id)
+                        .await
+                        .map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 
@@ -436,8 +548,16 @@ impl DeviceManager {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 Ok(sw.writable)
             }
-            DriverType::Native => Err("Native switch devices are not supported by the current native backend".to_string()),
-            DriverType::Simulator => Err("Simulator devices are disabled. Connect real hardware or use INDI/ASCOM/Alpaca simulators for testing.".to_string()),
+            DriverType::Native => {
+                let switches = self.native_switches.read().await;
+                if let Some(sw) = switches.get(device_id) {
+                    return sw.can_write(switch_id).await.map_err(|e| e.to_string());
+                }
+                Err(format!("Native switch {} not found", device_id))
+            }
+            DriverType::Simulator => {
+                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+            }
         }
     }
 }

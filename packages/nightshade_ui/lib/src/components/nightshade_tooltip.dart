@@ -95,7 +95,7 @@ class _NightshadeTooltipState extends State<NightshadeTooltip>
 
     if (_isHovered && mounted) {
       _overlayController.show();
-      _animController.forward();
+      await _animController.forward();
     }
   }
 
@@ -156,7 +156,7 @@ class _TooltipOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     // Get target position
     final renderBox = targetContext.findRenderObject() as RenderBox?;
@@ -265,20 +265,7 @@ class _TooltipOverlay extends StatelessWidget {
         border: Border.all(
           color: colors.border.withValues(alpha: 0.3),
         ),
-        boxShadow: [
-          // Main shadow
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.4),
-            blurRadius: 16,
-            offset: const Offset(0, 4),
-          ),
-          // Accent-tinted glow
-          BoxShadow(
-            color: colors.primary.withValues(alpha: 0.1),
-            blurRadius: 12,
-            spreadRadius: -2,
-          ),
-        ],
+        boxShadow: NightshadeTokens.shadowMd,
       ),
       child: richMessage ??
           Text(

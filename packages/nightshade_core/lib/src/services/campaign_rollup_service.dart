@@ -1,6 +1,5 @@
-import '../database/daos/images_dao.dart';
-import '../database/daos/sessions_dao.dart';
 import '../database/daos/targets_dao.dart';
+import 'imaging_records_repository.dart';
 import '../database/database.dart';
 import '../models/campaign_rollup.dart';
 import 'scheduler/integration_goal_service.dart';
@@ -18,18 +17,15 @@ import 'scheduler/integration_goal_service.dart';
 /// to lowercase internally and surface the most common original-case label
 /// in the rollup so the UI doesn't show 'l' / 'lum' / 'LUM' separately.
 class CampaignRollupService {
-  final SessionsDao _sessionsDao;
-  final ImagesDao _imagesDao;
+  final ImagingRecordsRepository _records;
   final TargetsDao _targetsDao;
   final IntegrationGoalService _goalService;
 
   CampaignRollupService({
-    required SessionsDao sessionsDao,
-    required ImagesDao imagesDao,
+    required ImagingRecordsRepository records,
     required TargetsDao targetsDao,
     required IntegrationGoalService goalService,
-  })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao,
+  })  : _records = records,
         _targetsDao = targetsDao,
         _goalService = goalService;
 
@@ -57,9 +53,9 @@ class CampaignRollupService {
   }
 
   Future<CampaignRollup> _build(Target target) async {
-    final allSessions = await _sessionsDao.getSessionsForTarget(target.id);
+    final allSessions = await _records.getSessionsForTarget(target.id);
     final imagesForTarget =
-        await _imagesDao.getImagesForTarget(target.id);
+        await _records.getImagesForTarget(target.id);
     final lightFrames = imagesForTarget
         .where((i) => i.frameType == 'light' && i.isAccepted)
         .toList(growable: false);

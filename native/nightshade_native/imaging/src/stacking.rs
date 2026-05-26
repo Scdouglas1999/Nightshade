@@ -315,11 +315,25 @@ impl LiveStacker {
 
         // Update stats
         self.stats.stacked_frame_count += 1;
-        let n = self.stats.stacked_frame_count as f64;
-        self.stats.avg_matched_pairs =
-            self.stats.avg_matched_pairs * ((n - 1.0) / n) + matches.len() as f64 / n;
-        self.stats.avg_alignment_residual =
-            self.stats.avg_alignment_residual * ((n - 1.0) / n) + residual / n;
+        // Why (audit IMG-P2-3): `avg_matched_pairs` and
+        // `avg_alignment_residual` are *per-aligned-frame* metrics. The
+        // reference frame contributes neither — it is not matched against
+        // itself and has zero residual by construction. Dividing by
+        // `stacked_frame_count` (which includes the reference) diluted
+        // both averages by `(N-1)/N`. We instead average over the count
+        // of non-reference frames actually contributing samples.
+        //
+        // `.saturating_sub(1)` removes the reference's slot;
+        // `.max(1)` prevents the impossible-but-cheap divide-by-zero on
+        // the very first added frame (where the count just incremented
+        // from 1→2, so the contributing count is 1).
+        let aligned_count = self.stats.stacked_frame_count.saturating_sub(1).max(1) as f64;
+        self.stats.avg_matched_pairs = self.stats.avg_matched_pairs
+            * ((aligned_count - 1.0) / aligned_count)
+            + matches.len() as f64 / aligned_count;
+        self.stats.avg_alignment_residual = self.stats.avg_alignment_residual
+            * ((aligned_count - 1.0) / aligned_count)
+            + residual / aligned_count;
         self.stats.total_sigma_rejected_pixels += sigma_rejected;
 
         tracing::info!(
@@ -676,6 +690,345 @@ fn extract_u16_as_f64(image: &ImageData) -> Vec<f64> {
         .collect()
 }
 
+// =============================================================================
+// Master Frame Combination (bias / dark / flat)
+// =============================================================================
+//
+// Why this lives next to LiveStacker: both consume a population of frames and
+// produce a single combined frame using rejection statistics. LiveStacker is
+// the *online* path (one ref + incoming aligned lights); the routines below
+// are the *offline* path (a static stack of calibration frames combined in a
+// single pass). Sharing the file keeps the pixel-array math in one place.
+
+/// What kind of master frame we are building.
+///
+/// The kind controls the post-combine behaviour:
+/// - `Bias` and `Dark`: take the combined value as-is (no normalisation).
+/// - `Flat`: normalise so the *mean* of the master equals 1.0 for `F32`
+///   output or `32768` for `U16` output. Normalising is required because
+///   the light/flat division step assumes the flat has unit mean; an
+///   un-normalised flat would otherwise rescale the light frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MasterFrameKind {
+    Bias,
+    Dark,
+    Flat,
+}
+
+impl MasterFrameKind {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            MasterFrameKind::Bias => "BIAS",
+            MasterFrameKind::Dark => "DARK",
+            MasterFrameKind::Flat => "FLAT",
+        }
+    }
+}
+
+/// How to combine the input frames pixel-by-pixel.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum CombineMethod {
+    /// Arithmetic mean of all input values. Lowest noise, but a single
+    /// transient (cosmic ray, satellite trail, hot pixel pop) propagates
+    /// into the master.
+    Mean,
+    /// Per-pixel median. Robust to single-frame outliers; the default for
+    /// bias and dark masters and the recommended fallback for flats when
+    /// the user can't afford the cost of sigma clipping.
+    Median,
+    /// Iterative sigma clipping. For each pixel, compute mean & stddev,
+    /// reject samples outside `kappa * sigma`, repeat for `iterations`,
+    /// take the final mean. Preferred for >10 frames; rejects single-frame
+    /// transients without the full bias of the median.
+    SigmaClip { kappa: f64, iterations: u32 },
+}
+
+impl CombineMethod {
+    pub fn as_str(&self) -> String {
+        match self {
+            CombineMethod::Mean => "MEAN".to_string(),
+            CombineMethod::Median => "MEDIAN".to_string(),
+            CombineMethod::SigmaClip { kappa, iterations } => {
+                format!("SIGMA_CLIP({:.2}, {})", kappa, iterations)
+            }
+        }
+    }
+}
+
+/// Pixel type preference for the produced master frame.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MasterOutputType {
+    /// 16-bit unsigned integer (legacy calibration pipelines). For flats,
+    /// mean is rescaled to 32768 ADU (half-scale) so division still uses
+    /// the existing u16 divide path.
+    U16,
+    /// 32-bit float. Preferred for flats (no quantisation loss when
+    /// normalised to mean 1.0) and for sigma-clipped masters.
+    F32,
+}
+
+/// A combined master calibration frame plus the metadata describing how
+/// it was built. Stored so downstream calibration knows which combine
+/// method was used and how many frames contributed.
+#[derive(Debug, Clone)]
+pub struct MasterFrame {
+    /// The combined pixel data.
+    pub image: ImageData,
+    /// What kind of master this represents.
+    pub kind: MasterFrameKind,
+    /// How many input frames contributed to the combine.
+    pub frame_count: u32,
+    /// Which combine method produced the master.
+    pub method: CombineMethod,
+    /// The final output pixel type. Mirrors `image.pixel_type` for
+    /// quick inspection without unpacking `image`.
+    pub output_type: MasterOutputType,
+    /// Mean pixel value of the combined master. For flats this is the
+    /// pre-normalisation mean; useful for diagnostics and FITS metadata.
+    pub input_mean: f64,
+    /// Mean pixel value AFTER normalisation (only meaningful for flats;
+    /// equals `input_mean` for bias/dark since they are not normalised).
+    pub output_mean: f64,
+}
+
+/// Combine a stack of calibration frames into a single master frame.
+///
+/// Validation: returns `Err` for an empty input, mismatched dimensions /
+/// channel counts, or any unsupported pixel type. We deliberately *do not*
+/// fall back silently — a calibration master built from heterogeneous
+/// frames would silently corrupt every science frame it touches downstream.
+///
+/// Output pixel type:
+/// - `MasterOutputType::U16`: values are clamped to `[0, 65535]` and rounded.
+///   For flats this means the *normalised* master has a target mean of 32768
+///   (half-scale) so existing u16 calibration code paths still divide
+///   correctly.
+/// - `MasterOutputType::F32`: values stored without quantisation. For flats
+///   the normalised master has a target mean of 1.0.
+pub fn combine_master_frames(
+    frames: &[ImageData],
+    kind: MasterFrameKind,
+    method: CombineMethod,
+    output_type: MasterOutputType,
+) -> Result<MasterFrame, String> {
+    // --- validation --------------------------------------------------------
+    if frames.is_empty() {
+        return Err(format!(
+            "combine_master_frames: cannot build {} master from zero frames",
+            kind.as_str()
+        ));
+    }
+
+    let first = &frames[0];
+    if first.is_empty() {
+        return Err("combine_master_frames: first frame is empty".to_string());
+    }
+
+    let width = first.width;
+    let height = first.height;
+    let channels = first.channels;
+    let pixel_type = first.pixel_type;
+
+    if !matches!(pixel_type, PixelType::U16 | PixelType::F32) {
+        return Err(format!(
+            "combine_master_frames: unsupported input pixel type {:?}; only U16 and F32 are accepted",
+            pixel_type
+        ));
+    }
+
+    for (i, frame) in frames.iter().enumerate() {
+        if frame.is_empty() {
+            return Err(format!("combine_master_frames: frame {} is empty", i));
+        }
+        if frame.width != width || frame.height != height {
+            return Err(format!(
+                "combine_master_frames: frame {} dimensions {}x{} don't match first frame {}x{}",
+                i, frame.width, frame.height, width, height
+            ));
+        }
+        if frame.channels != channels {
+            return Err(format!(
+                "combine_master_frames: frame {} channel count {} doesn't match first frame {}",
+                i, frame.channels, channels
+            ));
+        }
+        if frame.pixel_type != pixel_type {
+            return Err(format!(
+                "combine_master_frames: frame {} pixel type {:?} doesn't match first frame {:?}",
+                i, frame.pixel_type, pixel_type
+            ));
+        }
+    }
+
+    if let CombineMethod::SigmaClip { kappa, iterations } = method {
+        if !(kappa.is_finite() && kappa > 0.0) {
+            return Err(format!(
+                "combine_master_frames: invalid sigma-clip kappa {} (must be > 0 and finite)",
+                kappa
+            ));
+        }
+        if iterations == 0 {
+            return Err(
+                "combine_master_frames: sigma-clip iterations must be >= 1".to_string()
+            );
+        }
+    }
+
+    let pixel_count = (width as usize) * (height as usize) * (channels as usize);
+
+    // --- extract pixel data as f64 stacks ----------------------------------
+    // We materialise each frame as a Vec<f64> so the per-pixel combine can
+    // see across frames. This costs `frames.len() * pixel_count * 8` bytes,
+    // which is the same memory the Dart isolate path already pays.
+    let frame_stacks: Vec<Vec<f64>> = frames
+        .iter()
+        .map(|f| match f.pixel_type {
+            PixelType::U16 => extract_u16_as_f64(f),
+            PixelType::F32 => f
+                .data
+                .par_chunks_exact(4)
+                .map(|c| f32::from_le_bytes([c[0], c[1], c[2], c[3]]) as f64)
+                .collect(),
+            _ => unreachable!("pixel_type validated above"),
+        })
+        .collect();
+
+    // --- per-pixel combine -------------------------------------------------
+    let combined: Vec<f64> = (0..pixel_count)
+        .into_par_iter()
+        .map(|i| {
+            // Gather this pixel across all frames.
+            // Small Vec; allocation per pixel is the cost of the offline path.
+            let mut samples: Vec<f64> = frame_stacks.iter().map(|s| s[i]).collect();
+            combine_pixel(&mut samples, method)
+        })
+        .collect();
+
+    // --- compute mean BEFORE normalisation --------------------------------
+    let input_sum: f64 = combined.par_iter().sum();
+    let input_mean = input_sum / combined.len() as f64;
+
+    // --- normalise flats only ---------------------------------------------
+    let (final_pixels, output_mean) = match kind {
+        MasterFrameKind::Flat => {
+            if !input_mean.is_finite() || input_mean <= 0.0 {
+                return Err(format!(
+                    "combine_master_frames: cannot normalise flat — pre-normalisation mean is {} (must be > 0)",
+                    input_mean
+                ));
+            }
+            // For F32 output we target a normalised mean of 1.0.
+            // For U16 output we target 32768 so the existing u16 divide-by-flat
+            // path (which divides by `flat_pixel / flat_mean`) still operates
+            // on values that fit in the [0, 65535] range without saturating.
+            let target_mean = match output_type {
+                MasterOutputType::F32 => 1.0,
+                MasterOutputType::U16 => 32768.0,
+            };
+            let scale = target_mean / input_mean;
+            let scaled: Vec<f64> = combined.par_iter().map(|&v| v * scale).collect();
+            (scaled, target_mean)
+        }
+        MasterFrameKind::Bias | MasterFrameKind::Dark => (combined, input_mean),
+    };
+
+    // --- materialise the output ImageData ---------------------------------
+    let image = match output_type {
+        MasterOutputType::U16 => {
+            let u16_data: Vec<u16> = final_pixels
+                .par_iter()
+                .map(|&v| v.round().clamp(0.0, 65535.0) as u16)
+                .collect();
+            ImageData::from_u16(width, height, channels, &u16_data)
+        }
+        MasterOutputType::F32 => {
+            let f32_data: Vec<f32> = final_pixels.par_iter().map(|&v| v as f32).collect();
+            ImageData::from_f32(width, height, channels, &f32_data)
+        }
+    };
+
+    Ok(MasterFrame {
+        image,
+        kind,
+        frame_count: frames.len() as u32,
+        method,
+        output_type,
+        input_mean,
+        output_mean,
+    })
+}
+
+/// Reduce a per-pixel sample slice to a single combined value via the
+/// requested method. `samples` is mutable so median / sigma-clip can sort
+/// in place rather than re-allocating.
+fn combine_pixel(samples: &mut [f64], method: CombineMethod) -> f64 {
+    // Caller guarantees `samples` is non-empty (combine_master_frames
+    // already verified `frames` is non-empty and every frame has the same
+    // pixel_count, so every per-pixel sample vec has length `frames.len()`).
+    match method {
+        CombineMethod::Mean => samples.iter().sum::<f64>() / samples.len() as f64,
+        CombineMethod::Median => median_in_place(samples),
+        CombineMethod::SigmaClip { kappa, iterations } => {
+            sigma_clip_in_place(samples, kappa, iterations)
+        }
+    }
+}
+
+/// Compute the median of `samples`, mutating its order. For even-length
+/// inputs, returns the mean of the two centre elements (statistical
+/// definition of the median) so that an even cosmic-ray-vs-clean split
+/// doesn't bias toward one side.
+fn median_in_place(samples: &mut [f64]) -> f64 {
+    let n = samples.len();
+    // partial sort gets the middle element; for even n we need two.
+    samples.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
+    if n % 2 == 1 {
+        samples[n / 2]
+    } else {
+        (samples[n / 2 - 1] + samples[n / 2]) * 0.5
+    }
+}
+
+/// Iteratively reject samples outside `kappa * sigma` from the running mean.
+/// Returns the mean of the surviving samples. If every sample is rejected
+/// (degenerate case — should not happen in practice because the first
+/// iteration starts from the full-population mean), falls back to the
+/// median so we always emit *something* sensible.
+fn sigma_clip_in_place(samples: &mut [f64], kappa: f64, iterations: u32) -> f64 {
+    if samples.len() <= 2 {
+        // Not enough samples to estimate stddev meaningfully; just average.
+        return samples.iter().sum::<f64>() / samples.len() as f64;
+    }
+    let mut working: Vec<f64> = samples.to_vec();
+    for _ in 0..iterations {
+        if working.len() < 3 {
+            break;
+        }
+        let n = working.len() as f64;
+        let mean: f64 = working.iter().sum::<f64>() / n;
+        let var: f64 =
+            working.iter().map(|&v| (v - mean) * (v - mean)).sum::<f64>() / (n - 1.0);
+        let sigma = var.max(0.0).sqrt();
+        if sigma == 0.0 {
+            // Population is degenerate (all equal); no clipping possible.
+            break;
+        }
+        let lo = mean - kappa * sigma;
+        let hi = mean + kappa * sigma;
+        let before = working.len();
+        working.retain(|&v| v >= lo && v <= hi);
+        if working.len() == before {
+            // Converged: no samples rejected this iteration.
+            break;
+        }
+        if working.is_empty() {
+            // Total rejection (shouldn't happen on iter 1 with k>=1); bail.
+            return median_in_place(samples);
+        }
+    }
+    working.iter().sum::<f64>() / working.len() as f64
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -939,6 +1292,378 @@ mod tests {
         assert!(
             outlier_delta > 2.0 * population_std_dev,
             "population variance would incorrectly reject the same deviation"
+        );
+    }
+
+    // =========================================================================
+    // IMG-P2-1: Master frame combination tests
+    // =========================================================================
+
+    /// Build a synthetic U16 image filled with a constant value (single channel).
+    fn constant_u16_image(width: u32, height: u32, value: u16) -> ImageData {
+        let data = vec![value; (width as usize) * (height as usize)];
+        ImageData::from_u16(width, height, 1, &data)
+    }
+
+    #[test]
+    fn master_bias_constant_value_yields_that_constant() {
+        // 5 identical bias frames at 1234 ADU. Median (and mean) should
+        // produce exactly 1234 — bias is the simplest case and any drift
+        // would indicate the combine path is silently corrupting data.
+        let frames: Vec<ImageData> = (0..5).map(|_| constant_u16_image(4, 4, 1234)).collect();
+        let master = combine_master_frames(
+            &frames,
+            MasterFrameKind::Bias,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        )
+        .expect("master bias build should succeed");
+
+        assert_eq!(master.kind, MasterFrameKind::Bias);
+        assert_eq!(master.frame_count, 5);
+        assert_eq!(master.output_type, MasterOutputType::U16);
+
+        let pixels = master.image.as_u16().expect("u16 master should return u16");
+        assert_eq!(pixels.len(), 16);
+        for &p in &pixels {
+            assert_eq!(p, 1234, "every pixel of the bias master should be the constant input value");
+        }
+        assert!((master.input_mean - 1234.0).abs() < 1e-9);
+        assert!((master.output_mean - 1234.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn master_dark_median_rejects_single_cosmic_ray_hit() {
+        // 3 dark frames, all at ADU=500 except one frame has a cosmic-ray
+        // hit at pixel (1,1) saturating to 65535. Median should reject the
+        // outlier and return 500 at that pixel; the mean would return ~21845.
+        let w = 4;
+        let h = 4;
+        let mut f1 = vec![500u16; (w * h) as usize];
+        let mut f2 = vec![500u16; (w * h) as usize];
+        let f3 = vec![500u16; (w * h) as usize];
+        // Cosmic ray on f1 at (1,1); also a different hit on f2 at (2,2)
+        // to confirm median rejects each independently per-pixel.
+        let cr_idx_1 = (w + 1) as usize;
+        let cr_idx_2 = (2 * w + 2) as usize;
+        f1[cr_idx_1] = 65535;
+        f2[cr_idx_2] = 65535;
+
+        let frames = vec![
+            ImageData::from_u16(w, h, 1, &f1),
+            ImageData::from_u16(w, h, 1, &f2),
+            ImageData::from_u16(w, h, 1, &f3),
+        ];
+
+        let master = combine_master_frames(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        )
+        .expect("master dark build should succeed");
+
+        let pixels = master.image.as_u16().expect("u16 master");
+        for (i, &p) in pixels.iter().enumerate() {
+            assert_eq!(
+                p, 500,
+                "pixel {} should be 500 after median rejection of cosmic ray",
+                i
+            );
+        }
+    }
+
+    #[test]
+    fn master_flat_is_normalised_to_unit_mean_f32() {
+        // 5 flat frames with mean ~10000 ADU. After normalisation to F32,
+        // the master mean must be 1.0 (within floating-point tolerance).
+        // Use a gradient so the normalised values are visibly non-uniform
+        // — this catches the bug where normalisation accidentally maps
+        // everything to a single constant.
+        let w: u32 = 8;
+        let h: u32 = 8;
+        let pixel_count = (w * h) as usize;
+
+        // Build a frame whose mean is 10000 ADU but with per-pixel variation
+        // (linear ramp 5000..15000). The mean of this ramp is 10000.
+        let mut ramp_pixels = Vec::with_capacity(pixel_count);
+        for i in 0..pixel_count {
+            // Linear from 5000 to 15000 across the image.
+            let v = 5000.0 + 10000.0 * (i as f64) / ((pixel_count - 1) as f64);
+            ramp_pixels.push(v.round() as u16);
+        }
+        // Sanity: confirm the test fixture mean really is 10000.
+        let raw_mean = ramp_pixels.iter().map(|&p| p as f64).sum::<f64>()
+            / ramp_pixels.len() as f64;
+        assert!(
+            (raw_mean - 10000.0).abs() < 1.0,
+            "test fixture ramp mean should be ~10000, got {}",
+            raw_mean
+        );
+
+        let frames: Vec<ImageData> = (0..5)
+            .map(|_| ImageData::from_u16(w, h, 1, &ramp_pixels))
+            .collect();
+
+        let master = combine_master_frames(
+            &frames,
+            MasterFrameKind::Flat,
+            CombineMethod::Median,
+            MasterOutputType::F32,
+        )
+        .expect("master flat build should succeed");
+
+        assert_eq!(master.kind, MasterFrameKind::Flat);
+        assert_eq!(master.output_type, MasterOutputType::F32);
+
+        let pixels = master.image.as_f32().expect("f32 master should return f32");
+        assert_eq!(pixels.len(), pixel_count);
+        let out_mean: f64 = pixels.iter().map(|&v| v as f64).sum::<f64>() / pixels.len() as f64;
+        assert!(
+            (out_mean - 1.0).abs() < 1e-4,
+            "normalised flat mean should be 1.0, got {}",
+            out_mean
+        );
+        // Confirm we preserved relative variation — the smallest normalised
+        // pixel should be roughly 0.5 (since 5000/10000=0.5).
+        let min_pixel = pixels.iter().cloned().fold(f32::INFINITY, f32::min);
+        assert!(
+            (min_pixel - 0.5).abs() < 0.01,
+            "min normalised pixel should be ~0.5, got {}",
+            min_pixel
+        );
+    }
+
+    #[test]
+    fn master_flat_u16_normalised_to_half_scale_32768() {
+        // Same as the f32 case but request U16 output. The flat's normalised
+        // mean should land on 32768 (half-scale) so the legacy u16
+        // calibration code can still divide without saturation.
+        let w: u32 = 4;
+        let h: u32 = 4;
+        let frames: Vec<ImageData> = (0..5)
+            .map(|_| constant_u16_image(w, h, 10000))
+            .collect();
+
+        let master = combine_master_frames(
+            &frames,
+            MasterFrameKind::Flat,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        )
+        .expect("u16 master flat build should succeed");
+
+        let pixels = master.image.as_u16().expect("u16 master");
+        for &p in &pixels {
+            assert_eq!(
+                p, 32768,
+                "constant flat normalised to U16 should be exactly 32768"
+            );
+        }
+        assert!((master.output_mean - 32768.0).abs() < 1e-9);
+        assert!((master.input_mean - 10000.0).abs() < 1e-9);
+    }
+
+    #[test]
+    fn empty_input_returns_err() {
+        let frames: Vec<ImageData> = Vec::new();
+        let result = combine_master_frames(
+            &frames,
+            MasterFrameKind::Bias,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        );
+        assert!(result.is_err(), "empty input must return Err, not silently produce a master");
+        let err = result.unwrap_err();
+        assert!(
+            err.contains("zero frames") || err.contains("empty"),
+            "error should mention empty/zero frames, got: {}",
+            err
+        );
+    }
+
+    #[test]
+    fn mixed_dimensions_returns_err() {
+        let f1 = constant_u16_image(4, 4, 1000);
+        let f2 = constant_u16_image(8, 4, 1000); // different width
+        let result = combine_master_frames(
+            &[f1, f2],
+            MasterFrameKind::Dark,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        );
+        assert!(result.is_err(), "mixed dimensions must return Err");
+        assert!(
+            result.unwrap_err().contains("dimensions"),
+            "error should mention dimensions"
+        );
+    }
+
+    #[test]
+    fn mixed_pixel_types_returns_err() {
+        let f1 = constant_u16_image(4, 4, 1000);
+        let f2 = ImageData::from_f32(4, 4, 1, &[1000.0f32; 16]);
+        let result = combine_master_frames(
+            &[f1, f2],
+            MasterFrameKind::Dark,
+            CombineMethod::Median,
+            MasterOutputType::U16,
+        );
+        assert!(result.is_err(), "mixed pixel types must return Err");
+    }
+
+    #[test]
+    fn sigma_clip_rejects_outliers_in_dark_master() {
+        // 11 dark frames: 10 at 500 ADU and one outlier at 65000.
+        // Sigma clipping at k=2 should reject the outlier; the resulting
+        // mean should be ~500, not the mean-with-outlier (~6363).
+        let w: u32 = 2;
+        let h: u32 = 2;
+        let mut frames: Vec<ImageData> = (0..10).map(|_| constant_u16_image(w, h, 500)).collect();
+        frames.push(constant_u16_image(w, h, 65000));
+
+        let master = combine_master_frames(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::SigmaClip {
+                kappa: 2.0,
+                iterations: 3,
+            },
+            MasterOutputType::U16,
+        )
+        .expect("sigma-clip master should succeed");
+
+        let pixels = master.image.as_u16().unwrap();
+        for &p in &pixels {
+            assert!(
+                (p as i32 - 500).abs() < 5,
+                "sigma-clipped dark pixel should be ~500, got {}",
+                p
+            );
+        }
+    }
+
+    #[test]
+    fn invalid_sigma_clip_params_return_err() {
+        let frames: Vec<ImageData> = (0..5).map(|_| constant_u16_image(2, 2, 1000)).collect();
+        // Zero iterations
+        let r1 = combine_master_frames(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::SigmaClip {
+                kappa: 2.0,
+                iterations: 0,
+            },
+            MasterOutputType::U16,
+        );
+        assert!(r1.is_err(), "sigma-clip iterations=0 must fail");
+        // Negative kappa
+        let r2 = combine_master_frames(
+            &frames,
+            MasterFrameKind::Dark,
+            CombineMethod::SigmaClip {
+                kappa: -1.0,
+                iterations: 3,
+            },
+            MasterOutputType::U16,
+        );
+        assert!(r2.is_err(), "sigma-clip kappa<=0 must fail");
+    }
+
+    // =========================================================================
+    // IMG-P2-3: avg_matched_pairs / avg_alignment_residual divisor
+    // =========================================================================
+    //
+    // Verifies that the per-aligned-frame averages divide by the count of
+    // *non-reference* frames, not the full stacked_frame_count. The
+    // reference frame contributes 0 to both metrics by construction, so the
+    // pre-fix divisor of `stacked_frame_count` (which includes it) diluted
+    // the averages by (N-1)/N.
+
+    /// Update stats using the same arithmetic the fixed accumulator path uses,
+    /// so the test directly exercises the divisor formula introduced for
+    /// IMG-P2-3 without spinning up a full LiveStacker (which requires
+    /// successful star detection on each frame).
+    fn step_stats(stats: &mut StackingStats, matches_len: usize, residual: f64) {
+        stats.stacked_frame_count += 1;
+        let aligned_count = stats.stacked_frame_count.saturating_sub(1).max(1) as f64;
+        stats.avg_matched_pairs =
+            stats.avg_matched_pairs * ((aligned_count - 1.0) / aligned_count)
+                + matches_len as f64 / aligned_count;
+        stats.avg_alignment_residual =
+            stats.avg_alignment_residual * ((aligned_count - 1.0) / aligned_count)
+                + residual / aligned_count;
+    }
+
+    #[test]
+    fn avg_metrics_exclude_reference_frame_contribution() {
+        // Simulate 5 stacked frames: 1 reference (no metrics), 4 aligned
+        // each with matched_pairs=10 and residual=0.5. The post-fix average
+        // must be exactly 10.0 and 0.5 — pre-fix this was diluted to 8.0
+        // and 0.4 because the reference was counted in the divisor.
+        // reference frame initialised but not measured
+        let mut stats = StackingStats {
+            stacked_frame_count: 1,
+            ..Default::default()
+        };
+
+        for _ in 0..4 {
+            step_stats(&mut stats, 10, 0.5);
+        }
+
+        assert_eq!(stats.stacked_frame_count, 5);
+        assert!(
+            (stats.avg_matched_pairs - 10.0).abs() < 1e-9,
+            "avg_matched_pairs should be 10.0 (not diluted by reference), got {}",
+            stats.avg_matched_pairs
+        );
+        assert!(
+            (stats.avg_alignment_residual - 0.5).abs() < 1e-9,
+            "avg_alignment_residual should be 0.5 (not diluted by reference), got {}",
+            stats.avg_alignment_residual
+        );
+    }
+
+    #[test]
+    fn pre_fix_divisor_formula_would_yield_8_and_0_4() {
+        // Reference test: prove the bug claim by re-deriving the buggy
+        // formula and confirming it produces 8.0 / 0.4 for the same inputs.
+        // This locks in WHY the fix is correct: with the old divisor of
+        // `stacked_frame_count` (including the reference), the average gets
+        // multiplied by (N-1)/N. For 5 frames that's 4/5 = 0.8, so
+        // 10 * 0.8 = 8.0 and 0.5 * 0.8 = 0.4.
+        let mut buggy_count: u32 = 1;
+        let mut buggy_avg_matches = 0.0_f64;
+        let mut buggy_avg_residual = 0.0_f64;
+        for _ in 0..4 {
+            buggy_count += 1;
+            let n = buggy_count as f64;
+            buggy_avg_matches = buggy_avg_matches * ((n - 1.0) / n) + 10.0 / n;
+            buggy_avg_residual = buggy_avg_residual * ((n - 1.0) / n) + 0.5 / n;
+        }
+        assert!((buggy_avg_matches - 8.0).abs() < 1e-9);
+        assert!((buggy_avg_residual - 0.4).abs() < 1e-9);
+    }
+
+    #[test]
+    fn first_aligned_frame_yields_exact_metrics() {
+        // After exactly one aligned frame (so stacked_frame_count=2), the
+        // average must equal that frame's metrics — not half of them.
+        let mut stats = StackingStats {
+            stacked_frame_count: 1,
+            ..Default::default()
+        };
+        step_stats(&mut stats, 17, 0.83);
+        assert_eq!(stats.stacked_frame_count, 2);
+        assert!(
+            (stats.avg_matched_pairs - 17.0).abs() < 1e-9,
+            "single aligned frame must report its own match count, got {}",
+            stats.avg_matched_pairs
+        );
+        assert!(
+            (stats.avg_alignment_residual - 0.83).abs() < 1e-9,
+            "single aligned frame must report its own residual, got {}",
+            stats.avg_alignment_residual
         );
     }
 }

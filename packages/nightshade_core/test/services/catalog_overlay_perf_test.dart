@@ -21,6 +21,10 @@ class _BulkCatalogSource implements CatalogOverlaySource {
   Future<List<Star>> loadStars() async => stars;
   @override
   Future<bool> get isAvailable async => true;
+  @override
+  Future<bool> get dsoCatalogAvailable async => dsos.isNotEmpty;
+  @override
+  Future<bool> get starCatalogAvailable async => stars.isNotEmpty;
 }
 
 const _wcs = SolvedWcs(

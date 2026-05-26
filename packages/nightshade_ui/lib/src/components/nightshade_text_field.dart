@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
 
@@ -17,6 +18,8 @@ class NightshadeTextField extends StatefulWidget {
   final bool enabled;
   final TextEditingController? controller;
   final FocusNode? focusNode;
+  final List<TextInputFormatter>? inputFormatters;
+  final TextAlign textAlign;
 
   const NightshadeTextField({
     super.key,
@@ -34,6 +37,8 @@ class NightshadeTextField extends StatefulWidget {
     this.enabled = true,
     this.controller,
     this.focusNode,
+    this.inputFormatters,
+    this.textAlign = TextAlign.start,
   });
 
   @override
@@ -78,7 +83,7 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final hasError = widget.errorText != null && widget.errorText!.isNotEmpty;
 
     // Determine colors based on state
@@ -93,23 +98,11 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
     } else if (hasError) {
       borderColor = colors.error;
       fillColor = colors.surface;
-      boxShadow = [
-        BoxShadow(
-          color: colors.error.withValues(alpha: 0.15),
-          blurRadius: 4,
-          spreadRadius: 0,
-        ),
-      ];
+      boxShadow = null;
     } else if (_isFocused) {
       borderColor = colors.primary;
       fillColor = colors.surfaceAlt;
-      boxShadow = [
-        BoxShadow(
-          color: colors.primary.withValues(alpha: 0.15),
-          blurRadius: 4,
-          spreadRadius: 0,
-        ),
-      ];
+      boxShadow = null;
     } else if (_hasContent) {
       // Filled state - slightly different tint to indicate completion
       borderColor = colors.border;
@@ -150,6 +143,8 @@ class _NightshadeTextFieldState extends State<NightshadeTextField> {
             onChanged: widget.onChanged,
             obscureText: widget.obscureText,
             keyboardType: widget.keyboardType,
+            inputFormatters: widget.inputFormatters,
+            textAlign: widget.textAlign,
             maxLines: widget.maxLines,
             enabled: widget.enabled,
             style: TextStyle(

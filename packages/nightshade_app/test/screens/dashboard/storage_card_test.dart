@@ -15,7 +15,7 @@ Widget _wrap(List<Override> overrides) {
       home: Scaffold(
         body: Builder(
           builder: (context) {
-            final colors = Theme.of(context).extension<NightshadeColors>()!;
+            final colors = NightshadeColors.of(context);
             return SizedBox(
               width: 320,
               child: StorageCard(colors: colors),

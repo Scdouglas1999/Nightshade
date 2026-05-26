@@ -14,6 +14,7 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import 'headless_api/update_wiring.dart';
 import 'headless_api_server.dart';
 
 const String _logSource = 'DesktopBootstrap';
@@ -50,6 +51,8 @@ Future<void> _runBackgroundServices(
     container: container,
     logger: logger,
     persistentToken: persistentToken,
+    appVersion: appVersion,
+    appBuildNumber: appBuildNumber,
   );
 
   try {
@@ -88,6 +91,11 @@ Future<void> _runBackgroundServices(
     // the focuser connects, otherwise the first temperature reading is
     // missed and the baseline never captures.
     container.read(focuserTempCompensationProvider);
+
+    // DEV-P3-1: install the capability-refresh-on-connect listener so the
+    // UI sees fresh capability data after the next device reconnect. Must
+    // attach before the first connect transition or we miss the edge.
+    container.read(capabilityRefreshOnConnectProvider);
   } catch (e) {
     logger.error(
       'Background services failed to initialise',
@@ -109,16 +117,27 @@ class _ApiServerLifecycle {
   final ProviderContainer container;
   final LoggingService logger;
   final String persistentToken;
+  final String appVersion;
+  final int appBuildNumber;
 
   HeadlessApiServer? _apiServer;
+  DiscoveryBroadcaster? _discoveryBroadcaster;
+  MdnsServiceRegistration? _mdnsRegistration;
   StreamSubscription<dynamic>? _collaborationSubscription;
   AppSettingsState? _queuedSettings;
   bool _isApplying = false;
+
+  /// P1-11: the OTA update controller wired into the API server. Owned
+  /// here so it gets torn down whenever the server is stopped (e.g. the
+  /// operator toggles remote access off in settings).
+  UpdateController? _updateController;
 
   _ApiServerLifecycle({
     required this.container,
     required this.logger,
     required this.persistentToken,
+    required this.appVersion,
+    required this.appBuildNumber,
   });
 
   Future<void> scheduleUpdate(AppSettingsState settings) async {
@@ -143,10 +162,32 @@ class _ApiServerLifecycle {
     await _collaborationSubscription?.cancel();
     _collaborationSubscription = null;
 
+    _discoveryBroadcaster?.stop();
+    _discoveryBroadcaster = null;
+
+    // mDNS unregister before the HTTP socket closes so dialing clients see
+    // the service vanish rather than getting refused connections to a port
+    // we're about to free.
+    final mdns = _mdnsRegistration;
+    _mdnsRegistration = null;
+    if (mdns != null) {
+      await mdns.stop();
+    }
+
     final running = _apiServer;
     _apiServer = null;
     if (running != null) {
+      // P1-11: detach the update controller BEFORE stopping the server so
+      // the controller's event subscription is cancelled cleanly. The
+      // controller itself is disposed below.
+      running.setUpdateController(null);
       await running.stop();
+    }
+
+    final updateController = _updateController;
+    _updateController = null;
+    if (updateController != null) {
+      await updateController.dispose();
     }
 
     container.read(webServerStateProvider.notifier).setStopped(
@@ -195,7 +236,73 @@ class _ApiServerLifecycle {
             bindLocalOnly: false,
             requiresAuthentication: true,
             dashboardAvailable: true,
+            serverFingerprint: computeServerFingerprint(persistentToken),
           );
+
+      try {
+        final appVersion = container.read(appVersionProvider).version;
+        _discoveryBroadcaster = await NightshadeDiscovery.startBroadcasting(
+          webPort: nextServer.actualPort,
+          signalingPort: nextServer.actualPort,
+          name: 'Nightshade',
+          version: appVersion,
+        );
+        logger.info(
+          'UDP discovery broadcasting on port 45679 (HTTP ${nextServer.actualPort})',
+          source: _logSource,
+        );
+      } catch (e) {
+        logger.warning(
+          'UDP discovery broadcaster failed to start',
+          source: _logSource,
+          fields: {'error': '$e'},
+        );
+      }
+
+      // P1-6: mDNS / Bonjour advertisement. Additive to UDP broadcast above —
+      // most modern Wi-Fi APs block client-to-client broadcast, and Tailscale
+      // / VPN segments have no broadcast domain at all. Register
+      // `_nightshade._tcp` so phones discover the GUI server in those
+      // topologies without needing the QR or manual entry.
+      try {
+        final appVersion = container.read(appVersionProvider).version;
+        final txt = <String, String>{
+          'version': appVersion,
+          'scheme': nextServer.isTlsActive ? 'https' : 'http',
+          'fingerprint': nextServer.serverFingerprint,
+          'pairingSupported': 'true',
+          'name': 'Nightshade',
+        };
+        final registration = MdnsServiceRegistration(
+          name: 'Nightshade',
+          port: nextServer.actualPort,
+          txt: txt,
+          onWarning: (msg) => logger.warning(
+            msg,
+            source: _logSource,
+          ),
+        );
+        await registration.start();
+        _mdnsRegistration = registration;
+        if (registration.isRegistered) {
+          logger.info(
+            'mDNS advertisement active',
+            source: _logSource,
+            fields: {
+              'service': '_nightshade._tcp',
+              'port': nextServer.actualPort,
+              'scheme': txt['scheme']!,
+              'fingerprint': nextServer.serverFingerprint,
+            },
+          );
+        }
+      } catch (e) {
+        logger.warning(
+          'mDNS registration failed unexpectedly',
+          source: _logSource,
+          fields: {'error': '$e'},
+        );
+      }
 
       _collaborationSubscription =
           nextServer.collaborationManager.stream.listen((collabState) {
@@ -215,6 +322,82 @@ class _ApiServerLifecycle {
       } catch (e) {
         logger.warning(
           'Push notification setup failed',
+          source: _logSource,
+          fields: {'error': '$e'},
+        );
+      }
+
+      // P1-11: provision the OTA update controller and bind it to the
+      // server so paired phones can drive `/api/system/update/*`. The
+      // controller wraps the same UpdateService that the GUI's update
+      // manager widget uses; in GUI mode the LAN push receiver (started
+      // separately via _startLanPushReceiver) feeds the GUI's
+      // UpdateNotifier, so both transports remain functional.
+      try {
+        final stack = await provisionUpdateStack(
+          currentVersion: appVersion,
+          currentBuildNumber: appBuildNumber,
+          logger: logger,
+          logSource: _logSource,
+        );
+        if (stack != null) {
+          _updateController = stack.controller;
+          nextServer.setUpdateController(stack.controller);
+          logger.info(
+            'OTA update endpoints wired to web server',
+            source: _logSource,
+            fields: {
+              'channel': stack.controller.channel,
+              'serverUrl': stack.controller.updateServerUrl ?? 'unconfigured',
+            },
+          );
+        }
+      } catch (e, st) {
+        logger.warning(
+          'OTA update endpoint wiring failed; /api/system/update/* '
+          'will be unavailable for this session',
+          source: _logSource,
+          fields: {'error': '$e', 'stack': '$st'},
+        );
+      }
+
+      // P1-19: LAN UDP push broadcaster. GUI mode is always LAN-exposed
+      // (the operator opted in via Remote access), so we always wire the
+      // broadcaster here. The fingerprint we hand to it is the same one
+      // computed by the server for /api/info — paired phones already
+      // hold this string from the enrollment QR/handshake.
+      try {
+        final pushBroadcaster = LanPushBroadcaster(
+          serverFingerprint: nextServer.serverFingerprint,
+          logger: (level, message, {fields}) {
+            switch (level) {
+              case LanPushLogLevel.info:
+                logger.info(message, source: _logSource, fields: fields);
+                break;
+              case LanPushLogLevel.warning:
+                logger.warning(message,
+                    source: _logSource, fields: fields);
+                break;
+              case LanPushLogLevel.error:
+                logger.error(message,
+                    source: _logSource, fields: fields);
+                break;
+            }
+          },
+        );
+        nextServer.setLanPushBroadcaster(pushBroadcaster);
+        await pushBroadcaster.start();
+        logger.info(
+          'LAN push broadcaster started',
+          source: _logSource,
+          fields: {
+            'port': pushBroadcaster.port,
+            'interfaces': pushBroadcaster.activeSinkCount,
+          },
+        );
+      } catch (e) {
+        logger.warning(
+          'LAN push broadcaster failed to start',
           source: _logSource,
           fields: {'error': '$e'},
         );
@@ -371,24 +554,10 @@ Future<String> _getOrCreateRemoteAccessToken(LoggingService logger) async {
 /// Load or generate the LAN push authentication secret. Persisted in the app
 /// data directory so it survives restarts. The same secret must be configured
 /// on the push tool (dev machine) to authenticate.
-Future<String> _getOrCreatePushSecret(LoggingService logger) async {
-  final appData = await getApplicationSupportDirectory();
-  final secretFile = File(path.join(appData.path, 'push_secret.txt'));
-
-  if (await secretFile.exists()) {
-    final secret = (await secretFile.readAsString()).trim();
-    if (secret.isNotEmpty) {
-      return secret;
-    }
-  }
-
-  final secret = LanPushReceiver.generatePushSecret();
-  await secretFile.parent.create(recursive: true);
-  await secretFile.writeAsString(secret);
-  logger.info(
-    'Generated new LAN push secret. Configure this on the push tool.',
-    source: _logSource,
-    fields: {'secret_path': secretFile.path},
-  );
-  return secret;
+///
+/// P1-11: the implementation moved to `headless_api/update_wiring.dart` so
+/// the headless daemon can reuse it. This wrapper preserves the original
+/// call sites in this file.
+Future<String> _getOrCreatePushSecret(LoggingService logger) {
+  return getOrCreatePushSecret(logger, logSource: _logSource);
 }

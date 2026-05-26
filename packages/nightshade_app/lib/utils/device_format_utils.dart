@@ -9,6 +9,12 @@
 String formatDeviceId(String id) {
   final lowerId = id.toLowerCase();
 
+  // Built-in multi-star guider has a fixed canonical ID. Recognize it before
+  // the generic native:vendor:index path so the display name reads cleanly.
+  if (lowerId == 'native:builtin_guider:multi_star') {
+    return 'Built-in Multi-Star Guider';
+  }
+
   // Handle native device IDs: native:vendor:index or native:vendor_type:index
   if (lowerId.startsWith('native:')) {
     final parts = id.substring(7).split(':');

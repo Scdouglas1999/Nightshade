@@ -66,5 +66,15 @@
 	<string>Nightshade needs your location to accurately calculate celestial positions and optimize your astrophotography session.</string>
 	<key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
 	<string>Nightshade needs your location to accurately calculate celestial positions and optimize your astrophotography session.</string>
+	<!-- P1-20: Live Activities (iOS 16.2+). Pins a rich, dynamic UI to the
+	     lock screen and Dynamic Island for the duration of an imaging
+	     sequence so the operator gets at-a-glance progress without
+	     unlocking the phone. NSSupportsLiveActivitiesFrequentUpdates
+	     opts in to the higher-frequency budget so per-frame ticks during
+	     long exposures can be reflected promptly. -->
+	<key>NSSupportsLiveActivities</key>
+	<true/>
+	<key>NSSupportsLiveActivitiesFrequentUpdates</key>
+	<true/>
 </dict>
 </plist>

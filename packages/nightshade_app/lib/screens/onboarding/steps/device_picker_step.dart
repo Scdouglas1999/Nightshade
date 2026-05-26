@@ -77,7 +77,7 @@ class _OnboardingDevicePickerBodyState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     final discovery = ref.watch(unifiedDiscoveryProvider);
@@ -192,7 +192,7 @@ class _BackendStatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     final entries = drivers
@@ -239,10 +239,9 @@ class _BackendStatusRow extends StatelessWidget {
 
         final chip = Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          decoration: BoxDecoration(
-            color: color.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.statusChip(
+            color,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: color.withValues(alpha: 0.3)),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -279,7 +278,7 @@ class _DeviceList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     if (devices.isEmpty) {
@@ -325,17 +324,17 @@ class _DeviceList extends StatelessWidget {
           borderRadius: BorderRadius.circular(10),
           child: Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? colors.primary.withValues(alpha: 0.08)
-                  : colors.surface,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(
-                color: isSelected
-                    ? colors.primary.withValues(alpha: 0.4)
-                    : colors.border,
-              ),
-            ),
+            decoration: isSelected
+                ? NightshadeDecorations.selectedSurface(
+                    colors.primary,
+                    borderRadius: BorderRadius.circular(10),
+                    fillAlpha: 0.08,
+                  )
+                : BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: colors.border),
+                  ),
             child: Row(
               children: [
                 Icon(

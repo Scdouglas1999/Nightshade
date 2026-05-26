@@ -18,7 +18,7 @@ class RunDashboardFilterIntegration extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final totals = ref.watch(runDashboardFilterTotalsProvider);
 
     // Pick a stable filter ordering: a common L/R/G/B/Ha/OIII/SII first,
@@ -148,11 +148,11 @@ class _FilterRow extends StatelessWidget {
       final amountText = Text(
         goal > 0 ? '$acquiredStr / $goalStr' : acquiredStr,
         textAlign: stacked ? TextAlign.left : TextAlign.right,
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w600,
-          color: colors.textSecondary,
-          fontFeatures: const [FontFeature.tabularFigures()],
+        style: NightshadeTypography.withTabular(
+          NightshadeTypography.labelQuiet.copyWith(
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+          ),
         ),
         overflow: TextOverflow.ellipsis,
       );

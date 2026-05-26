@@ -12,7 +12,7 @@ class OnboardingDriverStep extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
@@ -91,7 +91,7 @@ class _DriverTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     return Padding(
@@ -101,24 +101,22 @@ class _DriverTile extends StatelessWidget {
         borderRadius: BorderRadius.circular(10),
         child: Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: selected
-                ? colors.primary.withValues(alpha: 0.08)
-                : colors.surface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: selected
-                  ? colors.primary.withValues(alpha: 0.4)
-                  : colors.border,
-            ),
-          ),
+          decoration: selected
+              ? NightshadeDecorations.selectedSurface(
+                  colors.primary,
+                  borderRadius: BorderRadius.circular(10),
+                  fillAlpha: 0.08,
+                )
+              : BoxDecoration(
+                  color: colors.surface,
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: colors.border),
+                ),
           child: Row(
             children: [
-              Checkbox(
+              NightshadeCheckbox(
                 value: selected,
                 onChanged: (_) => onToggle(),
-                activeColor: colors.primary,
-                side: BorderSide(color: colors.border),
               ),
               const SizedBox(width: 8),
               Expanded(

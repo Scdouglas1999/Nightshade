@@ -49,6 +49,17 @@ pub mod standard_properties {
     pub const TELESCOPE_MOTION_WE: &str = "TELESCOPE_MOTION_WE";
     pub const TELESCOPE_SLEW_RATE: &str = "TELESCOPE_SLEW_RATE";
     pub const TELESCOPE_HOME: &str = "TELESCOPE_HOME";
+    pub const TELESCOPE_TIMED_GUIDE_NS: &str = "TELESCOPE_TIMED_GUIDE_NS";
+    pub const TELESCOPE_TIMED_GUIDE_WE: &str = "TELESCOPE_TIMED_GUIDE_WE";
+    pub const TELESCOPE_PIER_SIDE: &str = "TELESCOPE_PIER_SIDE";
+    pub const TELESCOPE_TRACK_MODE: &str = "TELESCOPE_TRACK_MODE";
+    pub const TELESCOPE_ALIGNMENT_MODE: &str = "TELESCOPE_ALIGNMENT_MODE";
+
+    // Camera readout / sensor metadata
+    pub const CCD_READ_MODE: &str = "CCD_READ_MODE";
+    pub const CCD_CFA: &str = "CCD_CFA";
+    pub const CCD_MAX_PIXEL_VALUE: &str = "CCD_MAX_PIXEL_VALUE";
+    pub const CCD_SENSOR_TYPE: &str = "CCD_SENSOR_TYPE";
 
     // Focuser properties
     pub const FOCUS_MOTION: &str = "FOCUS_MOTION";
@@ -58,6 +69,19 @@ pub mod standard_properties {
     pub const REL_FOCUS_POSITION: &str = "REL_FOCUS_POSITION";
     pub const FOCUS_ABORT_MOTION: &str = "FOCUS_ABORT_MOTION";
     pub const FOCUS_TEMPERATURE: &str = "FOCUS_TEMPERATURE";
+    pub const FOCUS_MAX: &str = "FOCUS_MAX";
+    pub const FOCUS_STEP: &str = "FOCUS_STEP";
+    pub const FOCUS_BACKLASH_STEPS: &str = "FOCUS_BACKLASH_STEPS";
+    pub const FOCUS_BACKLASH_TOGGLE: &str = "FOCUS_BACKLASH_TOGGLE";
+    pub const FOCUS_TEMPERATURE_COMP: &str = "FOCUS_TEMPERATURE_COMP";
+    pub const FOCUS_TEMP_COMP: &str = "FOCUS_TEMP_COMP";
+
+    // Rotator properties
+    pub const SYNC_ROTATOR_ANGLE: &str = "SYNC_ROTATOR_ANGLE";
+    pub const ROTATOR_RAW_ANGLE: &str = "ROTATOR_RAW_ANGLE";
+
+    // Cover / flat panel
+    pub const LIGHTBOX_CONTROL: &str = "LIGHTBOX_CONTROL";
 
     // Filter wheel properties
     pub const FILTER_SLOT: &str = "FILTER_SLOT";

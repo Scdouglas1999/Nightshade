@@ -2,8 +2,10 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/sequence/sequence_models.dart';
+import '../providers/replay_debug_provider.dart';
 import 'sequence_repository.dart';
 import 'backup_service.dart';
+import 'replay_debug_service.dart';
 
 /// Configuration for auto-save behavior
 class AutoSaveConfig {
@@ -75,10 +77,15 @@ class AutoSaveStatus {
 class AutoSaveService {
   final SequenceRepository sequenceRepository;
   final BackupService backupService;
+  final ReplayDebugService? replayDebugService;
+  final Future<int> Function()? replayRetentionDays;
+  final DateTime Function() clock;
 
   AutoSaveConfig _config = const AutoSaveConfig();
   Timer? _sequenceTimer;
   Timer? _backupTimer;
+  Timer? _replayPruneTimer;
+  bool _isReplayPruning = false;
 
   // Track sequences that need saving
   final Map<String, Sequence> _pendingSequences = {};
@@ -91,7 +98,10 @@ class AutoSaveService {
   AutoSaveService({
     required this.sequenceRepository,
     required this.backupService,
-  });
+    this.replayDebugService,
+    this.replayRetentionDays,
+    DateTime Function()? clock,
+  }) : clock = clock ?? DateTime.now;
 
   /// Stream of auto-save status updates
   Stream<AutoSaveStatus> get statusStream => _statusController.stream;
@@ -145,6 +155,8 @@ class AutoSaveService {
       });
     }
 
+    _startReplayRetentionPruning();
+
     developer.log('AutoSaveService: Started successfully',
         name: 'AutoSaveService', level: 800);
   }
@@ -162,6 +174,9 @@ class AutoSaveService {
     _backupTimer?.cancel();
     _backupTimer = null;
 
+    _replayPruneTimer?.cancel();
+    _replayPruneTimer = null;
+
     // Save any pending changes before stopping
     if (_hasUnsavedChanges) {
       await _autoSaveSequences();
@@ -173,10 +188,11 @@ class AutoSaveService {
 
   /// Update configuration (restarts timers if needed)
   Future<void> updateConfig(AutoSaveConfig newConfig) async {
-    final needsRestart = _config.sequenceInterval != newConfig.sequenceInterval ||
-                        _config.backupInterval != newConfig.backupInterval ||
-                        _config.sequenceEnabled != newConfig.sequenceEnabled ||
-                        _config.backupEnabled != newConfig.backupEnabled;
+    final needsRestart =
+        _config.sequenceInterval != newConfig.sequenceInterval ||
+            _config.backupInterval != newConfig.backupInterval ||
+            _config.sequenceEnabled != newConfig.sequenceEnabled ||
+            _config.backupEnabled != newConfig.backupEnabled;
 
     _config = newConfig;
 
@@ -212,6 +228,10 @@ class AutoSaveService {
   Future<BackupResult> backupNow() async {
     return await _autoBackup();
   }
+
+  /// Manually trigger replay-debug retention pruning.
+  Future<int> pruneReplayDebugNow() =>
+      _pruneReplayDebugRetention(rethrowErrors: true);
 
   /// Auto-save sequences that have pending changes
   Future<void> _autoSaveSequences() async {
@@ -259,7 +279,8 @@ class AutoSaveService {
   Future<void> _checkAndPerformBackup() async {
     // Check if enough time has passed since last backup
     if (_status.lastBackup != null) {
-      final timeSinceLastBackup = DateTime.now().difference(_status.lastBackup!);
+      final timeSinceLastBackup =
+          DateTime.now().difference(_status.lastBackup!);
       if (timeSinceLastBackup < _config.backupInterval) {
         developer.log(
             'AutoSaveService: Skipping backup, last backup was ${timeSinceLastBackup.inHours} hours ago',
@@ -297,10 +318,8 @@ class AutoSaveService {
         // Clean up old backups
         await _cleanupOldBackups();
       } else {
-        developer.log(
-            'AutoSaveService: Backup failed: ${result.errorMessage}',
-            name: 'AutoSaveService',
-            level: 900);
+        developer.log('AutoSaveService: Backup failed: ${result.errorMessage}',
+            name: 'AutoSaveService', level: 900);
 
         _updateStatus(_status.copyWith(
           isBackingUp: false,
@@ -326,15 +345,72 @@ class AutoSaveService {
     }
   }
 
+  void _startReplayRetentionPruning() {
+    _replayPruneTimer?.cancel();
+    if (replayDebugService == null || replayRetentionDays == null) {
+      return;
+    }
+
+    Future.microtask(() => _pruneReplayDebugRetention());
+    _replayPruneTimer = Timer.periodic(const Duration(days: 1), (_) {
+      _pruneReplayDebugRetention();
+    });
+  }
+
+  Future<int> _pruneReplayDebugRetention({bool rethrowErrors = false}) async {
+    final service = replayDebugService;
+    final readRetentionDays = replayRetentionDays;
+    if (service == null || readRetentionDays == null) {
+      return 0;
+    }
+    if (_isReplayPruning) {
+      developer.log(
+        'AutoSaveService: Replay debug prune already running; skipping overlap',
+        name: 'AutoSaveService',
+        level: 800,
+      );
+      return 0;
+    }
+
+    _isReplayPruning = true;
+    try {
+      final days = await readRetentionDays();
+      if (days < 1) {
+        throw StateError('Replay debug retention_days must be >= 1, got $days');
+      }
+      final cutoff = clock().toUtc().subtract(Duration(days: days));
+      final removed = await service.pruneOlderThan(cutoff);
+      developer.log(
+        'AutoSaveService: Pruned $removed replay decision row(s) older than $cutoff',
+        name: 'AutoSaveService',
+        level: 800,
+      );
+      return removed;
+    } catch (e) {
+      developer.log(
+        'AutoSaveService: Replay debug retention prune failed: $e',
+        name: 'AutoSaveService',
+        level: 1000,
+        error: e,
+      );
+      _updateStatus(_status.copyWith(
+        lastError: 'Replay debug retention prune failed: $e',
+      ));
+      if (rethrowErrors) rethrow;
+      return 0;
+    } finally {
+      _isReplayPruning = false;
+    }
+  }
+
   /// Remove old auto-save backups, keeping only the most recent ones
   Future<void> _cleanupOldBackups() async {
     try {
       final backups = await backupService.listBackups();
 
       // Filter to only auto-save backups
-      final autoSaveBackups = backups
-          .where((file) => file.path.contains('autosave'))
-          .toList();
+      final autoSaveBackups =
+          backups.where((file) => file.path.contains('autosave')).toList();
 
       // Keep only the most recent N backups
       if (autoSaveBackups.length > _config.maxBackups) {
@@ -348,10 +424,8 @@ class AutoSaveService {
         for (final file in toDelete) {
           try {
             await file.delete();
-            developer.log(
-                'AutoSaveService: Deleted old backup: ${file.path}',
-                name: 'AutoSaveService',
-                level: 800);
+            developer.log('AutoSaveService: Deleted old backup: ${file.path}',
+                name: 'AutoSaveService', level: 800);
           } catch (e) {
             developer.log(
                 'AutoSaveService: Failed to delete backup ${file.path}: $e',
@@ -382,6 +456,8 @@ class AutoSaveService {
     _sequenceTimer = null;
     _backupTimer?.cancel();
     _backupTimer = null;
+    _replayPruneTimer?.cancel();
+    _replayPruneTimer = null;
 
     // Best-effort flush of pending saves on dispose
     if (_hasUnsavedChanges) {
@@ -398,10 +474,14 @@ class AutoSaveService {
 final autoSaveServiceProvider = Provider<AutoSaveService>((ref) {
   final sequenceRepo = ref.watch(sequenceRepositoryProvider);
   final backupService = ref.watch(backupServiceProvider);
+  final replayDebugService = ref.watch(replayDebugServiceProvider);
 
   final service = AutoSaveService(
     sequenceRepository: sequenceRepo,
     backupService: backupService,
+    replayDebugService: replayDebugService,
+    replayRetentionDays: () =>
+        ref.read(replayDebugRetentionDaysProvider.future),
   );
 
   ref.onDispose(() => service.dispose());

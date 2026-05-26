@@ -1,10 +1,14 @@
 import 'dart:ui';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path/path.dart' as p;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 /// Palette widget for displaying and managing template snippets.
 ///
@@ -208,12 +212,26 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                     color: widget.colors.primary,
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    'Templates',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w700,
-                      color: widget.colors.textPrimary,
+                  Expanded(
+                    child: Text(
+                      'Templates',
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: widget.colors.textPrimary,
+                      ),
+                    ),
+                  ),
+                  Tooltip(
+                    message: 'Import snippet from file…',
+                    child: IconButton(
+                      onPressed: _handleImportSnippet,
+                      icon: Icon(
+                        LucideIcons.fileInput,
+                        size: 20,
+                        color: widget.colors.primary,
+                      ),
+                      tooltip: 'Import snippet from file',
                     ),
                   ),
                 ],
@@ -255,9 +273,12 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                   categoryIcon: _getCategoryIcon(category),
                   getIcon: _getIcon,
                   isMobile: true,
+                  platformHasShareSheet: _platformHasShareSheet,
                   onSnippetDragStart: widget.onSnippetDragStart,
                   onSnippetTap: widget.onSnippetTap,
                   onDeleteSnippet: _handleDeleteSnippet,
+                  onExportSnippet: _handleExportSnippet,
+                  onShareSnippet: _handleShareSnippet,
                 );
               },
             ),
@@ -303,6 +324,21 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
                           color: widget.colors.textPrimary,
+                        ),
+                      ),
+                    ),
+                    Tooltip(
+                      message: 'Import snippet from file…',
+                      child: InkWell(
+                        onTap: _handleImportSnippet,
+                        borderRadius: BorderRadius.circular(4),
+                        child: Padding(
+                          padding: const EdgeInsets.all(4),
+                          child: Icon(
+                            LucideIcons.fileInput,
+                            size: 16,
+                            color: widget.colors.textMuted,
+                          ),
                         ),
                       ),
                     ),
@@ -359,9 +395,12 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                     categoryIcon: _getCategoryIcon(category),
                     getIcon: _getIcon,
                     isMobile: false,
+                    platformHasShareSheet: _platformHasShareSheet,
                     onSnippetDragStart: widget.onSnippetDragStart,
                     onSnippetTap: widget.onSnippetTap,
                     onDeleteSnippet: _handleDeleteSnippet,
+                    onExportSnippet: _handleExportSnippet,
+                    onShareSnippet: _handleShareSnippet,
                   );
                 },
               ),
@@ -375,11 +414,10 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: widget.colors.info.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.iconChip(
+              widget.colors.info,
               borderRadius: BorderRadius.circular(8),
-              border:
-                  Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+              borderAlpha: 0.2,
             ),
             child: Row(
               children: [
@@ -481,17 +519,16 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
                 horizontal: isMobile ? 16 : 12,
                 vertical: isMobile ? 14 : 10,
               ),
-              decoration: BoxDecoration(
-                color: hasSelection
-                    ? widget.colors.primary.withValues(alpha: 0.1)
-                    : widget.colors.surfaceAlt,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: hasSelection
-                      ? widget.colors.primary.withValues(alpha: 0.3)
-                      : widget.colors.border,
-                ),
-              ),
+              decoration: hasSelection
+                  ? NightshadeDecorations.emphasisSurface(
+                      widget.colors.primary,
+                      borderRadius: BorderRadius.circular(8),
+                    )
+                  : BoxDecoration(
+                      color: widget.colors.surfaceAlt,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: widget.colors.border),
+                    ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -559,8 +596,11 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
               ),
             ],
           ),
-          content: SizedBox(
-            width: 400,
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              context,
+              designMaxWidth: 400,
+            ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -768,17 +808,17 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
           child: Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: isSelected
-                  ? widget.colors.primary.withValues(alpha: 0.2)
-                  : widget.colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color:
-                    isSelected ? widget.colors.primary : widget.colors.border,
-                width: isSelected ? 2 : 1,
-              ),
-            ),
+            decoration: isSelected
+                ? NightshadeDecorations.selectedSurface(
+                    widget.colors.primary,
+                    borderRadius: BorderRadius.circular(8),
+                    fillAlpha: 0.2,
+                  )
+                : BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: widget.colors.border),
+                  ),
             child: Icon(
               icon,
               size: 18,
@@ -860,11 +900,17 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
             ),
           ],
         ),
-        content: Text(
-          'Are you sure you want to delete "${snippet.name}"? This action cannot be undone.',
-          style: TextStyle(
-            fontSize: 14,
-            color: widget.colors.textSecondary,
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 400,
+          ),
+          child: Text(
+            'Are you sure you want to delete "${snippet.name}"? This action cannot be undone.',
+            style: TextStyle(
+              fontSize: 14,
+              color: widget.colors.textSecondary,
+            ),
           ),
         ),
         actions: [
@@ -895,6 +941,236 @@ class _SnippetPaletteState extends ConsumerState<SnippetPalette> {
       ),
     );
   }
+
+  /// Returns true if the running platform has a native share sheet
+  /// `share_plus` can reach. Desktop platforms (Windows / Linux) have no
+  /// system share sheet — those flow through `_handleExportSnippet`
+  /// instead so the user manually moves the resulting file. macOS does
+  /// have a share sheet, so it's allowed alongside iOS/Android.
+  bool get _platformHasShareSheet {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.iOS:
+      case TargetPlatform.android:
+      case TargetPlatform.macOS:
+        return true;
+      case TargetPlatform.windows:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return false;
+    }
+  }
+
+  Future<void> _handleImportSnippet() async {
+    try {
+      final service = ref.read(snippetFileServiceProvider);
+      final imported = await service.importSnippet();
+      if (imported == null) return; // user cancelled
+
+      await ref.read(customSnippetsProvider.notifier).addSnippet(imported);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Imported snippet "${imported.name}"'),
+          backgroundColor: widget.colors.success,
+        ),
+      );
+    } on SnippetVersionMismatchException catch (e) {
+      // Loud, distinct path so the user understands an upgrade — not a
+      // file fix — is required. Different copy from the schema-issue
+      // branch below.
+      if (!mounted) return;
+      _showImportErrorDialog(
+        title: 'Snippet from a newer Nightshade',
+        body:
+            'The selected snippet was authored with schema version ${e.fileVersion}, '
+            'but this build of Nightshade only supports up to version '
+            '${e.supportedVersion}. Update Nightshade and try again.',
+      );
+    } on SnippetImportException catch (e) {
+      if (!mounted) return;
+      _showImportErrorDialog(
+        title: 'Snippet file is invalid',
+        body:
+            'The snippet file could not be imported. Fix the following issue'
+            '${e.issues.length == 1 ? '' : 's'} and try again:',
+        issues: e.issues,
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to import snippet: $e'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
+    }
+  }
+
+  Future<void> _handleExportSnippet(TemplateSnippet snippet) async {
+    try {
+      final service = ref.read(snippetFileServiceProvider);
+      final savedPath = await service.exportSnippet(snippet);
+      if (savedPath == null) return; // user cancelled
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Exported "${snippet.name}" to ${p.basename(savedPath)}',
+          ),
+          backgroundColor: widget.colors.success,
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to export snippet: $e'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
+    }
+  }
+
+  /// Share via the platform share sheet (iOS / Android / macOS). On
+  /// platforms without a share sheet this falls back to
+  /// [_handleExportSnippet] — the user gets a save dialog instead and
+  /// can attach the resulting file to whatever they like.
+  Future<void> _handleShareSnippet(TemplateSnippet snippet) async {
+    if (!_platformHasShareSheet) {
+      // Desktop fallback: open the export dialog. Same user-visible
+      // result (a file they can attach to anything) without pretending
+      // we can drive a system share UI that doesn't exist.
+      await _handleExportSnippet(snippet);
+      return;
+    }
+
+    try {
+      final service = ref.read(snippetFileServiceProvider);
+
+      // Stage the bundle in the OS temp directory under a filename the
+      // share sheet preview can show. Cleanup of temp dirs is handled
+      // by the OS — share_plus copies the file before returning, so a
+      // later sweep won't break the share itself.
+      final tmpDir = await getTemporaryDirectory();
+      final filename = service.suggestedFilename(snippet);
+      final tmpPath = p.join(tmpDir.path, filename);
+      await service.exportSnippetToPath(snippet, tmpPath);
+
+      await Share.shareXFiles(
+        [XFile(tmpPath, mimeType: 'application/json')],
+        subject: snippet.name,
+        text:
+            'Nightshade snippet: ${snippet.name}\n\n${snippet.description}',
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to share snippet: $e'),
+          backgroundColor: widget.colors.error,
+        ),
+      );
+    }
+  }
+
+  void _showImportErrorDialog({
+    required String title,
+    required String body,
+    List<SnippetImportIssue> issues = const [],
+  }) {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: widget.colors.surfaceOverlay,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              LucideIcons.alertTriangle,
+              size: 20,
+              color: widget.colors.error,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                title,
+                style: TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  color: widget.colors.textPrimary,
+                ),
+              ),
+            ),
+          ],
+        ),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 480,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                body,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: widget.colors.textSecondary,
+                ),
+              ),
+              if (issues.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 280),
+                  decoration: BoxDecoration(
+                    color: widget.colors.surfaceAlt,
+                    border: Border.all(color: widget.colors.border),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: issues
+                          .map(
+                            (i) => Padding(
+                              padding: const EdgeInsets.only(bottom: 6),
+                              child: Text(
+                                i.field.isEmpty
+                                    ? '• ${i.message}'
+                                    : '• ${i.field}: ${i.message}',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  color: widget.colors.textPrimary,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          NightshadeButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            label: 'Close',
+            variant: ButtonVariant.primary,
+            size: ButtonSize.small,
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _SnippetCategorySection extends StatefulWidget {
@@ -906,9 +1182,12 @@ class _SnippetCategorySection extends StatefulWidget {
   final IconData categoryIcon;
   final IconData Function(String) getIcon;
   final bool isMobile;
+  final bool platformHasShareSheet;
   final Function(TemplateSnippet)? onSnippetDragStart;
   final Function(TemplateSnippet)? onSnippetTap;
   final Function(TemplateSnippet)? onDeleteSnippet;
+  final Function(TemplateSnippet)? onExportSnippet;
+  final Function(TemplateSnippet)? onShareSnippet;
 
   const _SnippetCategorySection({
     required this.category,
@@ -919,9 +1198,12 @@ class _SnippetCategorySection extends StatefulWidget {
     required this.categoryIcon,
     required this.getIcon,
     this.isMobile = false,
+    this.platformHasShareSheet = false,
     this.onSnippetDragStart,
     this.onSnippetTap,
     this.onDeleteSnippet,
+    this.onExportSnippet,
+    this.onShareSnippet,
   });
 
   @override
@@ -952,9 +1234,10 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
                 Container(
                   width: isMobile ? 32 : 24,
                   height: isMobile ? 32 : 24,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.statusChip(
+                    widget.categoryColor,
                     borderRadius: BorderRadius.circular(isMobile ? 8 : 6),
+                    bordered: false,
                   ),
                   child: Icon(
                     widget.categoryIcon,
@@ -1011,9 +1294,12 @@ class _SnippetCategorySectionState extends State<_SnippetCategorySection> {
                   categoryColor: widget.categoryColor,
                   getIcon: widget.getIcon,
                   isMobile: isMobile,
+                  platformHasShareSheet: widget.platformHasShareSheet,
                   onSnippetDragStart: widget.onSnippetDragStart,
                   onSnippetTap: widget.onSnippetTap,
                   onDelete: widget.onDeleteSnippet,
+                  onExport: widget.onExportSnippet,
+                  onShare: widget.onShareSnippet,
                 );
               }).toList(),
             ),
@@ -1035,9 +1321,12 @@ class _DraggableSnippetItem extends StatefulWidget {
   final Color categoryColor;
   final IconData Function(String) getIcon;
   final bool isMobile;
+  final bool platformHasShareSheet;
   final Function(TemplateSnippet)? onSnippetDragStart;
   final Function(TemplateSnippet)? onSnippetTap;
   final Function(TemplateSnippet)? onDelete;
+  final Function(TemplateSnippet)? onExport;
+  final Function(TemplateSnippet)? onShare;
 
   const _DraggableSnippetItem({
     required this.snippet,
@@ -1045,9 +1334,12 @@ class _DraggableSnippetItem extends StatefulWidget {
     required this.categoryColor,
     required this.getIcon,
     this.isMobile = false,
+    this.platformHasShareSheet = false,
     this.onSnippetDragStart,
     this.onSnippetTap,
     this.onDelete,
+    this.onExport,
+    this.onShare,
   });
 
   @override
@@ -1088,8 +1380,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
               Container(
                 width: 40,
                 height: 40,
-                decoration: BoxDecoration(
-                  color: widget.categoryColor.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  widget.categoryColor,
                   borderRadius: BorderRadius.circular(10),
                 ),
                 child: Icon(
@@ -1121,8 +1413,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                               horizontal: 6,
                               vertical: 2,
                             ),
-                            decoration: BoxDecoration(
-                              color: widget.colors.info.withValues(alpha: 0.1),
+                            decoration: NightshadeDecorations.tintedBadge(
+                              widget.colors.info,
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -1149,23 +1441,15 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                   ],
                 ),
               ),
-              if (!widget.snippet.isBuiltIn)
-                IconButton(
-                  onPressed: () => widget.onDelete?.call(widget.snippet),
-                  icon: Icon(
-                    LucideIcons.trash2,
-                    size: 16,
-                    color: widget.colors.textMuted,
+              _buildOverflowMenu(iconSize: 18),
+              if (widget.snippet.isBuiltIn)
+                Padding(
+                  padding: const EdgeInsets.only(left: 4),
+                  child: Icon(
+                    LucideIcons.plus,
+                    size: 18,
+                    color: widget.categoryColor,
                   ),
-                  tooltip: 'Delete snippet',
-                  padding: const EdgeInsets.all(8),
-                  constraints: const BoxConstraints(),
-                )
-              else
-                Icon(
-                  LucideIcons.plus,
-                  size: 18,
-                  color: widget.categoryColor,
                 ),
             ],
           ),
@@ -1241,8 +1525,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    widget.categoryColor,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
@@ -1276,9 +1560,8 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                                 horizontal: 4,
                                 vertical: 1,
                               ),
-                              decoration: BoxDecoration(
-                                color:
-                                    widget.colors.info.withValues(alpha: 0.1),
+                              decoration: NightshadeDecorations.tintedBadge(
+                                widget.colors.info,
                                 borderRadius: BorderRadius.circular(3),
                               ),
                               child: Text(
@@ -1308,19 +1591,7 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
                   Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      if (!widget.snippet.isBuiltIn)
-                        InkWell(
-                          onTap: () => widget.onDelete?.call(widget.snippet),
-                          borderRadius: BorderRadius.circular(4),
-                          child: Padding(
-                            padding: const EdgeInsets.all(4),
-                            child: Icon(
-                              LucideIcons.trash2,
-                              size: 12,
-                              color: widget.colors.error,
-                            ),
-                          ),
-                        ),
+                      _buildOverflowMenu(iconSize: 14),
                       const SizedBox(width: 4),
                       Icon(
                         LucideIcons.plus,
@@ -1336,4 +1607,90 @@ class _DraggableSnippetItemState extends State<_DraggableSnippetItem> {
       ),
     );
   }
+
+  /// Compact context menu offering Export / Share / Delete actions.
+  ///
+  /// Built-in snippets get Export (so the user can share a copy of a
+  /// preset) but not Delete (built-ins are not user-owned). When the
+  /// running platform has no system share sheet, the Share entry is
+  /// hidden — desktop users get Export which produces the same file
+  /// they can attach to anything manually.
+  Widget _buildOverflowMenu({required double iconSize}) {
+    return PopupMenuButton<_SnippetAction>(
+      tooltip: 'Snippet actions',
+      icon: Icon(
+        LucideIcons.moreVertical,
+        size: iconSize,
+        color: widget.colors.textMuted,
+      ),
+      padding: EdgeInsets.zero,
+      iconSize: iconSize,
+      splashRadius: iconSize + 4,
+      color: widget.colors.surfaceOverlay,
+      onSelected: (action) {
+        switch (action) {
+          case _SnippetAction.export:
+            widget.onExport?.call(widget.snippet);
+            break;
+          case _SnippetAction.share:
+            widget.onShare?.call(widget.snippet);
+            break;
+          case _SnippetAction.delete:
+            widget.onDelete?.call(widget.snippet);
+            break;
+        }
+      },
+      itemBuilder: (ctx) {
+        final items = <PopupMenuEntry<_SnippetAction>>[
+          PopupMenuItem(
+            value: _SnippetAction.export,
+            child: _menuRow(
+              LucideIcons.download,
+              'Export…',
+              widget.colors.textPrimary,
+            ),
+          ),
+        ];
+        if (widget.platformHasShareSheet) {
+          items.add(
+            PopupMenuItem(
+              value: _SnippetAction.share,
+              child: _menuRow(
+                LucideIcons.share2,
+                'Share…',
+                widget.colors.textPrimary,
+              ),
+            ),
+          );
+        }
+        if (!widget.snippet.isBuiltIn) {
+          items.add(const PopupMenuDivider());
+          items.add(
+            PopupMenuItem(
+              value: _SnippetAction.delete,
+              child: _menuRow(
+                LucideIcons.trash2,
+                'Delete',
+                widget.colors.error,
+              ),
+            ),
+          );
+        }
+        return items;
+      },
+    );
+  }
+
+  Widget _menuRow(IconData icon, String label, Color color) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 14, color: color),
+        const SizedBox(width: 10),
+        Text(label, style: TextStyle(color: color, fontSize: 13)),
+      ],
+    );
+  }
 }
+
+enum _SnippetAction { export, share, delete }

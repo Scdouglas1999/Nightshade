@@ -1,7 +1,80 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/sequence/sequence_models.dart';
 import '../profiles_provider.dart';
+import '../session_optimizer_provider.dart';
+import '../settings_provider.dart';
 import 'sequencer_defaults.dart';
+
+/// Audit §11 — descriptor used by the palette to render a plugin-contributed
+/// sequence node WITHOUT depending on the `nightshade_plugins` package
+/// (`nightshade_plugins` already imports nothing of `nightshade_core`, so
+/// adding a reverse dependency would risk a cycle).
+///
+/// The app layer (`nightshade_app`) reads the live `PluginNodeRegistry` from
+/// `nightshade_plugins`, converts each registration into a
+/// [PluginNodeBlueprint], and overrides [pluginNodeBlueprintsProvider]. The
+/// palette merges the blueprints into a top-level "Plugins" category so the
+/// user can drag/double-click them into a sequence the same way they handle
+/// built-in nodes.
+class PluginNodeBlueprint {
+  /// Stable plugin id (mirrors `NightshadePlugin.id`).
+  final String pluginId;
+
+  /// Stable per-plugin node-type id (mirrors `SequenceNodeDefinition.id`).
+  final String nodeTypeId;
+
+  /// Human-readable plugin name surfaced in the palette item tooltip.
+  final String pluginName;
+
+  /// Display name of the node itself (mirrors `SequenceNodeDefinition.name`).
+  final String name;
+
+  /// Plugin-authored description (mirrors `SequenceNodeDefinition.description`).
+  final String description;
+
+  /// Category hint from the plugin (mirrors `SequenceNodeDefinition.category`).
+  /// Used to group the entry inside the "Plugins" palette section so plugins
+  /// that publish multiple nodes don't get one giant flat list.
+  final String category;
+
+  /// Icon hint (Lucide icon name). Plugins MAY supply any of the names
+  /// understood by the palette widget; unknown icons fall back to the
+  /// generic puzzle-piece glyph.
+  final String iconHint;
+
+  /// Default opaque JSON config the palette stamps onto a freshly-dropped
+  /// node. Must be parseable by `jsonDecode`; the app-layer adapter validates
+  /// this when building the blueprint so malformed defaults are filtered out
+  /// (errors-are-a-feature per CLAUDE.md).
+  final String defaultConfigJson;
+
+  const PluginNodeBlueprint({
+    required this.pluginId,
+    required this.nodeTypeId,
+    required this.pluginName,
+    required this.name,
+    required this.description,
+    required this.category,
+    this.iconHint = 'puzzle',
+    this.defaultConfigJson = '{}',
+  });
+
+  /// Composite registry key — matches `PluginNodeRegistration.composeKey`.
+  String get registrationKey => '$pluginId::$nodeTypeId';
+}
+
+/// Plugin sequence nodes the palette should surface. The default
+/// implementation returns an empty list — `nightshade_core` does not depend
+/// on `nightshade_plugins`, so the wiring lives in `nightshade_app` (see
+/// `pluginNodeBlueprintsOverride()` in nightshade_app/lib/services/...).
+///
+/// The app override returns a *snapshot* of the current registrations; it
+/// re-reads `pluginNodeRegistrationsStreamProvider` so the palette is fully
+/// reactive — plugins loaded post-startup show up the moment the registry
+/// emits a change.
+final pluginNodeBlueprintsProvider = Provider<List<PluginNodeBlueprint>>(
+  (ref) => const <PluginNodeBlueprint>[],
+);
 
 /// Map a profile's integer binning (1..4) to the [BinningMode] enum used by the
 /// palette's default factories. Falls back to 1x1 for any unexpected value
@@ -25,6 +98,19 @@ BinningMode _binningModeFromInt(int binning) {
 final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
   final defaults = ref.watch(sequencerDefaultsProvider);
   final profile = ref.watch(activeEquipmentProfileProvider);
+  final exposureContext =
+      ref.watch(smartNightExposureContextProvider).valueOrNull;
+  // Wave 8 — read user-tuned adaptive-swap defaults so new
+  // TargetScheduler nodes pick up the operator's preferred conditions
+  // floor + hysteresis. Falls back to the constructor defaults when
+  // settings haven't loaded yet so the palette is never empty.
+  final appSettings = ref.watch(appSettingsProvider).valueOrNull;
+  // Audit §11 — plugin-contributed sequence nodes. The default
+  // provider value is an empty list; the app layer overrides
+  // `pluginNodeBlueprintsProvider` with a live view of the plugin host's
+  // node registry, so the palette updates the moment a plugin
+  // registers or unregisters at runtime.
+  final pluginBlueprints = ref.watch(pluginNodeBlueprintsProvider);
 
   // Use profile defaults as fallback when sequencer defaults are not set
   final effectiveGain = defaults.exposureGain ?? profile?.defaultGain;
@@ -34,6 +120,10 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
       : _binningModeFromInt(profile?.defaultBinX ?? 1);
   final effectiveFilter =
       defaults.exposureFilter ?? profile?.filterNames.firstOrNull;
+  final effectiveExposureDuration = defaults.isExposureDurationConfigured
+      ? defaults.exposureDuration
+      : exposureContext?.recommendForFilter(effectiveFilter).seconds ??
+          defaults.exposureDuration;
 
   return [
     NodePaletteCategory(
@@ -61,7 +151,7 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           icon: 'camera',
           description: 'Capture images with specified settings',
           createNode: () => ExposureNode(
-            durationSecs: defaults.exposureDuration,
+            durationSecs: effectiveExposureDuration,
             count: defaults.exposureCount,
             filter: effectiveFilter,
             gain: effectiveGain,
@@ -78,6 +168,28 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             filterName: effectiveFilter ?? 'L',
           ),
         ),
+        // Wave 3 Agent 2: SmartExposure — multi-filter container instruction
+        // that internally handles filter changes, dither cadence, and
+        // rotation order. Adds a single row using the current profile
+        // filter so the user has a working starting point.
+        NodePaletteItem(
+          name: 'Smart Exposure',
+          icon: 'layers',
+          description: 'One row per filter; handles rotation + dither',
+          createNode: () => SmartExposureNode(
+            plans: [
+              FilterPlan(
+                filterName: effectiveFilter ?? 'L',
+                count: defaults.exposureCount,
+                durationSecs: effectiveExposureDuration,
+                gain: effectiveGain,
+                offset: effectiveOffset,
+                binning: effectiveBinning,
+                ditherEvery: defaults.exposureDitherEvery,
+              ),
+            ],
+          ),
+        ),
         NodePaletteItem(
           name: 'Dither',
           icon: 'shuffle',
@@ -88,6 +200,25 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
             settlePixels: defaults.ditherSettlePixels,
             settleTimeout: defaults.ditherSettleTimeout,
             raOnly: defaults.ditherRaOnly,
+          ),
+        ),
+        // Wave 7 Agent 2: LiveStacking — EAA / outreach broadcast node.
+        // Defaults pulled from settings so the palette-drop user gets a
+        // working private broadcast on the user's chosen port; flipping
+        // to public is an explicit edit in the properties panel.
+        NodePaletteItem(
+          name: 'Live Stacking',
+          icon: 'cast_connected',
+          description:
+              'Broadcast a building live stack to a public/private URL',
+          createNode: () => LiveStackingNode(
+            broadcastPort: defaults.livestackingDefaultPort,
+            stackMethod: defaults.livestackingDefaultStackMethod,
+            watermarkText: defaults.livestackingDefaultWatermark,
+            // The palette default is *private* (no public access)
+            // because public broadcasting at outreach events is the
+            // opt-in case, not the default.
+            authToken: defaults.livestackingPublicByDefault ? null : '',
           ),
         ),
       ],
@@ -277,6 +408,25 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
           description: 'Handle errors with recovery logic',
           createNode: () => RecoveryNode(),
         ),
+        // Wave 3 Agent 1: Target Scheduler — picks the highest-scoring child
+        // target at runtime. Drop TargetHeader children under it.
+        // Wave 8 UI close: seed the new node with the user's adaptive-swap
+        // defaults from `appSettings` so a brand-new scheduler honours
+        // the operator's Settings → Adaptive Conditions preferences
+        // without needing to retouch every knob.
+        NodePaletteItem(
+          name: 'Target Scheduler',
+          icon: 'scheduler',
+          description: 'Dynamically pick the best target right now',
+          createNode: () => TargetSchedulerNode(
+            swapOnConditionsBelow:
+                (appSettings?.adaptiveSwapEnabledByDefault ?? false)
+                    ? (appSettings?.adaptiveSwapDefaultThreshold ?? 50.0)
+                    : null,
+            swapHysteresisSecs:
+                appSettings?.adaptiveSwapDefaultHysteresisSecs ?? 180.0,
+          ),
+        ),
       ],
     ),
     NodePaletteCategory(
@@ -315,8 +465,81 @@ final nodePaletteProvider = Provider<List<NodePaletteCategory>>((ref) {
         ),
       ],
     ),
+    // Audit §11 — append plugin-contributed categories last so they sit
+    // at the bottom of the palette without re-ordering the user's
+    // familiar built-in groups. We emit one or more "Plugins / <category>"
+    // sections so plugins that publish multiple nodes get a clean
+    // sub-grouping (matching `SequenceNodeDefinition.category`). When no
+    // plugins are loaded the expression below evaluates to an empty
+    // spread and the palette looks identical to the pre-plugin version.
+    ..._buildPluginPaletteCategories(pluginBlueprints),
   ];
 });
+
+/// Audit §11 — convert the plugin blueprint list into one or more
+/// palette categories so plugin nodes feel like first-class palette
+/// members. Grouping rules:
+///
+///   * Blueprints are grouped by their plugin-supplied `category` (case-
+///     preserving). Empty / whitespace-only categories fall into a
+///     generic "Plugins" bucket.
+///   * Each emitted category name is prefixed with "Plugins / " so the
+///     section stays visually distinct from the built-in categories no
+///     matter what name the plugin chose.
+///   * Inside a category, items are sorted by `name` so the palette has
+///     a stable order regardless of plugin registration order.
+///   * Blueprints with empty `pluginId` / `nodeTypeId` / `name` are
+///     dropped (errors-are-a-feature). The app-layer adapter is the
+///     primary defence — this is belt-and-braces so a malformed
+///     blueprint can never crash the palette.
+List<NodePaletteCategory> _buildPluginPaletteCategories(
+  List<PluginNodeBlueprint> blueprints,
+) {
+  if (blueprints.isEmpty) return const [];
+
+  final Map<String, List<PluginNodeBlueprint>> grouped = {};
+  for (final blueprint in blueprints) {
+    if (blueprint.pluginId.isEmpty ||
+        blueprint.nodeTypeId.isEmpty ||
+        blueprint.name.isEmpty) {
+      // Skip malformed entries; the adapter logs the issue.
+      continue;
+    }
+    final rawCategory = blueprint.category.trim();
+    final categoryKey = rawCategory.isEmpty ? 'General' : rawCategory;
+    grouped.putIfAbsent(categoryKey, () => []).add(blueprint);
+  }
+  if (grouped.isEmpty) return const [];
+
+  // Stable ordering: categories alphabetically, items by display name.
+  final orderedCategories = grouped.keys.toList()..sort();
+  return orderedCategories.map((categoryName) {
+    final items = grouped[categoryName]!..sort((a, b) => a.name.compareTo(b.name));
+    return NodePaletteCategory(
+      name: 'Plugins / $categoryName',
+      icon: 'puzzle',
+      items: items
+          .map(
+            (blueprint) => NodePaletteItem(
+              name: blueprint.name,
+              icon: blueprint.iconHint,
+              description: blueprint.description.isEmpty
+                  ? '${blueprint.pluginName} plugin node'
+                  : blueprint.description,
+              createNode: () => PluginInstructionNode(
+                name: blueprint.name,
+                pluginId: blueprint.pluginId,
+                nodeTypeId: blueprint.nodeTypeId,
+                pluginName: blueprint.pluginName,
+                configJson: blueprint.defaultConfigJson,
+                iconHint: blueprint.iconHint,
+              ),
+            ),
+          )
+          .toList(growable: false),
+    );
+  }).toList(growable: false);
+}
 
 class NodePaletteCategory {
   final String name;

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
 import '../../../widgets/remote_directory_picker_dialog.dart';
@@ -12,11 +11,10 @@ import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
 class PlateSolvingSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const PlateSolvingSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<PlateSolvingSettings> createState() =>
@@ -100,11 +98,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -116,11 +112,9 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
           key: SettingsTutorialKeys.plateSolving,
           title: 'Plate Solving',
           description: 'Configure plate solving backends',
-          colors: widget.colors,
           children: [
             SettingsSection(
               title: 'Solver',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.crosshair,
@@ -136,9 +130,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                             .setPlateSolver(value);
                       }
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.folder,
@@ -149,9 +141,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                   trailing: SettingsPathInput(
                     path: settings.astapPath,
                     onBrowse: _selectAstapPath,
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.folder,
@@ -162,16 +152,13 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                   trailing: SettingsPathInput(
                     path: settings.astrometryPath,
                     onBrowse: _selectAstrometryPath,
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Solve Parameters',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.timer,
@@ -188,9 +175,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                           .read(appSettingsProvider.notifier)
                           .setPlateSolveTimeout(value.toInt());
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.search,
@@ -207,9 +192,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                           .read(appSettingsProvider.notifier)
                           .setPlateSolveSearchRadius(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.compass,
@@ -222,10 +205,8 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                           .read(appSettingsProvider.notifier)
                           .setBlindSolve(value);
                     },
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),

@@ -11,6 +11,7 @@ import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
 import 'widgets/dashboard_widget_registry.dart';
+import 'widgets/smart_night_prompt_card.dart';
 import 'widgets/widget_picker_dialog.dart';
 import 'widgets/zone_layout.dart';
 
@@ -45,7 +46,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Ensure PHD2 controller is active and listening to events
     ref.watch(phd2ControllerProvider);
@@ -56,18 +57,18 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
     // leaking listeners into every consumer of pulseController.
     final sessionCapturing =
         ref.watch(sessionStateProvider.select((s) => s.isCapturing));
-    final cameraConnected = ref.watch(cameraStateProvider
-            .select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final mountConnected = ref.watch(mountStateProvider
-            .select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final guiderConnected = ref.watch(guiderStateProvider
-            .select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
-    final focuserConnected = ref.watch(focuserStateProvider
-            .select((s) => s.connectionState)) ==
-        DeviceConnectionState.connected;
+    final cameraConnected =
+        ref.watch(cameraStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final mountConnected =
+        ref.watch(mountStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final guiderConnected =
+        ref.watch(guiderStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
+    final focuserConnected =
+        ref.watch(focuserStateProvider.select((s) => s.connectionState)) ==
+            DeviceConnectionState.connected;
     final shouldPulse = sessionCapturing ||
         cameraConnected ||
         mountConnected ||
@@ -89,40 +90,47 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
       child: layoutAsync.when(
-          data: (layout) => _ZoneBasedDashboard(
-            layout: layout,
-            colors: colors,
-            pulseController: _pulseController,
-            isEditing: _isEditing,
-            onToggleEdit: _toggleEdit,
-            onManageWidgets: _showWidgetPicker,
-            onResetLayout: _resetLayout,
-            onReorder: (dragged, target) {
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .reorder(dragged, target);
-            },
-            onResize: (id) {
-              final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .setTileSize(id, tile.size.next());
-            },
-            onToggleEnabled: (id, enabled) {
-              ref
-                  .read(dashboardLayoutProvider.notifier)
-                  .setTileEnabled(id, enabled);
-            },
-            onSetZone: (id, zone) {
-              ref.read(dashboardLayoutProvider.notifier).setTileZone(id, zone);
-            },
-          ),
-          loading: () => const DashboardLoading(),
-          error: (error, _) => DashboardLayoutError(
-            error: error,
-            onReset: _resetLayout,
-          ),
+        data: (layout) => Stack(
+          children: [
+            _ZoneBasedDashboard(
+              layout: layout,
+              colors: colors,
+              pulseController: _pulseController,
+              isEditing: _isEditing,
+              onToggleEdit: _toggleEdit,
+              onManageWidgets: _showWidgetPicker,
+              onResetLayout: _resetLayout,
+              onReorder: (dragged, target) {
+                ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .reorder(dragged, target);
+              },
+              onResize: (id) {
+                final tile = layout.tiles.firstWhere((t) => t.widgetId == id);
+                ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .setTileSize(id, tile.size.next());
+              },
+              onToggleEnabled: (id, enabled) {
+                ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .setTileEnabled(id, enabled);
+              },
+              onSetZone: (id, zone) {
+                ref
+                    .read(dashboardLayoutProvider.notifier)
+                    .setTileZone(id, zone);
+              },
+            ),
+            SmartNightPromptCard(colors: colors),
+          ],
         ),
+        loading: () => const DashboardLoading(),
+        error: (error, _) => DashboardLayoutError(
+          error: error,
+          onReset: _resetLayout,
+        ),
+      ),
     );
   }
 

@@ -69,24 +69,38 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   }
 
   Future<void> disconnect() async {
-    if (state.deviceName == null) return;
+    if (state.deviceId == null && state.deviceName == null) return;
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectCamera();
-      setDisconnected();
     } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
+      _safeLogDisconnectError('camera', e);
+    } finally {
+      setDisconnected();
+    }
+  }
+
+  void _safeLogDisconnectError(String deviceType, Object error) {
+    // Disconnect errors are logged but must not leave the UI showing
+    // "connected with error" — setDisconnected runs in finally (DV-P0-7).
+    try {
+      // ignore: avoid_print
+      print('CameraStateNotifier: disconnect $deviceType failed: $error');
+    } on Object {
+      // No-op — logging must not mask disconnect cleanup.
     }
   }
 
   void setConnecting(String deviceId, String deviceName) {
+    // DEV-P3-4: preserve `lastError` across the Connecting transition so
+    // the equipment card can keep showing the most recent driver error
+    // while the reconnect is in flight. It is cleared only when the
+    // device actually reaches Connected (see [setConnected]), or when
+    // the user explicitly calls [clearError].
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName,
-      clearError: true,
     );
   }
 
@@ -98,7 +112,14 @@ class CameraStateNotifier extends StateNotifier<CameraStateSnapshot> {
   }
 
   void setDisconnected() {
-    state = const CameraStateSnapshot();
+    // Preserve the user's auto-reconnect preference across disconnects.
+    // Resetting to a fresh CameraStateSnapshot would flip it back to the
+    // `true` default, which would silently undo the user's choice the
+    // moment the device disconnected.
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = CameraStateSnapshot(
+      autoReconnectEnabled: preservedAutoReconnect,
+    );
   }
 
   void updateTemperature(double temp, double power) {

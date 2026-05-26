@@ -3,18 +3,50 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart' hide TextDirection;
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart'
+    as planetarium;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Toggle for timeline view visibility.
 final timelineVisibleProvider = StateProvider<bool>((ref) => false);
 
-/// Provider that computes NodeTiming list from the current sequence.
-final sequenceTimelineProvider = Provider<List<NodeTiming>>((ref) {
-  final sequence = ref.watch(currentSequenceProvider);
-  if (sequence == null) return [];
+/// Timer-free twilight lookup for sequencer pre-session simulation.
+///
+/// The planetarium's `twilightTimesProvider` intentionally follows the live
+/// observation clock, which starts a periodic timer. The sequencer only needs
+/// tonight's dark-window boundary from app settings, so compute it directly.
+final preSessionTwilightTimesProvider =
+    Provider<planetarium.TwilightTimes?>((ref) {
+  final settings = ref.watch(appSettingsProvider).valueOrNull;
+  final hasLocation = settings != null &&
+      (settings.latitude != 0.0 || settings.longitude != 0.0);
+  if (!hasLocation) return null;
 
-  final estimator = SequenceTimeEstimator();
-  return estimator.estimateSequenceTiming(sequence, DateTime.now());
+  return planetarium.AstronomyCalculations.calculateTwilightTimes(
+    date: DateTime.now(),
+    latitudeDeg: settings.latitude,
+    longitudeDeg: settings.longitude,
+  );
+});
+
+/// Provider that computes the shared pre-session simulation timeline.
+final sequenceTimelineProvider = Provider<PreSessionSimulationResult?>((ref) {
+  final sequence = ref.watch(currentSequenceProvider);
+  if (sequence == null) return null;
+
+  final settings = ref.watch(appSettingsProvider).valueOrNull;
+  final twilight = ref.watch(preSessionTwilightTimesProvider);
+  final hasLocation = settings != null &&
+      (settings.latitude != 0.0 || settings.longitude != 0.0);
+  return const PreSessionSimulator().simulate(
+    sequence,
+    start: DateTime.now(),
+    latitude: hasLocation ? settings.latitude : null,
+    longitude: hasLocation ? settings.longitude : null,
+    minAltitude: settings?.effectiveHorizonDeg ?? 20.0,
+    darkWindowStart: twilight?.astronomicalDusk,
+    darkWindowEnd: twilight?.astronomicalDawn,
+  );
 });
 
 /// Horizontal timeline view showing each node as a colored bar.
@@ -27,11 +59,94 @@ class VisualTimeline extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final timings = ref.watch(sequenceTimelineProvider);
+    final simulation = ref.watch(sequenceTimelineProvider);
     final progress = ref.watch(sequenceProgressProvider);
     final sequence = ref.watch(currentSequenceProvider);
+    final segments =
+        simulation?.segments ?? const <PreSessionSimulationSegment>[];
 
-    if (timings.isEmpty || sequence == null) {
+    if (sequence == null || simulation == null) {
+      return Container(
+        height: 120,
+        decoration: BoxDecoration(
+          color: colors.surface,
+          border: Border(top: BorderSide(color: colors.border)),
+        ),
+        child: Center(
+          child: Text(
+            'No timeline data available',
+            style: TextStyle(fontSize: 12, color: colors.textMuted),
+          ),
+        ),
+      );
+    }
+
+    if (segments.isEmpty) {
+      if (simulation.issues.isNotEmpty) {
+        final firstIssue = simulation.issues.first;
+        final issueColor = switch (firstIssue.severity) {
+          PreSessionSimulationSeverity.error => colors.error,
+          PreSessionSimulationSeverity.warning => colors.warning,
+          PreSessionSimulationSeverity.info => colors.info,
+        };
+        final issueIcon = switch (firstIssue.severity) {
+          PreSessionSimulationSeverity.error => LucideIcons.xCircle,
+          PreSessionSimulationSeverity.warning => LucideIcons.alertTriangle,
+          PreSessionSimulationSeverity.info => LucideIcons.info,
+        };
+        return Container(
+          height: 120,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            border: Border(top: BorderSide(color: colors.border)),
+          ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Icon(issueIcon, size: 16, color: issueColor),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      'Simulation issue',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: issueColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      firstIssue.message,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: colors.textSecondary,
+                      ),
+                    ),
+                    if (simulation.issues.length > 1) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '+${simulation.issues.length - 1} more issue(s)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      }
+
       return Container(
         height: 120,
         decoration: BoxDecoration(
@@ -48,9 +163,9 @@ class VisualTimeline extends ConsumerWidget {
     }
 
     // Calculate total duration
-    final firstStart = timings.first.estimatedStart;
-    final lastEnd = timings.last.estimatedEnd;
-    final totalDuration = lastEnd.difference(firstStart);
+    final firstStart = simulation.start;
+    final lastEnd = simulation.end;
+    final totalDuration = simulation.duration;
     final totalSecs = totalDuration.inSeconds.toDouble();
 
     if (totalSecs <= 0) {
@@ -121,7 +236,7 @@ class VisualTimeline extends ConsumerWidget {
                 child: CustomPaint(
                   painter: _TimelinePainter(
                     colors: colors,
-                    timings: timings,
+                    segments: segments,
                     firstStart: firstStart,
                     totalSecs: totalSecs,
                     progress: progress,
@@ -184,7 +299,7 @@ class VisualTimeline extends ConsumerWidget {
 
 class _TimelinePainter extends CustomPainter {
   final NightshadeColors colors;
-  final List<NodeTiming> timings;
+  final List<PreSessionSimulationSegment> segments;
   final DateTime firstStart;
   final double totalSecs;
   final SequenceProgress progress;
@@ -192,7 +307,7 @@ class _TimelinePainter extends CustomPainter {
 
   _TimelinePainter({
     required this.colors,
-    required this.timings,
+    required this.segments,
     required this.firstStart,
     required this.totalSecs,
     required this.progress,
@@ -206,9 +321,9 @@ class _TimelinePainter extends CustomPainter {
 
     // Group timings by target header for stacking
     // Each target gets its own row
-    final targetGroups = <String?, List<NodeTiming>>{};
-    for (final timing in timings) {
-      targetGroups.putIfAbsent(timing.targetHeaderId, () => []).add(timing);
+    final targetGroups = <String?, List<PreSessionSimulationSegment>>{};
+    for (final segment in segments) {
+      targetGroups.putIfAbsent(segment.targetHeaderId, () => []).add(segment);
     }
 
     final rowCount = targetGroups.length.clamp(1, 6);
@@ -223,17 +338,17 @@ class _TimelinePainter extends CustomPainter {
     for (final entry in targetGroups.entries) {
       final y = topMargin + rowIndex * rowHeight;
 
-      for (final timing in entry.value) {
+      for (final segment in entry.value) {
         final startOffset =
-            timing.estimatedStart.difference(firstStart).inSeconds.toDouble();
-        final durationSecs = timing.duration.inSeconds.toDouble();
+            segment.start.difference(firstStart).inSeconds.toDouble();
+        final durationSecs = segment.duration.inSeconds.toDouble();
 
         final x = (startOffset / totalSecs) * size.width;
         final w = ((durationSecs / totalSecs) * size.width)
             .clamp(2.0, double.infinity);
 
         // Determine color from node category
-        final node = sequence.nodes[timing.nodeId];
+        final node = sequence.nodes[segment.nodeId];
         Color barColor;
         if (node != null) {
           switch (node.category) {
@@ -255,7 +370,7 @@ class _TimelinePainter extends CustomPainter {
         }
 
         // Highlight based on execution status
-        final nodeStatus = progress.nodeStatuses[timing.nodeId];
+        final nodeStatus = progress.nodeStatuses[segment.nodeId];
         if (nodeStatus == NodeStatus.running) {
           barColor = colors.info;
         } else if (nodeStatus == NodeStatus.success) {
@@ -280,7 +395,7 @@ class _TimelinePainter extends CustomPainter {
                   : const Color(0xFF000000);
           final textPainter = TextPainter(
             text: TextSpan(
-              text: timing.nodeName,
+              text: segment.nodeName,
               style: TextStyle(
                 fontSize: 9,
                 color: labelColor,
@@ -305,14 +420,12 @@ class _TimelinePainter extends CustomPainter {
     // Draw current execution position line
     if (progress.currentNodeId != null) {
       final currentTiming =
-          timings.where((t) => t.nodeId == progress.currentNodeId).firstOrNull;
+          segments.where((t) => t.nodeId == progress.currentNodeId).firstOrNull;
       if (currentTiming != null) {
         final elapsed =
-            DateTime.now().difference(currentTiming.estimatedStart).inSeconds;
-        final startOffset = currentTiming.estimatedStart
-            .difference(firstStart)
-            .inSeconds
-            .toDouble();
+            DateTime.now().difference(currentTiming.start).inSeconds;
+        final startOffset =
+            currentTiming.start.difference(firstStart).inSeconds.toDouble();
         final xPos = ((startOffset + elapsed) / totalSecs) * size.width;
 
         canvas.drawLine(
@@ -357,6 +470,6 @@ class _TimelinePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_TimelinePainter oldDelegate) {
-    return oldDelegate.timings != timings || oldDelegate.progress != progress;
+    return oldDelegate.segments != segments || oldDelegate.progress != progress;
   }
 }

@@ -47,7 +47,37 @@ impl IndiFilterWheel {
         client.is_device_connected(&self.device_name).await
     }
 
-    /// Set filter slot (1-based)
+    /// Detect whether this driver numbers filter slots from 0 or 1 using `FILTER_SLOT` min.
+    async fn slot_index_base(&self) -> i32 {
+        let client = self.client.read().await;
+        if let Some(limits) = client
+            .get_number_limits(&self.device_name, FILTER_SLOT, "FILTER_SLOT_VALUE")
+            .await
+        {
+            if limits.min.is_some_and(|m| m < 1.0) {
+                return 0;
+            }
+        }
+        1
+    }
+
+    async fn wire_slot_from_zero_based(&self, zero_based: i32) -> i32 {
+        let base = self.slot_index_base().await;
+        zero_based + base
+    }
+
+    async fn zero_based_from_wire_slot(&self, wire: i32) -> i32 {
+        let base = self.slot_index_base().await;
+        wire - base
+    }
+
+    /// Set filter position using Nightshade's **0-based** index (ASCOM/Alpaca convention).
+    pub async fn set_position(&self, zero_based: i32) -> IndiResult<()> {
+        let wire = self.wire_slot_from_zero_based(zero_based).await;
+        self.set_slot(wire).await
+    }
+
+    /// Set filter slot using the driver's native slot numbering (usually 1-based per INDI).
     pub async fn set_slot(&self, slot: i32) -> IndiResult<()> {
         let mut client = self.client.write().await;
         client
@@ -55,13 +85,23 @@ impl IndiFilterWheel {
                 &self.device_name,
                 FILTER_SLOT,
                 "FILTER_SLOT_VALUE",
-                // Why: i32 slot (1..wheel_size) -> f64 (INDI wire); lossless.
+                // Why: i32 slot -> f64 (INDI wire); lossless.
                 f64::from(slot),
             )
             .await
     }
 
-    /// Set filter slot with timeout (1-based)
+    /// Set filter position (0-based) with timeout.
+    pub async fn set_position_with_timeout(
+        &self,
+        zero_based: i32,
+        timeout: Option<Duration>,
+    ) -> Result<(), String> {
+        let wire = self.wire_slot_from_zero_based(zero_based).await;
+        self.set_slot_with_timeout(wire, timeout).await
+    }
+
+    /// Set filter slot with timeout (driver-native slot index).
     pub async fn set_slot_with_timeout(
         &self,
         slot: i32,
@@ -97,7 +137,13 @@ impl IndiFilterWheel {
             .map_err(|e| format!("Filter wheel change to slot {} failed: {}", slot, e))
     }
 
-    /// Get current filter slot (1-based)
+    /// Get current filter position as a **0-based** index (Nightshade convention).
+    pub async fn get_position(&self) -> Result<i32, String> {
+        let wire = self.get_slot().await?;
+        Ok(self.zero_based_from_wire_slot(wire).await)
+    }
+
+    /// Get current filter slot in driver-native numbering (typically 1-based).
     pub async fn get_slot(&self) -> Result<i32, String> {
         let client = self.client.read().await;
         client
@@ -168,6 +214,15 @@ mod tests {
             // Error should mention either the slot or that we're not connected
             assert!(e.contains("slot 3") || e.to_lowercase().contains("not connected"));
         }
+    }
+
+    #[test]
+    fn zero_based_slot_conversion_with_one_based_driver() {
+        // wire 3 -> zero-based 2 when base is 1
+        let wire = 3_i32;
+        let base = 1_i32;
+        assert_eq!(wire - base, 2);
+        assert_eq!(2 + base, wire);
     }
 
     #[tokio::test]

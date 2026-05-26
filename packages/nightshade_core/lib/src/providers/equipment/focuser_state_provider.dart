@@ -72,20 +72,20 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectFocuser();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName ?? state.deviceName ?? deviceId,
-      clearError: true,
     );
   }
 
@@ -106,7 +106,13 @@ class FocuserStateNotifier extends StateNotifier<FocuserState> {
   }
 
   void setDisconnected() {
-    state = const FocuserState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = FocuserState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the focuser.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updatePosition(int position) {

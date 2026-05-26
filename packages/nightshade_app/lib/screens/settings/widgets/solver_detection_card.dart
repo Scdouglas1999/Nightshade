@@ -42,7 +42,7 @@ class SolverDetectionCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (detection.astapPath == null) {
       return _buildNotInstalled(theme, colors);
@@ -64,7 +64,6 @@ class SolverDetectionCard extends StatelessWidget {
                 '${magLimit.toStringAsFixed(0)})';
 
     return _CardShell(
-      colors: colors,
       borderColor: colors.success,
       icon: LucideIcons.checkCircle,
       iconColor: colors.success,
@@ -139,7 +138,6 @@ class SolverDetectionCard extends StatelessWidget {
 
   Widget _buildCatalogMissing(ThemeData theme, NightshadeColors colors) {
     return _CardShell(
-      colors: colors,
       borderColor: colors.warning,
       icon: LucideIcons.alertTriangle,
       iconColor: colors.warning,
@@ -165,7 +163,6 @@ class SolverDetectionCard extends StatelessWidget {
         _LinkText(
           url: astapDownloadUrl,
           label: 'Download an ASTAP catalog',
-          colors: colors,
         ),
       ],
     );
@@ -175,7 +172,6 @@ class SolverDetectionCard extends StatelessWidget {
     final hasAstrometry = detection.astrometryPath != null;
 
     return _CardShell(
-      colors: colors,
       borderColor: colors.error,
       icon: LucideIcons.xCircle,
       iconColor: colors.error,
@@ -206,13 +202,11 @@ class SolverDetectionCard extends StatelessWidget {
         _LinkText(
           url: astapDownloadUrl,
           label: 'Download ASTAP — hnsky.org',
-          colors: colors,
         ),
         const SizedBox(height: 2),
         _LinkText(
           url: astrometryDownloadUrl,
           label: 'Install Astrometry.net (Linux/macOS)',
-          colors: colors,
         ),
       ],
     );
@@ -220,7 +214,6 @@ class SolverDetectionCard extends StatelessWidget {
 }
 
 class _CardShell extends StatelessWidget {
-  final NightshadeColors colors;
   final Color borderColor;
   final IconData icon;
   final Color iconColor;
@@ -228,7 +221,6 @@ class _CardShell extends StatelessWidget {
   final List<Widget> body;
 
   const _CardShell({
-    required this.colors,
     required this.borderColor,
     required this.icon,
     required this.iconColor,
@@ -238,13 +230,13 @@ class _CardShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: borderColor.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.emphasisSurface(
+        borderColor,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: borderColor.withValues(alpha: 0.4)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -276,13 +268,11 @@ class _CardShell extends StatelessWidget {
 class _LinkText extends StatelessWidget {
   final String url;
   final String label;
-  final NightshadeColors colors;
 
   const _LinkText({
     required this.url,
     required this.label,
-    required this.colors,
-  });
+    });
 
   Future<void> _open() async {
     final uri = Uri.parse(url);
@@ -296,6 +286,7 @@ class _LinkText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return InkWell(
       onTap: _open,
       child: Padding(

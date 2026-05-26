@@ -46,8 +46,10 @@ class CalibrationSection extends ConsumerWidget {
     final sensorHeight = capabilities?.maxHeight ?? 0;
 
     // Reasons the controls might be unavailable, in priority order.
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
     final String? disabledReason = _resolveDisabledReason(
       isConnected: isConnected,
+      isRemoteMode: isRemoteMode,
       cameraId: cameraId,
       sensorWidth: sensorWidth,
       sensorHeight: sensorHeight,
@@ -112,6 +114,14 @@ class CalibrationSection extends ConsumerWidget {
             sensorHeight: sensorHeight,
             temperatureC: temperatureC,
           ),
+          const SizedBox(height: 16),
+          _CorrectionSettings(
+            colors: colors,
+            cameraId: cameraId,
+            sensorWidth: sensorWidth,
+            sensorHeight: sensorHeight,
+            temperatureC: temperatureC,
+          ),
         ],
       ),
     );
@@ -119,11 +129,16 @@ class CalibrationSection extends ConsumerWidget {
 
   static String? _resolveDisabledReason({
     required bool isConnected,
+    required bool isRemoteMode,
     required String? cameraId,
     required int sensorWidth,
     required int sensorHeight,
     required double? temperatureC,
   }) {
+    if (isRemoteMode) {
+      return 'Build the defect map on the imaging host — local file pickers '
+          'cannot select host dark frames.';
+    }
     if (!isConnected || cameraId == null || cameraId.isEmpty) {
       return 'Connect a camera to manage its defect map.';
     }
@@ -347,10 +362,9 @@ class _AlternateBucketChip extends ConsumerWidget {
         : delta;
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: BoxDecoration(
-        color: colors.accent.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.accent,
         borderRadius: BorderRadius.circular(6),
-        border: Border.all(color: colors.accent.withValues(alpha: 0.35)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -383,6 +397,9 @@ class _AlternateBucketChip extends ConsumerWidget {
               await notifier.setApplyDuringCapture(
                 cameraId: cameraId,
                 apply: true,
+                width: sensorWidth,
+                height: sensorHeight,
+                sensorTemperatureCelsius: alternateBucket.celsius,
               );
               if (!context.mounted) return;
               final state = ref.read(defectMapNotifierProvider);
@@ -576,9 +593,9 @@ class _ApplyToggle extends ConsumerWidget {
             style: TextStyle(fontSize: 12, color: colors.textPrimary),
           ),
         ),
-        Switch(
+        NightshadeSwitch(
           value: currentValue,
-          activeThumbColor: colors.primary,
+          enabled: enabled,
           onChanged: enabled
               ? (value) async {
                   final notifier =
@@ -586,6 +603,9 @@ class _ApplyToggle extends ConsumerWidget {
                   await notifier.setApplyDuringCapture(
                     cameraId: cameraId!,
                     apply: value,
+                    width: sensorWidth,
+                    height: sensorHeight,
+                    sensorTemperatureCelsius: temperatureC!,
                   );
                   if (!context.mounted) return;
                   final state = ref.read(defectMapNotifierProvider);
@@ -643,10 +663,11 @@ class _ClearButton extends ConsumerWidget {
               variant: ButtonVariant.ghost,
               size: ButtonSize.small,
             ),
-            GradientDialogButton(
+            NightshadeButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              color: Theme.of(dialogContext).extension<NightshadeColors>()!.error,
-              child: const Text('Clear'),
+              label: 'Clear',
+              variant: ButtonVariant.destructive,
+              size: ButtonSize.small,
             ),
           ],
         );
@@ -706,6 +727,176 @@ class _MaybeTooltip extends StatelessWidget {
   Widget build(BuildContext context) {
     if (message == null) return child;
     return Tooltip(message: message!, child: child);
+  }
+}
+
+/// Wave 7 Agent 3 — settings sub-section: method / kernel / save-original /
+/// auto-apply. Each change is persisted via [defectMapSettingsProvider]
+/// AND pushed to the running sequencer (when the camera is connected and
+/// has a known temperature) so the next captured frame uses the new
+/// settings without requiring a sequencer restart.
+class _CorrectionSettings extends ConsumerWidget {
+  final NightshadeColors colors;
+  final String? cameraId;
+  final int sensorWidth;
+  final int sensorHeight;
+  final double? temperatureC;
+
+  const _CorrectionSettings({
+    required this.colors,
+    required this.cameraId,
+    required this.sensorWidth,
+    required this.sensorHeight,
+    required this.temperatureC,
+  });
+
+  bool get _canPushToSequencer =>
+      cameraId != null &&
+      cameraId!.isNotEmpty &&
+      sensorWidth > 0 &&
+      sensorHeight > 0 &&
+      temperatureC != null;
+
+  Future<void> _pushIfActive(WidgetRef ref) async {
+    // Push settings to the sequencer only when a defect map is currently
+    // enabled for the connected camera (the auto-apply toggle is on or
+    // the user has flipped the per-camera apply switch). Otherwise the
+    // settings are saved but inactive — they take effect the next time
+    // the user enables apply-during-capture.
+    if (!_canPushToSequencer) return;
+    final autoApply = ref.read(defectMapSettingsProvider).autoApply;
+    // Only re-push when auto-apply is on AND a map exists for the
+    // current bucket. The notifier already validates the map exists
+    // bridge-side and surfaces an error if not.
+    final statusAsync = ref.read(defectMapStatusProvider(
+      DefectMapQuery(
+        cameraId: cameraId!,
+        width: sensorWidth,
+        height: sensorHeight,
+        sensorTemperatureCelsius: temperatureC!,
+      ),
+    ));
+    final mapExists = statusAsync.valueOrNull?.storedOnDisk ?? false;
+    if (!autoApply || !mapExists) return;
+    final notifier = ref.read(defectMapNotifierProvider.notifier);
+    await notifier.pushCurrentSettingsToSequencer(
+      cameraId: cameraId!,
+      width: sensorWidth,
+      height: sensorHeight,
+      sensorTemperatureCelsius: temperatureC!,
+      enabled: true,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(defectMapSettingsProvider);
+    final notifier = ref.read(defectMapSettingsProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Correction settings',
+          style: TextStyle(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: colors.textSecondary,
+            letterSpacing: 0.5,
+          ),
+        ),
+        const SizedBox(height: 8),
+        // Auto-apply: enables defect correction whenever a map exists for
+        // the connected camera at the current temperature bucket.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Auto-apply when map exists',
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ),
+            NightshadeSwitch(
+              value: settings.autoApply,
+              onChanged: (value) async {
+                await notifier.setAutoApply(value);
+                // Toggling auto-apply with a map present should
+                // propagate to the sequencer immediately.
+                await _pushIfActive(ref);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // Method.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Replacement method',
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ),
+            NightshadeDropdown(
+              value: settings.method.label,
+              items: DefectMapMethod.values.map((m) => m.label).toList(),
+              onChanged: (value) async {
+                if (value == null) return;
+                final method = DefectMapMethod.values.firstWhere(
+                  (m) => m.label == value,
+                );
+                await notifier.setMethod(method);
+                await _pushIfActive(ref);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // Kernel.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Kernel size',
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ),
+            NightshadeDropdown(
+              value: settings.kernel.label,
+              items: DefectMapKernelSize.values.map((k) => k.label).toList(),
+              onChanged: (value) async {
+                if (value == null) return;
+                final kernel = DefectMapKernelSize.values.firstWhere(
+                  (k) => k.label == value,
+                );
+                await notifier.setKernel(kernel);
+                await _pushIfActive(ref);
+              },
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        // Save original — when on, the original uncorrected frame is
+        // archived to a `Raw/` sibling directory.
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Save original to Raw/ subdir',
+                style: TextStyle(fontSize: 12, color: colors.textPrimary),
+              ),
+            ),
+            NightshadeSwitch(
+              value: settings.saveOriginal,
+              onChanged: (value) async {
+                await notifier.setSaveOriginal(value);
+                await _pushIfActive(ref);
+              },
+            ),
+          ],
+        ),
+      ],
+    );
   }
 }
 

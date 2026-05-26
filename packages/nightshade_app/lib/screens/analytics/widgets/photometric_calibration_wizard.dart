@@ -10,6 +10,8 @@ import 'package:nightshade_planetarium/nightshade_planetarium.dart'
     show CatalogManager, HygStarData;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import 'adaptive_chart_container.dart';
+
 /// Multi-step calibration wizard dialog for computing photometric
 /// transformation coefficients from standard star fields.
 class PhotometricCalibrationWizard extends ConsumerStatefulWidget {
@@ -22,6 +24,9 @@ class PhotometricCalibrationWizard extends ConsumerStatefulWidget {
 
 class _PhotometricCalibrationWizardState
     extends ConsumerState<PhotometricCalibrationWizard> {
+  /// Matches [AdaptiveChartContainer] on the residual plot below.
+  static const double _frameSelectorPreferredHeight = 180;
+
   int _step = 0;
   String _filterName = '';
   int? _selectedImageId;
@@ -32,16 +37,20 @@ class _PhotometricCalibrationWizardState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
+        side: BorderSide(color: colors.borderHighlight),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 680, maxHeight: 600),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 680,
+          designMaxHeight: 600,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(24),
           child: Column(
@@ -75,8 +84,8 @@ class _PhotometricCalibrationWizardState
       children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.primary,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(LucideIcons.sparkles, color: colors.primary, size: 20),
@@ -253,8 +262,8 @@ class _PhotometricCalibrationWizardState
     return images.when(
       // Shimmer thumbnail strip matches the frame selector height so the
       // wizard doesn't reflow when the image list resolves.
-      loading: () => SizedBox(
-        height: 180,
+      loading: () => AdaptiveChartContainer.fixed(
+        height: _frameSelectorPreferredHeight,
         child: ShimmerLoading(
           child: Row(
             children: List.generate(
@@ -288,8 +297,9 @@ class _PhotometricCalibrationWizardState
           );
         }
 
-        return SizedBox(
-          height: 180,
+        return AdaptiveChartContainer(
+          preferredHeight: _frameSelectorPreferredHeight,
+          minHeight: 140,
           child: ListView.builder(
             itemCount: solvedImages.length,
             itemBuilder: (context, index) {
@@ -299,7 +309,8 @@ class _PhotometricCalibrationWizardState
                 dense: true,
                 selected: isSelected,
                 selectedColor: colors.primary,
-                selectedTileColor: colors.primary.withValues(alpha: 0.08),
+                selectedTileColor:
+                    NightshadeDecorations.tintedBadge(colors.primary).color,
                 title: Text(
                   img.fileName,
                   style: TextStyle(
@@ -390,10 +401,9 @@ class _PhotometricCalibrationWizardState
         children: [
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: colors.success.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.success,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.success.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -564,7 +574,11 @@ class _PhotometricCalibrationWizardState
 
       // Build a spatial index of catalog stars projected to pixel coords
       // for matching to detected stars.
-      final fits = await apiReadFitsFile(filePath: image.filePath);
+      final imageSize = await _resolveImagePixelSize(
+        filePath: image.filePath,
+        stars: stars,
+        pixelScale: image.solvedPixelScale,
+      );
       final projectedCatalog = <({double x, double y, HygStarData star})>[];
       for (final catStar in catalogStars) {
         if (catStar.magnitude == null || !catStar.magnitude!.isFinite) continue;
@@ -572,8 +586,8 @@ class _PhotometricCalibrationWizardState
           wcs: wcs,
           ra: catStar.ra,
           dec: catStar.dec,
-          width: fits.width.toDouble(),
-          height: fits.height.toDouble(),
+          width: imageSize.width,
+          height: imageSize.height,
         );
         if (px != null) {
           projectedCatalog.add((x: px.x, y: px.y, star: catStar));
@@ -732,6 +746,40 @@ class _PhotometricCalibrationWizardState
     return baseBv + 0.06 * (subtype / 10.0);
   }
 
+  Future<({double width, double height})> _resolveImagePixelSize({
+    required String filePath,
+    required List<StarMeasurement> stars,
+    double? pixelScale,
+  }) async {
+    if (!ref.read(isRemoteModeProvider)) {
+      final fits = await apiReadFitsFile(filePath: filePath);
+      return (width: fits.width.toDouble(), height: fits.height.toDouble());
+    }
+
+    if (stars.isNotEmpty) {
+      final maxX = stars.map((s) => s.x).reduce(math.max);
+      final maxY = stars.map((s) => s.y).reduce(math.max);
+      final minX = stars.map((s) => s.x).reduce(math.min);
+      final minY = stars.map((s) => s.y).reduce(math.min);
+      const margin = 64.0;
+      return (
+        width: (maxX - minX) + margin * 2,
+        height: (maxY - minY) + margin * 2,
+      );
+    }
+
+    final scale = pixelScale;
+    if (scale != null && scale > 0) {
+      const fieldDeg = 1.0;
+      final px = fieldDeg * 3600.0 / scale;
+      return (width: px, height: px);
+    }
+
+    throw StateError(
+      'Cannot determine image dimensions for remote catalog matching',
+    );
+  }
+
   /// Project sky coordinates (RA/Dec in degrees) to pixel coordinates
   /// using a tangent-plane (gnomonic) projection centered on the WCS reference.
   ({double x, double y})? _skyToPixel({
@@ -830,8 +878,8 @@ class _PhotometricCalibrationWizardState
             ),
           ),
           const SizedBox(height: 8),
-          SizedBox(
-            height: 180,
+          AdaptiveChartContainer(
+            preferredHeight: 180,
             child: _buildResidualPlot(colors, coeff),
           ),
         ],
@@ -871,10 +919,10 @@ class _PhotometricCalibrationWizardState
       qualityColor = colors.success;
       qualityLabel = 'Excellent';
     } else if (rms < 0.10) {
-      qualityColor = const Color(0xFF22C55E);
+      qualityColor = colors.success;
       qualityLabel = 'Good';
     } else if (rms < 0.20) {
-      qualityColor = const Color(0xFFF59E0B);
+      qualityColor = colors.warning;
       qualityLabel = 'Acceptable';
     } else {
       qualityColor = colors.error;
@@ -883,10 +931,9 @@ class _PhotometricCalibrationWizardState
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-      decoration: BoxDecoration(
-        color: qualityColor.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.statusChip(
+        qualityColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: qualityColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         children: [

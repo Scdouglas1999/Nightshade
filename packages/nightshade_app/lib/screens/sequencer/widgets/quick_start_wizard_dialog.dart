@@ -17,12 +17,40 @@ import '../sequencer_screen.dart';
 // WIZARD STATE
 // =============================================================================
 
+/// Fallback baselines used only when no matching setting / Smart-Night
+/// recommendation is available. Named constants instead of bare magic
+/// numbers so the wizard's intent is auditable and so a "fresh install"
+/// fallback never silently masks a missing settings field.
+///
+/// Why these particular numbers:
+///   * 120 s broadband is a standard LRGB sub for a tracked rig.
+///   * 300 s narrowband is the historical default for Ha/OIII/SII at
+///     f/5–f/7 in Bortle 6–8 — the regime most beginners point at.
+///   * -10 C is the fallback cooler setpoint used only when the active
+///     equipment profile doesn't carry a `defaultCoolingTemp`.
+const double _kWizardBroadbandFallbackSecs = 120.0;
+const double _kWizardNarrowbandFallbackSecs = 300.0;
+const double _kWizardCoolingTempFallbackC = -10.0;
+
+/// Fallback values used only when no matching settings field is wired in
+/// or the user is on a fresh install. Kept here so a quick scan of the
+/// wizard's constants explains every magic number the dialog can ship
+/// with.
+const int _kWizardAutofocusEveryFramesFallback = 30;
+const double _kWizardDitherPixelsFallback = 5.0;
+const int _kWizardExposureCountFallback = 10;
+const double _kWizardDitherSettleSecondsFallback = 30.0;
+const double _kWizardGuideSettlePixelsFallback = 1.5;
+const double _kWizardGuideSettleSecondsFallback = 10.0;
+const double _kWizardGuideSettleTimeoutFallback = 60.0;
+
 /// Per-filter exposure configuration in the wizard
 class _FilterExposureConfig {
   String filterName;
   int filterIndex;
   bool enabled;
   double exposureSecs;
+  bool exposureEdited = false;
   int count;
   BinningMode binning = BinningMode.one;
 
@@ -30,8 +58,8 @@ class _FilterExposureConfig {
     required this.filterName,
     required this.filterIndex,
     this.enabled = true,
-    this.exposureSecs = 120.0,
-    this.count = 10,
+    this.exposureSecs = _kWizardBroadbandFallbackSecs,
+    this.count = _kWizardExposureCountFallback,
   });
 
   double get totalSecs => exposureSecs * count;
@@ -65,13 +93,13 @@ extension _ExposurePresetLabel on _ExposurePreset {
   String get description {
     switch (this) {
       case _ExposurePreset.lrgbBroadband:
-        return 'L: 120s, R/G/B: 120s each';
+        return 'Smart LRGB filter plan';
       case _ExposurePreset.narrowbandSho:
-        return 'SII/Ha/OIII: 300s each';
+        return 'Smart SII/Ha/OIII plan';
       case _ExposurePreset.narrowbandHaOiii:
-        return 'Ha/OIII: 180s each';
+        return 'Smart Ha/OIII plan';
       case _ExposurePreset.oscNoFilter:
-        return 'Single filter, 120s exposures';
+        return 'Smart single-filter plan';
       case _ExposurePreset.custom:
         return 'Configure manually';
     }
@@ -107,14 +135,15 @@ class _QuickStartWizardDialogState
   // Step 2: Filters & Exposures
   List<_FilterExposureConfig> _filterConfigs = [];
   _ExposurePreset _selectedPreset = _ExposurePreset.custom;
+  SmartNightExposureContext? _exposureContext;
   LoopConditionType _loopType = LoopConditionType.count;
-  int _loopCount = 10;
+  int _loopCount = _kWizardExposureCountFallback;
 
   // Step 3: Automation
   bool _enableAutofocus = true;
-  int _autofocusEveryFrames = 30;
+  int _autofocusEveryFrames = _kWizardAutofocusEveryFramesFallback;
   bool _enableDithering = true;
-  double _ditherPixels = 5.0;
+  double _ditherPixels = _kWizardDitherPixelsFallback;
   bool _enableMeridianFlip = true;
   bool _enableAutoGuide = true;
 
@@ -123,17 +152,112 @@ class _QuickStartWizardDialogState
   bool _weatherAbort = false;
   bool _dawnShutdown = true;
   bool _coolCamera = true;
-  double _coolingTemp = -10.0;
+  double _coolingTemp = _kWizardCoolingTempFallbackC;
+
+  /// Tracks whether the wizard pre-populated any defaults from the user's
+  /// Sequencer Settings / equipment profile. Drives the small
+  /// "Using your saved defaults" hint surfaced near the relevant inputs so
+  /// the user knows where numbers came from rather than being surprised.
+  bool _populatedFromSavedDefaults = false;
 
   @override
   void initState() {
     super.initState();
+    _applyUserDefaults();
     _initFilterConfigs();
+    _loadExposureContext();
+  }
+
+  /// Pulls the user's persisted Sequencer Settings / equipment profile /
+  /// app settings once at wizard open and overwrites the in-class fallback
+  /// constants. Read-only — the wizard is a one-shot dialog, so we don't
+  /// need a stream subscription; reading once via `ref.read` keeps the
+  /// state simple and consistent across the five steps.
+  void _applyUserDefaults() {
+    final sequencerDefaults = ref.read(sequencerDefaultsProvider);
+    final appSettings = ref.read(appSettingsProvider).valueOrNull;
+    final activeProfile = ref.read(activeEquipmentProfileProvider);
+
+    bool populated = false;
+
+    // Sequencer-Defaults-sourced values. These are always present (the
+    // provider seeds defaults synchronously in its constructor) so we use
+    // them unconditionally and only flip the hint if anything diverges
+    // from the in-class fallbacks.
+    if (sequencerDefaults.autofocusIntervalFrames > 0) {
+      _autofocusEveryFrames = sequencerDefaults.autofocusIntervalFrames;
+      if (sequencerDefaults.autofocusIntervalFrames !=
+          _kWizardAutofocusEveryFramesFallback) {
+        populated = true;
+      }
+    }
+    if (sequencerDefaults.ditherPixels > 0) {
+      _ditherPixels = sequencerDefaults.ditherPixels;
+      if (sequencerDefaults.ditherPixels != _kWizardDitherPixelsFallback) {
+        populated = true;
+      }
+    }
+    if (sequencerDefaults.exposureCount > 0) {
+      _loopCount = sequencerDefaults.exposureCount;
+      if (sequencerDefaults.exposureCount != _kWizardExposureCountFallback) {
+        populated = true;
+      }
+    }
+
+    // App-Settings-sourced toggles. Skip if settings haven't loaded yet —
+    // the dialog still opens and the fallback in-class defaults apply.
+    if (appSettings != null) {
+      _enableMeridianFlip = appSettings.enableMeridianFlip;
+      _weatherAbort = appSettings.parkOnUnsafeWeather;
+      _dawnShutdown = appSettings.parkBeforeDawn;
+      populated = true;
+    }
+
+    // Cooling temp lives on the active equipment profile, not in app
+    // settings. `defaultCoolingTemp` is nullable; the user may simply not
+    // have set one yet, in which case the fallback constant kicks in.
+    // The wizard's "Cool camera" toggle itself stays user-facing — the
+    // profile's `coolOnConnect` is about device-connect behaviour, not
+    // sequence-start behaviour, so we don't tie them together here.
+    if (activeProfile != null) {
+      final profileCoolingTemp = activeProfile.defaultCoolingTemp;
+      if (profileCoolingTemp != null && profileCoolingTemp.isFinite) {
+        _coolingTemp = profileCoolingTemp;
+        populated = true;
+      }
+    }
+
+    _populatedFromSavedDefaults = populated;
+  }
+
+  Future<void> _loadExposureContext() async {
+    final SmartNightExposureContext? context;
+    try {
+      context = await ref.read(smartNightExposureContextProvider.future);
+    } catch (_) {
+      return;
+    }
+    if (!mounted || context == null) return;
+    setState(() {
+      _exposureContext = context;
+      for (final config in _filterConfigs) {
+        if (!config.exposureEdited) {
+          config.exposureSecs = _defaultExposureForFilter(config.filterName);
+        }
+      }
+    });
   }
 
   void _initFilterConfigs() {
     // Get filter names from the active equipment profile
     final filters = ref.read(profileFiltersProvider);
+    // Per-filter sub-count default — honours the user's Sequencer Settings
+    // exposure-count preference (already pulled into `_loopCount` by
+    // `_applyUserDefaults`) so the wizard doesn't ship one number for the
+    // loop and a different one for each filter row.
+    final defaultCount = _loopCount > 0
+        ? _loopCount
+        : _kWizardExposureCountFallback;
 
     if (filters.isEmpty) {
       // No filter wheel or no filters configured - default to a single "Light" entry
@@ -142,8 +266,8 @@ class _QuickStartWizardDialogState
           filterName: 'Light',
           filterIndex: 0,
           enabled: true,
-          exposureSecs: 120.0,
-          count: 10,
+          exposureSecs: _defaultExposureForFilter('Light'),
+          count: defaultCount,
         ),
       ];
     } else {
@@ -153,7 +277,7 @@ class _QuickStartWizardDialogState
           filterIndex: entry.key,
           enabled: _isCommonFilter(entry.value),
           exposureSecs: _defaultExposureForFilter(entry.value),
-          count: 10,
+          count: defaultCount,
         );
       }).toList();
     }
@@ -172,14 +296,19 @@ class _QuickStartWizardDialogState
   }
 
   double _defaultExposureForFilter(String name) {
+    final smartExposure = _exposureContext?.recommendForFilter(name).seconds;
+    if (smartExposure != null && smartExposure.isFinite && smartExposure > 0) {
+      return smartExposure;
+    }
+
     final lower = name.toLowerCase();
     if (lower == 'ha' ||
         lower == 'h-alpha' ||
         lower == 'oiii' ||
         lower == 'sii') {
-      return 300.0; // 5 minutes for narrowband
+      return _kWizardNarrowbandFallbackSecs; // 5 minutes for narrowband
     }
-    return 120.0; // 2 minutes for broadband
+    return _kWizardBroadbandFallbackSecs; // 2 minutes for broadband
   }
 
   @override
@@ -314,7 +443,8 @@ class _QuickStartWizardDialogState
           case _ExposurePreset.lrgbBroadband:
             config.enabled =
                 lower == 'l' || lower == 'r' || lower == 'g' || lower == 'b';
-            config.exposureSecs = 120.0;
+            config.exposureSecs = _defaultExposureForFilter(config.filterName);
+            config.exposureEdited = false;
             config.count = 10;
             config.binning = BinningMode.one;
 
@@ -323,20 +453,23 @@ class _QuickStartWizardDialogState
                 lower == 'ha' ||
                 lower == 'h-alpha' ||
                 lower == 'oiii';
-            config.exposureSecs = 300.0;
+            config.exposureSecs = _defaultExposureForFilter(config.filterName);
+            config.exposureEdited = false;
             config.count = 10;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.narrowbandHaOiii:
             config.enabled =
                 lower == 'ha' || lower == 'h-alpha' || lower == 'oiii';
-            config.exposureSecs = 180.0;
+            config.exposureSecs = _defaultExposureForFilter(config.filterName);
+            config.exposureEdited = false;
             config.count = 15;
             config.binning = BinningMode.one;
 
           case _ExposurePreset.oscNoFilter:
             config.enabled = config.filterIndex == 0;
-            config.exposureSecs = 120.0;
+            config.exposureSecs = _defaultExposureForFilter(config.filterName);
+            config.exposureEdited = false;
             config.count = 20;
             config.binning = BinningMode.one;
 
@@ -428,12 +561,19 @@ class _QuickStartWizardDialogState
     // -- Start guiding
     if (_enableAutoGuide) {
       final guideId = const Uuid().v4();
+      // Settle parameters honour the user's Sequencer Settings dither/
+      // settle preferences (settlePixels + dither-settle-pixels share a
+      // semantic). settleTime / settleTimeout don't yet have dedicated
+      // start-guiding settings, so we use named fallback constants.
+      final sequencerDefaults = ref.read(sequencerDefaultsProvider);
       nodes[guideId] = StartGuidingNode(
         id: guideId,
         name: 'Start Guiding',
-        settlePixels: 1.5,
-        settleTime: 10.0,
-        settleTimeout: 60.0,
+        settlePixels: sequencerDefaults.ditherSettlePixels > 0
+            ? sequencerDefaults.ditherSettlePixels
+            : _kWizardGuideSettlePixelsFallback,
+        settleTime: _kWizardGuideSettleSecondsFallback,
+        settleTimeout: _kWizardGuideSettleTimeoutFallback,
         autoSelectStar: true,
         parentId: rootId,
         orderIndex: orderIndex++,
@@ -468,11 +608,14 @@ class _QuickStartWizardDialogState
     // -- Dither after each loop iteration
     if (_enableDithering && _enableAutoGuide) {
       final ditherId = const Uuid().v4();
+      final sequencerDefaults = ref.read(sequencerDefaultsProvider);
       nodes[ditherId] = DitherNode(
         id: ditherId,
         name: 'Dither',
         pixels: _ditherPixels,
-        settleTime: 30.0,
+        settleTime: sequencerDefaults.ditherSettleTime > 0
+            ? sequencerDefaults.ditherSettleTime
+            : _kWizardDitherSettleSecondsFallback,
         parentId: loopId,
         orderIndex: loopOrderIndex++,
       );
@@ -655,7 +798,7 @@ class _QuickStartWizardDialogState
     for (final f in enabledFilters) {
       perIterationSecs += f.exposureSecs;
     }
-    if (_enableDithering) perIterationSecs += 30; // dither settle
+    if (_enableDithering) perIterationSecs += _ditherSettleSecsForEstimate();
 
     double totalSecs;
     if (_loopType == LoopConditionType.count) {
@@ -695,8 +838,19 @@ class _QuickStartWizardDialogState
     for (final f in enabledFilters) {
       perIter += f.exposureSecs;
     }
-    if (_enableDithering) perIter += 30;
+    if (_enableDithering) perIter += _ditherSettleSecsForEstimate();
     return perIter;
+  }
+
+  /// Per-iteration dither-settle estimate used by the duration preview.
+  /// Reads the user's Sequencer-Defaults settle time so the wizard's
+  /// "Estimated Duration" agrees with the value the sequence will
+  /// actually run with.
+  double _ditherSettleSecsForEstimate() {
+    final sequencerDefaults = ref.read(sequencerDefaultsProvider);
+    return sequencerDefaults.ditherSettleTime > 0
+        ? sequencerDefaults.ditherSettleTime
+        : _kWizardDitherSettleSecondsFallback;
   }
 
   // ---------------------------------------------------------------------------
@@ -728,7 +882,7 @@ class _QuickStartWizardDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
       backgroundColor: colors.surface,
@@ -737,7 +891,11 @@ class _QuickStartWizardDialogState
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 700, maxHeight: 700),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 700,
+          designMaxHeight: 700,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1073,10 +1231,9 @@ class _QuickStartWizardDialogState
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.primary,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
             ),
             child: Row(
               children: [
@@ -1130,7 +1287,11 @@ class _QuickStartWizardDialogState
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                   decoration: BoxDecoration(
                     color: isSelected
-                        ? colors.primary.withValues(alpha: 0.15)
+                        ? NightshadeDecorations.statusChip(
+                            colors.primary,
+                            borderRadius: BorderRadius.circular(8),
+                            bordered: false,
+                          ).color
                         : colors.surfaceAlt,
                     borderRadius: BorderRadius.circular(8),
                     border: Border.all(
@@ -1314,7 +1475,7 @@ class _QuickStartWizardDialogState
         children: [
           SizedBox(
             width: 32,
-            child: Checkbox(
+            child: NightshadeCheckbox(
               value: config.enabled,
               onChanged: (value) {
                 setState(() {
@@ -1322,8 +1483,6 @@ class _QuickStartWizardDialogState
                   _selectedPreset = _ExposurePreset.custom;
                 });
               },
-              activeColor: colors.primary,
-              side: BorderSide(color: colors.border),
             ),
           ),
           const SizedBox(width: 8),
@@ -1367,6 +1526,7 @@ class _QuickStartWizardDialogState
                   final parsed = double.tryParse(value);
                   if (parsed != null && parsed > 0) {
                     config.exposureSecs = parsed;
+                    config.exposureEdited = true;
                     _selectedPreset = _ExposurePreset.custom;
                   }
                 },
@@ -1486,6 +1646,10 @@ class _QuickStartWizardDialogState
           'Configure automation features for your imaging session.',
           style: TextStyle(color: colors.textSecondary, fontSize: 13),
         ),
+        if (_populatedFromSavedDefaults) ...[
+          const SizedBox(height: 8),
+          _buildSavedDefaultsHint(colors),
+        ],
         const SizedBox(height: 16),
         _buildToggleRow(
           colors: colors,
@@ -1621,6 +1785,36 @@ class _QuickStartWizardDialogState
     );
   }
 
+  /// Small, understated hint surfaced on the Automation and Safety steps
+  /// to tell the user that the pre-filled values came from their saved
+  /// Sequencer Settings / equipment profile rather than wizard defaults.
+  /// Why: the original wizard silently overwrote the user's preferences
+  /// with hardcoded numbers; surfacing the source makes the wizard's
+  /// behaviour discoverable instead of surprising.
+  Widget _buildSavedDefaultsHint(NightshadeColors colors) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: colors.border),
+      ),
+      child: Row(
+        children: [
+          Icon(LucideIcons.info, color: colors.textMuted, size: 12),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              'Using your saved defaults from Settings and the active '
+              'equipment profile. Adjust below to override for this sequence.',
+              style: TextStyle(color: colors.textMuted, fontSize: 11),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildToggleRow({
     required NightshadeColors colors,
     required IconData icon,
@@ -1651,11 +1845,9 @@ class _QuickStartWizardDialogState
               ],
             ),
           ),
-          Switch(
+          NightshadeSwitch(
             value: value,
             onChanged: onChanged,
-            activeTrackColor: colors.primary,
-            thumbColor: WidgetStateProperty.all(Colors.white),
           ),
         ],
       ),
@@ -1674,6 +1866,10 @@ class _QuickStartWizardDialogState
           'Configure safety and shutdown behavior.',
           style: TextStyle(color: colors.textSecondary, fontSize: 13),
         ),
+        if (_populatedFromSavedDefaults) ...[
+          const SizedBox(height: 8),
+          _buildSavedDefaultsHint(colors),
+        ],
         const SizedBox(height: 16),
         _buildToggleRow(
           colors: colors,
@@ -1869,10 +2065,9 @@ class _QuickStartWizardDialogState
         Container(
           width: double.infinity,
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.emphasisSurface(
+            colors.primary,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
           ),
           child: Row(
             children: [

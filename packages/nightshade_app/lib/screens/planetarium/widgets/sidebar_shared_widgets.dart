@@ -188,16 +188,9 @@ class DarknessCard extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [
-            Color(0xFF1A1A2E),
-            Color(0xFF16213E),
-          ],
-        ),
+        color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
+        border: Border.all(color: colors.border),
       ),
       child: Column(
         children: [
@@ -292,6 +285,8 @@ class TargetCard extends StatefulWidget {
   final String transit;
   final NightshadeColors colors;
   final VoidCallback? onTap;
+  final VoidCallback? onSendToFraming;
+  final VoidCallback? onAddToSequencer;
 
   const TargetCard({
     super.key,
@@ -302,6 +297,8 @@ class TargetCard extends StatefulWidget {
     required this.transit,
     required this.colors,
     this.onTap,
+    this.onSendToFraming,
+    this.onAddToSequencer,
   });
 
   @override
@@ -341,29 +338,39 @@ class _TargetCardState extends State<TargetCard> {
                   children: [
                     Row(
                       children: [
-                        Text(
-                          widget.name,
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: widget.colors.textPrimary,
+                        Expanded(
+                          child: Text(
+                            widget.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: widget.colors.textPrimary,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color:
-                                widget.colors.primary.withValues(alpha: 0.15),
-                            borderRadius: BorderRadius.circular(4),
-                          ),
-                          child: Text(
-                            widget.catalog,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: widget.colors.primary,
+                        Flexible(
+                          flex: 0,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color:
+                                  widget.colors.primary.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            constraints: const BoxConstraints(maxWidth: 72),
+                            child: Text(
+                              widget.catalog,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: widget.colors.primary,
+                              ),
                             ),
                           ),
                         ),
@@ -372,6 +379,8 @@ class _TargetCardState extends State<TargetCard> {
                     const SizedBox(height: 4),
                     Text(
                       widget.type,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 11,
                         color: widget.colors.textMuted,
@@ -380,6 +389,44 @@ class _TargetCardState extends State<TargetCard> {
                   ],
                 ),
               ),
+              if (widget.onSendToFraming != null ||
+                  widget.onAddToSequencer != null) ...[
+                const SizedBox(width: 8),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (widget.onSendToFraming != null)
+                      Tooltip(
+                        message: 'Frame target',
+                        child: IconButton(
+                          icon: const Icon(LucideIcons.frame, size: 15),
+                          color: widget.colors.primary,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 28,
+                            height: 28,
+                          ),
+                          onPressed: widget.onSendToFraming,
+                        ),
+                      ),
+                    if (widget.onAddToSequencer != null)
+                      Tooltip(
+                        message: 'Add to sequencer',
+                        child: IconButton(
+                          icon: const Icon(LucideIcons.listPlus, size: 15),
+                          color: widget.colors.primary,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints.tightFor(
+                            width: 28,
+                            height: 28,
+                          ),
+                          onPressed: widget.onAddToSequencer,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+              const SizedBox(width: 8),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [

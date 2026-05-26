@@ -13,17 +13,34 @@ class DomeHandlers {
   DomeHandlers(this.container);
 
   Future<bool> _isConnectedDome(String deviceId) async {
-    final backend = container.read(backendProvider);
-    final connectedDevices = await backend.getConnectedDevices();
-    return connectedDevices.any(
-      (d) => d.id == deviceId && d.deviceType == DeviceType.dome,
-    );
+    try {
+      final backend = container.read(backendProvider);
+      final connectedDevices = await backend.getConnectedDevices();
+      return connectedDevices.any(
+        (d) => d.id == deviceId && d.deviceType == DeviceType.dome,
+      );
+    } catch (e) {
+      return false;
+    }
   }
 
-  Response _notImplemented(String operation) {
-    return jsonNotImplemented({
-      'error': '$operation is not supported by the current native API',
-    });
+  Future<void> _requireCapability({
+    required String deviceId,
+    required bool supported,
+    required String operation,
+    required String capability,
+  }) async {
+    if (supported) return;
+    throw HandlerFailure(
+      code: 'capability_unsupported',
+      statusCode: 400,
+      message:
+          'Dome $deviceId does not support $operation ($capability is false)',
+      details: {
+        'deviceId': deviceId,
+        'capability': capability,
+      },
+    );
   }
 
   String _mapShutterState(bridge.ShutterState state) {
@@ -110,8 +127,33 @@ class DomeHandlers {
   }
 
   /// POST /api/dome/sync
+  ///
+  /// Body: `{ "deviceId": "...", "enable": true }` — enables/disables mount slaving.
   Future<Response> handleDomeSync(Request request) async {
-    return _notImplemented('Dome sync');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    final enable = optionalBool(payload, 'enable') ?? true;
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
+    }
+
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canSlave,
+      operation: 'mount sync',
+      capability: 'canSlave',
+    );
+
+    await bridge.apiDomeSetSlaved(deviceId: deviceId, slaved: enable);
+    return jsonOk({
+      'status': enable ? 'sync_enabled' : 'sync_disabled',
+      'deviceId': deviceId,
+      'syncEnabled': enable,
+    });
   }
 
   /// POST /api/dome/park
@@ -130,12 +172,48 @@ class DomeHandlers {
 
   /// POST /api/dome/home
   Future<Response> handleDomeHome(Request request) async {
-    return _notImplemented('Dome home');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
+    }
+
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canFindHome,
+      operation: 'find home',
+      capability: 'canFindHome',
+    );
+
+    await bridge.apiDomeFindHome(deviceId: deviceId);
+    return jsonOk({'status': 'homing', 'deviceId': deviceId});
   }
 
   /// POST /api/dome/halt
   Future<Response> handleDomeHalt(Request request) async {
-    return _notImplemented('Dome halt');
+    final payload = await readJsonObject(request);
+    final deviceId = requireString(payload, 'deviceId');
+    if (!await _isConnectedDome(deviceId)) {
+      return jsonNotFound({
+        'error': 'Dome not connected',
+        'deviceId': deviceId,
+      });
+    }
+
+    final caps = await bridge.apiGetDomeCapabilities(deviceId: deviceId);
+    await _requireCapability(
+      deviceId: deviceId,
+      supported: caps.canAbort,
+      operation: 'halt',
+      capability: 'canAbort',
+    );
+
+    await bridge.apiDomeAbortSlew(deviceId: deviceId);
+    return jsonOk({'status': 'halted', 'deviceId': deviceId});
   }
 
   /// GET /api/dome/status

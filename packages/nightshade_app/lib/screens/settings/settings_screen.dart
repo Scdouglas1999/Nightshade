@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -32,6 +32,18 @@ import 'widgets/log_viewer.dart';
 import 'widgets/auto_save_settings.dart';
 import 'widgets/observation_log_settings.dart';
 import 'widgets/observing_lists_settings.dart';
+import 'widgets/image_grading_settings.dart';
+import 'widgets/adaptive_exposure_settings.dart';
+import 'widgets/preflight_settings.dart';
+import 'widgets/adaptive_conditions_settings.dart';
+// Wave 5D — the remaining four operations-UI widgets land here so the
+// shared adaptive Settings screen (used by both desktop and the mobile
+// companion) surfaces them. Phones get the same content via the
+// `isMobile` flag — no separate mobile-only settings flow.
+import 'widgets/ai_assistant_settings.dart';
+import 'widgets/notification_routing_settings.dart';
+import 'widgets/predictive_af_settings.dart';
+import 'widgets/replay_debug_settings.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -55,6 +67,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       (l10n.text('settingsEquipmentProfiles'), LucideIcons.boxes),
       (l10n.text('settingsCatalogs'), LucideIcons.database),
       (l10n.text('settingsImaging'), LucideIcons.camera),
+      ('Image Grading', LucideIcons.star),
+      ('Adaptive Exposure', LucideIcons.sun),
+      ('Pre-flight Checks', LucideIcons.clipboardCheck),
+      ('Adaptive Conditions', LucideIcons.cloud),
       (l10n.text('settingsDarkLibrary'), LucideIcons.moon),
       (l10n.text('settingsCalibration'), LucideIcons.sliders),
       (l10n.text('settingsWeatherSafety'), LucideIcons.cloudSun),
@@ -73,6 +89,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       (l10n.text('settingsObservingLists'), LucideIcons.list),
       (l10n.text('settingsHelpTutorials'), LucideIcons.helpCircle),
       (l10n.text('settingsAbout'), LucideIcons.info),
+      // Wave 5D — appended (rather than inserted) to keep existing
+      // category indices stable for users with deep-linked Settings URLs.
+      ('AI Assistant', LucideIcons.sparkles),
+      ('Notification Routing', LucideIcons.bellRing),
+      ('Predictive Autofocus', LucideIcons.brainCircuit),
+      ('Replay & Debug', LucideIcons.bug),
     ];
   }
 
@@ -232,55 +254,73 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       {required int categoryIndex, required bool isMobile}) {
     switch (categoryIndex) {
       case 0:
-        return ConnectionSettings(colors: colors, isMobile: isMobile);
+        return ConnectionSettings(isMobile: isMobile);
       case 1:
-        return GeneralSettings(colors: colors, isMobile: isMobile);
+        return GeneralSettings(isMobile: isMobile);
       case 2:
-        return AppearanceSettings(colors: colors, isMobile: isMobile);
+        return AppearanceSettings(isMobile: isMobile);
       case 3:
-        return LocationSettingsPage(colors: colors, isMobile: isMobile);
+        return LocationSettingsPage(isMobile: isMobile);
       case 4:
         return EquipmentProfilesScreen(isMobile: isMobile);
       case 5:
         return CatalogSettingsScreen(isMobile: isMobile);
       case 6:
-        return ImagingSettings(colors: colors, isMobile: isMobile);
+        return ImagingSettings(isMobile: isMobile);
       case 7:
-        return DarkLibrarySettings(colors: colors, isMobile: isMobile);
+        return ImageGradingSettings(isMobile: isMobile);
       case 8:
-        return CalibrationSettingsPage(colors: colors, isMobile: isMobile);
+        return AdaptiveExposureSettings(isMobile: isMobile);
       case 9:
-        return WeatherSafetySettings(colors: colors, isMobile: isMobile);
+        return PreflightSettings(isMobile: isMobile);
       case 10:
-        return AutofocusSettingsPage(colors: colors, isMobile: isMobile);
+        return AdaptiveConditionsSettings(isMobile: isMobile);
       case 11:
-        return ScienceSettingsPage(colors: colors, isMobile: isMobile);
+        return DarkLibrarySettings(isMobile: isMobile);
       case 12:
-        return AnnotationSettingsPage(colors: colors, isMobile: isMobile);
+        return CalibrationSettingsPage(isMobile: isMobile);
       case 13:
-        return SequencerSettings(colors: colors, isMobile: isMobile);
+        return WeatherSafetySettings(isMobile: isMobile);
       case 14:
-        return PlateSolvingSettings(colors: colors, isMobile: isMobile);
+        return AutofocusSettingsPage(isMobile: isMobile);
       case 15:
-        return Phd2GuidingSettings(colors: colors, isMobile: isMobile);
+        return ScienceSettingsPage(isMobile: isMobile);
       case 16:
-        return NotificationSettings(colors: colors, isMobile: isMobile);
+        return AnnotationSettingsPage(isMobile: isMobile);
       case 17:
-        return FilePathSettings(colors: colors, isMobile: isMobile);
+        return SequencerSettings(isMobile: isMobile);
       case 18:
-        return RemoteAccessSettings(colors: colors, isMobile: isMobile);
+        return PlateSolvingSettings(isMobile: isMobile);
       case 19:
-        return LogViewer(colors: colors, isMobile: isMobile);
+        return Phd2GuidingSettings(isMobile: isMobile);
       case 20:
-        return AutoSaveSettings(colors: colors, isMobile: isMobile);
+        return NotificationSettings(isMobile: isMobile);
       case 21:
-        return const ObservationLogSettings();
+        return FilePathSettings(isMobile: isMobile);
       case 22:
-        return const ObservingListsSettings();
+        return RemoteAccessSettings(isMobile: isMobile);
       case 23:
-        return HelpTutorialsSettings(colors: colors, isMobile: isMobile);
+        return LogViewer(isMobile: isMobile);
       case 24:
-        return AboutSettings(colors: colors, isMobile: isMobile);
+        return AutoSaveSettings(isMobile: isMobile);
+      case 25:
+        return const ObservationLogSettings();
+      case 26:
+        return const ObservingListsSettings();
+      case 27:
+        return HelpTutorialsSettings(isMobile: isMobile);
+      case 28:
+        return AboutSettings(isMobile: isMobile);
+      // Wave 5D — operations-UI surfaces. Order matches the appended
+      // entries in [_categories] above.
+      case 29:
+        return AiAssistantSettings(isMobile: isMobile);
+      case 30:
+        return NotificationRoutingSettings(isMobile: isMobile);
+      case 31:
+        return PredictiveAfSettingsPage(isMobile: isMobile);
+      case 32:
+        return ReplayDebugSettings(isMobile: isMobile);
       default:
         return const SizedBox();
     }
@@ -465,6 +505,8 @@ class _CategoryItemState extends State<_CategoryItem> {
               Expanded(
                 child: Text(
                   widget.label,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight:
@@ -473,8 +515,6 @@ class _CategoryItemState extends State<_CategoryItem> {
                         ? widget.colors.textPrimary
                         : widget.colors.textSecondary,
                   ),
-                  overflow: TextOverflow.ellipsis,
-                  maxLines: 1,
                 ),
               ),
             ],

@@ -1,30 +1,15 @@
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
 import '../theme/nightshade_tokens.dart';
+import '../theme/nightshade_typography.dart';
+import '../utils/responsive_utils.dart';
 
-/// A styled screen header with accent gradient and bottom border.
-///
-/// Features:
-/// - Subtle bottom border with gradient fade (accent → transparent)
-/// - Optional background gradient for subtle warmth
-/// - Consistent spacing and typography
+/// Typography-led screen header with a crisp bottom divider.
 class ScreenHeader extends StatelessWidget {
-  /// The title text to display
   final String title;
-
-  /// Optional subtitle or description
   final String? subtitle;
-
-  /// Optional icon to display before the title
   final IconData? icon;
-
-  /// Optional trailing widget (e.g., action buttons)
   final Widget? trailing;
-
-  /// Whether to show the accent gradient background
-  final bool showBackgroundGradient;
-
-  /// Custom padding for the header
   final EdgeInsets? padding;
 
   const ScreenHeader({
@@ -33,130 +18,66 @@ class ScreenHeader extends StatelessWidget {
     this.subtitle,
     this.icon,
     this.trailing,
-    this.showBackgroundGradient = true,
     this.padding,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Container(
-      padding: padding ?? const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      padding: padding ?? Responsive.adaptivePadding(context),
       decoration: BoxDecoration(
-        // Optional subtle accent gradient background (2-3% opacity)
-        gradient: showBackgroundGradient
-            ? LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [
-                  colors.primary.withValues(alpha: 0.03),
-                  Colors.transparent,
-                ],
-              )
-            : null,
+        border: Border(
+          bottom: BorderSide(color: colors.border.withValues(alpha: 0.75)),
+        ),
       ),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
         children: [
-          Row(
-            children: [
-              if (icon != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
-                    borderRadius: NightshadeTokens.borderRadiusMd,
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 20,
-                    color: colors.primary,
+          if (icon != null) ...[
+            Icon(
+              icon,
+              size: NightshadeTokens.iconMd,
+              color: colors.textSecondary,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceMd),
+          ],
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: NightshadeTypography.h3.copyWith(
+                    color: colors.textPrimary,
                   ),
                 ),
-                const SizedBox(width: 12),
-              ],
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w600,
-                        color: colors.textPrimary,
-                        letterSpacing: -0.3,
-                      ),
+                if (subtitle != null) ...[
+                  const SizedBox(height: NightshadeTokens.spaceXs),
+                  Text(
+                    subtitle!,
+                    style: NightshadeTypography.bodySm.copyWith(
+                      color: colors.textSecondary,
                     ),
-                    if (subtitle != null) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        subtitle!,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.textSecondary,
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              ),
-              if (trailing != null) trailing!,
-            ],
+                  ),
+                ],
+              ],
+            ),
           ),
-          const SizedBox(height: 16),
-          // Bottom border with gradient fade (accent → transparent)
-          _AccentGradientBorder(color: colors.primary),
+          if (trailing != null) trailing!,
         ],
       ),
     );
   }
 }
 
-/// A gradient border that fades from accent color to transparent.
-class _AccentGradientBorder extends StatelessWidget {
-  final Color color;
-
-  const _AccentGradientBorder({
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      height: 1,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.centerLeft,
-          end: Alignment.centerRight,
-          colors: [
-            color.withValues(alpha: 0.5),
-            color.withValues(alpha: 0.2),
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.5, 1.0],
-        ),
-      ),
-    );
-  }
-}
-
-/// A section header with left accent bar.
-///
-/// Use this for organizing content within a screen into logical sections.
+/// Section header using typography hierarchy instead of decorative accents.
 class SectionHeader extends StatelessWidget {
-  /// The section title
   final String title;
-
-  /// Optional subtitle
   final String? subtitle;
-
-  /// Optional trailing widget
   final Widget? trailing;
-
-  /// Width of the accent bar
   final double accentBarWidth;
 
   const SectionHeader({
@@ -169,48 +90,27 @@ class SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 8),
+      padding: const EdgeInsets.symmetric(vertical: NightshadeTokens.spaceSm),
       child: Row(
         children: [
-          // Left accent bar
-          Container(
-            width: accentBarWidth,
-            height: subtitle != null ? 36 : 24,
-            decoration: BoxDecoration(
-              color: colors.primary,
-              borderRadius: BorderRadius.circular(accentBarWidth / 2),
-              boxShadow: [
-                BoxShadow(
-                  color: colors.primary.withValues(alpha: 0.3),
-                  blurRadius: 4,
-                  spreadRadius: 0,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   title,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                  style: NightshadeTypography.h5.copyWith(
                     color: colors.textPrimary,
-                    letterSpacing: -0.2,
                   ),
                 ),
                 if (subtitle != null) ...[
-                  const SizedBox(height: 2),
+                  const SizedBox(height: NightshadeTokens.spaceXs),
                   Text(
                     subtitle!,
-                    style: TextStyle(
-                      fontSize: 12,
+                    style: NightshadeTypography.caption.copyWith(
                       color: colors.textMuted,
                     ),
                   ),
@@ -225,49 +125,31 @@ class SectionHeader extends StatelessWidget {
   }
 }
 
-/// A container for grouped controls with inset shadow background.
-///
-/// Use this to visually group related controls within a section.
+/// A container for grouped controls with tonal separation.
 class SectionWell extends StatelessWidget {
-  /// The child content
   final Widget child;
-
-  /// Padding inside the well
   final EdgeInsets padding;
-
-  /// Border radius of the well
   final BorderRadius? borderRadius;
 
   const SectionWell({
     super.key,
     required this.child,
-    this.padding = const EdgeInsets.all(16),
+    this.padding = const EdgeInsets.all(NightshadeTokens.spaceLg),
     this.borderRadius,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final effectiveRadius = borderRadius ?? NightshadeTokens.borderRadiusMd;
 
     return Container(
       padding: padding,
       decoration: BoxDecoration(
-        color: colors.surfaceAlt.withValues(alpha: 0.5),
+        color: colors.surfaceAlt,
         borderRadius: effectiveRadius,
         border: Border.all(
-          color: colors.border.withValues(alpha: 0.3),
-        ),
-        // Simulated inset shadow using gradient
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [
-            Colors.black.withValues(alpha: 0.05),
-            Colors.transparent,
-            Colors.transparent,
-          ],
-          stops: const [0.0, 0.15, 1.0],
+          color: colors.border.withValues(alpha: 0.65),
         ),
       ),
       child: child,

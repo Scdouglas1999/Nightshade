@@ -1,6 +1,7 @@
 //! Alpaca HTTP Client
 
 use crate::{AlpacaDevice, AlpacaDeviceType};
+use chrono::{DateTime, Utc};
 use reqwest::Client;
 use serde::Deserialize;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -8,9 +9,8 @@ use std::time::Duration;
 use thiserror::Error;
 use tracing::{debug, warn};
 
-/// Client ID for Alpaca API calls (thread-safe)
-static CLIENT_ID: AtomicU32 = AtomicU32::new(1);
-static TRANSACTION_ID: AtomicU32 = AtomicU32::new(0);
+/// Allocate unique Alpaca ClientID values per `AlpacaClient` instance.
+static NEXT_CLIENT_ID: AtomicU32 = AtomicU32::new(1);
 
 /// Alpaca-specific error types
 #[derive(Debug, Error)]
@@ -22,7 +22,11 @@ pub enum AlpacaError {
     ConnectionRefused { url: String, cause: String },
 
     #[error("HTTP error {status}: {message}")]
-    HttpError { status: u16, message: String },
+    HttpError {
+        status: u16,
+        message: String,
+        retry_after: Option<Duration>,
+    },
 
     #[error("Device error {code}: {message}")]
     DeviceError { code: i32, message: String },
@@ -163,6 +167,13 @@ impl AlpacaError {
             AlpacaError::ClientInitializationFailed(_) => false,
         }
     }
+
+    pub fn retry_after(&self) -> Option<Duration> {
+        match self {
+            AlpacaError::HttpError { retry_after, .. } => *retry_after,
+            _ => None,
+        }
+    }
 }
 
 impl From<reqwest::Error> for AlpacaError {
@@ -192,6 +203,7 @@ impl From<reqwest::Error> for AlpacaError {
             AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: err.to_string(),
+                retry_after: None,
             }
         } else {
             AlpacaError::RequestFailed(err.to_string())
@@ -210,22 +222,6 @@ impl From<AlpacaError> for String {
     fn from(err: AlpacaError) -> Self {
         err.to_string()
     }
-}
-
-pub fn get_client_transaction() -> (u32, u32) {
-    let client_id = CLIENT_ID.load(Ordering::SeqCst);
-    let transaction_id = TRANSACTION_ID.fetch_add(1, Ordering::SeqCst);
-    (client_id, transaction_id)
-}
-
-/// Get the current client ID
-pub fn get_client_id() -> u32 {
-    CLIENT_ID.load(Ordering::SeqCst)
-}
-
-/// Set the client ID
-pub fn set_client_id(id: u32) {
-    CLIENT_ID.store(id, Ordering::SeqCst);
 }
 
 /// Timeout configuration for different operation types
@@ -399,6 +395,12 @@ impl RetryConfig {
         Duration::from_millis(final_delay as u64)
     }
 
+    pub fn delay_for_retry_error(&self, error: &AlpacaError, attempt: u32) -> Duration {
+        error
+            .retry_after()
+            .unwrap_or_else(|| self.delay_for_attempt(attempt))
+    }
+
     /// Create a config with no retries
     pub fn no_retry() -> Self {
         Self {
@@ -426,6 +428,33 @@ fn rand_simple() -> f64 {
     (f64::from(nanos) / f64::from(u32::MAX)).fract()
 }
 
+fn parse_retry_after_header(headers: &reqwest::header::HeaderMap) -> Option<Duration> {
+    headers
+        .get(reqwest::header::RETRY_AFTER)
+        .and_then(|value| value.to_str().ok())
+        .and_then(|value| parse_retry_after_value(value, Utc::now()))
+}
+
+fn parse_retry_after_value(value: &str, now: DateTime<Utc>) -> Option<Duration> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    if let Ok(seconds) = trimmed.parse::<u64>() {
+        return Some(Duration::from_secs(seconds));
+    }
+
+    let retry_at = DateTime::parse_from_rfc2822(trimmed)
+        .ok()?
+        .with_timezone(&Utc);
+    if retry_at <= now {
+        return Some(Duration::ZERO);
+    }
+
+    retry_at.signed_duration_since(now).to_std().ok()
+}
+
 /// Alpaca API version
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ApiVersion {
@@ -438,6 +467,15 @@ impl ApiVersion {
             ApiVersion::V1 => "v1",
         }
     }
+
+    /// Choose the best API version supported by both client and server.
+    pub fn negotiate(versions: &[u32]) -> Option<Self> {
+        if versions.contains(&1) {
+            Some(ApiVersion::V1)
+        } else {
+            None
+        }
+    }
 }
 
 /// Alpaca API response wrapper
@@ -445,7 +483,9 @@ impl ApiVersion {
 #[serde(rename_all = "PascalCase")]
 pub struct AlpacaResponse<T> {
     pub value: T,
+    #[serde(rename = "ClientTransactionID", alias = "ClientTransactionId")]
     pub client_transaction_id: u32,
+    #[serde(rename = "ServerTransactionID", alias = "ServerTransactionId")]
     pub server_transaction_id: u32,
     pub error_number: i32,
     pub error_message: String,
@@ -468,6 +508,8 @@ pub struct AlpacaClient {
     timeout_config: TimeoutConfig,
     retry_config: RetryConfig,
     api_version: ApiVersion,
+    client_id: u32,
+    transaction_id: AtomicU32,
 }
 
 impl AlpacaClient {
@@ -493,6 +535,7 @@ impl AlpacaClient {
             Err(err) => (None, Some(err.to_string())),
         };
 
+        let client_id = NEXT_CLIENT_ID.fetch_add(1, Ordering::Relaxed);
         Self {
             http_client,
             http_client_error,
@@ -502,7 +545,17 @@ impl AlpacaClient {
             timeout_config,
             retry_config,
             api_version: ApiVersion::V1,
+            client_id,
+            transaction_id: AtomicU32::new(0),
         }
+    }
+
+    /// Return `(ClientID, ClientTransactionID)` for this client instance.
+    pub fn client_transaction(&self) -> (u32, u32) {
+        (
+            self.client_id,
+            self.transaction_id.fetch_add(1, Ordering::SeqCst),
+        )
     }
 
     /// Get the base URL for this client
@@ -625,7 +678,9 @@ impl AlpacaClient {
 
                     // If not the last attempt, wait before retrying
                     if attempt + 1 < self.retry_config.max_attempts {
-                        let delay = self.retry_config.delay_for_attempt(attempt);
+                        let delay = self
+                            .retry_config
+                            .delay_for_retry_error(&last_error, attempt);
                         debug!(
                             "Request failed (attempt {}/{}), retrying in {:?}: {}",
                             attempt + 1,
@@ -654,7 +709,7 @@ impl AlpacaClient {
         self.execute_with_retry(|| {
             let endpoint = endpoint.clone();
             async move {
-                let (client_id, transaction_id) = get_client_transaction();
+                let (client_id, transaction_id) = self.client_transaction();
                 let url = format!(
                     "{}?ClientID={}&ClientTransactionID={}",
                     self.build_url(&endpoint),
@@ -666,10 +721,12 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
+                    let retry_after = parse_retry_after_header(response.headers());
                     let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
+                        retry_after,
                     });
                 }
 
@@ -719,7 +776,7 @@ impl AlpacaClient {
             let endpoint = endpoint.clone();
             let params = params.clone();
             async move {
-                let (client_id, transaction_id) = get_client_transaction();
+                let (client_id, transaction_id) = self.client_transaction();
                 let url = self.build_url(&endpoint);
                 let mut query: Vec<(&str, String)> = vec![
                     ("ClientID", client_id.to_string()),
@@ -738,10 +795,12 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
+                    let retry_after = parse_retry_after_header(response.headers());
                     let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
+                        retry_after,
                     });
                 }
 
@@ -775,7 +834,7 @@ impl AlpacaClient {
             let endpoint = endpoint.clone();
             let params = params.clone();
             async move {
-                let (client_id, transaction_id) = get_client_transaction();
+                let (client_id, transaction_id) = self.client_transaction();
                 let url = self.build_url(&endpoint);
 
                 let mut form_params: Vec<(&str, String)> = vec![
@@ -796,10 +855,12 @@ impl AlpacaClient {
 
                 let status = response.status();
                 if !status.is_success() {
+                    let retry_after = parse_retry_after_header(response.headers());
                     let body = response.text().await?;
                     return Err(AlpacaError::HttpError {
                         status: status.as_u16(),
                         message: body,
+                        retry_after,
                     });
                 }
 
@@ -835,7 +896,7 @@ impl AlpacaClient {
         endpoint: &str,
     ) -> Result<T, AlpacaError> {
         let client = self.create_quick_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = format!(
             "{}?ClientID={}&ClientTransactionID={}",
             self.build_url(endpoint),
@@ -847,10 +908,12 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after,
             });
         }
 
@@ -872,7 +935,7 @@ impl AlpacaClient {
         endpoint: &str,
     ) -> Result<T, AlpacaError> {
         let client = self.create_long_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = format!(
             "{}?ClientID={}&ClientTransactionID={}",
             self.build_url(endpoint),
@@ -884,10 +947,12 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after,
             });
         }
 
@@ -911,7 +976,7 @@ impl AlpacaClient {
         params: &[(&str, &str)],
     ) -> Result<T, AlpacaError> {
         let client = self.create_long_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = self.build_url(endpoint);
 
         let mut form_params: Vec<(&str, String)> = vec![
@@ -938,10 +1003,12 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after,
             });
         }
 
@@ -965,7 +1032,7 @@ impl AlpacaClient {
         params: &[(&str, &str)],
     ) -> Result<T, AlpacaError> {
         let client = self.create_very_long_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = self.build_url(endpoint);
 
         let mut form_params: Vec<(&str, String)> = vec![
@@ -992,10 +1059,12 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after,
             });
         }
 
@@ -1018,7 +1087,7 @@ impl AlpacaClient {
         endpoint: &str,
     ) -> Result<T, AlpacaError> {
         let client = self.create_very_long_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = format!(
             "{}?ClientID={}&ClientTransactionID={}",
             self.build_url(endpoint),
@@ -1036,10 +1105,12 @@ impl AlpacaClient {
 
         let status = response.status();
         if !status.is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             let body = response.text().await?;
             return Err(AlpacaError::HttpError {
                 status: status.as_u16(),
                 message: body,
+                retry_after,
             });
         }
 
@@ -1139,7 +1210,7 @@ impl AlpacaClient {
     pub async fn validate_connection(&self) -> Result<bool, AlpacaError> {
         // Use a quick timeout for validation
         let client = self.create_quick_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = format!(
             "{}?ClientID={}&ClientTransactionID={}",
             self.build_url("connected"),
@@ -1192,7 +1263,7 @@ impl AlpacaClient {
         let start = std::time::Instant::now();
 
         let client = self.create_quick_timeout_client()?;
-        let (client_id, transaction_id) = get_client_transaction();
+        let (client_id, transaction_id) = self.client_transaction();
         let url = format!(
             "{}?ClientID={}&ClientTransactionID={}",
             self.build_url("connected"),
@@ -1203,9 +1274,11 @@ impl AlpacaClient {
         let response = client.get(&url).send().await?;
 
         if !response.status().is_success() {
+            let retry_after = parse_retry_after_header(response.headers());
             return Err(AlpacaError::HttpError {
                 status: response.status().as_u16(),
                 message: "Heartbeat failed".to_string(),
+                retry_after,
             });
         }
 
@@ -1228,9 +1301,11 @@ impl AlpacaClient {
         match client.get(&url).send().await {
             Ok(response) => {
                 if !response.status().is_success() {
+                    let retry_after = parse_retry_after_header(response.headers());
                     return Err(AlpacaError::HttpError {
                         status: response.status().as_u16(),
                         message: "Failed to get API versions".to_string(),
+                        retry_after,
                     });
                 }
 
@@ -1250,9 +1325,9 @@ impl AlpacaClient {
         let versions = self.detect_api_versions().await?;
 
         // Currently we only support v1, but this framework allows future versions
-        if versions.contains(&1) {
-            self.api_version = ApiVersion::V1;
-            Ok(ApiVersion::V1)
+        if let Some(version) = ApiVersion::negotiate(&versions) {
+            self.api_version = version;
+            Ok(version)
         } else {
             Err(AlpacaError::UnsupportedApiVersion(format!(
                 "Server supports versions {:?}, but client only supports v1",
@@ -1332,12 +1407,20 @@ mod tests {
 
     #[test]
     fn test_transaction_id_uniqueness_single_thread() {
-        // Reset transaction ID to a known state
-        let _ = TRANSACTION_ID.fetch_add(0, Ordering::SeqCst);
+        let device = AlpacaDevice {
+            device_type: AlpacaDeviceType::Camera,
+            device_number: 0,
+            server_name: String::new(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: String::new(),
+            base_url: "http://127.0.0.1:11111".to_string(),
+        };
+        let client = AlpacaClient::new(&device);
 
         let mut ids = HashSet::new();
         for _ in 0..1000 {
-            let (_, tid) = get_client_transaction();
+            let (_, tid) = client.client_transaction();
             assert!(ids.insert(tid), "Transaction ID {} was not unique", tid);
         }
         assert_eq!(ids.len(), 1000);
@@ -1347,15 +1430,26 @@ mod tests {
     fn test_transaction_id_uniqueness_multi_thread() {
         use std::sync::Mutex;
 
+        let device = AlpacaDevice {
+            device_type: AlpacaDeviceType::Camera,
+            device_number: 0,
+            server_name: String::new(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: String::new(),
+            base_url: "http://127.0.0.1:11111".to_string(),
+        };
+        let client = Arc::new(AlpacaClient::new(&device));
         let ids = Arc::new(Mutex::new(HashSet::new()));
         let mut handles = vec![];
 
-        // Spawn 10 threads, each generating 100 transaction IDs
+        // Spawn 10 threads sharing one client — transaction IDs must stay unique.
         for _ in 0..10 {
+            let client = Arc::clone(&client);
             let handle = thread::spawn(move || {
                 let mut local_ids = Vec::new();
                 for _ in 0..100 {
-                    let (_, tid) = get_client_transaction();
+                    let (_, tid) = client.client_transaction();
                     local_ids.push(tid);
                 }
                 local_ids
@@ -1387,26 +1481,36 @@ mod tests {
     }
 
     #[test]
-    fn test_client_id_get_set() {
-        let original = get_client_id();
-
-        set_client_id(42);
-        assert_eq!(get_client_id(), 42);
-
-        set_client_id(100);
-        assert_eq!(get_client_id(), 100);
-
-        // Restore original
-        set_client_id(original);
+    fn test_client_id_per_instance() {
+        let device = AlpacaDevice {
+            device_type: AlpacaDeviceType::Camera,
+            device_number: 0,
+            server_name: String::new(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: String::new(),
+            base_url: "http://127.0.0.1:11111".to_string(),
+        };
+        let a = AlpacaClient::new(&device);
+        let b = AlpacaClient::new(&device);
+        assert_ne!(a.client_transaction().0, b.client_transaction().0);
     }
 
     #[test]
     fn test_transaction_id_atomicity() {
-        // Test that fetch_add is atomic by checking that we get sequential IDs
-        let id1 = TRANSACTION_ID.fetch_add(1, Ordering::SeqCst);
-        let id2 = TRANSACTION_ID.fetch_add(1, Ordering::SeqCst);
-        let id3 = TRANSACTION_ID.fetch_add(1, Ordering::SeqCst);
-
+        let device = AlpacaDevice {
+            device_type: AlpacaDeviceType::Camera,
+            device_number: 0,
+            server_name: String::new(),
+            manufacturer: String::new(),
+            device_name: String::new(),
+            unique_id: String::new(),
+            base_url: "http://127.0.0.1:11111".to_string(),
+        };
+        let client = AlpacaClient::new(&device);
+        let (_, id1) = client.client_transaction();
+        let (_, id2) = client.client_transaction();
+        let (_, id3) = client.client_transaction();
         assert_eq!(id2, id1 + 1);
         assert_eq!(id3, id2 + 1);
     }
@@ -1466,6 +1570,56 @@ mod tests {
     }
 
     #[test]
+    fn test_retry_after_delta_seconds_parsing() {
+        let now = DateTime::parse_from_rfc2822("Sun, 06 Nov 1994 08:49:37 GMT")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        assert_eq!(
+            parse_retry_after_value("7", now),
+            Some(Duration::from_secs(7))
+        );
+        assert_eq!(parse_retry_after_value(" ", now), None);
+    }
+
+    #[test]
+    fn test_retry_after_http_date_parsing() {
+        let now = DateTime::parse_from_rfc2822("Sun, 06 Nov 1994 08:49:37 GMT")
+            .unwrap()
+            .with_timezone(&Utc);
+
+        assert_eq!(
+            parse_retry_after_value("Sun, 06 Nov 1994 08:49:42 GMT", now),
+            Some(Duration::from_secs(5))
+        );
+        assert_eq!(
+            parse_retry_after_value("Sun, 06 Nov 1994 08:49:36 GMT", now),
+            Some(Duration::ZERO)
+        );
+    }
+
+    #[test]
+    fn test_retry_config_prefers_retry_after_header() {
+        let config = RetryConfig {
+            max_attempts: 3,
+            initial_delay_ms: 100,
+            max_delay_ms: 5000,
+            backoff_multiplier: 2.0,
+            use_jitter: false,
+        };
+        let error = AlpacaError::HttpError {
+            status: 429,
+            message: "rate limited".to_string(),
+            retry_after: Some(Duration::from_secs(3)),
+        };
+
+        assert_eq!(
+            config.delay_for_retry_error(&error, 0),
+            Duration::from_secs(3)
+        );
+    }
+
+    #[test]
     fn test_alpaca_error_conversion() {
         let error = AlpacaError::timeout("test_operation", 5000);
         let error_string: String = error.into();
@@ -1489,17 +1643,20 @@ mod tests {
         assert!(AlpacaError::RequestFailed("network error".to_string()).is_retryable());
         assert!(AlpacaError::HttpError {
             status: 500,
-            message: "server error".to_string()
+            message: "server error".to_string(),
+            retry_after: None
         }
         .is_retryable());
         assert!(AlpacaError::HttpError {
             status: 503,
-            message: "unavailable".to_string()
+            message: "unavailable".to_string(),
+            retry_after: None
         }
         .is_retryable());
         assert!(AlpacaError::HttpError {
             status: 429,
-            message: "rate limited".to_string()
+            message: "rate limited".to_string(),
+            retry_after: Some(Duration::from_secs(1))
         }
         .is_retryable());
 
@@ -1513,12 +1670,14 @@ mod tests {
         assert!(!AlpacaError::NotConnected.is_retryable());
         assert!(!AlpacaError::HttpError {
             status: 400,
-            message: "bad request".to_string()
+            message: "bad request".to_string(),
+            retry_after: None
         }
         .is_retryable());
         assert!(!AlpacaError::HttpError {
             status: 404,
-            message: "not found".to_string()
+            message: "not found".to_string(),
+            retry_after: None
         }
         .is_retryable());
     }
@@ -1560,5 +1719,7 @@ mod tests {
     #[test]
     fn test_api_version() {
         assert_eq!(ApiVersion::V1.as_str(), "v1");
+        assert_eq!(ApiVersion::negotiate(&[2, 1]), Some(ApiVersion::V1));
+        assert_eq!(ApiVersion::negotiate(&[2, 3]), None);
     }
 }

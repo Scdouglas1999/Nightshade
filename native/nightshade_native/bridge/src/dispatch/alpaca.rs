@@ -13,91 +13,92 @@ use std::sync::Arc;
 impl DeviceManager {
     /// Connect to an Alpaca device
     pub(crate) async fn connect_alpaca(&self, info: &DeviceInfo) -> Result<(), String> {
+        use crate::device_id::{parse_device_id_cached, ConnectionInfo};
         use nightshade_alpaca::*;
 
-        // Parse alpaca:url:type:number format
-        let parts: Vec<&str> = info
-            .id
-            .strip_prefix("alpaca:")
-            .ok_or_else(|| "Invalid Alpaca device ID".to_string())?
-            .splitn(3, ':')
-            .collect();
+        let parsed = parse_device_id_cached(&info.id)
+            .map_err(|e| format!("Invalid Alpaca device ID '{}': {}", info.id, e))?;
 
-        if parts.len() < 3 {
-            return Err("Invalid Alpaca device ID format".to_string());
-        }
-
-        let base_url = parts[0];
-        let device_number: u32 = parts[2]
-            .parse()
-            .map_err(|_| "Invalid device number".to_string())?;
+        let (base_url, device_number) = match parsed.connection_info {
+            ConnectionInfo::Alpaca {
+                base_url,
+                device_num,
+                ..
+            } => (base_url, device_num),
+            _ => {
+                return Err(format!(
+                    "Device ID '{}' is not an Alpaca device (got {:?})",
+                    info.id, parsed.driver_type
+                ));
+            }
+        };
 
         match info.device_type {
             DeviceType::Camera => {
-                let camera = AlpacaCamera::from_server(base_url, device_number);
+                let camera = AlpacaCamera::from_server(&base_url, device_number);
                 camera.connect().await?;
                 // Store for later use
                 let mut alpaca_cameras = self.alpaca_cameras.write().await;
                 alpaca_cameras.insert(info.id.clone(), Arc::new(camera));
             }
             DeviceType::Mount => {
-                let telescope = AlpacaTelescope::from_server(base_url, device_number);
+                let telescope = AlpacaTelescope::from_server(&base_url, device_number);
                 telescope.connect().await?;
                 // Store for later use
                 let mut alpaca_mounts = self.alpaca_mounts.write().await;
                 alpaca_mounts.insert(info.id.clone(), Arc::new(telescope));
             }
             DeviceType::Focuser => {
-                let focuser = AlpacaFocuser::from_server(base_url, device_number);
+                let focuser = AlpacaFocuser::from_server(&base_url, device_number);
                 focuser.connect().await?;
                 // Store for later use
                 let mut alpaca_focusers = self.alpaca_focusers.write().await;
                 alpaca_focusers.insert(info.id.clone(), Arc::new(focuser));
             }
             DeviceType::FilterWheel => {
-                let fw = AlpacaFilterWheel::from_server(base_url, device_number);
+                let fw = AlpacaFilterWheel::from_server(&base_url, device_number);
                 fw.connect().await?;
                 // Store for later use
                 let mut alpaca_filter_wheels = self.alpaca_filter_wheels.write().await;
                 alpaca_filter_wheels.insert(info.id.clone(), Arc::new(fw));
             }
             DeviceType::Rotator => {
-                let rotator = AlpacaRotator::from_server(base_url, device_number);
+                let rotator = AlpacaRotator::from_server(&base_url, device_number);
                 rotator.connect().await?;
                 // Store for later use
                 let mut alpaca_rotators = self.alpaca_rotators.write().await;
                 alpaca_rotators.insert(info.id.clone(), Arc::new(rotator));
             }
             DeviceType::Dome => {
-                let dome = AlpacaDome::from_server(base_url, device_number);
+                let dome = AlpacaDome::from_server(&base_url, device_number);
                 dome.connect().await?;
                 // Store for later use
                 let mut alpaca_domes = self.alpaca_domes.write().await;
                 alpaca_domes.insert(info.id.clone(), Arc::new(dome));
             }
             DeviceType::Weather => {
-                let weather = AlpacaObservingConditions::from_server(base_url, device_number);
+                let weather = AlpacaObservingConditions::from_server(&base_url, device_number);
                 weather.connect().await?;
                 // Store for later use
                 let mut alpaca_weather = self.alpaca_weather.write().await;
                 alpaca_weather.insert(info.id.clone(), Arc::new(weather));
             }
             DeviceType::SafetyMonitor => {
-                let safety = AlpacaSafetyMonitor::from_server(base_url, device_number);
+                let safety = AlpacaSafetyMonitor::from_server(&base_url, device_number);
                 safety.connect().await?;
                 // Store for later use
                 let mut alpaca_safety = self.alpaca_safety_monitors.write().await;
                 alpaca_safety.insert(info.id.clone(), Arc::new(safety));
             }
             DeviceType::Switch => {
-                let switch = AlpacaSwitch::from_server(base_url, device_number);
+                let switch = AlpacaSwitch::from_server(&base_url, device_number);
                 switch.connect().await?;
                 // Store for later use
                 let mut alpaca_switches = self.alpaca_switches.write().await;
                 alpaca_switches.insert(info.id.clone(), Arc::new(switch));
             }
             DeviceType::CoverCalibrator => {
-                let cover_cal = AlpacaCoverCalibrator::from_server(base_url, device_number);
+                let cover_cal = AlpacaCoverCalibrator::from_server(&base_url, device_number);
                 cover_cal.connect().await?;
                 // Store for later use
                 let mut alpaca_cover_cals = self.alpaca_cover_calibrators.write().await;

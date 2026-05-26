@@ -23,6 +23,15 @@ impl AscomObservingConditions {
         self.device.disconnect()
     }
 
+    /// Query the underlying ASCOM driver for its current `Connected` state.
+    ///
+    /// Used by capability probes that must NOT kick an active UI connection:
+    /// if the driver reports `Ok(true)`, the probe reuses the connection
+    /// instead of opening/closing its own session.
+    pub fn is_connected(&self) -> Result<bool, String> {
+        self.device.is_connected()
+    }
+
     pub fn name(&self) -> Result<String, String> {
         self.device.get_string_property("Name")
     }
@@ -99,6 +108,33 @@ impl AscomObservingConditions {
         self.device.get_double_property("WindSpeed")
     }
 
+    /// Force the driver to refresh sensor readings (IObservingConditions `Refresh`).
+    pub fn refresh(&self) -> Result<(), String> {
+        self.device.call_method("Refresh")
+    }
+
+    /// Averaging period in hours (IObservingConditions `AveragePeriod`).
+    pub fn average_period(&self) -> Result<f64, String> {
+        self.device.get_double_property("AveragePeriod")
+    }
+
+    /// Set averaging period in hours (IObservingConditions `AveragePeriod` write).
+    pub fn set_average_period(&mut self, period: f64) -> Result<(), String> {
+        self.device.set_double_property("AveragePeriod", period)
+    }
+
+    /// Seconds since the named sensor was last updated (`TimeSinceLastUpdate`).
+    pub fn time_since_last_update(&self, property_name: &str) -> Result<f64, String> {
+        self.device
+            .get_double_property_indexed("TimeSinceLastUpdate", property_name)
+    }
+
+    /// Human-readable description for a sensor (`SensorDescription`).
+    pub fn sensor_description(&self, property_name: &str) -> Result<String, String> {
+        self.device
+            .get_string_property_indexed("SensorDescription", property_name)
+    }
+
     // ========================================================================
     // Batch Property Queries
     // ========================================================================
@@ -140,6 +176,11 @@ impl AscomObservingConditions {
             weather: self.get_weather_status(),
             wind: self.get_wind_status(),
             sky: self.get_sky_status(),
+            average_period: self.average_period().ok(),
+            temperature_age_secs: self.time_since_last_update("Temperature").ok(),
+            humidity_age_secs: self.time_since_last_update("Humidity").ok(),
+            temperature_description: self.sensor_description("Temperature").ok(),
+            humidity_description: self.sensor_description("Humidity").ok(),
         }
     }
 
@@ -188,4 +229,39 @@ pub struct ObservingConditionsFullStatus {
     pub weather: WeatherStatus,
     pub wind: WindStatus,
     pub sky: SkyStatus,
+    pub average_period: Option<f64>,
+    pub temperature_age_secs: Option<f64>,
+    pub humidity_age_secs: Option<f64>,
+    pub temperature_description: Option<String>,
+    pub humidity_description: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{ObservingConditionsFullStatus, SkyStatus, WeatherStatus, WindStatus};
+
+    #[test]
+    fn full_status_carries_staleness_metadata() {
+        let status = ObservingConditionsFullStatus {
+            weather: WeatherStatus {
+                temperature: Some(12.5),
+                humidity: Some(55.0),
+                ..Default::default()
+            },
+            wind: WindStatus::default(),
+            sky: SkyStatus::default(),
+            average_period: Some(5.0),
+            temperature_age_secs: Some(2.0),
+            humidity_age_secs: Some(3.5),
+            temperature_description: Some("Ambient probe".into()),
+            humidity_description: Some("RH sensor".into()),
+        };
+
+        assert_eq!(status.average_period, Some(5.0));
+        assert_eq!(status.temperature_age_secs, Some(2.0));
+        assert_eq!(
+            status.temperature_description.as_deref(),
+            Some("Ambient probe")
+        );
+    }
 }

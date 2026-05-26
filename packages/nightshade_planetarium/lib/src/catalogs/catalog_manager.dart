@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'dart:math' as math;
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:path/path.dart' as path;
@@ -30,6 +31,28 @@ double _angularDistance(double ra1, double dec1, double ra2, double dec2) {
 
   // Return distance in degrees
   return c * 180.0 / math.pi;
+}
+
+String _normalizeCatalogSearchText(String value) {
+  final compact = value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]+'), '');
+  return compact.replaceFirstMapped(
+    RegExp(r'^(m|ngc|ic|hip|hd|hyg)0*(\d+)$'),
+    (match) => '${match.group(1)}${int.parse(match.group(2)!)}',
+  );
+}
+
+bool _catalogTextMatches(String value, String rawQuery, String normalizedQuery) {
+  final rawValue = value.toLowerCase();
+  if (rawValue.contains(rawQuery)) return true;
+  final normalizedValue = _normalizeCatalogSearchText(value);
+  return normalizedQuery.isNotEmpty &&
+      (normalizedValue.contains(normalizedQuery) ||
+          normalizedQuery.contains(normalizedValue));
+}
+
+bool _catalogTextEquals(String value, String rawQuery, String normalizedQuery) {
+  return value.toLowerCase() == rawQuery ||
+      _normalizeCatalogSearchText(value) == normalizedQuery;
 }
 
 /// Available catalog packages with different size/detail levels
@@ -279,13 +302,28 @@ class CatalogManager {
   
   String? _catalogDirectory;
   final _downloadController = StreamController<DownloadProgress>.broadcast();
+
+  /// P1-12: lifecycle events for the unified catalog API used by the
+  /// headless `/api/catalog/...` surface. Distinct from
+  /// [downloadProgress] because the headless event stream wants
+  /// structured per-name events (`CatalogDownloadStarted`,
+  /// `CatalogVerified`, `CatalogUninstalled`, ...) that the legacy
+  /// per-progress controller does not emit.
+  final _eventController = StreamController<CatalogEvent>.broadcast();
+
   HygCatalogLoader? _starLoader;
   String? _starLoaderPath;
   OpenNgcCatalogLoader? _dsoLoader;
   String? _dsoLoaderPath;
-  
+
   /// Stream of download progress updates
   Stream<DownloadProgress> get downloadProgress => _downloadController.stream;
+
+  /// P1-12: stream of structured lifecycle events used by the headless
+  /// API. Every catalog install, verify, uninstall, or reload publishes
+  /// an event here so `HeadlessApiServer` can fan it out over the WS
+  /// event stream.
+  Stream<CatalogEvent> get events => _eventController.stream;
   
   /// Check if catalog manager has been initialized
   bool get isInitialized => _catalogDirectory != null;
@@ -895,6 +933,7 @@ class CatalogManager {
     
     final results = <CatalogSearchResult>[];
     final q = query.toLowerCase();
+    final normalizedQuery = _normalizeCatalogSearchText(query);
     
     // Search DSO catalog if installed
     final dsoStatus = await getDsoCatalogStatus();
@@ -905,8 +944,12 @@ class CatalogManager {
         
         // Prioritize exact matches
         final exactMatches = dsos.where((d) => 
-          d.name.toLowerCase() == q || 
-          d.displayName.toLowerCase() == q
+          _catalogTextEquals(d.name, q, normalizedQuery) ||
+          _catalogTextEquals(d.displayName, q, normalizedQuery) ||
+          (d.messier != null &&
+              _catalogTextEquals(d.messier!, q, normalizedQuery)) ||
+          (d.ngcId != null &&
+              _catalogTextEquals(d.ngcId!, q, normalizedQuery))
         ).toList();
         
         final partialMatches = dsos.where((d) => 
@@ -946,8 +989,21 @@ class CatalogManager {
       try {
         final loader = _getStarLoader(starStatus.installedPath!);
         final stars = await loader.search(query);
-        
-        results.addAll(stars.take(20).map((s) => CatalogSearchResult(
+
+        final exactMatches = stars.where((s) =>
+          _catalogTextEquals(s.name, q, normalizedQuery) ||
+          _catalogTextEquals(s.catalogId, q, normalizedQuery) ||
+          (s.hipId != null &&
+              _catalogTextEquals('HIP${s.hipId}', q, normalizedQuery)) ||
+          (s.hdId != null &&
+              _catalogTextEquals('HD${s.hdId}', q, normalizedQuery))
+        ).toList();
+
+        final partialMatches = stars.where((s) =>
+          !exactMatches.contains(s)
+        ).take(20).toList();
+
+        results.addAll([...exactMatches, ...partialMatches].take(20).map((s) => CatalogSearchResult(
           name: s.name,
           catalogId: s.catalogId,
           ra: s.ra,
@@ -1024,6 +1080,701 @@ class CatalogManager {
   /// Dispose resources
   void dispose() {
     _downloadController.close();
+    _eventController.close();
+  }
+
+  // ===========================================================================
+  // P1-12: Unified catalog API for the headless `/api/catalog/...` surface.
+  //
+  // The legacy per-type methods (`downloadStarCatalog`, `downloadDsoCatalog`,
+  // `downloadAnnotationCatalog`) continue to power the desktop
+  // `CatalogSettingsScreen`. The methods below are a thin coordinator on top
+  // that exposes a single "name → result" surface so a REST client can talk
+  // about "the catalog named `stars`" without caring about the underlying
+  // source/file shape.
+  // ===========================================================================
+
+  /// Canonical list of catalogs the headless API knows how to manage.
+  /// Keyed by the catalog `name` exposed on the wire (`stars`, `dso`,
+  /// `annotation`).
+  static const Map<String, CatalogDescriptor> knownCatalogs = {
+    'stars': CatalogDescriptor(
+      name: 'stars',
+      displayName: 'HYG Star Database',
+      description:
+          'Combined Hipparcos, Yale Bright Star, and Gliese catalogs; ~120k stars.',
+      fileName: 'hyg_v42.csv',
+      metadataFileName: 'stars_metadata.json',
+      version: '4.2',
+      approximateSizeBytes: 35 * 1024 * 1024,
+      downloadUrl:
+          'https://codeberg.org/astronexus/hyg/media/branch/main/data/hyg/CURRENT/hyg_v42.csv.gz',
+      isGzipped: true,
+      // Plate solving needs a star catalog; this is the minimum.
+      requiredForPlateSolve: true,
+    ),
+    'dso': CatalogDescriptor(
+      name: 'dso',
+      displayName: 'OpenNGC Deep Sky Objects',
+      description: 'NGC/IC deep sky objects with ~13k objects.',
+      fileName: 'NGC.csv',
+      metadataFileName: 'dso_metadata.json',
+      version: '2023.12',
+      approximateSizeBytes: 5 * 1024 * 1024,
+      downloadUrl:
+          'https://raw.githubusercontent.com/mattiaverga/OpenNGC/master/database_files/NGC.csv',
+      isGzipped: false,
+      requiredForPlateSolve: false,
+    ),
+    'annotation': CatalogDescriptor(
+      name: 'annotation',
+      displayName: 'GLADE+ Galaxy Catalog',
+      description:
+          'Galaxy List for the Advanced Detector Era (B-magnitude ≤ 17 tier).',
+      fileName: 'glade_plus_galaxies.csv',
+      metadataFileName: 'annotation_metadata.json',
+      version: '2022',
+      // GLADE+ standard tier ≈ 50 MB; complete is ~2 GB.
+      approximateSizeBytes: 50 * 1024 * 1024,
+      // Built dynamically via [buildGladePlusUrl] for the `standard` tier.
+      downloadUrl: '',
+      isGzipped: false,
+      requiredForPlateSolve: false,
+    ),
+  };
+
+  /// Returns the on-disk state for every known catalog.
+  ///
+  /// Used by `GET /api/catalog/status`. Catalogs that have never been
+  /// downloaded show `status: missing`. Catalogs whose metadata file is
+  /// missing or corrupted show `status: partial`. SHA-256 verification is
+  /// NOT run here (it would scan multi-MB files on every status poll);
+  /// callers that want a deep check use `POST /api/catalog/verify`.
+  Future<List<InstalledCatalogStatus>> getInstalledStatuses() async {
+    if (!isInitialized) {
+      return knownCatalogs.values
+          .map((d) => InstalledCatalogStatus(
+                name: d.name,
+                status: CatalogInstallStatus.missing,
+              ))
+          .toList(growable: false);
+    }
+
+    final results = <InstalledCatalogStatus>[];
+    for (final descriptor in knownCatalogs.values) {
+      results.add(await _statusFor(descriptor));
+    }
+    return results;
+  }
+
+  Future<InstalledCatalogStatus> _statusFor(
+      CatalogDescriptor descriptor) async {
+    final filePath = path.join(catalogDirectory, descriptor.fileName);
+    final file = File(filePath);
+    if (!await file.exists()) {
+      return InstalledCatalogStatus(
+        name: descriptor.name,
+        status: CatalogInstallStatus.missing,
+      );
+    }
+
+    int fileSize = 0;
+    try {
+      fileSize = await file.length();
+    } on FileSystemException {
+      return InstalledCatalogStatus(
+        name: descriptor.name,
+        status: CatalogInstallStatus.corrupted,
+        errors: ['Failed to stat catalog file'],
+      );
+    }
+
+    if (fileSize == 0) {
+      return InstalledCatalogStatus(
+        name: descriptor.name,
+        sizeBytes: 0,
+        fileCount: 1,
+        status: CatalogInstallStatus.corrupted,
+        errors: ['Catalog file is empty'],
+      );
+    }
+
+    final metaPath =
+        path.join(catalogDirectory, descriptor.metadataFileName);
+    final metaFile = File(metaPath);
+    String? version;
+    DateTime? installedAt;
+    DateTime? lastVerified;
+    String? expectedHash;
+    int? objectCount;
+    if (await metaFile.exists()) {
+      try {
+        final raw = jsonDecode(await metaFile.readAsString());
+        if (raw is Map<String, dynamic>) {
+          version = raw['version'] as String?;
+          installedAt =
+              DateTime.tryParse(raw['installedDate']?.toString() ?? '');
+          lastVerified =
+              DateTime.tryParse(raw['lastVerified']?.toString() ?? '');
+          expectedHash = raw['sha256'] as String?;
+          objectCount = raw['objectCount'] is int
+              ? raw['objectCount'] as int
+              : (raw['objectCount'] as num?)?.toInt();
+        }
+      } catch (e) {
+        developer.log(
+          '[Catalog] _statusFor($descriptor): malformed metadata: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
+        return InstalledCatalogStatus(
+          name: descriptor.name,
+          sizeBytes: fileSize,
+          fileCount: 1,
+          status: CatalogInstallStatus.partial,
+          errors: ['Metadata file is malformed'],
+        );
+      }
+    }
+
+    return InstalledCatalogStatus(
+      name: descriptor.name,
+      version: version ?? descriptor.version,
+      sizeBytes: fileSize,
+      fileCount: await metaFile.exists() ? 2 : 1,
+      installedAt: installedAt,
+      lastVerified: lastVerified,
+      expectedHash: expectedHash,
+      objectCount: objectCount,
+      status: CatalogInstallStatus.installed,
+    );
+  }
+
+  /// Lists the catalogs available for download.
+  ///
+  /// In the current implementation the manifest is the static
+  /// [knownCatalogs] map; a future revision can swap this for a live
+  /// fetch from a configured catalog manifest server. The method is
+  /// declared async so the wire shape does not need to change when that
+  /// happens.
+  ///
+  /// The returned `sha256` is omitted (null) when the descriptor does
+  /// not have a known canonical hash. A future manifest server can
+  /// publish per-version hashes; clients then call
+  /// `POST /api/catalog/verify` after downloading to confirm.
+  Future<List<AvailableCatalog>> listAvailable() async {
+    return knownCatalogs.values
+        .map((d) => AvailableCatalog(
+              name: d.name,
+              displayName: d.displayName,
+              version: d.version,
+              description: d.description,
+              downloadUrl:
+                  d.downloadUrl.isNotEmpty ? d.downloadUrl : null,
+              sizeBytes: d.approximateSizeBytes,
+              sha256: null,
+              requiredForPlateSolve: d.requiredForPlateSolve,
+            ))
+        .toList(growable: false);
+  }
+
+  /// Download + install a catalog by name.
+  ///
+  /// `name` must be one of the keys in [knownCatalogs]. Throws
+  /// [ArgumentError] otherwise.
+  ///
+  /// Implementation:
+  ///   1. Stream the bytes into a temp file inside the catalog
+  ///      directory (NOT into the final destination — a partial file
+  ///      would otherwise overwrite a previously-working install).
+  ///   2. Decompress when [CatalogDescriptor.isGzipped] is true.
+  ///   3. Compute SHA-256 over the final (decompressed) bytes.
+  ///   4. Atomically rename into place.
+  ///   5. Write the metadata sidecar with the recorded hash.
+  ///   6. Invalidate any cached loaders so subsequent searches pick up
+  ///      the new file immediately.
+  ///   7. Emit [CatalogEvent] start/progress/complete entries.
+  ///
+  /// [onProgress] is invoked with `(downloadedBytes, totalBytes)` —
+  /// totalBytes may be -1 when the server does not send
+  /// `Content-Length` (rare for our manifests but possible for VizieR
+  /// TAP). [cancel], when supplied, is polled on every chunk; throws
+  /// [CatalogCancelled] when the operator cancels mid-download.
+  Future<CatalogInstallResult> downloadAndInstall(
+    String name, {
+    String? jobId,
+    void Function(int downloaded, int total)? onProgress,
+    Future<bool> Function()? isCancelled,
+  }) async {
+    final descriptor = knownCatalogs[name];
+    if (descriptor == null) {
+      throw ArgumentError.value(name, 'name', 'Unknown catalog name');
+    }
+    if (!isInitialized) {
+      throw StateError('CatalogManager not initialized');
+    }
+    final downloadUrl = descriptor.downloadUrl.isNotEmpty
+        ? descriptor.downloadUrl
+        : (name == 'annotation'
+            ? buildGladePlusUrl(AnnotationPackage.standard)
+            : '');
+    if (downloadUrl.isEmpty) {
+      throw StateError('No download URL configured for catalog $name');
+    }
+
+    final dir = Directory(catalogDirectory);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final finalPath = path.join(catalogDirectory, descriptor.fileName);
+    final tempPath =
+        path.join(catalogDirectory, '.${descriptor.fileName}.partial');
+    final metaPath =
+        path.join(catalogDirectory, descriptor.metadataFileName);
+
+    _eventController.add(CatalogEvent.downloadStarted(
+      jobId: jobId,
+      name: descriptor.name,
+      downloadUrl: downloadUrl,
+      totalBytes: descriptor.approximateSizeBytes,
+    ));
+
+    final client = http.Client();
+    int totalBytes = -1;
+    int downloadedBytes = 0;
+    DateTime lastProgressEmit =
+        DateTime.fromMillisecondsSinceEpoch(0, isUtc: true);
+    try {
+      final request = http.Request('GET', Uri.parse(downloadUrl));
+      final response = await client.send(request);
+      if (response.statusCode != 200) {
+        throw CatalogDownloadException(
+          phase: 'http_send',
+          message:
+              'HTTP ${response.statusCode} downloading $name from $downloadUrl',
+        );
+      }
+      totalBytes = response.contentLength ?? -1;
+
+      // Stream into the temp file. We collect bytes for SHA when gzip is
+      // off (so the on-disk file IS the hashed bytes); when gzip is on
+      // we keep the compressed bytes in-memory because we need to
+      // decompress before writing the final file anyway.
+      final tempFile = File(tempPath);
+      // Ensure no leftover partial from a prior failed run.
+      if (await tempFile.exists()) {
+        await tempFile.delete();
+      }
+      final compressedSink = descriptor.isGzipped ? null : tempFile.openWrite();
+      final compressedBuffer = descriptor.isGzipped ? <int>[] : null;
+
+      try {
+        await for (final chunk in response.stream) {
+          if (isCancelled != null && await isCancelled()) {
+            throw const CatalogCancelled();
+          }
+          if (compressedSink != null) {
+            compressedSink.add(chunk);
+          } else {
+            compressedBuffer!.addAll(chunk);
+          }
+          downloadedBytes += chunk.length;
+          onProgress?.call(downloadedBytes, totalBytes);
+
+          final now = DateTime.now();
+          if (now.difference(lastProgressEmit).inMilliseconds >= 1000) {
+            lastProgressEmit = now;
+            _eventController.add(CatalogEvent.downloadProgress(
+              jobId: jobId,
+              name: descriptor.name,
+              downloadedBytes: downloadedBytes,
+              totalBytes: totalBytes,
+            ));
+          }
+        }
+      } finally {
+        await compressedSink?.close();
+      }
+
+      // Decompression / final-file materialisation.
+      Uint8List finalBytes;
+      if (descriptor.isGzipped) {
+        try {
+          finalBytes = Uint8List.fromList(gzip.decode(compressedBuffer!));
+        } catch (e) {
+          throw CatalogDownloadException(
+            phase: 'decompress',
+            message: 'Failed to gunzip $name: $e',
+          );
+        }
+        // Now write the decompressed payload to the temp file.
+        await tempFile.writeAsBytes(finalBytes, flush: true);
+      } else {
+        finalBytes = await tempFile.readAsBytes();
+      }
+
+      if (finalBytes.isEmpty) {
+        throw CatalogDownloadException(
+          phase: 'verify',
+          message: 'Downloaded $name is empty after decompression',
+        );
+      }
+
+      // SHA-256 over the FINAL bytes (post-decompression). This is what
+      // a subsequent `verify` call will re-compute. We record this in
+      // the metadata sidecar so verify can compare against it.
+      final actualHash = sha256.convert(finalBytes).toString();
+
+      // Atomic rename.
+      final finalFile = File(finalPath);
+      if (await finalFile.exists()) {
+        await finalFile.delete();
+      }
+      await tempFile.rename(finalPath);
+
+      // Object count for the metadata sidecar.
+      final objectCount = await _countObjects(finalPath);
+      final installedAt = DateTime.now().toUtc();
+      final metadata = <String, Object?>{
+        'source': descriptor.displayName,
+        'name': descriptor.name,
+        'version': descriptor.version,
+        'sha256': actualHash,
+        'objectCount': objectCount,
+        'sizeBytes': finalBytes.length,
+        'installedDate': installedAt.toIso8601String(),
+        'downloadUrl': downloadUrl,
+        if (descriptor.name == 'annotation') 'package': 'standard',
+      };
+      await File(metaPath).writeAsString(jsonEncode(metadata));
+
+      // Invalidate cached loaders so the next search picks up the new file.
+      _invalidateLocalCatalogLoaders(
+        stars: descriptor.name == 'stars',
+        dsos: descriptor.name == 'dso',
+      );
+
+      _eventController.add(CatalogEvent.downloadComplete(
+        jobId: jobId,
+        name: descriptor.name,
+        version: descriptor.version,
+        sizeBytes: finalBytes.length,
+        sha256: actualHash,
+      ));
+
+      return CatalogInstallResult(
+        name: descriptor.name,
+        sha256: actualHash,
+        sizeBytes: finalBytes.length,
+        objectCount: objectCount,
+        version: descriptor.version,
+        installedAt: installedAt,
+      );
+    } on CatalogCancelled {
+      // Best-effort cleanup; not throwing here because the cancel itself
+      // is the signal that should propagate.
+      final tempFile = File(tempPath);
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {
+          // Cleanup failure is logged but does not mask the cancel.
+          developer.log(
+            '[Catalog] downloadAndInstall($name): failed to delete partial after cancel',
+            name: 'CatalogManager',
+            level: 900,
+          );
+        }
+      }
+      _eventController.add(CatalogEvent.downloadFailed(
+        jobId: jobId,
+        name: descriptor.name,
+        error: 'cancelled',
+        phase: 'cancelled',
+      ));
+      rethrow;
+    } catch (e) {
+      // Surface failure events before rethrowing so subscribers always
+      // see a terminating event for the started download.
+      _eventController.add(CatalogEvent.downloadFailed(
+        jobId: jobId,
+        name: descriptor.name,
+        error: e.toString(),
+        phase: e is CatalogDownloadException ? e.phase : 'unknown',
+      ));
+      final tempFile = File(tempPath);
+      if (await tempFile.exists()) {
+        try {
+          await tempFile.delete();
+        } catch (_) {
+          // Per CLAUDE.md "errors are a feature" — log loudly so the
+          // operator can clean up manually if needed.
+          developer.log(
+            '[Catalog] downloadAndInstall($name): failed to delete partial after error',
+            name: 'CatalogManager',
+            level: 1000,
+          );
+        }
+      }
+      rethrow;
+    } finally {
+      client.close();
+    }
+  }
+
+  /// Install a catalog from a pre-staged file on disk. Used by the
+  /// `/api/catalog/upload` air-gap flow: the operator uploads a CSV
+  /// (already-decompressed) and we move/copy it into the catalog
+  /// directory with a recorded hash.
+  ///
+  /// [expectedSha256], when supplied, is compared against the actual
+  /// SHA-256 of the source file before installation; mismatch throws
+  /// [CatalogHashMismatchException] and the source file is NOT moved.
+  Future<CatalogInstallResult> installFromFile({
+    required String name,
+    required File source,
+    String? expectedSha256,
+  }) async {
+    final descriptor = knownCatalogs[name];
+    if (descriptor == null) {
+      throw ArgumentError.value(name, 'name', 'Unknown catalog name');
+    }
+    if (!isInitialized) {
+      throw StateError('CatalogManager not initialized');
+    }
+    if (!await source.exists()) {
+      throw FileSystemException('Source file does not exist', source.path);
+    }
+    final dir = Directory(catalogDirectory);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+
+    final sourceBytes = await source.readAsBytes();
+    if (sourceBytes.isEmpty) {
+      throw const CatalogDownloadException(
+        phase: 'install_from_file',
+        message: 'Source file is empty',
+      );
+    }
+    final actualHash = sha256.convert(sourceBytes).toString();
+    if (expectedSha256 != null &&
+        expectedSha256.toLowerCase() != actualHash.toLowerCase()) {
+      throw CatalogHashMismatchException(
+        expected: expectedSha256,
+        actual: actualHash,
+      );
+    }
+
+    final finalPath = path.join(catalogDirectory, descriptor.fileName);
+    final metaPath =
+        path.join(catalogDirectory, descriptor.metadataFileName);
+
+    // Write to a temp file in the catalog directory then atomically
+    // rename — same flow as downloadAndInstall.
+    final tempPath =
+        path.join(catalogDirectory, '.${descriptor.fileName}.upload');
+    final tempFile = File(tempPath);
+    if (await tempFile.exists()) {
+      await tempFile.delete();
+    }
+    await tempFile.writeAsBytes(sourceBytes, flush: true);
+
+    final finalFile = File(finalPath);
+    if (await finalFile.exists()) {
+      await finalFile.delete();
+    }
+    await tempFile.rename(finalPath);
+
+    final objectCount = await _countObjects(finalPath);
+    final installedAt = DateTime.now().toUtc();
+    final metadata = <String, Object?>{
+      'source': 'upload',
+      'name': descriptor.name,
+      'version': descriptor.version,
+      'sha256': actualHash,
+      'objectCount': objectCount,
+      'sizeBytes': sourceBytes.length,
+      'installedDate': installedAt.toIso8601String(),
+    };
+    await File(metaPath).writeAsString(jsonEncode(metadata));
+
+    _invalidateLocalCatalogLoaders(
+      stars: descriptor.name == 'stars',
+      dsos: descriptor.name == 'dso',
+    );
+
+    _eventController.add(CatalogEvent.downloadComplete(
+      jobId: null,
+      name: descriptor.name,
+      version: descriptor.version,
+      sizeBytes: sourceBytes.length,
+      sha256: actualHash,
+    ));
+
+    return CatalogInstallResult(
+      name: descriptor.name,
+      sha256: actualHash,
+      sizeBytes: sourceBytes.length,
+      objectCount: objectCount,
+      version: descriptor.version,
+      installedAt: installedAt,
+    );
+  }
+
+  /// Uninstall a catalog by name. Deletes the data file + metadata
+  /// sidecar. No-op when the catalog is not installed (returns false).
+  Future<bool> uninstall(String name) async {
+    final descriptor = knownCatalogs[name];
+    if (descriptor == null) {
+      throw ArgumentError.value(name, 'name', 'Unknown catalog name');
+    }
+    if (!isInitialized) {
+      return false;
+    }
+
+    final dataFile = File(path.join(catalogDirectory, descriptor.fileName));
+    final metaFile =
+        File(path.join(catalogDirectory, descriptor.metadataFileName));
+    var removedAnything = false;
+    if (await dataFile.exists()) {
+      await dataFile.delete();
+      removedAnything = true;
+    }
+    if (await metaFile.exists()) {
+      await metaFile.delete();
+      removedAnything = true;
+    }
+    _invalidateLocalCatalogLoaders(
+      stars: descriptor.name == 'stars',
+      dsos: descriptor.name == 'dso',
+    );
+
+    if (removedAnything) {
+      _eventController
+          .add(CatalogEvent.uninstalled(name: descriptor.name));
+    }
+    return removedAnything;
+  }
+
+  /// Re-load any cached catalog loaders. Useful when files were
+  /// modified out-of-band (e.g. operator manually copied a catalog into
+  /// the directory). Synchronous side: drops the in-memory loaders so
+  /// the next search re-parses the file from disk.
+  Future<void> reload() async {
+    _invalidateLocalCatalogLoaders(stars: true, dsos: true);
+    _eventController.add(const CatalogEvent.reloaded());
+  }
+
+  /// Verify the SHA-256 of installed catalogs against the value
+  /// recorded in their metadata sidecar.
+  ///
+  /// [name] selects a single catalog; null means "verify every
+  /// installed catalog". A catalog that is not installed surfaces as
+  /// `ok: false` with `error: 'not_installed'`.
+  Future<Map<String, CatalogVerifyResult>> verify({String? name}) async {
+    if (!isInitialized) {
+      throw StateError('CatalogManager not initialized');
+    }
+    final targets = <CatalogDescriptor>[];
+    if (name == null) {
+      targets.addAll(knownCatalogs.values);
+    } else {
+      final descriptor = knownCatalogs[name];
+      if (descriptor == null) {
+        throw ArgumentError.value(name, 'name', 'Unknown catalog name');
+      }
+      targets.add(descriptor);
+    }
+
+    final results = <String, CatalogVerifyResult>{};
+    for (final descriptor in targets) {
+      results[descriptor.name] = await _verifyOne(descriptor);
+    }
+    return results;
+  }
+
+  Future<CatalogVerifyResult> _verifyOne(
+      CatalogDescriptor descriptor) async {
+    final dataFile =
+        File(path.join(catalogDirectory, descriptor.fileName));
+    if (!await dataFile.exists()) {
+      const result = CatalogVerifyResult(
+        ok: false,
+        expectedHash: null,
+        actualHash: null,
+        errors: ['not_installed'],
+      );
+      _eventController.add(CatalogEvent.verified(
+        name: descriptor.name,
+        ok: false,
+        errors: result.errors,
+      ));
+      return result;
+    }
+
+    String? expectedHash;
+    final metaFile =
+        File(path.join(catalogDirectory, descriptor.metadataFileName));
+    if (await metaFile.exists()) {
+      try {
+        final raw = jsonDecode(await metaFile.readAsString());
+        if (raw is Map<String, dynamic>) {
+          expectedHash = raw['sha256'] as String?;
+        }
+      } catch (e) {
+        developer.log(
+          '[Catalog] _verifyOne(${descriptor.name}): malformed metadata: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
+      }
+    }
+
+    // Stream the file rather than reading it whole — catalog files are
+    // multi-MB and verifying them all at once would spike memory.
+    final digest = await sha256.bind(dataFile.openRead()).first;
+    final actualHash = digest.toString();
+
+    final ok = expectedHash != null &&
+        expectedHash.toLowerCase() == actualHash.toLowerCase();
+    final errors = <String>[];
+    if (expectedHash == null) {
+      errors.add('no_expected_hash');
+    } else if (!ok) {
+      errors.add('hash_mismatch');
+    }
+
+    // Update lastVerified in the metadata sidecar.
+    if (await metaFile.exists()) {
+      try {
+        final raw = jsonDecode(await metaFile.readAsString());
+        if (raw is Map<String, dynamic>) {
+          raw['lastVerified'] = DateTime.now().toUtc().toIso8601String();
+          await metaFile.writeAsString(jsonEncode(raw));
+        }
+      } catch (e) {
+        developer.log(
+          '[Catalog] _verifyOne(${descriptor.name}): failed to update lastVerified: $e',
+          name: 'CatalogManager',
+          level: 900,
+        );
+      }
+    }
+
+    final result = CatalogVerifyResult(
+      ok: ok,
+      expectedHash: expectedHash,
+      actualHash: actualHash,
+      errors: errors,
+    );
+    _eventController.add(CatalogEvent.verified(
+      name: descriptor.name,
+      ok: ok,
+      errors: errors,
+    ));
+    return result;
   }
 
   HygCatalogLoader _getStarLoader(String path) {
@@ -1266,7 +2017,7 @@ class OpenNgcData {
       minorAxis: parts.length > 6 ? double.tryParse(parts[6]) : null,
       positionAngle: parts.length > 7 ? double.tryParse(parts[7]) : null,
       magnitude: parts.length > 9 ? double.tryParse(parts[9]) : null, // V-Mag
-      messier: parts.length > 23 && parts[23].isNotEmpty ? 'M${parts[23]}' : null,
+      messier: _parseMessier(parts.length > 23 ? parts[23] : ''),
       ngcId: parts.length > 24 && parts[24].isNotEmpty ? 'NGC ${parts[24]}' : null,
       commonNames: parts.length > 28 && parts[28].isNotEmpty ? parts[28] : null,
       notes: parts.length > 30 && parts[30].isNotEmpty ? parts[30] : null,
@@ -1280,6 +2031,14 @@ class OpenNgcData {
       return commonNames!.split(',').first.trim();
     }
     return name;
+  }
+
+  static String? _parseMessier(String raw) {
+    final messierNum = int.tryParse(raw.trim());
+    if (messierNum == null || messierNum < 1 || messierNum > 110) {
+      return null;
+    }
+    return 'M$messierNum';
   }
   
   /// Get object type description
@@ -1372,10 +2131,14 @@ class HygCatalogLoader {
   Future<List<HygStarData>> search(String query) async {
     final all = await loadAll();
     final q = query.toLowerCase();
+    final normalizedQuery = _normalizeCatalogSearchText(query);
     return all.where((s) {
-      final name = s.name.toLowerCase();
-      final catId = s.catalogId.toLowerCase();
-      return name.contains(q) || catId.contains(q);
+      return _catalogTextMatches(s.name, q, normalizedQuery) ||
+          _catalogTextMatches(s.catalogId, q, normalizedQuery) ||
+          (s.hipId != null &&
+              _catalogTextMatches('HIP${s.hipId}', q, normalizedQuery)) ||
+          (s.hdId != null &&
+              _catalogTextMatches('HD${s.hdId}', q, normalizedQuery));
     }).toList();
   }
   
@@ -1421,6 +2184,7 @@ class HygCatalogLoader {
   }
 }
 
+// (End of HygCatalogLoader)
 /// DSO catalog loader that reads from downloaded OpenNGC database
 class OpenNgcCatalogLoader {
   final String filePath;
@@ -1488,11 +2252,16 @@ class OpenNgcCatalogLoader {
   Future<List<OpenNgcData>> search(String query) async {
     final all = await loadAll();
     final q = query.toLowerCase();
+    final normalizedQuery = _normalizeCatalogSearchText(query);
     return all.where((d) {
-      final name = d.name.toLowerCase();
-      final displayName = d.displayName.toLowerCase();
-      final common = d.commonNames?.toLowerCase() ?? '';
-      return name.contains(q) || displayName.contains(q) || common.contains(q);
+      return _catalogTextMatches(d.name, q, normalizedQuery) ||
+          _catalogTextMatches(d.displayName, q, normalizedQuery) ||
+          (d.messier != null &&
+              _catalogTextMatches(d.messier!, q, normalizedQuery)) ||
+          (d.ngcId != null &&
+              _catalogTextMatches(d.ngcId!, q, normalizedQuery)) ||
+          (d.commonNames != null &&
+              _catalogTextMatches(d.commonNames!, q, normalizedQuery));
     }).toList();
   }
   
@@ -1539,4 +2308,290 @@ class OpenNgcCatalogLoader {
   void clearCache() {
     _cachedData = null;
   }
+}
+
+// =============================================================================
+// P1-12: Types for the unified catalog API.
+// =============================================================================
+
+/// Static description of a catalog the headless API knows how to manage.
+class CatalogDescriptor {
+  final String name;
+  final String displayName;
+  final String description;
+  final String fileName;
+  final String metadataFileName;
+  final String version;
+  final int approximateSizeBytes;
+  final String downloadUrl;
+  final bool isGzipped;
+  final bool requiredForPlateSolve;
+
+  const CatalogDescriptor({
+    required this.name,
+    required this.displayName,
+    required this.description,
+    required this.fileName,
+    required this.metadataFileName,
+    required this.version,
+    required this.approximateSizeBytes,
+    required this.downloadUrl,
+    required this.isGzipped,
+    required this.requiredForPlateSolve,
+  });
+}
+
+/// Status of one catalog on disk.
+enum CatalogInstallStatus {
+  installed,
+  partial,
+  corrupted,
+  missing,
+}
+
+/// Detailed on-disk status of one catalog.
+class InstalledCatalogStatus {
+  final String name;
+  final String? version;
+  final int sizeBytes;
+  final int fileCount;
+  final DateTime? installedAt;
+  final DateTime? lastVerified;
+  final String? expectedHash;
+  final String? actualHash;
+  final int? objectCount;
+  final CatalogInstallStatus status;
+  final List<String>? errors;
+
+  const InstalledCatalogStatus({
+    required this.name,
+    this.version,
+    this.sizeBytes = 0,
+    this.fileCount = 0,
+    this.installedAt,
+    this.lastVerified,
+    this.expectedHash,
+    this.actualHash,
+    this.objectCount,
+    required this.status,
+    this.errors,
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        if (version != null) 'version': version,
+        'sizeBytes': sizeBytes,
+        'fileCount': fileCount,
+        if (installedAt != null) 'installedAt': installedAt!.toIso8601String(),
+        if (lastVerified != null)
+          'lastVerified': lastVerified!.toIso8601String(),
+        if (expectedHash != null) 'expectedHash': expectedHash,
+        if (actualHash != null) 'actualHash': actualHash,
+        if (objectCount != null) 'objectCount': objectCount,
+        'status': status.name,
+        if (errors != null && errors!.isNotEmpty) 'errors': errors,
+      };
+}
+
+/// Description of a catalog available for download.
+class AvailableCatalog {
+  final String name;
+  final String displayName;
+  final String version;
+  final String description;
+  final String? downloadUrl;
+  final int sizeBytes;
+  final String? sha256;
+  final bool requiredForPlateSolve;
+
+  const AvailableCatalog({
+    required this.name,
+    required this.displayName,
+    required this.version,
+    required this.description,
+    required this.downloadUrl,
+    required this.sizeBytes,
+    required this.sha256,
+    required this.requiredForPlateSolve,
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'displayName': displayName,
+        'version': version,
+        'description': description,
+        if (downloadUrl != null) 'downloadUrl': downloadUrl,
+        'sizeBytes': sizeBytes,
+        if (sha256 != null) 'sha256': sha256,
+        'requiredForPlateSolve': requiredForPlateSolve,
+      };
+}
+
+/// Result of `downloadAndInstall` / `installFromFile`.
+class CatalogInstallResult {
+  final String name;
+  final String sha256;
+  final int sizeBytes;
+  final int objectCount;
+  final String version;
+  final DateTime installedAt;
+
+  const CatalogInstallResult({
+    required this.name,
+    required this.sha256,
+    required this.sizeBytes,
+    required this.objectCount,
+    required this.version,
+    required this.installedAt,
+  });
+
+  Map<String, Object?> toJson() => {
+        'name': name,
+        'sha256': sha256,
+        'sizeBytes': sizeBytes,
+        'objectCount': objectCount,
+        'version': version,
+        'installedAt': installedAt.toIso8601String(),
+      };
+}
+
+/// Result of a single-catalog `verify` call.
+class CatalogVerifyResult {
+  final bool ok;
+  final String? expectedHash;
+  final String? actualHash;
+  final List<String> errors;
+
+  const CatalogVerifyResult({
+    required this.ok,
+    required this.expectedHash,
+    required this.actualHash,
+    required this.errors,
+  });
+
+  Map<String, Object?> toJson() => {
+        'ok': ok,
+        if (expectedHash != null) 'expectedHash': expectedHash,
+        if (actualHash != null) 'actualHash': actualHash,
+        if (errors.isNotEmpty) 'errors': errors,
+      };
+}
+
+/// Structured lifecycle event emitted by [CatalogManager.events].
+/// Consumed by the headless API server which fans these out to clients
+/// as `NightshadeEvent`s in the `catalog` category.
+class CatalogEvent {
+  final String eventType;
+  final Map<String, Object?> data;
+
+  const CatalogEvent._(this.eventType, this.data);
+
+  factory CatalogEvent.downloadStarted({
+    String? jobId,
+    required String name,
+    required String downloadUrl,
+    required int totalBytes,
+  }) =>
+      CatalogEvent._('CatalogDownloadStarted', {
+        if (jobId != null) 'jobId': jobId,
+        'name': name,
+        'downloadUrl': downloadUrl,
+        'totalBytes': totalBytes,
+      });
+
+  factory CatalogEvent.downloadProgress({
+    String? jobId,
+    required String name,
+    required int downloadedBytes,
+    required int totalBytes,
+  }) =>
+      CatalogEvent._('CatalogDownloadProgress', {
+        if (jobId != null) 'jobId': jobId,
+        'name': name,
+        'downloadedBytes': downloadedBytes,
+        'totalBytes': totalBytes,
+        if (totalBytes > 0)
+          'pct': (downloadedBytes / totalBytes).clamp(0.0, 1.0),
+      });
+
+  factory CatalogEvent.downloadComplete({
+    String? jobId,
+    required String name,
+    required String version,
+    required int sizeBytes,
+    required String sha256,
+  }) =>
+      CatalogEvent._('CatalogDownloadComplete', {
+        if (jobId != null) 'jobId': jobId,
+        'name': name,
+        'version': version,
+        'sizeBytes': sizeBytes,
+        'sha256': sha256,
+      });
+
+  factory CatalogEvent.downloadFailed({
+    String? jobId,
+    required String name,
+    required String error,
+    required String phase,
+  }) =>
+      CatalogEvent._('CatalogDownloadFailed', {
+        if (jobId != null) 'jobId': jobId,
+        'name': name,
+        'error': error,
+        'phase': phase,
+      });
+
+  factory CatalogEvent.verified({
+    required String name,
+    required bool ok,
+    List<String>? errors,
+  }) =>
+      CatalogEvent._('CatalogVerified', {
+        'name': name,
+        'ok': ok,
+        if (errors != null && errors.isNotEmpty) 'errors': errors,
+      });
+
+  factory CatalogEvent.uninstalled({required String name}) =>
+      CatalogEvent._('CatalogUninstalled', {'name': name});
+
+  const CatalogEvent.reloaded()
+      : eventType = 'CatalogReloaded',
+        data = const {};
+}
+
+/// Exception thrown by [CatalogManager.downloadAndInstall] when a
+/// cancellation token requested abort.
+class CatalogCancelled implements Exception {
+  const CatalogCancelled();
+  @override
+  String toString() => 'CatalogCancelled';
+}
+
+/// Exception thrown when SHA-256 of an uploaded catalog does not match
+/// the expected value.
+class CatalogHashMismatchException implements Exception {
+  final String expected;
+  final String actual;
+  const CatalogHashMismatchException({
+    required this.expected,
+    required this.actual,
+  });
+  @override
+  String toString() =>
+      'CatalogHashMismatchException(expected=$expected, actual=$actual)';
+}
+
+/// Exception raised by the catalog download path with a `phase` tag so
+/// the API can surface "what was being attempted when this broke".
+class CatalogDownloadException implements Exception {
+  final String phase;
+  final String message;
+  const CatalogDownloadException({
+    required this.phase,
+    required this.message,
+  });
+  @override
+  String toString() => 'CatalogDownloadException($phase): $message';
 }

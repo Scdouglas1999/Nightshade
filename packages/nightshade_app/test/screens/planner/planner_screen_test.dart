@@ -7,8 +7,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:nightshade_app/screens/framing/altitude_chart.dart';
 import 'package:nightshade_app/screens/planner/planner_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../scheduler/scheduler_test_doubles.dart';
@@ -19,6 +21,7 @@ List<Override> _commonOverrides() {
     // resolves quickly into the "no candidates" empty state without
     // touching the database.
     tonightSuggestionsProvider.overrideWith((ref) async => const []),
+    smartNightExposureContextProvider.overrideWith((ref) async => null),
     appSettingsProvider.overrideWith(() => _StubAppSettingsNotifier()),
     // Progress tab dependency.
     allTargetProgressProvider.overrideWith(
@@ -34,7 +37,8 @@ List<Override> _commonOverrides() {
     currentSchedulerDecisionProvider.overrideWith(
       (ref) => FakeCurrentSchedulerDecisionNotifier(null),
     ),
-    allIntegrationGoalsProvider.overrideWith((ref) async => <IntegrationGoal>[]),
+    allIntegrationGoalsProvider
+        .overrideWith((ref) async => <IntegrationGoal>[]),
     integrationGoalProgressProvider
         .overrideWith((ref, _) async => <IntegrationGoalProgress>[]),
   ];
@@ -67,8 +71,7 @@ void main() {
     });
 
     test('maps canonical tab names', () {
-      expect(plannerTabFromQuery('recommendation'),
-          PlannerTab.recommendation);
+      expect(plannerTabFromQuery('recommendation'), PlannerTab.recommendation);
       expect(plannerTabFromQuery('scheduler'), PlannerTab.scheduler);
       expect(plannerTabFromQuery('progress'), PlannerTab.progress);
     });
@@ -92,7 +95,8 @@ void main() {
     });
   });
 
-  testWidgets('renders all three sub-tabs (Recommendation, Target Queue, Progress)',
+  testWidgets(
+      'renders all three sub-tabs (Recommendation, Target Queue, Progress)',
       (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
@@ -273,8 +277,7 @@ void main() {
           widget.isSelected,
     );
     expect(selectedQueue, findsOneWidget,
-        reason:
-            'Tapping the Target Queue tab must mark it as selected; if the '
+        reason: 'Tapping the Target Queue tab must mark it as selected; if the '
             'tap callback or setState pathway is broken the strip would '
             'continue to show Recommendation as selected.');
 
@@ -285,8 +288,7 @@ void main() {
           widget.isSelected,
     );
     expect(selectedRecAfterTap, findsNothing,
-        reason:
-            'Only one tab may be selected at a time; if Recommendation is '
+        reason: 'Only one tab may be selected at a time; if Recommendation is '
             'still selected after the tap, the tab strip lost its mutual '
             'exclusion guard.');
   });
@@ -328,9 +330,107 @@ void main() {
           widget.isSelected,
     );
     expect(selectedProgress, findsOneWidget,
-        reason:
-            'Tapping Progress must mark it as selected; if the third entry '
+        reason: 'Tapping Progress must mark it as selected; if the third entry '
             'in the tabs loop lost its onTap, the user gets stuck on '
             'Recommendation.');
+  });
+
+  testWidgets('primary recommendation exposes Send to Framing action',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 7,
+      targetName: 'North America Nebula',
+      raHours: 20.98,
+      decDegrees: 44.33,
+      totalScore: 91,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 62,
+        currentAzimuth: 120,
+        airmass: 1.1,
+        moonDistance: 110,
+        peakAltitude: 75,
+        hoursAboveMinAlt: 5.5,
+      ),
+      objectType: 'Emission Nebula',
+      magnitude: 4.0,
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(
+      find.widgetWithText(NightshadeButton, 'Send to Framing'),
+      findsNWidgets(2),
+      reason:
+          'The primary card and the matching candidate row should both offer framing.',
+    );
+  });
+
+  testWidgets(
+      'candidate row shows altitude chart without expand toggle on desktop',
+      (tester) async {
+    tester.view.devicePixelRatio = 1.0;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(() {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+
+    const suggestion = TargetSuggestion(
+      targetId: 42,
+      targetName: 'Andromeda Galaxy',
+      raHours: 0.67,
+      decDegrees: 41.27,
+      totalScore: 88,
+      visibility: TargetVisibilityInfo(
+        currentAltitude: 55,
+        currentAzimuth: 180,
+        airmass: 1.2,
+        moonDistance: 90,
+        peakAltitude: 70,
+        hoursAboveMinAlt: 6.0,
+      ),
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          ..._commonOverrides(),
+          tonightSuggestionsProvider.overrideWith((ref) async => [suggestion]),
+        ],
+        child: MaterialApp(
+          theme: NightshadeTheme.dark,
+          home: const Scaffold(body: PlannerScreen()),
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+
+    expect(find.text('Show altitude curve'), findsNothing);
+    expect(find.text('Hide altitude curve'), findsNothing);
+    expect(
+      find.byType(AltitudeChart),
+      findsNWidgets(2),
+      reason:
+          'Primary recommendation and candidate row should each show an altitude chart.',
+    );
   });
 }

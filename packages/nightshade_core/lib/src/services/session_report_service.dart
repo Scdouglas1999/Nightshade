@@ -1,9 +1,8 @@
 import 'dart:convert';
 
-import '../database/daos/images_dao.dart';
 import '../database/daos/sequence_runs_dao.dart';
-import '../database/daos/sessions_dao.dart';
 import '../database/daos/targets_dao.dart';
+import 'imaging_records_repository.dart';
 import '../database/database.dart';
 import '../models/session_report.dart';
 
@@ -29,18 +28,15 @@ import '../models/session_report.dart';
 ///     non-sequencer path increments only that column.
 ///   * Errors: error message lists from the same `sequence_runs` rows.
 class SessionReportService {
-  final SessionsDao _sessionsDao;
-  final ImagesDao _imagesDao;
+  final ImagingRecordsRepository _records;
   final SequenceRunsDao _sequenceRunsDao;
   final TargetsDao _targetsDao;
 
   SessionReportService({
-    required SessionsDao sessionsDao,
-    required ImagesDao imagesDao,
+    required ImagingRecordsRepository records,
     required SequenceRunsDao sequenceRunsDao,
     required TargetsDao targetsDao,
-  })  : _sessionsDao = sessionsDao,
-        _imagesDao = imagesDao,
+  })  : _records = records,
         _sequenceRunsDao = sequenceRunsDao,
         _targetsDao = targetsDao;
 
@@ -51,12 +47,12 @@ class SessionReportService {
   /// stream. Per CLAUDE.md "errors are a feature": no silent fallback to
   /// an empty report.
   Future<SessionReport> buildReport(int sessionId) async {
-    final session = await _sessionsDao.getSessionById(sessionId);
+    final session = await _records.getSessionById(sessionId);
     if (session == null) {
       throw StateError('Session $sessionId not found');
     }
 
-    final images = await _imagesDao.getImagesForSession(sessionId);
+    final images = await _records.getImagesForSession(sessionId);
     final lightFrames =
         images.where((i) => i.frameType == 'light').toList(growable: false);
 

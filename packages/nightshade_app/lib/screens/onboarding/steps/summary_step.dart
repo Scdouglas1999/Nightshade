@@ -50,7 +50,7 @@ class _OnboardingSummaryStepState
   @override
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
 
     final imageScale = draft.imageScaleArcsecPerPixel;
@@ -151,11 +151,9 @@ class _OnboardingSummaryStepState
         const SizedBox(height: 14),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.08),
+          decoration: NightshadeDecorations.emphasisSurface(
+            colors.primary,
             borderRadius: BorderRadius.circular(10),
-            border:
-                Border.all(color: colors.primary.withValues(alpha: 0.2)),
           ),
           child: Row(
             children: [

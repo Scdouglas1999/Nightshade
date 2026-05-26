@@ -921,12 +921,6 @@ class SchedulerEngine {
   /// currently most-needed filter. This is what the engine hands to the
   /// SequencerService when it picks a target.
   Sequence buildSequenceForCandidate(SchedulerCandidate c) {
-    if (c.isMosaicTarget) {
-      throw StateError(
-        'Scheduler cannot yet dispatch mosaic targets. Generate the mosaic sequence from Framing or Sequencer instead.',
-      );
-    }
-
     final goalProgress = <IntegrationGoalProgress>[];
     for (var i = 0; i < c.goals.length; i++) {
       goalProgress.add(IntegrationGoalProgress(
@@ -946,7 +940,7 @@ class SchedulerEngine {
         return b.goal.priority.compareTo(a.goal.priority);
       });
 
-    final uuid = const Uuid();
+    const uuid = Uuid();
     final targetId = uuid.v4();
     final slewId = uuid.v4();
     final centerId = uuid.v4();
@@ -955,7 +949,13 @@ class SchedulerEngine {
 
     final exposureIds = <String>[];
 
-    if (pending.isEmpty) {
+    final rowsToDispatch = c.isMosaicTarget
+        ? pending
+        : pending.isEmpty
+            ? const <IntegrationGoalProgress>[]
+            : [pending.first];
+
+    if (rowsToDispatch.isEmpty) {
       // No goals or all complete; build a one-shot 30s luminance to keep
       // the operator productive. This is rare because the engine rejects
       // candidates with no usable goals, but we handle it defensively.
@@ -969,16 +969,17 @@ class SchedulerEngine {
         filter: c.availableFilters.isNotEmpty ? c.availableFilters.first : null,
       );
     } else {
-      final top = pending.first;
-      final expId = uuid.v4();
-      exposureIds.add(expId);
-      nodes[expId] = ExposureNode(
-        id: expId,
-        name: 'Expose ${top.goal.filter}',
-        durationSecs: top.goal.exposureSeconds,
-        count: top.remainingFrames,
-        filter: top.goal.filter,
-      );
+      for (final row in rowsToDispatch) {
+        final expId = uuid.v4();
+        exposureIds.add(expId);
+        nodes[expId] = ExposureNode(
+          id: expId,
+          name: 'Expose ${row.goal.filter}',
+          durationSecs: row.goal.exposureSeconds,
+          count: row.remainingFrames,
+          filter: row.goal.filter,
+        );
+      }
     }
 
     nodes[slewId] = SlewNode(
@@ -1065,7 +1066,7 @@ extension on SchedulerEngine {
     final beta = 5.128 * math.sin(mpRad);
     final betaRad = beta * math.pi / 180.0;
     const epsilon = 23.439;
-    final epsRad = epsilon * math.pi / 180.0;
+    const epsRad = epsilon * math.pi / 180.0;
     final ra = math.atan2(
       math.sin(lambdaRad) * math.cos(epsRad) -
           math.tan(betaRad) * math.sin(epsRad),

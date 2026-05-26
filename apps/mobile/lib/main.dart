@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_app/localization/nightshade_localizations.dart';
@@ -12,21 +13,24 @@ import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'companion_ui_config.dart';
 import 'screens/dashboard/mobile_dashboard_screen.dart';
 import 'screens/qr_scanner_screen.dart';
+import 'services/foreground_service.dart';
+import 'services/live_activity_lifecycle_provider.dart';
+import 'services/mobile_pairing_service.dart';
 import 'services/mobile_preferences.dart';
 import 'services/mobile_sequence_hooks.dart';
+import 'services/battery_service.dart';
 import 'services/network_service.dart';
 import 'services/notification_service.dart';
+import 'utils/error_snackbar.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
 
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Audit §3.5: hand the phone-tailored dashboard to the shared router
-  // the provider — late mutation of `mobileDashboardBuilder` after the
-  // router resolves the route would be ignored on first navigation.
   // Audit §3.13: respect the user's immersive-mode preference. Default is
   // leanBack so the system clock and battery indicator remain visible
   // during long sequences; users who want full-screen can opt in.
@@ -57,6 +61,72 @@ void main() async {
         name: 'Main', level: 1000);
   }
 
+  // Wave 6D / P2-14 — start the battery sampler so the dashboard
+  // indicator and any throttling consumer (live-preview poller,
+  // catalog sync, etc.) see a populated PhoneBatteryState on first
+  // build. Failures are non-fatal: the indicator gracefully renders
+  // SizedBox.shrink() while the level remains -1.
+  try {
+    await BatteryService().start();
+    developer.log('BatteryService started', name: 'Main');
+  } catch (e, st) {
+    developer.log('Failed to start BatteryService: $e',
+        name: 'Main', level: 1000, error: e, stackTrace: st);
+  }
+
+  // P1-16a / audit §7 bug 3: request Android POST_NOTIFICATIONS at startup
+  // *before* runApp() so the system prompt is shown on first launch (and
+  // not buried behind a connection screen). Without this, Android 13+
+  // silently drops every notification we try to fire. Also wires up the
+  // foreground-task plugin so the OS sees a granted notification permission
+  // before the first sequence tries to start a foreground service.
+  //
+  // The notification service singleton is idempotent — subsequent calls
+  // from MobileSequenceHooks.initialize() are no-ops via the _initialized
+  // flag. We deliberately initialize both services here:
+  //
+  //   1. MobileNotificationService — handles flutter_local_notifications
+  //      runtime permission request (POST_NOTIFICATIONS).
+  //   2. ImagingForegroundService — handles flutter_foreground_task's own
+  //      permission checks, which it uses before startService() will run.
+  if (Platform.isAndroid || Platform.isIOS) {
+    try {
+      await MobileNotificationService().initialize();
+      developer.log('MobileNotificationService initialized', name: 'Main');
+    } catch (e, st) {
+      developer.log(
+        'Failed to initialize MobileNotificationService: $e',
+        name: 'Main',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+    }
+
+    if (Platform.isAndroid) {
+      try {
+        await ImagingForegroundService().initialize();
+        // Ask the foreground-task plugin to confirm the notification
+        // permission too — its own check sits between us and startService.
+        // We deliberately ignore the result here: the local-notifications
+        // plugin call above is the authoritative one for our banner state,
+        // and re-prompting from this call (after the user has already
+        // answered the first prompt) is a no-op on every supported API
+        // level.
+        await ImagingForegroundService().requestNotificationPermission();
+        developer.log('ImagingForegroundService initialized', name: 'Main');
+      } catch (e, st) {
+        developer.log(
+          'Failed to initialize ImagingForegroundService: $e',
+          name: 'Main',
+          level: 1000,
+          error: e,
+          stackTrace: st,
+        );
+      }
+    }
+  }
+
   // Add error handling
   FlutterError.onError = (FlutterErrorDetails details) {
     FlutterError.presentError(details);
@@ -74,11 +144,80 @@ void main() async {
         // canonical override lives in the entry point. Version mirrors the
         // desktop entry — single source of truth is version.yaml.
         appVersionProvider.overrideWithValue(
-          const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          const AppVersionInfo(version: '2.6.0', buildNumber: 6),
         ),
+        // Wave 6 Pack P — wire the plugin-node dispatcher so plugin
+        // sequence nodes route through the real PluginNodeExecutor.
+        pluginNodeDispatcherOverride(),
+        // Audit §11 — surface plugin-contributed sequence nodes in the
+        // sequencer palette.
+        pluginNodePaletteBlueprintsOverride(),
       ],
       child: const NightshadeMobileApp(),
     ),
+  );
+}
+
+/// P2-2: identity payload passed to [BackendNotifier.connect] so the
+/// [NetworkBackend] can populate its `collaboration.join` frame after the
+/// WS handshake succeeds. The values are derived from:
+///   * `viewerId` — `computeServerFingerprint(authToken)` so the digest
+///     matches what the server computes from the authenticated bearer.
+///     When auth is disabled we fall back to the stable per-device id
+///     persisted by [MobilePairingService] so the slot still has an id.
+///   * `deviceName` — the stable per-device id (used as a machine-
+///     readable secondary key in the slot list).
+///   * `displayName` — user-visible label. Default is `"PLATFORM · SHORTID"`;
+///     a future preference can override it.
+class _CollaborationIdentityBundle {
+  final String viewerId;
+  final String deviceName;
+  final String displayName;
+
+  const _CollaborationIdentityBundle({
+    required this.viewerId,
+    required this.deviceName,
+    required this.displayName,
+  });
+}
+
+/// Compute the collaboration identity used for `collaboration.join`.
+///
+/// Why this lives outside the widget class: it's a pure function (one
+/// SharedPreferences read + one async device-id load) and putting it at
+/// top level lets the tests exercise it without booting the widget tree.
+Future<_CollaborationIdentityBundle> _buildCollaborationIdentity(
+  String? authToken,
+) async {
+  // Stable per-install device id — populated lazily by MobilePairingService
+  // and persisted in SharedPreferences. This is the same identifier used
+  // by the pairing flow, so the slot label stays consistent across the
+  // pairing handshake and the WS collaboration channel.
+  final deviceId = await MobilePairingService.deviceId();
+  // Short tail (the suffix bytes are random; the prefix is the constant
+  // `mobile:` discriminator) keeps the display readable in the host's
+  // viewer slot list without exposing the full id.
+  final shortId = deviceId.length > 14
+      ? deviceId.substring(deviceId.length - 6)
+      : deviceId;
+  final platformLabel = Platform.isIOS
+      ? 'iPhone'
+      : Platform.isAndroid
+          ? 'Android'
+          : Platform.operatingSystem;
+  // The viewerId MUST match the server's `computeServerFingerprint(token)`
+  // when auth is enabled — otherwise the server's P2-15 override branch
+  // would log every join as an impersonation attempt. When auth is off
+  // (no token), use the stable device id so the slot still has a unique
+  // identifier — the server's override will not fire in that case.
+  final viewerId = (authToken != null && authToken.trim().isNotEmpty)
+      ? computeServerFingerprint(authToken)
+      : deviceId;
+  final displayName = '$platformLabel · $shortId';
+  return _CollaborationIdentityBundle(
+    viewerId: viewerId,
+    deviceName: deviceId,
+    displayName: displayName,
   );
 }
 
@@ -91,6 +230,12 @@ class NightshadeMobileApp extends ConsumerStatefulWidget {
 }
 
 class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
+  /// Navigator for the connection-screen [MaterialApp]. Dialogs and the QR
+  /// scanner must use this context — [State.context] sits *above* that
+  /// [MaterialApp], so [Navigator.of] on it returns null in release builds.
+  final GlobalKey<NavigatorState> _connectionNavigatorKey =
+      GlobalKey<NavigatorState>();
+
   DiscoveredServer? _connectedServer;
   bool _isDiscovering = false;
   String? _error;
@@ -118,6 +263,11 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   /// grace before kicking the user out so transient blips don't drop a
   /// running session.
   static const Duration _connectionGracePeriod = Duration(seconds: 30);
+
+  /// Build context inside the connection [MaterialApp] tree (has Navigator,
+  /// Theme, and localizations). Returns null before the first frame.
+  BuildContext? get _connectionUiContext =>
+      _connectionNavigatorKey.currentContext;
 
   void _stopConnectionMonitor() {
     _connectionStateSubscription?.cancel();
@@ -168,6 +318,27 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           }
           break;
 
+        case BackendConnectionState.connecting:
+          // First-time handshake in flight. Don't show the stale banner
+          // yet — there was no prior session to go stale — but reset
+          // the disconnect-grace timer so a slow first handshake doesn't
+          // trigger the post-disconnect tear-down path.
+          _disconnectGraceTimer?.cancel();
+          _disconnectGraceTimer = null;
+          break;
+
+        case BackendConnectionState.error:
+          // Terminal failure (e.g. version mismatch). The backend has
+          // stopped retrying so we mirror the disconnected branch for
+          // the stale-banner UX but skip the grace timer — there's no
+          // point waiting for an automatic recovery that will never
+          // happen.
+          if (!_connectionStale) {
+            _connectionStale = true;
+            ref.read(connectionStaleProvider.notifier).state = true;
+          }
+          break;
+
         case BackendConnectionState.reconnecting:
         case BackendConnectionState.disconnected:
           // Show the stale-state banner immediately but give the backend
@@ -191,6 +362,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
             _stopConnectionMonitor();
             ref.read(backendProvider.notifier).disconnect();
             ref.read(connectionStaleProvider.notifier).state = false;
+            // Audit P1-18: reset the once-per-lifetime checkpoint flag so
+            // a future reconnect re-runs the resume dialog if the server
+            // now has a fresh interrupted sequence to recover. Without
+            // this, dropping mid-session and reconnecting in the same
+            // app lifecycle would silently skip the recovery prompt.
+            _checkpointChecked = false;
             setState(() {
               _connectedServer = null;
               _isDiscovering = false;
@@ -239,8 +416,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
               'No Nightshade server found.\n\nTry:\n- Scanning a QR code from desktop\n- Entering the host address manually\n- Checking that UDP 45679 and HTTP 8080 are allowed through the firewall';
         });
       }
-    } catch (e) {
-      developer.log('Discovery error: $e', name: 'Discovery', level: 1000);
+    } catch (e, stackTrace) {
+      developer.log('Discovery error: $e',
+          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
@@ -248,6 +426,122 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
             'Discovery failed: $e\n\nTry entering the IP address manually or scan QR code.';
       });
     }
+  }
+
+  Future<String?> _pairWithServer({
+    required String host,
+    required int port,
+    String? initialCode,
+  }) async {
+    final codeController = TextEditingController(text: initialCode ?? '');
+    var requestAdmin = false;
+
+    final uiContext = _connectionUiContext;
+    if (uiContext == null || !uiContext.mounted) {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = 'Connection UI is not ready yet. Try again in a moment.';
+      });
+      return null;
+    }
+
+    final pairingInput = await showDialog<({String code, bool admin})>(
+      context: uiContext,
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            final colors = NightshadeColors.of(context);
+            return NightshadeDialog(
+              title: 'Pair with Nightshade',
+              icon: LucideIcons.link,
+              width: 420,
+              actions: [
+                NightshadeButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  label: 'Cancel',
+                  variant: ButtonVariant.ghost,
+                  size: ButtonSize.small,
+                ),
+                NightshadeButton(
+                  onPressed: () {
+                    final trimmed = codeController.text.trim();
+                    if (trimmed.isEmpty) return;
+                    Navigator.of(ctx).pop((code: trimmed, admin: requestAdmin));
+                  },
+                  label: 'Pair',
+                  size: ButtonSize.small,
+                ),
+              ],
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Enter the pairing code shown on the desktop '
+                    '(Remote Access settings or pairing screen).',
+                    style: TextStyle(
+                      fontSize: 13,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: codeController,
+                    decoration: const InputDecoration(
+                      labelText: 'Pairing code',
+                      hintText: 'STAR-LYRA-1234',
+                    ),
+                    textCapitalization: TextCapitalization.characters,
+                    autocorrect: false,
+                  ),
+                  CheckboxListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: const Text('Grant full admin access'),
+                    subtitle: const Text(
+                      'Off by default. Enable only if this device should '
+                      'manage backups and filesystem paths.',
+                    ),
+                    value: requestAdmin,
+                    onChanged: (value) {
+                      setDialogState(() => requestAdmin = value ?? false);
+                    },
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    if (pairingInput == null || pairingInput.code.isEmpty || !mounted) {
+      return null;
+    }
+
+    setState(() {
+      _statusMessage = 'Pairing with $host:$port...';
+    });
+
+    final pairing = MobilePairingService(host: host, port: port);
+    final result = await pairing.pairWithCode(
+      code: pairingInput.code,
+      requestAdminScope: pairingInput.admin,
+    );
+
+    if (!mounted) return null;
+
+    if (!result.success || result.token == null || result.token!.isEmpty) {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = result.message ??
+            'Pairing failed (${result.statusCode ?? 'unknown'}).';
+      });
+      return null;
+    }
+
+    return result.token;
   }
 
   Future<void> _connectToServer(DiscoveredServer server) async {
@@ -262,7 +556,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       // to connect for this session but refuse to write the server to
       // disk (next launch should re-discover or re-prompt).
       final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
-      final enrichedServer = fetched ?? server;
+      var enrichedServer = fetched ?? server;
       final compatibility = NightshadeServerCompatibility.check(
         enrichedServer.version,
       );
@@ -275,12 +569,27 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         return;
       }
 
+      var authToken = enrichedServer.authToken;
+      if (enrichedServer.authRequired &&
+          (authToken == null || authToken.isEmpty) &&
+          enrichedServer.pairingSupported) {
+        final pairedToken = await _pairWithServer(
+          host: enrichedServer.host,
+          port: enrichedServer.webPort,
+        );
+        if (pairedToken == null) {
+          return;
+        }
+        authToken = pairedToken;
+        enrichedServer = enrichedServer.copyWith(authToken: authToken);
+      }
+
       // Test connection first
       final isReachable =
           await EnhancedNightshadeDiscovery.testServerConnection(
         enrichedServer.host,
         enrichedServer.webPort,
-        authToken: enrichedServer.authToken,
+        authToken: authToken,
       );
 
       if (isReachable) {
@@ -305,17 +614,38 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
               level: 900);
         }
 
-        // Update global backend state to use NetworkBackend
-        ref.read(backendProvider.notifier).connect(
+        // Update global backend state to use NetworkBackend.
+        //
+        // P2-2: also wire up the collaboration identity so the backend
+        // can emit a `collaboration.join` frame as soon as the WS upgrade
+        // completes. The viewerId we derive matches what the server
+        // computes from the authenticated bearer (see P2-15 +
+        // computeServerFingerprint) so the join is a no-op override
+        // rather than an impersonation attempt for hosts with auth on;
+        // for auth-off hosts the value still gives the operator a stable
+        // human-readable slot label. Display-name preference lookup is
+        // best-effort — failures fall back to the platform default.
+        final collabIdentity = await _buildCollaborationIdentity(
+          enrichedServer.authToken,
+        );
+        await ref.read(backendProvider.notifier).connect(
               enrichedServer.host,
               enrichedServer.webPort,
               authToken: enrichedServer.authToken,
+              collaborationViewerId: collabIdentity.viewerId,
+              collaborationDeviceName: collabIdentity.deviceName,
+              collaborationDisplayName: collabIdentity.displayName,
             );
 
         // Start monitoring the WS heartbeat (audit §3.6)
         _startConnectionMonitor();
 
-        ref.invalidate(appSettingsProvider);
+        // Reload host-backed providers now that NetworkBackend is live.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          ref.invalidate(appSettingsProvider);
+          ref.invalidate(equipmentProfilesProvider);
+        });
       } else {
         final authMessage = enrichedServer.authRequired &&
                 (enrichedServer.authToken == null ||
@@ -329,7 +659,9 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
               'Could not connect to ${enrichedServer.host}:${enrichedServer.webPort}\n\nServer may be offline, or this device is not authorized.$authMessage';
         });
       }
-    } catch (e) {
+    } catch (e, stackTrace) {
+      developer.log('Connection error: $e',
+          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
@@ -342,10 +674,31 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
     // Scanner now performs strict schema + host-locality validation and pops
     // a confirmed [QrConnectionData] (or null on cancel). The previous
     // string-based round-trip went through a permissive parser.
-    final data = await Navigator.push<QrConnectionData>(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-    );
+    final uiContext = _connectionUiContext;
+    if (uiContext == null || !uiContext.mounted) {
+      setState(() {
+        _error = 'Connection UI is not ready yet. Try again in a moment.';
+      });
+      return;
+    }
+
+    QrConnectionData? data;
+    try {
+      data = await Navigator.of(uiContext).push<QrConnectionData>(
+        MaterialPageRoute(
+          builder: (_) => const QrScannerScreen(),
+          fullscreenDialog: true,
+        ),
+      );
+    } catch (e, stackTrace) {
+      developer.log('QR scanner failed: $e',
+          name: 'Discovery', level: 1000, error: e, stackTrace: stackTrace);
+      if (!mounted) return;
+      setState(() {
+        _error = 'QR scanner failed: $e';
+      });
+      return;
+    }
 
     if (data == null) return;
 
@@ -355,7 +708,38 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       _error = null;
     });
 
-    await _connectToServer(data.toDiscoveredServer());
+    var authToken = data.authToken;
+    if ((authToken == null || authToken.isEmpty) &&
+        data.pairingCode != null &&
+        data.pairingCode!.isNotEmpty) {
+      final pairing = MobilePairingService(host: data.host, port: data.webPort);
+      final result = await pairing.pairWithCode(code: data.pairingCode!);
+      if (!mounted) return;
+      if (!result.success || result.token == null) {
+        setState(() {
+          _isDiscovering = false;
+          _statusMessage = '';
+          _error = result.message ?? 'QR pairing failed.';
+        });
+        return;
+      }
+      authToken = result.token;
+    }
+
+    final server = data.toDiscoveredServer().copyWith(authToken: authToken);
+    final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+    if (fetched?.fingerprint != null &&
+        fetched!.fingerprint != data.fingerprint) {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error =
+            'Server fingerprint does not match the QR code. Refuse to connect.';
+      });
+      return;
+    }
+
+    await _connectToServer(server);
   }
 
   Future<void> _connectManually() async {
@@ -378,7 +762,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       }
     }
 
-    final authToken = _accessTokenController.text.trim().isEmpty
+    var authToken = _accessTokenController.text.trim().isEmpty
         ? null
         : _accessTokenController.text.trim();
 
@@ -388,7 +772,7 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       _statusMessage = 'Connecting to $host:$port...';
     });
 
-    final server = DiscoveredServer(
+    var server = DiscoveredServer(
       name: 'Nightshade Server',
       host: host,
       webPort: port,
@@ -396,7 +780,36 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
       version: '2.0.0',
       mode: 'headless',
       authToken: authToken,
+      pairingSupported: true,
     );
+
+    final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+    if (fetched != null) {
+      server = fetched;
+      if ((authToken == null || authToken.isEmpty) &&
+          server.authRequired &&
+          server.pairingSupported) {
+        final paired = await _pairWithServer(host: host, port: port);
+        if (paired == null) {
+          return;
+        }
+        authToken = paired;
+        server = server.copyWith(authToken: authToken);
+      }
+    } else {
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error =
+            'Cannot reach http://$host:$port/api/info from this device.\n\n'
+            'On the Windows PC: confirm Settings → Remote Access shows '
+            '"Running", note the LAN URL, and allow port $port through '
+            'Windows Firewall (private network).\n\n'
+            'On the tablet: open that URL in Chrome — you should see JSON. '
+            'Then try Connect again or scan the QR after starting pairing.';
+      });
+      return;
+    }
 
     await _connectToServer(server);
   }
@@ -450,15 +863,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                 );
               }
             } catch (e) {
+              // [Wave 6D error parsing] — surface parsed ServerError
+              // {code, message} via the shared mobile helper so the
+              // operator sees a machine-actionable code instead of
+              // "Exception: Future was already completed."
               if (context.mounted) {
-                final colors = Theme.of(context).extension<NightshadeColors>();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text('Failed to resume: $e'),
-                    backgroundColor:
-                        colors?.error ?? Theme.of(context).colorScheme.error,
-                  ),
-                );
+                showApiErrorWithPrefix(context, 'Failed to resume', e);
               }
             }
           } else if (shouldResume == false) {
@@ -484,8 +894,6 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
   @override
   Widget build(BuildContext context) {
     try {
-      final themeMode = ref.watch(themeModeProvider);
-
       // Handle disconnection from Settings — if the backend becomes
       // DisconnectedBackend, return to the connection screen. Listening
       // (instead of watching+addPostFrameCallback in build) avoids the
@@ -495,6 +903,12 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
         if (_connectedServer != null &&
             next is DisconnectedBackend &&
             !_skippedConnection) {
+          // Audit P1-18: drop the checkpoint-once latch alongside the
+          // backend swap. Otherwise a Settings-driven disconnect then
+          // reconnect in the same app lifecycle would silently skip the
+          // resume dialog even if the server now has a fresh
+          // interrupted sequence.
+          _checkpointChecked = false;
           setState(() {
             _connectedServer = null;
             _error = null;
@@ -505,34 +919,50 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
 
       // If not connected and not skipped, show connection screen
       if (_connectedServer == null && !_skippedConnection) {
-        return MaterialApp(
-          title: 'Nightshade',
-          debugShowCheckedModeBanner: false,
-          theme: NightshadeTheme.light,
-          darkTheme: NightshadeTheme.dark,
-          themeMode: themeMode,
-          localizationsDelegates:
-              NightshadeLocalizations.localizationsDelegates,
-          supportedLocales: NightshadeLocalizations.supportedLocales,
-          home: Builder(
-            builder: (context) => _buildConnectionScreen(),
+        final settings = ref.watch(appSettingsProvider).valueOrNull;
+        final theme = resolveNightshadeThemeData(
+          themeSetting: settings?.theme ?? 'dark',
+          accentColorHex: settings?.accentColor,
+        );
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: systemUiOverlayStyleFor(theme),
+          child: MaterialApp(
+            navigatorKey: _connectionNavigatorKey,
+            title: 'Nightshade',
+            debugShowCheckedModeBanner: false,
+            theme: theme,
+            localizationsDelegates:
+                NightshadeLocalizations.localizationsDelegates,
+            supportedLocales: NightshadeLocalizations.supportedLocales,
+            home: Builder(
+              builder: (context) => _buildConnectionScreen(),
+            ),
           ),
         );
       }
 
-      // Once connected, decide whether to show the phone-tailored
-      // dashboard (audit §3.5) or the shrink-to-fit desktop UI. Phones
-      // (< 600 px wide) get `MobileDashboardScreen` as the landing
-      // screen; tablets keep the existing `NightshadeApp(isMobile:
-      // true)` because the multi-pane layouts are still usable on a
-      // 768+ px viewport.
+      // Full UI parity: phones and tablets both route through the shared
+      // GoRouter shell (`NightshadeApp(isMobile: true)`). The legacy
+      // tabbed companion dashboard remains available for ops when
+      // `NIGHTSHADE_COMPANION_UI=1`.
       return Consumer(
         builder: (context, ref, _) {
           // Activate location sync
           ref.watch(locationSyncProvider);
 
+          // Mirror host rig state (profiles, connected devices, sequencer)
+          // when controlling a remote desktop via NetworkBackend.
+          ref.watch(remoteSessionSyncProvider);
+          ref.watch(sequenceLibrarySyncProvider);
+          ref.watch(remoteSequenceEditorSyncProvider);
+
           // Initialize mobile sequence hooks for background operation support
           ref.watch(mobileSequenceHooksProvider);
+
+          // Wave 5E — wire the iOS Live Activity lifecycle controller. The
+          // controller installs its own ref.listen() bindings on construction;
+          // on non-iOS platforms it is a no-op so the watch is cheap.
+          ref.watch(liveActivityLifecycleProvider);
 
           // Wire notification taps into go_router (audit §3.8). The router
           // is created lazily by `appRouterProvider`; reading it here also
@@ -545,32 +975,27 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
           // Check for checkpoint on first connection
           _checkForCheckpoint(context, ref);
 
-          // Probe the *physical* screen size, not the widget constraints,
-          // because the connection screen does not yet provide a
-          // MediaQuery from a Scaffold. Using `MediaQuery.sizeOf(context)`
-          // gives us the actual device width from the WidgetsBinding view
-          // so a tablet booted in landscape still resolves to "not phone".
           final width = MediaQuery.sizeOf(context).width;
           final isPhone = BreakpointTokens.isPhone(width);
+          final useCompanionUi = isPhone && isCompanionUiEnabled;
 
-          if (isPhone) {
-            // Phone path: wrap the dashboard in a MaterialApp so it has
-            // theme + localization + the same provider scope. We use a
-            // standalone MaterialApp instead of routing through GoRouter
-            // because the connection flow above already returned without
-            // entering the router, and trying to flip the initial route
-            // mid-build leads to "router has no current location" errors.
-            final themeMode = ref.watch(themeModeProvider);
-            return MaterialApp(
-              title: 'Nightshade',
-              debugShowCheckedModeBanner: false,
-              theme: NightshadeTheme.light,
-              darkTheme: NightshadeTheme.dark,
-              themeMode: themeMode,
-              localizationsDelegates:
-                  NightshadeLocalizations.localizationsDelegates,
-              supportedLocales: NightshadeLocalizations.supportedLocales,
-              home: const MobileDashboardScreen(),
+          if (useCompanionUi) {
+            final settings = ref.watch(appSettingsProvider).valueOrNull;
+            final theme = resolveNightshadeThemeData(
+              themeSetting: settings?.theme ?? 'dark',
+              accentColorHex: settings?.accentColor,
+            );
+            return AnnotatedRegion<SystemUiOverlayStyle>(
+              value: systemUiOverlayStyleFor(theme),
+              child: MaterialApp(
+                title: 'Nightshade',
+                debugShowCheckedModeBanner: false,
+                theme: theme,
+                localizationsDelegates:
+                    NightshadeLocalizations.localizationsDelegates,
+                supportedLocales: NightshadeLocalizations.supportedLocales,
+                home: const MobileDashboardScreen(),
+              ),
             );
           }
           return const NightshadeApp(isMobile: true);
@@ -663,21 +1088,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                 Container(
                   width: 28,
                   height: 28,
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      colors: [
-                        primaryColor,
-                        primaryColor.withValues(alpha: 0.7)
-                      ],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
-                    ),
+                  decoration: NightshadeDecorations.iconChip(
+                    primaryColor,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
                     Icons.auto_awesome,
                     size: 16,
-                    color: theme.colorScheme.onPrimary,
+                    color: primaryColor,
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -733,11 +1151,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp> {
                         const SizedBox(height: 12),
                         Container(
                           padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: errorColor.withValues(alpha: 0.1),
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(
-                                color: errorColor.withValues(alpha: 0.3)),
+                          decoration: NightshadeDecorations.emphasisSurface(
+                            errorColor,
                           ),
                           child: Text(
                             _error!,

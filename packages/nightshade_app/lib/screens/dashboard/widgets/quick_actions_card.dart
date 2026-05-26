@@ -28,9 +28,6 @@ class QuickActionsCard extends ConsumerWidget {
     final focuserState = ref.watch(focuserStateProvider);
     final mountState = ref.watch(mountStateProvider);
     final session = ref.watch(sessionStateProvider);
-    final mountCapabilitiesAsync =
-        ref.watch(mountCapabilitiesProvider(mountState.deviceId ?? ''));
-    final mountCapabilities = mountCapabilitiesAsync.valueOrNull;
     final isCameraConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
     final isFocuserConnected =
@@ -38,7 +35,6 @@ class QuickActionsCard extends ConsumerWidget {
     final isMountConnected =
         mountState.connectionState == DeviceConnectionState.connected;
     final hasTarget = session.targetRa != null && session.targetDec != null;
-    final canPark = isMountConnected && (mountCapabilities?.canPark ?? true);
 
     // Build action buttons with their callbacks
     final actionButtons = [
@@ -64,8 +60,19 @@ class QuickActionsCard extends ConsumerWidget {
       _ActionButtonData(
         icon: LucideIcons.parkingCircle,
         label: 'Park',
-        onTap:
-            canPark ? () => ref.read(mountCommandServiceProvider).park() : null,
+        onTap: isMountConnected
+            ? () async {
+                if (!mountState.canPark) {
+                  context.showErrorSnackBar('Mount driver does not support parking');
+                  return;
+                }
+                try {
+                  await ref.read(mountCommandServiceProvider).park();
+                } catch (e) {
+                  context.showErrorSnackBar('Failed to park mount: $e');
+                }
+              }
+            : null,
       ),
     ];
 
@@ -190,7 +197,24 @@ class QuickActionsCard extends ConsumerWidget {
     }
 
     try {
-      final settings = ref.read(exposureSettingsProvider);
+      var settings = ref.read(exposureSettingsProvider);
+      if (cameraState.gain != null) {
+        settings = settings.copyWith(gain: cameraState.gain);
+      }
+      if (cameraState.offset != null) {
+        settings = settings.copyWith(offset: cameraState.offset);
+      }
+      if (cameraState.binning != null) {
+        final binParts = cameraState.binning!.split('x');
+        if (binParts.length == 2) {
+          final bx = int.tryParse(binParts[0]);
+          final by = int.tryParse(binParts[1]);
+          if (bx != null && by != null) {
+            settings = settings.copyWith(binningX: bx, binningY: by);
+          }
+        }
+      }
+
       final imagingService = ref.read(imagingServiceProvider);
       final sessionNotifier = ref.read(sessionStateProvider.notifier);
 
@@ -540,11 +564,30 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         // Use service without feedback - dialog shows its own status
         await mountService.slewTo(newRa, newDec, showFeedback: false);
 
-        // Wait for slew to complete
-        await Future.delayed(const Duration(seconds: 2));
+        // Wait for slew to complete by polling mount status
+        final mountNotifierState = widget.ref.read(mountStateProvider);
+        if (mountNotifierState.deviceId != null) {
+          final backend = widget.ref.read(backendProvider);
+          await Future.delayed(const Duration(milliseconds: 500));
+          int pollCount = 0;
+          while (pollCount < 120 && _isRunning) {
+            try {
+              final status = await backend.getMountStatus(mountNotifierState.deviceId!);
+              if (!status.slewing) {
+                break;
+              }
+            } catch (e) {
+              debugPrint('Error getting mount status: $e');
+            }
+            await Future.delayed(const Duration(milliseconds: 500));
+            pollCount++;
+          }
+        } else {
+          await Future.delayed(const Duration(seconds: 2));
+        }
 
         // Small delay before next iteration
-        await Future.delayed(const Duration(seconds: 1));
+        await Future.delayed(const Duration(milliseconds: 500));
       }
 
       if (!_success && _iteration >= _maxIterations) {
@@ -605,11 +648,9 @@ class _CenteringDialogState extends State<_CenteringDialog> {
           else if (_success)
             Container(
               padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: widget.colors.success.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                widget.colors.success,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [

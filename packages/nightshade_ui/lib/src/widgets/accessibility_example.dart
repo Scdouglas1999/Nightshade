@@ -67,7 +67,7 @@ class _AccessibilityExampleScreenState
       });
 
       // Show error dialog
-      ErrorDialog.show(
+      await ErrorDialog.show(
         context,
         title: 'Connection Timeout',
         message:
@@ -98,7 +98,7 @@ class _AccessibilityExampleScreenState
         });
 
         // Use ErrorMessageHelper for automatic message generation
-        ErrorMessageHelper.showError(
+        await ErrorMessageHelper.showError(
           context,
           error: e,
           onRetry: _simulateAutoError,
@@ -113,7 +113,7 @@ class _AccessibilityExampleScreenState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Scaffold(
       backgroundColor: colors.background,

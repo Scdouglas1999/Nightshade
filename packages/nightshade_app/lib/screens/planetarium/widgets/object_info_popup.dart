@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +11,57 @@ import '../../../widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/planetarium_keys.dart';
 import '../planetarium_screen.dart';
 import 'observation_log_dialog.dart';
+
+/// Resolved size and position for [ObjectInfoPopup] at a global [anchor].
+class ObjectInfoPopupLayout {
+  final double width;
+  final double height;
+  final double left;
+  final double top;
+  final bool showAbove;
+
+  const ObjectInfoPopupLayout({
+    required this.width,
+    required this.height,
+    required this.left,
+    required this.top,
+    required this.showAbove,
+  });
+
+  Rect get rect => Rect.fromLTWH(left, top, width, height);
+}
+
+ObjectInfoPopupLayout resolveObjectInfoPopupLayout(
+  BuildContext context,
+  Offset anchor,
+) {
+  final screenSize = MediaQuery.sizeOf(context);
+  const padding = 16.0;
+  final popupWidth = Responsive.previewOverlayMaxWidth(
+    screenSize.width,
+    maxAbsolute: 300,
+  ).clamp(240.0, 300.0);
+  final popupHeight =
+      math.min(400.0, screenSize.height * 0.55).clamp(280.0, 400.0);
+
+  var left = anchor.dx - popupWidth / 2;
+  var top = anchor.dy + 20;
+
+  left = left.clamp(padding, screenSize.width - popupWidth - padding);
+
+  if (top + popupHeight > screenSize.height - padding) {
+    top = anchor.dy - popupHeight - 20;
+  }
+  top = top.clamp(padding, screenSize.height - popupHeight - padding);
+
+  return ObjectInfoPopupLayout(
+    width: popupWidth,
+    height: popupHeight,
+    left: left,
+    top: top,
+    showAbove: top < anchor.dy,
+  );
+}
 
 class ObjectInfoPopup extends StatefulWidget {
   final NightshadeColors colors;
@@ -84,30 +136,12 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
 
   @override
   Widget build(BuildContext context) {
-    final screenSize = MediaQuery.sizeOf(context);
-    const popupWidth = 300.0;
-    const popupHeight = 400.0;
-
-    // Calculate position to keep popup on screen
-    double left = widget.position.dx - popupWidth / 2;
-    double top = widget.position.dy + 20; // Offset below the click
-
-    // Clamp to screen bounds with padding
-    const padding = 16.0;
-    left = left.clamp(padding, screenSize.width - popupWidth - padding);
-
-    // If popup would go below screen, show it above the click point
-    if (top + popupHeight > screenSize.height - padding) {
-      top = widget.position.dy - popupHeight - 20;
-    }
-    top = top.clamp(padding, screenSize.height - popupHeight - padding);
-
-    // Determine if showing above or below click point for arrow direction
-    final showAbove = top < widget.position.dy;
+    final layout =
+        resolveObjectInfoPopupLayout(context, widget.position);
 
     return Positioned(
-      left: left,
-      top: top,
+      left: layout.left,
+      top: layout.top,
       child: AnimatedBuilder(
         animation: _animationController,
         builder: (context, child) {
@@ -115,8 +149,9 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             opacity: _fadeAnimation.value,
             child: Transform.scale(
               scale: _scaleAnimation.value,
-              alignment:
-                  showAbove ? Alignment.bottomCenter : Alignment.topCenter,
+              alignment: layout.showAbove
+                  ? Alignment.bottomCenter
+                  : Alignment.topCenter,
               child: child,
             ),
           );
@@ -127,25 +162,20 @@ class _ObjectInfoPopupState extends State<ObjectInfoPopup>
             onTap: _consumeTap,
             child: Container(
               key: PlanetariumTutorialKeys.objectPopup,
-              width: popupWidth,
-              constraints: const BoxConstraints(maxHeight: popupHeight),
+              width: layout.width,
+              constraints: BoxConstraints(maxHeight: layout.height),
               decoration: BoxDecoration(
-                color: const Color(0xFF1A1A24).withValues(alpha: 0.95),
+                color: widget.colors.surfaceOverlay.withValues(alpha: 0.95),
                 borderRadius: BorderRadius.circular(8),
                 border: Border.all(
-                  color: widget.colors.primary.withValues(alpha: 0.3),
+                  color: widget.colors.border,
                   width: 1,
                 ),
                 boxShadow: [
                   BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.5),
-                    blurRadius: 24,
-                    spreadRadius: 4,
-                  ),
-                  BoxShadow(
-                    color: widget.colors.primary.withValues(alpha: 0.1),
-                    blurRadius: 40,
-                    spreadRadius: 2,
+                    color: Colors.black.withValues(alpha: 0.3),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
                   ),
                 ],
               ),
@@ -625,6 +655,8 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return PopupMenuButton<SlewMode>(
       onSelected: (mode) {
         switch (mode) {
@@ -686,24 +718,15 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                widget.colors.primary,
-                widget.colors.primary.withValues(alpha: 0.8),
-              ],
-            ),
+            color: _isHovered
+                ? widget.colors.primary.withValues(alpha: 0.92)
+                : widget.colors.primary,
             borderRadius: BorderRadius.circular(8),
-            boxShadow: _isHovered
-                ? [
-                    BoxShadow(
-                      color: widget.colors.primary.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            border: Border.all(
+              color: widget.colors.primary.withValues(alpha: 0.85),
+            ),
           ),
-          child: const FittedBox(
+          child: FittedBox(
             fit: BoxFit.scaleDown,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
@@ -712,22 +735,22 @@ class _SlewPopupMenuButtonState extends State<SlewPopupMenuButton> {
                 Icon(
                   LucideIcons.crosshair,
                   size: 14,
-                  color: Colors.white,
+                  color: onPrimary,
                 ),
-                SizedBox(width: 6),
+                const SizedBox(width: 6),
                 Text(
                   'Slew',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white,
+                    color: onPrimary,
                   ),
                 ),
-                SizedBox(width: 4),
+                const SizedBox(width: 4),
                 Icon(
                   LucideIcons.chevronDown,
                   size: 12,
-                  color: Colors.white70,
+                  color: onPrimary.withValues(alpha: 0.8),
                 ),
               ],
             ),
@@ -848,6 +871,8 @@ class _PopupActionButtonState extends State<PopupActionButton> {
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -857,36 +882,21 @@ class _PopupActionButtonState extends State<PopupActionButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
           decoration: BoxDecoration(
-            gradient: widget.isPrimary
-                ? LinearGradient(
-                    colors: [
-                      widget.colors.primary,
-                      widget.colors.primary.withValues(alpha: 0.8),
-                    ],
-                  )
-                : null,
             color: widget.isPrimary
-                ? null
+                ? (_isHovered
+                    ? widget.colors.primary.withValues(alpha: 0.92)
+                    : widget.colors.primary)
                 : _isHovered
-                    ? Colors.white.withValues(alpha: 0.1)
-                    : Colors.white.withValues(alpha: 0.05),
+                    ? widget.colors.surfaceHover
+                    : widget.colors.surfaceAlt,
             borderRadius: BorderRadius.circular(8),
-            border: widget.isPrimary
-                ? null
-                : Border.all(
-                    color: _isHovered
-                        ? widget.colors.primary.withValues(alpha: 0.5)
-                        : Colors.white.withValues(alpha: 0.1),
-                  ),
-            boxShadow: widget.isPrimary && _isHovered
-                ? [
-                    BoxShadow(
-                      color: widget.colors.primary.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            border: Border.all(
+              color: widget.isPrimary
+                  ? widget.colors.primary.withValues(alpha: 0.85)
+                  : (_isHovered
+                      ? widget.colors.primary.withValues(alpha: 0.5)
+                      : widget.colors.border),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -895,7 +905,7 @@ class _PopupActionButtonState extends State<PopupActionButton> {
               Icon(
                 widget.icon,
                 size: 14,
-                color: widget.isPrimary ? Colors.white : Colors.white70,
+                color: widget.isPrimary ? onPrimary : widget.colors.textSecondary,
               ),
               const SizedBox(width: 6),
               Flexible(
@@ -907,7 +917,8 @@ class _PopupActionButtonState extends State<PopupActionButton> {
                   style: TextStyle(
                     fontSize: 11,
                     fontWeight: FontWeight.w500,
-                    color: widget.isPrimary ? Colors.white : Colors.white70,
+                    color:
+                        widget.isPrimary ? onPrimary : widget.colors.textSecondary,
                   ),
                 ),
               ),
@@ -975,8 +986,11 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
 
     return AlertDialog(
       title: Text('Add "$_objectName" to List'),
-      content: SizedBox(
-        width: 300,
+      content: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 300,
+        ),
         child: listsAsync.when(
           data: (lists) {
             if (lists.isEmpty && !_creatingNew) {
@@ -995,7 +1009,12 @@ class _AddToListDialogState extends ConsumerState<_AddToListDialog> {
               children: [
                 if (lists.isNotEmpty) ...[
                   ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 200),
+                    constraints: BoxConstraints(
+                      maxHeight: math.min(
+                        200,
+                        MediaQuery.sizeOf(context).height * 0.25,
+                      ),
+                    ),
                     child: ListView.builder(
                       shrinkWrap: true,
                       itemCount: lists.length,

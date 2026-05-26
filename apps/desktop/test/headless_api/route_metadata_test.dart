@@ -311,4 +311,152 @@ void main() {
       );
     });
   });
+
+  // P2-6: per-token / route-class token bucket. Verifies bucket math,
+  // refill, and the route classifier so the runtime middleware can rely
+  // on (a) the classifier never returning the wrong class for known
+  // hot endpoints and (b) the bucket producing actionable Retry-After
+  // values when exhausted.
+  group('TokenBucketRateLimiter (P2-6)', () {
+    test('classifies live-view, image downloads, reads and writes', () {
+      expect(
+        tokenRouteClassFor(method: 'GET', path: '/api/camera/live-view/frame'),
+        TokenRouteClass.liveView,
+      );
+      expect(
+        tokenRouteClassFor(method: 'GET', path: '/api/images/42/download'),
+        TokenRouteClass.imageDownload,
+      );
+      expect(
+        tokenRouteClassFor(method: 'POST', path: '/api/imaging/raw-data'),
+        TokenRouteClass.imageDownload,
+      );
+      expect(
+        tokenRouteClassFor(
+          method: 'GET',
+          path: '/api/calibration/darks/3/download',
+        ),
+        TokenRouteClass.imageDownload,
+      );
+      expect(
+        tokenRouteClassFor(method: 'GET', path: '/api/devices/connected'),
+        TokenRouteClass.read,
+      );
+      expect(
+        tokenRouteClassFor(method: 'POST', path: '/api/mount/slew'),
+        TokenRouteClass.write,
+      );
+      // Bucket class names match the task spec wording.
+      expect(tokenRouteClassName(TokenRouteClass.read), 'read');
+      expect(tokenRouteClassName(TokenRouteClass.write), 'write');
+      expect(tokenRouteClassName(TokenRouteClass.liveView), 'live-view');
+      expect(
+        tokenRouteClassName(TokenRouteClass.imageDownload),
+        'image-download',
+      );
+    });
+
+    test('default bucket capacities match the task spec', () {
+      expect(defaultTokenBucketConfigs[TokenRouteClass.read]!.capacity, 60);
+      expect(defaultTokenBucketConfigs[TokenRouteClass.write]!.capacity, 20);
+      expect(
+        defaultTokenBucketConfigs[TokenRouteClass.liveView]!.capacity,
+        30,
+      );
+      expect(
+        defaultTokenBucketConfigs[TokenRouteClass.imageDownload]!.capacity,
+        5,
+      );
+    });
+
+    test('exhausting a bucket returns 429 with refill-based retryAfter', () {
+      // Pin the clock so the test is deterministic. The bucket's refill
+      // formula depends on wall-clock microsecond elapsed time, and Dart's
+      // microtask scheduling can otherwise sneak a few hundred microseconds
+      // between two `tryConsume` calls.
+      var now = DateTime.utc(2026, 1, 1, 0, 0, 0);
+      final limiter = TokenBucketRateLimiter(
+        configByClass: const {
+          TokenRouteClass.write: TokenBucketConfig(
+            capacity: 3,
+            refillTokens: 3,
+            refillPeriod: Duration(seconds: 1),
+          ),
+        },
+        now: () => now,
+      );
+
+      // First three should pass with no time elapsed.
+      for (var i = 0; i < 3; i++) {
+        final decision = limiter.tryConsume(
+          tokenId: 'tokA',
+          routeClass: TokenRouteClass.write,
+        );
+        expect(decision.allowed, isTrue, reason: 'request $i should pass');
+        expect(decision.bucket, 'token-write');
+        expect(decision.maxRequests, 3);
+      }
+
+      // Fourth must fail.
+      final denied = limiter.tryConsume(
+        tokenId: 'tokA',
+        routeClass: TokenRouteClass.write,
+      );
+      expect(denied.allowed, isFalse);
+      expect(denied.bucket, 'token-write');
+      expect(denied.retryAfterSeconds, greaterThanOrEqualTo(1));
+
+      // Wait long enough to refill the entire bucket and verify the
+      // success path returns immediately.
+      now = now.add(const Duration(seconds: 2));
+      final after = limiter.tryConsume(
+        tokenId: 'tokA',
+        routeClass: TokenRouteClass.write,
+      );
+      expect(after.allowed, isTrue,
+          reason: 'bucket should have fully refilled after 2s');
+    });
+
+    test('isolates buckets per (tokenId, routeClass) pair', () {
+      // Distinct tokens MUST NOT share a bucket — that was the whole
+      // point of the P2-6 refactor away from IP-keyed buckets. Verify
+      // by exhausting one token's read bucket and asserting a different
+      // token still has a fresh budget.
+      final limiter = TokenBucketRateLimiter(
+        configByClass: const {
+          TokenRouteClass.read: TokenBucketConfig(
+            capacity: 2,
+            refillTokens: 2,
+            refillPeriod: Duration(seconds: 1),
+          ),
+        },
+      );
+      // Drain tokA's read bucket.
+      expect(
+        limiter
+            .tryConsume(tokenId: 'tokA', routeClass: TokenRouteClass.read)
+            .allowed,
+        isTrue,
+      );
+      expect(
+        limiter
+            .tryConsume(tokenId: 'tokA', routeClass: TokenRouteClass.read)
+            .allowed,
+        isTrue,
+      );
+      expect(
+        limiter
+            .tryConsume(tokenId: 'tokA', routeClass: TokenRouteClass.read)
+            .allowed,
+        isFalse,
+      );
+      // tokB starts fresh.
+      expect(
+        limiter
+            .tryConsume(tokenId: 'tokB', routeClass: TokenRouteClass.read)
+            .allowed,
+        isTrue,
+      );
+    });
+  });
 }

@@ -222,6 +222,64 @@ class CameraCapabilities {
           coolerOn == other.coolerOn;
 }
 
+/// Manufacturer-recommended camera gain/offset values reported by the vendor SDK.
+///
+/// Populated on a best-effort basis on camera connect. Vendors expose these
+/// inconsistently — the field is `None` whenever the SDK does NOT report a
+/// value. Callers MUST treat `None` as "the SDK didn't tell us"; never
+/// fabricate a recommendation.
+///
+/// Sources used by the bridge:
+/// - ZWO: `ASIControlCaps.default_value` for `ASI_GAIN` and `ASI_OFFSET`,
+///   combined with `ASICameraInfo.elec_per_adu` for the notes string.
+/// - QHY: `DefaultGain` (control ID 53) and `DefaultOffset` (control ID 54),
+///   probed via `IsQHYCCDControlAvailable` first.
+/// - SVBony: `SvbControlCaps.default_value` for the Gain and BlackLevel controls.
+/// - All other vendors (Touptek, Player One, Atik, FLI, Moravian, ASCOM,
+///   Alpaca, INDI, gphoto2/Fujifilm): currently no SDK API for unity gain —
+///   honest `None`. The `notes` field will be empty.
+///
+/// `hcg_gain` (HCG transition point) is currently always `None` — no vendor
+/// SDK exposes this programmatically (it's documented in the manual).
+class CameraRecommendedSettings {
+  /// Manufacturer-recommended unity gain (1 e-/ADU), if the SDK exposes it.
+  final int? unityGain;
+
+  /// Gain at which HCG (high conversion gain) engages, if the SDK exposes it.
+  final int? hcgGain;
+
+  /// Manufacturer-recommended default offset/bias, if the SDK exposes it.
+  final int? defaultOffset;
+
+  /// Human-readable explanation of where the values above came from.
+  /// Empty when nothing was queryable.
+  final String notes;
+
+  const CameraRecommendedSettings({
+    this.unityGain,
+    this.hcgGain,
+    this.defaultOffset,
+    required this.notes,
+  });
+
+  @override
+  int get hashCode =>
+      unityGain.hashCode ^
+      hcgGain.hashCode ^
+      defaultOffset.hashCode ^
+      notes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is CameraRecommendedSettings &&
+          runtimeType == other.runtimeType &&
+          unityGain == other.unityGain &&
+          hcgGain == other.hcgGain &&
+          defaultOffset == other.defaultOffset &&
+          notes == other.notes;
+}
+
 /// Capabilities of a cover calibrator device
 class CoverCalibratorCapabilities {
   /// Maximum brightness level (0 if no calibrator)

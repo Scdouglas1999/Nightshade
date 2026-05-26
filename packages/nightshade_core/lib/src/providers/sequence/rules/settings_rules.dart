@@ -1,9 +1,24 @@
+import 'dart:io';
+
 import '../../../models/sequence/sequence_models.dart';
 import '../../settings_provider.dart';
 import '../sequence_validation.dart';
 
-/// Warns when no image output directory is configured. Captured images
-/// would not be saved.
+/// P0-7 — REJECTS sequence start when no usable image output directory
+/// is configured.
+///
+/// Pre-P0-7 this rule only emitted a warning, which the executor would
+/// happily ignore (only `error` severity blocks). On a fresh Pi install
+/// where `imageOutputPath` defaults to empty, the Rust sequencer would
+/// then either fail to write or write to the working directory with no
+/// operator-visible signal. We now fail-closed with `error` severity so
+/// the executor's pre-flight gate blocks the start.
+///
+/// Three failure modes, each with a distinct error code so the REST
+/// surface can render distinct messages:
+///   * `image_output_path_not_configured` — empty / whitespace-only.
+///   * `image_output_path_missing` — directory does not exist.
+///   * `image_output_path_not_writable` — exists but probe-write fails.
 class ImageOutputPathRule implements RefAwareSequenceValidator {
   @override
   String get name => 'ImageOutputPath';
@@ -36,18 +51,74 @@ class ImageOutputPathRule implements RefAwareSequenceValidator {
       ];
     }
 
-    if (settings.imageOutputPath.isEmpty) {
+    final raw = settings.imageOutputPath;
+    final trimmed = raw.trim();
+    if (trimmed.isEmpty) {
       return const [
         ValidationIssue(
-          severity: ValidationSeverity.warning,
+          severity: ValidationSeverity.error,
           category: ValidationCategory.settings,
-          title: 'No Image Save Path',
+          title: 'Image Output Path Not Configured',
           description:
-              'No image output directory is configured. Captured images will NOT be saved to disk.',
+              'No image output directory is configured. Captured frames '
+              'cannot be saved. Configure imageOutputPath in Settings → '
+              'File Output (or PUT /api/settings) before starting a '
+              'sequence.',
           resolutionHint:
               'Configure an image save location in Settings → File Output.',
+          code: 'image_output_path_not_configured',
         ),
       ];
+    }
+
+    final dir = Directory(trimmed);
+    if (!dir.existsSync()) {
+      return [
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.settings,
+          title: 'Image Output Path Missing',
+          description:
+              'Configured image output directory does not exist: $trimmed',
+          resolutionHint:
+              'Create the directory or update Settings → File Output to '
+              'point to an existing location.',
+          code: 'image_output_path_missing',
+        ),
+      ];
+    }
+
+    // Probe-write a tempfile to verify the directory is writable. Fail-
+    // closed: any I/O exception here is treated as not-writable.
+    final probePath =
+        '${dir.path}${Platform.pathSeparator}.nightshade_writable_probe';
+    File? probe;
+    try {
+      probe = File(probePath);
+      probe.writeAsStringSync('ok');
+    } catch (e) {
+      return [
+        ValidationIssue(
+          severity: ValidationSeverity.error,
+          category: ValidationCategory.settings,
+          title: 'Image Output Path Not Writable',
+          description:
+              'Configured image output directory cannot be written: '
+              '$trimmed ($e)',
+          resolutionHint:
+              'Check filesystem permissions, free disk space, or update '
+              'Settings → File Output to point to a writable directory.',
+          code: 'image_output_path_not_writable',
+        ),
+      ];
+    } finally {
+      try {
+        probe?.deleteSync();
+      } catch (_) {
+        // Probe cleanup failure is harmless — leaves an empty file. We
+        // do NOT promote this to an error because we already succeeded
+        // in writing, which was the actual signal we needed.
+      }
     }
     return const [];
   }

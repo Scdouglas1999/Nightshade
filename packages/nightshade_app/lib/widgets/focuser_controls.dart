@@ -96,7 +96,7 @@ class _FocuserControlsState extends ConsumerState<FocuserControls> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final focusSettings = ref.watch(focusSettingsProvider);
     final stepSize = focusSettings.stepSize;
     final buttonSize = widget.compact ? 32.0 : 40.0;
@@ -170,7 +170,7 @@ class _MoveButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Material(
       color: colors.surfaceAlt,
       borderRadius: BorderRadius.circular(4),

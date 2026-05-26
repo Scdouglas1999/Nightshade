@@ -6,14 +6,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
+import 'notification_routing_settings.dart';
 import 'settings_widgets.dart';
 
 class NotificationSettings extends ConsumerStatefulWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const NotificationSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   ConsumerState<NotificationSettings> createState() =>
@@ -124,11 +124,9 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
 
     return settingsAsync.when(
       loading: () => SettingsLoadingState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
       ),
       error: (error, stack) => SettingsErrorState(
-        colors: widget.colors,
         isMobile: widget.isMobile,
         error: error,
         onRetry: () => ref.invalidate(appSettingsProvider),
@@ -142,11 +140,9 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
           key: SettingsTutorialKeys.notifications,
           title: 'Notifications',
           description: 'Configure alerts and notifications',
-          colors: widget.colors,
           children: [
             SettingsSection(
               title: 'General',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.bell,
@@ -159,9 +155,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setNotificationsEnabled(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.volume2,
@@ -174,16 +168,13 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setSoundEnabled(value);
                     },
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Notification Events',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.checkCircle,
@@ -196,9 +187,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnSequenceComplete(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.alertCircle,
@@ -211,9 +200,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnError(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.rotateCw,
@@ -226,16 +213,67 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setNotifyOnMeridianFlip(value);
                     },
-                    colors: widget.colors,
                   ),
                   isLast: true,
-                  colors: widget.colors,
+                ),
+              ],
+            ),
+            // Critical-event escalation: audible alert + cross-platform
+            // push so the user walking away from the laptop / out to the
+            // scope still gets a hard, attention-grabbing alert on a fail.
+            SettingsSection(
+              title: 'Critical events (unattended imaging)',
+              children: [
+                SettingRow(
+                  icon: LucideIcons.bellRing,
+                  title: 'Audible alert on critical events',
+                  subtitle:
+                      'Play the system bell when a critical error fires',
+                  trailing: SettingsSwitch(
+                    value: settings.audibleAlertsOnCritical,
+                    onChanged: (value) {
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setAudibleAlertsOnCritical(value);
+                    },
+                  ),
+                ),
+                SettingRow(
+                  icon: LucideIcons.volume2,
+                  title: 'Alert sound',
+                  subtitle:
+                      'Which sound to play when critical events fire',
+                  trailing: SettingsDropdown(
+                    value: settings.criticalAlertSound,
+                    items: const ['systemBell', 'none'],
+                    itemLabels: const ['System bell', 'None (silent)'],
+                    onChanged: (value) {
+                      if (value == null) return;
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setCriticalAlertSound(value);
+                    },
+                  ),
+                ),
+                SettingRow(
+                  icon: LucideIcons.smartphone,
+                  title: 'Push critical alerts to mobile',
+                  subtitle:
+                      'Forward critical events to paired phones (separate from per-event push toggles below)',
+                  trailing: SettingsSwitch(
+                    value: settings.pushCriticalAlerts,
+                    onChanged: (value) {
+                      ref
+                          .read(appSettingsProvider.notifier)
+                          .setPushCriticalAlerts(value);
+                    },
+                  ),
+                  isLast: true,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Push to Mobile',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.smartphone,
@@ -248,9 +286,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setEnabled(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.checkCircle,
@@ -265,9 +301,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifySequenceCompleted(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.alertTriangle,
@@ -282,9 +316,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifySequenceFailed(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.rotateCw,
@@ -298,9 +330,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyMeridianFlip(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.cloudRain,
@@ -314,9 +344,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyWeatherUnsafe(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.crosshair,
@@ -330,9 +358,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyGuidingLost(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.cameraOff,
@@ -347,9 +373,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyExposureFailed(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.focus,
@@ -364,9 +388,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyAutofocusFailed(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.unplug,
@@ -381,9 +403,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(pushNotificationConfigProvider.notifier)
                           .setNotifyEquipmentDisconnected(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.send,
@@ -399,31 +419,28 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                         : null,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Discord',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.messageSquare,
                   title: 'Webhook URL',
                   subtitle: 'Discord channel webhook for notifications',
-                  trailing: SettingsTextInput(
+                  trailing: settingsTrailingTextInput(
+                    context: context,
                     controller: _discordController,
                     hint: 'https://discord.com/api/webhooks/...',
-                    width: 260,
+                    isMobile: widget.isMobile,
                     obscure: true,
                     onChanged: (value) {
                       ref
                           .read(appSettingsProvider.notifier)
                           .setDiscordWebhook(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.send,
@@ -437,13 +454,11 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     onPressed: _testingDiscord ? null : _testDiscord,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
             ),
             SettingsSection(
               title: 'Pushover',
-              colors: widget.colors,
               children: [
                 SettingRow(
                   icon: LucideIcons.key,
@@ -459,9 +474,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setPushoverKey(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.user,
@@ -477,9 +490,7 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                           .read(appSettingsProvider.notifier)
                           .setPushoverUser(value);
                     },
-                    colors: widget.colors,
                   ),
-                  colors: widget.colors,
                 ),
                 SettingRow(
                   icon: LucideIcons.send,
@@ -493,9 +504,17 @@ class _NotificationSettingsState extends ConsumerState<NotificationSettings> {
                     onPressed: _testingPushover ? null : _testPushover,
                   ),
                   isLast: true,
-                  colors: widget.colors,
                 ),
               ],
+            ),
+            // Wave 5 — comprehensive per-event routing matrix +
+            // Email/Webhook/Telegram/MQTT credentials. Lives inside the
+            // same Notifications page so users see one place for every
+            // transport. Routing-aware Pushover / Discord configs above
+            // are separate keys to keep legacy NotificationService
+            // (Discord + Pushover only) working unchanged.
+            NotificationRoutingSettings(
+              isMobile: widget.isMobile,
             ),
           ],
         );

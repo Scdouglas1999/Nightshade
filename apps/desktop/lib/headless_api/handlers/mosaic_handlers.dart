@@ -43,8 +43,7 @@ class MosaicHandlers {
 
     final mosaicName = optionalString(payload, 'mosaicName') ?? 'Mosaic';
     final config = _parseMosaicConfig(requireObject(payload, 'config'));
-    final exposure =
-        _parseExposureSettings(requireObject(payload, 'exposure'));
+    final exposure = _parseExposureSettings(requireObject(payload, 'exposure'));
     final optionsJson = optionalObject(payload, 'options');
     final options = optionsJson != null
         ? _parseSequenceOptions(optionsJson)
@@ -127,8 +126,7 @@ class MosaicHandlers {
     final payload = await readJsonObject(request);
 
     final config = _parseMosaicConfig(requireObject(payload, 'config'));
-    final exposure =
-        _parseExposureSettings(requireObject(payload, 'exposure'));
+    final exposure = _parseExposureSettings(requireObject(payload, 'exposure'));
     final overheadPerPanel =
         optionalDouble(payload, 'overheadPerPanelSecs') ?? 60.0;
 
@@ -143,6 +141,25 @@ class MosaicHandlers {
       'estimatedTimeSecs': timeSecs,
       'estimatedTimeHours': timeSecs / 3600,
       'totalPanels': config.totalPanels,
+    });
+  }
+
+  Future<Response> handleRecommendExposure(Request request) async {
+    _logInfo('[API] GET /api/mosaic/recommended-exposure');
+    final context =
+        await container.read(smartNightExposureContextProvider.future);
+    final exposure = smartNightMosaicExposureSettings(context);
+    final recommendation = context?.recommendForFilter(exposure.filterName);
+
+    return jsonOk({
+      'exposureSeconds': exposure.exposureSeconds,
+      'exposuresPerPanel': exposure.exposuresPerPanel,
+      'filterName': exposure.filterName,
+      'binning': exposure.binning,
+      'source': context == null ? 'fallback' : 'smart_night',
+      if (recommendation != null) 'rationale': recommendation.rationale,
+      if (recommendation != null)
+        'caveats': [...context!.caveats, ...recommendation.caveats],
     });
   }
 

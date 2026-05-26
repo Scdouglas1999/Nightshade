@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:isolate';
 import 'package:flutter_foreground_task/flutter_foreground_task.dart';
 import 'notification_service.dart';
@@ -39,9 +40,65 @@ class ImagingForegroundService {
         isOnceEvent: false,
         autoRunOnBoot: false,
         allowWakeLock: true,
-        allowWifiLock: false,
+        // P1-16b / audit §7 bug 10: some OEM aggressive battery firmware
+        // (Xiaomi, Huawei, Samsung) releases WiFi when the screen is off
+        // even with a foreground service running, which silently kills
+        // the WS mid-sequence. Holding a WiFi lock for the lifetime of
+        // the foreground service prevents that. The CHANGE_WIFI_STATE +
+        // WAKE_LOCK manifest permissions are required for this to take
+        // effect; both are declared in AndroidManifest.xml.
+        allowWifiLock: true,
       ),
     );
+  }
+
+  /// Ask the OS to whitelist this app from battery optimization so the
+  /// foreground service is not killed during long sequences. The user
+  /// sees a system dialog asking whether to ignore battery optimizations
+  /// for Nightshade. Returns true if the user has whitelisted (or had
+  /// already whitelisted) the app.
+  ///
+  /// Safe to call multiple times; the OS only prompts when the current
+  /// state is "not whitelisted". P1-16a / audit §7 bug 3.
+  Future<bool> requestIgnoreBatteryOptimization() async {
+    try {
+      return await FlutterForegroundTask.requestIgnoreBatteryOptimization();
+    } catch (e, st) {
+      // Don't silently swallow — surface and treat as denied. The
+      // foreground service still runs without the whitelist; it's
+      // just more likely to be killed on aggressive OEMs.
+      developer.log(
+        'requestIgnoreBatteryOptimization failed: $e',
+        name: 'ImagingForegroundService',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+      return false;
+    }
+  }
+
+  /// Ask Android for the runtime POST_NOTIFICATIONS permission via the
+  /// foreground-task plugin's helper. Equivalent in effect to
+  /// `flutter_local_notifications`'s `requestNotificationsPermission()`,
+  /// but the foreground-task plugin uses its own permission check before
+  /// it will start a service — so it must see "granted" too. Returns
+  /// true on a granted decision.
+  Future<bool> requestNotificationPermission() async {
+    try {
+      final result =
+          await FlutterForegroundTask.requestNotificationPermission();
+      return result == NotificationPermission.granted;
+    } catch (e, st) {
+      developer.log(
+        'FlutterForegroundTask.requestNotificationPermission failed: $e',
+        name: 'ImagingForegroundService',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+      return false;
+    }
   }
 
   Future<bool> startService({
@@ -143,27 +200,32 @@ void startCallback() {
 }
 
 class ImagingTaskHandler extends TaskHandler {
-  SendPort? _sendPort;
-  int _updateCount = 0;
-
   @override
   Future<void> onStart(DateTime timestamp, SendPort? sendPort) async {
-    _sendPort = sendPort;
     ImagingForegroundService().setRunning(true);
+    // Deliberately do not call updateService here with a placeholder
+    // notification text — the main isolate's [ImagingForegroundService.
+    // startService] already wrote "Starting sequence... (0/N)" via the
+    // service start call, and [updateProgress] from the sequence-event
+    // listener will overwrite it the moment the first progress event
+    // lands. Writing a hardcoded placeholder from this handler would
+    // race with the main isolate and clobber the real progress text.
+    // See P1-16c / audit §7 bug 12.
   }
 
   @override
   Future<void> onRepeatEvent(DateTime timestamp, SendPort? sendPort) async {
-    _updateCount++;
-
-    // Send keep-alive signal
-    FlutterForegroundTask.updateService(
-      notificationTitle: 'Nightshade Imaging',
-      notificationText: 'Sequence running...',
-    );
-
-    // Send update to UI if needed
-    _sendPort?.send(_updateCount);
+    // P1-16c / audit §7 bug 12: this used to call
+    // `FlutterForegroundTask.updateService` every 5 s with a hardcoded
+    // "Sequence running..." text, which clobbered whatever real progress
+    // text the main isolate's `updateProgress()` last wrote. The real
+    // notification text is driven from the main isolate by the sequence
+    // event listener (see `ImagingForegroundService.updateProgress` in
+    // this file, called from `MobileSequenceHooks._handleProgressUpdate`);
+    // the repeat event was never doing useful work for it.
+    //
+    // Kept as an override (rather than removed) because the plugin's
+    // [TaskHandler] interface requires it; intentionally a no-op.
   }
 
   @override

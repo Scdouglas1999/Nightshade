@@ -20,6 +20,7 @@ import '../models/backend/device_capabilities.dart' as dart_caps;
 import '../models/backend/device_status.dart' as dart_status;
 import '../models/backend/device_types.dart' as dart_types;
 import '../models/errors/nightshade_error.dart' as dart_error;
+import 'bridge_event_mapper.dart' show recoveryFieldsFromTyped;
 
 /// FFI backend implementation that wraps the native Rust bridge
 ///
@@ -34,6 +35,9 @@ class FfiBackend implements NightshadeBackend {
 
   /// Subscription to polar alignment events - must be cancelled on dispose
   StreamSubscription<NightshadeEvent>? _polarAlignSubscription;
+
+  @override
+  bool get dispatchPluginNodesLocally => true;
 
   /// Whether this backend has been disposed
   bool _disposed = false;
@@ -118,6 +122,16 @@ class FfiBackend implements NightshadeBackend {
       return _extractImagingEventInfo(payload.field0);
     }
 
+    // Handle safety events with proper field extraction
+    if (payload is bridge.EventPayload_Safety) {
+      return _extractSafetyEventInfo(payload.field0);
+    }
+
+    // Handle system events with proper field extraction
+    if (payload is bridge.EventPayload_System) {
+      return _extractSystemEventInfo(payload.field0);
+    }
+
     // Handle polar alignment events
     if (payload is bridge.EventPayload_PolarAlignment) {
       final pa = payload.field0;
@@ -168,6 +182,55 @@ class FfiBackend implements NightshadeBackend {
     final match = RegExp(r'^EventPayload\.(\w+)\(').firstMatch(payloadStr);
     final eventType = match?.group(1) ?? 'unknown';
     return (eventType, {'payload': payloadStr});
+  }
+
+  /// Extract event type and data from a SafetyEvent
+  (String, Map<String, dynamic>) _extractSafetyEventInfo(dynamic safetyEvent) {
+    if (safetyEvent is bridge.SafetyEvent_WeatherUnsafe) {
+      return ('WeatherUnsafe', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_WeatherSafe) {
+      return ('WeatherSafe', {});
+    } else if (safetyEvent is bridge.SafetyEvent_EmergencyStop) {
+      return ('EmergencyStop', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_ParkInitiated) {
+      return ('ParkInitiated', {'reason': safetyEvent.reason});
+    } else if (safetyEvent is bridge.SafetyEvent_ParkCompleted) {
+      return ('ParkCompleted', {});
+    }
+    return ('UnknownSafetyEvent', {'event': safetyEvent.toString()});
+  }
+
+  /// Extract event type and data from a SystemEvent
+  (String, Map<String, dynamic>) _extractSystemEventInfo(dynamic systemEvent) {
+    if (systemEvent is bridge.SystemEvent_Initialized) {
+      return ('Initialized', {});
+    } else if (systemEvent is bridge.SystemEvent_ShuttingDown) {
+      return ('ShuttingDown', {});
+    } else if (systemEvent is bridge.SystemEvent_Error) {
+      return ('Error', {'message': systemEvent.message});
+    } else if (systemEvent is bridge.SystemEvent_DiskSpaceLow) {
+      return ('DiskSpaceLow', {'available_gb': systemEvent.availableGb});
+    } else if (systemEvent is bridge.SystemEvent_Notification) {
+      return (
+        'Notification',
+        {
+          'title': systemEvent.title,
+          'message': systemEvent.message,
+          'level': systemEvent.level,
+          if (systemEvent.explicitTransports != null)
+            'explicit_transports': systemEvent.explicitTransports,
+        }
+      );
+    } else if (systemEvent is bridge.SystemEvent_EventsDropped) {
+      return (
+        'EventsDropped',
+        {
+          'dropped_count': systemEvent.droppedCount,
+          'total_dropped': systemEvent.totalDropped,
+        }
+      );
+    }
+    return ('UnknownSystemEvent', {'event': systemEvent.toString()});
   }
 
   /// Extract event type and data from an EquipmentEvent
@@ -298,6 +361,67 @@ class FfiBackend implements NightshadeBackend {
       return ('CameraWarmingStarted', {});
     } else if (equipmentEvent is bridge.EquipmentEvent_CameraWarmingCompleted) {
       return ('CameraWarmingCompleted', {});
+    }
+    // DEV-P3-2: heartbeat events. Rust publishes these from
+    // `device_manager::heartbeat` so per-device-card health indicators
+    // can react in real time. Each variant is mapped to a string event
+    // type and a snake_case data map so the Dart-side handler in
+    // `DeviceService` can dispatch without referencing FRB-generated
+    // types directly.
+    else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStarted) {
+      return (
+        'HeartbeatStarted',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'interval_secs': equipmentEvent.intervalSecs,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatStopped) {
+      return (
+        'HeartbeatStopped',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+        }
+      );
+    } else if (equipmentEvent
+        is bridge.EquipmentEvent_HeartbeatStatusChanged) {
+      // `status` is the FRB-generated HeartbeatStatus enum; the handler
+      // matches on its `.name` (`healthy`, `degraded`, `disconnected`,
+      // `reconnecting`, `reconnected`) so we don't leak the FRB type
+      // into the rest of the codebase.
+      return (
+        'HeartbeatStatusChanged',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'status': equipmentEvent.status.name,
+          'consecutive_failures': equipmentEvent.consecutiveFailures,
+          if (equipmentEvent.lastRttMs != null)
+            'last_rtt_ms': equipmentEvent.lastRttMs,
+        }
+      );
+    } else if (equipmentEvent
+        is bridge.EquipmentEvent_HeartbeatReconnecting) {
+      return (
+        'HeartbeatReconnecting',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'attempt': equipmentEvent.attempt,
+          'max_attempts': equipmentEvent.maxAttempts,
+        }
+      );
+    } else if (equipmentEvent is bridge.EquipmentEvent_HeartbeatReconnected) {
+      return (
+        'HeartbeatReconnected',
+        {
+          'device_type': equipmentEvent.deviceType,
+          'device_id': equipmentEvent.deviceId,
+          'after_attempts': equipmentEvent.afterAttempts,
+        }
+      );
     }
     // Fallback
     return ('UnknownEquipmentEvent', {'event': equipmentEvent.toString()});
@@ -460,6 +584,221 @@ class FfiBackend implements NightshadeBackend {
           'detail': sequencerEvent.detail,
         }
       );
+    } else if (sequencerEvent
+        is bridge.SequencerEvent_InstructionProgressStructured) {
+      return (
+        'InstructionProgressStructured',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'instruction': sequencerEvent.instruction,
+          'progress_percent': sequencerEvent.progressPercent,
+          'detail_kind': sequencerEvent.detailKind,
+          'detail_json': sequencerEvent.detailJson,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_FrameAccepted) {
+      // Pack H — Wave 3 typed grading payload. Carries every metric the
+      // dashboard's quality panel needs without parsing the legacy
+      // `InstructionProgress.detail` string.
+      //
+      // Wave 6 Pack P — `save_path` is now carried alongside the
+      // metrics so the thumbnail strip can render an inline preview of
+      // accepted frames. Mirrors the existing `reject_path` flow on
+      // FrameRejected.
+      return (
+        'FrameAccepted',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'hfr': sequencerEvent.hfr,
+          'eccentricity': sequencerEvent.eccentricity,
+          'star_count': sequencerEvent.starCount,
+          'accepted_total': sequencerEvent.acceptedTotal,
+          'rejected_total': sequencerEvent.rejectedTotal,
+          'save_path': sequencerEvent.savePath,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_FrameRejected) {
+      return (
+        'FrameRejected',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'frame': sequencerEvent.frame,
+          'total': sequencerEvent.total,
+          'reason': sequencerEvent.reason,
+          'hfr': sequencerEvent.hfr,
+          'eccentricity': sequencerEvent.eccentricity,
+          'star_count': sequencerEvent.starCount,
+          'reject_path': sequencerEvent.rejectPath,
+          'consecutive_rejects': sequencerEvent.consecutiveRejects,
+          'accepted_total': sequencerEvent.acceptedTotal,
+          'rejected_total': sequencerEvent.rejectedTotal,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_SchedulerDecision) {
+      // Pack H — Wave 3 Agent 1 typed scheduler payload. The score table
+      // is flattened to a list of plain maps so it survives the
+      // `Map<String, dynamic>` data envelope without losing fields.
+      return (
+        'SchedulerDecision',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'decision_counter': sequencerEvent.decisionCounter,
+          'picked_target_id': sequencerEvent.pickedTargetId,
+          'picked_target_name': sequencerEvent.pickedTargetName,
+          'picked_score': sequencerEvent.pickedScore,
+          'scores': sequencerEvent.scores
+              .map((s) => {
+                    'target_id': s.targetId,
+                    'target_name': s.targetName,
+                    'total_score': s.totalScore,
+                    'runnable': s.runnable,
+                    'reason': s.reason,
+                  })
+              .toList(growable: false),
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_IntegrationBudget) {
+      return (
+        'IntegrationBudget',
+        {
+          'target_id': sequencerEvent.targetId,
+          'filter': sequencerEvent.filter,
+          'completed_secs': sequencerEvent.completedSecs,
+          'budget_secs': sequencerEvent.budgetSecs,
+          'fraction': sequencerEvent.fraction,
+          'budget_met': sequencerEvent.budgetMet,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeRequested) {
+      // Wave 6 Pack P — surface the plugin-node dispatch request so the
+      // Dart `SequenceExecutor` can route it to `PluginNodeExecutor`
+      // and reply via `sequencerPluginNodeFinished`.
+      return (
+        'PluginNodeRequested',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'plugin_id': sequencerEvent.pluginId,
+          'node_type_id': sequencerEvent.nodeTypeId,
+          'config_json': sequencerEvent.configJson,
+          'display_name': sequencerEvent.displayName,
+          'timeout_secs': sequencerEvent.timeoutSecs,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_PluginNodeProgress) {
+      // Wave 6 Pack P — plugin-authored intermediate progress payload.
+      // Informational; the sequence executor logs it and the dashboard
+      // plugin-node panel can subscribe via its own provider.
+      return (
+        'PluginNodeProgress',
+        {
+          'node_id': sequencerEvent.nodeId,
+          'plugin_id': sequencerEvent.pluginId,
+          'node_type_id': sequencerEvent.nodeTypeId,
+          'detail_json': sequencerEvent.detailJson,
+        }
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryStarted) {
+      return (
+        'RecoveryStarted',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryProgress) {
+      return (
+        'RecoveryProgress',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryCompleted) {
+      return (
+        'RecoveryCompleted',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+        ),
+      );
+    } else if (sequencerEvent is bridge.SequencerEvent_RecoveryGaveUp) {
+      return (
+        'RecoveryGaveUp',
+        recoveryFieldsFromTyped(
+          startedAtIso: sequencerEvent.startedAtIso,
+          causeKind: sequencerEvent.causeKind,
+          causeCustomLabel: sequencerEvent.causeCustomLabel,
+          lastAttemptAtIso: sequencerEvent.lastAttemptAtIso,
+          attemptCount: sequencerEvent.attemptCount,
+          maxAttempts: sequencerEvent.maxAttempts,
+          retryIntervalSecs: sequencerEvent.retryIntervalSecs,
+          maxDurationSecs: sequencerEvent.maxDurationSecs,
+          phase: sequencerEvent.phase,
+          lastError: sequencerEvent.lastError,
+          abortedByUser: sequencerEvent.abortedByUser,
+        ),
+      );
+    }
+    // Wave 8 Replay Debug — `SequencerEvent_DecisionLogged` is the
+    // typed payload from the Rust bridge. The Dart class is generated
+    // on FRB regen (the Rust side already declares the variant in
+    // `bridge/src/event.rs`); until that regen lands, we fall back to
+    // detecting the variant by reflective discriminant + string
+    // matching the runtime type name. Once the freezed class is in
+    // place, this whole `if` chain can be replaced with a direct
+    // `sequencerEvent is bridge.SequencerEvent_DecisionLogged` check
+    // (see the FrameAccepted / FrameRejected branches above). The
+    // runtime contract — the Rust side emits a struct with the same
+    // field names — does not change.
+    final eventTypeName = sequencerEvent.runtimeType.toString();
+    if (eventTypeName.contains('DecisionLogged')) {
+      // Use `dynamic` so the runtime-shape access compiles even
+      // before the freezed class is generated. Every field is
+      // documented in `bridge/src/event.rs::SequencerEvent::DecisionLogged`.
+      final dynamic d = sequencerEvent;
+      try {
+        return (
+          'DecisionLogged',
+          {
+            'timestamp_iso': d.timestampIso as String,
+            'category': d.category as String,
+            'summary': d.summary as String,
+            'details_json': d.detailsJson as String,
+            'node_id': d.nodeId as String?,
+            'sequence_run_id': d.sequenceRunId as int?,
+          }
+        );
+      } catch (_) {
+        // Fall through to the unknown-variant fallback below; the
+        // dynamic lookup can only fail if the generated class shape
+        // unexpectedly diverges from the Rust struct.
+      }
     }
 
     return ('UnknownSequencerEvent', {'event': sequencerEvent.toString()});
@@ -755,6 +1094,11 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
+  Future<Uint8List> cameraLiveViewFrame(String deviceId) async {
+    return bridge_api.apiCameraCapturePreview(deviceId: deviceId);
+  }
+
+  @override
   Future<CapturedImageResult?> cameraGetLastImage(String deviceId) async {
     final bridgeImage = await bridge_api.apiGetLastImage(deviceId: deviceId);
 
@@ -850,9 +1194,13 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
-  Future<CameraRecommendedSettings> cameraGetRecommendedSettings(
+  Future<bridge_caps.CameraRecommendedSettings> cameraGetRecommendedSettings(
       String deviceId) async {
-    return const CameraRecommendedSettings(notes: '');
+    // Direct passthrough: the Rust bridge returns an empty struct when the
+    // vendor SDK doesn't expose a recommendation, so we never need to invent
+    // values here. Errors propagate to the caller — silent fallbacks would
+    // hide SDK failures.
+    return await bridge_api.apiCameraGetRecommendedSettings(deviceId: deviceId);
   }
 
   // =========================================================================
@@ -999,14 +1347,6 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<List<String>> filterWheelGetNames(String deviceId) async {
     return await bridge.NativeBridge.apiFilterwheelGetNames(deviceId: deviceId);
-  }
-
-  @override
-  Future<void> filterWheelSetNames(String deviceId, List<String> names) async {
-    await bridge_api.apiFilterwheelSetFilterNames(
-      deviceId: deviceId,
-      names: names,
-    );
   }
 
   @override
@@ -1391,6 +1731,33 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSkipToNode(String nodeId) async {
+    // Wave 1.5 Pack A: routes to the new `api_sequencer_skip_to_node` FRB
+    // binding; preceding siblings of `nodeId` are marked Skipped and the
+    // executor jumps forward on its next tree-walk step.
+    await bridge.NativeBridge.sequencerSkipToNode(nodeId: nodeId);
+  }
+
+  @override
+  Future<void> sequencerPluginNodeFinished({
+    required String nodeId,
+    required bool success,
+    String? message,
+    String? structuredDetailJson,
+  }) async {
+    // Wave 6 Pack P: routes to `api_sequencer_plugin_node_finished`,
+    // which resolves the matching pending oneshot inside the Rust
+    // executor. The awaiting `PluginNodeInstruction::execute` returns
+    // Success / Failure based on `success`.
+    await bridge.NativeBridge.sequencerPluginNodeFinished(
+      nodeId: nodeId,
+      success: success,
+      message: message,
+      structuredDetailJson: structuredDetailJson,
+    );
+  }
+
+  @override
   Future<void> sequencerReset() async {
     await bridge.NativeBridge.sequencerReset();
   }
@@ -1432,8 +1799,27 @@ class FfiBackend implements NightshadeBackend {
   }
 
   @override
+  Future<void> sequencerSetSafetyCheckIntervalSeconds(int seconds) async {
+    await bridge.NativeBridge.sequencerSetSafetyCheckIntervalSeconds(seconds);
+  }
+
+  @override
   Future<void> sequencerSetSavePath(String? path) async {
     await bridge.NativeBridge.sequencerSetSavePath(path: path);
+  }
+
+  @override
+  Future<void> sequencerSetActiveSequenceRunId(int? sequenceRunId) async {
+    await bridge.NativeBridge.sequencerSetActiveSequenceRunId(
+      sequenceRunId: sequenceRunId,
+    );
+  }
+
+  @override
+  Future<void> sequencerSetDecisionLoggingEnabled(bool enabled) async {
+    await bridge.NativeBridge.sequencerSetDecisionLoggingEnabled(
+      enabled: enabled,
+    );
   }
 
   @override
@@ -1467,6 +1853,230 @@ class FfiBackend implements NightshadeBackend {
   @override
   Future<void> sequencerUpdateFilterOffsets(Map<String, int> offsets) async {
     await bridge.NativeBridge.sequencerUpdateFilterOffsets(offsets: offsets);
+  }
+
+  @override
+  Future<void> sequencerUpdatePendingIntegrationCarryOver(
+    Map<String, Map<String, double>> carryOver,
+  ) async {
+    // Wave 7.5 — staged on the executor's RuntimeConfig; consumed once
+    // when the spawned executor task is created at the top of start().
+    await bridge.NativeBridge.sequencerUpdatePendingIntegrationCarryOver(
+      carryOver: carryOver,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateAutofocusInterval(int everyNFrames) async {
+    // Wave 1.5 Pack A: pushes the cadence into the live executor's
+    // standard `AutofocusInterval` trigger via the new FRB binding.
+    // The bridge rejects 0; pass >= 1.
+    await bridge.NativeBridge.sequencerUpdateAutofocusInterval(
+      everyNFrames: everyNFrames,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateDefaultQualityCheck({
+    double? hfrThreshold,
+    double? hfrBaselinePercent,
+    double? eccentricityThreshold,
+    int? starCountMin,
+    required int maxConsecutiveRejects,
+    required bool enabled,
+  }) async {
+    // Pack G — pushes the global image-grading thresholds into the
+    // executor's RuntimeConfig.default_quality_check so the next
+    // exposure honours the user's choices. Disabled => None pushed.
+    await bridge.NativeBridge.sequencerUpdateDefaultQualityCheck(
+      hfrThreshold: hfrThreshold,
+      hfrBaselinePercent: hfrBaselinePercent,
+      eccentricityThreshold: eccentricityThreshold,
+      starCountMin: starCountMin,
+      maxConsecutiveRejects: maxConsecutiveRejects,
+      enabled: enabled,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateRejectFolderPath(String? path) async {
+    // Pack G — pushes the reject-folder override into the executor.
+    // Empty / null => fall back to <save_path>/Reject/.
+    await bridge.NativeBridge.sequencerUpdateRejectFolderPath(path: path);
+  }
+
+  @override
+  Future<void> sequencerUpdateObserverProfile({
+    String? observerName,
+    double? siteElevationM,
+    String? cameraMake,
+    String? cameraModel,
+    String? telescopeName,
+    double? telescopeFocalLengthMm,
+    double? telescopeApertureMm,
+  }) async {
+    // Pack G — pushes observer / equipment identification into the
+    // executor so the next FITS save stamps OBSERVER, TELESCOP, FOCALLEN,
+    // APTDIA, INSTRUME, SITEELEV with real values.
+    await bridge.NativeBridge.sequencerUpdateObserverProfile(
+      observerName: observerName,
+      siteElevationM: siteElevationM,
+      cameraMake: cameraMake,
+      cameraModel: cameraModel,
+      telescopeName: telescopeName,
+      telescopeFocalLengthMm: telescopeFocalLengthMm,
+      telescopeApertureMm: telescopeApertureMm,
+    );
+  }
+
+  @override
+  Future<void> sequencerUpdateCloudMotion({
+    double? currentCoverPercent,
+    double? predictedArrivalMinutes,
+    double? predictedOpeningMinutes,
+    double? predictedOpeningDurationSecs,
+    double? predictedClearSkyAlt,
+    double? predictedClearSkyAz,
+  }) async {
+    // Wave 5 Agent 4 — push the cloud-motion analyzer reading into the
+    // Rust trigger state. Drives the CloudArrivingIn / CloudOpeningIn /
+    // CloudCoverThreshold triggers in the live executor.
+    await bridge_api.apiSequencerUpdateCloudMotion(
+      currentCoverPercent: currentCoverPercent,
+      predictedArrivalMinutes: predictedArrivalMinutes,
+      predictedOpeningMinutes: predictedOpeningMinutes,
+      predictedOpeningDurationSecs: predictedOpeningDurationSecs,
+      predictedClearSkyAlt: predictedClearSkyAlt,
+      predictedClearSkyAz: predictedClearSkyAz,
+    );
+  }
+
+  @override
+  Future<String?> sequencerGetCloudMotionJson() async {
+    // Wave 5 Agent 4 — JSON-serialised cloud-motion snapshot for the run
+    // dashboard. Returns null until the first push has been received.
+    return await bridge_api.apiSequencerGetCloudMotionJson();
+  }
+
+  @override
+  Future<void> sequencerUpdateConditionsScore(ConditionsScore? score) async {
+    final weights = score?.weights ?? const ConditionsScoreWeights();
+    final generatedAt = score?.generatedAt.toUtc() ?? DateTime.now().toUtc();
+    await bridge_api.apiSequencerUpdateConditionsScore(
+      score: score?.score,
+      transparencyScore: score?.transparencyScore,
+      seeingScore: score?.seeingScore,
+      cloudScore: score?.cloudScore,
+      windScore: score?.windScore,
+      transparencyWeight: weights.transparencyWeight,
+      seeingWeight: weights.seeingWeight,
+      cloudWeight: weights.cloudWeight,
+      windWeight: weights.windWeight,
+      generatedUnixSecs: generatedAt.millisecondsSinceEpoch ~/ 1000,
+    );
+  }
+
+  @override
+  Future<AdaptiveSwapSnapshot?> sequencerGetAdaptiveSwapSnapshot() async {
+    final raw = await bridge_api.apiSequencerGetAdaptiveSwapJson();
+    return AdaptiveSwapDriver.decodeSnapshotJson(raw);
+  }
+
+  @override
+  Future<void> sequencerUpdateSkyBrightness({required double? mag}) async {
+    // Wave 5 Agent 2 — push the live SkyBrightnessTracker reading to the
+    // executor.
+    await bridge_api.apiSequencerUpdateSkyBrightness(mag: mag);
+  }
+
+  @override
+  Future<void> sequencerUpdateDefaultAdaptiveExposure({
+    required bool enabled,
+    required double targetSnr,
+    required double referenceSkyBrightnessMag,
+    required double minExposureSecs,
+    required double maxExposureSecs,
+    required Map<String, bool> perFilterEnabled,
+    required Map<String, double> perFilterMinSecs,
+    required Map<String, double> perFilterMaxSecs,
+  }) async {
+    // Wave 5 Agent 2 — push the global default adaptive exposure config.
+    // FRB cannot bridge `Map<String, T>` directly, so we flatten to
+    // parallel (keys, values) lists matching the Rust API.
+    await bridge_api.apiSequencerUpdateDefaultAdaptiveExposure(
+      enabled: enabled,
+      targetSnr: targetSnr,
+      referenceSkyBrightnessMag: referenceSkyBrightnessMag,
+      minExposureSecs: minExposureSecs,
+      maxExposureSecs: maxExposureSecs,
+      perFilterEnabledKeys: perFilterEnabled.keys.toList(),
+      perFilterEnabledValues: perFilterEnabled.values.toList(),
+      perFilterMinKeys: perFilterMinSecs.keys.toList(),
+      perFilterMinValues: perFilterMinSecs.values.toList(),
+      perFilterMaxKeys: perFilterMaxSecs.keys.toList(),
+      perFilterMaxValues: perFilterMaxSecs.values.toList(),
+    );
+  }
+
+  @override
+  Future<void> sequencerClearDefaultAdaptiveExposure() async {
+    await bridge_api.apiSequencerClearDefaultAdaptiveExposure();
+  }
+
+  // =========================================================================
+  // Wave 4 Recovery Mode
+  // =========================================================================
+  //
+  // The Rust bridge exposes:
+  //   * `sequencer_recovery_try_now()` -> Result<(), NightshadeError>
+  //   * `sequencer_recovery_abort()`   -> Result<(), NightshadeError>
+  //   * `sequencer_update_recovery_config(update)` -> Result<(), …>
+  //   * `sequencer_get_current_recovery_json()` -> Result<Option<String>, …>
+  //   * `sequencer_get_recovery_history_json()` -> Result<String, …>
+  //
+  // These are reachable via the typed FRB-generated `bridge_api.apiSequencer*`
+  // wrappers (Wave 4.5 migration replaced the Wave 4 dynamic-dispatch shims).
+
+  @override
+  Future<void> recoveryTryNow() async {
+    // Wave 4.5: typed FRB binding (apiSequencerRecoveryTryNow) replaces the
+    // Wave 4 dynamic-dispatch shim that intercepted NoSuchMethodError while
+    // bindings were pending.
+    await bridge_api.apiSequencerRecoveryTryNow();
+  }
+
+  @override
+  Future<void> recoveryAbort() async {
+    await bridge_api.apiSequencerRecoveryAbort();
+  }
+
+  @override
+  Future<void> updateRecoveryConfig({
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required bool stopTrackingDuringRecovery,
+    required bool abortOnMeridian,
+    required bool audibleAlertWhenEntered,
+  }) async {
+    await bridge_api.apiSequencerUpdateRecoveryConfig(
+      update: bridge.RecoveryConfigUpdate(
+        retryIntervalSecs: retryIntervalSecs,
+        maxDurationSecs: maxDurationSecs,
+        stopTrackingDuringRecovery: stopTrackingDuringRecovery,
+        abortOnMeridian: abortOnMeridian,
+        audibleAlertWhenEntered: audibleAlertWhenEntered,
+      ),
+    );
+  }
+
+  @override
+  Future<String?> getCurrentRecoveryJson() async {
+    return await bridge_api.apiSequencerGetCurrentRecoveryJson();
+  }
+
+  @override
+  Future<String> getRecoveryHistoryJson() async {
+    return await bridge_api.apiSequencerGetRecoveryHistoryJson();
   }
 
   @override
@@ -2033,6 +2643,23 @@ class FfiBackend implements NightshadeBackend {
     );
   }
 
+  @override
+  Future<void> calibrateImageFile({
+    required String lightPath,
+    String? darkPath,
+    String? flatPath,
+    String? biasPath,
+    required String outputPath,
+  }) async {
+    await bridge_api.apiCalibrateImageFile(
+      lightPath: lightPath,
+      darkPath: darkPath,
+      flatPath: flatPath,
+      biasPath: biasPath,
+      outputPath: outputPath,
+    );
+  }
+
   // =========================================================================
   // Polar Alignment
   // =========================================================================
@@ -2189,6 +2816,14 @@ class FfiBackend implements NightshadeBackend {
       rotatorId: p.rotatorId,
       domeId: p.domeId,
       weatherId: p.weatherId,
+      // Why no safetyMonitorId here: the bridge::EquipmentProfile FRB struct
+      // does not yet carry safety_monitor_id. Audit C1 added the field to the
+      // Drift-backed schema and to the freezed `EquipmentProfile` model. The
+      // FRB wire layout will pick it up the next time `flutter_rust_bridge_codegen
+      // generate` is run alongside the matching Rust struct field (see
+      // `bridge/src/state.rs`). Until then the FFI persistence path simply
+      // omits the field; the Drift DB (the authoritative store on desktop)
+      // already round-trips it.
       coverCalibratorId: p.coverCalibratorId,
       telescopeFocalLength: p.telescopeFocalLength,
       telescopeAperture: p.telescopeAperture,
@@ -2207,6 +2842,7 @@ class FfiBackend implements NightshadeBackend {
       rotatorId: p.rotatorId,
       domeId: p.domeId,
       weatherId: p.weatherId,
+      // See note on `_fromBridgeProfile` re: safetyMonitorId / FRB regen.
       coverCalibratorId: p.coverCalibratorId,
       telescopeFocalLength: p.telescopeFocalLength,
       telescopeAperture: p.telescopeAperture,

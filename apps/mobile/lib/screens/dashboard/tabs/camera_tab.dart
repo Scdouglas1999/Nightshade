@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
@@ -5,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../utils/error_snackbar.dart';
 
 /// Camera tab — phone-native imaging controls:
 ///   * Last image as a thumbnail (tap → fullscreen, long-press → copy path)
@@ -32,11 +35,30 @@ class CameraTab extends ConsumerWidget {
       );
     }
 
+    // [Wave 6E live-view stream] — push-based live-view panel. Only
+    // rendered when the active backend is a [NetworkBackend] because that
+    // is the only backend that benefits from streaming (the local FFI
+    // backend renders captured frames directly from the
+    // currentImageProvider and has no separate "preview" pipeline to
+    // attach to). The pull endpoint at `/api/camera/live-view/frame`
+    // remains the supported path for any caller that still wants
+    // request/response semantics.
+    final backend = ref.watch(backendProvider);
+    final showLiveViewStream =
+        backend is NetworkBackend && cameraState.deviceId != null;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
         _ThumbnailCard(image: current),
         const SizedBox(height: 12),
+        if (showLiveViewStream) ...[
+          _LiveViewStreamCard(
+            backend: backend,
+            deviceId: cameraState.deviceId!,
+          ),
+          const SizedBox(height: 12),
+        ],
         _ExposureControls(
           state: cameraState,
           progress: exposure,
@@ -48,6 +70,150 @@ class CameraTab extends ConsumerWidget {
         _FilterCard(state: filterState),
         const SizedBox(height: 24),
       ],
+    );
+  }
+}
+
+/// [Wave 6E live-view stream] — Renders the latest JPEG frame pushed by
+/// the server's `/ws/live-view` socket. Subscribes lazily on first build
+/// and cancels on dispose (which closes the socket; the server stops the
+/// producer once the last subscriber goes away).
+class _LiveViewStreamCard extends ConsumerStatefulWidget {
+  final NetworkBackend backend;
+  final String deviceId;
+  const _LiveViewStreamCard({
+    required this.backend,
+    required this.deviceId,
+  });
+
+  @override
+  ConsumerState<_LiveViewStreamCard> createState() =>
+      _LiveViewStreamCardState();
+}
+
+class _LiveViewStreamCardState extends ConsumerState<_LiveViewStreamCard> {
+  StreamSubscription<LiveViewFrame>? _sub;
+  LiveViewFrame? _latest;
+  Object? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _resubscribe();
+  }
+
+  @override
+  void didUpdateWidget(_LiveViewStreamCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.deviceId != widget.deviceId ||
+        !identical(oldWidget.backend, widget.backend)) {
+      _resubscribe();
+    }
+  }
+
+  void _resubscribe() {
+    _sub?.cancel();
+    _sub = null;
+    setState(() {
+      _latest = null;
+      _error = null;
+    });
+    _sub = widget.backend.subscribeLiveView(deviceId: widget.deviceId).listen(
+      (frame) {
+        if (!mounted) return;
+        setState(() {
+          _latest = frame;
+          _error = null;
+        });
+      },
+      onError: (Object e) {
+        if (!mounted) return;
+        setState(() => _error = e);
+      },
+    );
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final latest = _latest;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border.all(color: colors.border),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.radio, size: 18, color: colors.primary),
+              const SizedBox(width: 8),
+              Text(
+                'Live preview',
+                style: TextStyle(
+                  fontSize: 14,
+                  color: colors.textPrimary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const Spacer(),
+              if (latest != null)
+                Text(
+                  '${latest.width}×${latest.height} • #${latest.frameNumber}',
+                  style: TextStyle(color: colors.textMuted, fontSize: 11),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          AspectRatio(
+            aspectRatio: latest == null
+                ? 16 / 9
+                : latest.width / latest.height,
+            child: Container(
+              decoration: BoxDecoration(
+                color: colors.background,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              clipBehavior: Clip.antiAlias,
+              alignment: Alignment.center,
+              child: latest != null
+                  ? Image.memory(
+                      latest.jpeg,
+                      gaplessPlayback: true,
+                      fit: BoxFit.contain,
+                    )
+                  : (_error != null
+                      ? Padding(
+                          padding: const EdgeInsets.all(12),
+                          child: Text(
+                            'Live preview unavailable: $_error',
+                            style: TextStyle(
+                              color: colors.textMuted,
+                              fontSize: 12,
+                            ),
+                            textAlign: TextAlign.center,
+                          ),
+                        )
+                      : Text(
+                          'Waiting for first frame…',
+                          style: TextStyle(
+                            color: colors.textMuted,
+                            fontSize: 12,
+                          ),
+                        )),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -65,7 +231,7 @@ class _ThumbnailCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border.all(color: colors.border),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -94,12 +260,26 @@ class _ThumbnailCard extends StatelessWidget {
         decoration: BoxDecoration(
           color: colors.background,
           border: Border.all(color: colors.border),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         clipBehavior: Clip.antiAlias,
         child: AspectRatio(
           aspectRatio: img.width / img.height,
-          child: _ImagePainterWidget(image: img),
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              _ImagePainterWidget(image: img),
+              if (img.previewSource == CapturePreviewSource.remote)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: RawPreviewStatusBadge(
+                    status: img.rawLoadStatus,
+                    colors: colors,
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -220,14 +400,15 @@ class _FullscreenImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).extension<NightshadeColors>()!;
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: colors.background,
       appBar: AppBar(
-        backgroundColor: Colors.black,
-        iconTheme: const IconThemeData(color: Colors.white),
+        backgroundColor: colors.background,
+        iconTheme: IconThemeData(color: colors.textPrimary),
         title: Text(
           image.targetName ?? 'Last capture',
-          style: const TextStyle(color: Colors.white),
+          style: TextStyle(color: colors.textPrimary),
         ),
       ),
       body: Center(
@@ -268,21 +449,20 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
     setState(() => _starting = true);
     try {
       final session = ref.read(sessionStateProvider);
-      final stats = ref.read(lastImageStatsProvider.notifier);
-      final result = await ref
-          .read(imagingServiceProvider)
-          .captureImage(
+      final result = await ref.read(imagingServiceProvider).captureImage(
             settings: widget.settings,
             targetName: session.targetName,
           );
-      if (result != null && mounted) {
-        ref.read(currentImageProvider.notifier).state = result;
-        stats.state = result.stats;
+      // imagingService.publish already updated currentImage + stats progressively.
+      if (result == null && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Capture returned no image data')),
+        );
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Capture failed: $e')));
+        // [Wave 6D error parsing]
+        showApiErrorWithPrefix(context, 'Capture failed', e);
       }
     } finally {
       if (mounted) setState(() => _starting = false);
@@ -306,7 +486,7 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -348,8 +528,7 @@ class _ExposureControlsState extends ConsumerState<_ExposureControls> {
                 ),
                 if (widget.progress.isDownloading)
                   Text('Downloading…',
-                      style:
-                          TextStyle(color: colors.warning, fontSize: 12)),
+                      style: TextStyle(color: colors.warning, fontSize: 12)),
                 if (hfr != null && hfr > 0)
                   Text('HFR ${hfr.toStringAsFixed(2)}',
                       style:
@@ -409,8 +588,8 @@ class _CoolingCard extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          ScaffoldMessenger.of(context)
-              .showSnackBar(SnackBar(content: Text('$e')));
+          // [Wave 6D error parsing]
+          showApiError(context, e);
         }
       }
     }
@@ -420,7 +599,7 @@ class _CoolingCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -452,9 +631,7 @@ class _CoolingCard extends ConsumerWidget {
               Expanded(
                 child: _Metric(
                   label: 'Sensor',
-                  value: temp != null
-                      ? '${temp.toStringAsFixed(1)} °C'
-                      : '—',
+                  value: temp != null ? '${temp.toStringAsFixed(1)} °C' : '—',
                   colors: colors,
                 ),
               ),
@@ -468,9 +645,7 @@ class _CoolingCard extends ConsumerWidget {
               Expanded(
                 child: _Metric(
                   label: 'Power',
-                  value: power != null
-                      ? '${power.toStringAsFixed(0)}%'
-                      : '—',
+                  value: power != null ? '${power.toStringAsFixed(0)}%' : '—',
                   colors: colors,
                 ),
               ),
@@ -522,7 +697,7 @@ class _FilterCard extends ConsumerWidget {
         decoration: BoxDecoration(
           color: colors.surface,
           border: Border.all(color: colors.border),
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         ),
         child: Row(
           children: [
@@ -545,7 +720,7 @@ class _FilterCard extends ConsumerWidget {
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border.all(color: colors.border),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -595,8 +770,9 @@ class _FilterCard extends ConsumerWidget {
                             .setFilterWheelPosition(i);
                       } catch (e) {
                         if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(content: Text('Filter change failed: $e')));
+                          // [Wave 6D error parsing]
+                          showApiErrorWithPrefix(
+                              context, 'Filter change failed', e);
                         }
                       }
                     },
@@ -663,8 +839,8 @@ class _Pill extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
@@ -694,8 +870,7 @@ class _Metric extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label,
-            style: TextStyle(fontSize: 11, color: colors.textMuted)),
+        Text(label, style: TextStyle(fontSize: 11, color: colors.textMuted)),
         const SizedBox(height: 4),
         Text(
           value,

@@ -13,15 +13,14 @@ class SequenceControls extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(sequenceExecutionStateProvider);
-    final theme = Theme.of(context);
-    final colors = Theme.of(context).extension<NightshadeColors>();
+    final colors = NightshadeColors.of(context);
 
-    final surfaceColor = colors?.surface ?? theme.cardColor;
-    final borderColor = colors?.border ?? theme.colorScheme.outlineVariant;
-    final primaryColor = colors?.primary ?? theme.colorScheme.primary;
-    final warningColor = colors?.warning ?? theme.colorScheme.secondary;
-    final successColor = colors?.success ?? theme.colorScheme.primary;
-    final errorColor = colors?.error ?? theme.colorScheme.error;
+    final surfaceColor = colors.surface;
+    final borderColor = colors.border;
+    final primaryColor = colors.primary;
+    final warningColor = colors.warning;
+    final successColor = colors.success;
+    final errorColor = colors.error;
 
     // Don't show controls if sequence is idle or completed
     if (state == SequenceExecutionState.idle ||
@@ -147,7 +146,7 @@ class _ControlButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return GestureDetector(
       onTap: enabled ? onPressed : null,
       child: AnimatedContainer(

@@ -175,6 +175,35 @@ class PolarAlignmentHistoryDao extends DatabaseAccessor<NightshadeDatabase>
     return (delete(polarAlignmentHistory)..where((t) => t.id.equals(id))).go();
   }
 
+  /// P2-8: paginated listing for the remote read API. Newest-first by
+  /// `completedAt` to match the other history-style endpoints. Callers
+  /// MUST validate / clamp [limit] and [offset].
+  Future<List<PolarAlignmentHistoryEntry>> listPaginated({
+    int? equipmentProfileId,
+    int limit = 200,
+    int offset = 0,
+  }) {
+    final query = select(polarAlignmentHistory)
+      ..orderBy([(t) => OrderingTerm.desc(t.completedAt)])
+      ..limit(limit, offset: offset);
+    if (equipmentProfileId != null) {
+      query.where((t) => t.equipmentProfileId.equals(equipmentProfileId));
+    }
+    return query.get();
+  }
+
+  /// P2-8: row count matching [listPaginated]'s filters.
+  Future<int> countFiltered({int? equipmentProfileId}) async {
+    final countExpr = polarAlignmentHistory.id.count();
+    final query = selectOnly(polarAlignmentHistory)..addColumns([countExpr]);
+    if (equipmentProfileId != null) {
+      query.where(
+          polarAlignmentHistory.equipmentProfileId.equals(equipmentProfileId));
+    }
+    final row = await query.getSingle();
+    return row.read(countExpr) ?? 0;
+  }
+
   /// Convert a database entry to a PolarAlignmentResult model
   PolarAlignmentResult entryToResult(PolarAlignmentHistoryEntry entry) {
     final configJson = jsonDecode(entry.configJson) as Map<String, dynamic>;

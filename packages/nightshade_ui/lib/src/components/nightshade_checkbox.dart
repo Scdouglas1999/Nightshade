@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 
+/// Custom checkbox matching Nightshade theme semantics.
 class NightshadeCheckbox extends StatelessWidget {
   final bool value;
   final ValueChanged<bool?>? onChanged;
@@ -14,20 +16,25 @@ class NightshadeCheckbox extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final colors = theme.extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
+    final isDisabled = onChanged == null;
+    final checkColor = colors.onPrimary;
 
     return GestureDetector(
-      onTap: onChanged != null ? () => onChanged!(!value) : null,
+      onTap: isDisabled ? null : () => onChanged!(!value),
       child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
+        duration: NightshadeTokens.durationQuick,
         width: 18,
         height: 18,
         decoration: BoxDecoration(
-          color: value ? colors.primary : Colors.transparent,
-          borderRadius: BorderRadius.circular(4),
+          color: value
+              ? (isDisabled ? colors.surfaceHover : colors.primary)
+              : Colors.transparent,
+          borderRadius: NightshadeTokens.borderRadiusXs,
           border: Border.all(
-            color: value ? colors.primary : colors.border,
+            color: value
+                ? (isDisabled ? colors.border : colors.primary)
+                : colors.border,
             width: 2,
           ),
         ),
@@ -35,7 +42,7 @@ class NightshadeCheckbox extends StatelessWidget {
             ? Icon(
                 LucideIcons.check,
                 size: 12,
-                color: theme.colorScheme.onPrimary,
+                color: isDisabled ? colors.textMuted : checkColor,
               )
             : null,
       ),

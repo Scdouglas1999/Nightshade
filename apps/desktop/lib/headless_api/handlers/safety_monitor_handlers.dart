@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -23,6 +25,80 @@ class SafetyMonitorHandlers {
   void _logError(String message) =>
       _logger.error(message, source: 'SafetyMonitorHandlers');
 
+  static const _kCheckIntervalKey = 'safety_check_interval_seconds';
+  static const _kWarningDelayKey = 'safety_warning_delay_seconds';
+  static const _kRequiredSafeDurationKey =
+      'safety_required_safe_duration_seconds';
+  static const _kAutoStopKey = 'safety_auto_stop_on_unsafe';
+  static const _kAutoCloseRoofKey = 'safety_auto_close_roof_on_unsafe';
+  static const _kLastAckKey = 'safety_last_acknowledgement';
+
+  String _failModeToApi(SafetyFailMode mode) => switch (mode) {
+        SafetyFailMode.failOpen => 'fail_open',
+        SafetyFailMode.failClosed => 'fail_closed',
+        SafetyFailMode.warnOnly => 'warn_only',
+      };
+
+  SafetyFailMode _failModeFromApi(String value) => switch (value) {
+        'fail_open' => SafetyFailMode.failOpen,
+        'fail_closed' => SafetyFailMode.failClosed,
+        'warn_only' => SafetyFailMode.warnOnly,
+        _ => SafetyFailMode.failClosed,
+      };
+
+  String _failModeToSequencer(SafetyFailMode mode) => switch (mode) {
+        SafetyFailMode.failOpen => 'fail_open',
+        SafetyFailMode.failClosed => 'fail_closed',
+        SafetyFailMode.warnOnly => 'warn_only',
+      };
+
+  int _parseIntSetting(Map<String, String> settings, String key, int fallback) {
+    final raw = settings[key];
+    if (raw == null) return fallback;
+    return int.tryParse(raw) ?? fallback;
+  }
+
+  bool _parseBoolSetting(
+    Map<String, String> settings,
+    String key,
+    bool fallback,
+  ) {
+    final raw = settings[key];
+    if (raw == null) return fallback;
+    return raw.toLowerCase() == 'true' || raw == '1';
+  }
+
+  Future<Map<String, dynamic>> _buildSettingsPayload() async {
+    final appSettings = container.read(appSettingsProvider).valueOrNull;
+    final weatherSettings = container.read(weatherSettingsProvider);
+    final dao = container.read(settingsDaoProvider);
+    final stored = await dao.getAllSettings();
+
+    final failMode = appSettings?.safetyFailMode ?? SafetyFailMode.failClosed;
+    final autoParkOnUnsafe = (appSettings?.parkOnUnsafeWeather ?? true) &&
+        weatherSettings.autoParkEnabled;
+
+    return {
+      'failMode': _failModeToApi(failMode),
+      'checkIntervalSeconds': _parseIntSetting(stored, _kCheckIntervalKey, 300),
+      'autoStopOnUnsafe': _parseBoolSetting(
+        stored,
+        _kAutoStopKey,
+        weatherSettings.weatherSafetyEnabled,
+      ),
+      'autoParkOnUnsafe': autoParkOnUnsafe,
+      'autoCloseRoofOnUnsafe': _parseBoolSetting(
+        stored,
+        _kAutoCloseRoofKey,
+        weatherSettings.weatherSafetyEnabled,
+      ),
+      'warningDelaySeconds': _parseIntSetting(stored, _kWarningDelayKey, 60),
+      'requiredSafeDurationSeconds':
+          _parseIntSetting(stored, _kRequiredSafeDurationKey, 300),
+      'enabledMonitors': <String>[],
+    };
+  }
+
   // ===========================================================================
   // Safety Status
   // ===========================================================================
@@ -33,8 +109,13 @@ class SafetyMonitorHandlers {
   Future<Response> handleSafetyStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'];
 
-    final backend = container.read(backendProvider);
-    final connectedDevices = await backend.getConnectedDevices();
+    List<DeviceInfo> connectedDevices = [];
+    try {
+      final backend = container.read(backendProvider);
+      connectedDevices = await backend.getConnectedDevices();
+    } catch (e) {
+      _logError('Failed to read connected devices for safety status: $e');
+    }
 
     // Filter to safety monitors
     final safetyMonitors = connectedDevices
@@ -75,8 +156,7 @@ class SafetyMonitorHandlers {
       // Use real safety state from the connected device
       final isDeviceMatch = safetyMonitorState.deviceId == deviceId;
       final isConnected = isDeviceMatch &&
-          safetyMonitorState.connectionState ==
-              DeviceConnectionState.connected;
+          safetyMonitorState.connectionState == DeviceConnectionState.connected;
 
       if (!isConnected) {
         return jsonResponse(
@@ -126,8 +206,7 @@ class SafetyMonitorHandlers {
     final monitorStatuses = safetyMonitors.map((m) {
       final isThisDevice = safetyMonitorState.deviceId == m.id;
       final isConnected = isThisDevice &&
-          safetyMonitorState.connectionState ==
-              DeviceConnectionState.connected;
+          safetyMonitorState.connectionState == DeviceConnectionState.connected;
 
       return {
         'deviceId': m.id,
@@ -164,19 +243,21 @@ class SafetyMonitorHandlers {
   /// GET /api/safety/settings
   /// Gets safety-related settings.
   Future<Response> handleGetSafetySettings(Request request) async {
-    return jsonOk(
-      {
-        "failMode": "fail_closed", // fail_open, fail_closed, warn_only
-        "checkIntervalSeconds": 30,
-        "autoStopOnUnsafe": true,
-        "autoParkOnUnsafe": true,
-        "autoCloseRoofOnUnsafe": true,
-        "warningDelaySeconds": 60, // Time to wait before taking action
-        "requiredSafeDurationSeconds":
-            300, // Must be safe for this long to resume
-        "enabledMonitors": <String>[], // List of device IDs to consider
-      },
-    );
+    final payload = await _buildSettingsPayload();
+
+    try {
+      final backend = container.read(backendProvider);
+      final connectedDevices = await backend.getConnectedDevices();
+      payload['enabledMonitors'] = connectedDevices
+          .where((d) => d.deviceType == DeviceType.safetyMonitor)
+          .map((d) => d.id)
+          .toList();
+    } catch (e) {
+      _logError('Failed to read connected safety monitors: $e');
+      payload['enabledMonitors'] = <String>[];
+    }
+
+    return jsonOk(payload);
   }
 
   /// POST /api/safety/settings
@@ -199,18 +280,67 @@ class SafetyMonitorHandlers {
       }
     }
 
-    // Validate check interval if provided. requireInt-with-optional via optionalInt
-    // enforces both type and min-range; <5 throws BadRequestError → 400.
-    optionalInt(payload, 'checkIntervalSeconds', min: 5);
+    optionalInt(payload, 'checkIntervalSeconds', min: 5, max: 3600);
+    optionalInt(payload, 'warningDelaySeconds', min: 0);
+    optionalInt(payload, 'requiredSafeDurationSeconds', min: 0);
 
-    // Settings persistence is not yet implemented - return 501 rather than
-    // pretending the update succeeded while discarding the data.
-    _logError(
-        'POST /api/safety/settings called but settings persistence is not yet implemented');
-    return jsonNotImplemented({
-      "error":
-          "Safety settings persistence not yet implemented - settings were validated but cannot be saved",
-      "receivedPayload": payload,
+    final settingsNotifier = container.read(appSettingsProvider.notifier);
+    final database = container.read(databaseProvider);
+    final backend = container.read(backendProvider);
+    final toPersist = <String, String>{};
+
+    if (failMode != null) {
+      final mode = _failModeFromApi(failMode);
+      await settingsNotifier.setSafetyFailMode(mode);
+      await backend.sequencerSetSafetyFailMode(_failModeToSequencer(mode));
+    }
+
+    final autoParkOnUnsafe = optionalBool(payload, 'autoParkOnUnsafe');
+    if (autoParkOnUnsafe != null) {
+      await settingsNotifier.setParkOnUnsafeWeather(autoParkOnUnsafe);
+      await database.weatherSettingsDao.updateSettings(
+        autoParkEnabled: autoParkOnUnsafe,
+      );
+    }
+
+    final autoStopOnUnsafe = optionalBool(payload, 'autoStopOnUnsafe');
+    if (autoStopOnUnsafe != null) {
+      await database.weatherSettingsDao.updateSettings(
+        weatherSafetyEnabled: autoStopOnUnsafe,
+      );
+      toPersist[_kAutoStopKey] = autoStopOnUnsafe.toString();
+    }
+
+    final autoCloseRoofOnUnsafe =
+        optionalBool(payload, 'autoCloseRoofOnUnsafe');
+    if (autoCloseRoofOnUnsafe != null) {
+      toPersist[_kAutoCloseRoofKey] = autoCloseRoofOnUnsafe.toString();
+    }
+
+    final checkInterval = optionalInt(payload, 'checkIntervalSeconds');
+    if (checkInterval != null) {
+      await backend.sequencerSetSafetyCheckIntervalSeconds(checkInterval);
+      toPersist[_kCheckIntervalKey] = checkInterval.toString();
+    }
+
+    final warningDelay = optionalInt(payload, 'warningDelaySeconds');
+    if (warningDelay != null) {
+      toPersist[_kWarningDelayKey] = warningDelay.toString();
+    }
+
+    final requiredSafe = optionalInt(payload, 'requiredSafeDurationSeconds');
+    if (requiredSafe != null) {
+      toPersist[_kRequiredSafeDurationKey] = requiredSafe.toString();
+    }
+
+    if (toPersist.isNotEmpty) {
+      await container.read(settingsDaoProvider).setSettings(toPersist);
+    }
+
+    final updated = await _buildSettingsPayload();
+    return jsonOk({
+      'status': 'updated',
+      'settings': updated,
     });
   }
 
@@ -221,21 +351,41 @@ class SafetyMonitorHandlers {
   /// POST /api/safety/acknowledge
   /// Acknowledges an unsafe condition, allowing operations to continue despite the warning.
   /// This is typically used when the operator has manually verified conditions are acceptable.
-  /// Request body: { "deviceId": "safety_monitor_id", "reason": "Manually verified conditions" }
+  /// Request body: { "deviceId": "safety_monitor_id", "reason": "Manually verified conditions", "durationMinutes": 60 }
   Future<Response> handleAcknowledgeUnsafe(Request request) async {
     _logInfo('POST /api/safety/acknowledge');
     final payload = await readJsonObject(request);
-    // Why: reason is required to record who/why an unsafe condition was
-    // overridden. requireString throws BadRequestError → 400 on missing/empty.
-    requireString(payload, 'reason');
+    final reason = requireString(payload, 'reason');
+    final durationMinutes =
+        optionalInt(payload, 'durationMinutes', min: 1) ?? 60;
 
-    // Acknowledgement persistence is not yet implemented - return 501 rather
-    // than pretending the acknowledgement was stored while discarding it.
-    _logError(
-        'POST /api/safety/acknowledge called but acknowledgement persistence is not yet implemented');
-    return jsonNotImplemented({
-      "error":
-          "Safety acknowledgement persistence not yet implemented - acknowledgement was validated but cannot be stored",
+    final stored = await container.read(settingsDaoProvider).getAllSettings();
+    final ackRecord = {
+      'reason': reason,
+      'deviceId': optionalString(payload, 'deviceId'),
+      'durationMinutes': durationMinutes,
+      'acknowledgedAt': DateTime.now().toUtc().toIso8601String(),
+    };
+    await container.read(settingsDaoProvider).setSetting(
+          _kLastAckKey,
+          jsonEncode(ackRecord),
+        );
+
+    container
+        .read(weatherSafetyProvider.notifier)
+        .snooze(Duration(minutes: durationMinutes));
+
+    _logInfo(
+      'Safety conditions acknowledged for ${durationMinutes}m: $reason',
+    );
+
+    return jsonOk({
+      'status': 'acknowledged',
+      'snoozeUntil': DateTime.now()
+          .add(Duration(minutes: durationMinutes))
+          .toUtc()
+          .toIso8601String(),
+      'warningDelaySeconds': _parseIntSetting(stored, _kWarningDelayKey, 60),
     });
   }
 }

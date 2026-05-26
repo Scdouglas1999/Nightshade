@@ -33,6 +33,16 @@ class _LogTabState extends ConsumerState<LogTab> {
   };
   bool _autoScroll = true;
 
+  // [Wave 6E log tail] — when the active backend is a NetworkBackend, also
+  // tail the server-side LoggingService entries via /api/logs/tail. These
+  // appear in a separate ring buffer underneath the existing
+  // NightshadeEvent feed because the two shapes don't share severity /
+  // category enums; rendering them as plain text rows keeps the wiring
+  // independent of W6D's backend-switch event-buffer clearing logic.
+  StreamSubscription<LogEntry>? _serverLogSubscription;
+  NetworkBackend? _subscribedServerLogBackend;
+  final List<LogEntry> _serverLogEntries = [];
+
   @override
   void initState() {
     super.initState();
@@ -43,6 +53,7 @@ class _LogTabState extends ConsumerState<LogTab> {
   void dispose() {
     _scrollController.dispose();
     _subscription?.cancel();
+    _serverLogSubscription?.cancel();
     super.dispose();
   }
 
@@ -59,6 +70,16 @@ class _LogTabState extends ConsumerState<LogTab> {
 
   void _ensureSubscription(NightshadeBackend backend) {
     if (identical(_subscribedBackend, backend)) return;
+    // Wave 6D / P2-5 — flush the in-memory ring buffer whenever the
+    // backend identity changes. Without this, switching from FFI to a
+    // remote server (or reconnecting to a different host) would leave
+    // the operator staring at stale events that have no relationship
+    // to the device they are now controlling. We only flush on a
+    // *change* — the initial subscription on first build keeps the
+    // (already-empty) buffer intact.
+    if (_subscribedBackend != null) {
+      _events.clear();
+    }
     _subscription?.cancel();
     _subscribedBackend = backend;
     _subscription = backend.eventStream.listen((event) {
@@ -83,7 +104,46 @@ class _LogTabState extends ConsumerState<LogTab> {
   }
 
   void _clear() {
-    setState(_events.clear);
+    setState(() {
+      _events.clear();
+      _serverLogEntries.clear();
+    });
+  }
+
+  // [Wave 6E log tail] — open/close the SSE subscription to /api/logs/tail
+  // on every backend change. The FFI backend has no remote logs (the local
+  // LoggingService is already in-process), so we only subscribe when the
+  // active backend is a [NetworkBackend].
+  void _ensureServerLogSubscription(NightshadeBackend backend) {
+    final networkBackend = backend is NetworkBackend ? backend : null;
+    if (identical(_subscribedServerLogBackend, networkBackend)) return;
+    _serverLogSubscription?.cancel();
+    _serverLogSubscription = null;
+    _subscribedServerLogBackend = networkBackend;
+    if (networkBackend != null) {
+      _serverLogEntries.clear();
+      _serverLogSubscription = networkBackend.tailServerLogs().listen(
+        (entry) {
+          if (!mounted) return;
+          setState(() {
+            _serverLogEntries.add(entry);
+            if (_serverLogEntries.length > _maxEntries) {
+              _serverLogEntries.removeRange(
+                0,
+                _serverLogEntries.length - _maxEntries,
+              );
+            }
+          });
+        },
+        onError: (Object _) {
+          // tailServerLogs() auto-reconnects with backoff, so an error here
+          // is informational. Surface the count via UI by leaving the tail
+          // list intact; the next successful event resumes the stream.
+        },
+      );
+    } else {
+      _serverLogEntries.clear();
+    }
   }
 
   @override
@@ -92,6 +152,7 @@ class _LogTabState extends ConsumerState<LogTab> {
     // mid-session (the stream object changes when the backend type does).
     final backend = ref.watch(backendProvider);
     _ensureSubscription(backend);
+    _ensureServerLogSubscription(backend);
 
     final visible = _events
         .where((e) => _enabledSeverities.contains(e.severity))
@@ -115,9 +176,8 @@ class _LogTabState extends ConsumerState<LogTab> {
                           _SeverityChip(
                             severity: sev,
                             enabled: _enabledSeverities.contains(sev),
-                            count: _events
-                                .where((e) => e.severity == sev)
-                                .length,
+                            count:
+                                _events.where((e) => e.severity == sev).length,
                             onTap: () => _toggleSeverity(sev),
                           ),
                       ],
@@ -134,11 +194,61 @@ class _LogTabState extends ConsumerState<LogTab> {
           ),
         ),
         Container(height: 1, color: colors.border),
+        // [Wave 6E log tail] — remote-server log entries (only when the
+        // backend is a NetworkBackend). Rendered as a fixed-height panel
+        // above the main event list so it doesn't disturb the existing
+        // reverse=true scrolling on _events.
+        if (_subscribedServerLogBackend != null) ...[
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            color: colors.surfaceAlt,
+            child: Row(
+              children: [
+                Icon(LucideIcons.server, size: 14, color: colors.textMuted),
+                const SizedBox(width: 6),
+                Text(
+                  'Server logs',
+                  style: TextStyle(
+                    color: colors.textSecondary,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  '${_serverLogEntries.length}',
+                  style: TextStyle(color: colors.textMuted, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(
+            height: 140,
+            child: _serverLogEntries.isEmpty
+                ? Center(
+                    child: Text(
+                      'Waiting for server log entries…',
+                      style: TextStyle(color: colors.textMuted, fontSize: 12),
+                    ),
+                  )
+                : ListView.builder(
+                    reverse: true,
+                    itemCount: _serverLogEntries.length,
+                    itemBuilder: (context, i) {
+                      final entry = _serverLogEntries[
+                          _serverLogEntries.length - 1 - i];
+                      return _ServerLogEntryTile(entry: entry, colors: colors);
+                    },
+                  ),
+          ),
+          Container(height: 1, color: colors.border),
+        ],
         Expanded(
           child: visible.isEmpty
               ? EmptyState(
                   icon: LucideIcons.scrollText,
-                  title: _events.isEmpty ? 'Waiting for events' : 'Filtered out',
+                  title:
+                      _events.isEmpty ? 'Waiting for events' : 'Filtered out',
                   body: _events.isEmpty
                       ? 'New events from devices, imaging, and the sequencer '
                           'will appear here.'
@@ -162,6 +272,83 @@ class _LogTabState extends ConsumerState<LogTab> {
   }
 }
 
+/// [Wave 6E log tail] — Compact tile for a remote server log entry. Kept
+/// separate from `_EventTile` because LogEntry has its own enum
+/// (LogLevel) and there's no need to map between the two schemas.
+class _ServerLogEntryTile extends StatelessWidget {
+  final LogEntry entry;
+  final NightshadeColors colors;
+  const _ServerLogEntryTile({required this.entry, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final c = _logLevelColor(entry.level, colors);
+    final ts = entry.timestamp.toLocal();
+    final timeStr =
+        '${ts.hour.toString().padLeft(2, '0')}:${ts.minute.toString().padLeft(2, '0')}:${ts.second.toString().padLeft(2, '0')}';
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(left: BorderSide(color: c, width: 2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            timeStr,
+            style: TextStyle(
+              color: colors.textMuted,
+              fontSize: 10,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(width: 6),
+          Text(
+            entry.level.name.toUpperCase(),
+            style: TextStyle(
+              color: c,
+              fontSize: 10,
+              fontWeight: FontWeight.w700,
+              fontFamily: 'monospace',
+            ),
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              entry.source != null
+                  ? '[${entry.source}] ${entry.message}'
+                  : entry.message,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 11,
+              ),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _logLevelColor(LogLevel level, NightshadeColors colors) {
+    switch (level) {
+      case LogLevel.debug:
+        return colors.textMuted;
+      case LogLevel.info:
+        return colors.info;
+      case LogLevel.warning:
+        return colors.warning;
+      case LogLevel.error:
+        return colors.error;
+      case LogLevel.critical:
+        return colors.error;
+    }
+  }
+}
+
 class _SeverityChip extends StatelessWidget {
   final EventSeverity severity;
   final bool enabled;
@@ -181,19 +368,25 @@ class _SeverityChip extends StatelessWidget {
     final c = _severityColor(severity, colors);
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
+      borderRadius: BorderRadius.circular(NightshadeTokens.radiusFull),
       child: Container(
         // 44 pt tap height — important on phones where chips usually
         // collapse to 28 dp and end up impossible to hit reliably.
         constraints: const BoxConstraints(minHeight: 44),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: enabled ? c.withValues(alpha: 0.2) : colors.surfaceAlt,
-          border: Border.all(
-            color: enabled ? c : colors.border,
-          ),
-          borderRadius: BorderRadius.circular(20),
-        ),
+        decoration: enabled
+            ? NightshadeDecorations.selectedSurface(
+                c,
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusFull),
+                fillAlpha: 0.2,
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                border: Border.all(color: colors.border),
+                borderRadius:
+                    BorderRadius.circular(NightshadeTokens.radiusFull),
+              ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -259,8 +452,7 @@ class _EventTile extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                 decoration: BoxDecoration(
                   color: c.withValues(alpha: 0.2),
                   borderRadius: BorderRadius.circular(4),
@@ -340,6 +532,12 @@ String _categoryLabel(EventCategory c) {
     EventCategory.safety => 'SAFETY',
     EventCategory.system => 'SYS',
     EventCategory.polarAlignment => 'PA',
+    // Wave 3 / P1-2 P1-3: long-running job lifecycle events.
+    EventCategory.job => 'JOB',
+    // Wave 3 / P1-5: session-ownership lifecycle events.
+    EventCategory.session => 'SESSION',
+    // Wave 4C: catalog (sequence library, target catalogs, etc.) sync events.
+    EventCategory.catalog => 'CATALOG',
   };
 }
 

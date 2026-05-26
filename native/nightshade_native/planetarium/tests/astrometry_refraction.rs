@@ -1,12 +1,8 @@
 //! Saemundsson refraction — published-formula table at standard atmosphere.
 //!
 //! Table values: Sæmundsson inverse formula (Wikipedia; P = 1010 hPa, T = 10 °C).
-//! Until `astrometry/mod.rs` exports `refraction`, tests compile the module via `path`.
 
-#[path = "../src/astrometry/refraction.rs"]
-mod refraction;
-
-use refraction::{
+use nightshade_planetarium::astrometry::refraction::{
     apparent_to_true_altitude, refraction_arcmin, refraction_arcmin_standard, refraction_deg,
     refraction_scale, true_to_apparent_altitude, RefractionError, STANDARD_PRESSURE_HPA,
     STANDARD_TEMPERATURE_C,

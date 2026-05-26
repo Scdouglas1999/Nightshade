@@ -47,3 +47,18 @@ Future<int> apiDomeGetShutterStatus({required String deviceId}) =>
 Future<bool> apiDomeIsSlewing({required String deviceId}) =>
     RustLib.instance.api
         .crateApiDevicesDomeApiDomeIsSlewing(deviceId: deviceId);
+
+/// Enable or disable dome slaving to the mount
+Future<void> apiDomeSetSlaved(
+        {required String deviceId, required bool slaved}) =>
+    RustLib.instance.api.crateApiDevicesDomeApiDomeSetSlaved(
+        deviceId: deviceId, slaved: slaved);
+
+/// Find the dome home position
+Future<void> apiDomeFindHome({required String deviceId}) =>
+    RustLib.instance.api.crateApiDevicesDomeApiDomeFindHome(deviceId: deviceId);
+
+/// Abort dome slew / shutter motion
+Future<void> apiDomeAbortSlew({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDevicesDomeApiDomeAbortSlew(deviceId: deviceId);

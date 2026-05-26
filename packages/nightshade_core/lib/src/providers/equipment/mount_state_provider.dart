@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../backend/nightshade_backend.dart';
 import '../../models/equipment/equipment_models.dart';
 import '../../services/device_service.dart';
 import '../backend_provider.dart';
@@ -21,7 +20,6 @@ class MountStateNotifier extends StateNotifier<MountState> {
   int _retryAttempts = 0;
   Timer? _positionPollTimer;
   bool _isPolling = false;
-  NightshadeBackend? _pollBackend;
 
   /// Normal polling interval (tracking/idle)
   static const _normalPollInterval = Duration(seconds: 2);
@@ -90,21 +88,22 @@ class MountStateNotifier extends StateNotifier<MountState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectMount();
+    } catch (_) {
+      // Logged by DeviceService; UI must still reach disconnected (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, [String? deviceName]) {
     _stopPositionPolling();
+    // DEV-P3-4: preserve `lastError` across the Connecting transition so
+    // the card subtitle can show the most recent driver error during
+    // reconnect. Cleared on successful Connected (see [setConnected]).
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName ?? state.deviceName ?? deviceId,
-      clearError: true,
     );
   }
 
@@ -113,14 +112,20 @@ class MountStateNotifier extends StateNotifier<MountState> {
       connectionState: DeviceConnectionState.connected,
       clearError: true,
     );
-    _pollBackend = _ref.read(backendProvider);
     _startPositionPolling();
   }
 
   void setDisconnected() {
     _stopPositionPolling();
-    _pollBackend = null;
-    state = const MountState();
+    // Preserve the user's auto-reconnect preference across disconnects so
+    // the toggle isn't silently flipped back to its default on every drop.
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = MountState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the mount.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updatePosition(double ra, double dec, double alt, double az) {
@@ -151,10 +156,6 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
   void setCanSetTrackingRate(bool canSet) {
     state = state.copyWith(canSetTrackingRate: canSet);
-  }
-
-  void setAutoReconnect(bool enabled) {
-    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void setError(Object error) {
@@ -200,18 +201,12 @@ class MountStateNotifier extends StateNotifier<MountState> {
 
     final deviceId = state.deviceId;
     if (deviceId == null) return;
-    final backend = _pollBackend;
-    if (backend == null) return;
 
     _isPolling = true;
     try {
+      final backend = _ref.read(backendProvider);
       final status = await backend.getMountStatus(deviceId);
       if (!mounted) return;
-      if (!identical(_pollBackend, backend)) return;
-      if (state.deviceId != deviceId ||
-          state.connectionState != DeviceConnectionState.connected) {
-        return;
-      }
 
       updatePosition(
         status.rightAscension,
@@ -226,6 +221,7 @@ class MountStateNotifier extends StateNotifier<MountState> {
         isTracking: status.tracking,
         isSlewing: status.slewing,
         isParked: status.parked,
+        canPark: status.canPark,
       );
 
       // If slewing state changed, adjust poll rate

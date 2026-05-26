@@ -50,7 +50,7 @@ class _WeatherAlertBannerState extends ConsumerState<WeatherAlertBanner>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final safetyState = ref.watch(weatherSafetyProvider);
     final alertLevel = safetyState.currentAlertLevel;
     final status = safetyState.status;
@@ -116,10 +116,10 @@ class _BannerContent extends StatelessWidget {
     required this.onTap,
   });
 
-  Color _getBackgroundColor() {
+  Color _getAccentColor() {
     switch (alertLevel) {
       case AlertLevel.warning:
-        return const Color(0xFFFF9800); // Orange
+        return colors.warning;
       case AlertLevel.critical:
         return colors.error;
       default:
@@ -151,45 +151,51 @@ class _BannerContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final backgroundColor = _getBackgroundColor();
-    final onError = Theme.of(context).colorScheme.onError;
+    final accentColor = _getAccentColor();
     final icon = _getIcon();
     final title = _getTitle();
     final message = actions.reason ?? 'Adverse weather conditions detected';
+    final isCritical = alertLevel == AlertLevel.critical;
+
+    final onAccent = isCritical ? accentColor : Theme.of(context).colorScheme.onError;
+    final titleColor = isCritical ? colors.textPrimary : onAccent;
+    final messageColor =
+        isCritical ? colors.textSecondary : Colors.white.withValues(alpha: 0.9);
+    final chevronColor =
+        isCritical ? colors.textMuted : Colors.white.withValues(alpha: 0.7);
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         width: double.infinity,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            colors: [
-              backgroundColor,
-              backgroundColor.withValues(alpha: 0.85),
-            ],
-            begin: Alignment.centerLeft,
-            end: Alignment.centerRight,
-          ),
-          boxShadow: [
-            BoxShadow(
-              color: backgroundColor.withValues(alpha: 0.3),
-              blurRadius: 8,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
+        decoration: isCritical
+            ? BoxDecoration(
+                color: accentColor.withValues(alpha: 0.20),
+                border: Border(
+                  top: BorderSide(color: accentColor, width: 1.8),
+                  bottom: BorderSide(
+                    color: accentColor.withValues(alpha: 0.7),
+                  ),
+                ),
+              )
+            : BoxDecoration(
+                color: accentColor,
+                boxShadow: [
+                  BoxShadow(
+                    color: accentColor.withValues(alpha: 0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
+              ),
         child: Row(
           children: [
-            // Pulsing icon for critical alerts
-            if (alertLevel == AlertLevel.critical)
-              _PulsingIcon(icon: icon)
-            else
-              Icon(
-                icon,
-                size: 20,
-                color: onError,
-              ),
+            Icon(
+              icon,
+              size: 20,
+              color: onAccent,
+            ),
 
             const SizedBox(width: 12),
 
@@ -204,7 +210,7 @@ class _BannerContent extends StatelessWidget {
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w700,
-                      color: onError,
+                      color: titleColor,
                     ),
                   ),
                   const SizedBox(height: 2),
@@ -212,7 +218,7 @@ class _BannerContent extends StatelessWidget {
                     message,
                     style: TextStyle(
                       fontSize: 11,
-                      color: Colors.white.withValues(alpha: 0.9),
+                      color: messageColor,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -226,6 +232,7 @@ class _BannerContent extends StatelessWidget {
             // Snooze button
             _SnoozeButton(
               onPressed: onSnooze,
+              inverted: isCritical,
             ),
 
             const SizedBox(width: 8),
@@ -234,7 +241,7 @@ class _BannerContent extends StatelessWidget {
             Icon(
               LucideIcons.chevronRight,
               size: 18,
-              color: Colors.white.withValues(alpha: 0.7),
+              color: chevronColor,
             ),
           ],
         ),
@@ -243,68 +250,28 @@ class _BannerContent extends StatelessWidget {
   }
 }
 
-/// Pulsing icon for critical alerts
-class _PulsingIcon extends StatefulWidget {
-  final IconData icon;
-
-  const _PulsingIcon({required this.icon});
-
-  @override
-  State<_PulsingIcon> createState() => _PulsingIconState();
-}
-
-class _PulsingIconState extends State<_PulsingIcon>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    )..repeat(reverse: true);
-
-    _animation = Tween<double>(begin: 0.7, end: 1.0).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (context, child) {
-        return Transform.scale(
-          scale: _animation.value,
-          child: Icon(
-            widget.icon,
-            size: 20,
-            color: Colors.white.withValues(alpha: _animation.value),
-          ),
-        );
-      },
-    );
-  }
-}
-
 /// Snooze button
 class _SnoozeButton extends StatelessWidget {
   final VoidCallback onPressed;
+  final bool inverted;
 
-  const _SnoozeButton({required this.onPressed});
+  const _SnoozeButton({
+    required this.onPressed,
+    this.inverted = false,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final background = inverted
+        ? colors.error.withValues(alpha: 0.12)
+        : Colors.white.withValues(alpha: 0.2);
+    final foreground = inverted
+        ? colors.textPrimary
+        : Colors.white.withValues(alpha: 0.9);
+
     return Material(
-      color: Colors.white.withValues(alpha: 0.2),
+      color: background,
       borderRadius: BorderRadius.circular(4),
       child: InkWell(
         onTap: onPressed,
@@ -317,7 +284,7 @@ class _SnoozeButton extends StatelessWidget {
               Icon(
                 LucideIcons.bellOff,
                 size: 12,
-                color: Colors.white.withValues(alpha: 0.9),
+                color: foreground,
               ),
               const SizedBox(width: 4),
               Text(
@@ -325,7 +292,7 @@ class _SnoozeButton extends StatelessWidget {
                 style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white.withValues(alpha: 0.9),
+                  color: foreground,
                 ),
               ),
             ],

@@ -506,6 +506,54 @@ sealed class SafetyEvent with _$SafetyEvent {
   const factory SafetyEvent.parkCompleted() = SafetyEvent_ParkCompleted;
 }
 
+/// Pack H — flat scheduler score row exposed across FRB. Mirrors
+/// `nightshade_sequencer::node::logic::target_scheduler::SchedulerScoreSummary`
+/// but lives in the bridge crate so we don't have to expose the sequencer
+/// type to FRB. The Dart side consumes this directly in the run-dashboard
+/// scheduler panel.
+class SchedulerScoreEntry {
+  final String targetId;
+  final String targetName;
+
+  /// Total score (0..=100) the scheduler computed.
+  final double totalScore;
+
+  /// True when the target was eligible to run (cleared
+  /// `min_score_to_run` and any altitude / window gates).
+  final bool runnable;
+
+  /// Human-readable reason, populated when `runnable == false`
+  /// (e.g. "below altitude limit", "before start window").
+  final String? reason;
+
+  const SchedulerScoreEntry({
+    required this.targetId,
+    required this.targetName,
+    required this.totalScore,
+    required this.runnable,
+    this.reason,
+  });
+
+  @override
+  int get hashCode =>
+      targetId.hashCode ^
+      targetName.hashCode ^
+      totalScore.hashCode ^
+      runnable.hashCode ^
+      reason.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is SchedulerScoreEntry &&
+          runtimeType == other.runtimeType &&
+          targetId == other.targetId &&
+          targetName == other.targetName &&
+          totalScore == other.totalScore &&
+          runnable == other.runnable &&
+          reason == other.reason;
+}
+
 @freezed
 sealed class SequencerEvent with _$SequencerEvent {
   const SequencerEvent._();
@@ -584,6 +632,319 @@ sealed class SequencerEvent with _$SequencerEvent {
     /// Detailed status message
     required String detail,
   }) = SequencerEvent_InstructionProgress;
+
+  /// Structured progress update for long-running instructions. This is
+  /// emitted alongside `InstructionProgress` so legacy consumers keep their
+  /// string detail while newer UI panels can bind to explicit fields.
+  const factory SequencerEvent.instructionProgressStructured({
+    /// Node ID for mapping progress to the correct tree node
+    required String nodeId,
+
+    /// Name of the instruction (e.g., "Cool Camera", "Autofocus")
+    required String instruction,
+
+    /// Progress percentage (0.0 to 100.0)
+    required double progressPercent,
+
+    /// `ProgressDetail` variant name (e.g. `Exposure`, `Autofocus`)
+    required String detailKind,
+
+    /// JSON-stringified inner payload for the variant.
+    required String detailJson,
+  }) = SequencerEvent_InstructionProgressStructured;
+
+  /// Pack H — Wave 3 Image Grading: a frame passed every configured
+  /// quality threshold and was saved to the normal output folder.
+  /// Mirrors `ProgressDetail::FrameAccepted`.
+  const factory SequencerEvent.frameAccepted({
+    required String nodeId,
+
+    /// 1-based frame index within the current TakeExposure burst.
+    required int frame,
+    required int total,
+    double? hfr,
+    double? eccentricity,
+    int? starCount,
+
+    /// Running count of accepted frames for the whole run.
+    required int acceptedTotal,
+
+    /// Running count of rejected frames for the whole run.
+    required int rejectedTotal,
+
+    /// Wave 6 Pack P — on-disk save path of the accepted frame, so
+    /// the Wave 6 thumbnail strip can render an inline preview of
+    /// accepted frames the same way it already does for rejected
+    /// frames via `FrameRejected.reject_path`. `None` for legacy /
+    /// non-grading emit sites that did not thread the path through.
+    String? savePath,
+  }) = SequencerEvent_FrameAccepted;
+
+  /// Pack H — Wave 3 Image Grading: a frame failed at least one
+  /// quality threshold and was routed to the reject folder. Mirrors
+  /// `ProgressDetail::FrameRejected`. The consecutive-reject pause
+  /// behaviour is unchanged; this event surfaces the metrics so the
+  /// dashboard can render them without parsing.
+  const factory SequencerEvent.frameRejected({
+    required String nodeId,
+    required int frame,
+    required int total,
+    required String reason,
+    double? hfr,
+    double? eccentricity,
+    int? starCount,
+    required String rejectPath,
+
+    /// Running consecutive-rejects counter. When this reaches the
+    /// configured `max_consecutive_rejects`, the executor pauses
+    /// the sequence and emits an additional `Error` event.
+    required int consecutiveRejects,
+    required int acceptedTotal,
+    required int rejectedTotal,
+
+    /// Classified cause label (wire-stable snake_case string from
+    /// `LikelyCause::label()`). `None` when the classifier was not
+    /// consulted or could not pick a single best guess. Dart maps
+    /// this back to its `LikelyCause` enum via
+    /// `LikelyCauseExt.fromLabel`.
+    String? likelyCauseLabel,
+
+    /// Human-readable evidence bullets the dashboard surfaces in
+    /// the Forensics panel and Frame Detail dialog. Empty list
+    /// when no telemetry was available.
+    required List<String> evidence,
+
+    /// Sky brightness reading at capture time (mag/arcsec²).
+    double? skyBrightnessAtCapture,
+
+    /// Cloud cover percentage (0-100) at capture time.
+    double? cloudCoverAtCapture,
+
+    /// Wind speed at capture time (km/h). `None` when no weather
+    /// feed is wired through to the sequencer.
+    double? windAtCapture,
+
+    /// Guide RMS (arc-seconds) sampled at capture time.
+    double? guideRmsAtCapture,
+
+    /// Sensor temperature (°C) at capture time.
+    double? sensorTempAtCapture,
+  }) = SequencerEvent_FrameRejected;
+
+  /// Pack H — Wave 3 Agent 1: TargetScheduler decision. Mirrors
+  /// `ProgressDetail::Scheduler`. The score table is exposed as a
+  /// flat `Vec<SchedulerScoreEntry>` so FRB doesn't have to bridge
+  /// the internal `SchedulerScoreSummary` type.
+  const factory SequencerEvent.schedulerDecision({
+    required String nodeId,
+
+    /// 1-based decision counter for this scheduler instance.
+    required int decisionCounter,
+
+    /// `None` when no target cleared `min_score_to_run`.
+    String? pickedTargetId,
+    String? pickedTargetName,
+
+    /// Picked target's total score (0..=100). `None` when nothing
+    /// was picked.
+    double? pickedScore,
+
+    /// Flat score table (runnable first, then by descending total).
+    required List<SchedulerScoreEntry> scores,
+  }) = SequencerEvent_SchedulerDecision;
+
+  /// Pack H — Wave 3 Agent 3: per-target integration budget tick.
+  /// Mirrors `ProgressDetail::IntegrationBudget`.
+  const factory SequencerEvent.integrationBudget({
+    /// The TargetHeader node id this budget belongs to.
+    required String targetId,
+
+    /// Filter the credit was applied to (`""` for no-filter cameras).
+    required String filter,
+    required double completedSecs,
+    required double budgetSecs,
+    required double fraction,
+    required bool budgetMet,
+  }) = SequencerEvent_IntegrationBudget;
+
+  /// Wave 5 Agent 2 — sky-brightness adaptive exposure decision.
+  /// Mirrors `ProgressDetail::ExposureAdjusted`. Emitted before every
+  /// exposure burst whenever the adapter was consulted (regardless of
+  /// whether the duration actually changed), so the Run Dashboard can
+  /// surface live sky brightness + the most recent nominal/adapted
+  /// pair and the user understands why the camera is running longer
+  /// (or shorter) than configured.
+  const factory SequencerEvent.exposureAdjusted({
+    required String nodeId,
+
+    /// Adapted (effective) exposure duration in seconds.
+    required double adaptedSecs,
+
+    /// User-configured nominal duration in seconds.
+    required double nominalSecs,
+
+    /// Live sky brightness used in the decision (mag/arcsec²). `None`
+    /// when the adapter fell back due to missing telemetry.
+    double? skyBrightnessMag,
+
+    /// Filter being captured through. `None` for monochrome / no
+    /// filter wheel rigs.
+    String? filter,
+
+    /// Lowercase tag: `adapted`, `clamped_min`, `clamped_max`,
+    /// `unavailable`, `disabled`, `out_of_nominal_bounds`.
+    required String reason,
+  }) = SequencerEvent_ExposureAdjusted;
+
+  /// Wave 4 Recovery Mode: the executor just entered the `Recovering`
+  /// state. Subscribers (dashboard banner, audible alert player,
+  /// push-notification service) render the cause / attempt counter
+  /// / countdown without reaching back into the executor.
+  const factory SequencerEvent.recoveryStarted({
+    required String startedAtIso,
+    required String causeKind,
+    String? causeCustomLabel,
+    String? lastAttemptAtIso,
+    required int attemptCount,
+    required int maxAttempts,
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required String phase,
+    String? lastError,
+  }) = SequencerEvent_RecoveryStarted;
+
+  /// Wave 4 Recovery Mode: periodic update of the live recovery context
+  /// (attempt counter incremented, phase changed, last_error updated).
+  /// Subscribers refresh the dashboard banner from this; the
+  /// `RecoveryStarted` / `RecoveryCompleted` / `RecoveryGaveUp` events
+  /// bookend the loop while this carries deltas inside the loop.
+  const factory SequencerEvent.recoveryProgress({
+    required String startedAtIso,
+    required String causeKind,
+    String? causeCustomLabel,
+    String? lastAttemptAtIso,
+    required int attemptCount,
+    required int maxAttempts,
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required String phase,
+    String? lastError,
+  }) = SequencerEvent_RecoveryProgress;
+
+  /// Wave 4 Recovery Mode: recovery succeeded. The executor will
+  /// transition back to `Running`; subscribers clear the dashboard
+  /// banner and append to the history list.
+  const factory SequencerEvent.recoveryCompleted({
+    required String startedAtIso,
+    required String causeKind,
+    String? causeCustomLabel,
+    String? lastAttemptAtIso,
+    required int attemptCount,
+    required int maxAttempts,
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required String phase,
+    String? lastError,
+  }) = SequencerEvent_RecoveryCompleted;
+
+  /// Wave 4 Recovery Mode: recovery exhausted attempts / time / was
+  /// aborted by the user. The executor will transition to `Failed` (or
+  /// run the configured ParkAndAbort policy). Subscribers append the
+  /// history entry and emit a critical-severity event.
+  const factory SequencerEvent.recoveryGaveUp({
+    required String startedAtIso,
+    required String causeKind,
+    String? causeCustomLabel,
+    String? lastAttemptAtIso,
+    required int attemptCount,
+    required int maxAttempts,
+    required double retryIntervalSecs,
+    required double maxDurationSecs,
+    required String phase,
+    String? lastError,
+
+    /// True when the loop exited because the user pressed Abort.
+    /// Distinct from exhaustion so the UI can render different copy
+    /// ("Aborted by operator" vs "Exhausted retries").
+    required bool abortedByUser,
+  }) = SequencerEvent_RecoveryGaveUp;
+
+  /// Wave 6 Pack P — the executor is waiting for the Dart side to
+  /// dispatch a plugin node and reply with the verdict.
+  const factory SequencerEvent.pluginNodeRequested({
+    /// Executor-side node identifier. The reply MUST echo this.
+    required String nodeId,
+
+    /// Stable plugin identifier (e.g. `com.example.pushover`).
+    required String pluginId,
+
+    /// Stable per-plugin node type identifier (e.g. `pushover.notify`).
+    required String nodeTypeId,
+
+    /// Opaque JSON payload the plugin author authored on the Dart
+    /// side. Rust forwards verbatim.
+    required String configJson,
+
+    /// Optional human-readable label. `None` => UI uses
+    /// `node_type_id`.
+    String? displayName,
+
+    /// Effective timeout (seconds) the Rust side will wait. Dart
+    /// MUST honour this; a longer run on the Dart side will be
+    /// timed out by Rust first and surfaced as a failure.
+    required int timeoutSecs,
+  }) = SequencerEvent_PluginNodeRequested;
+
+  /// Wave 6 Pack P — live plugin-node progress payload. Mirrors
+  /// `ProgressDetail::PluginNode`. The JSON detail is serialised as a
+  /// string at the bridge boundary because FRB does not transport
+  /// `serde_json::Value` directly; Dart parses it with
+  /// `jsonDecode(detail_json)`.
+  const factory SequencerEvent.pluginNodeProgress({
+    required String nodeId,
+    required String pluginId,
+    required String nodeTypeId,
+
+    /// Stringified plugin-authored payload. Empty string when the
+    /// plugin emitted no payload.
+    required String detailJson,
+  }) = SequencerEvent_PluginNodeProgress;
+
+  /// Wave 8 Replay Debug — a structured decision emitted by the
+  /// sequencer (scheduler pick, trigger fire, recovery transition,
+  /// frame verdict, adaptive swap, plugin invocation, manual operator
+  /// action, or system event). Subscribers persist these to the
+  /// `sequence_decisions` Drift table and the Replay screen scrubs
+  /// chronologically through them.
+  ///
+  /// `details_json` is the JSON-stringified payload — FRB does not
+  /// bridge `serde_json::Value` directly, so the Dart side does
+  /// `jsonDecode(details_json)` to recover the structured map.
+  ///
+  /// `category` is the stable wire key (`scheduler_pick`,
+  /// `trigger_fired`, etc.) — see
+  /// `nightshade_sequencer::DecisionCategory::wire_key`.
+  const factory SequencerEvent.decisionLogged({
+    /// ISO-8601 UTC timestamp when the decision was made.
+    required String timestampIso,
+
+    /// Stable wire key for the underlying DecisionCategory variant.
+    required String category,
+
+    /// One-line human-readable summary.
+    required String summary,
+
+    /// JSON-stringified opaque details payload.
+    required String detailsJson,
+
+    /// Optional associated node id (scheduler / target / exposure
+    /// node).
+    String? nodeId,
+
+    /// `sequence_runs.id` this decision belongs to, if the executor
+    /// has been stamped with one.
+    PlatformInt64? sequenceRunId,
+  }) = SequencerEvent_DecisionLogged;
 }
 
 @freezed
@@ -602,6 +963,13 @@ sealed class SystemEvent with _$SystemEvent {
     required String title,
     required String message,
     required String level,
+
+    /// Wave 5.5 Pack M follow-up — per-NotificationNode override list of
+    /// NotificationTransportKind names (Dart enum, serialised as strings).
+    /// The Dart NotificationRouter consumes this field to bypass the
+    /// matrix's `custom` rule and dispatch to the user-picked transports
+    /// directly. `None` or empty = use matrix routing.
+    List<String>? explicitTransports,
   }) = SystemEvent_Notification;
 
   /// Notification that events were dropped due to slow consumer

@@ -454,37 +454,111 @@ impl DeviceManager {
 
     /// Perform health check for INDI devices
     pub(crate) async fn perform_indi_health_check(&self, device_id: &str) -> Result<bool, String> {
-        // Parse INDI device ID format: indi:host:port:device_name
-        let parts: Vec<&str> = device_id.split(':').collect();
-        if parts.len() < 4 {
-            return Err("Invalid INDI device ID format".to_string());
-        }
+        let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
+        let server_key = format!("{}:{}", host, port);
 
-        let server_key = format!("{}:{}", parts[1], parts[2]);
-        let device_name = parts[3..].join(":");
+        let client = {
+            let clients = self.indi_clients.read().await;
+            clients
+                .get(&server_key)
+                .cloned()
+                .ok_or_else(|| format!("INDI client for {} not found", server_key))?
+        };
 
-        let clients = self.indi_clients.read().await;
-        if let Some(client) = clients.get(&server_key) {
-            let client_guard = client.read().await;
-            let is_connected = client_guard.is_connected().await;
+        let mut client_guard = client.write().await;
+        Self::recover_indi_client_for_health_check(&mut client_guard, &server_key).await?;
 
-            if is_connected {
-                // Check if the device is still responding by verifying it exists
-                let is_device_connected = client_guard.is_device_connected(&device_name).await;
-                tracing::trace!(
-                    "INDI {} heartbeat: server_connected={}, device_connected={}",
-                    device_id,
-                    is_connected,
-                    is_device_connected
+        let is_connected = client_guard.is_connected().await;
+        if is_connected {
+            // Check if the device is still responding by verifying its
+            // universal CONNECTION switch, after the server-level keepalive
+            // and recovery path have had a chance to run.
+            let mut is_device_connected = client_guard.is_device_connected(&device_name).await;
+            if !is_device_connected {
+                tracing::warn!(
+                    "INDI {} heartbeat found device '{}' disconnected; reissuing CONNECT",
+                    server_key,
+                    device_name
                 );
-                Ok(is_device_connected)
-            } else {
-                tracing::debug!("INDI {} heartbeat: server not connected", device_id);
-                Ok(false)
+                client_guard
+                    .connect_device(&device_name)
+                    .await
+                    .map_err(|connect_error| {
+                        format!(
+                            "INDI {} server is connected but device '{}' reconnect failed: {}",
+                            server_key, device_name, connect_error
+                        )
+                    })?;
+                is_device_connected = client_guard.is_device_connected(&device_name).await;
             }
+            tracing::trace!(
+                "INDI {} heartbeat: server_connected={}, device_connected={}",
+                device_id,
+                is_connected,
+                is_device_connected
+            );
+            Ok(is_device_connected)
         } else {
-            Err(format!("INDI client for {} not found", server_key))
+            tracing::debug!("INDI {} heartbeat: server not connected", device_id);
+            Ok(false)
         }
+    }
+
+    async fn recover_indi_client_for_health_check(
+        client: &mut nightshade_indi::IndiClient,
+        server_key: &str,
+    ) -> Result<(), String> {
+        if client.is_connected().await {
+            if let Err(keepalive_error) = client.check_keepalive().await {
+                tracing::warn!(
+                    "INDI {} keepalive failed; tearing down stale connection before reconnect: {}",
+                    server_key,
+                    keepalive_error
+                );
+
+                if let Err(disconnect_error) = client.disconnect().await {
+                    tracing::warn!(
+                        "INDI {} disconnect during keepalive recovery failed: {}",
+                        server_key,
+                        disconnect_error
+                    );
+                }
+
+                client
+                    .reconnect_with_backoff()
+                    .await
+                    .map_err(|reconnect_error| {
+                        format!(
+                            "INDI {} keepalive failed ({}) and reconnect failed: {}",
+                            server_key, keepalive_error, reconnect_error
+                        )
+                    })?;
+            }
+            return Ok(());
+        }
+
+        if client.can_reconnect().await {
+            tracing::warn!(
+                "INDI {} reader is disconnected; attempting reader recovery",
+                server_key
+            );
+            client.recover_reader().await.map_err(|recovery_error| {
+                format!(
+                    "INDI {} server not connected and reader recovery failed: {}",
+                    server_key, recovery_error
+                )
+            })?;
+            return Ok(());
+        }
+
+        Err(format!(
+            "INDI {} server not connected and no reconnect is currently allowed \
+             (reader_status={:?}, consecutive_failures={}, reconnecting={})",
+            server_key,
+            client.reader_status().await,
+            client.reader_consecutive_failures(),
+            client.is_reconnecting()
+        ))
     }
 
     pub(crate) async fn indi_get_all_switches(

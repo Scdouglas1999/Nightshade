@@ -124,6 +124,7 @@ pub use windows::{
     MountMotionStatus,
     // Batch status types - Mount
     MountPositionStatus,
+    MountSiteStatus,
     ObservingConditionsFullStatus,
     // Batch status types - Rotator
     RotatorFullStatus,
@@ -131,6 +132,7 @@ pub use windows::{
     SafetyMonitorFullStatus,
     SkyStatus,
     // Batch status types - Switch
+    SwitchChannelState,
     SwitchFullStatus,
     // Configuration types
     TimeoutConfig,

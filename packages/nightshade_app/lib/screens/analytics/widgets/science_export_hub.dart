@@ -85,15 +85,18 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sessions = ref.watch(allSessionsProvider).valueOrNull ?? const [];
     final dateFormat = DateFormat('yyyy-MM-dd');
 
     return Dialog(
       backgroundColor: colors.surface,
-      child: Container(
-        width: 700,
-        constraints: const BoxConstraints(maxHeight: 750),
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 700,
+          designMaxHeight: 750,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -417,14 +420,18 @@ class _ScienceExportHubState extends ConsumerState<ScienceExportHub> {
       );
       return;
     }
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     await showDialog<void>(
       context: context,
       builder: (dialogContext) {
         return Dialog(
           backgroundColor: colors.surface,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 720, maxHeight: 720),
+            constraints: AdaptiveDialogConstraints.hybrid(
+              dialogContext,
+              designMaxWidth: 720,
+              designMaxHeight: 720,
+            ),
             child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
               child: MpcExportPanel(

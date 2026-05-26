@@ -172,18 +172,23 @@ class _MeridianFlipProgressDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
+    final dialogSize = AdaptiveDialogConstraints.dialogSize(
+      context,
+      designWidth: 500,
+      designHeight: 600,
+    );
 
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Container(
-        width: 500,
-        constraints: const BoxConstraints(maxHeight: 600),
+      child: SizedBox(
+        width: dialogSize.width,
+        height: dialogSize.height,
         child: Column(
-          mainAxisSize: MainAxisSize.min,
+          mainAxisSize: MainAxisSize.max,
           children: [
             _buildHeader(colors),
             Flexible(
@@ -235,8 +240,8 @@ class _MeridianFlipProgressDialogState
         children: [
           Container(
             padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              statusColor,
               borderRadius: BorderRadius.circular(10),
             ),
             child: _isComplete || _hasFailed
@@ -403,10 +408,9 @@ class _MeridianFlipProgressDialogState
   Widget _buildErrorSection(NightshadeColors colors) {
     return Container(
       padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: colors.error.withValues(alpha: 0.1),
+      decoration: NightshadeDecorations.statusChip(
+        colors.error,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: colors.error.withValues(alpha: 0.3)),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -669,8 +673,8 @@ class _StepRow extends StatelessWidget {
               padding: const EdgeInsets.only(left: 8),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colors.success.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.success,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
@@ -688,8 +692,8 @@ class _StepRow extends StatelessWidget {
               padding: const EdgeInsets.only(left: 8),
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colors.error.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.error,
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(

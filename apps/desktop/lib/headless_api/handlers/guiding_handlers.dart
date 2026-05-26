@@ -20,13 +20,24 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2Connect(Request request) async {
     _logInfo('[API] POST /api/phd2/connect');
-    final payload = await readJsonObject(request);
-    final host = optionalString(payload, 'host') ?? 'localhost';
-    final port = optionalInt(payload, 'port') ?? 4400;
+    // Route through DeviceService so the host auto-launches PHD2 when
+    // configured, matching the desktop Equipment → Guider connect path.
+    // Raw backend.phd2Connect skips _ensurePhd2Running on the desktop.
+    final deviceService = container.read(deviceServiceProvider);
+    await deviceService.connectGuider('phd2_guider');
 
+    // Mobile companions verify GET /api/phd2/status immediately after POST
+    // connect. Block until PHD2 RPC is live so we do not return success early.
     final backend = container.read(backendProvider);
-    await backend.phd2Connect(host: host, port: port);
+    await pollPhd2Connected(backend);
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.guider,
+      action: HostMutationAction.connected,
+      entityId: 'phd2_guider',
+      extra: {'name': 'PHD2'},
+    );
     return jsonOk({"status": "connected"});
   }
 
@@ -35,6 +46,12 @@ class GuidingHandlers {
     final backend = container.read(backendProvider);
     await backend.phd2Disconnect();
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.guider,
+      action: HostMutationAction.disconnected,
+      entityId: 'phd2_guider',
+    );
     return jsonOk({"status": "disconnected"});
   }
 
@@ -52,6 +69,13 @@ class GuidingHandlers {
       settleTimeout: settleTimeout,
     );
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.guider,
+      action: HostMutationAction.started,
+      entityId: 'phd2_guider',
+      extra: {'state': 'guiding'},
+    );
     return jsonOk({"status": "guiding"});
   }
 
@@ -60,6 +84,13 @@ class GuidingHandlers {
     final backend = container.read(backendProvider);
     await backend.phd2StopGuiding();
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.guider,
+      action: HostMutationAction.stopped,
+      entityId: 'phd2_guider',
+      extra: {'state': 'stopped'},
+    );
     return jsonOk({"status": "stopped"});
   }
 
@@ -86,7 +117,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2GetStatus(Request request) async {
     final backend = container.read(backendProvider);
-    final status = await backend.phd2GetStatus();
+    final status = await readPhd2StatusOrDisconnected(backend);
 
     return jsonOk({
       "state": status.state,
@@ -108,6 +139,13 @@ class GuidingHandlers {
     final backend = container.read(backendProvider);
     await backend.phd2SetPaused(paused);
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.guider,
+      action: paused ? HostMutationAction.paused : HostMutationAction.resumed,
+      entityId: 'phd2_guider',
+      extra: {'paused': paused},
+    );
     return jsonOk({"status": "ok"});
   }
 

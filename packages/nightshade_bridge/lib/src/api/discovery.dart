@@ -8,7 +8,8 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `ascom_type_for`, `builtin_devices_for_type`, `collect_fresh_cache`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `run_scan`, `scan_alpaca_for_type`, `scan_indi_for_type`
+// These functions are ignored because they are not marked as `pub`: `drivers_for_device_type`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `scan_alpaca_for_type`, `scan_ascom_for_type`, `scan_devices_for_pair`, `scan_indi_for_type`, `scan_native_for_type`, `scan_simulator_for_type`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `scan_ascom_for_type_public`, `scan_native_for_type_public`
 
 /// Discover available Alpaca devices on the network
 Future<List<DeviceInfo>> apiDiscoverAlpacaDevices() =>
@@ -38,44 +39,22 @@ Future<List<DeviceInfo>> apiDiscoverIndiCommonHosts() =>
 Future<List<DeviceInfo>> apiDiscoverIndiNetwork() =>
     RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiNetwork();
 
-/// Scan the native vendor SDKs for devices of `device_type`.
-///
-/// Exposed for the hot-plug poll watcher (which runs every few seconds
-/// against local SDKs and diffs the result against its own cache) and for
-/// the unified `api_discover_devices` entry point.
-Future<List<DeviceInfo>> scanNativeForTypePublic(
-        {required DeviceType deviceType}) =>
-    RustLib.instance.api
-        .crateApiDiscoveryScanNativeForTypePublic(deviceType: deviceType);
-
-/// Scan ASCOM Profile (Windows only) for devices of `device_type`.
-///
-/// Filters out simulators and ASCOM diagnostic helpers (hub/pipe/POTH) the
-/// same way the legacy unified scan did, so neither user-facing UI nor the
-/// hot-plug poll surfaces them as real devices.
-///
-/// Exposed for the hot-plug poll watcher and `api_discover_devices`.
-Future<List<DeviceInfo>> scanAscomForTypePublic(
-        {required DeviceType deviceType}) =>
-    RustLib.instance.api
-        .crateApiDiscoveryScanAscomForTypePublic(deviceType: deviceType);
-
 /// Discover available devices of a specific type.
 ///
-/// Queries every supported backend (Windows ASCOM Profile, Alpaca network
-/// discovery, native vendor SDKs, INDI servers known to the device
-/// manager) and merges the results with the always-on built-in helpers
-/// (multi-star guider, PHD2 if installed, internal simulator).
+/// The discovery cache is keyed by `(DeviceType, DriverType)`. For the
+/// requested `device_type` we look up every driver that can supply it (see
+/// `drivers_for_device_type`) and either reuse the cached entry (when it is
+/// younger than `DISCOVERY_CACHE_TTL`) or run a fresh per-driver scan for that
+/// specific type. This means:
 ///
-/// Results are cached per (`DeviceType`, `DriverType`) for
-/// [`DISCOVERY_CACHE_TTL`] so:
-///
-///   * Asking for cameras does not force a mount-driver scan.
-///   * A failure in one backend (e.g. Alpaca UDP timeout) is cached and
-///     reported back to the caller without preventing the other backends
-///     from succeeding — silent fall-back is forbidden per `CLAUDE.md`.
-///   * Hot-plug events (see [`crate::hotplug`]) invalidate the cache by
-///     clearing every entry so the next call re-runs every backend.
+///   * Asking for cameras never triggers a mount-driver scan.
+///   * An error in one backend (e.g. ASCOM) cannot poison another (e.g.
+///     Alpaca) for the same type — each (type, driver) entry holds its own
+///     `Result`.
+///   * Errors are surfaced to the caller as `NightshadeError`s; the cache
+///     stores the error so retry-after-TTL semantics still apply (avoids
+///     hammering a broken backend), but successful sibling entries remain
+///     valid.
 Future<List<DeviceInfo>> apiDiscoverDevices({required DeviceType deviceType}) =>
     RustLib.instance.api
         .crateApiDiscoveryApiDiscoverDevices(deviceType: deviceType);

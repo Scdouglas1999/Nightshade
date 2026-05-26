@@ -105,10 +105,16 @@ class SessionProgressCard extends ConsumerWidget {
               // Status badge
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: isActive ? colors.success.withValues(alpha: 0.15) : colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                ),
+                decoration: isActive
+                    ? NightshadeDecorations.statusChip(
+                        colors.success,
+                        borderRadius: BorderRadius.circular(8),
+                        bordered: false,
+                      )
+                    : BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                      ),
                 child: Text(
                   isActive ? 'Running' : 'Idle',
                   style: TextStyle(
@@ -138,7 +144,7 @@ class SessionProgressCard extends ConsumerWidget {
                     alignment: Alignment.centerLeft,
                     child: Container(
                       decoration: BoxDecoration(
-                        gradient: LinearGradient(colors: [colors.primary, colors.accent]),
+                        color: colors.primary,
                         borderRadius: BorderRadius.circular(2),
                       ),
                     ),

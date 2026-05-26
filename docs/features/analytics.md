@@ -4,10 +4,13 @@ The Analytics screen provides comprehensive session analysis, historical data vi
 
 ## Overview
 
-The Analytics screen has three tabs:
-- **Session**: Current session statistics and charts
+The Analytics screen has six tabs:
+- **Session**: Current session statistics and charts, plus a compact "Tonight's science" KPI row
 - **History**: Past session records and analysis
+- **Projects**: Multi-night target progress and integration goals
 - **Equipment Stats**: Long-term equipment performance metrics
+- **Science**: Live photometry, plate-solve health, PSF maps, transparency, residuals, and anomaly detection
+- **Diagnostics**: Engineering-level logs and traces
 
 ## Session Tab
 
@@ -250,6 +253,115 @@ Relate session quality to conditions:
 - Equipment settings
 - Environmental data
 - Timing information
+
+## Science Tab
+
+The Science tab is the analytics surface for scientifically meaningful measurements derived from your captures. It is **always visible** — no "Advanced Science Mode" toggle is required to see the tab itself. Advanced Mode only controls the optional overlay layers on the imaging preview.
+
+### Pipeline Status Banner
+
+Sits at the top of the Science tab (and a compact form lives in the Imaging HUD). Tells you exactly what the science processor is doing in real time:
+
+- **Idle (gray)**: Pipeline is waiting. Shows the total number of frames processed so far and how long since the last one.
+- **Busy (blue, animated)**: A frame is being processed. Shows the current stage (e.g. "Plate solve…", "Calibration…") and the queue depth.
+- **Failure (red)**: The most recent attempt produced at least one failed stage. Surfaces the stage name and the truncated error note so you can see *what* failed without opening the log.
+
+Each frame contributes a row of small status dots on the right side of the banner — one per stage (frame quality, plate solve, calibration, transparency, PSF map, residuals, photometry, moving objects). Hover a dot for the per-stage note ("12 stars matched", "no WCS available", etc.). Colors: green = ok, blue = running, gray = skipped, muted = no data, red = failed.
+
+### Tonight's Science (Session tab)
+
+A compact 4-metric row above the classic Session charts:
+
+- **Plate solves**: `N / M` — how many of this session's light frames produced a WCS solution.
+- **Zero point**: The most recent photometric ZP plus the number of catalog stars matched.
+- **Transparency**: Latest atmospheric transparency percentage and its quality bucket.
+- **Uniformity CV**: Background flatness, plus SNR for context.
+
+Tapping the row switches to the Science tab so you can drill into the underlying charts.
+
+### Plate Solve Health Card
+
+Always visible at the top of the Science tab. Shows the success rate as a percentage with a colored progress bar:
+
+- **Excellent (≥90%)**: Most frames are solving — photometry, PSF maps, and residuals all benefit.
+- **Acceptable (60–89%)**: Failures are usually transient (clouds, guiding excursions).
+- **Struggling (1–59%)**: Many frames failing. Offers a one-click **Configure plate solver** button.
+- **No solves yet**: Nothing has solved. Most science products will stay empty until a solver is reachable.
+
+### Time-Series Trends
+
+The Science tab charts how the night evolves — not just the latest value:
+
+- **Light curve** — differential photometry for the selected target (AAVSO export when a session is active).
+- **Transparency trend** — atmospheric transparency % across calibrated frames.
+- **Zero point over time** — photometric ZP by frame; rising usually means improving sky.
+- **Plate-solve rate (rolling)** — sliding window (8 frames) of solve success; dips flag clouds or guiding stress early.
+- **HFR over time** — classic star sharpness trend from accepted lights.
+- **Uniformity CV** — background flatness from frame-quality maps; values above ~0.28 suggest gradients.
+
+### Target Campaign Strip
+
+When the active session is bound to a planner target, a compact card shows multi-night progress (session count, primary filter, frames captured, % of integration goal). Tap to open the full **Campaign rollup** dialog.
+
+### Image Grader (SGP-class bulk reject)
+
+**Field Quality → Grade frames** opens a threshold dialog with live preview. Adjust HFR, star count, guiding RMS, etc., then reject all failing frames in one action. Rules are persisted and reused by **auto-reject** (Settings → Science → Auto-reject bad frames), which runs after every light frame without deleting files.
+
+### Science Report Export
+
+**Export report** in the Science jump-nav (or the Science Data Export hub) writes a Markdown session report with photometry, transparency, frame quality, solve rate, and equipment notes to your documents folder.
+
+### FITS Header Writeback
+
+Enabled by default (Settings → Science → Write science keywords to FITS). After calibration/transparency, Nightshade stamps `MAGZP`, `MAGZPERR`, `MAGZPSRC`, `TRANSPAR`, and `NSHA_VER` onto the original `.fits` capture so PixInsight, APP, and Siril read Nightshade measurements without the database.
+
+### KPI Strip with Trust Indicators
+
+The four headline KPIs (Calibration, Transparency, Uniformity CV, Moving Objects) now include trust chips so you can decide how much to rely on each value:
+
+- **Calibration**: Catalog used (APASS / Gaia / Tycho), # matched stars (warning under 12), fit RMS (warning above 0.2 mag), solver id.
+- **Transparency**: Quality bucket, extinction coefficient `k`, model confidence percentage (warning under 50%).
+- **Uniformity**: Frame SNR (warning under 10), high-clip %, low-clip % (warnings above 1.5%).
+
+### Plain-Language Insights
+
+The Insights panel uses a shared rule engine (see `science_insights_engine.dart`) that flags actionable conditions and tells you what to do:
+
+- **Pipeline last failure** — surfaces the most recent failed stage with the truncated error note.
+- **Plate solve health** — warns if no frames have solved or fewer than 50% solve.
+- **Transparency warming up** — tells you how many more calibrated frames are needed before transparency stabilises (default: 5 frames).
+- **Frame conditions** — high/low clipping, uniformity, SNR.
+- **Transparency value** — flags sub-75% sky transparency.
+- **Calibration quality** — flags high fit RMS and few catalog matches.
+- **Optical-train diagnostics** — surfaces top tilt/coma issues.
+- **Equipment health** — surfaces top device health insights.
+
+Sorted by severity: errors → warnings → info → success.
+
+### Overlay Composer with Legends
+
+Each overlay chip now has an ⓘ icon (also accessible by long-press). Tapping it opens a dialog explaining what the colours mean, with a three-stop gradient swatch. The active quantitative overlay (Uniformity, Clip High, Clip Low) also renders its inline legend at the bottom of the composer.
+
+### Per-Frame Science Badges
+
+In the Session tab thumbnail strip:
+
+- **Plate-solve checkmark** (bottom-right, green): the frame produced a WCS.
+- **ZP chip** (bottom-right, blue): the photometric zero point for this frame. Tooltip shows the matched star count.
+- **Long-press / right-click** any thumbnail to flag it as "poor quality" (no auto-delete — frames stay on disk). The flag toggles `isAccepted` in the database via the standard accept/reject pipeline.
+
+### Imaging HUD — Contextual Offers
+
+The Science HUD on the Imaging screen surfaces one-tap suggestions when the session is ready for a feature:
+
+- **Moving-object detection** appears once you have 3+ light frames.
+- **Narrowband ratios** appears once Ha, OIII, and SII frames are all present in the session.
+
+Each offer self-suppresses as soon as the corresponding feature is enabled.
+
+### Transparency Unlock Progress
+
+When transparency is enabled but the model hasn't produced its first sample yet, the HUD shows a compact "Transparency unlocks at N / 5 calibrated frames" progress bar so you can see the gating condition instead of staring at a blank field.
 
 ## Best Practices
 

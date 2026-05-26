@@ -34,6 +34,13 @@ bool _isEditable(SequenceExecutionState state) {
     case SequenceExecutionState.running:
     case SequenceExecutionState.paused:
     case SequenceExecutionState.stopping:
+    // Wave 4 Recovery Mode — recovery is an in-flight execution state.
+    // Editing the sequence mid-recovery would split the user's mental
+    // model between "the executor is still running" and "I'm about to
+    // change what it does", so we lock the editor here just like during
+    // running/paused. The Run Dashboard banner is the right place for
+    // operator action during recovery.
+    case SequenceExecutionState.recovering:
       return false;
   }
 }
@@ -86,6 +93,17 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   /// After this returns, [isDirty] is `false` and [createSequence] /
   /// [loadSequence] will not throw [UnsavedChangesException].
   void markSaved() {
+    _dirty = false;
+  }
+
+  /// Apply a successful remote/host persist without marking the editor dirty.
+  ///
+  /// Used by [remoteSequenceEditorSyncProvider] after debounced auto-save so
+  /// newly created sequences receive their host `databaseId` and subsequent
+  /// edits update the same row.
+  void applyRemoteSave(int databaseId) {
+    if (state == null) return;
+    state = state!.copyWith(databaseId: databaseId);
     _dirty = false;
   }
 
@@ -336,8 +354,7 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
   void addTargetHeader(TargetHeaderNode targetNode) {
     if (state == null) {
       throw NoActiveSequenceException(
-        attemptedOperation:
-            'add target "${targetNode.targetName}"',
+        attemptedOperation: 'add target "${targetNode.targetName}"',
       );
     }
     _ensureEditable('add target');
@@ -417,7 +434,6 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     required String templateRootId,
     String? targetId,
   }) {
-
     final newNodes = Map<String, SequenceNode>.from(state!.nodes);
     final idMapping = <String, String>{};
 
@@ -666,7 +682,10 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
       InstructionSetNode _ ||
       ParallelNode _ ||
       ConditionalNode _ ||
-      RecoveryNode _ =>
+      RecoveryNode _ ||
+      // Wave 3 Agent 1: TargetScheduler is a container — children are the
+      // candidate TargetHeaders the scheduler picks from.
+      TargetSchedulerNode _ =>
         true,
       ExposureNode _ ||
       SlewNode _ ||
@@ -693,7 +712,24 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
       OpenCoverNode _ ||
       CloseCoverNode _ ||
       CalibratorOnNode _ ||
-      CalibratorOffNode _ =>
+      CalibratorOffNode _ ||
+      // Wave 3 Agent 2: SmartExposure is a *leaf* in the Dart tree — all
+      // per-filter behaviour is encoded in `plans` and Rust dispatches the
+      // batches internally via the InstructionRegistry. The Dart node
+      // intentionally has no childIds so the editor must not accept drops
+      // onto it.
+      SmartExposureNode _ ||
+      // Wave 7 Agent 2: LiveStacking is a leaf side-effect instruction
+      // — it arms the broadcast service and returns. Any child would
+      // never execute.
+      LiveStackingNode _ ||
+      // Wave 7 Science: SciencePhotometry is a leaf — the per-frame
+      // photometric capture is fully encoded in the node's config.
+      SciencePhotometryNode _ ||
+      // Audit §11 — plugin nodes are leaves. The plugin author owns
+      // any internal fan-out; nesting Dart-side children under a
+      // plugin node would never execute.
+      PluginInstructionNode _ =>
         false,
     };
   }
@@ -757,6 +793,44 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
           id: id,
           name: name ?? 'Parallel',
           requiredSuccesses: (json['requiredSuccesses'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'targetscheduler':
+      case 'targetschedulernode':
+        return TargetSchedulerNode(
+          id: id,
+          name: name ?? 'Scheduler',
+          altitudeWeight: (json['altitudeWeight'] as num?)?.toDouble() ?? 0.25,
+          moonDistanceWeight:
+              (json['moonDistanceWeight'] as num?)?.toDouble() ?? 0.25,
+          transitProximityWeight:
+              (json['transitProximityWeight'] as num?)?.toDouble() ?? 0.20,
+          darknessWeight: (json['darknessWeight'] as num?)?.toDouble() ?? 0.15,
+          airmassWeight: (json['airmassWeight'] as num?)?.toDouble() ?? 0.15,
+          minScoreToRun: (json['minScoreToRun'] as num?)?.toDouble() ?? 30.0,
+          recomputeEveryNExposures:
+              (json['recomputeEveryNExposures'] as num?)?.toInt() ?? 0,
+          finishIterationOnSwitch:
+              json['finishIterationOnSwitch'] as bool? ?? true,
+          swapOnConditionsBelow:
+              (json['swapOnConditionsBelow'] as num?)?.toDouble() ??
+                  (json['swap_on_conditions_below'] as num?)?.toDouble(),
+          swapHysteresisSecs:
+              (json['swapHysteresisSecs'] as num?)?.toDouble() ??
+                  (json['swap_hysteresis_secs'] as num?)?.toDouble() ??
+                  180.0,
+          brightnessTierPreferences: _parseBrightnessTierPreferencesForSnippet(
+            json['brightnessTierPreferences'] ??
+                json['brightness_tier_preferences'],
+          ),
+          maxConditionsScoreAgeSecs:
+              (json['maxConditionsScoreAgeSecs'] as num?)?.toInt() ??
+                  (json['max_conditions_score_age_secs'] as num?)?.toInt() ??
+                  300,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -839,6 +913,26 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
           offset: (json['offset'] as num?)?.toInt(),
           binning: _parseBinningForSnippet(json['binning']),
           ditherEvery: (json['ditherEvery'] as num?)?.toInt(),
+          parentId: parentId,
+          childIds: childIds,
+          orderIndex: orderIndex,
+          isEnabled: isEnabled,
+        );
+
+      case 'smartexposure':
+      case 'smartexposurenode':
+        return SmartExposureNode(
+          id: id,
+          name: name ?? 'Smart Exposure',
+          plans: ((json['plans'] as List?) ?? const [])
+              .whereType<Map>()
+              .map((plan) => FilterPlan.fromJson(plan.cast<String, dynamic>()))
+              .toList(growable: false),
+          rotateFilters: json['rotateFilters'] as bool? ?? true,
+          ditherOnFilterChange: json['ditherOnFilterChange'] as bool? ?? false,
+          integrationBudgetSecs:
+              (json['integrationBudgetSecs'] as num?)?.toDouble() ?? 0.0,
+          batchSize: (json['batchSize'] as num?)?.toInt() ?? 1,
           parentId: parentId,
           childIds: childIds,
           orderIndex: orderIndex,
@@ -1053,6 +1147,15 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     );
   }
 
+  BrightnessTierPreferences _parseBrightnessTierPreferencesForSnippet(
+    dynamic value,
+  ) {
+    if (value is Map) {
+      return BrightnessTierPreferences.fromJson(value.cast<String, dynamic>());
+    }
+    return const BrightnessTierPreferences();
+  }
+
   AutofocusMethod _parseAutofocusMethodForSnippet(dynamic value) {
     if (value == null) return AutofocusMethod.vCurve;
     final str = value.toString().toLowerCase();
@@ -1206,7 +1309,19 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     updateNode(node.copyWith(isEnabled: !node.isEnabled));
   }
 
-  /// Reorder nodes within a parent
+  /// Reorder a child of [parentId] from [oldIndex] to [newIndex] within the
+  /// parent's child list.
+  ///
+  /// W1.7: the defensive `containsKey` sweep over every sibling has been
+  /// removed. With the parent-keyed index in [Sequence], every entry in
+  /// `parent.childIds` is guaranteed to resolve in `nodes` by the
+  /// [Sequence.invariants] contract — the only way to violate it is to
+  /// directly construct a malformed `Sequence`, which the editor never does.
+  ///
+  /// Cost: O(K) where K = number of children of [parentId] (the splice
+  /// itself plus the per-sibling `orderIndex` renumber needed for DB
+  /// persistence round-trips). The pre-W1.7 implementation was O(N) over
+  /// every node in the tree because of the clone-and-rescan pattern.
   void reorderNodes(String parentId, int oldIndex, int newIndex) {
     if (state == null) return;
     _ensureEditable('reorder nodes');
@@ -1217,16 +1332,16 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     if (parent == null) return;
 
     final children = List<String>.from(parent.childIds);
-
-    for (final childId in children) {
-      if (!newNodes.containsKey(childId)) {
-        throw StateError('Reorder failed: node $childId not found');
-      }
-    }
-
+    // `removeAt` / `insert` throw RangeError on out-of-range indices, which
+    // matches the legacy behaviour: callers passing stale Flutter
+    // `ReorderableListView` indices learn loudly rather than silently no-op.
     final item = children.removeAt(oldIndex);
     children.insert(newIndex, item);
 
+    // Renumber only the affected parent's children. orderIndex is
+    // load-bearing for the SQL `ORDER BY` in `SequencesDao.getNodesForSequence`
+    // (see `database/daos/sequences_dao.dart`) and for backup/restore
+    // round-trips, so it must agree with the new sibling order at save time.
     for (int i = 0; i < children.length; i++) {
       final child = newNodes[children[i]]!;
       newNodes[children[i]] = child.copyWith(orderIndex: i);
@@ -1551,8 +1666,8 @@ class CurrentSequenceNotifier extends StateNotifier<Sequence?>
     final oldTarget = targets[oldIndex];
     final newTarget = targets[newIndex];
 
-    final sameSiblingParent = oldTarget.parentId == newTarget.parentId &&
-        oldTarget.parentId != null;
+    final sameSiblingParent =
+        oldTarget.parentId == newTarget.parentId && oldTarget.parentId != null;
     if (!sameSiblingParent) {
       throw CrossParentReorderException(
         sourceTargetName: oldTarget.targetName,

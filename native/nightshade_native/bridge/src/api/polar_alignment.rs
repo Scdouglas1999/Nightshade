@@ -17,12 +17,10 @@
 // - **RGBA u8 → u32/u16 luminance** (lines 775, 785): u8 → u32 is exact
 //   widening; the average of three u8 values is ≤ 255 so `as u16 * 256`
 //   stays well inside u16. SAFE.
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -1050,9 +1048,8 @@ pub async fn api_start_all_sky_polar_alignment(
     //
     // `event_tx` is moved into the spawned task; the background bridge task
     // exits when the task drops the sender after the alignment finishes.
-    let event_tx_for_align = crate::util::executor_event_bridge::spawn_executor_event_bridge(
-        get_state().clone(),
-    );
+    let event_tx_for_align =
+        crate::util::executor_event_bridge::spawn_executor_event_bridge(get_state().clone());
 
     tokio::spawn(async move {
         let ctx = InstructionContext {
@@ -1076,6 +1073,50 @@ pub async fn api_start_all_sky_polar_alignment(
             trigger_state: None,
             filter_focus_offsets: std::collections::HashMap::new(),
             event_tx: Some(event_tx_for_align),
+            recovery_request_tx: None,
+            // Wave 3 Image Grading: polar alignment does not write FITS
+            // frames into the sequencer's save_path; the alignment images
+            // go through a separate dedicated channel. Empty defaults
+            // satisfy the InstructionContext shape without lying.
+            session_id: String::new(),
+            target_id: None,
+            mosaic_panel: None,
+            current_filter_index: None,
+            set_temp_c: None,
+            bayer_pattern: None,
+            observer_name: None,
+            site_elevation_m: None,
+            camera_make: None,
+            camera_model: None,
+            telescope_name: None,
+            telescope_focal_length_mm: None,
+            telescope_aperture_mm: None,
+            last_plate_solve: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            hfr_baseline: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            hfr_baseline_samples: std::sync::Arc::new(tokio::sync::RwLock::new(Vec::new())),
+            consecutive_rejects: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            frames_accepted: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            frames_rejected: std::sync::Arc::new(std::sync::atomic::AtomicU32::new(0)),
+            default_quality_check: None,
+            reject_folder_path: None,
+            // Wave 7 Agent 3 — defect map state. Polar alignment captures
+            // do not go through the sequencer save_path; defect maps are
+            // not applied here, so pass an empty slot.
+            defect_map_apply: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            // Wave 8 — Forensics: polar alignment does not grade frames.
+            forensics_history: std::sync::Arc::new(tokio::sync::RwLock::new(
+                std::collections::VecDeque::new(),
+            )),
+            current_sky_brightness_mag: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            cloud_motion_snapshot: std::sync::Arc::new(tokio::sync::RwLock::new(
+                nightshade_sequencer::CloudMotionSnapshot::default(),
+            )),
+            current_wind_kph: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            current_sensor_temp_c: std::sync::Arc::new(tokio::sync::RwLock::new(None)),
+            // Wave 8 Replay Debug — one-shot bridge API doesn't emit
+            // decisions (no associated sequence_runs row).
+            decision_tx: None,
+            active_sequence_run_id: std::sync::Arc::new(parking_lot::RwLock::new(None)),
         };
 
         let status_cb = |status: String, _progress: Option<f64>| {

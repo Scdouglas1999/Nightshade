@@ -32,7 +32,7 @@ class _EquipmentProfilesScreenState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final profilesAsync = ref.watch(equipmentProfilesProvider);
 
     return profilesAsync.when(
@@ -99,7 +99,6 @@ class _EquipmentProfilesScreenState
           );
           setState(() => _selectedProfile = updated);
         },
-        colors: colors,
       );
     }
 
@@ -118,7 +117,6 @@ class _EquipmentProfilesScreenState
       },
       onCreateProfile: () => _showCreateProfileDialog(context, colors),
       onImportProfiles: () => _importProfiles(context, colors),
-      colors: colors,
     );
   }
 
@@ -139,7 +137,6 @@ class _EquipmentProfilesScreenState
           },
           onCreateProfile: () => _showCreateProfileDialog(context, colors),
           onImportProfiles: () => _importProfiles(context, colors),
-          colors: colors,
         ),
 
         // Profile details
@@ -182,9 +179,13 @@ class _EquipmentProfilesScreenState
                     );
                     setState(() => _selectedProfile = updated);
                   },
-                  colors: colors,
                 )
-              : _EmptyState(colors: colors),
+              : EmptyState.compact(
+                icon: LucideIcons.aperture,
+                title: 'Select a profile',
+                body:
+                    'Choose a profile from the list or create a new one',
+              ),
         ),
       ],
     );
@@ -430,7 +431,6 @@ class _ProfileList extends StatelessWidget {
   final ValueChanged<EquipmentProfileModel> onProfileSelected;
   final VoidCallback onCreateProfile;
   final VoidCallback onImportProfiles;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _ProfileList({
@@ -440,12 +440,12 @@ class _ProfileList extends StatelessWidget {
     required this.onProfileSelected,
     required this.onCreateProfile,
     required this.onImportProfiles,
-    required this.colors,
     this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final padding = isMobile ? 16.0 : 20.0;
 
     Widget content = Column(
@@ -534,7 +534,6 @@ class _ProfileList extends StatelessWidget {
                       isActive: isActive,
                       isMobile: isMobile,
                       onTap: () => onProfileSelected(profile),
-                      colors: colors,
                     );
                   },
                 ),
@@ -563,7 +562,6 @@ class _ProfileListItem extends StatefulWidget {
   final bool isSelected;
   final bool isActive;
   final VoidCallback onTap;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _ProfileListItem({
@@ -571,7 +569,6 @@ class _ProfileListItem extends StatefulWidget {
     required this.isSelected,
     required this.isActive,
     required this.onTap,
-    required this.colors,
     this.isMobile = false,
   });
 
@@ -595,14 +592,14 @@ class _ProfileListItemState extends State<_ProfileListItem> {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             color: widget.isSelected
-                ? widget.colors.primary.withValues(alpha: 0.1)
+                ? NightshadeColors.of(context).primary.withValues(alpha: 0.1)
                 : _isHovered
-                    ? widget.colors.surfaceAlt
+                    ? NightshadeColors.of(context).surfaceAlt
                     : Colors.transparent,
             borderRadius: BorderRadius.circular(10),
             border: widget.isSelected
                 ? Border.all(
-                    color: widget.colors.primary.withValues(alpha: 0.3))
+                    color: NightshadeColors.of(context).primary.withValues(alpha: 0.3))
                 : null,
           ),
           child: Row(
@@ -612,16 +609,16 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                 height: 36,
                 decoration: BoxDecoration(
                   color: widget.isActive
-                      ? widget.colors.primary.withValues(alpha: 0.2)
-                      : widget.colors.surfaceAlt,
+                      ? NightshadeColors.of(context).primary.withValues(alpha: 0.2)
+                      : NightshadeColors.of(context).surfaceAlt,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
                   LucideIcons.aperture,
                   size: 18,
                   color: widget.isActive
-                      ? widget.colors.primary
-                      : widget.colors.textSecondary,
+                      ? NightshadeColors.of(context).primary
+                      : NightshadeColors.of(context).textSecondary,
                 ),
               ),
               const SizedBox(width: 12),
@@ -637,7 +634,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w600,
-                              color: widget.colors.textPrimary,
+                              color: NightshadeColors.of(context).textPrimary,
                             ),
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -649,7 +646,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                                 horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
                               color:
-                                  widget.colors.primary.withValues(alpha: 0.2),
+                                  NightshadeColors.of(context).primary.withValues(alpha: 0.2),
                               borderRadius: BorderRadius.circular(4),
                             ),
                             child: Text(
@@ -657,7 +654,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                               style: TextStyle(
                                 fontSize: 10,
                                 fontWeight: FontWeight.w600,
-                                color: widget.colors.primary,
+                                color: NightshadeColors.of(context).primary,
                               ),
                             ),
                           ),
@@ -670,7 +667,7 @@ class _ProfileListItemState extends State<_ProfileListItem> {
                         widget.profile.description!,
                         style: TextStyle(
                           fontSize: 11,
-                          color: widget.colors.textMuted,
+                          color: NightshadeColors.of(context).textMuted,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -687,48 +684,6 @@ class _ProfileListItemState extends State<_ProfileListItem> {
   }
 }
 
-// ============================================================================
-// Empty State
-// ============================================================================
-
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _EmptyState({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            LucideIcons.aperture,
-            size: 64,
-            color: colors.textMuted.withValues(alpha: 0.5),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Select a profile',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: colors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Choose a profile from the list or create a new one',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
 
 // ============================================================================
 // Profile Details
@@ -746,7 +701,6 @@ class _ProfileDetails extends ConsumerStatefulWidget {
   final VoidCallback onDelete;
   final VoidCallback onExport;
   final VoidCallback onRefresh;
-  final NightshadeColors colors;
   final bool isMobile;
   final VoidCallback? onBack;
 
@@ -762,7 +716,6 @@ class _ProfileDetails extends ConsumerStatefulWidget {
     required this.onDelete,
     required this.onExport,
     required this.onRefresh,
-    required this.colors,
     this.isMobile = false,
     this.onBack,
   });
@@ -1041,9 +994,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         style: TextStyle(
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
-                          color: widget.colors.textPrimary,
+                          color: NightshadeColors.of(context).textPrimary,
                         ),
-                        colors: widget.colors,
                       )
                     else
                       Text(
@@ -1051,7 +1003,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         style: TextStyle(
                           fontSize: titleFontSize,
                           fontWeight: FontWeight.w700,
-                          color: widget.colors.textPrimary,
+                          color: NightshadeColors.of(context).textPrimary,
                         ),
                       ),
                     const SizedBox(height: 4),
@@ -1061,16 +1013,15 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         hint: 'Add a description...',
                         style: TextStyle(
                           fontSize: 13,
-                          color: widget.colors.textSecondary,
+                          color: NightshadeColors.of(context).textSecondary,
                         ),
-                        colors: widget.colors,
                       )
                     else
                       Text(
                         widget.profile.description ?? 'No description',
                         style: TextStyle(
                           fontSize: 13,
-                          color: widget.colors.textMuted,
+                          color: NightshadeColors.of(context).textMuted,
                         ),
                       ),
                   ],
@@ -1117,8 +1068,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                 const SizedBox(width: 8),
                 PopupMenuButton<String>(
                   icon: Icon(LucideIcons.moreVertical,
-                      color: widget.colors.textSecondary),
-                  color: widget.colors.surface,
+                      color: NightshadeColors.of(context).textSecondary),
+                  color: NightshadeColors.of(context).surface,
                   onSelected: (value) {
                     switch (value) {
                       case 'edit':
@@ -1141,11 +1092,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       child: Row(
                         children: [
                           Icon(LucideIcons.pencil,
-                              size: 16, color: widget.colors.textSecondary),
+                              size: 16, color: NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Edit',
                               style:
-                                  TextStyle(color: widget.colors.textPrimary)),
+                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
                         ],
                       ),
                     ),
@@ -1154,11 +1105,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       child: Row(
                         children: [
                           Icon(LucideIcons.copy,
-                              size: 16, color: widget.colors.textSecondary),
+                              size: 16, color: NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Duplicate',
                               style:
-                                  TextStyle(color: widget.colors.textPrimary)),
+                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
                         ],
                       ),
                     ),
@@ -1167,11 +1118,11 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       child: Row(
                         children: [
                           Icon(LucideIcons.upload,
-                              size: 16, color: widget.colors.textSecondary),
+                              size: 16, color: NightshadeColors.of(context).textSecondary),
                           const SizedBox(width: 8),
                           Text('Export',
                               style:
-                                  TextStyle(color: widget.colors.textPrimary)),
+                                  TextStyle(color: NightshadeColors.of(context).textPrimary)),
                         ],
                       ),
                     ),
@@ -1181,10 +1132,10 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                       child: Row(
                         children: [
                           Icon(LucideIcons.trash2,
-                              size: 16, color: widget.colors.error),
+                              size: 16, color: NightshadeColors.of(context).error),
                           const SizedBox(width: 8),
                           Text('Delete',
-                              style: TextStyle(color: widget.colors.error)),
+                              style: TextStyle(color: NightshadeColors.of(context).error)),
                         ],
                       ),
                     ),
@@ -1199,7 +1150,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
           _Section(
             title: 'Optical Configuration',
             icon: LucideIcons.aperture,
-            colors: widget.colors,
             isMobile: widget.isMobile,
             children: [
               widget.isMobile
@@ -1217,7 +1167,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                     ? _focalLengthController
                                     : null,
                                 suffix: 'mm',
-                                colors: widget.colors,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1231,7 +1180,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                     ? _apertureController
                                     : null,
                                 suffix: 'mm',
-                                colors: widget.colors,
                               ),
                             ),
                           ],
@@ -1242,7 +1190,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                           value: widget.profile.calculatedFocalRatio != null
                               ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
                               : 'N/A',
-                          colors: widget.colors,
                           readOnly: true,
                         ),
                       ],
@@ -1259,7 +1206,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                 ? _focalLengthController
                                 : null,
                             suffix: 'mm',
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1272,7 +1218,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             controller:
                                 widget.isEditing ? _apertureController : null,
                             suffix: 'mm',
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1282,7 +1227,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             value: widget.profile.calculatedFocalRatio != null
                                 ? 'f/${widget.profile.calculatedFocalRatio!.toStringAsFixed(1)}'
                                 : 'N/A',
-                            colors: widget.colors,
                             readOnly: true,
                           ),
                         ),
@@ -1296,7 +1240,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
           _Section(
             title: 'Camera Defaults',
             icon: LucideIcons.camera,
-            colors: widget.colors,
             isMobile: widget.isMobile,
             children: [
               widget.isMobile
@@ -1314,7 +1257,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                 controller:
                                     widget.isEditing ? _gainController : null,
                                 hint: 'e.g., 100',
-                                colors: widget.colors,
                               ),
                             ),
                             const SizedBox(width: 12),
@@ -1329,7 +1271,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                 controller:
                                     widget.isEditing ? _offsetController : null,
                                 hint: 'e.g., 10',
-                                colors: widget.colors,
                               ),
                             ),
                           ],
@@ -1346,7 +1287,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                               widget.isEditing ? _coolingController : null,
                           suffix: '°C',
                           hint: 'e.g., -10',
-                          colors: widget.colors,
                         ),
                       ],
                     )
@@ -1362,7 +1302,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             controller:
                                 widget.isEditing ? _gainController : null,
                             hint: 'e.g., 100',
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1376,7 +1315,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             controller:
                                 widget.isEditing ? _offsetController : null,
                             hint: 'e.g., 10',
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1392,7 +1330,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                 widget.isEditing ? _coolingController : null,
                             suffix: '°C',
                             hint: 'e.g., -10',
-                            colors: widget.colors,
                           ),
                         ),
                       ],
@@ -1407,7 +1344,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             value: _binX,
                             enabled: widget.isEditing,
                             onChanged: (v) => setState(() => _binX = v),
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 12),
@@ -1417,7 +1353,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             value: _binY,
                             enabled: widget.isEditing,
                             onChanged: (v) => setState(() => _binY = v),
-                            colors: widget.colors,
                           ),
                         ),
                       ],
@@ -1430,7 +1365,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             value: _binX,
                             enabled: widget.isEditing,
                             onChanged: (v) => setState(() => _binX = v),
-                            colors: widget.colors,
                           ),
                         ),
                         const SizedBox(width: 16),
@@ -1440,7 +1374,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                             value: _binY,
                             enabled: widget.isEditing,
                             onChanged: (v) => setState(() => _binY = v),
-                            colors: widget.colors,
                           ),
                         ),
                         const Expanded(flex: 2, child: SizedBox()),
@@ -1454,7 +1387,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
           _Section(
             title: 'Filter Configuration',
             icon: LucideIcons.layers,
-            colors: widget.colors,
             isMobile: widget.isMobile,
             trailing: Row(
               mainAxisSize: MainAxisSize.min,
@@ -1468,19 +1400,19 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
                             valueColor: AlwaysStoppedAnimation<Color>(
-                                widget.colors.primary),
+                                NightshadeColors.of(context).primary),
                           ),
                         )
                       : IconButton(
                           icon: Icon(LucideIcons.refreshCw,
-                              size: 16, color: widget.colors.primary),
+                              size: 16, color: NightshadeColors.of(context).primary),
                           onPressed: _syncFiltersFromHardware,
                           tooltip: 'Sync from filter wheel',
                         ),
                 if (widget.isEditing)
                   IconButton(
                     icon: Icon(LucideIcons.plus,
-                        size: 16, color: widget.colors.primary),
+                        size: 16, color: NightshadeColors.of(context).primary),
                     onPressed: () {
                       setState(() {
                         _filterControllers.add(TextEditingController());
@@ -1496,13 +1428,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: widget.colors.surfaceAlt,
+                    color: NightshadeColors.of(context).surfaceAlt,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
                     child: Text(
                       'No filters configured',
-                      style: TextStyle(color: widget.colors.textMuted),
+                      style: TextStyle(color: NightshadeColors.of(context).textMuted),
                     ),
                   ),
                 )
@@ -1526,11 +1458,9 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                                   _filterControllers.removeAt(i);
                                 });
                               },
-                              colors: widget.colors,
                             )
                           : _FilterChip(
                               name: widget.profile.filterNames[i],
-                              colors: widget.colors,
                             ),
                   ],
                 ),
@@ -1543,13 +1473,12 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
             _Section(
               title: 'Filter Focus Offsets',
               icon: LucideIcons.gitBranch,
-              colors: widget.colors,
               isMobile: widget.isMobile,
               children: [
                 Text(
                   'Focus position offset (in steps) when switching to each filter',
                   style:
-                      TextStyle(color: widget.colors.textMuted, fontSize: 12),
+                      TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: 12),
                 ),
                 const SizedBox(height: 12),
                 ..._buildFilterOffsetRows(),
@@ -1562,7 +1491,6 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
           _Section(
             title: 'Device Assignments',
             icon: LucideIcons.cpu,
-            colors: widget.colors,
             isMobile: widget.isMobile,
             trailing: widget.isEditing
                 ? NightshadeButton(
@@ -1578,13 +1506,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                 Container(
                   padding: const EdgeInsets.all(20),
                   decoration: BoxDecoration(
-                    color: widget.colors.surfaceAlt,
+                    color: NightshadeColors.of(context).surfaceAlt,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Center(
                     child: Text(
                       'No devices assigned. Connect devices from the Equipment tab.',
-                      style: TextStyle(color: widget.colors.textMuted),
+                      style: TextStyle(color: NightshadeColors.of(context).textMuted),
                     ),
                   ),
                 )
@@ -1641,7 +1569,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   child: Text(
                     'Click "Copy from Connected" to assign currently connected devices, or use X to clear individual assignments.',
                     style:
-                        TextStyle(color: widget.colors.textMuted, fontSize: 11),
+                        TextStyle(color: NightshadeColors.of(context).textMuted, fontSize: 11),
                   ),
                 ),
             ],
@@ -1656,8 +1584,8 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         children: [
           Container(
             decoration: BoxDecoration(
-              color: widget.colors.surface,
-              border: Border(bottom: BorderSide(color: widget.colors.border)),
+              color: NightshadeColors.of(context).surface,
+              border: Border(bottom: BorderSide(color: NightshadeColors.of(context).border)),
             ),
             child: SafeArea(
               bottom: false,
@@ -1667,7 +1595,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   children: [
                     IconButton(
                       icon: Icon(LucideIcons.arrowLeft,
-                          color: widget.colors.textPrimary),
+                          color: NightshadeColors.of(context).textPrimary),
                       onPressed: widget.onBack,
                     ),
                     const SizedBox(width: 8),
@@ -1677,7 +1605,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                         style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w600,
-                          color: widget.colors.textPrimary,
+                          color: NightshadeColors.of(context).textPrimary,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -1732,11 +1660,10 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
         id: displayId,
         fullId: deviceId,
         onClear: () => onClear(null),
-        colors: widget.colors,
       );
     }
 
-    return _DeviceChip(type: type, id: displayId, colors: widget.colors);
+    return _DeviceChip(type: type, id: displayId);
   }
 
   bool _hasFilters() {
@@ -1779,13 +1706,13 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                   vertical: 8,
                 ),
                 decoration: BoxDecoration(
-                  color: widget.colors.surfaceAlt,
+                  color: NightshadeColors.of(context).surfaceAlt,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
                   filterName,
                   style: TextStyle(
-                    color: widget.colors.textPrimary,
+                    color: NightshadeColors.of(context).textPrimary,
                     fontSize: widget.isMobile ? 13 : 14,
                   ),
                   overflow: TextOverflow.ellipsis,
@@ -1804,7 +1731,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                     FilteringTextInputFormatter.allow(RegExp(r'^-?\d*')),
                   ],
                   style: TextStyle(
-                    color: widget.colors.textPrimary,
+                    color: NightshadeColors.of(context).textPrimary,
                     fontSize: widget.isMobile ? 13 : 14,
                   ),
                   decoration: InputDecoration(
@@ -1815,21 +1742,21 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
                     ),
                     suffixText: widget.isMobile ? 'st' : 'steps',
                     suffixStyle: TextStyle(
-                      color: widget.colors.textMuted,
+                      color: NightshadeColors.of(context).textMuted,
                       fontSize: widget.isMobile ? 11 : 12,
                     ),
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: widget.colors.border),
+                      borderSide: BorderSide(color: NightshadeColors.of(context).border),
                     ),
                     enabledBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
-                      borderSide: BorderSide(color: widget.colors.border),
+                      borderSide: BorderSide(color: NightshadeColors.of(context).border),
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(6),
                       borderSide:
-                          BorderSide(color: widget.colors.primary, width: 2),
+                          BorderSide(color: NightshadeColors.of(context).primary, width: 2),
                     ),
                   ),
                 ),
@@ -1838,7 +1765,7 @@ class _ProfileDetailsState extends ConsumerState<_ProfileDetails> {
               Text(
                 '$offset steps',
                 style: TextStyle(
-                  color: widget.colors.textSecondary,
+                  color: NightshadeColors.of(context).textSecondary,
                   fontSize: widget.isMobile ? 13 : 14,
                 ),
               ),
@@ -1858,7 +1785,6 @@ class _Section extends StatelessWidget {
   final IconData icon;
   final List<Widget> children;
   final Widget? trailing;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _Section({
@@ -1866,12 +1792,12 @@ class _Section extends StatelessWidget {
     required this.icon,
     required this.children,
     this.trailing,
-    required this.colors,
     this.isMobile = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final sectionPadding = isMobile ? 16.0 : 20.0;
 
     return Column(
@@ -1920,7 +1846,6 @@ class _FieldCard extends StatelessWidget {
   final String? suffix;
   final String? hint;
   final bool readOnly;
-  final NightshadeColors colors;
 
   const _FieldCard({
     required this.label,
@@ -1929,11 +1854,11 @@ class _FieldCard extends StatelessWidget {
     this.suffix,
     this.hint,
     this.readOnly = false,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2010,18 +1935,17 @@ class _BinningSelector extends StatelessWidget {
   final int value;
   final bool enabled;
   final ValueChanged<int> onChanged;
-  final NightshadeColors colors;
 
   const _BinningSelector({
     required this.label,
     required this.value,
     required this.enabled,
     required this.onChanged,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -2080,44 +2004,42 @@ class _BinningSelector extends StatelessWidget {
 
 class _FilterChip extends StatelessWidget {
   final String name;
-  final NightshadeColors colors;
 
   const _FilterChip({
     required this.name,
-    required this.colors,
-  });
+    });
 
-  Color _getFilterColor(String name) {
+  Color _getFilterColor(NightshadeColors colors, String name) {
     final lowerName = name.toLowerCase();
     if (lowerName.contains('red') ||
         lowerName == 'r' ||
         lowerName == 'ha' ||
         lowerName.contains('h-alpha')) {
-      return const Color(0xFFEF4444);
+      return colors.error;
     } else if (lowerName.contains('green') || lowerName == 'g') {
-      return const Color(0xFF22C55E);
+      return colors.success;
     } else if (lowerName.contains('blue') || lowerName == 'b') {
-      return const Color(0xFF3B82F6);
+      return colors.info;
     } else if (lowerName.contains('lum') || lowerName == 'l') {
-      return const Color(0xFFA1A1AA);
+      return colors.textMuted;
     } else if (lowerName.contains('oiii') || lowerName.contains('o3')) {
-      return const Color(0xFF06B6D4);
+      return colors.accent;
     } else if (lowerName.contains('sii') || lowerName.contains('s2')) {
-      return const Color(0xFFF97316);
+      return colors.warning;
     }
     return colors.primary;
   }
 
   @override
   Widget build(BuildContext context) {
-    final filterColor = _getFilterColor(name);
+    final colors = NightshadeColors.of(context);
+    final filterColor = _getFilterColor(colors, name);
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: filterColor.withValues(alpha: 0.15),
+      decoration: NightshadeDecorations.statusChip(
+        filterColor,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: filterColor.withValues(alpha: 0.3)),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2148,16 +2070,15 @@ class _FilterChip extends StatelessWidget {
 class _EditableFilterChip extends StatelessWidget {
   final TextEditingController controller;
   final VoidCallback onRemove;
-  final NightshadeColors colors;
 
   const _EditableFilterChip({
     required this.controller,
     required this.onRemove,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       width: 120,
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -2204,16 +2125,15 @@ class _EditableFilterChip extends StatelessWidget {
 class _DeviceChip extends StatelessWidget {
   final String type;
   final String id;
-  final NightshadeColors colors;
 
   const _DeviceChip({
     required this.type,
     required this.id,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -2257,18 +2177,17 @@ class _EditableDeviceChip extends StatelessWidget {
   final String id;
   final String fullId;
   final VoidCallback onClear;
-  final NightshadeColors colors;
 
   const _EditableDeviceChip({
     required this.type,
     required this.id,
     required this.fullId,
     required this.onClear,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -2330,17 +2249,16 @@ class _EditableField extends StatelessWidget {
   final TextEditingController controller;
   final String? hint;
   final TextStyle style;
-  final NightshadeColors colors;
 
   const _EditableField({
     required this.controller,
     this.hint,
     required this.style,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return TextField(
       controller: controller,
       style: style,

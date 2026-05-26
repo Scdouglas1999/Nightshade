@@ -41,6 +41,16 @@ class _AutoDiscoveryLauncherState extends ConsumerState<AutoDiscoveryLauncher> {
     _hasLaunched = true;
 
     try {
+      // Remote clients control equipment on the host — local discovery is
+      // meaningless and can fail noisily on phones/tablets.
+      if (ref.read(isRemoteModeProvider)) {
+        _logger.info(
+          '[AutoDiscovery] Skipped — connected to remote Nightshade host',
+          source: 'AutoDiscoveryLauncher',
+        );
+        return;
+      }
+
       // Wait for settings to load
       final settings = await ref.read(appSettingsProvider.future);
 

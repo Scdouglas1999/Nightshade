@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../database/daos/dark_library_dao.dart';
 import '../database/daos/settings_dao.dart';
 import '../database/database.dart';
+import '../models/calibration/dark_library_match_tolerances.dart';
 import '../services/calibration_service.dart';
 import '../services/dark_library_service.dart';
 import 'database_provider.dart';
@@ -67,24 +68,78 @@ final autoDarkSubtractEnabledProvider = Provider<bool>((ref) {
   );
 });
 
-/// Temperature tolerance for dark matching (degrees C).
+/// Settings key for the dark-library exposure-match tolerance (seconds).
 ///
-/// Why: kept in `dark_library.temp_tolerance` since `CalibrationSettings`
-/// does not currently model the tolerance (it is consumed inside
-/// `DarkLibraryService.findMatchingDark` via the per-frame temperature
-/// argument). The tolerance is independent of whether calibration is
-/// enabled overall.
-final darkTempToleranceProvider = Provider<double>((ref) {
+/// Default written into `app_settings` is `0.5`. See [DarkLibraryMatchTolerances]
+/// for the rationale.
+const String darkLibraryExposureToleranceKey =
+    'dark_library.exposure_tolerance';
+
+/// Settings key for the dark-library temperature-match tolerance (°C).
+const String darkLibraryTempToleranceKey = 'dark_library.temp_tolerance';
+
+/// Unified tolerances for dark-frame matching.
+///
+/// IMG-P0-2: this is the SINGLE source of truth that both the coverage UI
+/// (`DarkLibraryCoverageService.evaluate`) and the runtime calibration
+/// matcher (`DarkLibraryDao.findBestMatch` via `DarkLibraryService`) must
+/// consult so the green "all darks present" badge can never contradict
+/// `findMatchingDark` returning null.
+///
+/// Values are read from `app_settings`:
+///   * `dark_library.exposure_tolerance` (default 0.5s)
+///   * `dark_library.temp_tolerance`     (default 1.0°C — the historical
+///     migration default of 2.0 is honored if already present)
+///
+/// Invalid stored values (negative, NaN, inf, unparseable) cause the
+/// provider to throw via [DarkLibraryMatchTolerances.validated] so the
+/// problem surfaces immediately instead of being silently clamped — per
+/// "Errors are a feature" in CLAUDE.md.
+final darkLibraryMatchTolerancesProvider =
+    Provider<DarkLibraryMatchTolerances>((ref) {
   final settings = ref.watch(allSettingsProvider);
   return settings.when(
     data: (s) {
-      final val = s['dark_library.temp_tolerance'];
-      if (val == null) return 2.0;
-      return double.tryParse(val) ?? 2.0;
+      final exposureRaw = s[darkLibraryExposureToleranceKey];
+      final tempRaw = s[darkLibraryTempToleranceKey];
+      // Defaults: 0.5s exposure, 1.0°C temperature. If the legacy
+      // dark_library.temp_tolerance default of 2.0 is present it is
+      // honored as-is (it is a user-tunable value, not a migration).
+      final exposureSecs = exposureRaw == null
+          ? DarkLibraryMatchTolerances.defaults.exposureSecs
+          : (double.tryParse(exposureRaw) ??
+              (throw ArgumentError.value(
+                exposureRaw,
+                darkLibraryExposureToleranceKey,
+                'Setting "$darkLibraryExposureToleranceKey" is not a valid '
+                    'number of seconds',
+              )));
+      final temperatureC = tempRaw == null
+          ? DarkLibraryMatchTolerances.defaults.temperatureC
+          : (double.tryParse(tempRaw) ??
+              (throw ArgumentError.value(
+                tempRaw,
+                darkLibraryTempToleranceKey,
+                'Setting "$darkLibraryTempToleranceKey" is not a valid '
+                    'number of degrees',
+              )));
+      return DarkLibraryMatchTolerances.validated(
+        exposureSecs: exposureSecs,
+        temperatureC: temperatureC,
+      );
     },
-    loading: () => 2.0,
-    error: (_, __) => 2.0,
+    loading: () => DarkLibraryMatchTolerances.defaults,
+    error: (_, __) => DarkLibraryMatchTolerances.defaults,
   );
+});
+
+/// Legacy convenience accessor for the temperature tolerance value alone.
+///
+/// Retained so the existing Settings UI (`dark_library_settings.dart`)
+/// continues to compile without modification. New code should consume
+/// [darkLibraryMatchTolerancesProvider] directly.
+final darkTempToleranceProvider = Provider<double>((ref) {
+  return ref.watch(darkLibraryMatchTolerancesProvider).temperatureC;
 });
 
 /// Migrate the legacy `dark_library.auto_subtract` setting into

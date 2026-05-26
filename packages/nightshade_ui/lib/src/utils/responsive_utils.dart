@@ -330,6 +330,19 @@ abstract final class Responsive {
     return columns.clamp(1, maxColumns);
   }
 
+  /// Maximum width for panels overlaid on image/canvas previews.
+  ///
+  /// Shrinks on narrow viewports using [widthFraction] while never exceeding
+  /// [maxAbsolute] (default 320 logical pixels).
+  static double previewOverlayMaxWidth(
+    double viewportWidth, {
+    double maxAbsolute = 320,
+    double widthFraction = 0.4,
+  }) {
+    if (viewportWidth <= 0) return maxAbsolute;
+    return math.min(maxAbsolute, viewportWidth * widthFraction);
+  }
+
   /// Returns the optimal panel width for slide-out panels based on screen size.
   static double panelWidth(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;

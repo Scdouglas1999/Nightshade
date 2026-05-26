@@ -7,10 +7,9 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'settings_widgets.dart';
 
 class AnnotationSettingsPage extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
-  const AnnotationSettingsPage({super.key, required this.colors, this.isMobile = false});
+  const AnnotationSettingsPage({super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -26,14 +25,12 @@ class AnnotationSettingsPage extends ConsumerWidget {
     return SettingsPage(
       title: 'Annotations',
       description: 'Configure object annotations on captured images',
-      colors: colors,
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
         // Display Settings
         SettingsSection(
           title: 'Display',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -43,9 +40,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: settings.enabled,
                 onChanged: (value) => settingsNotifier.setEnabled(value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -55,9 +50,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: settings.showLabels,
                 onChanged: (value) => settingsNotifier.setShowLabels(value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -67,9 +60,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: settings.showMagnitudes,
                 onChanged: (value) => settingsNotifier.setShowMagnitudes(value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -84,10 +75,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 label: settings.maxObjectsToDisplay.toString(),
                 onChanged: (value) =>
                     settingsNotifier.setMaxObjectsToDisplay(value.toInt()),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -110,11 +99,9 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   };
                   settingsNotifier.setGridType(type);
                 },
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -124,7 +111,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Magnitude Filtering
         SettingsSection(
           title: 'Magnitude Filter',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -138,10 +124,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 divisions: 30,
                 label: settings.minMagnitude.toStringAsFixed(1),
                 onChanged: (value) => settingsNotifier.setMinMagnitude(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -157,11 +141,9 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 label: settings.magnitudeCutoff.toStringAsFixed(1),
                 onChanged: (value) =>
                     settingsNotifier.setMagnitudeCutoff(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -172,7 +154,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Object Types
         SettingsSection(
           title: 'Object Types',
-          colors: colors,
           isMobile: isMobile,
           children: [
             ObjectTypeToggle(
@@ -183,7 +164,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   .contains(AnnotationObjectFilter.galaxies),
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.galaxies),
-              colors: colors,
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
@@ -194,7 +174,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   .contains(AnnotationObjectFilter.nebulae),
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.nebulae),
-              colors: colors,
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
@@ -205,7 +184,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   .contains(AnnotationObjectFilter.starClusters),
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.starClusters),
-              colors: colors,
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
@@ -216,7 +194,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   .contains(AnnotationObjectFilter.planetaryNebulae),
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.planetaryNebulae),
-              colors: colors,
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
@@ -227,7 +204,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
                   settings.visibleTypes.contains(AnnotationObjectFilter.stars),
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.stars),
-              colors: colors,
               isMobile: isMobile,
             ),
             ObjectTypeToggle(
@@ -239,7 +215,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
               onChanged: (value) => settingsNotifier
                   .toggleObjectType(AnnotationObjectFilter.other),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -249,7 +224,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Fade Effects
         SettingsSection(
           title: 'Fade Effects',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -260,9 +234,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 value: settings.fadeWhenNotHovering,
                 onChanged: (value) =>
                     settingsNotifier.setFadeWhenNotHovering(value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -276,10 +248,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 divisions: 14,
                 label: '${(settings.hoverOpacity * 100).toInt()}%',
                 onChanged: (value) => settingsNotifier.setHoverOpacity(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -294,10 +264,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 divisions: 10,
                 label: '${(settings.idleOpacity * 100).toInt()}%',
                 onChanged: (value) => settingsNotifier.setIdleOpacity(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -313,11 +281,9 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 label: '${settings.fadeAnimationMs}ms',
                 onChanged: (value) =>
                     settingsNotifier.setFadeAnimationMs(value.toInt()),
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -328,7 +294,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Click to Identify
         SettingsSection(
           title: 'Click to Identify',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -339,9 +304,7 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 value: settings.clickToIdentify,
                 onChanged: (value) =>
                     settingsNotifier.setClickToIdentify(value),
-                colors: colors,
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             SettingRow(
@@ -356,11 +319,9 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 label: '${settings.clickSearchRadiusArcsec.toInt()}"',
                 onChanged: (value) =>
                     settingsNotifier.setClickSearchRadius(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -371,7 +332,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Marker Styles
         SettingsSection(
           title: 'Marker Styles',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -385,10 +345,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 divisions: 7,
                 label: markerStyle.strokeWidth.toStringAsFixed(1),
                 onChanged: (value) => markerNotifier.setStrokeWidth(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -403,10 +361,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
                 divisions: 10,
                 label: '${markerStyle.labelFontSize.toInt()}px',
                 onChanged: (value) => markerNotifier.setLabelFontSize(value),
-                colors: colors,
                 isMobile: isMobile,
               ),
-              colors: colors,
               isMobile: isMobile,
               stackOnMobile: isMobile,
             ),
@@ -417,10 +373,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: markerStyle.scaleBySize,
                 onChanged: (value) => markerNotifier.setScaleBySize(value),
-                colors: colors,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -430,7 +384,6 @@ class AnnotationSettingsPage extends ConsumerWidget {
         // Automation
         SettingsSection(
           title: 'Automation',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -440,10 +393,8 @@ class AnnotationSettingsPage extends ConsumerWidget {
               trailing: SettingsSwitch(
                 value: settings.autoAnnotate,
                 onChanged: (value) => settingsNotifier.setAutoAnnotate(value),
-                colors: colors,
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],

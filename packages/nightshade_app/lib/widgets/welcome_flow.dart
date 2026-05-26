@@ -95,7 +95,7 @@ class _WelcomeFlowState extends ConsumerState<WelcomeFlow>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return FadeTransition(
       opacity: _fadeAnimation,
@@ -108,7 +108,10 @@ class _WelcomeFlowState extends ConsumerState<WelcomeFlow>
               child: SingleChildScrollView(
                 padding: const EdgeInsets.all(32),
                 child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 500),
+                  constraints: AdaptiveDialogConstraints.hybrid(
+                    context,
+                    designMaxWidth: 500,
+                  ),
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -177,46 +180,25 @@ class _WelcomeHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Column(
       children: [
-        // Telescope icon container
-        Container(
-          width: 80,
-          height: 80,
-          decoration: BoxDecoration(
-            color: colors.primary.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: colors.primary.withValues(alpha: 0.3),
-              width: 1,
-            ),
-          ),
-          child: Center(
-            child: Icon(
-              LucideIcons.scan,
-              size: 40,
-              color: colors.primary,
-            ),
-          ),
+        Icon(
+          LucideIcons.scan,
+          size: NightshadeTokens.iconXl,
+          color: colors.primary,
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: NightshadeTokens.spaceLg),
 
-        // Welcome text
         Text(
           'Welcome to Nightshade',
-          style: TextStyle(
+          style: NightshadeTypography.h2.copyWith(
             color: colors.textPrimary,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.5,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
 
-        // Subtitle
         Text(
           'Your Astrophotography Suite',
-          style: TextStyle(
+          style: NightshadeTypography.body.copyWith(
             color: colors.textSecondary,
-            fontSize: 16,
           ),
         ),
       ],

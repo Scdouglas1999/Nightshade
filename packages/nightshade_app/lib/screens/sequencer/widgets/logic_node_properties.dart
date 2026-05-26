@@ -26,254 +26,258 @@ class LoopProperties extends ConsumerWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-        Text(
-          'Loop Settings',
-          style: TextStyle(
-            fontSize: Responsive.fontSize(context, 13),
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
+          Text(
+            'Loop Settings',
+            style: TextStyle(
+              fontSize: Responsive.fontSize(context, 13),
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        NodePropertyField(
-          colors: colors,
-          label: 'Condition Type',
-          child: NodeDropdown<LoopConditionType>(
-            colors: colors,
-            value: node.conditionType,
-            items: LoopConditionType.values,
-            labelBuilder: (t) {
-              switch (t) {
-                case LoopConditionType.count:
-                  return 'Fixed Count';
-                case LoopConditionType.untilTime:
-                  return 'Until Time';
-                case LoopConditionType.untilAltitude:
-                  return 'Until Altitude Below';
-                case LoopConditionType.altitudeAbove:
-                  return 'Until Altitude Above';
-                case LoopConditionType.integrationTime:
-                  return 'Until Integration Time';
-                case LoopConditionType.forever:
-                  return 'Forever';
-                case LoopConditionType.whileDark:
-                  return 'While Dark';
-              }
-            },
-            onChanged: (value) {
-              ref.read(currentSequenceProvider.notifier).updateNode(
-                    node.copyWith(conditionType: value),
-                  );
-            },
-          ),
-        ),
-        if (node.conditionType == LoopConditionType.count)
+          const SizedBox(height: 12),
           NodePropertyField(
             colors: colors,
-            label: 'Repeat Count',
-            child: NodeNumberInput(
+            label: 'Condition Type',
+            child: NodeDropdown<LoopConditionType>(
               colors: colors,
-              value: (node.repeatCount ?? 1).toDouble(),
-              min: 1,
-              max: 9999,
+              value: node.conditionType,
+              items: LoopConditionType.values,
+              labelBuilder: (t) {
+                switch (t) {
+                  case LoopConditionType.count:
+                    return 'Fixed Count';
+                  case LoopConditionType.untilTime:
+                    return 'Until Time';
+                  case LoopConditionType.untilAltitude:
+                    return 'Until Altitude Below';
+                  case LoopConditionType.altitudeAbove:
+                    return 'Until Altitude Above';
+                  case LoopConditionType.integrationTime:
+                    return 'Until Integration Time';
+                  case LoopConditionType.forever:
+                    return 'Forever';
+                  case LoopConditionType.whileDark:
+                    return 'While Dark';
+                }
+              },
               onChanged: (value) {
                 ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(repeatCount: value.toInt()),
+                      node.copyWith(conditionType: value),
                     );
               },
             ),
           ),
-        if (node.conditionType == LoopConditionType.untilTime)
-          NodePropertyField(
-            colors: colors,
-            label: 'Stop Time',
-            child: Column(
-              children: [
-                GestureDetector(
-                  onTap: () async {
-                    final time = await showTimePicker(
-                      context: context,
-                      initialTime: TimeOfDay.fromDateTime(
-                          node.repeatUntil ?? DateTime.now()),
-                    );
-                    if (time != null) {
-                      final now = DateTime.now();
-                      var targetDate = DateTime(
-                          now.year, now.month, now.day, time.hour, time.minute);
-                      if (targetDate.isBefore(now)) {
-                        targetDate = targetDate.add(const Duration(days: 1));
+          if (node.conditionType == LoopConditionType.count)
+            NodePropertyField(
+              colors: colors,
+              label: 'Repeat Count',
+              child: NodeNumberInput(
+                colors: colors,
+                value: (node.repeatCount ?? 1).toDouble(),
+                min: 1,
+                max: 9999,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(repeatCount: value.toInt()),
+                      );
+                },
+              ),
+            ),
+          if (node.conditionType == LoopConditionType.untilTime)
+            NodePropertyField(
+              colors: colors,
+              label: 'Stop Time',
+              child: Column(
+                children: [
+                  GestureDetector(
+                    onTap: () async {
+                      final time = await showTimePicker(
+                        context: context,
+                        initialTime: TimeOfDay.fromDateTime(
+                            node.repeatUntil ?? DateTime.now()),
+                      );
+                      if (time != null) {
+                        final now = DateTime.now();
+                        var targetDate = DateTime(now.year, now.month, now.day,
+                            time.hour, time.minute);
+                        if (targetDate.isBefore(now)) {
+                          targetDate = targetDate.add(const Duration(days: 1));
+                        }
+                        ref.read(currentSequenceProvider.notifier).updateNode(
+                              node.copyWith(repeatUntil: targetDate),
+                            );
                       }
-                      ref.read(currentSequenceProvider.notifier).updateNode(
-                            node.copyWith(repeatUntil: targetDate),
-                          );
-                    }
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 12, vertical: 10),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: colors.border),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(LucideIcons.clock,
-                            size: 14, color: colors.textMuted),
-                        const SizedBox(width: 8),
-                        Text(
-                          node.repeatUntil != null
-                              ? '${node.repeatUntil!.hour.toString().padLeft(2, '0')}:${node.repeatUntil!.minute.toString().padLeft(2, '0')}'
-                              : 'Select time...',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: node.repeatUntil != null
-                                ? colors.textPrimary
-                                : colors.textMuted,
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: colors.surfaceAlt,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: colors.border),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(LucideIcons.clock,
+                              size: 14, color: colors.textMuted),
+                          const SizedBox(width: 8),
+                          Text(
+                            node.repeatUntil != null
+                                ? '${node.repeatUntil!.hour.toString().padLeft(2, '0')}:${node.repeatUntil!.minute.toString().padLeft(2, '0')}'
+                                : 'Select time...',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: node.repeatUntil != null
+                                  ? colors.textPrimary
+                                  : colors.textMuted,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 8),
-                // Quick set buttons for common times
-                Row(
-                  children: [
-                    NodeQuickTimeButton(
-                      colors: colors,
-                      label: 'Civil Dawn',
-                      onPressed: () {
-                        final location = ref.read(observerLocationProvider);
-                        final now = DateTime.now();
+                  const SizedBox(height: 8),
+                  // Quick set buttons for common times
+                  Row(
+                    children: [
+                      NodeQuickTimeButton(
+                        colors: colors,
+                        label: 'Civil Dawn',
+                        onPressed: () {
+                          final location = ref.read(observerLocationProvider);
+                          final now = DateTime.now();
 
-                        // Calculate for today first
-                        var twilight =
-                            AstronomyCalculations.calculateTwilightTimes(
-                          date: now,
-                          latitudeDeg: location.latitude,
-                          longitudeDeg: location.longitude,
-                        );
-
-                        var target = twilight.civilDawn;
-
-                        // If dawn passed or not available today, try tomorrow
-                        if (target == null || target.isBefore(now)) {
-                          twilight =
+                          // Calculate for today first
+                          var twilight =
                               AstronomyCalculations.calculateTwilightTimes(
-                            date: now.add(const Duration(days: 1)),
+                            date: now,
                             latitudeDeg: location.latitude,
                             longitudeDeg: location.longitude,
                           );
-                          target = twilight.civilDawn;
-                        }
 
-                        if (target != null) {
-                          ref.read(currentSequenceProvider.notifier).updateNode(
-                                node.copyWith(repeatUntil: target),
-                              );
-                        }
-                      },
-                    ),
-                    const SizedBox(width: 8),
-                    NodeQuickTimeButton(
-                      colors: colors,
-                      label: 'Nautical Dawn',
-                      onPressed: () {
-                        final location = ref.read(observerLocationProvider);
-                        final now = DateTime.now();
+                          var target = twilight.civilDawn;
 
-                        // Calculate for today first
-                        var twilight =
-                            AstronomyCalculations.calculateTwilightTimes(
-                          date: now,
-                          latitudeDeg: location.latitude,
-                          longitudeDeg: location.longitude,
-                        );
+                          // If dawn passed or not available today, try tomorrow
+                          if (target == null || target.isBefore(now)) {
+                            twilight =
+                                AstronomyCalculations.calculateTwilightTimes(
+                              date: now.add(const Duration(days: 1)),
+                              latitudeDeg: location.latitude,
+                              longitudeDeg: location.longitude,
+                            );
+                            target = twilight.civilDawn;
+                          }
 
-                        var target = twilight.nauticalDawn;
+                          if (target != null) {
+                            ref
+                                .read(currentSequenceProvider.notifier)
+                                .updateNode(
+                                  node.copyWith(repeatUntil: target),
+                                );
+                          }
+                        },
+                      ),
+                      const SizedBox(width: 8),
+                      NodeQuickTimeButton(
+                        colors: colors,
+                        label: 'Nautical Dawn',
+                        onPressed: () {
+                          final location = ref.read(observerLocationProvider);
+                          final now = DateTime.now();
 
-                        // If dawn passed or not available today, try tomorrow
-                        if (target == null || target.isBefore(now)) {
-                          twilight =
+                          // Calculate for today first
+                          var twilight =
                               AstronomyCalculations.calculateTwilightTimes(
-                            date: now.add(const Duration(days: 1)),
+                            date: now,
                             latitudeDeg: location.latitude,
                             longitudeDeg: location.longitude,
                           );
-                          target = twilight.nauticalDawn;
-                        }
 
-                        if (target != null) {
-                          ref.read(currentSequenceProvider.notifier).updateNode(
-                                node.copyWith(repeatUntil: target),
-                              );
-                        }
-                      },
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        if (node.conditionType == LoopConditionType.untilAltitude)
-          NodePropertyField(
-            colors: colors,
-            label: 'Stop Below Altitude',
-            child: NodeNumberInput(
-              colors: colors,
-              value: node.repeatUntilAltitude ?? 30,
-              suffix: '\u00B0',
-              min: 0,
-              max: 90,
-              onChanged: (value) {
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(repeatUntilAltitude: value),
-                    );
-              },
-            ),
-          ),
-        if (node.conditionType == LoopConditionType.altitudeAbove)
-          NodePropertyField(
-            colors: colors,
-            label: 'Loop Until Above Altitude',
-            child: NodeNumberInput(
-              colors: colors,
-              value: node.repeatUntilAltitude ?? 30,
-              suffix: '\u00B0',
-              min: 0,
-              max: 90,
-              onChanged: (value) {
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(repeatUntilAltitude: value),
-                    );
-              },
-            ),
-          ),
-        if (node.conditionType == LoopConditionType.integrationTime)
-          NodePropertyField(
-            colors: colors,
-            label: 'Target Integration Time',
-            child: NodeNumberInput(
-              colors: colors,
-              value: (node.integrationTimeTarget ?? 3600) / 60.0,
-              suffix: 'min',
-              min: 1,
-              max: 1440,
-              decimals: 0,
-              onChanged: (value) {
-                ref.read(currentSequenceProvider.notifier).updateNode(
-                      node.copyWith(integrationTimeTarget: value * 60.0),
-                    );
-              },
-            ),
-          ),
+                          var target = twilight.nauticalDawn;
 
-        // Safety iteration limit for unbounded loops
-        if (node.isUnbounded) ...[
-          const SizedBox(height: 8),
-          _UnboundedLoopSafetySection(colors: colors, node: node),
-        ],
+                          // If dawn passed or not available today, try tomorrow
+                          if (target == null || target.isBefore(now)) {
+                            twilight =
+                                AstronomyCalculations.calculateTwilightTimes(
+                              date: now.add(const Duration(days: 1)),
+                              latitudeDeg: location.latitude,
+                              longitudeDeg: location.longitude,
+                            );
+                            target = twilight.nauticalDawn;
+                          }
+
+                          if (target != null) {
+                            ref
+                                .read(currentSequenceProvider.notifier)
+                                .updateNode(
+                                  node.copyWith(repeatUntil: target),
+                                );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          if (node.conditionType == LoopConditionType.untilAltitude)
+            NodePropertyField(
+              colors: colors,
+              label: 'Stop Below Altitude',
+              child: NodeNumberInput(
+                colors: colors,
+                value: node.repeatUntilAltitude ?? 30,
+                suffix: '\u00B0',
+                min: 0,
+                max: 90,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(repeatUntilAltitude: value),
+                      );
+                },
+              ),
+            ),
+          if (node.conditionType == LoopConditionType.altitudeAbove)
+            NodePropertyField(
+              colors: colors,
+              label: 'Loop Until Above Altitude',
+              child: NodeNumberInput(
+                colors: colors,
+                value: node.repeatUntilAltitude ?? 30,
+                suffix: '\u00B0',
+                min: 0,
+                max: 90,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(repeatUntilAltitude: value),
+                      );
+                },
+              ),
+            ),
+          if (node.conditionType == LoopConditionType.integrationTime)
+            NodePropertyField(
+              colors: colors,
+              label: 'Target Integration Time',
+              child: NodeNumberInput(
+                colors: colors,
+                value: (node.integrationTimeTarget ?? 3600) / 60.0,
+                suffix: 'min',
+                min: 1,
+                max: 1440,
+                decimals: 0,
+                onChanged: (value) {
+                  ref.read(currentSequenceProvider.notifier).updateNode(
+                        node.copyWith(integrationTimeTarget: value * 60.0),
+                      );
+                },
+              ),
+            ),
+
+          // Safety iteration limit for unbounded loops
+          if (node.isUnbounded) ...[
+            const SizedBox(height: 8),
+            _UnboundedLoopSafetySection(colors: colors, node: node),
+          ],
         ],
       ),
     );
@@ -303,11 +307,9 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
           Container(
             padding: const EdgeInsets.all(12),
             margin: const EdgeInsets.only(bottom: 12),
-            decoration: BoxDecoration(
-              color: colors.warning.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.warning,
               borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                  color: colors.warning.withValues(alpha: 0.3)),
             ),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -342,8 +344,7 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
                   max: 99999,
                   onChanged: (value) {
                     ref.read(currentSequenceProvider.notifier).updateNode(
-                          node.copyWith(
-                              maxSafetyIterations: value.toInt()),
+                          node.copyWith(maxSafetyIterations: value.toInt()),
                         );
                   },
                 ),
@@ -369,8 +370,7 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
                               repeatCount: node.repeatCount,
                               repeatUntil: node.repeatUntil,
                               repeatUntilAltitude: node.repeatUntilAltitude,
-                              integrationTimeTarget:
-                                  node.integrationTimeTarget,
+                              integrationTimeTarget: node.integrationTimeTarget,
                               maxSafetyIterations: null,
                             ),
                           );
@@ -396,8 +396,8 @@ class _UnboundedLoopSafetySection extends ConsumerWidget {
         // Info box
         Container(
           padding: const EdgeInsets.all(10),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.08),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.info,
             borderRadius: BorderRadius.circular(6),
           ),
           child: Row(
@@ -428,7 +428,8 @@ class WaitTimeProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final WaitTimeNode node;
 
-  const WaitTimeProperties({super.key, required this.colors, required this.node});
+  const WaitTimeProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -553,7 +554,8 @@ class ConditionalProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final ConditionalNode node;
 
-  const ConditionalProperties({super.key, required this.colors, required this.node});
+  const ConditionalProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -691,8 +693,7 @@ class ConditionalProperties extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    Icon(LucideIcons.clock,
-                        size: 14, color: colors.textMuted),
+                    Icon(LucideIcons.clock, size: 14, color: colors.textMuted),
                     const SizedBox(width: 8),
                     Text(
                       node.thresholdTime != null
@@ -719,7 +720,8 @@ class ParallelProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final ParallelNode node;
 
-  const ParallelProperties({super.key, required this.colors, required this.node});
+  const ParallelProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -752,8 +754,8 @@ class ParallelProperties extends ConsumerWidget {
         ),
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Row(
@@ -782,7 +784,8 @@ class RecoveryProperties extends ConsumerWidget {
   final NightshadeColors colors;
   final RecoveryNode node;
 
-  const RecoveryProperties({super.key, required this.colors, required this.node});
+  const RecoveryProperties(
+      {super.key, required this.colors, required this.node});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -841,6 +844,16 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Dither Interval';
                 case TriggerType.driftLimit:
                   return 'Plate-Solve Drift Limit';
+                // Wave 5 Agent 4 — cloud-motion-aware triggers
+                case TriggerType.cloudArrivingIn:
+                  return 'Cloud Arriving In';
+                case TriggerType.cloudOpeningIn:
+                  return 'Cloud Opening In';
+                case TriggerType.cloudCoverThreshold:
+                  return 'Cloud Cover Threshold';
+                // Wave 7 Agent 4 — transparency-adaptive sequencing
+                case TriggerType.transparencyDropped:
+                  return 'Transparency Dropped';
               }
             },
             onChanged: (value) {
@@ -856,7 +869,7 @@ class RecoveryProperties extends ConsumerWidget {
           child: NodeDropdown<RecoveryActionType>(
             colors: colors,
             value: node.recoveryAction,
-            items: RecoveryActionType.values,
+            items: _selectableRecoveryActions(node.recoveryAction),
             labelBuilder: (a) {
               switch (a) {
                 case RecoveryActionType.continueExecution:
@@ -873,6 +886,14 @@ class RecoveryProperties extends ConsumerWidget {
                   return 'Park & Abort';
                 case RecoveryActionType.customBranch:
                   return 'Custom Branch';
+                // Wave 5 Agent 4 — cloud-motion-aware actions
+                case RecoveryActionType.pauseAndWaitForClear:
+                  return 'Pause & Wait for Clear Sky';
+                case RecoveryActionType.slewToGapAndContinue:
+                  return 'Slew to Clear Gap & Continue';
+                // Wave 7 Agent 4 — transparency-adaptive recovery
+                case RecoveryActionType.switchTargetOrFilter:
+                  return 'Switch Target or Filter';
               }
             },
             onChanged: (value) {
@@ -1152,7 +1173,122 @@ class RecoveryProperties extends ConsumerWidget {
               },
             ),
           ),
+        // Wave 5 Agent 4 — cloud-motion trigger property editors.
+        if (node.triggerType == TriggerType.cloudArrivingIn) ...[
+          NodePropertyField(
+            colors: colors,
+            label: 'Minutes Before Arrival',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudMinutesBefore,
+              suffix: 'min',
+              min: 1,
+              max: 240,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudMinutesBefore: value),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Min Predicted Coverage',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudCoverageThresholdPercent,
+              suffix: '%',
+              min: 0,
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudCoverageThresholdPercent: value),
+                    );
+              },
+            ),
+          ),
+        ],
+        if (node.triggerType == TriggerType.cloudOpeningIn) ...[
+          NodePropertyField(
+            colors: colors,
+            label: 'Minutes Before Opening',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudMinutesBefore,
+              suffix: 'min',
+              min: 1,
+              max: 240,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudMinutesBefore: value),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Minimum Opening Duration',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudOpeningMinDurationSecs,
+              suffix: 's',
+              min: 1,
+              max: 3600,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudOpeningMinDurationSecs: value),
+                    );
+              },
+            ),
+          ),
+        ],
+        if (node.triggerType == TriggerType.cloudCoverThreshold) ...[
+          NodePropertyField(
+            colors: colors,
+            label: 'Max Cloud Cover',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudCoverMaxPercent,
+              suffix: '%',
+              min: 0,
+              max: 100,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudCoverMaxPercent: value),
+                    );
+              },
+            ),
+          ),
+          NodePropertyField(
+            colors: colors,
+            label: 'Above for at least',
+            child: NodeNumberInput(
+              colors: colors,
+              value: node.cloudCoverDurationSecs,
+              suffix: 's',
+              min: 0,
+              max: 3600,
+              decimals: 0,
+              onChanged: (value) {
+                ref.read(currentSequenceProvider.notifier).updateNode(
+                      node.copyWith(cloudCoverDurationSecs: value),
+                    );
+              },
+            ),
+          ),
+        ],
       ],
     );
   }
+}
+
+List<RecoveryActionType> _selectableRecoveryActions(
+  RecoveryActionType current,
+) {
+  return RecoveryActionType.values;
 }

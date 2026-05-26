@@ -189,6 +189,13 @@ Future<Phd2StarImage> apiGuiderGetStarImage(
 Future<Phd2Status> apiGuiderGetStatus({required String deviceId}) =>
     RustLib.instance.api.crateApiPhd2ApiGuiderGetStatus(deviceId: deviceId);
 
+/// Unified accessor for calibration data across all guider backends.
+/// Used by the sequencer to validate calibration quality post-StartGuiding (P3-7).
+Future<Phd2CalibrationData> apiGuiderGetCalibration(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiPhd2ApiGuiderGetCalibration(deviceId: deviceId);
+
 /// Get the current built-in guider configuration.
 /// Returns a flat struct with all configurable parameters.
 Future<BuiltinGuiderConfig> apiBuiltinGuiderGetConfig() =>

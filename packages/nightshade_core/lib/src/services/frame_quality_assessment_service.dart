@@ -17,18 +17,53 @@ enum FrameQualityDisposition {
   autoReject,
 }
 
+/// How the assessor should treat its own "auto-reject" recommendation.
+///
+/// Background (audit IMG-P1-1): the previous `mlConfidence` value was a
+/// hand-tuned logistic with hardcoded coefficients masquerading as a
+/// trained model. It silently flipped frames to `autoReject` at
+/// score >= 0.88. There is no model, no labelled training data, no
+/// per-camera calibration. To stop misrepresenting that signal, the
+/// service now exposes the score as `heuristicScore` and the disposition
+/// is gated on this mode.
+///
+/// Modes:
+/// - [off]      The heuristic is computed and surfaced, but never escalates
+///              the disposition beyond `keep` / `review`. Use when the user
+///              wants to do their own grading.
+/// - [advisory] (default) Frames flagged by the heuristic are surfaced as
+///              `review` with a reason explaining why, but the disposition
+///              never becomes `autoReject`. The user (or a sequencer rule)
+///              makes the actual reject decision.
+/// - [auto]    Legacy behaviour: heuristic score >= 0.88 (or severe issues
+///              plus a very low advisory score) flips the disposition to
+///              `autoReject`. Existing users that opted into this behaviour
+///              keep it; new installs default to [advisory].
+enum FrameGradingMode {
+  off,
+  advisory,
+  auto,
+}
+
 /// Result of quality assessment for a single frame.
 class FrameQualityAssessment {
   final FrameQualityLevel level;
   final double advisoryScore;
-  final double mlConfidence;
+
+  /// Heuristic score in [0, 1] computed by [FrameQualityAssessmentService].
+  ///
+  /// This is a hand-tuned logistic over HFR, guiding RMS, star count and
+  /// the existing quality score. It is NOT a trained model; see
+  /// [FrameQualityAssessmentService.computeHeuristicScore] for the exact
+  /// coefficients and weighting.
+  final double heuristicScore;
   final FrameQualityDisposition disposition;
   final List<String> reasons;
 
   const FrameQualityAssessment({
     required this.level,
     required this.advisoryScore,
-    this.mlConfidence = 0.5,
+    this.heuristicScore = 0.5,
     this.disposition = FrameQualityDisposition.keep,
     required this.reasons,
   });
@@ -68,7 +103,16 @@ class FrameQualitySummary {
 /// The service classifies frames for user guidance. It never deletes files and
 /// does not change frame acceptance flags.
 class FrameQualityAssessmentService {
-  const FrameQualityAssessmentService();
+  /// How aggressively the service is allowed to escalate its own
+  /// recommendation. Defaults to [FrameGradingMode.advisory] (audit
+  /// IMG-P1-1): the heuristic is shown but the user owns the reject
+  /// decision. Existing users that explicitly chose [FrameGradingMode.auto]
+  /// keep the legacy behaviour.
+  final FrameGradingMode gradingMode;
+
+  const FrameQualityAssessmentService({
+    this.gradingMode = FrameGradingMode.advisory,
+  });
 
   /// Assess a single frame with optional reference medians from the session.
   FrameQualityAssessment assessFrame(
@@ -157,33 +201,63 @@ class FrameQualityAssessmentService {
 
     advisoryScore = advisoryScore.clamp(0.0, 100.0);
 
-    final mlConfidence = _scoreModel(
+    final heuristicScore = computeHeuristicScore(
       image,
       referenceHfr: referenceHfr,
       referenceGuidingRms: referenceGuidingRms,
     );
 
-    final level = severeIssue || advisoryScore < 45 || mlConfidence >= 0.82
+    final level = severeIssue || advisoryScore < 45 || heuristicScore >= 0.82
         ? FrameQualityLevel.poor
-        : (advisoryScore < 70 || moderateIssueCount >= 2 || mlConfidence >= 0.58)
+        : (advisoryScore < 70 || moderateIssueCount >= 2 || heuristicScore >= 0.58)
             ? FrameQualityLevel.needsReview
             : FrameQualityLevel.good;
 
-    final disposition = mlConfidence >= 0.88 || (severeIssue && advisoryScore < 35)
-        ? FrameQualityDisposition.autoReject
-        : level == FrameQualityLevel.needsReview
+    final wouldAutoReject =
+        heuristicScore >= 0.88 || (severeIssue && advisoryScore < 35);
+
+    // Audit IMG-P1-1: only the legacy `auto` mode escalates to
+    // autoReject. Advisory mode (default) surfaces the recommendation
+    // as a review-level reason but leaves the disposition to the user.
+    final FrameQualityDisposition disposition;
+    switch (gradingMode) {
+      case FrameGradingMode.auto:
+        disposition = wouldAutoReject
+            ? FrameQualityDisposition.autoReject
+            : level == FrameQualityLevel.needsReview ||
+                    level == FrameQualityLevel.poor
+                ? FrameQualityDisposition.review
+                : FrameQualityDisposition.keep;
+        break;
+      case FrameGradingMode.advisory:
+        disposition = wouldAutoReject ||
+                level == FrameQualityLevel.needsReview ||
+                level == FrameQualityLevel.poor
             ? FrameQualityDisposition.review
             : FrameQualityDisposition.keep;
+        break;
+      case FrameGradingMode.off:
+        disposition = level == FrameQualityLevel.poor ||
+                level == FrameQualityLevel.needsReview
+            ? FrameQualityDisposition.review
+            : FrameQualityDisposition.keep;
+        break;
+    }
 
-    if (disposition == FrameQualityDisposition.autoReject &&
-        !reasons.any((reason) => reason.contains('Model confidence'))) {
-      reasons.add('Model confidence suggests this frame should be auto-rejected.');
+    // Surface why the heuristic flagged the frame so the user can decide.
+    if (wouldAutoReject && gradingMode != FrameGradingMode.off) {
+      final note = gradingMode == FrameGradingMode.auto
+          ? 'Quality heuristic suggests this frame should be auto-rejected.'
+          : 'Quality heuristic flagged this frame for review (advisory only).';
+      if (!reasons.any((reason) => reason.startsWith('Quality heuristic'))) {
+        reasons.add(note);
+      }
     }
 
     return FrameQualityAssessment(
       level: level,
       advisoryScore: advisoryScore,
-      mlConfidence: mlConfidence,
+      heuristicScore: heuristicScore,
       disposition: disposition,
       reasons: reasons,
     );
@@ -252,7 +326,33 @@ class FrameQualityAssessmentService {
     return (sorted[middle - 1] + sorted[middle]) / 2.0;
   }
 
-  double _scoreModel(
+  /// Compute a heuristic quality score in [0, 1] for a frame.
+  ///
+  /// IMPORTANT (audit IMG-P1-1): this is NOT a trained model. It is a
+  /// hand-tuned logistic with hardcoded coefficients, identical across
+  /// all cameras and all telescopes. It was previously misrepresented as
+  /// `mlConfidence`. There is no labelled training data, no per-camera
+  /// calibration, and no fit procedure behind the coefficients - they
+  /// were picked by hand to roughly track "this frame looks bad".
+  ///
+  /// Inputs (with fallbacks when the metric is missing):
+  ///   - HFR ratio       = hfr / referenceHfr (or hfr / 2.6 px baseline)
+  ///   - guiding ratio   = guidingRms / referenceGuidingRms (or / 1.4")
+  ///   - star penalty    = 1 - (clamp(starCount, 20, 160) - 20) / 140
+  ///   - quality penalty = 1 - clamp(qualityScore, 0, 100) / 100
+  ///
+  /// Formula:
+  ///   logit = -2.9
+  ///         + (hfrRatio       - 1.0) * 2.2
+  ///         + (guidingRatio   - 1.0) * 1.6
+  ///         +  starPenalty           * 1.8
+  ///         +  qualityPenalty        * 2.4
+  ///   score = 1 / (1 + exp(-logit))
+  ///
+  /// Higher scores indicate a "worse" frame in the heuristic's opinion.
+  /// Treat this as a sorting aid, not a verdict. Use [FrameGradingMode]
+  /// to control whether the score is allowed to escalate disposition.
+  double computeHeuristicScore(
     CapturedImage image, {
     double? referenceHfr,
     double? referenceGuidingRms,
@@ -262,7 +362,9 @@ class FrameQualityAssessmentService {
     final guidingRms = image.guidingRmsTotal ?? 1.4;
     final qualityScore = image.qualityScore ?? 75.0;
 
-    final hfrRatio = referenceHfr != null && referenceHfr > 0 ? hfr / referenceHfr : hfr / 2.6;
+    final hfrRatio = referenceHfr != null && referenceHfr > 0
+        ? hfr / referenceHfr
+        : hfr / 2.6;
     final guidingRatio = referenceGuidingRms != null && referenceGuidingRms > 0
         ? guidingRms / referenceGuidingRms
         : guidingRms / 1.4;
@@ -274,10 +376,160 @@ class FrameQualityAssessmentService {
         (guidingRatio - 1.0) * 1.6 +
         starPenalty * 1.8 +
         qualityPenalty * 2.4;
-    return 1.0 / (1.0 + _exp(-logit));
+    return 1.0 / (1.0 + math.exp(-logit));
   }
+}
 
-  double _exp(double value) {
-    return math.exp(value);
+// ============================================================================
+// Wave 3 Image Grading: structured runtime decisions surfaced from the
+// Rust sequencer's per-frame grading. The advisory `FrameQualityAssessment`
+// above remains for post-capture review; these structures carry the
+// real-time accept/reject signal that the Run Dashboard quality panel
+// listens for.
+// ============================================================================
+
+/// Outcome of a runtime image-grading decision (Wave 3 Image Grading).
+enum FrameGradeDecision {
+  /// Frame passed all configured thresholds.
+  accepted,
+  /// Frame failed at least one threshold and was routed to the reject folder.
+  rejected,
+}
+
+/// Real-time grading event payload emitted by the sequencer after each
+/// frame is graded.
+///
+/// Pack H: the previous implementation parsed `InstructionProgress.detail`
+/// with regex (`tryParseDetail`). That helper has been removed — events
+/// are now constructed directly from the typed `SequencerEvent_FrameAccepted`
+/// / `SequencerEvent_FrameRejected` payloads via [FrameGradeEvent.fromTypedData].
+/// HFR / eccentricity / star count / consecutive-rejects survive the
+/// boundary instead of being silently dropped by the old format string.
+class FrameGradeEvent {
+  /// 1-based frame index within the current TakeExposure burst.
+  final int frame;
+  final int total;
+  final FrameGradeDecision decision;
+  /// Reject reason text from the Rust side. Empty for accepted frames.
+  final String reason;
+  /// Path the FITS landed at (accepted = save_path, rejected = Reject/).
+  ///
+  /// Wave 6 Pack P — the bridge now ships the save path on accepted
+  /// frames too (it always did for rejected frames). `null` only for
+  /// legacy emit sites that didn't thread the path through.
+  final String? path;
+  /// HFR (pixels) when the grader computed star metrics; `null` when star
+  /// detection failed or wasn't run. Plumbed end-to-end (Pack H).
+  final double? hfr;
+  /// Median eccentricity (0.0 = perfectly round). `null` when not computed.
+  final double? eccentricity;
+  /// Number of detected stars. `null` when detection didn't run.
+  final int? starCount;
+  /// Cumulative accepted-frames counter for the run.
+  final int acceptedTotal;
+  /// Cumulative rejected-frames counter for the run.
+  final int rejectedTotal;
+  /// Running consecutive-rejects count. 0 after every accepted frame.
+  final int consecutiveRejects;
+  /// Capture timestamp.
+  final DateTime timestamp;
+
+  const FrameGradeEvent({
+    required this.frame,
+    required this.total,
+    required this.decision,
+    required this.reason,
+    this.path,
+    this.hfr,
+    this.eccentricity,
+    this.starCount,
+    required this.acceptedTotal,
+    required this.rejectedTotal,
+    required this.consecutiveRejects,
+    required this.timestamp,
+  });
+
+  bool get isReject => decision == FrameGradeDecision.rejected;
+
+  /// Pack H: build a [FrameGradeEvent] from a typed `FrameAccepted` /
+  /// `FrameRejected` event's `data` map (`NightshadeEvent.eventType` +
+  /// `data`). Returns `null` when the event type isn't one of the typed
+  /// grade variants.
+  static FrameGradeEvent? fromTypedData(
+    String eventType,
+    Map<String, dynamic> data,
+  ) {
+    final now = DateTime.now();
+    switch (eventType) {
+      case 'FrameAccepted':
+        return FrameGradeEvent(
+          frame: data['frame'] as int,
+          total: data['total'] as int,
+          decision: FrameGradeDecision.accepted,
+          reason: '',
+          // Wave 6 Pack P — surface the on-disk save_path for accepted
+          // frames the same way `reject_path` already worked for
+          // rejected frames. Empty / missing falls back to null so
+          // legacy emit sites keep their old behaviour.
+          path: () {
+            final raw = data['save_path'] as String?;
+            return (raw == null || raw.isEmpty) ? null : raw;
+          }(),
+          hfr: (data['hfr'] as num?)?.toDouble(),
+          eccentricity: (data['eccentricity'] as num?)?.toDouble(),
+          starCount: data['star_count'] as int?,
+          acceptedTotal: data['accepted_total'] as int,
+          rejectedTotal: data['rejected_total'] as int,
+          consecutiveRejects: 0,
+          timestamp: now,
+        );
+      case 'FrameRejected':
+        return FrameGradeEvent(
+          frame: data['frame'] as int,
+          total: data['total'] as int,
+          decision: FrameGradeDecision.rejected,
+          reason: data['reason'] as String? ?? '',
+          path: data['reject_path'] as String?,
+          hfr: (data['hfr'] as num?)?.toDouble(),
+          eccentricity: (data['eccentricity'] as num?)?.toDouble(),
+          starCount: data['star_count'] as int?,
+          acceptedTotal: data['accepted_total'] as int,
+          rejectedTotal: data['rejected_total'] as int,
+          consecutiveRejects: data['consecutive_rejects'] as int,
+          timestamp: now,
+        );
+      default:
+        return null;
+    }
   }
+}
+
+/// Run-wide summary of grading decisions, suitable for the dashboard
+/// quality panel.
+class FrameGradeRunSummary {
+  final int accepted;
+  final int rejected;
+  /// Most-recent N decisions (chronological order, oldest first). The
+  /// dashboard renders this as a scrollable list.
+  final List<FrameGradeEvent> recent;
+  /// HFR samples taken from accepted frames in chronological order; used
+  /// for the HFR sparkline on the dashboard.
+  final List<double> hfrSparkline;
+
+  const FrameGradeRunSummary({
+    required this.accepted,
+    required this.rejected,
+    required this.recent,
+    required this.hfrSparkline,
+  });
+
+  static const empty = FrameGradeRunSummary(
+    accepted: 0,
+    rejected: 0,
+    recent: [],
+    hfrSparkline: [],
+  );
+
+  int get total => accepted + rejected;
+  double get rejectRate => total == 0 ? 0.0 : rejected / total;
 }

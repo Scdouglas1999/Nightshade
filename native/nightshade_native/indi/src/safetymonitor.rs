@@ -22,6 +22,10 @@
 //! safety indicators resolve at all — i.e. an entirely-silent driver
 //! produces *unsafe*, never *safe*. This matches the
 //! `bridge/src/dispatch/alpaca.rs` `IsSafe` propagation precedent.
+//!
+//! Current aggregate behavior is stricter: `is_safe()` returns `Err` when no
+//! safety indicator resolves at all, so the sequencer's `SafetyFailMode` makes
+//! the only fail-open / fail-closed decision.
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
@@ -137,8 +141,12 @@ impl IndiSafetyMonitor {
             return Ok(false);
         }
 
-        // Fail-closed when no safety indicators are available.
-        Ok(false)
+        Err(format!(
+            "No INDI safety indicators resolved for device '{}' (checked \
+             WEATHER_STATUS/WEATHER_SAFE, SAFETY_STATUS/SAFE, AUX_SAFETY/ENABLED, \
+             and rain/wind/cloud alerts)",
+            self.device_name
+        ))
     }
 
     /// Check if any safety monitoring is available
@@ -297,5 +305,25 @@ impl IndiSafetyMonitor {
             .map(|s| s == 3)
             // Why: see module-level §4.3 policy — parameter not streamed → no alert; outer `is_safe()` fails CLOSED.
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::sync::RwLock;
+
+    #[tokio::test]
+    async fn silent_driver_returns_error_not_synthetic_unsafe() {
+        let client = Arc::new(RwLock::new(IndiClient::new("localhost", Some(7624))));
+        let safety = IndiSafetyMonitor::new(client, "SilentSafety");
+
+        let err = safety
+            .is_safe()
+            .await
+            .expect_err("silent safety monitor must surface an error");
+
+        assert!(err.contains("No INDI safety indicators resolved"));
+        assert!(err.contains("SilentSafety"));
     }
 }

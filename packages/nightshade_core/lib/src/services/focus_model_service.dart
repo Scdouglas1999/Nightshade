@@ -164,6 +164,24 @@ class FocusModel {
       );
 }
 
+/// Coarse confidence ladder for filter-offset estimation.
+///
+/// IMG-P1-2: filter offsets used to be a raw mean of `focusPosition` per
+/// filter. If filters were sampled at different temperatures, temperature
+/// drift contaminated the offsets and was silently reported as a real
+/// per-filter shift. The fix subtracts the temperature-model prediction
+/// before averaging, but only when the temperature model is reliable. This
+/// enum surfaces the reliability ladder to the UI:
+///
+/// - [high]: model R² ≥ threshold AND sample temperatures span ≥ 5°C.
+///   Offsets are temperature-corrected and trustworthy.
+/// - [medium]: model R² ≥ threshold but sample temperature spread < 5°C.
+///   Offsets are temperature-corrected, but with little leverage on the
+///   slope estimate, so the correction could be wrong.
+/// - [low]: model R² < threshold or no model at all. Falls back to raw
+///   averaging — offsets may be temperature drift in disguise.
+enum FilterOffsetConfidence { high, medium, low }
+
 /// Filter focus offset relative to a reference filter
 class FilterOffset {
   final String filterName;
@@ -172,12 +190,31 @@ class FilterOffset {
   final int measurementCount;
   final double confidence; // 0.0 to 1.0
 
+  /// Coarse confidence band — see [FilterOffsetConfidence].
+  ///
+  /// IMG-P1-2: defaults to [FilterOffsetConfidence.low] for backwards
+  /// compatibility with persisted offsets that pre-date the fix; those were
+  /// computed by raw averaging and must not be advertised as "high".
+  final FilterOffsetConfidence confidenceBand;
+
+  /// Human-readable explanation of the confidence band, suitable for UI
+  /// display. Empty string for legacy/manually-set offsets.
+  final String confidenceReason;
+
+  /// True when the offset was computed after subtracting the temperature
+  /// model's prediction (the IMG-P1-2 fix). False for raw-average fallbacks
+  /// and for offsets persisted before the fix shipped.
+  final bool temperatureCorrected;
+
   FilterOffset({
     required this.filterName,
     required this.referenceFilter,
     required this.offsetSteps,
     required this.measurementCount,
     required this.confidence,
+    this.confidenceBand = FilterOffsetConfidence.low,
+    this.confidenceReason = '',
+    this.temperatureCorrected = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -186,6 +223,9 @@ class FilterOffset {
         'offsetSteps': offsetSteps,
         'measurementCount': measurementCount,
         'confidence': confidence,
+        'confidenceBand': confidenceBand.name,
+        'confidenceReason': confidenceReason,
+        'temperatureCorrected': temperatureCorrected,
       };
 
   factory FilterOffset.fromJson(Map<String, dynamic> json) => FilterOffset(
@@ -194,7 +234,19 @@ class FilterOffset {
         offsetSteps: json['offsetSteps'] as int,
         measurementCount: json['measurementCount'] as int,
         confidence: (json['confidence'] as num).toDouble(),
+        confidenceBand: _confidenceBandFromJson(json['confidenceBand']),
+        confidenceReason: json['confidenceReason'] as String? ?? '',
+        temperatureCorrected: json['temperatureCorrected'] as bool? ?? false,
       );
+
+  static FilterOffsetConfidence _confidenceBandFromJson(dynamic raw) {
+    if (raw is String) {
+      for (final value in FilterOffsetConfidence.values) {
+        if (value.name == raw) return value;
+      }
+    }
+    return FilterOffsetConfidence.low;
+  }
 }
 
 /// Complete focus data for an equipment profile
@@ -325,9 +377,15 @@ class FocusModelService {
       data = data.copyWith(temperatureModel: null);
     }
 
-    // Update filter offsets if we have a reference filter
+    // Update filter offsets if we have a reference filter.
+    // IMG-P1-2: pass the freshly recomputed temperature model so the offset
+    // estimation can subtract temperature drift before averaging.
     if (filterName != null && data.referenceFilter != null) {
-      final offsets = _updateFilterOffsets(newPoints, data.referenceFilter!);
+      final offsets = _updateFilterOffsets(
+        newPoints,
+        data.referenceFilter!,
+        data.temperatureModel,
+      );
       data = data.copyWith(filterOffsets: offsets);
     }
 
@@ -407,10 +465,37 @@ class FocusModelService {
     );
   }
 
-  /// Update filter offsets based on collected data
+  /// Minimum temperature spread (°C) required between the coldest and
+  /// hottest sample before the temperature-corrected offset is reported as
+  /// "high" confidence. Below this, the slope correction has little leverage,
+  /// so we down-grade to "medium". IMG-P1-2.
+  static const double _highConfidenceTemperatureSpreadC = 5.0;
+
+  /// Update filter offsets based on collected data.
+  ///
+  /// IMG-P1-2: previously this averaged each filter's raw `focusPosition` and
+  /// took the difference vs the reference filter. That conflated genuine
+  /// per-filter focus shift with the temperature-driven slope: a filter
+  /// sampled in winter would appear to have a large offset purely from
+  /// seasonal drift.
+  ///
+  /// The fix subtracts the temperature model's prediction at each sample's
+  /// temperature before averaging, so the reported offset is the *additional*
+  /// per-filter shift on top of the shared temperature relationship.
+  /// Concretely, for each sample at temperature `T_x` with position `P_x` we
+  /// compute `corrected = P_x - slope * (T_x - T_ref)` where `T_ref` is the
+  /// median sample temperature (chosen because it is robust to outliers and
+  /// independent of which filter happens to be the reference).
+  ///
+  /// If the temperature model is missing or unreliable (R² below the
+  /// configured threshold), we fall back to the legacy raw-average behaviour
+  /// but flag the result with [FilterOffsetConfidence.low] so the UI can
+  /// warn the user instead of silently surfacing contaminated offsets as
+  /// "high confidence".
   Map<String, FilterOffset> _updateFilterOffsets(
     List<FocusHistoryPoint> points,
     String referenceFilter,
+    FocusModel? temperatureModel,
   ) {
     final offsets = <String, FilterOffset>{};
 
@@ -426,34 +511,130 @@ class FocusModelService {
     final refPoints = byFilter[referenceFilter];
     if (refPoints == null || refPoints.isEmpty) return offsets;
 
-    // Calculate average position for reference at various temperatures
-    final refAvg =
-        refPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
-            refPoints.length;
+    // IMG-P1-2: decide whether the temperature model is trustworthy enough
+    // to correct with. We deliberately reuse the same R²/sample-count gate
+    // that gates `predictFocusPosition` so behaviour is consistent.
+    //
+    // We also re-estimate the slope using a *within-filter* regression
+    // (positions de-meaned per filter) instead of the global model.slope.
+    // Why: when filters are sampled at disjoint temperature ranges, the
+    // global slope absorbs the inter-filter offset and becomes biased — e.g.
+    // L at 0–8°C and R at 12–20°C with a true 50 steps/°C slope and 200-step
+    // offset yields a global slope of ~64 steps/°C, which then under-corrects
+    // the offset. The within-filter slope ignores between-filter level
+    // differences and recovers the true 50 steps/°C.
+    final hasGlobalModel =
+        temperatureModel != null && temperatureModel.isReliableWith(config);
+    final withinFilterSlope = _withinFilterSlope(byFilter);
+    final hasReliableModel = hasGlobalModel && withinFilterSlope != null;
+    final slope = hasReliableModel ? withinFilterSlope : 0.0;
 
-    // Calculate offsets for each filter
+    // Reference temperature for the correction. We use the median of every
+    // sample's temperature (across all filters) rather than the reference
+    // filter's mean: it is robust to outliers and does not bias the
+    // correction toward whichever filter was nominated as the reference.
+    final allTemps = points
+        .where((p) => p.filterName != null)
+        .map((p) => p.temperatureCelsius)
+        .toList()
+      ..sort();
+    final refTemperature =
+        allTemps.isEmpty ? 0.0 : _median(allTemps);
+
+    // Sample temperature spread across all filtered points — used for the
+    // confidence ladder (insufficient spread => medium, not high).
+    final tempSpread = allTemps.isEmpty
+        ? 0.0
+        : (allTemps.last - allTemps.first);
+
+    double correctedPosition(FocusHistoryPoint p) {
+      return p.focusPosition - slope * (p.temperatureCelsius - refTemperature);
+    }
+
+    // Mean corrected position of the reference filter, used as the zero.
+    final refCorrected = refPoints.map(correctedPosition).toList();
+    final refAvg = refCorrected.reduce((a, b) => a + b) / refCorrected.length;
+
+    // Pre-compute the confidence band for the *batch*. All offsets in a
+    // single recompute share this band because they all share the same
+    // temperature model and sample temperature distribution.
+    final FilterOffsetConfidence batchBand;
+    final String batchReason;
+    if (!hasReliableModel) {
+      batchBand = FilterOffsetConfidence.low;
+      if (temperatureModel == null) {
+        batchReason =
+            'No temperature model yet — offsets are raw averages and may be '
+            'contaminated by temperature drift. Collect autofocus samples '
+            'across a wider temperature range.';
+      } else {
+        batchReason =
+            'Temperature model R²=${temperatureModel.rSquared.toStringAsFixed(2)} '
+            'is below the reliability threshold of '
+            '${config.minRSquared.toStringAsFixed(2)} — offsets are raw '
+            'averages and may include temperature drift.';
+      }
+      developer.log(
+        'Filter offsets computed without temperature correction '
+        '(${batchReason.replaceAll('\n', ' ')}); reporting low confidence.',
+        name: 'FocusModelService',
+        level: 900,
+      );
+    } else if (tempSpread < _highConfidenceTemperatureSpreadC) {
+      batchBand = FilterOffsetConfidence.medium;
+      batchReason =
+          'Samples span only ${tempSpread.toStringAsFixed(1)}°C '
+          '(< ${_highConfidenceTemperatureSpreadC.toStringAsFixed(0)}°C); '
+          'temperature correction applied but the slope estimate has '
+          'limited leverage.';
+    } else {
+      batchBand = FilterOffsetConfidence.high;
+      batchReason =
+          'Temperature correction applied (within-filter slope='
+          '${slope.toStringAsFixed(2)} steps/°C, global model R²='
+          '${temperatureModel.rSquared.toStringAsFixed(2)}, '
+          'span=${tempSpread.toStringAsFixed(1)}°C).';
+    }
+
+    // Calculate offsets for each non-reference filter
     for (final entry in byFilter.entries) {
       if (entry.key == referenceFilter) continue;
 
       final filterPoints = entry.value;
       if (filterPoints.isEmpty) continue;
 
-      // Calculate average position for this filter
-      final filterAvg =
-          filterPoints.map((p) => p.focusPosition).reduce((a, b) => a + b) /
-              filterPoints.length;
+      final corrected = filterPoints.map(correctedPosition).toList();
+      final filterAvg = corrected.reduce((a, b) => a + b) / corrected.length;
 
       final offsetSteps = (filterAvg - refAvg).round();
 
-      // Confidence based on measurement count and consistency
-      final variance = filterPoints
-              .map((p) => math.pow(p.focusPosition - filterAvg, 2))
+      // Per-filter scalar confidence retained for backward compatibility
+      // (the legacy code measured count + consistency on raw positions; we
+      // now do the same on temperature-corrected positions so a filter
+      // sampled across a temperature range no longer looks "inconsistent"
+      // purely because of drift).
+      final variance = corrected
+              .map((p) => math.pow(p - filterAvg, 2))
               .reduce((a, b) => a + b) /
-          filterPoints.length;
+          corrected.length;
       final stdDev = math.sqrt(variance);
       final consistency = stdDev < 50 ? 1.0 : 50 / stdDev;
       final countFactor = math.min(filterPoints.length / 5.0, 1.0);
-      final confidence = (consistency * countFactor).clamp(0.0, 1.0);
+      var confidence = (consistency * countFactor).clamp(0.0, 1.0);
+
+      // Surface the band in the scalar too so any legacy consumer that just
+      // reads `.confidence` does not get a misleading "1.0" when the batch
+      // is actually low/medium.
+      switch (batchBand) {
+        case FilterOffsetConfidence.high:
+          break;
+        case FilterOffsetConfidence.medium:
+          confidence = math.min(confidence, 0.6);
+          break;
+        case FilterOffsetConfidence.low:
+          confidence = math.min(confidence, 0.3);
+          break;
+      }
 
       offsets[entry.key] = FilterOffset(
         filterName: entry.key,
@@ -461,10 +642,64 @@ class FocusModelService {
         offsetSteps: offsetSteps,
         measurementCount: filterPoints.length,
         confidence: confidence,
+        confidenceBand: batchBand,
+        confidenceReason: batchReason,
+        temperatureCorrected: hasReliableModel,
       );
     }
 
     return offsets;
+  }
+
+  /// Median of an already-sorted, non-empty list of doubles.
+  static double _median(List<double> sorted) {
+    final n = sorted.length;
+    final mid = n ~/ 2;
+    if (n.isOdd) return sorted[mid];
+    return (sorted[mid - 1] + sorted[mid]) / 2.0;
+  }
+
+  /// Estimate the temperature-vs-position slope using a *within-filter*
+  /// regression — i.e., subtract each filter's mean temperature and mean
+  /// position before pooling, so that between-filter level differences do
+  /// not bias the slope estimate.
+  ///
+  /// IMG-P1-2: the global `FocusModel.slope` mixes temperature drift with
+  /// per-filter offset when filters are sampled at disjoint temperature
+  /// ranges. The within-filter slope (also known as a fixed-effects
+  /// estimator) is immune to that confound; it asks only "as T moves, how
+  /// does P move within the same filter?".
+  ///
+  /// Returns null if there is not enough leverage to estimate a slope —
+  /// e.g. every filter has fewer than 2 samples, or no filter has any
+  /// temperature variation in its samples.
+  static double? _withinFilterSlope(
+    Map<String, List<FocusHistoryPoint>> byFilter,
+  ) {
+    double numerator = 0.0;
+    double denominator = 0.0;
+
+    for (final filterPoints in byFilter.values) {
+      if (filterPoints.length < 2) continue;
+      double meanT = 0.0;
+      double meanP = 0.0;
+      for (final p in filterPoints) {
+        meanT += p.temperatureCelsius;
+        meanP += p.focusPosition.toDouble();
+      }
+      meanT /= filterPoints.length;
+      meanP /= filterPoints.length;
+
+      for (final p in filterPoints) {
+        final dt = p.temperatureCelsius - meanT;
+        final dp = p.focusPosition - meanP;
+        numerator += dt * dp;
+        denominator += dt * dt;
+      }
+    }
+
+    if (denominator < 1e-9) return null;
+    return numerator / denominator;
   }
 
   /// Predict optimal focus position based on current conditions
@@ -531,8 +766,14 @@ class FocusModelService {
 
     data = data.copyWith(referenceFilter: filterName);
 
-    // Recalculate offsets with new reference
-    final offsets = _updateFilterOffsets(data.dataPoints, filterName);
+    // Recalculate offsets with new reference.
+    // IMG-P1-2: include the existing temperature model so the recomputed
+    // offsets are temperature-corrected when the model is reliable.
+    final offsets = _updateFilterOffsets(
+      data.dataPoints,
+      filterName,
+      data.temperatureModel,
+    );
     data = data.copyWith(filterOffsets: offsets);
 
     _profileData[profileId] = data;

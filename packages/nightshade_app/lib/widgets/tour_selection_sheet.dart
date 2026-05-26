@@ -21,7 +21,7 @@ class TourSelectionSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final tutorialState = ref.watch(tutorialProvider);
 
     return Container(
@@ -53,7 +53,7 @@ class TourSelectionSheet extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     // Workflow Tours Section
-                    _SectionHeader(title: 'Workflow Tours', colors: colors),
+                    const SectionHeader(title: 'Workflow Tours'),
                     _TourListItem(
                       category: TutorialCategory.firstLight,
                       title: 'Quick Start',
@@ -117,7 +117,7 @@ class TourSelectionSheet extends ConsumerWidget {
 
                     // Screen Tours Section
                     const SizedBox(height: 8),
-                    _SectionHeader(title: 'Screen Tours', colors: colors),
+                    const SectionHeader(title: 'Screen Tours'),
                     _TourListItem(
                       category: TutorialCategory.dashboardTour,
                       title: 'Dashboard',
@@ -254,32 +254,6 @@ class TourSelectionSheet extends ConsumerWidget {
     final tutorialNotifier = ref.read(tutorialProvider.notifier);
     tutorialNotifier.startTutorial(category);
     Navigator.of(context).pop();
-  }
-}
-
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final NightshadeColors colors;
-
-  const _SectionHeader({
-    required this.title,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(top: 8, bottom: 12),
-      child: Text(
-        title,
-        style: TextStyle(
-          color: colors.textMuted,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.5,
-        ),
-      ),
-    );
   }
 }
 
@@ -476,35 +450,39 @@ class _StatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    IconData icon;
-    Color color;
-    Color backgroundColor;
-
-    switch (status) {
-      case _TourStatus.completed:
-        icon = LucideIcons.check;
-        color = colors.success;
-        backgroundColor = colors.success.withValues(alpha: 0.15);
-        break;
-      case _TourStatus.inProgress:
-        icon = LucideIcons.clock;
-        color = colors.warning;
-        backgroundColor = colors.warning.withValues(alpha: 0.15);
-        break;
-      case _TourStatus.notStarted:
-        icon = LucideIcons.circle;
-        color = colors.textMuted;
-        backgroundColor = colors.surfaceHover;
-        break;
-    }
+    final (icon, color, decoration) = switch (status) {
+      _TourStatus.completed => (
+          LucideIcons.check,
+          colors.success,
+          NightshadeDecorations.statusChip(
+            colors.success,
+            borderRadius: BorderRadius.circular(8),
+            bordered: false,
+          ),
+        ),
+      _TourStatus.inProgress => (
+          LucideIcons.clock,
+          colors.warning,
+          NightshadeDecorations.statusChip(
+            colors.warning,
+            borderRadius: BorderRadius.circular(8),
+            bordered: false,
+          ),
+        ),
+      _TourStatus.notStarted => (
+          LucideIcons.circle,
+          colors.textMuted,
+          BoxDecoration(
+            color: colors.surfaceHover,
+            borderRadius: BorderRadius.circular(8),
+          ),
+        ),
+    };
 
     return Container(
       width: 36,
       height: 36,
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(8),
-      ),
+      decoration: decoration,
       child: Center(
         child: Icon(icon, size: 18, color: color),
       ),

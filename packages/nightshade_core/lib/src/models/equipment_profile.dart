@@ -19,6 +19,8 @@ class EquipmentProfile with _$EquipmentProfile {
     String? rotatorId,
     String? domeId,
     String? weatherId,
+    String? safetyMonitorId,
+    String? switchId,
     String? coverCalibratorId,
 
     // Optical setup

@@ -6,6 +6,9 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
+import '../../../utils/plan_tonight_sequencer_helper.dart';
+import '../../../utils/snackbar_helper.dart';
+import '../../sequencer/widgets/smart_night_dialog.dart';
 import 'glass_card.dart';
 
 final _tonightOptimizationPlanProvider =
@@ -24,6 +27,9 @@ final _tonightOptimizationPlanProvider =
   }
 
   final suggestions = await ref.watch(tonightSuggestionsProvider.future);
+  final exposureContext = suggestions.isEmpty
+      ? null
+      : await ref.watch(smartNightExposureContextProvider.future);
   final optimizer = SessionOptimizerService(
     suggestionService: ref.watch(targetSuggestionServiceProvider),
   );
@@ -31,6 +37,7 @@ final _tonightOptimizationPlanProvider =
   return optimizer.buildPlanFromSuggestions(
     suggestions,
     generatedAt: DateTime.now(),
+    exposureContext: exposureContext,
   );
 });
 
@@ -91,8 +98,8 @@ class TonightCard extends ConsumerWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: colors.warning.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.warning,
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -149,6 +156,15 @@ class TonightCard extends ConsumerWidget {
                 : '${optimization.recommendedExposureSeconds.toStringAsFixed(0)}s',
             colors: colors,
           ),
+          if (optimization != null && optimization.hasRecommendation) ...[
+            const SizedBox(height: 6),
+            _TonightRow(
+              icon: LucideIcons.aperture,
+              label: 'Filters',
+              value: _formatRecommendedFilters(optimization),
+              colors: colors,
+            ),
+          ],
           if (optimization != null && optimization.rationale.isNotEmpty) ...[
             const SizedBox(height: 10),
             Text(
@@ -174,31 +190,276 @@ class TonightCard extends ConsumerWidget {
           ],
           if (optimization != null && optimization.hasRecommendation) ...[
             const SizedBox(height: 10),
-            GestureDetector(
-              onTap: () => context.go('/planner'),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  Text(
-                    'See Full Plan',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w500,
-                      color: colors.primary,
-                    ),
-                  ),
-                  const SizedBox(width: 4),
-                  Icon(
-                    LucideIcons.arrowRight,
-                    size: 14,
-                    color: colors.primary,
-                  ),
-                ],
+            _TonightTargetActions(
+              colors: colors,
+              target: optimization.primaryTarget!,
+              onSendToFraming: () => _sendPrimaryToFraming(
+                  context, ref, optimization.primaryTarget!),
+              onAddToSequencer: () => _addPrimaryToSequencer(
+                context,
+                ref,
+                optimization.primaryTarget!,
+                optimization,
               ),
             ),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                GestureDetector(
+                  onTap: () => context.go('/planner'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'See Full Plan',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: colors.primary,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        LucideIcons.arrowRight,
+                        size: 14,
+                        color: colors.primary,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ],
+          const SizedBox(height: 10),
+          _SmartNightTonightAction(colors: colors),
         ],
       ),
+    );
+  }
+
+  void _sendPrimaryToFraming(
+    BuildContext context,
+    WidgetRef ref,
+    TargetSuggestion target,
+  ) {
+    ref.read(framingProvider.notifier).setTargetSuggestion(target);
+    context.goNamed('framing');
+  }
+
+  Future<void> _addPrimaryToSequencer(
+    BuildContext context,
+    WidgetRef ref,
+    TargetSuggestion target,
+    SessionOptimizationPlan plan,
+  ) async {
+    try {
+      final built = await buildPlanTonightTargetSequence(
+        ref: ref,
+        target: target,
+        plan: plan,
+      );
+      if (!context.mounted) return;
+      final added = await loadPlanTonightSequenceIntoEditor(
+        context: context,
+        ref: ref,
+        result: built,
+        replaceSequence: false,
+      );
+
+      if (added && context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Added ${target.targetName} to sequence '
+              '(${planTonightSequenceSummary(built)})',
+            ),
+          ),
+        );
+      }
+    } on SmartNightBuildException catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.maybeOf(context)?.showSnackBar(
+          SnackBar(content: Text(e.message)),
+        );
+      }
+    }
+  }
+}
+
+class _SmartNightTonightAction extends ConsumerStatefulWidget {
+  final NightshadeColors colors;
+
+  const _SmartNightTonightAction({required this.colors});
+
+  @override
+  ConsumerState<_SmartNightTonightAction> createState() =>
+      _SmartNightTonightActionState();
+}
+
+class _SmartNightTonightActionState
+    extends ConsumerState<_SmartNightTonightAction> {
+  bool _busy = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = ref.watch(activeEquipmentProfileProvider);
+    final executionState = ref.watch(sequenceExecutionStateProvider);
+    final locked = _sequenceIsActive(executionState);
+    final lookup = profile == null
+        ? null
+        : SmartNightDraftLookup(
+            profileId: profile.id?.toString() ?? profile.name,
+            astronomicalDay: _astronomicalDay(DateTime.now()),
+          );
+    final draftAsync = lookup == null
+        ? const AsyncValue<SmartNightDraft?>.data(null)
+        : ref.watch(pendingSmartNightDraftProvider(lookup));
+    final draft = draftAsync.valueOrNull;
+    final label = locked
+        ? 'Sequence running'
+        : draft == null
+            ? 'Plan tonight'
+            : 'View tonight\'s plan';
+    final icon = locked
+        ? LucideIcons.lock
+        : draft == null
+            ? LucideIcons.sparkles
+            : LucideIcons.fileClock;
+
+    return Align(
+      alignment: Alignment.centerRight,
+      child: NightshadeButton(
+        label: label,
+        icon: icon,
+        variant: ButtonVariant.primary,
+        size: ButtonSize.small,
+        isLoading: _busy,
+        onPressed: locked || _busy
+            ? null
+            : draft == null
+                ? () => _openPlanner(lookup)
+                : () => _loadDraft(draft),
+      ),
+    );
+  }
+
+  Future<void> _openPlanner(SmartNightDraftLookup? lookup) async {
+    setState(() => _busy = true);
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (_) => const SmartNightDialog(),
+      );
+      if (lookup != null) {
+        ref.invalidate(pendingSmartNightDraftProvider(lookup));
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _loadDraft(SmartNightDraft draft) async {
+    setState(() => _busy = true);
+    try {
+      ref
+          .read(currentSequenceProvider.notifier)
+          .loadSequence(draft.plan.sequence, discardUnsaved: true);
+      if (!mounted) return;
+      context.showSuccessSnackBar(
+        'Smart Night plan loaded - '
+        '${draft.plan.plannedTargets.length} target(s), '
+        '${(draft.plan.totalIntegrationSecs / 3600).toStringAsFixed(1)}h.',
+      );
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Could not load Smart Night plan: $e');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+}
+
+bool _sequenceIsActive(SequenceExecutionState state) {
+  switch (state) {
+    case SequenceExecutionState.idle:
+    case SequenceExecutionState.completed:
+    case SequenceExecutionState.failed:
+      return false;
+    case SequenceExecutionState.running:
+    case SequenceExecutionState.paused:
+    case SequenceExecutionState.stopping:
+    case SequenceExecutionState.recovering:
+      return true;
+  }
+}
+
+DateTime _astronomicalDay(DateTime now) {
+  final local = now.toLocal();
+  final day = local.hour < 12 ? local.subtract(const Duration(days: 1)) : local;
+  return DateTime.utc(day.year, day.month, day.day);
+}
+
+String _formatRecommendedFilters(SessionOptimizationPlan plan) {
+  if (plan.recommendedFilterNames.isNotEmpty) {
+    return plan.recommendedFilterNames.join(' · ');
+  }
+  if (plan.recommendedFilterName != null) {
+    return plan.recommendedFilterName!;
+  }
+  return '--';
+}
+
+class _TonightTargetActions extends StatelessWidget {
+  final NightshadeColors colors;
+  final TargetSuggestion target;
+  final VoidCallback onSendToFraming;
+  final VoidCallback onAddToSequencer;
+
+  const _TonightTargetActions({
+    required this.colors,
+    required this.target,
+    required this.onSendToFraming,
+    required this.onAddToSequencer,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            target.catalogId ?? target.targetName,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 11,
+              color: colors.textMuted,
+            ),
+          ),
+        ),
+        Tooltip(
+          message: 'Frame target',
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            padding: EdgeInsets.zero,
+            onPressed: onSendToFraming,
+            icon: Icon(LucideIcons.frame, size: 15, color: colors.primary),
+          ),
+        ),
+        Tooltip(
+          message: 'Add to sequence',
+          child: IconButton(
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints.tightFor(width: 32, height: 32),
+            padding: EdgeInsets.zero,
+            onPressed: onAddToSequencer,
+            icon: Icon(LucideIcons.listPlus, size: 15, color: colors.primary),
+          ),
+        ),
+      ],
     );
   }
 }

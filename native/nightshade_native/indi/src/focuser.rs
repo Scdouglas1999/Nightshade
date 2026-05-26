@@ -206,6 +206,109 @@ impl IndiFocuser {
             .await
             .ok_or_else(|| "Temperature not available".to_string())
     }
+
+    /// Maximum focuser travel in steps (`FOCUS_MAX` / `FOCUS_MAX_VALUE`).
+    pub async fn get_max_step(&self) -> Option<i32> {
+        let client = self.client.read().await;
+        client
+            .get_number(&self.device_name, FOCUS_MAX, "FOCUS_MAX_VALUE")
+            .await
+            .map(|v| v as i32)
+    }
+
+    /// Focuser step size (`FOCUS_STEP` / `FOCUS_STEP_VALUE`), when advertised.
+    pub async fn get_step_size(&self) -> Option<f64> {
+        let client = self.client.read().await;
+        client
+            .get_number(&self.device_name, FOCUS_STEP, "FOCUS_STEP_VALUE")
+            .await
+    }
+
+    /// Whether temperature compensation is enabled.
+    pub async fn is_temp_comp_enabled(&self) -> Option<bool> {
+        let client = self.client.read().await;
+        for property in [FOCUS_TEMPERATURE_COMP, FOCUS_TEMP_COMP] {
+            if client
+                .get_switch(&self.device_name, property, "INDI_ENABLED")
+                .await
+                .is_some()
+            {
+                return client
+                    .get_switch(&self.device_name, property, "INDI_ENABLED")
+                    .await;
+            }
+        }
+        None
+    }
+
+    /// Enable or disable temperature compensation when the driver supports it.
+    pub async fn set_temp_comp_enabled(&self, enabled: bool) -> IndiResult<()> {
+        let client = self.client.read().await;
+        let property = if client
+            .has_property(&self.device_name, FOCUS_TEMPERATURE_COMP)
+            .await
+        {
+            FOCUS_TEMPERATURE_COMP
+        } else {
+            FOCUS_TEMP_COMP
+        };
+        let mut client = self.client.write().await;
+        let element = if enabled {
+            "INDI_ENABLED"
+        } else {
+            "INDI_DISABLED"
+        };
+        client
+            .set_switch_exclusive(&self.device_name, property, element)
+            .await
+    }
+
+    /// Backlash compensation step count (`FOCUS_BACKLASH_STEPS`).
+    pub async fn get_backlash(&self) -> Option<i32> {
+        let client = self.client.read().await;
+        client
+            .get_number(
+                &self.device_name,
+                FOCUS_BACKLASH_STEPS,
+                "FOCUS_BACKLASH_VALUE",
+            )
+            .await
+            .map(|v| v as i32)
+    }
+
+    /// Set backlash steps when supported.
+    pub async fn set_backlash(&self, steps: i32) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_number(
+                &self.device_name,
+                FOCUS_BACKLASH_STEPS,
+                "FOCUS_BACKLASH_VALUE",
+                f64::from(steps),
+            )
+            .await
+    }
+
+    /// Whether backlash compensation is enabled (`FOCUS_BACKLASH_TOGGLE`).
+    pub async fn is_backlash_enabled(&self) -> Option<bool> {
+        let client = self.client.read().await;
+        client
+            .get_switch(&self.device_name, FOCUS_BACKLASH_TOGGLE, "INDI_ENABLED")
+            .await
+    }
+
+    /// Enable or disable backlash compensation.
+    pub async fn set_backlash_enabled(&self, enabled: bool) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        let element = if enabled {
+            "INDI_ENABLED"
+        } else {
+            "INDI_DISABLED"
+        };
+        client
+            .set_switch_exclusive(&self.device_name, FOCUS_BACKLASH_TOGGLE, element)
+            .await
+    }
 }
 
 #[cfg(test)]

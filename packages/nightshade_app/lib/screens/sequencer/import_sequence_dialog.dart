@@ -34,8 +34,24 @@ class ImportSequenceFlow {
       file = await file_selector.openFile(
         acceptedTypeGroups: const [
           file_selector.XTypeGroup(
+            label: 'Sequences & target lists',
+            extensions: ['json', 'sgf', 'csv', 'ics'],
+          ),
+          file_selector.XTypeGroup(
             label: 'NINA / SGP sequence',
             extensions: ['json', 'sgf'],
+          ),
+          file_selector.XTypeGroup(
+            label: 'Telescopius / Astrobin CSV',
+            extensions: ['csv'],
+          ),
+          file_selector.XTypeGroup(
+            label: 'Nightshade observing list',
+            extensions: ['json'],
+          ),
+          file_selector.XTypeGroup(
+            label: 'iCalendar',
+            extensions: ['ics'],
           ),
         ],
       );
@@ -51,9 +67,24 @@ class ImportSequenceFlow {
     final defaultName = _basename(file.name);
 
     if (!context.mounted) return false;
-    // First, try a strict (no-force) import.
-    final ImportResult? result =
-        await _parseWithRetry(context, importer, content, defaultName);
+
+    // Route async formats (Astrobin needs catalog lookup, ICS publishes its
+    // own unresolved list) through their dedicated entrypoints so we can
+    // surface format-specific summaries (e.g. "12 resolved, 3 unresolved").
+    // For everything else, fall through to the standard synchronous
+    // importFromString pipeline.
+    final detected = importer.detectFormatOrNull(content);
+    ImportResult? result;
+    if (detected == SourceFormat.astrobinCsv) {
+      result = await _importAstrobinWithRetry(
+          context, importer, content, defaultName);
+    } else if (detected == SourceFormat.icsCalendar) {
+      result =
+          await _importIcsWithRetry(context, importer, content, defaultName);
+    } else {
+      // First, try a strict (no-force) import.
+      result = await _parseWithRetry(context, importer, content, defaultName);
+    }
     if (result == null) return false;
 
     if (!context.mounted) return false;
@@ -73,6 +104,12 @@ class ImportSequenceFlow {
     try {
       dbId = await repo.saveSequence(sequence);
       sequence = sequence.copyWith(databaseId: dbId);
+      notifySequenceCatalogChanged(
+        ref,
+        sequenceId: dbId,
+        action: 'created',
+        name: sequence.name,
+      );
     } catch (e) {
       if (!context.mounted) return false;
       context.showErrorSnackBar('Failed to save imported sequence: $e');
@@ -94,8 +131,8 @@ class ImportSequenceFlow {
         break;
       case ImportDestination.saveToLibrary:
         if (!context.mounted) return true;
-        context.showSuccessSnackBar(
-            'Saved "${sequence.name}" ($fmt) to library');
+        context
+            .showSuccessSnackBar('Saved "${sequence.name}" ($fmt) to library');
         break;
     }
     return true;
@@ -122,8 +159,8 @@ class ImportSequenceFlow {
       );
     } on UnknownFormatError catch (e) {
       if (context.mounted) {
-        context.showErrorSnackBar(
-            'Could not identify file format: ${e.message}');
+        context
+            .showErrorSnackBar('Could not identify file format: ${e.message}');
       }
       return null;
     } on MalformedSourceError catch (e) {
@@ -172,7 +209,7 @@ class ImportSequenceFlow {
     BuildContext context,
     SequenceImportValidationFailedException error,
   ) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final errors = error.errors;
     final warnings = error.issues
         .where((i) => i.severity == ValidationSeverity.warning)
@@ -193,7 +230,11 @@ class ImportSequenceFlow {
           ],
         ),
         content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 520, maxHeight: 440),
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 520,
+            designMaxHeight: 440,
+          ),
           child: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -228,8 +269,7 @@ class ImportSequenceFlow {
                             padding: const EdgeInsets.only(left: 12),
                             child: Text(issue.description,
                                 style: TextStyle(
-                                    fontSize: 11,
-                                    color: colors.textSecondary)),
+                                    fontSize: 11, color: colors.textSecondary)),
                           ),
                           if (issue.resolutionHint != null)
                             Padding(
@@ -272,8 +312,8 @@ class ImportSequenceFlow {
                     Padding(
                       padding: const EdgeInsets.symmetric(vertical: 1),
                       child: Text('- ${issue.title}',
-                          style: TextStyle(
-                              fontSize: 11, color: colors.textMuted)),
+                          style:
+                              TextStyle(fontSize: 11, color: colors.textMuted)),
                     ),
                 ],
               ],
@@ -294,16 +334,151 @@ class ImportSequenceFlow {
     );
   }
 
+  /// Astrobin imports need catalog lookup, so we call the dedicated async
+  /// entrypoint. The wrapper handles the same typed-exception ladder as
+  /// [_parseWithRetry]. After parsing, if some designations failed to
+  /// resolve, we surface a brief snackbar mentioning the count so the user
+  /// knows to fill in coordinates manually.
+  static Future<ImportResult?> _importAstrobinWithRetry(
+    BuildContext context,
+    SequenceImporter importer,
+    String content,
+    String defaultName, {
+    bool forceUnsupported = false,
+    bool forceImport = false,
+  }) async {
+    try {
+      final summary = await importer.importAstrobinAsync(
+        content,
+        forceUnsupported: forceUnsupported,
+        forceImport: forceImport,
+        sequenceName: defaultName,
+      );
+      if (summary.unresolved.isNotEmpty && context.mounted) {
+        final n = summary.unresolved.length;
+        final word = n == 1 ? 'designation' : 'designations';
+        context.showSuccessSnackBar(
+          'Astrobin: ${summary.resolvedRows} resolved, $n $word need '
+          'manual coordinates (placeholders inserted).',
+        );
+      }
+      return summary.importResult;
+    } on UnknownFormatError catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar(
+            'Could not identify Astrobin file: ${e.message}');
+      }
+      return null;
+    } on MalformedSourceError catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Astrobin file is malformed: ${e.message}');
+      }
+      return null;
+    } on UnsupportedNodeError catch (e) {
+      if (!context.mounted) return null;
+      final force = await _confirmForceImport(context, e.unsupported);
+      if (force != true) return null;
+      if (!context.mounted) return null;
+      return _importAstrobinWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: true,
+        forceImport: forceImport,
+      );
+    } on SequenceImportValidationFailedException catch (e) {
+      if (!context.mounted) return null;
+      final accept = await _confirmForceValidation(context, e);
+      if (accept != true) return null;
+      if (!context.mounted) return null;
+      return _importAstrobinWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: forceUnsupported,
+        forceImport: true,
+      );
+    }
+  }
+
+  /// ICS imports surface unresolved VEVENTs (no RA/Dec parsable from
+  /// description) the same way Astrobin handles unresolved designations.
+  static Future<ImportResult?> _importIcsWithRetry(
+    BuildContext context,
+    SequenceImporter importer,
+    String content,
+    String defaultName, {
+    bool forceUnsupported = false,
+    bool forceImport = false,
+  }) async {
+    try {
+      final summary = await importer.importIcsAsync(
+        content,
+        forceUnsupported: forceUnsupported,
+        forceImport: forceImport,
+        sequenceName: defaultName,
+      );
+      if (summary.unresolved.isNotEmpty && context.mounted) {
+        final n = summary.unresolved.length;
+        context.showSuccessSnackBar(
+          'Calendar: ${summary.totalEvents - n} events parsed, '
+          '$n event(s) had no RA/Dec and were skipped.',
+        );
+      }
+      return summary.importResult;
+    } on UnknownFormatError catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar(
+            'Could not identify calendar file: ${e.message}');
+      }
+      return null;
+    } on MalformedSourceError catch (e) {
+      if (context.mounted) {
+        context.showErrorSnackBar('Calendar file is malformed: ${e.message}');
+      }
+      return null;
+    } on UnsupportedNodeError catch (e) {
+      if (!context.mounted) return null;
+      final force = await _confirmForceImport(context, e.unsupported);
+      if (force != true) return null;
+      if (!context.mounted) return null;
+      return _importIcsWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: true,
+        forceImport: forceImport,
+      );
+    } on SequenceImportValidationFailedException catch (e) {
+      if (!context.mounted) return null;
+      final accept = await _confirmForceValidation(context, e);
+      if (accept != true) return null;
+      if (!context.mounted) return null;
+      return _importIcsWithRetry(
+        context,
+        importer,
+        content,
+        defaultName,
+        forceUnsupported: forceUnsupported,
+        forceImport: true,
+      );
+    }
+  }
+
   /// Shown after the user dismisses the file picker without selecting a
   /// file. Returns `true` if the user wants to reopen the picker, `false`
   /// if they want to cancel the import entirely.
   static Future<bool?> _promptNoFileSelected(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return showModalBottomSheet<bool>(
       context: context,
       backgroundColor: colors.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
+        borderRadius: BorderRadius.vertical(
+            top: Radius.circular(NightshadeTokens.radiusLg)),
       ),
       builder: (ctx) {
         return SafeArea(
@@ -315,8 +490,7 @@ class ImportSequenceFlow {
               children: [
                 Row(
                   children: [
-                    Icon(LucideIcons.fileX,
-                        size: 18, color: colors.warning),
+                    Icon(LucideIcons.fileX, size: 18, color: colors.warning),
                     const SizedBox(width: 8),
                     Text(
                       'No file selected',
@@ -330,7 +504,10 @@ class ImportSequenceFlow {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Choose a NINA .json or SGP .sgf export to import.',
+                  'Choose a sequence or target-list file to import.\n'
+                  'Supported formats: NINA (.json), SGP (.sgf), Telescopius / '
+                  'Astrobin (.csv), Nightshade observing list (.json), '
+                  'iCalendar (.ics).',
                   style: TextStyle(
                     fontSize: 13,
                     color: colors.textSecondary,
@@ -384,8 +561,8 @@ class ImportSequenceFlow {
       return true;
     } on SequenceLockedException catch (e) {
       if (context.mounted) {
-        context.showErrorSnackBar(
-            'Cannot open imported sequence: ${e.message}');
+        context
+            .showErrorSnackBar('Cannot open imported sequence: ${e.message}');
       }
       return false;
     }
@@ -395,7 +572,7 @@ class ImportSequenceFlow {
     BuildContext context,
     UnsavedChangesException error,
   ) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -407,10 +584,16 @@ class ImportSequenceFlow {
             const Text('Discard unsaved changes?'),
           ],
         ),
-        content: Text(
-          '"${error.currentSequenceName}" has unsaved changes. Opening the '
-          'imported sequence will discard them.',
-          style: TextStyle(fontSize: 13, color: colors.textPrimary),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 440,
+          ),
+          child: Text(
+            '"${error.currentSequenceName}" has unsaved changes. Opening the '
+            'imported sequence will discard them.',
+            style: TextStyle(fontSize: 13, color: colors.textPrimary),
+          ),
         ),
         actions: [
           TextButton(
@@ -437,7 +620,7 @@ class ImportSequenceFlow {
     BuildContext context,
     List<UnsupportedNodeRecord> unsupported,
   ) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -450,7 +633,10 @@ class ImportSequenceFlow {
           ],
         ),
         content: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 480),
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 480,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -466,13 +652,12 @@ class ImportSequenceFlow {
                 Padding(
                   padding: const EdgeInsets.symmetric(vertical: 1),
                   child: Text('- ${u.sourceType} - ${u.name}',
-                      style: TextStyle(
-                          fontSize: 12, color: colors.textSecondary)),
+                      style:
+                          TextStyle(fontSize: 12, color: colors.textSecondary)),
                 ),
               if (unsupported.length > 8)
                 Text('  ... and ${unsupported.length - 8} more',
-                    style: TextStyle(
-                        fontSize: 12, color: colors.textMuted)),
+                    style: TextStyle(fontSize: 12, color: colors.textMuted)),
               const SizedBox(height: 12),
               Text(
                 'You can force-import anyway. Unsupported nodes will be '

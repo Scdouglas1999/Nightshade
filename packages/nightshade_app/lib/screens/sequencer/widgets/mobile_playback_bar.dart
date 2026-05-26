@@ -56,7 +56,7 @@ class MobilePlaybackBar extends ConsumerWidget {
                 isCompact: isNarrow,
                 onPressed: () async {
                   if (isIdle) {
-                    showDialog(
+                    await showDialog<void>(
                       context: context,
                       builder: (context) => PreFlightValidationDialog(
                         onStartSequence: () async {
@@ -84,19 +84,34 @@ class MobilePlaybackBar extends ConsumerWidget {
 
               SizedBox(width: buttonSpacing),
 
-              // Stop button
-              _MobilePlaybackButton(
-                colors: colors,
-                icon: LucideIcons.square,
-                label: 'Stop',
-                isEnabled: isRunning || isPaused,
-                isCompact: isNarrow,
-                onPressed: () async {
+              // Stop button — hold-to-confirm so a thumb-slip during an
+              // overnight session can't abort the run. P0-4 fix from the
+              // headless-2026-05-24 audit (UX edge cases §4, bug 1).
+              HoldToConfirmButton(
+                enabled: isRunning || isPaused,
+                holdColor: colors.error,
+                confirmText: 'Hold to stop',
+                semanticsLabel: 'Press and hold to stop the sequence',
+                onConfirmed: () async {
                   final result =
                       await ref.read(sequenceActionServiceProvider).stop();
                   if (!context.mounted) return;
                   context.showCommandActionResult(result);
                 },
+                // IgnorePointer so the inner InkWell does not consume the
+                // long-press event; gestures are owned exclusively by the
+                // surrounding [HoldToConfirmButton]. The visual styling is
+                // preserved so the affordance still reads as "Stop".
+                child: IgnorePointer(
+                  child: _MobilePlaybackButton(
+                    colors: colors,
+                    icon: LucideIcons.square,
+                    label: 'Stop',
+                    isEnabled: isRunning || isPaused,
+                    isCompact: isNarrow,
+                    onPressed: () {},
+                  ),
+                ),
               ),
 
               SizedBox(width: buttonSpacing),
@@ -198,7 +213,11 @@ class _MobilePlaybackButton extends StatelessWidget {
             constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
             decoration: BoxDecoration(
               color: isActive
-                  ? colors.success.withValues(alpha: 0.15)
+                  ? NightshadeDecorations.statusChip(
+                      colors.success,
+                      borderRadius: BorderRadius.circular(8),
+                      bordered: false,
+                    ).color
                   : effectiveEnabled
                       ? colors.surfaceAlt
                       : colors.surface,
@@ -312,6 +331,13 @@ class _StatusBadge extends StatelessWidget {
         badgeColor = colors.error;
         icon = LucideIcons.xCircle;
         break;
+      case SequenceExecutionState.recovering:
+        // Wave 4 — distinct visual treatment so the mobile bar surfaces
+        // recovery as "the sequence is in trouble but trying to recover"
+        // instead of showing the same icon as a normal Running run.
+        badgeColor = colors.error;
+        icon = LucideIcons.rotateCw;
+        break;
     }
 
     final badgeSize = isCompact ? 28.0 : 32.0;
@@ -320,10 +346,9 @@ class _StatusBadge extends StatelessWidget {
     return Container(
       width: badgeSize,
       height: badgeSize,
-      decoration: BoxDecoration(
-        color: badgeColor.withValues(alpha: 0.15),
-        shape: BoxShape.circle,
-        border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
+      decoration: NightshadeDecorations.statusChip(
+        badgeColor,
+        borderRadius: BorderRadius.circular(999),
       ),
       child: state == SequenceExecutionState.running
           ? _PulsingIcon(color: badgeColor, icon: icon, size: iconSize)

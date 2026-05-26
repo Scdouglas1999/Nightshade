@@ -12,14 +12,14 @@ import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
 
 class ConnectionSettings extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const ConnectionSettings(
-      {super.key, required this.colors, this.isMobile = false});
+      {super.key, this.isMobile = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final backend = ref.watch(backendProvider);
     final isConnected = backend is NetworkBackend;
     final isDisconnected = backend is DisconnectedBackend;
@@ -48,13 +48,11 @@ class ConnectionSettings extends ConsumerWidget {
       key: SettingsTutorialKeys.connection,
       title: 'Connection',
       description: 'Server connection settings',
-      colors: colors,
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
         SettingsSection(
           title: 'Server Status',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -64,10 +62,9 @@ class ConnectionSettings extends ConsumerWidget {
               trailing: Container(
                 padding:
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                decoration: BoxDecoration(
-                  color: statusColor.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.emphasisSurface(
+                  statusColor,
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: statusColor.withValues(alpha: 0.3)),
                 ),
                 child: Text(
                   connectionStatus,
@@ -78,7 +75,6 @@ class ConnectionSettings extends ConsumerWidget {
                   ),
                 ),
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             if (isConnected)
@@ -94,7 +90,6 @@ class ConnectionSettings extends ConsumerWidget {
                     fontFamily: 'monospace',
                   ),
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
             SettingRow(
@@ -113,7 +108,6 @@ class ConnectionSettings extends ConsumerWidget {
                     _handleConnectionAction(context, ref, isConnected),
               ),
               isLast: true,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -121,7 +115,6 @@ class ConnectionSettings extends ConsumerWidget {
         if (settings != null)
           SettingsSection(
             title: 'Discovery',
-            colors: colors,
             isMobile: isMobile,
             children: [
               SettingRow(
@@ -132,9 +125,7 @@ class ConnectionSettings extends ConsumerWidget {
                 trailing: SettingsSwitch(
                   value: settings.indiAutoConnect,
                   onChanged: settingsNotifier.setIndiAutoConnect,
-                  colors: colors,
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
               SettingRow(
@@ -145,10 +136,8 @@ class ConnectionSettings extends ConsumerWidget {
                 trailing: SettingsSwitch(
                   value: settings.alpacaAutoDiscover,
                   onChanged: settingsNotifier.setAlpacaAutoDiscover,
-                  colors: colors,
                 ),
                 isLast: true,
-                colors: colors,
                 isMobile: isMobile,
               ),
             ],
@@ -156,7 +145,6 @@ class ConnectionSettings extends ConsumerWidget {
         if (isConnected)
           SettingsSection(
             title: 'Remote Features',
-            colors: colors,
             isMobile: isMobile,
             children: [
               SettingRow(
@@ -181,19 +169,16 @@ class ConnectionSettings extends ConsumerWidget {
                   },
                 ),
                 isLast: true,
-                colors: colors,
                 isMobile: isMobile,
               ),
             ],
           ),
         SettingsSection(
           title: 'Platform Capabilities',
-          colors: colors,
           isMobile: isMobile,
           children: [
             _PlatformCapabilityMatrixView(
               report: platformCapabilities,
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -316,17 +301,16 @@ class ConnectionSettings extends ConsumerWidget {
 
 class _PlatformCapabilityMatrixView extends StatelessWidget {
   final PlatformCapabilityReport report;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _PlatformCapabilityMatrixView({
     required this.report,
-    required this.colors,
     required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final platformLabel = _formatPlatform(report.platform);
 
     return Padding(
@@ -356,7 +340,6 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
             (driver) => _PlatformCapabilityRow(
               driver: driver,
               platform: report.platform,
-              colors: colors,
               isMobile: isMobile,
             ),
           ),
@@ -382,20 +365,19 @@ class _PlatformCapabilityMatrixView extends StatelessWidget {
 class _PlatformCapabilityRow extends StatelessWidget {
   final PlatformDriverCapability driver;
   final String platform;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _PlatformCapabilityRow({
     required this.driver,
     required this.platform,
-    required this.colors,
     required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final status = driver.statusFor(platform);
-    final statusColor = _statusColor(status);
+    final statusColor = _statusColor(colors, status);
     final statusLabel = _statusLabel(status);
 
     return Container(
@@ -412,7 +394,7 @@ class _PlatformCapabilityRow extends StatelessWidget {
     );
   }
 
-  Color _statusColor(String status) {
+  Color _statusColor(NightshadeColors colors, String status) {
     switch (status) {
       case 'available':
         return colors.success;
@@ -444,7 +426,6 @@ class _PlatformCapabilityRow extends StatelessWidget {
             driver: driver,
             statusColor: statusColor,
             statusLabel: statusLabel,
-            colors: colors,
           ),
         ),
         const SizedBox(width: 14),
@@ -452,7 +433,6 @@ class _PlatformCapabilityRow extends StatelessWidget {
           child: _DriverDetails(
             driver: driver,
             platform: platform,
-            colors: colors,
             isMobile: false,
           ),
         ),
@@ -468,13 +448,11 @@ class _PlatformCapabilityRow extends StatelessWidget {
           driver: driver,
           statusColor: statusColor,
           statusLabel: statusLabel,
-          colors: colors,
         ),
         const SizedBox(height: 8),
         _DriverDetails(
           driver: driver,
           platform: platform,
-          colors: colors,
           isMobile: true,
         ),
       ],
@@ -486,17 +464,16 @@ class _DriverLabel extends StatelessWidget {
   final PlatformDriverCapability driver;
   final Color statusColor;
   final String statusLabel;
-  final NightshadeColors colors;
 
   const _DriverLabel({
     required this.driver,
     required this.statusColor,
     required this.statusLabel,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -511,10 +488,9 @@ class _DriverLabel extends StatelessWidget {
         const SizedBox(height: 6),
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: statusColor.withValues(alpha: 0.12),
+          decoration: NightshadeDecorations.statusChip(
+            statusColor,
             borderRadius: BorderRadius.circular(6),
-            border: Border.all(color: statusColor.withValues(alpha: 0.3)),
           ),
           child: Text(
             statusLabel,
@@ -533,18 +509,17 @@ class _DriverLabel extends StatelessWidget {
 class _DriverDetails extends StatelessWidget {
   final PlatformDriverCapability driver;
   final String platform;
-  final NightshadeColors colors;
   final bool isMobile;
 
   const _DriverDetails({
     required this.driver,
     required this.platform,
-    required this.colors,
     required this.isMobile,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final unsupportedReason =
         driver.isAvailableOn(platform) ? null : driver.reasonFor(platform);
     final detailText = unsupportedReason ?? driver.reasonFor(platform);

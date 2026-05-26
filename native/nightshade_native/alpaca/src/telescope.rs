@@ -4,7 +4,30 @@ use crate::{
     AlpacaClient, AlpacaClientBuilder, AlpacaDevice, AlpacaDeviceType, AlpacaError, RetryConfig,
     TimeoutConfig,
 };
+use serde::Deserialize;
 use std::time::Duration;
+
+/// Alpaca `Rate` object returned by `axisrates`.
+#[derive(Debug, Clone, Copy, PartialEq, Deserialize)]
+#[serde(rename_all = "PascalCase")]
+pub struct AxisRate {
+    pub minimum: f64,
+    pub maximum: f64,
+}
+
+/// Alpaca telescope axis index (`TelescopeAxes` in ASCOM).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TelescopeAxis {
+    Primary = 0,
+    Secondary = 1,
+    Tertiary = 2,
+}
+
+impl TelescopeAxis {
+    pub fn as_i32(self) -> i32 {
+        self as i32
+    }
+}
 
 /// Pier side enum
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -202,15 +225,8 @@ impl AlpacaTelescope {
 
     /// Create from server details
     pub fn from_server(base_url: &str, device_number: u32) -> Self {
-        let device = AlpacaDevice {
-            device_type: AlpacaDeviceType::Telescope,
-            device_number,
-            server_name: String::new(),
-            manufacturer: String::new(),
-            device_name: String::new(),
-            unique_id: String::new(),
-            base_url: base_url.to_string(),
-        };
+        let device =
+            AlpacaDevice::from_server(AlpacaDeviceType::Telescope, base_url, device_number);
         Self::new(&device)
     }
 
@@ -506,6 +522,24 @@ impl AlpacaTelescope {
 
     pub async fn can_set_right_ascension_rate(&self) -> Result<bool, String> {
         self.client.get("cansetrightascensionrate").await
+    }
+
+    /// Supported tracking rates for this mount (`trackingrates`).
+    pub async fn tracking_rates(&self) -> Result<Vec<DriveRate>, String> {
+        let rates: Vec<i32> = self.client.get("trackingrates").await?;
+        Ok(rates.into_iter().map(DriveRate::from).collect())
+    }
+
+    /// Permitted `MoveAxis` rates for the given axis (`axisrates`).
+    pub async fn axis_rates(&self, axis: TelescopeAxis) -> Result<Vec<AxisRate>, String> {
+        self.axis_rates_for_axis(axis.as_i32()).await
+    }
+
+    /// Permitted `MoveAxis` rates for the given axis number.
+    pub async fn axis_rates_for_axis(&self, axis: i32) -> Result<Vec<AxisRate>, String> {
+        self.client
+            .get_with_params("axisrates", &[("Axis", &axis.to_string())])
+            .await
     }
 
     pub async fn can_set_declination_rate(&self) -> Result<bool, String> {
@@ -987,5 +1021,95 @@ impl AlpacaTelescope {
             guide_rate_right_ascension: guide_rate_right_ascension.ok(),
             guide_rate_declination: guide_rate_declination.ok(),
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn serve_alpaca_response(
+        body: &'static str,
+    ) -> (String, tokio::task::JoinHandle<String>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake Alpaca telescope server");
+        let port = listener.local_addr().expect("read listener address").port();
+        let base_url = format!("http://127.0.0.1:{port}");
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept client");
+            let mut buf = vec![0_u8; 4096];
+            let n = socket.read(&mut buf).await.expect("read request");
+            let request = String::from_utf8_lossy(&buf[..n]).to_string();
+            let request_line = request.lines().next().unwrap_or_default().to_string();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{}",
+                body.len(),
+                body
+            );
+            socket
+                .write_all(response.as_bytes())
+                .await
+                .expect("write response");
+            request_line
+        });
+
+        (base_url, server)
+    }
+
+    #[tokio::test]
+    async fn tracking_rates_reads_alpaca_endpoint() {
+        let body = "{\"Value\":[0,1,2],\"ClientTransactionID\":0,\"ServerTransactionID\":1,\"ErrorNumber\":0,\"ErrorMessage\":\"\"}";
+        let (base_url, server) = serve_alpaca_response(body).await;
+        let telescope = AlpacaTelescope::from_server(&base_url, 0);
+
+        let rates = telescope
+            .tracking_rates()
+            .await
+            .expect("read tracking rates");
+
+        assert_eq!(
+            rates,
+            vec![DriveRate::Sidereal, DriveRate::Lunar, DriveRate::Solar]
+        );
+        let request_line = server.await.expect("fake server should finish");
+        assert!(
+            request_line.starts_with("GET /api/v1/telescope/0/trackingrates?"),
+            "unexpected trackingrates request: {}",
+            request_line
+        );
+    }
+
+    #[tokio::test]
+    async fn axis_rates_sends_axis_query_parameter() {
+        let body = "{\"Value\":[{\"Minimum\":0.1,\"Maximum\":2.5}],\"ClientTransactionID\":0,\"ServerTransactionID\":1,\"ErrorNumber\":0,\"ErrorMessage\":\"\"}";
+        let (base_url, server) = serve_alpaca_response(body).await;
+        let telescope = AlpacaTelescope::from_server(&base_url, 0);
+
+        let rates = telescope
+            .axis_rates(TelescopeAxis::Secondary)
+            .await
+            .expect("read axis rates");
+
+        assert_eq!(
+            rates,
+            vec![AxisRate {
+                minimum: 0.1,
+                maximum: 2.5
+            }]
+        );
+        let request_line = server.await.expect("fake server should finish");
+        assert!(
+            request_line.starts_with("GET /api/v1/telescope/0/axisrates?"),
+            "unexpected axisrates request: {}",
+            request_line
+        );
+        assert!(
+            request_line.contains("Axis=1"),
+            "axisrates request must include requested axis: {}",
+            request_line
+        );
     }
 }

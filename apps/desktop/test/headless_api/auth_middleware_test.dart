@@ -16,7 +16,13 @@ void main() {
     late Uri baseUri;
 
     setUp(() async {
-      container = ProviderContainer();
+      container = ProviderContainer(
+        overrides: [
+          appVersionProvider.overrideWithValue(
+            const AppVersionInfo(version: '2.5.0', buildNumber: 5),
+          ),
+        ],
+      );
       server = HeadlessApiServer(
         port: 0,
         container: container,
@@ -70,7 +76,10 @@ void main() {
       expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['x-request-id'], 'test-api-info-1');
       expect(response.body['version'], '2.5.0');
-      expect(response.body['apiVersion'], '2.5.0');
+      expect(
+        response.body['apiVersion'],
+        RemoteApiCompatibility.serverApiVersion.format(),
+      );
       expect(response.body['minimumSupportedApiVersion'], '2.4.0');
       expect(
         response.body['apiVersionHeader'],
@@ -78,7 +87,7 @@ void main() {
       );
       expect(
         response.headers[RemoteApiCompatibility.apiVersionHeader],
-        '2.5.0',
+        RemoteApiCompatibility.serverApiVersion.format(),
       );
       expect(response.headers['x-nightshade-minimum-api-version'], '2.4.0');
     });
@@ -113,7 +122,10 @@ void main() {
 
       expect(tooOld.statusCode, HttpStatus.upgradeRequired);
       expect(tooOld.body['error'], 'client_too_old');
-      expect(tooOld.body['serverApiVersion'], '2.5.0');
+      expect(
+        tooOld.body['serverApiVersion'],
+        RemoteApiCompatibility.serverApiVersion.format(),
+      );
       expect(tooOld.body['minimumSupportedApiVersion'], '2.4.0');
 
       expect(tooNew.statusCode, HttpStatus.upgradeRequired);
@@ -390,6 +402,82 @@ void main() {
         await socket.close();
       }
     });
+
+    test(
+      'P2-15: collaboration.join uses authenticated identity, ignoring '
+      'a spoofed viewerId from the client payload',
+      () async {
+        final socket = await WebSocket.connect(
+          'ws://127.0.0.1:${server.actualPort}/events'
+          '?token=admin-token&apiVersion=2.5.0',
+        );
+
+        // Send a join with an obviously-spoofed viewerId. The server must
+        // override it with the authenticated principal's digest (the
+        // server's `computeServerFingerprint(admin-token)`).
+        try {
+          socket.add(jsonEncode({
+            'type': 'collaboration.join',
+            'viewerId': 'pretend-to-be-someone-else',
+            'name': 'Spoofy McSpoof',
+          }));
+
+          // Wait long enough for the upsertViewer call to propagate; the
+          // server broadcasts a `collaboration_state` frame every time
+          // viewers mutate, so we wait for that as a signal the upsert
+          // completed.
+          final stateFrameReceived = Completer<Map<String, dynamic>>();
+          final subscription = socket.listen((message) {
+            final data = jsonDecode(message as String) as Map<String, dynamic>;
+            if (data['type'] == 'collaboration_state') {
+              final state = data['state'];
+              if (state is Map<String, dynamic>) {
+                final viewers = (state['viewers'] as List?) ?? const [];
+                if (viewers
+                    .whereType<Map<String, dynamic>>()
+                    .any((v) => v['name'] == 'Spoofy McSpoof')) {
+                  if (!stateFrameReceived.isCompleted) {
+                    stateFrameReceived.complete(state);
+                  }
+                }
+              }
+            }
+          });
+
+          try {
+            await stateFrameReceived.future
+                .timeout(const Duration(seconds: 5));
+          } finally {
+            await subscription.cancel();
+          }
+
+          // Pull the post-join state off the collaboration manager and
+          // verify the slot id is NOT the spoofed value.
+          final viewers = server.collaborationManager.state.viewers;
+          final spoofy = viewers
+              .where((v) => v.name == 'Spoofy McSpoof')
+              .toList(growable: false);
+          expect(spoofy, hasLength(1),
+              reason:
+                  'collaboration.join must always upsert a slot, even when '
+                  'the payload includes a spoofed viewerId');
+          expect(
+            spoofy.single.viewerId,
+            isNot('pretend-to-be-someone-else'),
+            reason:
+                'P2-15: server MUST ignore client-supplied viewerId and use '
+                'the authenticated principal\'s digest',
+          );
+          expect(
+            spoofy.single.viewerId,
+            isNotEmpty,
+            reason: 'authenticated digest must not be empty',
+          );
+        } finally {
+          await socket.close();
+        }
+      },
+    );
   });
 }
 

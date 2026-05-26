@@ -7,28 +7,48 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../../widgets/remote_host_path_dialog.dart';
 import 'settings_widgets.dart';
 
 class CalibrationSettingsPage extends ConsumerWidget {
-  final NightshadeColors colors;
   final bool isMobile;
 
   const CalibrationSettingsPage({
     super.key,
-    required this.colors,
     this.isMobile = false,
   });
 
-  Future<void> _selectFitsFile(WidgetRef ref, _CalFileType fileType) async {
-    const fitsGroup = XTypeGroup(
-      label: 'FITS/XISF images',
-      extensions: ['fits', 'fit', 'fts', 'xisf'],
-    );
+  Future<void> _selectFitsFile(
+    BuildContext context,
+    WidgetRef ref,
+    _CalFileType fileType,
+  ) async {
+    final calSettings = ref.read(calibrationSettingsProvider);
+    final isRemote = ref.read(isRemoteModeProvider);
+    String? filePath;
 
-    final result = await openFile(acceptedTypeGroups: [fitsGroup]);
-    if (result == null) return;
+    if (isRemote) {
+      final initialPath = switch (fileType) {
+        _CalFileType.flat => calSettings.masterFlatPath,
+        _CalFileType.bias => calSettings.masterBiasPath,
+        _CalFileType.dark => calSettings.manualDarkPath,
+      };
+      filePath = await RemoteHostPathDialog.show(
+        context,
+        title: 'Master frame on host',
+        initialPath: initialPath,
+      );
+    } else {
+      const fitsGroup = XTypeGroup(
+        label: 'FITS/XISF images',
+        extensions: ['fits', 'fit', 'fts', 'xisf'],
+      );
+      final result = await openFile(acceptedTypeGroups: [fitsGroup]);
+      filePath = result?.path;
+    }
 
-    final filePath = result.path;
+    if (filePath == null || filePath.isEmpty) return;
+
     final notifier = ref.read(calibrationSettingsProvider.notifier);
 
     switch (fileType) {
@@ -43,20 +63,19 @@ class CalibrationSettingsPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final calSettings = ref.watch(calibrationSettingsProvider);
     final darkLibraryStats = ref.watch(darkLibraryStatsProvider);
 
     return SettingsPage(
       title: 'Calibration',
       description: 'Configure automatic image calibration pipeline',
-      colors: colors,
       isMobile: isMobile,
       hideHeader: isMobile,
       children: [
         // Auto-calibrate toggle
         SettingsSection(
           title: 'Auto-Calibration',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -64,15 +83,14 @@ class CalibrationSettingsPage extends ConsumerWidget {
               title: 'Auto-calibrate light frames',
               subtitle:
                   'Apply dark, flat, and bias correction to captured images automatically',
-              trailing: Switch(
+              trailing: SettingsSwitch(
                 value: calSettings.autoCalibrate,
-                onChanged: (value) {
+                  onChanged: (value) {
                   ref
                       .read(calibrationSettingsProvider.notifier)
                       .setAutoCalibrate(value);
                 },
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
           ],
@@ -83,7 +101,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
         // Calibration frame status overview
         SettingsSection(
           title: 'Calibration Frame Status',
-          colors: colors,
           isMobile: isMobile,
           children: [
             Padding(
@@ -95,7 +112,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     available: _isDarkAvailable(calSettings, darkLibraryStats),
                     detail: _darkDetail(calSettings, darkLibraryStats),
                     icon: LucideIcons.moon,
-                    colors: colors,
                   ),
                   const SizedBox(width: 12),
                   _CalStatusCard(
@@ -107,7 +123,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
                         ? _fileName(calSettings.masterFlatPath!)
                         : 'Not set',
                     icon: LucideIcons.sun,
-                    colors: colors,
                   ),
                   const SizedBox(width: 12),
                   _CalStatusCard(
@@ -119,7 +134,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
                         ? _fileName(calSettings.masterBiasPath!)
                         : 'Not set',
                     icon: LucideIcons.zap,
-                    colors: colors,
                   ),
                 ],
               ),
@@ -132,7 +146,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
         // Dark frame source
         SettingsSection(
           title: 'Dark Frame',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -140,15 +153,14 @@ class CalibrationSettingsPage extends ConsumerWidget {
               title: 'Auto-match from dark library',
               subtitle:
                   'Find the best matching dark frame based on exposure parameters',
-              trailing: Switch(
+              trailing: SettingsSwitch(
                 value: calSettings.autoDarkFromLibrary,
-                onChanged: (value) {
+                  onChanged: (value) {
                   ref
                       .read(calibrationSettingsProvider.notifier)
                       .setAutoDarkFromLibrary(value);
                 },
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             if (!calSettings.autoDarkFromLibrary)
@@ -178,7 +190,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                       ),
                     const SizedBox(width: 8),
                     NightshadeButton(
-                      onPressed: () => _selectFitsFile(ref, _CalFileType.dark),
+                      onPressed: () =>
+                          _selectFitsFile(context, ref, _CalFileType.dark),
                       icon: LucideIcons.folderOpen,
                       label: 'Browse',
                       variant: ButtonVariant.outline,
@@ -186,7 +199,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     ),
                   ],
                 ),
-                colors: colors,
                 isMobile: isMobile,
               ),
           ],
@@ -197,7 +209,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
         // Master flat
         SettingsSection(
           title: 'Master Flat',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -225,7 +236,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     ),
                   const SizedBox(width: 8),
                   NightshadeButton(
-                    onPressed: () => _selectFitsFile(ref, _CalFileType.flat),
+                    onPressed: () =>
+                        _selectFitsFile(context, ref, _CalFileType.flat),
                     icon: LucideIcons.folderOpen,
                     label: 'Browse',
                     variant: ButtonVariant.outline,
@@ -233,14 +245,12 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             if (calSettings.masterFlatPath != null &&
                 calSettings.masterFlatPath!.isNotEmpty)
               _FileValidationRow(
                 filePath: calSettings.masterFlatPath!,
-                colors: colors,
               ),
           ],
         ),
@@ -250,7 +260,6 @@ class CalibrationSettingsPage extends ConsumerWidget {
         // Master bias
         SettingsSection(
           title: 'Master Bias',
-          colors: colors,
           isMobile: isMobile,
           children: [
             SettingRow(
@@ -278,7 +287,8 @@ class CalibrationSettingsPage extends ConsumerWidget {
                     ),
                   const SizedBox(width: 8),
                   NightshadeButton(
-                    onPressed: () => _selectFitsFile(ref, _CalFileType.bias),
+                    onPressed: () =>
+                        _selectFitsFile(context, ref, _CalFileType.bias),
                     icon: LucideIcons.folderOpen,
                     label: 'Browse',
                     variant: ButtonVariant.outline,
@@ -286,14 +296,12 @@ class CalibrationSettingsPage extends ConsumerWidget {
                   ),
                 ],
               ),
-              colors: colors,
               isMobile: isMobile,
             ),
             if (calSettings.masterBiasPath != null &&
                 calSettings.masterBiasPath!.isNotEmpty)
               _FileValidationRow(
                 filePath: calSettings.masterBiasPath!,
-                colors: colors,
               ),
           ],
         ),
@@ -359,32 +367,30 @@ class _CalStatusCard extends StatelessWidget {
   final bool available;
   final String detail;
   final IconData icon;
-  final NightshadeColors colors;
 
   const _CalStatusCard({
     required this.label,
     required this.available,
     required this.detail,
     required this.icon,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Expanded(
       child: Container(
         padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: available
-              ? colors.success.withValues(alpha: 0.08)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: available
-                ? colors.success.withValues(alpha: 0.3)
-                : colors.border,
-          ),
-        ),
+        decoration: available
+            ? NightshadeDecorations.emphasisSurface(
+                colors.success,
+                borderRadius: BorderRadius.circular(8),
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: colors.border),
+              ),
         child: Column(
           children: [
             Icon(
@@ -432,17 +438,37 @@ class _CalStatusCard extends StatelessWidget {
 }
 
 /// Row that validates whether a calibration file exists on disk.
-class _FileValidationRow extends StatelessWidget {
+class _FileValidationRow extends ConsumerWidget {
   final String filePath;
-  final NightshadeColors colors;
 
   const _FileValidationRow({
     required this.filePath,
-    required this.colors,
-  });
+    });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
+    if (ref.watch(isRemoteModeProvider)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        child: Row(
+          children: [
+            Icon(LucideIcons.server, size: 14, color: colors.textSecondary),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Path is validated on the imaging host when calibrating',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: colors.textSecondary,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     return FutureBuilder<bool>(
       future: File(filePath).exists(),
       builder: (context, snapshot) {

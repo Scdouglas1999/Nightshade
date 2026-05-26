@@ -64,6 +64,7 @@ SchedulerCandidate _candidate({
   List<int> capturedCounts = const [],
   List<String> availableFilters = const ['L', 'R', 'G', 'B'],
   List<TargetConstraint> constraints = const [],
+  bool isMosaicTarget = false,
 }) {
   return SchedulerCandidate(
     targetId: id,
@@ -76,6 +77,7 @@ SchedulerCandidate _candidate({
     constraints: constraints,
     horizonProfiles: const {},
     availableFilters: availableFilters,
+    isMosaicTarget: isMosaicTarget,
   );
 }
 
@@ -276,6 +278,46 @@ void main() {
       expect(engine.lastDecision!.isSwitch, isTrue);
       await engine.dispose();
     });
+
+    test('switches when user priority alone clears hysteresis', () async {
+      final sink = _RecordingSink();
+      var preferB = false;
+
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => <SchedulerCandidate>[
+          _candidate(
+            id: 100,
+            name: 'A',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 0 : 5,
+          ),
+          _candidate(
+            id: 200,
+            name: 'B',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            userPriority: preferB ? 10 : 5,
+          ),
+        ],
+        clock: _fixedNow,
+      );
+
+      await engine.start();
+      expect(engine.lastDecision!.chosenTargetId, 100);
+
+      preferB = true;
+      await engine.evaluateNow();
+
+      expect(engine.lastDecision!.chosenTargetId, 200,
+          reason: 'a max-priority challenger should be able to override '
+              'hysteresis even when sky geometry is tied');
+      expect(engine.lastDecision!.isSwitch, isTrue);
+      await engine.dispose();
+    });
+
   });
 
   group('SchedulerEngine - integration goals', () {
@@ -333,6 +375,110 @@ void main() {
           reason: 'should request the remaining frames for the chosen filter');
       await engine.dispose();
     });
+  });
+
+  group('SchedulerEngine - mosaic candidates', () {
+    test('dispatches one mosaic panel target per scheduler tick', () async {
+      final sink = _RecordingSink();
+      final now = DateTime.utc(2026, 5, 11, 4, 0);
+      final goal = IntegrationGoal(
+        targetId: 42,
+        filter: 'L',
+        exposureSeconds: 120.0,
+        frameCount: 6,
+        priority: 5,
+        createdAt: now,
+      );
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [
+          _candidate(
+            id: 42,
+            name: 'Andromeda Mosaic Panel 3/9',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            goals: [goal],
+            capturedCounts: const [2],
+            isMosaicTarget: true,
+          ),
+        ],
+        clock: () => now,
+      );
+
+      await engine.start();
+
+      expect(sink.dispatched.length, 1);
+      final sequence = sink.dispatched.single;
+      expect(sequence.name, contains('Andromeda Mosaic Panel 3/9'));
+      final target = sequence.targetHeaders.single;
+      expect(target.targetName, 'Andromeda Mosaic Panel 3/9');
+      final exposure = sequence.nodes.values.whereType<ExposureNode>().single;
+      expect(exposure.filter, 'L');
+      expect(exposure.durationSecs, 120.0);
+      expect(exposure.count, 4,
+          reason: 'one scheduler tick should capture the remaining frames '
+              'for the selected mosaic panel/filter');
+      await engine.dispose();
+    });
+
+    test('builds all pending filter rows for a selected mosaic panel',
+        () async {
+      final sink = _RecordingSink();
+      final now = DateTime.utc(2026, 5, 11, 4, 0);
+      final goals = [
+        IntegrationGoal(
+          targetId: 42,
+          filter: 'L',
+          exposureSeconds: 120.0,
+          frameCount: 6,
+          priority: 8,
+          createdAt: now,
+        ),
+        IntegrationGoal(
+          targetId: 42,
+          filter: 'R',
+          exposureSeconds: 180.0,
+          frameCount: 4,
+          priority: 5,
+          createdAt: now,
+        ),
+        IntegrationGoal(
+          targetId: 42,
+          filter: 'G',
+          exposureSeconds: 180.0,
+          frameCount: 4,
+          priority: 5,
+          createdAt: now,
+        ),
+      ];
+      final engine = SchedulerEngine(
+        site: _site,
+        sequenceSink: sink,
+        candidateLoader: () async => [
+          _candidate(
+            id: 42,
+            name: 'Andromeda Mosaic Panel 3/9',
+            raHours: 14.0,
+            decDegrees: 30.0,
+            goals: goals,
+            capturedCounts: const [5, 1, 0],
+            isMosaicTarget: true,
+          ),
+        ],
+        clock: () => now,
+      );
+
+      await engine.start();
+
+      final exposures =
+          sink.dispatched.single.nodes.values.whereType<ExposureNode>().toList();
+      expect(exposures.map((e) => e.filter), ['G', 'R', 'L']);
+      expect(exposures.map((e) => e.count), [4, 3, 1]);
+      expect(exposures.map((e) => e.durationSecs), [180.0, 180.0, 120.0]);
+      await engine.dispose();
+    });
+
   });
 
   group('SchedulerEngine - requestReevaluation debounce', () {

@@ -37,6 +37,43 @@ class DefectMapService {
     );
   }
 
+  /// Push the active defect map (or clear it) into the running
+  /// sequencer.
+  ///
+  /// This is the "wire it up" call: persisting the preference via
+  /// [apply] is not enough — the sequencer reads its live
+  /// `defect_map_apply` state via a separate channel so the per-frame
+  /// capture path can apply the correction without per-frame disk
+  /// I/O. The Dart side calls this whenever the user toggles
+  /// apply-during-capture, changes the kernel / method / save-original
+  /// flag, or the connected camera changes.
+  ///
+  /// When `enabled = false` the bridge pushes `None` to the sequencer
+  /// (defect correction disabled). When `enabled = true` the bridge
+  /// loads the `.ndm` file from disk, validates the kernel/method,
+  /// and pushes the pre-loaded map state.
+  Future<void> applyToSequencer({
+    required String cameraId,
+    required int width,
+    required int height,
+    required double sensorTemperatureCelsius,
+    required bool enabled,
+    required DefectMapMethod method,
+    required DefectMapKernelSize kernel,
+    required bool saveOriginal,
+  }) {
+    return bridge.apiSequencerApplyDefectMap(
+      cameraId: cameraId,
+      width: width,
+      height: height,
+      sensorTemperatureCelsius: sensorTemperatureCelsius,
+      enabled: enabled,
+      method: method.wireValue,
+      kernelDiameter: kernel.diameter,
+      saveOriginal: saveOriginal,
+    );
+  }
+
   /// Remove the stored defect map for `cameraId` at the sensor size and
   /// temperature bucket implied by the inputs, and reset the apply flag.
   Future<void> clear({

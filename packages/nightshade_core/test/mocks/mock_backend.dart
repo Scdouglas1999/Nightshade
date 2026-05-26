@@ -10,6 +10,11 @@ class MockBackend extends Mock implements NightshadeBackend {}
 
 /// Test fixtures and helper data for common test scenarios
 class TestFixtures {
+  // DEV-P1-7: every device id passes `isValidDeviceIdFormat` so the
+  // connect-precondition format check accepts these in unit tests. Using
+  // the `simulator:` prefix keeps the fixtures recognisable as test data
+  // while still matching one of the known driver-prefix conventions.
+
   /// Default camera device ID
   static const String cameraId = 'simulator:test-camera-1';
 
@@ -30,6 +35,9 @@ class TestFixtures {
 
   /// Default safety monitor device ID
   static const String safetyMonitorId = 'simulator:test-safety-1';
+
+  /// Default switch device ID (DEV-P2-1)
+  static const String switchId = 'simulator:test-switch-1';
 
   /// Sample image statistics
   static const ImageStats sampleImageStats = ImageStats(
@@ -108,8 +116,7 @@ class TestFixtures {
 
     // Setup default event stream (empty stream)
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -123,8 +130,7 @@ class TestFixtures {
         .thenThrow(Exception('Failed to connect to device'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }
@@ -138,8 +144,7 @@ class TestFixtures {
         .thenThrow(Exception('Connection timeout'));
 
     when(() => backend.eventStream).thenAnswer((_) => const Stream.empty());
-    when(() => backend.polarAlignmentEvents)
-        .thenAnswer((_) => const Stream.empty());
+    when(() => backend.polarAlignmentEvents).thenAnswer((_) => const Stream.empty());
 
     return backend;
   }

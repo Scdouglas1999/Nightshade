@@ -45,7 +45,7 @@ class ProfileSidebar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final profiles = ref.watch(sortedProfilesProvider);
 
     // Watch device connection states

@@ -928,6 +928,10 @@ mod fake_sdk_contract {
         let cameras = zwo::discover_devices().await.expect("camera discovery");
         assert_eq!(cameras.len(), 1);
         assert_eq!(cameras[0].name, "Nightshade Fake ASI2600MM Pro");
+        assert_eq!(
+            cameras[0].sdk_version.as_deref(),
+            Some("ZWO ASI SDK vfake-asi-1.0")
+        );
 
         let mut camera = zwo::ZwoCamera::new(cameras[0].camera_id);
         camera.connect().await.expect("camera connect");
@@ -966,6 +970,10 @@ mod fake_sdk_contract {
 
         let focusers = zwo::discover_focusers().await.expect("focuser discovery");
         assert_eq!(focusers.len(), 1);
+        assert_eq!(
+            focusers[0].sdk_version.as_deref(),
+            Some("ZWO EAF SDK vfake-eaf-1.0")
+        );
         let mut focuser = zwo::ZwoFocuser::new(focusers[0].focuser_id);
         focuser.connect().await.expect("focuser connect");
         assert_eq!(focuser.get_max_position(), 60_000);
@@ -986,6 +994,10 @@ mod fake_sdk_contract {
             .await
             .expect("filter wheel discovery");
         assert_eq!(wheels.len(), 1);
+        assert_eq!(
+            wheels[0].sdk_version.as_deref(),
+            Some("ZWO EFW SDK vfake-efw-1.0")
+        );
         let mut wheel = zwo::ZwoFilterWheel::new(wheels[0].filterwheel_id);
         wheel.connect().await.expect("filter wheel connect");
         assert_eq!(wheel.get_filter_count(), 7);
@@ -1010,6 +1022,7 @@ mod fake_sdk_contract {
         let devices = atik::discover_devices().await.expect("Atik discovery");
         assert_eq!(devices.len(), 1);
         assert_eq!(devices[0].name, "Nightshade Fake Atik Horizon II");
+        assert_eq!(devices[0].sdk_version.as_deref(), Some("Atik SDK v66000"));
 
         let mut camera = atik::AtikCamera::new(devices[0].device_index);
         camera.connect().await.expect("Atik connect");
@@ -1049,6 +1062,25 @@ mod fake_sdk_contract {
         camera.abort_exposure().await.expect("Atik abort");
         camera.disconnect().await.expect("Atik disconnect");
 
+        let wheels = atik::discover_filter_wheels()
+            .await
+            .expect("Atik EFW discovery");
+        assert_eq!(wheels.len(), 1);
+        assert_eq!(wheels[0].name, "Atik EFW2/EFW3");
+        assert_eq!(wheels[0].sdk_version.as_deref(), Some("Atik SDK v66000"));
+        assert_eq!(
+            wheels[0].serial_number.as_deref(),
+            Some("ATIK-EFW-FAKE-0001")
+        );
+
+        let mut wheel = atik::AtikFilterWheel::new(wheels[0].device_index);
+        wheel.connect().await.expect("Atik EFW connect");
+        assert_eq!(wheel.get_filter_count(), 7);
+        wheel.move_to_position(4).await.expect("Atik EFW move");
+        assert_eq!(wheel.get_position().await.expect("Atik EFW position"), 4);
+        assert!(!wheel.is_moving().await.expect("Atik EFW moving"));
+        wheel.disconnect().await.expect("Atik EFW disconnect");
+
         env::set_current_dir(old_dir).expect("restore current dir");
         env::set_var("PATH", old_path);
     }
@@ -1070,6 +1102,10 @@ mod fake_sdk_contract {
         let devices = svbony::discover_devices().await.expect("SVBONY discovery");
         assert_eq!(devices.len(), 1);
         assert_eq!(devices[0].name, "Fake SV605CC");
+        assert_eq!(
+            devices[0].sdk_version.as_deref(),
+            Some("SVBony SDK vfake-svbony-1.0")
+        );
 
         let mut camera = svbony::SvbonyCamera::new(devices[0].camera_id);
         camera.connect().await.expect("SVBONY connect");
@@ -1094,6 +1130,11 @@ mod fake_sdk_contract {
             })
             .await
             .expect("SVBONY start exposure");
+        assert_eq!(camera.get_gain().await.expect("SVBONY read gain"), 44);
+        assert_eq!(camera.get_offset().await.expect("SVBONY read offset"), 7);
+        let status = camera.get_status().await.expect("SVBONY status");
+        assert_eq!(status.gain, 44);
+        assert_eq!(status.offset, 7);
         assert!(camera
             .is_exposure_complete()
             .await
@@ -1105,6 +1146,8 @@ mod fake_sdk_contract {
         assert_eq!((image.width, image.height), (20, 15));
         assert_eq!(image.bits_per_pixel, 16);
         assert_eq!(image.data[0], 3000);
+        assert_eq!(image.metadata.gain, 44);
+        assert_eq!(image.metadata.offset, 7);
         camera.abort_exposure().await.expect("SVBONY abort");
         camera.disconnect().await.expect("SVBONY disconnect");
 
@@ -1120,6 +1163,12 @@ mod fake_sdk_contract {
             "player_one_fake.rs",
             "PlayerOneCamera.dll",
             PLAYER_ONE_FAKE_SDK,
+        );
+        compile_cdylib(
+            &shim_dir,
+            "player_one_pw_fake.rs",
+            "PlayerOnePW.dll",
+            PLAYER_ONE_PW_FAKE_SDK,
         );
         let old_dir = env::current_dir().expect("read current dir");
         let old_path = env::var("PATH").unwrap_or_default();
@@ -1138,6 +1187,14 @@ mod fake_sdk_contract {
         assert_eq!(devices.len(), 2);
         assert_eq!(devices[0].name, "Nightshade Fake Poseidon-M Pro");
         assert_eq!(devices[1].name, "Nightshade Fake Neptune-C II");
+        assert_eq!(
+            devices[0].sdk_version.as_deref(),
+            Some("Player One SDK vfake-playerone-camera-1.0")
+        );
+        assert_eq!(
+            devices[1].sdk_version.as_deref(),
+            Some("Player One SDK vfake-playerone-camera-1.0")
+        );
 
         let mut cooled = player_one::PlayerOneCamera::new(devices[0].camera_id);
         cooled.connect().await.expect("Player One cooled connect");
@@ -1216,6 +1273,7 @@ mod fake_sdk_contract {
             .expect("Player One image download");
         assert_eq!((image.width, image.height), (32, 24));
         assert_eq!(image.bits_per_pixel, 16);
+        assert_eq!(image.metadata.vendor_data.usb_bandwidth, Some(68.0));
         assert_eq!(image.data[0], 5000);
         cooled.abort_exposure().await.expect("Player One abort");
         cooled
@@ -1237,9 +1295,58 @@ mod fake_sdk_contract {
             .await
             .expect_err("uncooled Player One camera should reject cooler control");
         planetary
+            .start_exposure(ExposureParams {
+                duration_secs: 0.01,
+                gain: None,
+                offset: None,
+                bin_x: 1,
+                bin_y: 1,
+                subframe: None,
+                readout_mode: None,
+            })
+            .await
+            .expect("Player One planetary start exposure");
+        let planetary_image = planetary
+            .download_image()
+            .await
+            .expect("Player One planetary image download");
+        assert_eq!(planetary_image.bits_per_pixel, 12);
+        planetary
             .disconnect()
             .await
             .expect("Player One planetary disconnect");
+
+        let wheels = player_one::discover_filter_wheels()
+            .await
+            .expect("Player One PW discovery");
+        assert_eq!(wheels.len(), 1);
+        assert_eq!(wheels[0].name, "Nightshade Fake Phoenix Wheel");
+        assert_eq!(wheels[0].serial_number.as_deref(), Some("PW-FAKE-0001"));
+        assert_eq!(
+            wheels[0].sdk_version.as_deref(),
+            Some("Player One PW SDK vfake-playerone-pw-1.0")
+        );
+        assert_eq!(wheels[0].position_count, 7);
+
+        let mut wheel = player_one::PlayerOneFilterWheel::new(wheels[0].handle);
+        wheel.connect().await.expect("Player One PW connect");
+        assert_eq!(wheel.get_filter_count(), 7);
+        wheel.move_to_position(3).await.expect("Player One PW move");
+        assert_eq!(
+            wheel.get_position().await.expect("Player One PW position"),
+            3
+        );
+        assert!(!wheel.is_moving().await.expect("Player One PW moving"));
+        wheel
+            .set_filter_name(3, "Ha".to_string())
+            .await
+            .expect("Player One PW set alias");
+        let names = wheel
+            .get_filter_names()
+            .await
+            .expect("Player One PW filter names");
+        assert_eq!(names[3], "Ha");
+        wheel.disconnect().await.expect("Player One PW disconnect");
 
         restore_env_var("NS_POA_NOT_READY", old_not_ready);
         restore_env_var("NS_POA_START_ERROR", old_start_error);
@@ -1263,6 +1370,14 @@ mod fake_sdk_contract {
         assert_eq!(devices.len(), 2);
         assert_eq!(devices[0].name, "QHY268M");
         assert_eq!(devices[1].name, "QHY5III462C");
+        assert_eq!(
+            devices[0].sdk_version.as_deref(),
+            Some("QHY SDK v2026.05.25.1")
+        );
+        assert_eq!(
+            devices[1].sdk_version.as_deref(),
+            Some("QHY SDK v2026.05.25.1")
+        );
 
         let mut cooled = qhy::QhyCamera::new(devices[0].camera_id.clone());
         cooled.connect().await.expect("QHY cooled connect");
@@ -1322,6 +1437,7 @@ mod fake_sdk_contract {
         let image = cooled.download_image().await.expect("QHY image download");
         assert_eq!((image.width, image.height), (32, 24));
         assert_eq!(image.bits_per_pixel, 16);
+        assert_eq!(image.metadata.vendor_data.usb_bandwidth, Some(40.0));
         assert_eq!(image.data[0], 6000);
         cooled.abort_exposure().await.expect("QHY abort");
         cooled.disconnect().await.expect("QHY cooled disconnect");
@@ -1331,6 +1447,10 @@ mod fake_sdk_contract {
             .expect("QHY CFW discovery");
         assert_eq!(wheels.len(), 1);
         assert_eq!(wheels[0].slot_count, 7);
+        assert_eq!(
+            wheels[0].sdk_version.as_deref(),
+            Some("QHY SDK v2026.05.25.1")
+        );
         let mut wheel = qhy::QhyFilterWheel::new(wheels[0].camera_id.clone());
         wheel.connect().await.expect("QHY CFW connect");
         assert_eq!(wheel.get_filter_count(), 7);
@@ -1380,6 +1500,14 @@ mod fake_sdk_contract {
         assert_eq!(devices.len(), 2);
         assert_eq!(devices[0].name, "OGMA AP26CC");
         assert_eq!(devices[1].name, "OGMA GP2000M");
+        assert_eq!(
+            devices[0].sdk_version.as_deref(),
+            Some("OGMA SDK vfake-ogma-1.0")
+        );
+        assert_eq!(
+            devices[1].sdk_version.as_deref(),
+            Some("OGMA SDK vfake-ogma-1.0")
+        );
 
         let mut cooled = touptek::TouptekCamera::new(0, "OGMA");
         cooled.connect().await.expect("ToupTek cooled connect");
@@ -1389,11 +1517,13 @@ mod fake_sdk_contract {
         let sensor = cooled.get_sensor_info();
         assert_eq!((sensor.width, sensor.height), (80, 60));
         assert!(sensor.color);
+        assert_eq!(sensor.bit_depth, 12);
         cooled
             .set_cooler(true, -12.5)
             .await
             .expect("ToupTek set cooler");
         cooled.set_gain(250).await.expect("ToupTek set gain");
+        assert_eq!(cooled.get_gain().await.expect("ToupTek read gain"), 250);
         cooled
             .start_exposure(ExposureParams {
                 duration_secs: 0.01,
@@ -1406,6 +1536,8 @@ mod fake_sdk_contract {
             })
             .await
             .expect("ToupTek start exposure");
+        let status = cooled.get_status().await.expect("ToupTek status");
+        assert_eq!(status.gain, 260);
         assert!(!cooled
             .is_exposure_complete()
             .await
@@ -1423,8 +1555,9 @@ mod fake_sdk_contract {
             .await
             .expect("ToupTek image download");
         assert_eq!((image.width, image.height), (80, 60));
-        assert_eq!(image.bits_per_pixel, 16);
+        assert_eq!(image.bits_per_pixel, 12);
         assert_eq!(image.data[0], 3000);
+        assert_eq!(image.metadata.gain, 260);
         cooled
             .disconnect()
             .await
@@ -1467,6 +1600,18 @@ mod fake_sdk_contract {
         assert_eq!(cameras.len(), 1);
         assert_eq!(focusers.len(), 1);
         assert_eq!(wheels.len(), 1);
+        assert_eq!(
+            cameras[0].sdk_version.as_deref(),
+            Some("FLI libfli vfake-libfli-1.0")
+        );
+        assert_eq!(
+            focusers[0].sdk_version.as_deref(),
+            Some("FLI libfli vfake-libfli-1.0")
+        );
+        assert_eq!(
+            wheels[0].sdk_version.as_deref(),
+            Some("FLI libfli vfake-libfli-1.0")
+        );
 
         let mut camera = fli::FliCamera::new(cameras[0].device_path.clone());
         camera.connect().await.expect("FLI camera connect");
@@ -1774,6 +1919,7 @@ struct ASICameraInfo{ name:[c_char;64], camera_id:c_int, max_height:c_long, max_
 struct ASIControlCaps{ name:[c_char;64], description:[c_char;128], max_value:c_long, min_value:c_long, default_value:c_long, is_auto_supported:c_int, is_writable:c_int, control_type:c_int, unused:[c_char;32] }
 fn write_cstr(buf:&mut [c_char], text:&[u8]){ for slot in buf.iter_mut(){*slot=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;} }
 #[no_mangle] pub extern "C" fn ASIGetNumOfConnectedCameras()->c_int{1}
+#[no_mangle] pub extern "C" fn ASIGetSDKVersion()->*const c_char{b"fake-asi-1.0\0".as_ptr() as *const c_char}
 #[no_mangle] pub unsafe extern "C" fn ASIGetCameraProperty(info:*mut ASICameraInfo,index:c_int)->c_int{ if info.is_null()||index!=0{return 1;} let mut value:ASICameraInfo=std::mem::zeroed(); write_cstr(&mut value.name,b"Nightshade Fake ASI2600MM Pro"); value.camera_id=0; value.max_width=64; value.max_height=48; value.supported_bins[0]=1; value.supported_bins[1]=2; value.supported_bins[2]=4; value.supported_video_format[0]=0; value.supported_video_format[1]=2; value.supported_video_format[2]=-1; value.pixel_size=3.76; value.st4_port=1; value.is_cooler_cam=1; value.is_usb3_host=1; value.is_usb3_camera=1; value.elec_per_adu=0.8; value.bit_depth=16; *info=value; 0 }
 #[no_mangle] pub extern "C" fn ASIOpenCamera(id:c_int)->c_int{if id==0{0}else{2}}
 #[no_mangle] pub extern "C" fn ASIInitCamera(id:c_int)->c_int{if id==0{0}else{2}}
@@ -1858,12 +2004,13 @@ static GAIN:AtomicI64=AtomicI64::new(0); static OFFSET:AtomicI64=AtomicI64::new(
 fn write_cstr(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;}}
 fn fill_props(id:c_int,props:*mut POACameraProperties)->c_int{unsafe{if props.is_null(){return 4;} let mut p:POACameraProperties=std::mem::zeroed(); p.camera_id=id; p.max_width=64; p.max_height=48; p.is_usb3_speed=1; p.pixel_size=2.9; p.bins[0]=1; p.bins[1]=2; p.bins[2]=4; p.img_formats[0]=1; p.img_formats[1]=-1; p.is_support_hard_bin=1; match id{101=>{write_cstr(&mut p.camera_model_name,b"Nightshade Fake Poseidon-M Pro"); write_cstr(&mut p.sn,b"POA-COOLED-0001"); write_cstr(&mut p.sensor_model_name,b"IMX571"); p.bit_depth=16; p.is_color_camera=0; p.is_has_st4_port=1; p.is_has_cooler=1; p.bayer_pattern=-1; p.p_id=101;} 202=>{write_cstr(&mut p.camera_model_name,b"Nightshade Fake Neptune-C II"); write_cstr(&mut p.sn,b"POA-GUIDE-0002"); write_cstr(&mut p.sensor_model_name,b"IMX464"); p.bit_depth=12; p.is_color_camera=1; p.is_has_st4_port=0; p.is_has_cooler=0; p.bayer_pattern=1; p.p_id=202;} _=>return 1} *props=p; 0}}
 #[no_mangle] pub extern "C" fn POAGetCameraCount()->c_int{2}
+#[no_mangle] pub extern "C" fn POAGetSDKVersion()->*const c_char{b"fake-playerone-camera-1.0\0".as_ptr() as *const c_char}
 #[no_mangle] pub extern "C" fn POAGetCameraProperties(index:c_int,props:*mut POACameraProperties)->c_int{match index{0=>fill_props(101,props),1=>fill_props(202,props),_=>1}}
 #[no_mangle] pub extern "C" fn POAGetCameraPropertiesByID(id:c_int,props:*mut POACameraProperties)->c_int{fill_props(id,props)}
 #[no_mangle] pub extern "C" fn POAOpenCamera(id:c_int)->c_int{if id==101||id==202{CURRENT_ID.store(id,Ordering::SeqCst); 0}else{1}}
 #[no_mangle] pub extern "C" fn POAInitCamera(_id:c_int)->c_int{0}
 #[no_mangle] pub extern "C" fn POACloseCamera(_id:c_int)->c_int{0}
-#[no_mangle] pub unsafe extern "C" fn POAGetConfig(_id:c_int,control:c_int,value:*mut POAConfigValue,is_auto:*mut c_int)->c_int{if value.is_null()||is_auto.is_null(){return 4;} *is_auto=0; match control{1=>(*value).int_value=GAIN.load(Ordering::SeqCst) as c_long,3=>(*value).float_value=-9.5,7=>(*value).int_value=OFFSET.load(Ordering::SeqCst) as c_long,12=>(*value).int_value=40,16=>(*value).int_value=38,17=>(*value).int_value=TARGET_TEMP.load(Ordering::SeqCst) as c_long,18=>(*value).bool_value=COOLER.load(Ordering::SeqCst) as c_int,20=>(*value).int_value=20,21=>(*value).int_value=55,_=>(*value).int_value=0}; 0}
+#[no_mangle] pub unsafe extern "C" fn POAGetConfig(_id:c_int,control:c_int,value:*mut POAConfigValue,is_auto:*mut c_int)->c_int{if value.is_null()||is_auto.is_null(){return 4;} *is_auto=0; match control{1=>(*value).int_value=GAIN.load(Ordering::SeqCst) as c_long,3=>(*value).float_value=-9.5,7=>(*value).int_value=OFFSET.load(Ordering::SeqCst) as c_long,12=>(*value).int_value=40,16=>(*value).int_value=38,17=>(*value).int_value=TARGET_TEMP.load(Ordering::SeqCst) as c_long,18=>(*value).bool_value=COOLER.load(Ordering::SeqCst) as c_int,20=>(*value).int_value=20,21=>(*value).int_value=55,28=>(*value).int_value=68,_=>(*value).int_value=0}; 0}
 #[no_mangle] pub unsafe extern "C" fn POASetConfig(_id:c_int,control:c_int,value:POAConfigValue,_is_auto:c_int)->c_int{match control{0=>{},1=>GAIN.store(value.int_value as i64,Ordering::SeqCst),7=>OFFSET.store(value.int_value as i64,Ordering::SeqCst),17=>TARGET_TEMP.store(value.int_value as i64,Ordering::SeqCst),18=>COOLER.store(value.bool_value as i64,Ordering::SeqCst),_=>{}} 0}
 #[no_mangle] pub extern "C" fn POASetImageBin(_id:c_int,bin:c_int)->c_int{if bin<=0||bin>4{return 7;} BIN.store(bin,Ordering::SeqCst); 0}
 #[no_mangle] pub extern "C" fn POASetImageSize(_id:c_int,width:c_int,height:c_int)->c_int{if width<=0||height<=0{return 4;} WIDTH.store(width,Ordering::SeqCst); HEIGHT.store(height,Ordering::SeqCst); 0}
@@ -1877,6 +2024,30 @@ fn fill_props(id:c_int,props:*mut POACameraProperties)->c_int{unsafe{if props.is
 #[no_mangle] pub unsafe extern "C" fn POAImageReady(_id:c_int,ready:*mut c_int)->c_int{if ready.is_null(){return 4;} *ready=if std::env::var("NS_POA_NOT_READY").is_ok(){0}else{1}; 0}
 "#;
 
+    const PLAYER_ONE_PW_FAKE_SDK: &str = r#"
+#![allow(non_snake_case)]
+use std::ffi::{c_char,c_int};
+use std::sync::atomic::{AtomicI32,Ordering};
+static POSITION:AtomicI32=AtomicI32::new(0);
+static mut ALIASES:[[c_char;24];7]=[[0;24];7];
+#[repr(C)] struct PWProperties{name:[c_char;64],handle:c_int,position_count:c_int,sn:[c_char;32],reserved:[c_char;32]}
+#[repr(C)] enum PWState{Closed=0,Opened=1,Moving=2}
+fn write_cstr(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for i in 0..text.len().min(buf.len().saturating_sub(1)){buf[i]=text[i] as c_char;}}
+unsafe fn put(buf:*mut c_char,len:usize,text:&[u8]){if buf.is_null(){return;} for i in 0..len{*buf.add(i)=0;} for i in 0..text.len().min(len.saturating_sub(1)){*buf.add(i)=text[i] as c_char;}}
+#[no_mangle] pub extern "C" fn POAGetPWCount()->c_int{1}
+#[no_mangle] pub extern "C" fn POAGetPWSDKVer()->*const c_char{b"fake-playerone-pw-1.0\0".as_ptr() as *const c_char}
+#[no_mangle] pub unsafe extern "C" fn POAGetPWProperties(index:c_int,prop:*mut PWProperties)->c_int{if index!=0{return 1;} fill_prop(prop)}
+#[no_mangle] pub unsafe extern "C" fn POAGetPWPropertiesByHandle(handle:c_int,prop:*mut PWProperties)->c_int{if handle!=77{return 2;} fill_prop(prop)}
+unsafe fn fill_prop(prop:*mut PWProperties)->c_int{if prop.is_null(){return 7;} let mut p:PWProperties=std::mem::zeroed(); write_cstr(&mut p.name,b"Nightshade Fake Phoenix Wheel"); p.handle=77; p.position_count=7; write_cstr(&mut p.sn,b"PW-FAKE-0001"); *prop=p; 0}
+#[no_mangle] pub extern "C" fn POAOpenPW(handle:c_int)->c_int{if handle==77{0}else{2}}
+#[no_mangle] pub extern "C" fn POAClosePW(handle:c_int)->c_int{if handle==77{0}else{2}}
+#[no_mangle] pub unsafe extern "C" fn POAGetCurrentPosition(handle:c_int,pos:*mut c_int)->c_int{if handle!=77{return 2;} if pos.is_null(){return 7;} *pos=POSITION.load(Ordering::SeqCst); 0}
+#[no_mangle] pub extern "C" fn POAGotoPosition(handle:c_int,pos:c_int)->c_int{if handle!=77{return 2;} if pos<0||pos>=7{return 3;} POSITION.store(pos,Ordering::SeqCst); 0}
+#[no_mangle] pub unsafe extern "C" fn POAGetPWState(handle:c_int,state:*mut PWState)->c_int{if handle!=77{return 2;} if state.is_null(){return 7;} *state=PWState::Opened; 0}
+#[no_mangle] pub unsafe extern "C" fn POAGetPWFilterAlias(handle:c_int,pos:c_int,buf:*mut c_char,len:c_int)->c_int{if handle!=77{return 2;} if pos<0||pos>=7{return 3;} if buf.is_null(){return 7;} let alias=ALIASES[pos as usize]; if alias[0]==0{let text=format!("Filter {}",pos+1); put(buf,len as usize,text.as_bytes());}else{for i in 0..(len as usize).min(24){*buf.add(i)=alias[i];}} 0}
+#[no_mangle] pub unsafe extern "C" fn POASetPWFilterAlias(handle:c_int,pos:c_int,name:*const c_char)->c_int{if handle!=77{return 2;} if pos<0||pos>=7{return 3;} if name.is_null(){return 7;} for i in 0..24{ALIASES[pos as usize][i]=0;} for i in 0..23{let ch=*name.add(i); ALIASES[pos as usize][i]=ch; if ch==0{break;}} 0}
+"#;
+
     const QHY_FAKE_SDK: &str = r#"
 #![allow(non_snake_case)]
 use std::ffi::{c_char,c_double,c_int,c_uint,c_void,CStr};
@@ -1888,6 +2059,7 @@ unsafe fn write_cstr(buf:*mut c_char,text:&[u8]){for i in 0..256{*buf.add(i)=0;}
 #[no_mangle] pub extern "C" fn InitQHYCCDResource()->c_uint{0}
 #[no_mangle] pub extern "C" fn ReleaseQHYCCDResource()->c_uint{0}
 #[no_mangle] pub extern "C" fn ScanQHYCCD()->c_uint{2}
+#[no_mangle] pub unsafe extern "C" fn GetQHYCCDSDKVersion(year:*mut c_uint,month:*mut c_uint,day:*mut c_uint,subday:*mut c_uint)->c_uint{if !year.is_null(){*year=2026;} if !month.is_null(){*month=5;} if !day.is_null(){*day=25;} if !subday.is_null(){*subday=1;} 0}
 #[no_mangle] pub unsafe extern "C" fn GetQHYCCDId(index:c_uint,id:*mut c_char)->c_uint{if id.is_null(){return 1;} match index{0=>write_cstr(id,b"QHY268M-FAKE0001"),1=>write_cstr(id,b"QHY5III462C-FAKE0002"),_=>return 1} 0}
 #[no_mangle] pub unsafe extern "C" fn OpenQHYCCD(id:*const c_char)->*mut c_void{if id.is_null(){return std::ptr::null_mut();} let s=CStr::from_ptr(id).to_string_lossy(); if s.contains("QHY5III"){CAMERA_KIND.store(2,Ordering::SeqCst); WIDTH.store(48,Ordering::SeqCst); HEIGHT.store(32,Ordering::SeqCst);}else{CAMERA_KIND.store(1,Ordering::SeqCst); WIDTH.store(64,Ordering::SeqCst); HEIGHT.store(48,Ordering::SeqCst);} 1usize as *mut c_void}
 #[no_mangle] pub extern "C" fn CloseQHYCCD(_handle:*mut c_void)->c_uint{0}
@@ -1917,7 +2089,7 @@ unsafe fn write_cstr(buf:*mut c_char,text:&[u8]){for i in 0..256{*buf.add(i)=0;}
 #![allow(non_snake_case)]
 use std::ffi::{c_char,c_float,c_int,c_void};
 use std::sync::atomic::{AtomicI32,Ordering};
-static GAIN:AtomicI32=AtomicI32::new(0); static OFFSET:AtomicI32=AtomicI32::new(0); static BIN_X:AtomicI32=AtomicI32::new(1); static BIN_Y:AtomicI32=AtomicI32::new(1); static SETPOINT:AtomicI32=AtomicI32::new(-1000);
+static GAIN:AtomicI32=AtomicI32::new(0); static OFFSET:AtomicI32=AtomicI32::new(0); static BIN_X:AtomicI32=AtomicI32::new(1); static BIN_Y:AtomicI32=AtomicI32::new(1); static SETPOINT:AtomicI32=AtomicI32::new(-1000); static FILTER_POS:AtomicI32=AtomicI32::new(0);
 static mut IMAGE:[u8;384]=[0;384];
 #[repr(C)] struct ArtemisProperties{protocol:c_int,pixels_x:c_int,pixels_y:c_int,pixel_microns_x:c_float,pixel_microns_y:c_float,ccd_flags:c_int,camera_flags:c_int,description:[c_char;40],manufacturer:[c_char;40]}
 fn write_cstr(buf:*mut c_char,text:&[u8]){unsafe{for i in 0..100{*buf.add(i)=0;} for i in 0..text.len(){*buf.add(i)=text[i] as c_char;}}}
@@ -1950,6 +2122,14 @@ fn write_fixed(buf:&mut [c_char],text:&[u8]){for b in buf.iter_mut(){*b=0;} for 
 #[no_mangle] pub extern "C" fn ArtemisAPIVersion()->c_int{66000}
 #[no_mangle] pub extern "C" fn ArtemisSetDarkMode(_handle:*mut c_void,_enable:c_int)->c_int{0}
 #[no_mangle] pub extern "C" fn ArtemisEightBitMode(_handle:*mut c_void,_eightbit:c_int)->c_int{0}
+#[no_mangle] pub extern "C" fn ArtemisEFWIsPresent(device:c_int)->c_int{if device==0{1}else{0}}
+#[no_mangle] pub unsafe extern "C" fn ArtemisEFWGetDeviceDetails(device:c_int,efw_type:*mut c_int,serial:*mut c_char)->c_int{if device!=0{return 1;} if !efw_type.is_null(){*efw_type=2;} if !serial.is_null(){write_cstr(serial,b"ATIK-EFW-FAKE-0001");} 0}
+#[no_mangle] pub extern "C" fn ArtemisEFWConnect(device:c_int)->*mut c_void{if device==0{2usize as *mut c_void}else{std::ptr::null_mut()}}
+#[no_mangle] pub extern "C" fn ArtemisEFWIsConnected(handle:*mut c_void)->bool{!handle.is_null()}
+#[no_mangle] pub extern "C" fn ArtemisEFWDisconnect(_handle:*mut c_void)->c_int{0}
+#[no_mangle] pub unsafe extern "C" fn ArtemisEFWNmrPosition(_handle:*mut c_void,count:*mut c_int)->c_int{if !count.is_null(){*count=7;} 0}
+#[no_mangle] pub extern "C" fn ArtemisEFWSetPosition(_handle:*mut c_void,pos:c_int)->c_int{FILTER_POS.store(pos,Ordering::SeqCst);0}
+#[no_mangle] pub unsafe extern "C" fn ArtemisEFWGetPosition(_handle:*mut c_void,pos:*mut c_int,is_moving:*mut bool)->c_int{if !pos.is_null(){*pos=FILTER_POS.load(Ordering::SeqCst);} if !is_moving.is_null(){*is_moving=false;} 0}
 "#;
 
     const SVBONY_FAKE_SDK: &str = r#"
@@ -1997,13 +2177,16 @@ fn model(index:usize)->*const OgmacamModelV2{let mut res:[OgmacamResolution;16]=
 #[no_mangle] pub extern "C" fn Ogmacam_OpenByIndex(index:c_uint)->*mut c_void{if index>1{return std::ptr::null_mut();} ACTIVE_INDEX.store(index as usize,Ordering::SeqCst); if index==0{WIDTH.store(80,Ordering::SeqCst); HEIGHT.store(60,Ordering::SeqCst);}else{WIDTH.store(40,Ordering::SeqCst); HEIGHT.store(30,Ordering::SeqCst);} (index as usize + 1) as *mut c_void}
 #[no_mangle] pub extern "C" fn Ogmacam_Close(_h:*mut c_void){}
 #[no_mangle] pub extern "C" fn Ogmacam_Stop(_h:*mut c_void)->c_int{0}
+#[no_mangle] pub extern "C" fn Ogmacam_Version()->*const c_char{b"fake-ogma-1.0\0".as_ptr() as *const c_char}
 #[no_mangle] pub extern "C" fn Ogmacam_Snap(_h:*mut c_void,_res:c_uint)->c_int{0}
 #[no_mangle] pub extern "C" fn Ogmacam_put_ExpoTime(_h:*mut c_void,_us:c_uint)->c_int{0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_ExpoAGain(_h:*mut c_void,gain:*mut u16)->c_int{if gain.is_null(){return -1;} *gain=GAIN.load(Ordering::SeqCst) as u16; 0}
 #[no_mangle] pub extern "C" fn Ogmacam_put_ExpoAGain(_h:*mut c_void,gain:u16)->c_int{GAIN.store(gain as i32,Ordering::SeqCst);0}
 #[no_mangle] pub unsafe extern "C" fn Ogmacam_get_ExpoAGainRange(_h:*mut c_void,min:*mut u16,max:*mut u16,def:*mut u16)->c_int{if !min.is_null(){*min=100;} if !max.is_null(){*max=5000;} if !def.is_null(){*def=150;} 0}
 #[no_mangle] pub unsafe extern "C" fn Ogmacam_get_Temperature(_h:*mut c_void,temp:*mut i16)->c_int{if !temp.is_null(){*temp=TEMP.load(Ordering::SeqCst) as i16;} 0}
 #[no_mangle] pub extern "C" fn Ogmacam_put_Temperature(_h:*mut c_void,temp:i16)->c_int{TEMP.store(temp as i32,Ordering::SeqCst);0}
 #[no_mangle] pub extern "C" fn Ogmacam_put_Option(_h:*mut c_void,_opt:c_uint,_value:c_int)->c_int{0}
+#[no_mangle] pub unsafe extern "C" fn Ogmacam_get_RawFormat(_h:*mut c_void,fourcc:*mut c_uint,bits:*mut c_uint)->c_int{if !fourcc.is_null(){*fourcc=u32::from_le_bytes(*b"RGGB") as c_uint;} if !bits.is_null(){*bits=12;} 0}
 #[no_mangle] pub unsafe extern "C" fn Ogmacam_get_Size(_h:*mut c_void,width:*mut c_int,height:*mut c_int)->c_int{if !width.is_null(){*width=WIDTH.load(Ordering::SeqCst);} if !height.is_null(){*height=HEIGHT.load(Ordering::SeqCst);} 0}
 #[no_mangle] pub extern "C" fn Ogmacam_put_Roi(_h:*mut c_void,_x:c_uint,_y:c_uint,width:c_uint,height:c_uint)->c_int{if width>0&&height>0{WIDTH.store(width as i32,Ordering::SeqCst); HEIGHT.store(height as i32,Ordering::SeqCst);} 0}
 #[no_mangle] pub unsafe extern "C" fn Ogmacam_get_SerialNumber(_h:*mut c_void,buf:*mut c_char)->c_int{if buf.is_null(){return -1;} let text=if ACTIVE_INDEX.load(Ordering::SeqCst)==0{b"OGMA-COOLED-0001\0".as_slice()}else{b"OGMA-GUIDE-0002\0".as_slice()}; for i in 0..text.len(){*buf.add(i)=text[i] as c_char;} 0}

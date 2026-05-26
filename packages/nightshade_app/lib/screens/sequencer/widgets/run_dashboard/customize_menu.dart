@@ -13,7 +13,7 @@ class RunDashboardCustomizeMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final prefsAsync = ref.watch(runDashboardPrefsProvider);
 
     // While prefs are loading we still allow the menu to open (the

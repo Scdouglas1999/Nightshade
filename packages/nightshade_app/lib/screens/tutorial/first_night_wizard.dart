@@ -60,7 +60,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   Widget build(BuildContext context) {
     final state = ref.watch(firstNightWizardProvider);
     final notifier = ref.read(firstNightWizardProvider.notifier);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Until the saved index has loaded from the DAO, show a small spinner
     // dialog. We intentionally do NOT render step 0 here — that would

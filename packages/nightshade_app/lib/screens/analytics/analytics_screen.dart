@@ -105,7 +105,7 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final tabs = _tabs(context);
 
@@ -200,7 +200,7 @@ class _SessionTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sessionState = ref.watch(sessionStateProvider);
     final duration = ref.watch(sessionDurationProvider);
     final l10n = context.l10n;
@@ -376,7 +376,7 @@ class _SessionTab extends ConsumerWidget {
                     data: (images) => ImageThumbnailStrip(
                         key: AnalyticsTutorialKeys.thumbnails, images: images),
                     loading: () => SizedBox(
-                      height: 100,
+                      height: kAnalyticsThumbnailRailHeight,
                       child: _AnalyticsAsyncState(
                         colors: colors,
                         icon: LucideIcons.image,
@@ -385,7 +385,7 @@ class _SessionTab extends ConsumerWidget {
                       ),
                     ),
                     error: (err, stack) => SizedBox(
-                      height: 100,
+                      height: kAnalyticsThumbnailRailHeight,
                       child: _AnalyticsAsyncState(
                         colors: colors,
                         icon: LucideIcons.alertTriangle,
@@ -538,7 +538,7 @@ class _HistoryTabState extends ConsumerState<_HistoryTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final sessionsAsyncValue = ref.watch(allSessionsProvider);
     final targetNamesAsync = ref.watch(sessionTargetNamesProvider);
     final l10n = context.l10n;
@@ -700,7 +700,7 @@ class _SessionHistoryCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     final duration = session.endTime != null
         ? session.endTime!.difference(session.startTime)
@@ -886,15 +886,18 @@ class _SessionDetailDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final imagesAsyncValue = ref.watch(dbSessionImagesProvider(session.id));
     final l10n = context.l10n;
 
     return Dialog(
       backgroundColor: colors.surface,
-      child: Container(
-        width: 600,
-        constraints: const BoxConstraints(maxHeight: 700),
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 600,
+          designMaxHeight: 700,
+        ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -1276,7 +1279,7 @@ class _EquipmentStatsTab extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // Access colors to ensure theme extension is available
-    Theme.of(context).extension<NightshadeColors>()!;
+    NightshadeColors.of(context);
 
     return const SingleChildScrollView(
       padding: EdgeInsets.all(24),
@@ -1328,7 +1331,7 @@ class _SummaryItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Column(
       children: [
@@ -1366,7 +1369,7 @@ class _EquipmentStatCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return NightshadeCard(
       child: Padding(

@@ -91,9 +91,11 @@ class _IntegrationGoalsEditorState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final progressAsync =
         ref.watch(integrationGoalProgressProvider(widget.targetId));
+    final exposureContext =
+        ref.watch(smartNightExposureContextProvider).valueOrNull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -174,6 +176,7 @@ class _IntegrationGoalsEditorState
               _AddGoalRow(
                 availableFilters: widget.availableFilters,
                 existingFilters: progress.map((p) => p.goal.filter).toSet(),
+                exposureContext: exposureContext,
                 onAdd: _addGoal,
                 busy: _busy,
               ),
@@ -234,7 +237,7 @@ class _GoalRowState extends State<_GoalRow> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final p = widget.progress;
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
@@ -370,6 +373,7 @@ class _GoalRowState extends State<_GoalRow> {
 class _AddGoalRow extends StatefulWidget {
   final List<String> availableFilters;
   final Set<String> existingFilters;
+  final SmartNightExposureContext? exposureContext;
   final Future<void> Function({
     required String filter,
     required double exposureSeconds,
@@ -381,6 +385,7 @@ class _AddGoalRow extends StatefulWidget {
   const _AddGoalRow({
     required this.availableFilters,
     required this.existingFilters,
+    required this.exposureContext,
     required this.onAdd,
     required this.busy,
   });
@@ -408,9 +413,19 @@ class _AddGoalRowState extends State<_AddGoalRow> {
       !widget.existingFilters
           .any((f) => f.toLowerCase() == _selectedFilter!.toLowerCase());
 
+  void _selectFilter(String? filter) {
+    setState(() {
+      _selectedFilter = filter;
+      final seconds = widget.exposureContext?.recommendForFilter(filter).seconds;
+      if (seconds != null && seconds.isFinite && seconds > 0) {
+        _exposureCtl.text = _formatExposureSeconds(seconds);
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final remaining = widget.availableFilters
         .where((f) => !widget.existingFilters
             .any((existing) => existing.toLowerCase() == f.toLowerCase()))
@@ -448,9 +463,7 @@ class _AddGoalRowState extends State<_AddGoalRow> {
                 for (final f in remaining)
                   DropdownMenuItem(value: f, child: Text(f)),
               ],
-              onChanged: widget.busy
-                  ? null
-                  : (v) => setState(() => _selectedFilter = v),
+              onChanged: widget.busy ? null : _selectFilter,
             ),
           ),
           const SizedBox(width: NightshadeTokens.spaceSm),
@@ -520,11 +533,19 @@ class _AddGoalRowState extends State<_AddGoalRow> {
                       frameCount: frames,
                       priority: priority,
                     );
-                    setState(() => _selectedFilter = null);
+                    _selectFilter(null);
                   },
           ),
         ],
       ),
     );
   }
+}
+
+String _formatExposureSeconds(double seconds) {
+  final rounded = seconds.roundToDouble();
+  if ((seconds - rounded).abs() < 0.05) {
+    return rounded.toInt().toString();
+  }
+  return seconds.toStringAsFixed(1);
 }

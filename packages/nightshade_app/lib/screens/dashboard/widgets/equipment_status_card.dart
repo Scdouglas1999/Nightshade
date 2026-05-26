@@ -146,16 +146,16 @@ class _CompactEquipmentIcon extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: isConnected
-                  ? colors.success.withValues(alpha: 0.15)
-                  : colors.surface,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: isConnected ? colors.success.withValues(alpha: 0.3) : colors.border,
-                width: 1,
-              ),
-            ),
+            decoration: isConnected
+                ? NightshadeDecorations.statusChip(
+                    colors.success,
+                    borderRadius: BorderRadius.circular(6),
+                  )
+                : BoxDecoration(
+                    color: colors.surface,
+                    borderRadius: BorderRadius.circular(6),
+                    border: Border.all(color: colors.border),
+                  ),
             child: Icon(
               icon,
               size: 14,

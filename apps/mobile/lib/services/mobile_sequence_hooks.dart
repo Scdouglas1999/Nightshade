@@ -2,10 +2,16 @@ import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nightshade_app/nightshade_app.dart' show iosBackgroundBannerProvider;
+import 'package:nightshade_app/nightshade_app.dart'
+    show
+        androidNotificationsAuthorizedProvider,
+        iosBackgroundBannerProvider,
+        iosCriticalAlertsAuthorizedProvider;
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'foreground_service.dart';
+import 'lan_push_notification_receiver.dart';
 import 'mobile_event_notifier.dart';
 import 'mobile_preferences.dart';
 import 'notification_service.dart';
@@ -23,14 +29,61 @@ class MobileSequenceHooks {
   MobileEventNotifier? _eventNotifier;
   ProviderSubscription<NightshadeBackend>? _backendSubscription;
 
+  // P1-19: LAN UDP push notification receiver. Lifecycle is tied to the
+  // backend — created when the mobile pairs (NetworkBackend with a saved
+  // server fingerprint) and torn down on unpair / disconnect. The
+  // receiver feeds verified frames into the same `notifyPush` path used
+  // by the WebSocket-delivered copies; the dedup window keyed by frame
+  // `id` keeps the OS from showing the same alert twice.
+  LanPushNotificationReceiver? _lanPushReceiver;
+  StreamSubscription<PushNotificationFrame>? _lanPushSubscription;
+
+  /// Set true once [initialize] has wired up all listeners. Code that
+  /// reads this provider for event-driven work should `await
+  /// waitUntilInitialized()` before assuming notifications/foreground
+  /// service are ready.
+  bool _initialized = false;
+  final Completer<void> _initializedCompleter = Completer<void>();
+
+  /// Whether [initialize] has finished its full setup.
+  bool get initialized => _initialized;
+
+  /// Resolves when [initialize] finishes. Throws the same error that
+  /// [initialize] threw if setup failed — callers must handle that
+  /// rather than silently proceeding with a half-initialised pipeline.
+  Future<void> waitUntilInitialized() => _initializedCompleter.future;
+
   MobileSequenceHooks(this._ref);
 
   Future<void> initialize() async {
-    if (!Platform.isAndroid && !Platform.isIOS) return;
+    if (!Platform.isAndroid && !Platform.isIOS) {
+      // On desktop / tests there's no foreground service to wire up;
+      // the provider is still a valid value so resolve the completer
+      // so anything awaiting it doesn't hang.
+      _initialized = true;
+      if (!_initializedCompleter.isCompleted) {
+        _initializedCompleter.complete();
+      }
+      return;
+    }
 
     await _foregroundService.initialize();
     await _notificationService.initialize();
     await _powerService.initialize();
+
+    // Sync the initial Android POST_NOTIFICATIONS authorization state
+    // into the Riverpod provider so the dashboard banner reflects the
+    // grant decision from the system prompt that main() triggered.
+    // Skipped on iOS — the iOS Critical Alerts state has its own provider
+    // and is refreshed by [_refreshCriticalAlertsAuthorization] below.
+    if (Platform.isAndroid) {
+      final authorized = _notificationService.androidNotificationsAuthorized;
+      final notifier =
+          _ref.read(androidNotificationsAuthorizedProvider.notifier);
+      if (notifier.state != authorized) {
+        notifier.state = authorized;
+      }
+    }
 
     // Set up battery warning callback
     _powerService.onCriticalBattery = _handleCriticalBattery;
@@ -63,6 +116,14 @@ class MobileSequenceHooks {
 
     // Listen for push notifications from the desktop via NetworkBackend
     _setupPushNotificationListener();
+
+    // Mark fully wired so anything awaiting [waitUntilInitialized] can
+    // safely proceed. Code that depends on the foreground service or
+    // event notifier being live must gate on this.
+    _initialized = true;
+    if (!_initializedCompleter.isCompleted) {
+      _initializedCompleter.complete();
+    }
   }
 
   /// (Re)build the mobile-direct critical-event subscriber.
@@ -112,6 +173,15 @@ class MobileSequenceHooks {
         if (eventType != null) {
           _eventNotifier?.recordPushReceived(eventType);
         }
+        // P1-19: record the WS-delivered frame id so the LAN UDP copy
+        // (which carries the same id) is suppressed. The desktop side
+        // generates the id during the broadcaster fan-out and stamps
+        // BOTH copies with it; without this dedup the user would see two
+        // OS notifications for every critical alert.
+        final id = data['id'] as String?;
+        if (id != null && id.isNotEmpty) {
+          _lanPushReceiver?.recordSeenFrameId(id);
+        }
         _notificationService.notifyPush(data);
       }, onError: (error) {
         // Caught + degraded: stream errors mean we miss push notifications
@@ -123,6 +193,94 @@ class MobileSequenceHooks {
         );
       });
     }
+    // P1-19: rebuild the LAN UDP receiver. Lifecycle follows the same
+    // backend-change trigger as the WS listener — disconnect tears it
+    // down, a paired NetworkBackend starts it. Fire-and-forget because
+    // the start() handles its own logging and the rest of the hook
+    // wiring should not block on socket bind.
+    unawaited(_rebuildLanPushReceiver());
+  }
+
+  /// (Re)build the LAN UDP push receiver. Reads the saved server
+  /// fingerprint from EnhancedNightshadeDiscovery — that's the same
+  /// fingerprint the desktop's broadcaster stamps into every frame and
+  /// derives its HMAC key from. Without a fingerprint we can't verify
+  /// anything, so we skip the start entirely instead of running a
+  /// receiver that would reject every frame.
+  Future<void> _rebuildLanPushReceiver() async {
+    await _lanPushSubscription?.cancel();
+    _lanPushSubscription = null;
+    final existing = _lanPushReceiver;
+    _lanPushReceiver = null;
+    if (existing != null) {
+      await existing.dispose();
+    }
+
+    final backend = _ref.read(backendProvider);
+    if (backend is! NetworkBackend) {
+      // Local backend (FfiBackend) or DisconnectedBackend — no remote
+      // server to listen to. Receiver stays null until the user pairs.
+      return;
+    }
+
+    final saved = await EnhancedNightshadeDiscovery.loadLastServer();
+    final fingerprint = saved?.fingerprint;
+    if (fingerprint == null || fingerprint.isEmpty) {
+      developer.log(
+        '[LanPushReceiver] No saved-server fingerprint; LAN UDP push '
+        'will not start. Re-pair to capture the fingerprint or fetch it '
+        'via /api/info on the next connect.',
+        name: 'MobileSequenceHooks',
+        level: 900,
+      );
+      return;
+    }
+
+    final receiver = LanPushNotificationReceiver(
+      serverFingerprint: fingerprint,
+    );
+    _lanPushSubscription = receiver.incoming.listen((frame) {
+      developer.log(
+        '[LanPushReceiver] Frame ${frame.id} (${frame.severity}) — '
+        '${frame.title}',
+        name: 'MobileSequenceHooks',
+        level: 800,
+      );
+      // Build the legacy data shape that notifyPush expects.
+      final eventType = frame.data['eventType'] as String?;
+      final category = frame.data['category'] as String?;
+      final priority = switch (frame.severity) {
+        'critical' => 'critical',
+        'warning' => 'high',
+        _ => 'normal',
+      };
+      // Suppress the mobile-direct notifier's own fire for this event
+      // type — the OS notification we're about to surface IS the user
+      // signal.
+      if (eventType != null) {
+        _eventNotifier?.recordPushReceived(eventType);
+      }
+      _notificationService.notifyPush(<String, dynamic>{
+        'title': frame.title,
+        'body': frame.body,
+        'priority': priority,
+        if (eventType != null) 'eventType': eventType,
+        if (category != null) 'category': category,
+        'timestamp': frame.timestamp.millisecondsSinceEpoch,
+        'id': frame.id,
+        'source': 'lan_udp',
+      });
+    }, onError: (Object e, StackTrace st) {
+      developer.log(
+        '[LanPushReceiver] frame stream error: $e',
+        name: 'MobileSequenceHooks',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+    });
+    _lanPushReceiver = receiver;
+    await receiver.start();
   }
 
   void _handleExecutionStateChange(
@@ -185,16 +343,86 @@ class MobileSequenceHooks {
         );
         _setIosBackgroundBanner(false);
         break;
+
+      case SequenceExecutionState.recovering:
+        // Wave 4 Recovery Mode — recovery is in-flight execution, not
+        // session completion. Keep the iOS background banner visible so
+        // the user understands the rig is still actively working; the
+        // recovery banner on the dashboard surfaces the cause + retry
+        // controls. We deliberately do NOT stop the imaging session
+        // here — that only happens on `completed` or `failed`.
+        _setIosBackgroundBanner(true);
+        break;
     }
   }
 
   /// Toggle the iOS-only "honest banner" advisory. No-op on Android (where
   /// the foreground service keeps monitoring alive). Audit §3.2.
+  ///
+  /// Also refreshes the Critical Alerts authorization state so the banner
+  /// can adapt its copy: if Critical Alerts are granted, safety events will
+  /// still wake the device even while the app is suspended; if not, the
+  /// banner needs to warn the operator that alerts may be silenced by
+  /// Focus / DnD / the ringer switch (P0-8 / audit §7 bug 4).
   void _setIosBackgroundBanner(bool visible) {
     final desired = Platform.isIOS && visible;
     final notifier = _ref.read(iosBackgroundBannerProvider.notifier);
     if (notifier.state != desired) {
       notifier.state = desired;
+    }
+    if (Platform.isIOS && desired) {
+      // Fire-and-forget: surface the current authorization state into the
+      // provider as soon as the platform answers. We don't await because
+      // banner visibility shouldn't block on a platform channel call.
+      unawaited(_refreshCriticalAlertsAuthorization());
+    }
+  }
+
+  Future<void> _refreshCriticalAlertsAuthorization() async {
+    try {
+      final authorized =
+          await _notificationService.refreshCriticalAlertsAuthorization();
+      final notifier =
+          _ref.read(iosCriticalAlertsAuthorizedProvider.notifier);
+      if (notifier.state != authorized) {
+        notifier.state = authorized;
+      }
+    } catch (e, st) {
+      // Don't swallow — surface so we know if the platform channel is
+      // misbehaving. We still let the banner stay in its default (worst-
+      // case "not authorized") state.
+      developer.log(
+        'Failed to refresh iOS critical-alerts authorization: $e',
+        name: 'MobileSequenceHooks',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
+    }
+  }
+
+  /// Re-query the Android POST_NOTIFICATIONS permission and update the
+  /// banner-state provider. Call this on app resume so the banner
+  /// disappears when the user grants the permission from system settings
+  /// and returns to the app. No-op on non-Android.
+  Future<void> refreshAndroidNotificationsAuthorization() async {
+    if (!Platform.isAndroid) return;
+    try {
+      final authorized =
+          await _notificationService.refreshAndroidNotificationsAuthorization();
+      final notifier =
+          _ref.read(androidNotificationsAuthorizedProvider.notifier);
+      if (notifier.state != authorized) {
+        notifier.state = authorized;
+      }
+    } catch (e, st) {
+      developer.log(
+        'Failed to refresh Android notifications authorization: $e',
+        name: 'MobileSequenceHooks',
+        level: 1000,
+        error: e,
+        stackTrace: st,
+      );
     }
   }
 
@@ -326,16 +554,82 @@ class MobileSequenceHooks {
     _backendSubscription = null;
     await _eventNotifier?.stop();
     _eventNotifier = null;
+    // P1-19: tear down the LAN UDP receiver. dispose() closes the
+    // controller so any caller still listening on `incoming` gets a
+    // done event instead of dangling.
+    await _lanPushSubscription?.cancel();
+    _lanPushSubscription = null;
+    final lanReceiver = _lanPushReceiver;
+    _lanPushReceiver = null;
+    if (lanReceiver != null) {
+      await lanReceiver.dispose();
+    }
     await _powerService.dispose();
   }
 }
 
 /// Provider for mobile sequence hooks
+///
+/// Why the explicit `unawaited(... .catchError(...))`: a bare
+/// `hooks.initialize()` returns a `Future<void>` that the Dart runtime
+/// silently discards if it throws. The foreground service, notifications,
+/// and power management may then fail without surfacing any signal — the
+/// classic audit P1-17 fire-and-forget bug. We route the error through
+/// [LoggingService.error] so it lands in the on-disk log and through
+/// `developer.log` at level 1000 so it appears in DevTools.
+///
+/// Note: we do not currently expose the initialisation failure to UI.
+/// Doing so cleanly requires turning this into an async provider, which
+/// would force every consumer to handle AsyncValue. Since the consumers
+/// are mostly `ref.watch(... )` for side-effects, surfacing through the
+/// log + a downstream timeout in [MobileSequenceHooks.waitUntilInitialized]
+/// is the right balance.
 final mobileSequenceHooksProvider = Provider<MobileSequenceHooks>((ref) {
   final hooks = MobileSequenceHooks(ref);
 
-  // Initialize on creation
-  hooks.initialize();
+  // Initialise on creation. Errors are observed: we forward them to the
+  // shared LoggingService and `developer.log`, then propagate via the
+  // completer so anyone awaiting [waitUntilInitialized] sees them too.
+  unawaited(hooks.initialize().then((_) {
+    developer.log(
+      'MobileSequenceHooks initialised',
+      name: 'MobileSequenceHooks',
+      level: 700,
+    );
+  }, onError: (error, stackTrace) {
+    developer.log(
+      'MobileSequenceHooks initialise failed: $error',
+      name: 'MobileSequenceHooks',
+      level: 1000,
+      error: error,
+      stackTrace: stackTrace is StackTrace ? stackTrace : null,
+    );
+    try {
+      ref.read(loggingServiceProvider).error(
+            'MobileSequenceHooks initialise failed: $error',
+            source: 'MobileSequenceHooks',
+            fields: <String, Object?>{
+              'error': error.toString(),
+            },
+          );
+    } catch (loggingError) {
+      // If even the LoggingService failed (e.g. the provider container
+      // was torn down between schedule and invocation), the developer.log
+      // call above is already the audit trail. Avoid an infinite loop.
+      developer.log(
+        'LoggingService unavailable while reporting init failure: $loggingError',
+        name: 'MobileSequenceHooks',
+        level: 1000,
+      );
+    }
+    // Propagate to anyone awaiting the completer so they don't hang.
+    if (!hooks._initializedCompleter.isCompleted) {
+      hooks._initializedCompleter.completeError(
+        error,
+        stackTrace is StackTrace ? stackTrace : StackTrace.current,
+      );
+    }
+  }));
 
   // Clean up on disposal
   ref.onDispose(() {

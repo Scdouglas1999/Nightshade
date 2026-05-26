@@ -77,6 +77,23 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   Widget build(BuildContext context) {
     final colors = widget.colors;
 
+    // DEV-P3-1: gate absolute-angle move and halt on the rotator's
+    // reported capabilities. Hide Go-To entirely when canMoveAbsolute is
+    // false — the workflow has no analog form. Halt is shown only while
+    // moving anyway, but we drop it when the driver can't halt.
+    final rotatorCapsAsync = ref.watch(equipmentRotatorCapabilitiesProvider(
+        _rotatorState.deviceId ?? ''));
+    final canMoveAbsolute = gateCapability<RotatorCapabilities>(
+      rotatorCapsAsync,
+      (c) => c.canMoveAbsolute,
+      loadingDefault: true,
+    );
+    final canHalt = gateCapability<RotatorCapabilities>(
+      rotatorCapsAsync,
+      (c) => c.canHalt,
+      loadingDefault: true,
+    );
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -84,13 +101,17 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
         _buildAngleDisplay(colors),
         const SizedBox(height: 16),
 
-        // Go To section
-        PanelSection(
-          title: 'Go To Angle',
-          colors: colors,
-          child: _buildGoToSection(colors),
-        ),
-        const SizedBox(height: 16),
+        // Go To section — visible only when the driver supports absolute
+        // moves. Relative move falls back to a sequence of small steps so
+        // it stays available on any rotator.
+        if (canMoveAbsolute) ...[
+          PanelSection(
+            title: 'Go To Angle',
+            colors: colors,
+            child: _buildGoToSection(colors),
+          ),
+          const SizedBox(height: 16),
+        ],
 
         // Relative movement section
         PanelSection(
@@ -100,8 +121,9 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
         ),
         const SizedBox(height: 16),
 
-        // Halt button
-        if (_isMoving)
+        // Halt button — only meaningful when the driver supports halt
+        // and the rotator is currently moving.
+        if (_isMoving && canHalt)
           SizedBox(
             width: double.infinity,
             child: SmallButton(
@@ -338,17 +360,16 @@ class _RelativeMoveButtonState extends State<_RelativeMoveButton> {
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-          decoration: BoxDecoration(
-            color: _isHovered && isEnabled
-                ? widget.colors.primary.withValues(alpha: 0.15)
-                : widget.colors.background,
-            borderRadius: BorderRadius.circular(6),
-            border: Border.all(
-              color: _isHovered && isEnabled
-                  ? widget.colors.primary
-                  : widget.colors.border,
-            ),
-          ),
+          decoration: _isHovered && isEnabled
+              ? NightshadeDecorations.selectedSurface(
+                  widget.colors.primary,
+                  borderRadius: BorderRadius.circular(6),
+                )
+              : BoxDecoration(
+                  color: widget.colors.background,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: widget.colors.border),
+                ),
           child: Text(
             widget.label,
             style: TextStyle(

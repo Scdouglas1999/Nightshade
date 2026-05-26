@@ -1,13 +1,11 @@
 import 'dart:async';
 import 'dart:io';
-import 'package:drift/drift.dart' show Value;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nightshade_bridge/src/api_barrel.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
 import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
-import '../providers/profiles_provider.dart'
-    show EquipmentProfileModel, activeEquipmentProfileProvider;
-import '../providers/database_provider.dart';
+import '../providers/profiles_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
 import '../providers/settings_provider.dart';
@@ -15,7 +13,10 @@ import '../providers/ui_notification_provider.dart';
 import '../providers/operation_progress_provider.dart';
 import '../providers/filter_offset_provider.dart';
 import '../providers/current_screen_provider.dart';
+import '../providers/device_heartbeat_health_provider.dart';
 import 'smart_notification_service.dart';
+import '../backend/ffi_backend.dart';
+import '../backend/network_backend.dart';
 import '../backend/nightshade_backend.dart' hide TrackingRate;
 import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
@@ -24,6 +25,9 @@ import '../utils/device_id_utils.dart';
 import 'device_exceptions.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
+import 'error_service.dart';
+import 'phd2_status_poll.dart';
+import 'device_service_lifecycle.dart';
 
 // Re-export backend types for backward compatibility
 // These were previously defined locally but are now consolidated in backend_types
@@ -78,6 +82,23 @@ extension DriverTypeDisplayExtension on DriverType {
   }
 }
 
+/// Type alias for the switch-bridge `apiSwitchGetMax` shim used by
+/// [DeviceService.refreshSwitchChannels]. Tests override the static
+/// hook below to avoid loading the native bridge.
+typedef SwitchBridgeGetMaxFn = Future<int> Function(String deviceId);
+
+/// Type alias for the switch-bridge name fetch.
+typedef SwitchBridgeGetNameFn = Future<String> Function(
+    String deviceId, int switchId);
+
+/// Type alias for the switch-bridge boolean read.
+typedef SwitchBridgeGetStateFn = Future<bool> Function(
+    String deviceId, int switchId);
+
+/// Type alias for the switch-bridge boolean write.
+typedef SwitchBridgeSetStateFn = Future<void> Function(
+    String deviceId, int switchId, bool state);
+
 /// Service for managing device discovery and connections
 ///
 /// This service uses the NightshadeBackend abstraction to communicate
@@ -85,17 +106,60 @@ extension DriverTypeDisplayExtension on DriverType {
 class DeviceService {
   final Ref _ref;
   final NightshadeBackend _backend;
+
+  // ---- Switch bridge hooks (testable seam) -----------------------------
+  // DEV-P2-1 follow-up: the per-channel switch UI needs to call FFI even
+  // when the test rig swaps in a MockBackend. The MockBackend can't
+  // satisfy `_backend is FfiBackend`, so the actual `apiSwitch*` calls
+  // would otherwise be skipped. Static function-pointer hooks let
+  // tests swap in fakes for the bridge calls without touching the
+  // backend type check. Production code calls
+  // `switchBridge{GetMax,GetName,GetState,SetState}` instead of
+  // `bridge_api.apiSwitch*` directly so the override is centralized.
+  @visibleForTesting
+  static SwitchBridgeGetMaxFn switchBridgeGetMax =
+      (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
+  @visibleForTesting
+  static SwitchBridgeGetNameFn switchBridgeGetName = (deviceId, switchId) =>
+      bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
+  @visibleForTesting
+  static SwitchBridgeGetStateFn switchBridgeGetState = (deviceId, switchId) =>
+      bridge_api.apiSwitchGetState(deviceId: deviceId, switchId: switchId);
+  @visibleForTesting
+  static SwitchBridgeSetStateFn switchBridgeSetState =
+      (deviceId, switchId, state) => bridge_api.apiSwitchSetState(
+          deviceId: deviceId, switchId: switchId, state: state);
+
+  /// When true, [refreshSwitchChannels] and [setSwitchChannel] will
+  /// call the bridge hooks above unconditionally instead of gating on
+  /// `_backend is FfiBackend`. Tests set this to true so MockBackend
+  /// can stand in for FfiBackend without satisfying its type.
+  /// MUST remain false in production builds.
+  @visibleForTesting
+  static bool switchBridgeBypassBackendCheck = false;
+
+  /// Reset switch bridge hooks to their production implementations.
+  /// Call from `tearDown` in any test that overrode them.
+  @visibleForTesting
+  static void resetSwitchBridgeHooks() {
+    switchBridgeBypassBackendCheck = false;
+    switchBridgeGetMax =
+        (deviceId) => bridge_api.apiSwitchGetMax(deviceId: deviceId);
+    switchBridgeGetName = (deviceId, switchId) =>
+        bridge_api.apiSwitchGetName(deviceId: deviceId, switchId: switchId);
+    switchBridgeGetState = (deviceId, switchId) =>
+        bridge_api.apiSwitchGetState(deviceId: deviceId, switchId: switchId);
+    switchBridgeSetState = (deviceId, switchId, state) =>
+        bridge_api.apiSwitchSetState(
+            deviceId: deviceId, switchId: switchId, state: state);
+  }
+
   StreamSubscription? _eventSubscription;
   Timer? _temperaturePollingTimer;
   String? _connectedCameraId;
   int _temperaturePollingGeneration = 0;
   Timer? _warmingTimer;
   bool _warmingCancelled = false;
-  bool _disposed = false;
-  bool _quiescingForBackendSwap = false;
-  final Set<Future<void>> _inFlightOperations = {};
-  final Map<DeviceType, Timer> _statusPollingTimers = {};
-  static const Duration _statusPollInterval = Duration(seconds: 2);
 
   static const Duration _filterWheelVerifyTimeout = Duration(seconds: 60);
   static const Duration _filterWheelVerifyPollInterval =
@@ -103,64 +167,95 @@ class DeviceService {
 
   static const Duration _focuserMoveTimeout = Duration(seconds: 300);
   static const Duration _focuserMovePollInterval = Duration(milliseconds: 500);
-  int _focuserVerifyGeneration = 0;
-  int _rotatorVerifyGeneration = 0;
-  int _filterWheelVerifyGeneration = 0;
 
   /// Tracks the last applied filter focus offset so that filter changes apply
   /// delta adjustments (remove old offset, apply new offset) rather than
   /// cumulative offsets.
-  final Map<String, int> _lastAppliedFilterOffsetByWheel = {};
+  int _lastAppliedFilterOffset = 0;
+
+  /// In-flight guarded operations — backend swap waits for zero (DV-P0-2).
+  int _inFlightOperations = 0;
+  final List<Completer<void>> _quiesceWaiters = [];
+
+  /// User-initiated disconnects suppress auto-reconnect briefly (DV-P0-3).
+  final Set<String> _userInitiatedDisconnects = {};
+  Timer? _userDisconnectDebounceTimer;
+
+  /// Set during backend swap so stray Disconnected events cannot reconnect.
+  bool _suppressAutoReconnect = false;
+
+  bool _disposed = false;
+
+  static const Duration _connectProfileDeviceTimeout = Duration(seconds: 60);
+  static const Duration _quiesceTimeout = Duration(seconds: 30);
+  static const Duration _userDisconnectSuppressDuration = Duration(seconds: 10);
 
   /// Guard against concurrent autofocus runs. Only one AF can run at a time
   /// since the focuser and camera are shared hardware resources.
   bool _isAutofocusRunning = false;
 
   DeviceService(this._ref, this._backend) {
+    DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
 
-  bool get isAutofocusRunning => _isAutofocusRunning;
-
-  Future<T> _trackInFlight<T>(Future<T> Function() operation) {
-    late Future<void> tracked;
-    final future = Future<T>.sync(operation);
-    tracked = future.then<void>((_) {}, onError: (_, __) {}).whenComplete(() {
-      _inFlightOperations.remove(tracked);
-    });
-    _inFlightOperations.add(tracked);
-    return future;
+  /// Emits a diagnostic line through the logging service, but never lets a
+  /// logger-emission failure mask a higher-priority device fault. We deliberately
+  /// catch every kind of error from the logger lookup (e.g. provider mid-disposal
+  /// during shutdown) and demote to a stderr line — fail-closed for the calling
+  /// device operation, soft for the diagnostics emission itself.
+  void _safeLog(void Function(LoggingService logger) emit, String contextTag) {
+    try {
+      final logger = _ref.read(loggingServiceProvider);
+      emit(logger);
+    } on Object catch (loggerErr) {
+      // ignore: avoid_print
+      print('DeviceService[$contextTag]: logger emission failed: $loggerErr');
+    }
   }
 
-  Future<void> prepareForBackendSwap() async {
-    _quiescingForBackendSwap = true;
-    await _eventSubscription?.cancel();
-    _eventSubscription = null;
-    _stopTemperaturePolling();
-    _warmingTimer?.cancel();
-    _focuserVerifyGeneration++;
-    _rotatorVerifyGeneration++;
-    _filterWheelVerifyGeneration++;
-    _stopAllStatusPolling();
-    _cancelAllReconnections();
+  /// Active equipment profile from [equipmentProfilesProvider] (host API or local DB).
+  EquipmentProfileModel? get _activeProfile =>
+      _ref.read(activeEquipmentProfileProvider);
 
-    while (_inFlightOperations.isNotEmpty) {
-      await Future.wait<void>(
-        List<Future<void>>.from(_inFlightOperations),
-        eagerError: false,
-      );
+  String? _activeProfileDeviceId(
+    String? Function(EquipmentProfileModel profile) pick,
+  ) {
+    final profile = _activeProfile;
+    if (profile == null) {
+      return null;
     }
+    final deviceId = pick(profile);
+    if (deviceId == null || deviceId.isEmpty) {
+      return null;
+    }
+    return deviceId;
+  }
+
+  Future<void> _applyFilterNamesToNotifier({
+    required FilterWheelStateNotifier notifier,
+    required String deviceId,
+    required List<String> syncedNames,
+  }) async {
+    if (_backend is NetworkBackend) {
+      notifier.setConnected(filterNames: syncedNames);
+      return;
+    }
+
+    await bridge_api.apiFilterwheelSetFilterNames(
+      deviceId: deviceId,
+      names: syncedNames,
+    );
+    notifier.setConnected(filterNames: syncedNames);
   }
 
   /// Start polling camera temperature every 5 seconds
   void _startTemperaturePolling(String deviceId) {
-    if (_disposed) return;
     _connectedCameraId = deviceId;
     final generation = ++_temperaturePollingGeneration;
     _temperaturePollingTimer?.cancel();
     _temperaturePollingTimer =
         Timer.periodic(const Duration(seconds: 5), (_) async {
-      if (_disposed) return;
       await _pollCameraTemperature(deviceId, generation);
     });
     // Poll immediately on start
@@ -177,7 +272,6 @@ class DeviceService {
 
   /// Poll camera temperature and update providers
   Future<void> _pollCameraTemperature(String deviceId, int generation) async {
-    if (_disposed) return;
     if (_connectedCameraId != deviceId ||
         _temperaturePollingGeneration != generation) {
       return;
@@ -185,7 +279,6 @@ class DeviceService {
 
     try {
       final status = await _backend.getCameraStatus(deviceId);
-      if (_disposed) return;
       if (_connectedCameraId != deviceId ||
           _temperaturePollingGeneration != generation) {
         return;
@@ -203,7 +296,14 @@ class DeviceService {
           'Camera temp: ${temp?.toStringAsFixed(1) ?? "null"}°C, power: ${power?.toStringAsFixed(0) ?? "null"}%, target: ${targetTemp?.toStringAsFixed(1) ?? "null"}°C',
           source: 'DeviceService',
         );
-      } catch (_) {}
+      } on Object catch (e) {
+        // Why: logger lookup happens inside a temperature poll tick; if the
+        // logging service itself is mid-disposal we must not propagate up the
+        // poll loop. Diagnostic-only failure — emit to stderr so it isn't
+        // fully silent.
+        // ignore: avoid_print
+        print('DeviceService: temp-log emission failed: $e');
+      }
 
       if (temp != null) {
         // Update camera state
@@ -228,167 +328,187 @@ class DeviceService {
         final logger = _ref.read(loggingServiceProvider);
         logger.warning('Temperature polling error: $e',
             source: 'DeviceService');
-      } catch (_) {}
-    }
-  }
-
-  void _startStatusPolling(DeviceType type, String deviceId) {
-    _stopStatusPolling(type);
-    _statusPollingTimers[type] = Timer.periodic(
-      _statusPollInterval,
-      (_) => unawaited(_pollDeviceStatus(type, deviceId)),
-    );
-    unawaited(_pollDeviceStatus(type, deviceId));
-  }
-
-  void _stopStatusPolling(DeviceType type) {
-    _statusPollingTimers.remove(type)?.cancel();
-  }
-
-  void _stopAllStatusPolling() {
-    for (final timer in _statusPollingTimers.values) {
-      timer.cancel();
-    }
-    _statusPollingTimers.clear();
-  }
-
-  Future<void> _pollDeviceStatus(DeviceType type, String deviceId) async {
-    if (_disposed) return;
-
-    try {
-      switch (type) {
-        case DeviceType.focuser:
-          final state = _ref.read(focuserStateProvider);
-          if (state.deviceId != deviceId ||
-              state.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final status = await _backend.getFocuserStatus(deviceId);
-          if (_disposed) return;
-          final current = _ref.read(focuserStateProvider);
-          if (current.deviceId != deviceId ||
-              current.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final notifier = _ref.read(focuserStateProvider.notifier);
-          notifier.updatePosition(status.position);
-          notifier.setMoving(status.moving);
-          if (status.temperature != null) {
-            notifier.updateTemperature(status.temperature!);
-          }
-          break;
-        case DeviceType.filterWheel:
-          final state = _ref.read(filterWheelStateProvider);
-          if (state.deviceId != deviceId ||
-              state.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final status = await _backend.getFilterWheelStatus(deviceId);
-          if (_disposed) return;
-          final current = _ref.read(filterWheelStateProvider);
-          if (current.deviceId != deviceId ||
-              current.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final notifier = _ref.read(filterWheelStateProvider.notifier);
-          if (status.filterNames.isNotEmpty) {
-            notifier.setConnected(filterNames: status.filterNames);
-          }
-          notifier.updatePosition(status.position);
-          notifier.setMoving(status.moving);
-          break;
-        case DeviceType.rotator:
-          final state = _ref.read(rotatorStateProvider);
-          if (state.deviceId != deviceId ||
-              state.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final status = await _backend.getRotatorStatus(deviceId);
-          if (_disposed) return;
-          final current = _ref.read(rotatorStateProvider);
-          if (current.deviceId != deviceId ||
-              current.connectionState != DeviceConnectionState.connected) {
-            return;
-          }
-          final notifier = _ref.read(rotatorStateProvider.notifier);
-          notifier.updatePosition(status.position);
-          notifier.setMoving(status.moving);
-          break;
-        default:
-          break;
+      } on Object catch (loggerErr) {
+        // Why: nested catch around logger emission during the poll-loop's
+        // error path. If the logging provider is itself disposing we must
+        // not re-throw — that would mask the original temperature-polling
+        // failure. Surface to stderr so it isn't fully silent.
+        // ignore: avoid_print
+        print('DeviceService: warn-log emission failed: $loggerErr '
+            '(original temp-poll error: $e)');
       }
-    } catch (e) {
-      try {
-        _ref.read(loggingServiceProvider).warning(
-              'Status polling failed for ${type.displayName} ($deviceId): $e',
-              source: 'DeviceService',
-            );
-      } catch (_) {}
     }
   }
 
   void _initEventListening() {
-    if (_disposed) return;
     _eventSubscription?.cancel();
-    _eventSubscription = _backend.eventStream.listen((event) {
-      if (_disposed) return;
-      if (event.category == EventCategory.equipment) {
-        _handleEquipmentEvent(event);
-      } else if (event.category == EventCategory.sequencer) {
-        _handleSequencerEvent(event);
-      }
-    }, onError: (Object error, StackTrace stackTrace) {
-      try {
-        _ref.read(loggingServiceProvider).error(
-              'Device event stream error: $error',
-              source: 'DeviceService',
-            );
-      } catch (_) {}
-    }, cancelOnError: false);
+    _eventSubscription = _backend.eventStream.listen(
+      (event) {
+        if (event.category == EventCategory.equipment) {
+          _handleEquipmentEvent(event);
+        } else if (event.category == EventCategory.sequencer) {
+          _handleSequencerEvent(event);
+        }
+      },
+      onError: (Object error, StackTrace stackTrace) {
+        _safeLog(
+          (logger) => logger.error(
+            'DeviceService equipment event stream error: $error',
+            source: 'DeviceService',
+          ),
+          'event-stream-error',
+        );
+        if (!_disposed) {
+          _initEventListening();
+        }
+      },
+      cancelOnError: false,
+    );
   }
 
-  bool _eventTargetsCurrentDevice(
-    DeviceType type,
-    Map<String, dynamic> data,
-  ) {
-    final eventDeviceId =
-        data['device_id'] as String? ?? data['deviceId'] as String?;
-    if (eventDeviceId == null || eventDeviceId.isEmpty) {
-      return true;
+  /// Wait until all guarded in-flight operations complete (DV-P0-2).
+  Future<void> quiesce({Duration? timeout}) async {
+    if (_inFlightOperations == 0) {
+      return;
     }
+    final completer = Completer<void>();
+    _quiesceWaiters.add(completer);
+    await completer.future.timeout(
+      timeout ?? _quiesceTimeout,
+      onTimeout: () {
+        throw TimeoutException(
+          'Device operations did not complete within '
+          '${(timeout ?? _quiesceTimeout).inSeconds}s',
+        );
+      },
+    );
+  }
 
-    final currentDeviceId = switch (type) {
-      DeviceType.camera => _ref.read(cameraStateProvider).deviceId,
-      DeviceType.mount => _ref.read(mountStateProvider).deviceId,
-      DeviceType.focuser => _ref.read(focuserStateProvider).deviceId,
-      DeviceType.filterWheel => _ref.read(filterWheelStateProvider).deviceId,
-      DeviceType.guider => _ref.read(guiderStateProvider).deviceId,
-      DeviceType.rotator => _ref.read(rotatorStateProvider).deviceId,
-      DeviceType.dome => _ref.read(domeStateProvider).deviceId,
-      DeviceType.weather => _ref.read(weatherStateProvider).deviceId,
-      DeviceType.safetyMonitor =>
-        _ref.read(safetyMonitorStateProvider).deviceId,
-      DeviceType.switch_ => _ref.read(switchStateProvider).deviceId,
-      DeviceType.coverCalibrator =>
-        _ref.read(coverCalibratorStateProvider).deviceId,
-    };
-    return currentDeviceId == eventDeviceId;
+  /// Cancel reconnect timers, suppress auto-reconnect, and quiesce before a
+  /// backend swap disposes this service instance (DV-P0-2).
+  Future<void> prepareForBackendSwap() async {
+    _suppressAutoReconnect = true;
+    _cancelAllReconnections();
+    _userInitiatedDisconnects.clear();
+    _userDisconnectDebounceTimer?.cancel();
+    _userDisconnectDebounceTimer = null;
+    cancelWarmCamera();
+    _stopTemperaturePolling();
+    _lastAppliedFilterOffset = 0;
+    await quiesce();
+  }
+
+  Future<T> _trackInFlight<T>(Future<T> Function() operation) async {
+    _inFlightOperations++;
+    try {
+      return await operation();
+    } finally {
+      _inFlightOperations--;
+      if (_inFlightOperations == 0) {
+        final waiters = List<Completer<void>>.from(_quiesceWaiters);
+        _quiesceWaiters.clear();
+        for (final waiter in waiters) {
+          if (!waiter.isCompleted) {
+            waiter.complete();
+          }
+        }
+      }
+    }
+  }
+
+  void _markUserInitiatedDisconnect(String deviceId) {
+    if (deviceId.isEmpty) {
+      return;
+    }
+    _userInitiatedDisconnects.add(deviceId);
+    _reconnectionTimers[deviceId]?.cancel();
+    _reconnectionTimers.remove(deviceId);
+    _reconnectionAttempts.remove(deviceId);
+    _userDisconnectDebounceTimer?.cancel();
+    _userDisconnectDebounceTimer = Timer(_userDisconnectSuppressDuration, () {
+      _userInitiatedDisconnects.clear();
+      _userDisconnectDebounceTimer = null;
+    });
+  }
+
+  bool _isUserInitiatedDisconnect(String deviceId) {
+    return _userInitiatedDisconnects.contains(deviceId);
+  }
+
+  /// Resolve a display name without running discovery. Falls back to
+  /// [getConnectedDevices] when the backend already knows this device
+  /// (DV-P0-4).
+  Future<String> _resolveDeviceDisplayName(
+    DeviceType type,
+    String deviceId,
+  ) async {
+    try {
+      final connected = await _backend.getConnectedDevices();
+      for (final device in connected) {
+        if (device.id == deviceId && device.deviceType == type) {
+          if (device.name.isNotEmpty) {
+            return device.name;
+          }
+        }
+      }
+    } on Object catch (e) {
+      _safeLog(
+        (logger) => logger.warning(
+          'getConnectedDevices lookup failed for $deviceId: $e',
+          source: 'DeviceService',
+        ),
+        'resolve-device-name',
+      );
+    }
+    return _friendlyNameFromId(deviceId);
   }
 
   void _handleEquipmentEvent(NightshadeEvent event) {
-    if (_disposed) return;
     final data = event.data;
     switch (event.eventType) {
       // Connection events
+      case 'Connecting':
+        final deviceType = data['device_type'] as String?;
+        final deviceId = data['device_id'] as String?;
+        if (deviceType != null && deviceId != null) {
+          _applyDeviceConnecting(deviceType, deviceId);
+        }
+        break;
+
+      case 'Connected':
+        final deviceType = data['device_type'] as String?;
+        final deviceId = data['device_id'] as String?;
+        if (deviceType != null && deviceId != null) {
+          _applyDeviceConnected(deviceType, deviceId);
+        }
+        break;
+
       case 'Disconnected':
         final deviceType = data['device_type'] as String?;
         final deviceId = data['device_id'] as String?;
         _handleDeviceDisconnected(deviceType, deviceId);
         break;
 
+      // DEV-P0-5: surface driver errors published from Rust via
+      // report_error / connect_device_internal / heartbeat. Previously
+      // dropped on the floor — the user never saw the actual driver
+      // message. Per CLAUDE.md "errors are a feature", we route the
+      // payload through the structured errorService (which also pushes
+      // to UI notifications) AND set the matching device state to
+      // error so the equipment card subtitle renders it.
+      case 'Error':
+        _handleDeviceError(
+          deviceType: data['device_type'] as String?,
+          deviceId: data['device_id'] as String?,
+          message: data['message'] as String?,
+          errorCode:
+              data['error_code']?.toString() ?? data['errorCode']?.toString(),
+          severity: event.severity,
+        );
+        break;
+
       // Legacy camera temperature event (keep for backward compatibility)
       case 'CameraTemperatureChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final temp = (data['temperature'] as num).toDouble();
         final power = (data['coolerPower'] as num).toDouble();
         _ref.read(cameraStateProvider.notifier).updateTemperature(temp, power);
@@ -396,7 +516,6 @@ class DeviceService {
 
       // Legacy mount position event (keep for backward compatibility)
       case 'MountPositionChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num).toDouble();
         final dec = (data['dec'] as num).toDouble();
         final alt = (data['altitude'] as num?)?.toDouble() ?? 0.0;
@@ -422,7 +541,6 @@ class DeviceService {
 
       // Mount Slew Events
       case 'MountSlewStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num?)?.toDouble();
         final dec = (data['dec'] as num?)?.toDouble();
         _ref.read(mountStateProvider.notifier).setSlewing(true);
@@ -432,7 +550,6 @@ class DeviceService {
         break;
 
       case 'MountSlewCompleted':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         final ra = (data['ra'] as num?)?.toDouble();
         final dec = (data['dec'] as num?)?.toDouble();
         _ref.read(mountStateProvider.notifier).setSlewing(false);
@@ -455,23 +572,19 @@ class DeviceService {
 
       // Mount Tracking Events
       case 'MountTrackingStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setTracking(true);
         break;
 
       case 'MountTrackingStopped':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setTracking(false);
         break;
 
       // Mount Park Events
       case 'MountParkStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setSlewing(true);
         break;
 
       case 'MountParkCompleted':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setSlewing(false);
         _ref.read(mountStateProvider.notifier).setParked(true);
         _ref.read(mountStateProvider.notifier).setTracking(false);
@@ -484,7 +597,6 @@ class DeviceService {
         break;
 
       case 'MountUnparked':
-        if (!_eventTargetsCurrentDevice(DeviceType.mount, data)) return;
         _ref.read(mountStateProvider.notifier).setParked(false);
         // Smart notification
         _ref.read(smartNotificationServiceProvider).showSuccessIfNotOnScreens(
@@ -496,7 +608,6 @@ class DeviceService {
 
       // Legacy focuser position event (keep for backward compatibility)
       case 'FocuserPositionChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final pos = data['position'] as int;
         _ref.read(focuserStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
@@ -513,12 +624,10 @@ class DeviceService {
 
       // Focuser Events
       case 'FocuserMoveStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         _ref.read(focuserStateProvider.notifier).setMoving(true);
         break;
 
       case 'FocuserMoveCompleted':
-        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final position = data['position'] as int?;
         _ref.read(focuserStateProvider.notifier).setMoving(false);
         if (position != null) {
@@ -527,7 +636,6 @@ class DeviceService {
         break;
 
       case 'FocuserTemperatureChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.focuser, data)) return;
         final temperature = (data['temperature'] as num?)?.toDouble();
         if (temperature != null) {
           _ref
@@ -538,7 +646,6 @@ class DeviceService {
 
       // Legacy filter wheel position event (keep for backward compatibility)
       case 'FilterWheelPositionChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         final pos = data['position'] as int;
         _ref.read(filterWheelStateProvider.notifier).updatePosition(pos);
         if (data['isMoving'] != null) {
@@ -550,12 +657,10 @@ class DeviceService {
 
       // Filter Wheel Events
       case 'FilterChanging':
-        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         _ref.read(filterWheelStateProvider.notifier).setMoving(true);
         break;
 
       case 'FilterChanged':
-        if (!_eventTargetsCurrentDevice(DeviceType.filterWheel, data)) return;
         final position = data['position'] as int?;
         _ref.read(filterWheelStateProvider.notifier).setMoving(false);
         if (position != null) {
@@ -565,12 +670,10 @@ class DeviceService {
 
       // Rotator Events
       case 'RotatorMoveStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.rotator, data)) return;
         _ref.read(rotatorStateProvider.notifier).setMoving(true);
         break;
 
       case 'RotatorMoveCompleted':
-        if (!_eventTargetsCurrentDevice(DeviceType.rotator, data)) return;
         final angle = (data['angle'] as num?)?.toDouble();
         _ref.read(rotatorStateProvider.notifier).setMoving(false);
         if (angle != null) {
@@ -580,7 +683,6 @@ class DeviceService {
 
       // Camera Cooling Events
       case 'CameraCoolingStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final targetTemp = (data['target_temp'] as num?)?.toDouble();
         _ref.read(cameraStateProvider.notifier).setCooling(true);
         if (targetTemp != null) {
@@ -589,7 +691,6 @@ class DeviceService {
         break;
 
       case 'CameraCoolingReached':
-        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         final temp = (data['temperature'] as num?)?.toDouble();
         if (temp != null) {
           _ref.read(cameraStateProvider.notifier).updateTemperature(temp, 0.0);
@@ -597,20 +698,335 @@ class DeviceService {
         break;
 
       case 'CameraWarmingStarted':
-        if (!_eventTargetsCurrentDevice(DeviceType.camera, data)) return;
         _ref.read(cameraStateProvider.notifier).setCooling(false);
         break;
 
       case 'CameraWarmingCompleted':
         // Warming finished - no additional action needed
         break;
+
+      // ---------------------------------------------------------------
+      // DEV-P3-2: Heartbeat-health routing.
+      //
+      // The Rust heartbeat monitor publishes status changes via the
+      // equipment EventBus. We forward them into the dedicated
+      // `deviceHeartbeatHealthProvider` so per-device cards can render
+      // a colored indicator without each card subscribing to the
+      // entire equipment event stream itself. Connection-state
+      // notifiers (DEV-P0-1) and the driver-error handler (DEV-P0-5)
+      // are intentionally untouched here — heartbeat health is a
+      // separate gradient layered on top of connection state.
+      //
+      // Each case wraps the dispatch in a try/catch because the
+      // notifier provider may be unavailable mid-disposal (e.g. during
+      // a backend swap) and we never want a heartbeat-routing failure
+      // to mask the higher-priority connection events that share this
+      // method.
+      // ---------------------------------------------------------------
+      case 'HeartbeatStarted':
+        _routeHeartbeatStarted(data['device_id'] as String?);
+        break;
+
+      case 'HeartbeatStatusChanged':
+        _routeHeartbeatStatusChanged(
+          deviceId: data['device_id'] as String?,
+          status: data['status'] as String?,
+          consecutiveFailures: (data['consecutive_failures'] as num?)?.toInt(),
+          lastRttMs: _coerceIntFromBigInt(data['last_rtt_ms']),
+        );
+        break;
+
+      case 'HeartbeatReconnecting':
+        _routeHeartbeatReconnecting(
+          deviceId: data['device_id'] as String?,
+          attempt: (data['attempt'] as num?)?.toInt(),
+          maxAttempts: (data['max_attempts'] as num?)?.toInt(),
+        );
+        break;
+
+      case 'HeartbeatReconnected':
+        _routeHeartbeatReconnected(
+          deviceId: data['device_id'] as String?,
+          afterAttempts: (data['after_attempts'] as num?)?.toInt(),
+        );
+        break;
+
+      case 'HeartbeatStopped':
+        // Heartbeat monitoring intentionally stopped (e.g. user
+        // disconnected the device through the UI). Clear the entry so
+        // the indicator returns to the gray "unknown" baseline. The
+        // matching `Disconnected` event handler also clears, but the
+        // events are emitted independently and either may arrive
+        // first.
+        final stoppedId = data['device_id'] as String?;
+        if (stoppedId != null && stoppedId.isNotEmpty) {
+          _safeClearHeartbeatHealth(stoppedId);
+        }
+        break;
+    }
+  }
+
+  /// DEV-P3-2: helper — `last_rtt_ms` arrives as a `BigInt` over FRB.
+  /// Squeeze it down to a Dart `int` for the heartbeat provider, which
+  /// only cares about display. Returns null when the input is null or
+  /// not coercible.
+  int? _coerceIntFromBigInt(dynamic value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    if (value is BigInt) {
+      // Guard against absurdly large values that would overflow when
+      // converted to int. We're displaying milliseconds; anything above
+      // 2^31 is meaningless for a tooltip and we clamp to int.maxFinite
+      // equivalent via toInt() (Dart ints are 64-bit on native, so the
+      // guard is effectively only for the JS path which we don't ship
+      // on desktop, but kept here so the cast is total).
+      return value.isValidInt ? value.toInt() : null;
+    }
+    if (value is num) return value.toInt();
+    return null;
+  }
+
+  void _routeHeartbeatStarted(String? deviceId) {
+    if (deviceId == null || deviceId.isEmpty) return;
+    _safeApplyHeartbeat(
+      contextTag: 'heartbeat-started',
+      apply: (notifier) => notifier.applyHeartbeatStarted(deviceId: deviceId),
+    );
+  }
+
+  void _routeHeartbeatStatusChanged({
+    required String? deviceId,
+    required String? status,
+    required int? consecutiveFailures,
+    required int? lastRttMs,
+  }) {
+    if (deviceId == null || deviceId.isEmpty) return;
+    if (status == null || status.isEmpty) {
+      _safeLog(
+        (logger) => logger.warning(
+          'HeartbeatStatusChanged for $deviceId missing status field; '
+          'dropping. Payload may be malformed.',
+          source: 'DeviceService',
+        ),
+        'heartbeat-status-missing',
+      );
+      return;
+    }
+    _safeApplyHeartbeat(
+      contextTag: 'heartbeat-status',
+      apply: (notifier) => notifier.applyStatusEvent(
+        deviceId: deviceId,
+        status: status,
+        consecutiveFailures: consecutiveFailures ?? 0,
+        lastRttMs: lastRttMs,
+      ),
+    );
+  }
+
+  void _routeHeartbeatReconnecting({
+    required String? deviceId,
+    required int? attempt,
+    required int? maxAttempts,
+  }) {
+    if (deviceId == null || deviceId.isEmpty) return;
+    _safeApplyHeartbeat(
+      contextTag: 'heartbeat-reconnecting',
+      apply: (notifier) => notifier.applyReconnecting(
+        deviceId: deviceId,
+        attempt: attempt ?? 0,
+        maxAttempts: maxAttempts ?? 0,
+      ),
+    );
+  }
+
+  void _routeHeartbeatReconnected({
+    required String? deviceId,
+    required int? afterAttempts,
+  }) {
+    if (deviceId == null || deviceId.isEmpty) return;
+    _safeApplyHeartbeat(
+      contextTag: 'heartbeat-reconnected',
+      apply: (notifier) => notifier.applyReconnected(
+        deviceId: deviceId,
+        afterAttempts: afterAttempts ?? 0,
+      ),
+    );
+  }
+
+  void _safeApplyHeartbeat({
+    required String contextTag,
+    required void Function(DeviceHeartbeatHealthNotifier notifier) apply,
+  }) {
+    try {
+      final notifier = _ref.read(deviceHeartbeatHealthProvider.notifier);
+      apply(notifier);
+    } on Object catch (e) {
+      // Diagnostic-only failure — the heartbeat indicator going stale
+      // is strictly less important than the surrounding connection /
+      // error path, so we log and continue rather than rethrowing.
+      _safeLog(
+        (logger) => logger.warning(
+          'Heartbeat provider dispatch failed ($contextTag): $e',
+          source: 'DeviceService',
+        ),
+        contextTag,
+      );
+    }
+  }
+
+  void _safeClearHeartbeatHealth(String deviceId) {
+    try {
+      _ref.read(deviceHeartbeatHealthProvider.notifier).clearDevice(deviceId);
+    } on Object catch (e) {
+      _safeLog(
+        (logger) => logger.warning(
+          'Heartbeat provider clear failed for $deviceId: $e',
+          source: 'DeviceService',
+        ),
+        'heartbeat-clear',
+      );
+    }
+  }
+
+  /// Handle device connection event from the native EventBus.
+  void _applyDeviceConnected(String deviceType, String deviceId) {
+    switch (deviceType.toLowerCase()) {
+      case 'camera':
+        final notifier = _ref.read(cameraStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'mount':
+        final notifier = _ref.read(mountStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'focuser':
+        final notifier = _ref.read(focuserStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'filterwheel':
+      case 'filter wheel':
+        final notifier = _ref.read(filterWheelStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'guider':
+        final notifier = _ref.read(guiderStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'rotator':
+        final notifier = _ref.read(rotatorStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'dome':
+        final notifier = _ref.read(domeStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'weather':
+        final notifier = _ref.read(weatherStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'safetymonitor':
+      case 'safety monitor':
+        final notifier = _ref.read(safetyMonitorStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'switch':
+      case 'switch_':
+        // DEV-P2-1: switch device now has a first-class state provider.
+        final notifier = _ref.read(switchStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+      case 'covercalibrator':
+      case 'cover calibrator':
+        final notifier = _ref.read(coverCalibratorStateProvider.notifier);
+        notifier.setConnecting(deviceId, deviceId);
+        notifier.setConnected();
+        break;
+    }
+  }
+
+  void _applyDeviceConnecting(String deviceType, String deviceId) {
+    switch (deviceType.toLowerCase()) {
+      case 'camera':
+        _ref
+            .read(cameraStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'mount':
+        _ref
+            .read(mountStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'focuser':
+        _ref
+            .read(focuserStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'filterwheel':
+      case 'filter wheel':
+        _ref
+            .read(filterWheelStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'guider':
+        _ref
+            .read(guiderStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'rotator':
+        _ref
+            .read(rotatorStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'dome':
+        _ref.read(domeStateProvider.notifier).setConnecting(deviceId, deviceId);
+        break;
+      case 'weather':
+        _ref
+            .read(weatherStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'safetymonitor':
+      case 'safety monitor':
+        _ref
+            .read(safetyMonitorStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'switch':
+      case 'switch_':
+        // DEV-P2-1: switch device now has a first-class state provider.
+        _ref
+            .read(switchStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
+      case 'covercalibrator':
+      case 'cover calibrator':
+        _ref
+            .read(coverCalibratorStateProvider.notifier)
+            .setConnecting(deviceId, deviceId);
+        break;
     }
   }
 
   /// Handle device disconnection event
   void _handleDeviceDisconnected(String? deviceType, String? deviceId) {
-    if (_disposed || _quiescingForBackendSwap) return;
     if (deviceType == null || deviceId == null) return;
+
+    // DEV-P3-2: clear the heartbeat health entry so the per-card
+    // indicator falls back to "unknown" (gray dot) rather than getting
+    // stuck on the last-known value. Done unconditionally up-front so
+    // a clear failure here cannot block the existing connection-state
+    // teardown below (DEV-P0-1 / DEV-P0-5 paths).
+    _safeClearHeartbeatHealth(deviceId);
 
     // Log the disconnection event with timestamp
     try {
@@ -633,7 +1049,24 @@ class DeviceService {
     // Update connection state based on device type
     switch (deviceType.toLowerCase()) {
       case 'camera':
-        _stopTemperaturePolling();
+        // DEV-P1-4: only tear down camera-scoped polling state if the
+        // disconnect event is for the camera we're actually tracking.
+        // A stale event for a previously-disconnected camera must not
+        // kill polling/IDs for the CURRENT camera. We still flip the
+        // notifier and schedule reconnect — those operations are
+        // device-id aware via _attemptReconnect/setDisconnected.
+        if (_connectedCameraId != null && _connectedCameraId == deviceId) {
+          _stopTemperaturePolling();
+        } else if (_connectedCameraId != null) {
+          _safeLog(
+            (logger) => logger.warning(
+              'Ignoring stale camera Disconnected for $deviceId; '
+              'currently-tracked camera is $_connectedCameraId',
+              source: 'DeviceService',
+            ),
+            'camera-disconnect-guard',
+          );
+        }
         _ref.read(cameraStateProvider.notifier).setDisconnected();
         // Attempt auto-reconnection for camera
         _attemptReconnect(DeviceType.camera, deviceId);
@@ -645,16 +1078,12 @@ class DeviceService {
         break;
 
       case 'focuser':
-        _focuserVerifyGeneration++;
-        _stopStatusPolling(DeviceType.focuser);
         _ref.read(focuserStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.focuser, deviceId);
         break;
 
       case 'filterwheel':
       case 'filter wheel':
-        _filterWheelVerifyGeneration++;
-        _stopStatusPolling(DeviceType.filterWheel);
         _ref.read(filterWheelStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.filterWheel, deviceId);
         break;
@@ -665,8 +1094,6 @@ class DeviceService {
         break;
 
       case 'rotator':
-        _rotatorVerifyGeneration++;
-        _stopStatusPolling(DeviceType.rotator);
         _ref.read(rotatorStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.rotator, deviceId);
         break;
@@ -687,16 +1114,177 @@ class DeviceService {
         _attemptReconnect(DeviceType.safetyMonitor, deviceId);
         break;
 
-      case 'switch':
-        _ref.read(switchStateProvider.notifier).setDisconnected();
-        _attemptReconnect(DeviceType.switch_, deviceId);
-        break;
-
+      // DEV-P0-1: cover calibrator + switch cases. Previously these
+      // device types would never propagate a Disconnected event to the
+      // UI — cards stayed "connected" until app restart. Cover
+      // calibrator has a state provider; switch does not yet (DEV-P2-1)
+      // so we log loudly and surface a UI notification so the user
+      // knows the device is gone.
       case 'covercalibrator':
       case 'cover calibrator':
         _ref.read(coverCalibratorStateProvider.notifier).setDisconnected();
         _attemptReconnect(DeviceType.coverCalibrator, deviceId);
         break;
+
+      case 'switch':
+      case 'switch_':
+        // DEV-P2-1: switch device now has a first-class state provider,
+        // so disconnects route through `setDisconnected` and the
+        // standard auto-reconnect path — same shape as safety monitor.
+        _ref.read(switchStateProvider.notifier).setDisconnected();
+        _attemptReconnect(DeviceType.switch_, deviceId);
+        break;
+    }
+  }
+
+  /// DEV-P0-5: Handle a driver/heartbeat error event published from Rust.
+  ///
+  /// Three responsibilities:
+  ///   1. Always log (driver, device id, message, error code if any).
+  ///   2. Update the matching device-type StateNotifier with the error
+  ///      so equipment-card subtitles render it.
+  ///   3. Surface to the user via the structured errorService (which
+  ///      also pushes to the UI notification stream).
+  ///
+  /// Fail-loud: this method MUST NOT swallow the payload. Individual
+  /// downstream emissions are wrapped so one channel failing (e.g.
+  /// notification provider mid-disposal) cannot mask the others.
+  void _handleDeviceError({
+    required String? deviceType,
+    required String? deviceId,
+    required String? message,
+    required String? errorCode,
+    required EventSeverity severity,
+  }) {
+    // Compose a human-readable error string. Even if device_type or
+    // device_id are missing we still want the message visible.
+    final composedMessage = StringBuffer();
+    if (message != null && message.isNotEmpty) {
+      composedMessage.write(message);
+    } else {
+      composedMessage.write('Driver reported an error (no message provided)');
+    }
+    if (errorCode != null && errorCode.isNotEmpty) {
+      composedMessage.write(' [code: $errorCode]');
+    }
+    final fullMessage = composedMessage.toString();
+
+    // 1. Log loudly with full context.
+    _safeLog(
+      (logger) => logger.error(
+        'Driver error: type=${deviceType ?? "unknown"} '
+        'id=${deviceId ?? "unknown"} code=${errorCode ?? "none"} :: '
+        '$fullMessage',
+        source: 'DeviceService',
+      ),
+      'device-error-log',
+    );
+
+    // 2. Update the matching device-type state notifier so equipment
+    //    cards display the error in their subtitle.
+    final exception =
+        Exception(fullMessage); // setError expects Object — wrap once.
+    final typeKey = (deviceType ?? '').toLowerCase();
+    switch (typeKey) {
+      case 'camera':
+        _ref.read(cameraStateProvider.notifier).setError(exception);
+        break;
+      case 'mount':
+        _ref.read(mountStateProvider.notifier).setError(exception);
+        break;
+      case 'focuser':
+        _ref.read(focuserStateProvider.notifier).setError(exception);
+        break;
+      case 'filterwheel':
+      case 'filter wheel':
+        _ref.read(filterWheelStateProvider.notifier).setError(exception);
+        break;
+      case 'guider':
+        _ref.read(guiderStateProvider.notifier).setError(exception);
+        break;
+      case 'rotator':
+        _ref.read(rotatorStateProvider.notifier).setError(exception);
+        break;
+      case 'dome':
+        _ref.read(domeStateProvider.notifier).setError(exception);
+        break;
+      case 'weather':
+        _ref.read(weatherStateProvider.notifier).setError(exception);
+        break;
+      case 'safetymonitor':
+      case 'safety monitor':
+        _ref.read(safetyMonitorStateProvider.notifier).setError(exception);
+        break;
+      case 'covercalibrator':
+      case 'cover calibrator':
+        _ref.read(coverCalibratorStateProvider.notifier).setError(exception);
+        break;
+      case 'switch':
+      case 'switch_':
+        // DEV-P2-1: switch device now has a first-class state provider,
+        // so driver errors surface in the equipment card subtitle.
+        _ref.read(switchStateProvider.notifier).setError(exception);
+        break;
+      default:
+        _safeLog(
+          (logger) => logger.warning(
+            'Error event for unknown device type "$deviceType"; '
+            'no state notifier updated. Message: $fullMessage',
+            source: 'DeviceService',
+          ),
+          'device-error-unknown-type',
+        );
+    }
+
+    // 3. Surface via the structured errorService. This routes through
+    //    the error history (visible in diagnostics) AND pushes a UI
+    //    notification toast (errorService internally calls
+    //    uiNotificationProvider for error/critical severities).
+    try {
+      final errSvc = _ref.read(errorServiceProvider);
+      final mappedSeverity = switch (severity) {
+        EventSeverity.info => ErrorSeverity.info,
+        EventSeverity.warning => ErrorSeverity.warning,
+        EventSeverity.error => ErrorSeverity.error,
+        EventSeverity.critical => ErrorSeverity.critical,
+      };
+      // Use deviceType for the structured entry's title. If absent we
+      // still want the entry recorded, so default to "Device".
+      errSvc.logDeviceError(
+        operation: 'driver_error',
+        message: fullMessage,
+        deviceType: deviceType ?? 'Device',
+        deviceId: deviceId,
+        severity: mappedSeverity,
+        context: errorCode == null ? null : {'error_code': errorCode},
+      );
+    } on Object catch (errSvcErr) {
+      _safeLog(
+        (logger) => logger.warning(
+          'errorService emission for driver error failed: $errSvcErr '
+          '(original: $fullMessage)',
+          source: 'DeviceService',
+        ),
+        'device-error-errorservice',
+      );
+      // Fallback: try uiNotificationProvider directly so the user
+      // still sees the message even if errorService is unavailable.
+      try {
+        _ref.read(uiNotificationProvider.notifier).showError(
+              fullMessage,
+              title: '${deviceType ?? "Device"} Error',
+              duration: const Duration(seconds: 12),
+            );
+      } on Object catch (uiErr) {
+        _safeLog(
+          (logger) => logger.warning(
+            'UI notification fallback also failed: $uiErr '
+            '(original: $fullMessage)',
+            source: 'DeviceService',
+          ),
+          'device-error-ui-fallback',
+        );
+      }
     }
   }
 
@@ -705,9 +1293,6 @@ class DeviceService {
 
   /// Timers for reconnection delays
   final Map<String, Timer> _reconnectionTimers = {};
-
-  String _reconnectKey(DeviceType type, String deviceId) =>
-      '${type.name}:$deviceId';
 
   /// Maximum number of reconnection attempts
   static const int _maxReconnectAttempts = 3;
@@ -719,29 +1304,56 @@ class DeviceService {
     Duration(seconds: 20),
   ];
 
+  /// Attempt to reconnect to a device with exponential backoff
+  /// Read the current `autoReconnectEnabled` value for a device type.
+  ///
+  /// DEV-P1-1: Previously only [DeviceType.camera] honored the
+  /// user-controlled flag; every other type silently auto-reconnected
+  /// regardless of preference. This switch makes the bridge explicit
+  /// so each device type's state notifier owns the answer.
+  ///
+  /// Switch device has no state provider yet (tracked under DEV-P2-1);
+  /// it follows the legacy default of `true`.
   bool _getAutoReconnectFor(DeviceType type) {
-    switch (type) {
-      case DeviceType.camera:
-        return _ref.read(cameraStateProvider).autoReconnectEnabled;
-      case DeviceType.mount:
-        return _ref.read(mountStateProvider).autoReconnectEnabled;
-      case DeviceType.focuser:
-      case DeviceType.filterWheel:
-      case DeviceType.guider:
-      case DeviceType.rotator:
-      case DeviceType.dome:
-      case DeviceType.weather:
-      case DeviceType.safetyMonitor:
-      case DeviceType.switch_:
-      case DeviceType.coverCalibrator:
-        return true;
-    }
+    return switch (type) {
+      DeviceType.camera => _ref.read(cameraStateProvider).autoReconnectEnabled,
+      DeviceType.mount => _ref.read(mountStateProvider).autoReconnectEnabled,
+      DeviceType.focuser =>
+        _ref.read(focuserStateProvider).autoReconnectEnabled,
+      DeviceType.filterWheel =>
+        _ref.read(filterWheelStateProvider).autoReconnectEnabled,
+      DeviceType.guider => _ref.read(guiderStateProvider).autoReconnectEnabled,
+      DeviceType.rotator =>
+        _ref.read(rotatorStateProvider).autoReconnectEnabled,
+      DeviceType.dome => _ref.read(domeStateProvider).autoReconnectEnabled,
+      DeviceType.weather =>
+        _ref.read(weatherStateProvider).autoReconnectEnabled,
+      DeviceType.safetyMonitor =>
+        _ref.read(safetyMonitorStateProvider).autoReconnectEnabled,
+      DeviceType.coverCalibrator =>
+        _ref.read(coverCalibratorStateProvider).autoReconnectEnabled,
+      DeviceType.switch_ => _ref.read(switchStateProvider).autoReconnectEnabled,
+    };
   }
 
-  /// Attempt to reconnect to a device with exponential backoff
   Future<void> _attemptReconnect(DeviceType type, String deviceId) async {
-    if (_disposed || _quiescingForBackendSwap) return;
-    // Check if auto-reconnect is enabled for this device
+    if (_suppressAutoReconnect) {
+      return;
+    }
+
+    if (_isUserInitiatedDisconnect(deviceId)) {
+      _safeLog(
+        (logger) => logger.info(
+          'Skipping auto-reconnect for user-initiated disconnect of '
+          '${type.displayName} ($deviceId)',
+          source: 'DeviceService',
+        ),
+        'user-disconnect-reconnect-skip',
+      );
+      return;
+    }
+
+    // Check if auto-reconnect is enabled for this device.
     final autoReconnectEnabled = _getAutoReconnectFor(type);
 
     if (!autoReconnectEnabled) {
@@ -758,8 +1370,7 @@ class DeviceService {
     }
 
     // Get current attempt count
-    final reconnectKey = _reconnectKey(type, deviceId);
-    final attemptCount = _reconnectionAttempts[reconnectKey] ?? 0;
+    final attemptCount = _reconnectionAttempts[deviceId] ?? 0;
 
     if (attemptCount >= _maxReconnectAttempts) {
       // Max attempts reached - notify user
@@ -773,12 +1384,12 @@ class DeviceService {
         // Logging service not available
       }
       _showReconnectionFailedNotification(type, deviceId);
-      _reconnectionAttempts.remove(reconnectKey);
+      _reconnectionAttempts.remove(deviceId);
       return;
     }
 
     // Increment attempt count
-    _reconnectionAttempts[reconnectKey] = attemptCount + 1;
+    _reconnectionAttempts[deviceId] = attemptCount + 1;
 
     // Get delay for this attempt
     final delay = attemptCount < _reconnectDelays.length
@@ -797,11 +1408,10 @@ class DeviceService {
     }
 
     // Cancel any existing reconnection timer for this device
-    _reconnectionTimers[reconnectKey]?.cancel();
+    _reconnectionTimers[deviceId]?.cancel();
 
     // Schedule reconnection attempt
-    _reconnectionTimers[reconnectKey] = Timer(delay, () async {
-      if (_disposed || _quiescingForBackendSwap) return;
+    _reconnectionTimers[deviceId] = Timer(delay, () async {
       try {
         // Log the actual attempt
         try {
@@ -817,8 +1427,8 @@ class DeviceService {
         await _performReconnection(type, deviceId);
 
         // Success - reset attempt count
-        _reconnectionAttempts.remove(reconnectKey);
-        _reconnectionTimers.remove(reconnectKey);
+        _reconnectionAttempts.remove(deviceId);
+        _reconnectionTimers.remove(deviceId);
 
         // Log success
         try {
@@ -849,7 +1459,7 @@ class DeviceService {
         }
 
         // Reconnection failed - try again
-        unawaited(_attemptReconnect(type, deviceId));
+        await _attemptReconnect(type, deviceId);
       }
     });
   }
@@ -868,8 +1478,7 @@ class DeviceService {
     }
 
     // Check if both critical devices are connected (if they're in the profile)
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
+    final activeProfile = _activeProfile;
     if (activeProfile == null) {
       return;
     }
@@ -904,7 +1513,6 @@ class DeviceService {
 
   /// Perform the actual reconnection based on device type
   Future<void> _performReconnection(DeviceType type, String deviceId) async {
-    if (_disposed || _quiescingForBackendSwap) return;
     switch (type) {
       case DeviceType.camera:
         final notifier = _ref.read(cameraStateProvider.notifier);
@@ -1041,19 +1649,44 @@ class DeviceService {
   /// Handle disconnection of critical devices (camera, mount) during sequence execution
   Future<void> _handleCriticalDeviceDisconnect(
       String deviceType, String deviceId) async {
-    if (_disposed || _quiescingForBackendSwap) return;
-    // Check if sequence is currently running
+    // Check if sequence is currently active. A paused sequence still needs a
+    // fresh checkpoint on critical disconnect so a crash during recovery does
+    // not roll back to the previous periodic checkpoint.
     final sequenceState = _ref.read(sequenceExecutionStateProvider);
     if (sequenceState != SequenceExecutionState.running &&
         sequenceState != SequenceExecutionState.paused) {
-      return; // Not running/paused, no action needed
+      return; // Not active, no action needed
     }
 
     try {
       await _backend.saveCheckpoint();
-      if (sequenceState == SequenceExecutionState.running) {
-        await pauseSequence();
+    } catch (e) {
+      _safeLog(
+        (logger) => logger.error(
+          'Failed to save checkpoint after critical $deviceType disconnect '
+          '($deviceId): $e',
+          source: 'DeviceService',
+        ),
+        'critical-disconnect-checkpoint',
+      );
+      try {
+        _ref.read(uiNotificationProvider.notifier).showError(
+              'Failed to save a sequence checkpoint after $deviceType disconnected.',
+              title: 'Checkpoint Failed',
+              duration: const Duration(seconds: 12),
+            );
+      } on Object {
+        // Notification failure must not mask the hardware-protection pause.
       }
+    }
+
+    if (sequenceState == SequenceExecutionState.paused) {
+      return;
+    }
+
+    // Pause the sequence
+    try {
+      await pauseSequence();
     } catch (e) {
       // Log error if available
     }
@@ -1063,7 +1696,6 @@ class DeviceService {
   }
 
   void _handleSequencerEvent(NightshadeEvent event) {
-    if (_disposed) return;
     final progressNotifier = _ref.read(sequenceProgressProvider.notifier);
     final data = event.data;
 
@@ -1172,10 +1804,11 @@ class DeviceService {
 
   void dispose() {
     _disposed = true;
+    DeviceServiceLifecycle.unregister(this);
     _eventSubscription?.cancel();
     _temperaturePollingTimer?.cancel();
     _warmingTimer?.cancel();
-    _stopAllStatusPolling();
+    _userDisconnectDebounceTimer?.cancel();
     _cancelAllReconnections();
   }
 
@@ -1201,96 +1834,25 @@ class DeviceService {
     return await _backend.discoverAlpacaAtAddress(host, port);
   }
 
-  void _validateDeviceId(DeviceType type, String deviceId) {
-    if (!isValidDeviceIdFormat(deviceId)) {
-      throw InvalidDeviceIdException(_deviceTypeErrorName(type), deviceId);
-    }
-  }
-
-  String _deviceTypeErrorName(DeviceType type) {
-    switch (type) {
-      case DeviceType.filterWheel:
-        return 'filter wheel';
-      case DeviceType.safetyMonitor:
-        return 'safety monitor';
-      case DeviceType.weather:
-        return 'weather station';
-      case DeviceType.coverCalibrator:
-        return 'cover calibrator';
-      case DeviceType.switch_:
-        return 'switch';
-      default:
-        return type.name;
-    }
-  }
-
-  Future<String> _resolveDeviceDisplayName(
-      DeviceType type, String deviceId) async {
-    try {
-      final connected = await _backend.getConnectedDevices();
-      for (final device in connected) {
-        if (device.id == deviceId && device.deviceType == type) {
-          return device.name;
-        }
-      }
-    } catch (e) {
-      try {
-        _ref.read(loggingServiceProvider).debug(
-              'Connected-device lookup failed while resolving '
-              '${type.displayName} name for $deviceId: $e',
-              source: 'DeviceService',
-            );
-      } catch (_) {}
-    }
-    _validateDeviceId(type, deviceId);
-    return _friendlyNameFromId(deviceId);
-  }
-
-  Future<CameraRecommendedSettings> queryRecommendedCameraSettings(
-      String deviceId) {
-    return _backend.cameraGetRecommendedSettings(deviceId);
-  }
-
-  Future<bool> applyRecommendedCameraSettings(
-      CameraRecommendedSettings settings) async {
-    final activeProfile = _ref.read(activeEquipmentProfileProvider);
-    if (activeProfile?.id == null) {
-      return false;
-    }
-
-    final nextGain = activeProfile!.defaultGain ?? settings.unityGain;
-    final nextOffset = activeProfile.defaultOffset ?? settings.defaultOffset;
-    final shouldUpdateGain =
-        activeProfile.defaultGain == null && settings.unityGain != null;
-    final shouldUpdateOffset =
-        activeProfile.defaultOffset == null && settings.defaultOffset != null;
-
-    if (!shouldUpdateGain && !shouldUpdateOffset) {
-      return false;
-    }
-
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final dbProfile = await profilesDao.getProfileById(activeProfile.id!);
-    if (dbProfile == null) {
-      return false;
-    }
-
-    await profilesDao.updateProfile(dbProfile.copyWith(
-      defaultGain: Value(nextGain),
-      defaultOffset: Value(nextOffset),
-      updatedAt: DateTime.now(),
-    ));
-    return true;
-  }
-
   /// Connect to a camera
   Future<void> connectCamera(String deviceId) {
     return _trackInFlight(() async {
       final notifier = _ref.read(cameraStateProvider.notifier);
 
+      // DEV-P1-7: skip the discovery precondition. We used to run a full
+      // `discoverDevices(camera)` sweep and reject any unknown id with
+      // "Camera not found: $id" — that made a reconnect of a known-good
+      // device fail whenever a discovery transient (USB blip, backend
+      // swap, ...) had blanked the cache. The backend's `connectDevice`
+      // is the only honest source of truth for "is this actually
+      // reachable?", so we keep the cheap structural format check here
+      // and let the backend report the real outcome.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('camera', deviceId);
+      }
+
       final deviceName =
           await _resolveDeviceDisplayName(DeviceType.camera, deviceId);
-
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -1316,12 +1878,25 @@ class DeviceService {
             }
           }
         } catch (e) {
-          try {
-            _ref.read(loggingServiceProvider).warning(
+          _safeLog(
+            (l) => l.warning(
                 'Cool-on-connect failed (profile lookup or cooling command): $e',
-                source: 'DeviceService');
-          } catch (_) {}
+                source: 'DeviceService'),
+            'cool-on-connect',
+          );
         }
+
+        // IMG-P3-2: auto-detect manufacturer-recommended gain/offset from the
+        // camera SDK and populate the active equipment profile when the user
+        // has NOT explicitly set those values. We never overwrite an existing
+        // profile value — the SDK recommendation is a starting point, not an
+        // override of the user's deliberate choice.
+        //
+        // Failures here are non-fatal: connection has already succeeded, and
+        // a missing recommendation is the honest "the SDK didn't tell us"
+        // answer (most ASCOM/Alpaca/INDI cameras, and several native vendors,
+        // don't expose this). The user can still set values manually.
+        await _autoApplyRecommendedCameraSettings(deviceId, deviceName);
 
         // Start temperature polling (this will immediately poll and update)
         _startTemperaturePolling(deviceId);
@@ -1361,6 +1936,161 @@ class DeviceService {
         rethrow;
       }
     });
+  }
+
+  /// connect and apply them to the active equipment profile ONLY when the
+  /// profile has no explicit value set.
+  ///
+  /// Contract:
+  /// - Query the camera SDK via [NightshadeBackend.cameraGetRecommendedSettings].
+  /// - If unityGain is non-null AND the profile's defaultGain is null, write
+  ///   the recommendation through and log it.
+  /// - Same for defaultOffset.
+  /// - Existing user-set values are never overwritten.
+  /// - Any failure (query failed, no active profile, no profile id) is logged
+  ///   and swallowed — the camera is already connected; auto-detect is a
+  ///   convenience, not a precondition.
+  Future<void> _autoApplyRecommendedCameraSettings(
+      String deviceId, String deviceName) async {
+    try {
+      final activeProfile = _ref.read(activeEquipmentProfileProvider);
+      if (activeProfile == null || activeProfile.id == null) {
+        // No profile to update. Honest no-op.
+        return;
+      }
+
+      // If the profile already has BOTH values set, skip the SDK query
+      // entirely — there's nothing we'd want to write anyway.
+      if (activeProfile.defaultGain != null &&
+          activeProfile.defaultOffset != null) {
+        return;
+      }
+
+      final CameraRecommendedSettings rec;
+      try {
+        rec = await _backend.cameraGetRecommendedSettings(deviceId);
+      } catch (e) {
+        _safeLog(
+          (l) => l.warning(
+              'Auto-detect recommended camera settings failed for $deviceName ($deviceId): $e',
+              source: 'DeviceService'),
+          'auto-detect-recommended-settings',
+        );
+        return;
+      }
+
+      // No recommendation available (typical for ASCOM/Alpaca/INDI and
+      // Touptek/Player One/Atik/FLI/Moravian). Honest no-op.
+      if (rec.unityGain == null && rec.defaultOffset == null) {
+        if (rec.notes.isNotEmpty) {
+          _safeLog(
+            (l) => l.info(
+                'Camera $deviceName reported no SDK recommendation: ${rec.notes}',
+                source: 'DeviceService'),
+            'auto-detect-recommended-settings',
+          );
+        }
+        return;
+      }
+
+      // Decide what to apply. Never overwrite user values.
+      final int? newGain =
+          (activeProfile.defaultGain == null) ? rec.unityGain : null;
+      final int? newOffset =
+          (activeProfile.defaultOffset == null) ? rec.defaultOffset : null;
+
+      if (newGain == null && newOffset == null) {
+        // Both already set by the user; surface the recommendation in logs
+        // so they can compare manually if interested.
+        _safeLog(
+          (l) => l.info(
+              'Camera $deviceName advertised recommendation but profile already populated. '
+              'SDK reported: unity_gain=${rec.unityGain}, default_offset=${rec.defaultOffset}. '
+              'Notes: ${rec.notes}',
+              source: 'DeviceService'),
+          'auto-detect-recommended-settings',
+        );
+        return;
+      }
+
+      // Persist the new values.
+      final notifier = _ref.read(equipmentProfilesProvider.notifier);
+      final updated = activeProfile.copyWith(
+        defaultGain: newGain ?? activeProfile.defaultGain,
+        defaultOffset: newOffset ?? activeProfile.defaultOffset,
+      );
+      try {
+        await notifier.updateProfile(updated);
+      } catch (e) {
+        _safeLog(
+          (l) => l.warning(
+              'Failed to persist auto-detected camera settings to profile ${activeProfile.id}: $e',
+              source: 'DeviceService'),
+          'auto-detect-recommended-settings',
+        );
+        return;
+      }
+
+      // Log clearly per task spec: "Auto-applied recommended gain from
+      // camera (X): unity gain at G=Y".
+      final logged = <String>[];
+      if (newGain != null) {
+        logged.add('unity gain G=$newGain');
+      }
+      if (newOffset != null) {
+        logged.add('offset O=$newOffset');
+      }
+      _safeLog(
+        (l) => l.info(
+            'Auto-applied recommended camera settings from $deviceName: '
+            '${logged.join(", ")} (notes: ${rec.notes})',
+            source: 'DeviceService'),
+        'auto-detect-recommended-settings',
+      );
+    } catch (e) {
+      // Belt-and-braces: any unexpected error here must not break the
+      // connect flow.
+      _safeLog(
+        (l) => l.warning(
+            'Unexpected error in auto-detect recommended settings for $deviceId: $e',
+            source: 'DeviceService'),
+        'auto-detect-recommended-settings',
+      );
+    }
+  }
+
+  /// Public re-entry point: re-query the SDK for the recommendation. Used by
+  /// the equipment-screen "Auto-detect" button.
+  ///
+  /// Returns the raw [CameraRecommendedSettings] from the backend so the UI
+  /// can present the values BEFORE deciding whether to apply them.
+  Future<CameraRecommendedSettings> queryRecommendedCameraSettings(
+      String deviceId) {
+    return _backend.cameraGetRecommendedSettings(deviceId);
+  }
+
+  /// Public re-entry point: apply a recommendation to the active profile,
+  /// overwriting whatever was there. Used by the equipment-screen
+  /// "Auto-detect" UI when the user explicitly confirms the apply.
+  ///
+  /// Returns true if at least one field was updated.
+  Future<bool> applyRecommendedCameraSettings(
+      CameraRecommendedSettings rec) async {
+    final activeProfile = _ref.read(activeEquipmentProfileProvider);
+    if (activeProfile == null || activeProfile.id == null) {
+      return false;
+    }
+    if (rec.unityGain == null && rec.defaultOffset == null) {
+      return false;
+    }
+
+    final updated = activeProfile.copyWith(
+      defaultGain: rec.unityGain ?? activeProfile.defaultGain,
+      defaultOffset: rec.defaultOffset ?? activeProfile.defaultOffset,
+    );
+    final notifier = _ref.read(equipmentProfilesProvider.notifier);
+    await notifier.updateProfile(updated);
+    return true;
   }
 
   /// Set camera cooling
@@ -1433,13 +2163,13 @@ class DeviceService {
     const maxWarmingDuration = Duration(minutes: 30);
     final warmingStartTime = DateTime.now();
 
-    try {
-      final logger = _ref.read(loggingServiceProvider);
-      logger.info(
+    _safeLog(
+      (l) => l.info(
         'Starting gradual warm-up from ${currentTemp.toStringAsFixed(1)}°C at ${ratePerMin.toStringAsFixed(1)}°C/min (power-based stopping)',
         source: 'DeviceService',
-      );
-    } catch (_) {}
+      ),
+      'warm-up-start',
+    );
 
     // Set initial target to current temp (keeps cooler tracking but doesn't shock)
     await _backend.cameraSetCooling(
@@ -1472,21 +2202,21 @@ class DeviceService {
             deviceId: deviceId,
             enabled: false,
           );
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.info(
+          _safeLog(
+            (l) => l.info(
               'Warm-up complete. Cooler power reached ${coolerPower.toStringAsFixed(0)}%, cooler disabled. Sensor: ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
               source: 'DeviceService',
-            );
-          } catch (_) {}
+            ),
+            'warm-up-complete',
+          );
         } catch (e) {
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.error(
+          _safeLog(
+            (l) => l.error(
               'Failed to disable cooler at end of warm-up: $e',
               source: 'DeviceService',
-            );
-          } catch (_) {}
+            ),
+            'warm-up-disable-fail',
+          );
         }
         notifier.setWarming(false);
         return;
@@ -1500,21 +2230,21 @@ class DeviceService {
             deviceId: deviceId,
             enabled: false,
           );
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
+          _safeLog(
+            (l) => l.warning(
               'Warm-up safety timeout (30 min). Cooler disabled at power ${coolerPower.toStringAsFixed(0)}%, sensor ${state.temperature?.toStringAsFixed(1) ?? "?"}°C',
               source: 'DeviceService',
-            );
-          } catch (_) {}
+            ),
+            'warm-up-safety-timeout',
+          );
         } catch (e) {
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.error(
+          _safeLog(
+            (l) => l.error(
               'Failed to disable cooler after warm-up timeout: $e',
               source: 'DeviceService',
-            );
-          } catch (_) {}
+            ),
+            'warm-up-timeout-disable-fail',
+          );
         }
         notifier.setWarming(false);
         return;
@@ -1531,13 +2261,13 @@ class DeviceService {
         // Update the UI target temp so the user sees it climbing
         notifier.setTargetTemp(currentSetpoint);
       } catch (e) {
-        try {
-          final logger = _ref.read(loggingServiceProvider);
-          logger.error(
+        _safeLog(
+          (l) => l.error(
             'Error during warm-up step (setpoint ${currentSetpoint.toStringAsFixed(1)}°C): $e',
             source: 'DeviceService',
-          );
-        } catch (_) {}
+          ),
+          'warm-up-step-fail',
+        );
         // Don't cancel on transient errors - try again next tick
       }
     });
@@ -1554,19 +2284,28 @@ class DeviceService {
   }
 
   /// Disconnect camera
-  Future<void> disconnectCamera() async {
-    // Cancel any warming in progress
-    cancelWarmCamera();
-    // Stop temperature polling first
-    _stopTemperaturePolling();
+  Future<void> disconnectCamera() {
+    return _trackInFlight(() async {
+      // Cancel any warming in progress
+      cancelWarmCamera();
+      // Stop temperature polling first
+      _stopTemperaturePolling();
 
-    final notifier = _ref.read(cameraStateProvider.notifier);
-    final state = _ref.read(cameraStateProvider);
+      final notifier = _ref.read(cameraStateProvider.notifier);
+      final state = _ref.read(cameraStateProvider);
 
-    try {
-      // Use the connected device's ID from state, not the profile
+      // Audit DEV-P2-6: surface "nothing connected" as a typed precondition
+      // instead of a silent no-op so the equipment screen's bulk-disconnect
+      // sweep can distinguish "already disconnected" (skip cleanly) from
+      // "real disconnect failure" (toast + log).
       final deviceId = state.deviceId;
-      if (deviceId != null && deviceId.isNotEmpty) {
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('camera');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
         // Stop heartbeat monitoring
         try {
           await _backend.stopDeviceHeartbeat(deviceId);
@@ -1596,11 +2335,10 @@ class DeviceService {
 
         // Disconnect device
         await _backend.disconnectDevice(DeviceType.camera, deviceId);
+      } finally {
+        notifier.setDisconnected();
       }
-    } finally {
-      _stopStatusPolling(DeviceType.filterWheel);
-      notifier.setDisconnected();
-    }
+    });
   }
 
   /// Connect to a mount
@@ -1608,9 +2346,14 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(mountStateProvider.notifier);
 
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('mount', deviceId);
+      }
+
       final deviceName =
           await _resolveDeviceDisplayName(DeviceType.mount, deviceId);
-
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -1632,13 +2375,13 @@ class DeviceService {
           notifier.setSlewing(status.slewing);
         } catch (e) {
           // If status query fails, log but don't fail the connection
-          try {
-            final logger = _ref.read(loggingServiceProvider);
-            logger.warning(
+          _safeLog(
+            (l) => l.warning(
               'Failed to get initial mount status for ($deviceId): $e',
               source: 'DeviceService',
-            );
-          } catch (_) {}
+            ),
+            'mount-initial-status-fail',
+          );
         }
 
         // Start heartbeat monitoring (10 second interval) for critical device
@@ -1679,14 +2422,20 @@ class DeviceService {
   }
 
   /// Disconnect mount
-  Future<void> disconnectMount() async {
-    final notifier = _ref.read(mountStateProvider.notifier);
-    final state = _ref.read(mountStateProvider);
+  Future<void> disconnectMount() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(mountStateProvider.notifier);
+      final state = _ref.read(mountStateProvider);
 
-    try {
-      // Use the connected device's ID from state, not the profile
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
-      if (deviceId != null && deviceId.isNotEmpty) {
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('mount');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
         // Stop heartbeat monitoring
         try {
           await _backend.stopDeviceHeartbeat(deviceId);
@@ -1718,10 +2467,10 @@ class DeviceService {
           DeviceType.mount,
           deviceId,
         );
+      } finally {
+        notifier.setDisconnected();
       }
-    } finally {
-      notifier.setDisconnected();
-    }
+    });
   }
 
   /// Connect to a focuser
@@ -1729,9 +2478,14 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(focuserStateProvider.notifier);
 
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('focuser', deviceId);
+      }
+
       final deviceName =
           await _resolveDeviceDisplayName(DeviceType.focuser, deviceId);
-
       notifier.setConnecting(deviceId, deviceName);
 
       try {
@@ -1751,9 +2505,7 @@ class DeviceService {
         if (status.temperature != null) {
           notifier.updateTemperature(status.temperature!);
         }
-        _startStatusPolling(DeviceType.focuser, deviceId);
       } catch (e) {
-        _stopStatusPolling(DeviceType.focuser);
         notifier.setDisconnected();
         rethrow;
       }
@@ -1761,23 +2513,28 @@ class DeviceService {
   }
 
   /// Disconnect focuser
-  Future<void> disconnectFocuser() async {
-    final notifier = _ref.read(focuserStateProvider.notifier);
-    final state = _ref.read(focuserStateProvider);
+  Future<void> disconnectFocuser() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(focuserStateProvider.notifier);
+      final state = _ref.read(focuserStateProvider);
 
-    try {
-      // Use the connected device's ID from state, not the profile
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
-      if (deviceId != null && deviceId.isNotEmpty) {
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('focuser');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
         await _backend.disconnectDevice(
           DeviceType.focuser,
           deviceId,
         );
+      } finally {
+        notifier.setDisconnected();
       }
-    } finally {
-      _stopStatusPolling(DeviceType.focuser);
-      notifier.setDisconnected();
-    }
+    });
   }
 
   /// Connect to a filter wheel
@@ -1786,6 +2543,16 @@ class DeviceService {
       final notifier = _ref.read(filterWheelStateProvider.notifier);
       final logger = _ref.read(loggingServiceProvider);
 
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('filter wheel', deviceId);
+      }
+
+      // Derive a friendly name without running discovery.
+      // Discovery opens/closes hardware (e.g. ZWO EFW via native SDK) which
+      // can interfere with subsequent position reads.  The device manager will
+      // register the full DeviceInfo during api_connect_device anyway.
       final deviceName =
           await _resolveDeviceDisplayName(DeviceType.filterWheel, deviceId);
 
@@ -1840,9 +2607,7 @@ class DeviceService {
         // driver so user-defined names (Ha, OIII, SII, etc.) are used in
         // sequences and UI instead of generic "Filter 1", "Filter 2".
         await _syncFilterNamesToDriver(deviceId, status.filterNames);
-        _startStatusPolling(DeviceType.filterWheel, deviceId);
       } catch (e) {
-        _stopStatusPolling(DeviceType.filterWheel);
         notifier.setDisconnected();
         rethrow;
       }
@@ -1891,9 +2656,11 @@ class DeviceService {
           syncedNames = profileFilterNames;
         }
 
-        await _backend.filterWheelSetNames(deviceId, syncedNames);
-
-        notifier.setConnected(filterNames: syncedNames);
+        await _applyFilterNamesToNotifier(
+          notifier: notifier,
+          deviceId: deviceId,
+          syncedNames: syncedNames,
+        );
         logger.debug(
           'Profile filter names synced: $syncedNames',
           source: 'DeviceService',
@@ -1924,9 +2691,11 @@ class DeviceService {
           syncedNames = sessionFilterNames;
         }
 
-        await _backend.filterWheelSetNames(deviceId, syncedNames);
-
-        notifier.setConnected(filterNames: syncedNames);
+        await _applyFilterNamesToNotifier(
+          notifier: notifier,
+          deviceId: deviceId,
+          syncedNames: syncedNames,
+        );
         logger.debug(
           'Session filter names synced: $syncedNames',
           source: 'DeviceService',
@@ -1952,12 +2721,6 @@ class DeviceService {
   /// e.g. "native:zwo_efw:0" → "ZWO EFW 0"
   ///      "ascom:ASCOM.EFWmini.FilterWheel" → "EFWmini FilterWheel"
   String _friendlyNameFromId(String deviceId) {
-    if (deviceId == 'phd2' || deviceId == 'phd2_guider') {
-      return 'PHD2 Guiding';
-    }
-    if (deviceId == 'builtin_guider') {
-      return 'Built-in Guider';
-    }
     if (deviceId.startsWith('native:zwo_efw:')) {
       final hwId = deviceId.split(':').last;
       return 'ZWO EFW $hwId';
@@ -1979,50 +2742,35 @@ class DeviceService {
       return progId;
     }
     if (deviceId.startsWith('alpaca:')) {
-      final parts = deviceId.split(':');
-      if (parts.length >= 3) {
-        return 'Alpaca ${parts.sublist(1).join(':')}';
-      }
-      return 'Alpaca Device';
-    }
-    if (deviceId.startsWith('indi:')) {
-      final parts = deviceId.split(':');
-      if (parts.length >= 4) {
-        return parts.sublist(3).join(':');
-      }
-      return 'INDI Device';
-    }
-    if (deviceId.startsWith('native:')) {
-      final parts = deviceId.split(':');
-      if (parts.length >= 3) {
-        return parts.sublist(1).join(' ').toUpperCase();
-      }
-      return 'Native Device';
-    }
-    if (deviceId.startsWith('simulator:')) {
-      final suffix = deviceId.substring('simulator:'.length);
-      return suffix.isEmpty ? 'Simulator Device' : 'Simulator $suffix';
+      return 'Alpaca Filter Wheel';
     }
     return deviceId;
   }
 
   /// Disconnect filter wheel
-  Future<void> disconnectFilterWheel() async {
-    final notifier = _ref.read(filterWheelStateProvider.notifier);
-    final state = _ref.read(filterWheelStateProvider);
+  Future<void> disconnectFilterWheel() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(filterWheelStateProvider.notifier);
+      final state = _ref.read(filterWheelStateProvider);
 
-    try {
-      // Use the connected device's ID from state, not the profile
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
-      if (deviceId != null && deviceId.isNotEmpty) {
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('filter wheel');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+      _lastAppliedFilterOffset = 0;
+
+      try {
         await _backend.disconnectDevice(
           DeviceType.filterWheel,
           deviceId,
         );
+      } finally {
+        notifier.setDisconnected();
       }
-    } finally {
-      notifier.setDisconnected();
-    }
+    });
   }
 
   /// Connect to a guider
@@ -2039,36 +2787,47 @@ class DeviceService {
         notifier.setConnecting('phd2_guider', 'PHD2 Guiding');
         try {
           final settings = await _ref.read(appSettingsProvider.future);
-          // Auto-launch PHD2 when an executable path is configured and the
-          // host is local. Why: PHD2 is a separate process; if the user
-          // points Nightshade at a locally-installed binary, we should not
-          // require them to alt-tab to launch it before pressing Connect.
-          // For remote hosts (host != localhost/127.0.0.1) we never spawn —
-          // the user controls that machine's processes themselves.
-          if (settings.phd2Path.isNotEmpty && _isLocalHost(settings.phd2Host)) {
+          // Auto-launch PHD2 on the imaging host when the socket is local.
+          // Remote companions (NetworkBackend) must not spawn processes here —
+          // they delegate launch to the desktop via POST /api/phd2/connect.
+          // For remote PHD2 hosts (host != localhost/127.0.0.1) we never spawn.
+          final connectHost = resolvePhd2ConnectHost(settings.phd2Host);
+          if (_backend is! NetworkBackend && _isLocalHost(settings.phd2Host)) {
             await _ensurePhd2Running(
               executablePath: settings.phd2Path,
-              host: settings.phd2Host,
+              host: connectHost,
               port: settings.phd2Port,
             );
           }
           await _backend.phd2Connect(
-            host: settings.phd2Host,
+            host: connectHost,
             port: settings.phd2Port,
           );
+          await pollPhd2Connected(_backend);
           notifier.setConnected();
         } catch (e) {
           notifier.setDisconnected();
+          try {
+            await _backend.phd2Disconnect();
+          } catch (_) {
+            // Best-effort cleanup after a failed connect attempt.
+          }
           rethrow;
         }
         return;
       }
 
-      // Standard guider connection (ASCOM/Alpaca/INDI)
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.guider, deviceId);
+      // Standard guider connection (ASCOM/Alpaca/INDI).
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('guider', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.guider, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.guider, deviceId);
@@ -2081,14 +2840,20 @@ class DeviceService {
   }
 
   /// Disconnect guider
-  Future<void> disconnectGuider() async {
-    final notifier = _ref.read(guiderStateProvider.notifier);
-    final state = _ref.read(guiderStateProvider);
+  Future<void> disconnectGuider() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(guiderStateProvider.notifier);
+      final state = _ref.read(guiderStateProvider);
 
-    try {
-      // Use the connected device's ID from state, not the profile
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
       final deviceId = state.deviceId;
-      if (deviceId != null && deviceId.isNotEmpty) {
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('guider');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
         // Special handling for PHD2
         if (deviceId == 'phd2_guider' ||
             deviceId == 'phd2' ||
@@ -2101,10 +2866,10 @@ class DeviceService {
             deviceId,
           );
         }
+      } finally {
+        notifier.setDisconnected();
       }
-    } finally {
-      notifier.setDisconnected();
-    }
+    });
   }
 
   /// Connect to a dome
@@ -2112,10 +2877,16 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(domeStateProvider.notifier);
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.dome, deviceId);
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('dome', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.dome, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.dome, deviceId);
@@ -2128,16 +2899,25 @@ class DeviceService {
   }
 
   /// Disconnect dome
-  Future<void> disconnectDome() async {
-    final notifier = _ref.read(domeStateProvider.notifier);
-    final state = _ref.read(domeStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(DeviceType.dome, state.deviceId!);
+  Future<void> disconnectDome() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(domeStateProvider.notifier);
+      final state = _ref.read(domeStateProvider);
+
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('dome');
       }
-    } finally {
-      notifier.setDisconnected();
-    }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
+        await _backend.disconnectDevice(DeviceType.dome, deviceId);
+      } finally {
+        notifier.setDisconnected();
+      }
+    });
   }
 
   /// Connect to a weather device
@@ -2145,10 +2925,16 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(weatherStateProvider.notifier);
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.weather, deviceId);
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('weather station', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.weather, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.weather, deviceId);
@@ -2161,16 +2947,25 @@ class DeviceService {
   }
 
   /// Disconnect weather device
-  Future<void> disconnectWeather() async {
-    final notifier = _ref.read(weatherStateProvider.notifier);
-    final state = _ref.read(weatherStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(DeviceType.weather, state.deviceId!);
+  Future<void> disconnectWeather() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(weatherStateProvider.notifier);
+      final state = _ref.read(weatherStateProvider);
+
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('weather station');
       }
-    } finally {
-      notifier.setDisconnected();
-    }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
+        await _backend.disconnectDevice(DeviceType.weather, deviceId);
+      } finally {
+        notifier.setDisconnected();
+      }
+    });
   }
 
   /// Connect to a safety monitor
@@ -2178,10 +2973,16 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(safetyMonitorStateProvider.notifier);
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.safetyMonitor, deviceId);
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('safety monitor', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.safetyMonitor, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.safetyMonitor, deviceId);
@@ -2194,17 +2995,266 @@ class DeviceService {
   }
 
   /// Disconnect safety monitor
-  Future<void> disconnectSafetyMonitor() async {
-    final notifier = _ref.read(safetyMonitorStateProvider.notifier);
-    final state = _ref.read(safetyMonitorStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(
-            DeviceType.safetyMonitor, state.deviceId!);
+  Future<void> disconnectSafetyMonitor() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(safetyMonitorStateProvider.notifier);
+      final state = _ref.read(safetyMonitorStateProvider);
+
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('safety monitor');
       }
-    } finally {
-      notifier.setDisconnected();
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
+        await _backend.disconnectDevice(DeviceType.safetyMonitor, deviceId);
+      } finally {
+        notifier.setDisconnected();
+      }
+    });
+  }
+
+  /// Connect to a switch device.
+  ///
+  /// DEV-P2-1: switch is a first-class device type with its own state
+  /// provider and equipment-profile column. The Rust bridge exposes
+  /// per-channel get/set under `api_switch_*`; per-channel UI is future
+  /// work (see [SwitchState] docs) but the connect/disconnect path is
+  /// real and must succeed before the user can flip any channels.
+  Future<void> connectSwitch(String deviceId) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(switchStateProvider.notifier);
+
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('switch', deviceId);
+      }
+
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.switch_, deviceId),
+      );
+
+      try {
+        await _backend.connectDevice(DeviceType.switch_, deviceId);
+        notifier.setConnected();
+        // Best-effort: fetch the channel snapshot so the card can render
+        // per-channel toggles. Only attempted when the active backend is
+        // the local FfiBackend (NetworkBackend would need a separate REST
+        // endpoint that does not exist yet — tracked as follow-up).
+        // Failures here MUST NOT abort the connect (CLAUDE.md "errors
+        // are a feature" — surface as a warning but keep the device
+        // marked connected).
+        await refreshSwitchChannels();
+      } catch (e) {
+        notifier.setDisconnected();
+        rethrow;
+      }
+    });
+  }
+
+  /// Disconnect switch device.
+  Future<void> disconnectSwitch() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(switchStateProvider.notifier);
+      final state = _ref.read(switchStateProvider);
+
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('switch');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
+        await _backend.disconnectDevice(DeviceType.switch_, deviceId);
+      } finally {
+        notifier.setDisconnected();
+      }
+    });
+  }
+
+  /// Refresh the cached channel snapshot for the currently-connected
+  /// switch device.
+  ///
+  /// Polls `api_switch_get_max`, then `api_switch_get_name` +
+  /// `api_switch_get_state` for each channel, and stores the result on
+  /// the [switchStateProvider]. Per-channel name/state fetches that
+  /// individually fail fall back to a generated "Channel N" label and
+  /// `false` state so a single misbehaving channel never blocks the
+  /// whole panel; the failure is logged via the LoggingService.
+  ///
+  /// No-op when there is no connected switch device. No-op (but logs a
+  /// warning) when running against [NetworkBackend], because there is
+  /// no remote REST endpoint for per-channel switch reads yet.
+  ///
+  /// Errors at the top-level (e.g. `apiSwitchGetMax` throws) are
+  /// surfaced through [ErrorService] so the user sees a toast — silent
+  /// fallbacks would hide a real driver fault for the whole session.
+  Future<void> refreshSwitchChannels() async {
+    final notifier = _ref.read(switchStateProvider.notifier);
+    final state = _ref.read(switchStateProvider);
+    final deviceId = state.deviceId;
+    if (deviceId == null || deviceId.isEmpty) return;
+    if (state.connectionState != DeviceConnectionState.connected) return;
+
+    if (_backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
+      _safeLog(
+        (logger) => logger.warning(
+          'refreshSwitchChannels skipped: NetworkBackend has no remote '
+          'switch endpoint yet (device=$deviceId).',
+          source: 'DeviceService',
+        ),
+        'switch-refresh-network-backend',
+      );
+      return;
     }
+
+    try {
+      final count = await switchBridgeGetMax(deviceId);
+      final names = <String>[];
+      final states = <bool>[];
+      for (var i = 0; i < count; i++) {
+        String name;
+        try {
+          name = await switchBridgeGetName(deviceId, i);
+        } catch (e) {
+          // Per-channel label fetch failed — fall back to a generated
+          // label so the row still renders. The state below is the
+          // load-bearing data; an opaque label is acceptable.
+          _safeLog(
+            (logger) => logger.warning(
+              'Switch channel name fetch failed for $deviceId#$i: $e',
+              source: 'DeviceService',
+            ),
+            'switch-channel-name-fetch',
+          );
+          name = '';
+        }
+        bool on;
+        try {
+          on = await switchBridgeGetState(deviceId, i);
+        } catch (e) {
+          _safeLog(
+            (logger) => logger.warning(
+              'Switch channel state fetch failed for $deviceId#$i: $e',
+              source: 'DeviceService',
+            ),
+            'switch-channel-state-fetch',
+          );
+          on = false;
+        }
+        names.add(name);
+        states.add(on);
+      }
+      notifier.setChannels(
+        count: count,
+        names: names,
+        states: states,
+        refreshedAt: DateTime.now(),
+      );
+    } catch (e) {
+      _safeLog(
+        (logger) => logger.warning(
+          'refreshSwitchChannels failed for $deviceId: $e',
+          source: 'DeviceService',
+        ),
+        'switch-refresh',
+      );
+      try {
+        final errSvc = _ref.read(errorServiceProvider);
+        errSvc.logDeviceError(
+          operation: 'switch_refresh',
+          message: 'Failed to refresh switch channels: $e',
+          deviceType: 'Switch',
+          deviceId: deviceId,
+          severity: ErrorSeverity.warning,
+        );
+      } on Object catch (errSvcErr) {
+        _safeLog(
+          (logger) => logger.warning(
+            'errorService emission for switch_refresh failed: $errSvcErr',
+            source: 'DeviceService',
+          ),
+          'switch-refresh-errsvc',
+        );
+      }
+    }
+  }
+
+  /// Toggle a single switch channel on or off.
+  ///
+  /// Calls the bridge synchronously and only updates the cached state
+  /// after the bridge confirms success — optimistic updates would lie
+  /// to the user about hardware state when a relay fails to engage.
+  ///
+  /// Throws [DeviceNotConnectedException] when no switch is connected.
+  /// Bridge errors are routed through [ErrorService] (toast + history)
+  /// and then rethrown so callers can react (e.g. a UI that wants to
+  /// revert a switch widget's visual state).
+  Future<void> setSwitchChannel(int channelIndex, bool on) {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(switchStateProvider.notifier);
+      final state = _ref.read(switchStateProvider);
+      final deviceId = state.deviceId;
+      if (deviceId == null ||
+          deviceId.isEmpty ||
+          state.connectionState != DeviceConnectionState.connected) {
+        throw const DeviceNotConnectedException('switch');
+      }
+      if (channelIndex < 0 || channelIndex >= state.channelCount) {
+        throw ArgumentError.value(
+          channelIndex,
+          'channelIndex',
+          'Out of range for channelCount=${state.channelCount}',
+        );
+      }
+
+      if (_backend is! FfiBackend && !switchBridgeBypassBackendCheck) {
+        throw UnsupportedError(
+          'setSwitchChannel is not supported on the current backend '
+          '(NetworkBackend has no remote switch write endpoint).',
+        );
+      }
+
+      try {
+        await switchBridgeSetState(deviceId, channelIndex, on);
+        notifier.setChannelState(channelIndex, on);
+      } catch (e) {
+        _safeLog(
+          (logger) => logger.warning(
+            'setSwitchChannel failed for $deviceId#$channelIndex on=$on: $e',
+            source: 'DeviceService',
+          ),
+          'switch-set-channel',
+        );
+        try {
+          final errSvc = _ref.read(errorServiceProvider);
+          errSvc.logDeviceError(
+            operation: 'switch_set_state',
+            message: 'Failed to set switch channel $channelIndex to '
+                '${on ? "on" : "off"}: $e',
+            deviceType: 'Switch',
+            deviceId: deviceId,
+            severity: ErrorSeverity.error,
+          );
+        } on Object catch (errSvcErr) {
+          _safeLog(
+            (logger) => logger.warning(
+              'errorService emission for switch_set_state failed: '
+              '$errSvcErr',
+              source: 'DeviceService',
+            ),
+            'switch-set-channel-errsvc',
+          );
+        }
+        rethrow;
+      }
+    });
   }
 
   /// Connect to a rotator
@@ -2212,20 +3262,21 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(rotatorStateProvider.notifier);
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.rotator, deviceId);
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('rotator', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.rotator, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.rotator, deviceId);
         notifier.setConnected();
-        final status = await _backend.getRotatorStatus(deviceId);
-        notifier.updatePosition(status.position);
-        notifier.setMoving(status.moving);
-        _startStatusPolling(DeviceType.rotator, deviceId);
       } catch (e) {
-        _stopStatusPolling(DeviceType.rotator);
         notifier.setDisconnected();
         rethrow;
       }
@@ -2233,17 +3284,25 @@ class DeviceService {
   }
 
   /// Disconnect rotator
-  Future<void> disconnectRotator() async {
-    final notifier = _ref.read(rotatorStateProvider.notifier);
-    final state = _ref.read(rotatorStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(DeviceType.rotator, state.deviceId!);
+  Future<void> disconnectRotator() {
+    return _trackInFlight(() async {
+      final notifier = _ref.read(rotatorStateProvider.notifier);
+      final state = _ref.read(rotatorStateProvider);
+
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('rotator');
       }
-    } finally {
-      _stopStatusPolling(DeviceType.rotator);
-      notifier.setDisconnected();
-    }
+
+      _markUserInitiatedDisconnect(deviceId);
+
+      try {
+        await _backend.disconnectDevice(DeviceType.rotator, deviceId);
+      } finally {
+        notifier.setDisconnected();
+      }
+    });
   }
 
   /// Connect to a cover calibrator (flat panel)
@@ -2251,10 +3310,16 @@ class DeviceService {
     return _trackInFlight(() async {
       final notifier = _ref.read(coverCalibratorStateProvider.notifier);
 
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.coverCalibrator, deviceId);
+      // DEV-P1-7: format check only; backend is the source of truth for
+      // reachability. See [connectCamera] for the full rationale.
+      if (!isValidDeviceIdFormat(deviceId)) {
+        throw InvalidDeviceIdException('cover calibrator', deviceId);
+      }
 
-      notifier.setConnecting(deviceId, deviceName);
+      notifier.setConnecting(
+        deviceId,
+        await _resolveDeviceDisplayName(DeviceType.coverCalibrator, deviceId),
+      );
 
       try {
         await _backend.connectDevice(DeviceType.coverCalibrator, deviceId);
@@ -2266,167 +3331,106 @@ class DeviceService {
     });
   }
 
-  /// Connect to a switch device
-  Future<void> connectSwitch(String deviceId) {
+  /// Disconnect cover calibrator
+  Future<void> disconnectCoverCalibrator() {
     return _trackInFlight(() async {
-      final notifier = _ref.read(switchStateProvider.notifier);
-      final deviceName =
-          await _resolveDeviceDisplayName(DeviceType.switch_, deviceId);
+      final notifier = _ref.read(coverCalibratorStateProvider.notifier);
+      final state = _ref.read(coverCalibratorStateProvider);
 
-      notifier.setConnecting(deviceId, deviceName);
+      // Audit DEV-P2-6: see [disconnectCamera] for the rationale.
+      final deviceId = state.deviceId;
+      if (deviceId == null || deviceId.isEmpty) {
+        throw const DeviceNotConnectedException('cover calibrator');
+      }
+
+      _markUserInitiatedDisconnect(deviceId);
+
       try {
-        await _backend.connectDevice(DeviceType.switch_, deviceId);
-        notifier.setConnected();
-      } catch (e) {
+        await _backend.disconnectDevice(DeviceType.coverCalibrator, deviceId);
+      } finally {
         notifier.setDisconnected();
-        rethrow;
       }
     });
   }
 
-  /// Disconnect switch device
-  Future<void> disconnectSwitch() async {
-    final notifier = _ref.read(switchStateProvider.notifier);
-    final state = _ref.read(switchStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(DeviceType.switch_, state.deviceId!);
-      }
-    } finally {
-      notifier.setDisconnected();
-    }
-  }
-
-  /// Disconnect cover calibrator
-  Future<void> disconnectCoverCalibrator() async {
-    final notifier = _ref.read(coverCalibratorStateProvider.notifier);
-    final state = _ref.read(coverCalibratorStateProvider);
-    try {
-      if (state.deviceId != null) {
-        await _backend.disconnectDevice(
-            DeviceType.coverCalibrator, state.deviceId!);
-      }
-    } finally {
-      notifier.setDisconnected();
-    }
-  }
-
-  /// Connect all devices from a profile
+  /// Connect all devices from a profile sequentially with per-device timeout
+  /// and early abort on failure (DV-P0-5).
+  ///
+  /// Imaging-chain devices (camera → mount → focuser → filter wheel) abort
+  /// the remainder when any link fails because they often share USB hubs.
+  /// Optional peripherals (dome, weather, etc.) still run after imaging
+  /// failures when invoked through [connectAllFromProfile] instead.
   Future<void> connectProfile({
     String? cameraId,
     String? mountId,
     String? focuserId,
     String? filterWheelId,
     String? guiderId,
+    String? rotatorId,
+    String? domeId,
+    String? weatherId,
+    String? safetyMonitorId,
+    String? switchId,
+    String? coverCalibratorId,
     void Function(DeviceConnectProgress progress)? onProgress,
-  }) async {
-    final tasks = <_ProfileConnectTask>[
-      if (cameraId != null && cameraId.isNotEmpty)
-        _ProfileConnectTask('camera', cameraId, () => connectCamera(cameraId)),
-      if (mountId != null && mountId.isNotEmpty)
-        _ProfileConnectTask('mount', mountId, () => connectMount(mountId)),
-      if (focuserId != null && focuserId.isNotEmpty)
-        _ProfileConnectTask(
-            'focuser', focuserId, () => connectFocuser(focuserId)),
-      if (filterWheelId != null && filterWheelId.isNotEmpty)
-        _ProfileConnectTask('filterWheel', filterWheelId,
-            () => connectFilterWheel(filterWheelId)),
-      if (guiderId != null && guiderId.isNotEmpty)
-        _ProfileConnectTask('guider', guiderId, () => connectGuider(guiderId)),
-    ];
+  }) {
+    return _trackInFlight(() async {
+      final entries = <(String, String, Future<void> Function(String))>[
+        if (cameraId != null && cameraId.isNotEmpty)
+          ('camera', cameraId, connectCamera),
+        if (mountId != null && mountId.isNotEmpty)
+          ('mount', mountId, connectMount),
+        if (focuserId != null && focuserId.isNotEmpty)
+          ('focuser', focuserId, connectFocuser),
+        if (filterWheelId != null && filterWheelId.isNotEmpty)
+          ('filter wheel', filterWheelId, connectFilterWheel),
+        if (guiderId != null && guiderId.isNotEmpty)
+          ('guider', guiderId, connectGuider),
+        if (rotatorId != null && rotatorId.isNotEmpty)
+          ('rotator', rotatorId, connectRotator),
+        if (domeId != null && domeId.isNotEmpty) ('dome', domeId, connectDome),
+        if (weatherId != null && weatherId.isNotEmpty)
+          ('weather station', weatherId, connectWeather),
+        if (safetyMonitorId != null && safetyMonitorId.isNotEmpty)
+          ('safety monitor', safetyMonitorId, connectSafetyMonitor),
+        if (switchId != null && switchId.isNotEmpty)
+          ('switch', switchId, connectSwitch),
+        if (coverCalibratorId != null && coverCalibratorId.isNotEmpty)
+          ('cover calibrator', coverCalibratorId, connectCoverCalibrator),
+      ];
 
-    for (final task in tasks) {
-      onProgress?.call(DeviceConnectProgress(
-        deviceType: task.deviceType,
-        deviceId: task.deviceId,
-        status: DeviceConnectProgressStatus.connecting,
-      ));
-      try {
-        await task.connect();
+      for (final (deviceType, id, connect) in entries) {
         onProgress?.call(DeviceConnectProgress(
-          deviceType: task.deviceType,
-          deviceId: task.deviceId,
-          status: DeviceConnectProgressStatus.connected,
+          deviceType: deviceType,
+          deviceId: id,
+          status: DeviceConnectProgressStatus.connecting,
         ));
-      } catch (e) {
-        onProgress?.call(DeviceConnectProgress(
-          deviceType: task.deviceType,
-          deviceId: task.deviceId,
-          status: DeviceConnectProgressStatus.failed,
-          error: e,
-          errorMessage: e.toString(),
-        ));
-        rethrow;
-      }
-    }
-  }
 
-  Stream<DeviceConnectProgress> connectAllFromProfile(
-      EquipmentProfileModel profile) async* {
-    final tasks = <_ProfileConnectTask>[
-      if (profile.cameraId != null && profile.cameraId!.isNotEmpty)
-        _ProfileConnectTask('camera', profile.cameraId!,
-            () => connectCamera(profile.cameraId!)),
-      if (profile.mountId != null && profile.mountId!.isNotEmpty)
-        _ProfileConnectTask(
-            'mount', profile.mountId!, () => connectMount(profile.mountId!)),
-      if (profile.focuserId != null && profile.focuserId!.isNotEmpty)
-        _ProfileConnectTask('focuser', profile.focuserId!,
-            () => connectFocuser(profile.focuserId!)),
-      if (profile.filterWheelId != null && profile.filterWheelId!.isNotEmpty)
-        _ProfileConnectTask('filterWheel', profile.filterWheelId!,
-            () => connectFilterWheel(profile.filterWheelId!)),
-      if (profile.guiderId != null && profile.guiderId!.isNotEmpty)
-        _ProfileConnectTask('guider', profile.guiderId!,
-            () => connectGuider(profile.guiderId!)),
-    ];
-
-    if (tasks.isEmpty) {
-      return;
-    }
-
-    final controller = StreamController<DeviceConnectProgress>();
-    var remaining = tasks.length;
-
-    for (final task in tasks) {
-      controller.add(DeviceConnectProgress(
-        deviceType: task.deviceType,
-        deviceId: task.deviceId,
-        status: DeviceConnectProgressStatus.connecting,
-      ));
-
-      unawaited(() async {
         try {
-          await task.connect();
-          controller.add(DeviceConnectProgress(
-            deviceType: task.deviceType,
-            deviceId: task.deviceId,
+          await connect(id).timeout(_connectProfileDeviceTimeout);
+          onProgress?.call(DeviceConnectProgress(
+            deviceType: deviceType,
+            deviceId: id,
             status: DeviceConnectProgressStatus.connected,
           ));
         } catch (e) {
-          controller.add(DeviceConnectProgress(
-            deviceType: task.deviceType,
-            deviceId: task.deviceId,
+          onProgress?.call(DeviceConnectProgress(
+            deviceType: deviceType,
+            deviceId: id,
             status: DeviceConnectProgressStatus.failed,
             error: e,
             errorMessage: e.toString(),
           ));
-        } finally {
-          remaining--;
-          if (remaining == 0) {
-            await controller.close();
-          }
+          throw Exception('Profile connect aborted at $deviceType: $e');
         }
-      }());
-    }
-
-    yield* controller.stream;
+      }
+    });
   }
 
   /// Connect all devices from the active equipment profile
   Future<void> connectActiveProfile() async {
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
+    final profilesState = await _ref.read(equipmentProfilesProvider.future);
+    final activeProfile = profilesState.activeProfile;
 
     if (activeProfile == null) {
       throw Exception('No active equipment profile selected');
@@ -2438,30 +3442,182 @@ class DeviceService {
       focuserId: activeProfile.focuserId,
       filterWheelId: activeProfile.filterWheelId,
       guiderId: activeProfile.guiderId,
+      rotatorId: activeProfile.rotatorId,
+      domeId: activeProfile.domeId,
+      weatherId: activeProfile.weatherId,
+      safetyMonitorId: activeProfile.safetyMonitorId,
+      switchId: activeProfile.switchId,
+      coverCalibratorId: activeProfile.coverCalibratorId,
     );
   }
 
-  /// Disconnect all devices
-  Future<void> disconnectAll() async {
-    final operations = <String, Future<void> Function()>{
-      'Camera': disconnectCamera,
-      'Mount': disconnectMount,
-      'Focuser': disconnectFocuser,
-      'Filter Wheel': disconnectFilterWheel,
-      'Guider': disconnectGuider,
-    };
-    final errors = <String>[];
+  /// DEV-P1-5: parallel "Connect All" with per-device progress.
+  ///
+  /// Returns a [Stream] of [DeviceConnectProgress] events that the caller
+  /// (typically the equipment screen) can subscribe to so each device card
+  /// can render its own live status: idle → connecting → connected/failed.
+  ///
+  /// Why this exists: the equipment screen's previous "Connect All" button
+  /// iterated devices sequentially with `await`. Ten devices × 3-5 s each
+  /// meant 30-50 s of wall-clock time with no feedback per device. A user
+  /// staring at a single spinner has no idea whether the focuser is the
+  /// one taking forever or whether the dome failed and the mount succeeded.
+  ///
+  /// Contract:
+  ///
+  /// * Every configured device-type from [profile] is connected in parallel
+  ///   with `Future.wait`. Device connects do not interact with each other
+  ///   during the connect phase (mount/camera/focuser/etc. each go to a
+  ///   different driver) so parallelism is safe.
+  /// * For each device, the stream emits:
+  ///     1. `connecting` immediately as the call is dispatched, and
+  ///     2. `connected` if the underlying `connectX` completes, or
+  ///        `failed` carrying the raw error if it throws.
+  /// * One device failing does NOT block any other device. Per-device
+  ///   errors are reported as `failed` events; the stream itself never
+  ///   errors and always closes cleanly once every device is settled.
+  /// * Errors are a feature: the original backend error is preserved on
+  ///   the `failed` event so the UI can show it (driver error, "device not
+  ///   reachable", USB hub blip, etc.). We do NOT swallow or rewrite the
+  ///   error.
+  /// * If [profile] has no configured devices, the stream closes
+  ///   immediately with no events.
+  ///
+  /// The returned stream is single-subscription so initial `connecting`
+  /// events are buffered until the caller attaches its listener. UI
+  /// surfaces that need to fan out to multiple widgets should feed the
+  /// stream through [deviceConnectionProgressProvider]
+  /// (see `record(event)`), which materializes the events into a
+  /// `ref.watch`-able snapshot that any number of widgets can observe.
+  Stream<DeviceConnectProgress> connectAllFromProfile(
+      EquipmentProfileModel profile) {
+    // (id, deviceType label, connector). Order is informational only —
+    // every device is dispatched in parallel.
+    final entries = <(String?, String, Future<void> Function(String))>[
+      (profile.cameraId, 'camera', connectCamera),
+      (profile.mountId, 'mount', connectMount),
+      (profile.focuserId, 'focuser', connectFocuser),
+      (profile.filterWheelId, 'filter wheel', connectFilterWheel),
+      (profile.guiderId, 'guider', connectGuider),
+      (profile.rotatorId, 'rotator', connectRotator),
+      (profile.domeId, 'dome', connectDome),
+      (profile.weatherId, 'weather station', connectWeather),
+      (profile.safetyMonitorId, 'safety monitor', connectSafetyMonitor),
+      (profile.switchId, 'switch', connectSwitch),
+      (profile.coverCalibratorId, 'cover calibrator', connectCoverCalibrator),
+    ];
 
-    await Future.wait(
-      operations.entries.map((entry) async {
-        try {
-          await entry.value();
-        } catch (e) {
-          errors.add('${entry.key}: $e');
+    // Use a single-subscription StreamController so events are buffered
+    // until the caller subscribes. A broadcast controller would drop the
+    // initial `connecting` events because the caller hasn't yet attached
+    // its `await for` listener at the moment we add them.
+    final controller = StreamController<DeviceConnectProgress>();
+
+    // Filter to only configured devices. An empty list still produces a
+    // valid stream — the caller just sees no events before close.
+    final active = entries
+        .where((e) => e.$1 != null && e.$1!.isNotEmpty)
+        .map((e) => (e.$1!, e.$2, e.$3))
+        .toList(growable: false);
+
+    if (active.isEmpty) {
+      // No devices configured — close immediately so the caller's `await
+      // for` exits cleanly.
+      scheduleMicrotask(controller.close);
+      return controller.stream;
+    }
+
+    // Defer dispatch one microtask so the caller (typically `await for`)
+    // has time to attach its listener before any events fire. The
+    // single-subscription controller buffers anyway, but emitting on the
+    // next turn also keeps observable ordering deterministic in tests
+    // that drive multiple sweeps in the same event-loop turn.
+    scheduleMicrotask(() {
+      // Dispatch every connect in parallel. Each future swallows its own
+      // error and routes it onto the stream as a `failed` event so one
+      // bad device cannot abort the sweep.
+      final futures = <Future<void>>[];
+      for (final (id, deviceType, connect) in active) {
+        controller.add(DeviceConnectProgress(
+          deviceType: deviceType,
+          deviceId: id,
+          status: DeviceConnectProgressStatus.connecting,
+        ));
+
+        futures.add(
+          connect(id).then(
+            (_) {
+              if (!controller.isClosed) {
+                controller.add(DeviceConnectProgress(
+                  deviceType: deviceType,
+                  deviceId: id,
+                  status: DeviceConnectProgressStatus.connected,
+                ));
+              }
+            },
+          ).catchError((Object error, StackTrace stack) {
+            if (!controller.isClosed) {
+              controller.add(DeviceConnectProgress(
+                deviceType: deviceType,
+                deviceId: id,
+                status: DeviceConnectProgressStatus.failed,
+                error: error,
+                errorMessage: error.toString(),
+              ));
+            }
+          }),
+        );
+      }
+
+      // Close the stream once every device has settled. We use
+      // `Future.wait` without `eagerError` because we've already caught
+      // every per-device error above — every future resolves
+      // successfully here.
+      Future.wait(futures).whenComplete(() {
+        if (!controller.isClosed) {
+          controller.close();
         }
-      }),
-      eagerError: false,
-    );
+      });
+    });
+
+    return controller.stream;
+  }
+
+  /// Disconnect all devices
+  ///
+  /// Each device-type disconnect now throws [DeviceNotConnectedException]
+  /// when the matching state provider has no `deviceId` (DEV-P2-6). For a
+  /// bulk-disconnect sweep that is the normal case (most equipment profiles
+  /// list only a handful of devices), so we silence that specific exception
+  /// and let every other failure (driver error, stale handle, timeout, …)
+  /// propagate so the caller can surface it. We deliberately do not use
+  /// `Future.wait`: a single failure there cancels reporting of the others.
+  Future<void> disconnectAll() async {
+    final disconnects = <(Future<void> Function(), String)>[
+      (disconnectCamera, 'camera'),
+      (disconnectMount, 'mount'),
+      (disconnectFocuser, 'focuser'),
+      (disconnectFilterWheel, 'filter wheel'),
+      (disconnectGuider, 'guider'),
+      (disconnectRotator, 'rotator'),
+      (disconnectDome, 'dome'),
+      (disconnectWeather, 'weather station'),
+      (disconnectSafetyMonitor, 'safety monitor'),
+      (disconnectSwitch, 'switch'),
+      (disconnectCoverCalibrator, 'cover calibrator'),
+    ];
+
+    final errors = <String>[];
+    for (final (disconnect, name) in disconnects) {
+      try {
+        await disconnect();
+      } on DeviceNotConnectedException {
+        // Expected — the matching device type is not currently connected.
+        continue;
+      } catch (e) {
+        errors.add('$name: $e');
+      }
+    }
 
     if (errors.isNotEmpty) {
       throw Exception(
@@ -2483,10 +3639,7 @@ class DeviceService {
       return mountState.deviceId;
     }
 
-    // Fall back to active profile
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.mountId;
+    return _activeProfileDeviceId((profile) => profile.mountId);
   }
 
   /// Slew mount to coordinates
@@ -2508,28 +3661,10 @@ class DeviceService {
 
     try {
       await _backend.mountSlewToCoordinates(deviceId, ra, dec);
-      try {
-        final status = await _backend.getMountStatus(deviceId);
-        mountNotifier.updatePosition(
-          status.rightAscension,
-          status.declination,
-          status.altitude,
-          status.azimuth,
-        );
-        mountNotifier.setParked(status.parked);
-        mountNotifier.setTracking(status.tracking);
-        mountNotifier.setSlewing(status.slewing);
-      } catch (_) {
-        final current = _ref.read(mountStateProvider);
-        mountNotifier.updatePosition(
-          ra,
-          dec,
-          current.altitude ?? 0.0,
-          current.azimuth ?? 0.0,
-        );
-        mountNotifier.setParked(false);
-      }
+      mountNotifier.updatePosition(ra, dec, 0.0, 0.0);
+      mountNotifier.setParked(false);
     } finally {
+      mountNotifier.setSlewing(false);
       operationsNotifier.completeOperation(OperationType.slewToTarget);
     }
   }
@@ -2579,15 +3714,10 @@ class DeviceService {
 
     try {
       await _backend.mountPark(deviceId);
-      try {
-        final status = await _backend.getMountStatus(deviceId);
-        mountNotifier.setParked(status.parked);
-        mountNotifier.setTracking(status.tracking);
-        mountNotifier.setSlewing(status.slewing);
-      } catch (_) {
-        mountNotifier.setSlewing(true);
-      }
+      mountNotifier.setParked(true);
+      mountNotifier.setTracking(false);
     } finally {
+      mountNotifier.setSlewing(false);
       operationsNotifier.completeOperation(OperationType.parkMount);
     }
   }
@@ -2608,14 +3738,7 @@ class DeviceService {
     try {
       await _backend.mountUnpark(deviceId);
       final mountNotifier = _ref.read(mountStateProvider.notifier);
-      try {
-        final status = await _backend.getMountStatus(deviceId);
-        mountNotifier.setParked(status.parked);
-        mountNotifier.setTracking(status.tracking);
-        mountNotifier.setSlewing(status.slewing);
-      } catch (_) {
-        mountNotifier.setParked(false);
-      }
+      mountNotifier.setParked(false);
     } finally {
       operationsNotifier.completeOperation(OperationType.unparkMount);
     }
@@ -2742,10 +3865,7 @@ class DeviceService {
       return cameraState.deviceId;
     }
 
-    // Fall back to active profile
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.cameraId;
+    return _activeProfileDeviceId((profile) => profile.cameraId);
   }
 
   // ===========================================================================
@@ -2763,10 +3883,7 @@ class DeviceService {
       return focuserState.deviceId;
     }
 
-    // Fall back to active profile
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.focuserId;
+    return _activeProfileDeviceId((profile) => profile.focuserId);
   }
 
   /// Move focuser to absolute position
@@ -2840,7 +3957,6 @@ class DeviceService {
     }
 
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
-    _focuserVerifyGeneration++;
 
     try {
       await _backend.focuserHalt(deviceId);
@@ -2861,13 +3977,9 @@ class DeviceService {
     required int targetPosition,
   }) async {
     final deadline = DateTime.now().add(_focuserMoveTimeout);
-    final generation = ++_focuserVerifyGeneration;
     final focuserNotifier = _ref.read(focuserStateProvider.notifier);
 
     while (true) {
-      if (_disposed || generation != _focuserVerifyGeneration) {
-        throw Exception('Focuser position verification cancelled.');
-      }
       final status = await _backend.getFocuserStatus(deviceId);
       focuserNotifier.updatePosition(status.position);
       focuserNotifier.setMoving(status.moving);
@@ -2915,9 +4027,7 @@ class DeviceService {
       return rotatorState.deviceId;
     }
 
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.rotatorId;
+    return _activeProfileDeviceId((profile) => profile.rotatorId);
   }
 
   /// Move rotator to an absolute angle (0-360 degrees).
@@ -2985,7 +4095,6 @@ class DeviceService {
     }
 
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
-    _rotatorVerifyGeneration++;
 
     try {
       await _backend.rotatorHalt(deviceId);
@@ -3009,13 +4118,9 @@ class DeviceService {
     required double targetAngle,
   }) async {
     final deadline = DateTime.now().add(_rotatorMoveTimeout);
-    final generation = ++_rotatorVerifyGeneration;
     final rotatorNotifier = _ref.read(rotatorStateProvider.notifier);
 
     while (true) {
-      if (_disposed || generation != _rotatorVerifyGeneration) {
-        throw Exception('Rotator position verification cancelled.');
-      }
       final status = await _backend.getRotatorStatus(deviceId);
       rotatorNotifier.updatePosition(status.position,
           mechanicalPosition: status.mechanicalPosition);
@@ -3258,10 +4363,7 @@ class DeviceService {
       return filterWheelState.deviceId;
     }
 
-    // Fall back to active profile
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.filterWheelId;
+    return _activeProfileDeviceId((profile) => profile.filterWheelId);
   }
 
   /// Set filter wheel position
@@ -3290,6 +4392,7 @@ class DeviceService {
       description: 'Changing filter to $filterName',
     );
 
+    var hardwareStillMoving = false;
     try {
       // Move the filter wheel
       _ref.read(loggingServiceProvider).debug(
@@ -3305,13 +4408,43 @@ class DeviceService {
         filterNames: filterNames,
       );
 
-      // Apply focus offset if filter name is available and focuser is connected
+      // Apply focus offset only after position is verified (DV-P0-6).
       if (position >= 0 && position < filterNames.length) {
         await _applyFilterFocusOffset(filterNames[position]);
       }
+    } catch (e) {
+      hardwareStillMoving =
+          await _recoverFilterWheelMovingState(deviceId, filterWheelNotifier);
+      rethrow;
     } finally {
-      filterWheelNotifier.setMoving(false);
+      if (!hardwareStillMoving) {
+        filterWheelNotifier.setMoving(false);
+      }
       operationsNotifier.completeOperation(OperationType.filterChange);
+    }
+  }
+
+  /// After a failed verify, sync position/moving from hardware instead of
+  /// blindly clearing moving state while the wheel is still rotating.
+  Future<bool> _recoverFilterWheelMovingState(
+    String deviceId,
+    FilterWheelStateNotifier filterWheelNotifier,
+  ) async {
+    try {
+      final status = await _backend.getFilterWheelStatus(deviceId);
+      filterWheelNotifier.updatePosition(status.position);
+      final stillMoving = status.moving || status.position < 0;
+      filterWheelNotifier.setMoving(stillMoving);
+      return stillMoving;
+    } on Object catch (e) {
+      _safeLog(
+        (logger) => logger.warning(
+          'Filter wheel moving-state recovery failed for $deviceId: $e',
+          source: 'DeviceService',
+        ),
+        'filter-wheel-recover-moving',
+      );
+      return false;
     }
   }
 
@@ -3321,13 +4454,9 @@ class DeviceService {
     required List<String> filterNames,
   }) async {
     final deadline = DateTime.now().add(_filterWheelVerifyTimeout);
-    final generation = ++_filterWheelVerifyGeneration;
     final filterWheelNotifier = _ref.read(filterWheelStateProvider.notifier);
 
     while (true) {
-      if (_disposed || generation != _filterWheelVerifyGeneration) {
-        throw Exception('Filter wheel position verification cancelled.');
-      }
       final status = await _backend.getFilterWheelStatus(deviceId);
       final isMoving = status.moving || status.position < 0;
 
@@ -3395,11 +4524,6 @@ class DeviceService {
         return;
       }
 
-      final filterWheelDeviceId = await _getFilterWheelDeviceId();
-      if (filterWheelDeviceId == null || filterWheelDeviceId.isEmpty) {
-        return;
-      }
-
       // Check if focuser is connected
       final focuserDeviceId = await _getFocuserDeviceId();
       if (focuserDeviceId == null || focuserDeviceId.isEmpty) {
@@ -3427,9 +4551,7 @@ class DeviceService {
       }
 
       // Calculate delta from last applied offset
-      final lastAppliedOffset =
-          _lastAppliedFilterOffsetByWheel[filterWheelDeviceId] ?? 0;
-      final delta = newOffset - lastAppliedOffset;
+      final delta = newOffset - _lastAppliedFilterOffset;
 
       if (delta == 0) {
         // No movement needed
@@ -3451,7 +4573,7 @@ class DeviceService {
       try {
         await _backend.focuserMoveTo(focuserDeviceId, targetPosition);
         focuserNotifier.updatePosition(targetPosition);
-        _lastAppliedFilterOffsetByWheel[filterWheelDeviceId] = newOffset;
+        _lastAppliedFilterOffset = newOffset;
 
         final loggingService = _ref.read(loggingServiceProvider);
         loggingService.info(
@@ -3487,10 +4609,7 @@ class DeviceService {
       return guiderState.deviceId;
     }
 
-    // Fall back to active profile
-    final profilesDao = _ref.read(equipmentProfilesDaoProvider);
-    final activeProfile = await profilesDao.getActiveProfile();
-    return activeProfile?.guiderId;
+    return _activeProfileDeviceId((profile) => profile.guiderId);
   }
 
   /// Start guiding
@@ -3642,38 +4761,55 @@ class DeviceService {
       return;
     }
 
-    final exe = File(executablePath);
-    if (!await exe.exists()) {
-      // Fail loud — the user pointed us at a path that does not exist.
-      throw FileSystemException(
-        'PHD2 executable not found. Update Settings → PHD2 Guiding → '
-        'PHD2 executable path or clear it to disable auto-launch.',
-        executablePath,
-      );
-    }
-
     final notifications = _ref.read(uiNotificationProvider.notifier);
-    notifications.showInfo(
-      'PHD2 not running — launching $executablePath...',
-      title: 'PHD2',
-      duration: const Duration(seconds: 5),
-    );
+    final configuredPath = executablePath.trim();
+    if (configuredPath.isNotEmpty) {
+      final exe = File(configuredPath);
+      if (!await exe.exists()) {
+        throw FileSystemException(
+          'PHD2 executable not found. Update Settings → PHD2 Guiding → '
+          'PHD2 executable path or clear it to use automatic discovery.',
+          configuredPath,
+        );
+      }
 
-    try {
-      // detached: do not tie PHD2's lifetime to Nightshade's.
-      await Process.start(
-        executablePath,
-        const <String>[],
-        mode: ProcessStartMode.detached,
+      notifications.showInfo(
+        'PHD2 not running — launching $configuredPath...',
+        title: 'PHD2',
+        duration: const Duration(seconds: 5),
       );
-    } on ProcessException catch (e) {
-      throw ProcessException(
-        executablePath,
-        const <String>[],
-        'Failed to launch PHD2 (${e.message}). Check the configured '
-        'PHD2 executable path.',
-        e.errorCode,
+
+      try {
+        await Process.start(
+          configuredPath,
+          const <String>[],
+          mode: ProcessStartMode.detached,
+        );
+      } on ProcessException catch (e) {
+        throw ProcessException(
+          configuredPath,
+          const <String>[],
+          'Failed to launch PHD2 (${e.message}). Check the configured '
+          'PHD2 executable path.',
+          e.errorCode,
+        );
+      }
+    } else {
+      notifications.showInfo(
+        'PHD2 not running — searching for installed PHD2...',
+        title: 'PHD2',
+        duration: const Duration(seconds: 5),
       );
+
+      try {
+        await bridge_api.apiLaunchPhd2();
+      } catch (e) {
+        throw StateError(
+          'PHD2 is not running and could not be launched automatically. '
+          'Install PHD2 or set Settings → PHD2 Guiding → PHD2 executable path. '
+          '($e)',
+        );
+      }
     }
 
     // Poll for the socket to open. PHD2 typically takes 2-5s to begin
@@ -3696,9 +4832,10 @@ class DeviceService {
 
   /// Check whether [host]:[port] is accepting TCP connections.
   Future<bool> _isPortOpen(String host, int port) async {
+    final connectHost = resolvePhd2ConnectHost(host);
     try {
       final socket = await Socket.connect(
-        host,
+        connectHost,
         port,
         timeout: const Duration(milliseconds: 500),
       );
@@ -3710,81 +4847,64 @@ class DeviceService {
   }
 }
 
-class _ProfileConnectTask {
-  final String deviceType;
-  final String deviceId;
-  final Future<void> Function() connect;
-
-  const _ProfileConnectTask(this.deviceType, this.deviceId, this.connect);
-}
-
 /// Provider for the device service
 final deviceServiceProvider = Provider<DeviceService>((ref) {
   final backend = ref.watch(backendProvider);
   final service = DeviceService(ref, backend);
-  final quiescer = service.prepareForBackendSwap;
-  registerBackendSwapQuiescer(quiescer);
-  ref.onDispose(() {
-    unregisterBackendSwapQuiescer(quiescer);
-    service.dispose();
-  });
+  ref.onDispose(() => service.dispose());
   return service;
 });
 
 /// Provider for available cameras
-final availableCamerasProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableCamerasProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.camera);
 });
 
 /// Provider for available mounts
-final availableMountsProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableMountsProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.mount);
 });
 
 /// Provider for available focusers
-final availableFocusersProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableFocusersProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.focuser);
 });
 
 /// Provider for available filter wheels
-final availableFilterWheelsProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableFilterWheelsProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref
       .watch(deviceServiceProvider)
       .discoverDevices(DeviceType.filterWheel);
 });
 
 /// Provider for available guiders
-final availableGuidersProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableGuidersProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.guider);
 });
 
 /// Provider for available rotators
-final availableRotatorsProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableRotatorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.rotator);
 });
 
 /// Provider for available domes
-final availableDomesProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableDomesProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.dome);
 });
 
 /// Provider for available weather devices
-final availableWeatherProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableWeatherProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.weather);
 });
 
 /// Provider for available safety monitors
-final availableSafetyMonitorsProvider =
-    FutureProvider.autoDispose<List<DeviceInfo>>((ref) {
+final availableSafetyMonitorsProvider = FutureProvider<List<DeviceInfo>>((ref) {
   return ref
       .watch(deviceServiceProvider)
       .discoverDevices(DeviceType.safetyMonitor);
+});
+
+/// Provider for available switch devices (DEV-P2-1).
+final availableSwitchesProvider = FutureProvider<List<DeviceInfo>>((ref) {
+  return ref.watch(deviceServiceProvider).discoverDevices(DeviceType.switch_);
 });

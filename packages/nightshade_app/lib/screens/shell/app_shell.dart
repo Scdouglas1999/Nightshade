@@ -17,10 +17,14 @@ import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
 import '../../widgets/connection_stale_banner.dart';
 import '../../widgets/ios_background_banner.dart';
+import '../../widgets/android_notifications_banner.dart';
+import '../../widgets/remote_connection_indicator.dart';
 import '../../widgets/weather/weather_alert_banner.dart';
 import 'widgets/title_bar.dart';
 import 'widgets/status_bar.dart';
 import 'widgets/side_navigation.dart';
+import 'shell_chrome.dart';
+import 'shell_navigation.dart';
 import 'widgets/nightshade_bottom_navigation.dart';
 
 // Conditional import for window_manager (desktop only)
@@ -81,7 +85,7 @@ class _AppShellState extends ConsumerState<AppShell> {
       context: context,
       barrierDismissible: false,
       builder: (context) {
-        final colors = Theme.of(context).extension<NightshadeColors>()!;
+        final colors = NightshadeColors.of(context);
         final l10n = context.l10n;
         return AlertDialog(
           backgroundColor: colors.surface,
@@ -159,7 +163,7 @@ class _AppShellState extends ConsumerState<AppShell> {
 
       if (!mounted) return;
 
-      final colors = Theme.of(context).extension<NightshadeColors>()!;
+      final colors = NightshadeColors.of(context);
 
       final result = await showDialog<bool>(
         context: context,
@@ -306,38 +310,15 @@ class _AppShellState extends ConsumerState<AppShell> {
       }
     });
 
-    switch (location) {
-      case '/dashboard':
-        return 0;
-      case '/equipment':
-        return 1;
-      case '/imaging':
-        return 2;
-      case '/guiding':
-        return 3;
-      case '/sequencer':
-        return 4;
-      case '/planetarium':
-        return 5;
-      case '/framing':
-        return 6;
-      case '/analytics':
-        return 7;
-      case '/flat-wizard':
-        return 8;
-      case '/weather':
-        return 9;
-      case '/planner':
-        return 10;
-      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
-      // W8-SCHED-MERGE); the legacy `/scheduler` route redirects to
-      // `/planner?tab=scheduler` so we should never resolve to it here, but
-      // keep -1 as a safety fall through in case the redirect is bypassed.
+    final primaryIndex = ShellNavigation.primaryIndexForLocation(location);
+    if (primaryIndex >= 0) {
+      return primaryIndex;
+    }
+
+    // Scheduler / diagnostics redirect into tabbed parents; settings,
+    // transients, and polar alignment are title-bar or overflow routes.
+    switch (location.split('?').first) {
       case '/scheduler':
-      // Diagnostics merged into Analytics as a tab (§UX consolidation); the
-      // legacy `/diagnostics` route redirects to `/analytics?tab=diagnostics`
-      // so we should never resolve to it here, but keep -1 as a safety fall
-      // through in case the redirect is bypassed.
       case '/diagnostics':
       case '/settings':
       case '/polar-alignment':
@@ -349,33 +330,18 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   void _onTabSelected(int index, BuildContext context) {
-    final routes = [
-      '/dashboard',
-      '/equipment',
-      '/imaging',
-      '/guiding',
-      '/sequencer',
-      '/planetarium',
-      '/framing',
-      '/analytics',
-      '/flat-wizard',
-      '/weather',
-      '/planner',
-      // Scheduler merged into Plan Tonight as a tab (§UX consolidation,
-      // W8-SCHED-MERGE) — no standalone nav slot.
-    ];
-    if (index < routes.length) {
-      try {
-        context.go(routes[index]);
-      } catch (e) {
-        // Router might not be available yet, ignore
-      }
+    final route = ShellNavigation.primaryRouteForIndex(index);
+    if (route == null) return;
+    try {
+      context.go(route);
+    } catch (e) {
+      // Router might not be available yet, ignore
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final l10n = context.l10n;
     final appSettingsAsync = ref.watch(appSettingsProvider);
     final settings = appSettingsAsync.valueOrNull;
@@ -394,14 +360,19 @@ class _AppShellState extends ConsumerState<AppShell> {
     // it polls mount HA against the configured trigger and alerts the
     // operator when the meridian is crossed outside of a sequence run.
     ref.watch(meridianFlipStandaloneMonitorProvider);
+    // Wave 9 scheduler lifetime: keep auto-reevaluation listeners mounted
+    // with the shell, not only while Plan Tonight -> Target Queue is visible.
+    // Otherwise target/goals/constraint edits made elsewhere can stop waking
+    // the scheduler once the operator navigates away from that tab.
+    ref.watch(schedulerAutoReevalProvider);
     final isSideNavExpanded = settings != null
         ? !settings.sidebarCollapsed
         : _fallbackSideNavExpanded;
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final isMobile =
-            constraints.maxWidth < NightshadeTokens.breakpointTablet;
+        final useBottomNav =
+            ShellChrome.useBottomNavigation(constraints.maxWidth);
 
         // Check if we should show the welcome flow for first-time users
         final showWelcomeFlow = ref.watch(shouldShowWelcomeFlowProvider);
@@ -424,8 +395,27 @@ class _AppShellState extends ConsumerState<AppShell> {
             backgroundColor: colors.background,
             body: Column(
               children: [
-                // Custom title bar with window controls
-                const TitleBar(),
+                // Desktop title bar (window drag + global actions). Hidden on
+                // mobile — bottom nav covers primary routes; saves vertical space.
+                if (!useBottomNav) const TitleBar(),
+
+                // Mobile-only persistent connection indicator strip (audit
+                // P1-15 bug 5). On desktop the indicator lives inside the
+                // TitleBar; on mobile there is no shared AppBar to mount
+                // it in, so we add a thin row right above the banners.
+                // Stays visible across every GoRouter route.
+                if (useBottomNav)
+                  Container(
+                    color: colors.surface,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 4,
+                    ),
+                    child: const Align(
+                      alignment: Alignment.centerRight,
+                      child: RemoteConnectionIndicator(compact: false),
+                    ),
+                  ),
 
                 // Disconnected Banner
                 if (ref.watch(backendProvider) is DisconnectedBackend)
@@ -449,6 +439,12 @@ class _AppShellState extends ConsumerState<AppShell> {
                 // operator sees while a sequence is running on iOS.
                 const IosBackgroundBanner(),
 
+                // Android POST_NOTIFICATIONS advisory (P1-16a). Visible
+                // whenever the runtime permission is denied on Android 13+
+                // so the operator knows sequence/safety alerts will not
+                // wake them and points to System Settings.
+                const AndroidNotificationsBanner(),
+
                 // Stale-connection advisory (audit §3.6). Visible during
                 // the WS reconnect grace window so the operator knows
                 // controls may be momentarily out of date.
@@ -462,7 +458,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   child: Row(
                     children: [
                       // Side navigation (Desktop only)
-                      if (!isMobile)
+                      if (!useBottomNav)
                         SideNavigation(
                           key: TutorialKeys.sideNavigation,
                           tutorialKeys: [
@@ -515,7 +511,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                           decoration: BoxDecoration(
                             color: colors.background,
                             border: Border(
-                              left: isMobile
+                              left: useBottomNav
                                   ? BorderSide.none
                                   : BorderSide(
                                       color: colors.border,
@@ -527,7 +523,9 @@ class _AppShellState extends ConsumerState<AppShell> {
                             children: [
                               widget.child,
                               // Mobile sequence overlay (only on mobile and sequencer screen)
-                              if (isMobile && currentLocation == '/sequencer')
+                              if (useBottomNav &&
+                                  currentLocation.split('?').first ==
+                                      '/sequencer')
                                 const MobileSequenceOverlay(),
                               // Autofocus progress overlay
                               const AutofocusProgressOverlay(),
@@ -541,11 +539,11 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
                 ),
 
-                // Status bar at bottom
-                const StatusBar(),
+                // Status bar at bottom (compact + scrollable on mobile).
+                StatusBar(compact: useBottomNav),
               ],
             ),
-            bottomNavigationBar: isMobile
+            bottomNavigationBar: useBottomNav
                 ? NightshadeBottomNavigation(
                     currentRoute: currentLocation,
                     onRouteSelected: (route) {

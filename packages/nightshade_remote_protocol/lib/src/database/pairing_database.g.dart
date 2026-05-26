@@ -57,6 +57,12 @@ class $PairedDevicesTable extends PairedDevices
       defaultConstraints:
           GeneratedColumn.constraintIsAlways('CHECK ("is_active" IN (0, 1))'),
       defaultValue: const Constant(true));
+  static const VerificationMeta _expiresAtMeta =
+      const VerificationMeta('expiresAt');
+  @override
+  late final GeneratedColumn<DateTime> expiresAt = GeneratedColumn<DateTime>(
+      'expires_at', aliasedName, true,
+      type: DriftSqlType.dateTime, requiredDuringInsert: false);
   @override
   List<GeneratedColumn> get $columns => [
         deviceId,
@@ -65,7 +71,8 @@ class $PairedDevicesTable extends PairedDevices
         pairedAt,
         lastConnectedAt,
         deviceType,
-        isActive
+        isActive,
+        expiresAt
       ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -121,6 +128,10 @@ class $PairedDevicesTable extends PairedDevices
       context.handle(_isActiveMeta,
           isActive.isAcceptableOrUnknown(data['is_active']!, _isActiveMeta));
     }
+    if (data.containsKey('expires_at')) {
+      context.handle(_expiresAtMeta,
+          expiresAt.isAcceptableOrUnknown(data['expires_at']!, _expiresAtMeta));
+    }
     return context;
   }
 
@@ -144,6 +155,8 @@ class $PairedDevicesTable extends PairedDevices
           .read(DriftSqlType.string, data['${effectivePrefix}device_type'])!,
       isActive: attachedDatabase.typeMapping
           .read(DriftSqlType.bool, data['${effectivePrefix}is_active'])!,
+      expiresAt: attachedDatabase.typeMapping
+          .read(DriftSqlType.dateTime, data['${effectivePrefix}expires_at']),
     );
   }
 
@@ -174,6 +187,12 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
 
   /// Whether this device is currently active (not revoked)
   final bool isActive;
+
+  /// Absolute expiry timestamp for the issued session token (nullable for
+  /// rows migrated from schema v1 — treated as "no expiry" for backward
+  /// compatibility). New pairings populate this with
+  /// `pairedAt + PairingService._defaultSessionTokenLifetime`.
+  final DateTime? expiresAt;
   const PairedDevice(
       {required this.deviceId,
       required this.deviceName,
@@ -181,7 +200,8 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       required this.pairedAt,
       this.lastConnectedAt,
       required this.deviceType,
-      required this.isActive});
+      required this.isActive,
+      this.expiresAt});
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -194,6 +214,9 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
     }
     map['device_type'] = Variable<String>(deviceType);
     map['is_active'] = Variable<bool>(isActive);
+    if (!nullToAbsent || expiresAt != null) {
+      map['expires_at'] = Variable<DateTime>(expiresAt);
+    }
     return map;
   }
 
@@ -208,6 +231,9 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           : Value(lastConnectedAt),
       deviceType: Value(deviceType),
       isActive: Value(isActive),
+      expiresAt: expiresAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(expiresAt),
     );
   }
 
@@ -222,6 +248,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       lastConnectedAt: serializer.fromJson<DateTime?>(json['lastConnectedAt']),
       deviceType: serializer.fromJson<String>(json['deviceType']),
       isActive: serializer.fromJson<bool>(json['isActive']),
+      expiresAt: serializer.fromJson<DateTime?>(json['expiresAt']),
     );
   }
   @override
@@ -235,6 +262,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       'lastConnectedAt': serializer.toJson<DateTime?>(lastConnectedAt),
       'deviceType': serializer.toJson<String>(deviceType),
       'isActive': serializer.toJson<bool>(isActive),
+      'expiresAt': serializer.toJson<DateTime?>(expiresAt),
     };
   }
 
@@ -245,7 +273,8 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           DateTime? pairedAt,
           Value<DateTime?> lastConnectedAt = const Value.absent(),
           String? deviceType,
-          bool? isActive}) =>
+          bool? isActive,
+          Value<DateTime?> expiresAt = const Value.absent()}) =>
       PairedDevice(
         deviceId: deviceId ?? this.deviceId,
         deviceName: deviceName ?? this.deviceName,
@@ -256,6 +285,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
             : this.lastConnectedAt,
         deviceType: deviceType ?? this.deviceType,
         isActive: isActive ?? this.isActive,
+        expiresAt: expiresAt.present ? expiresAt.value : this.expiresAt,
       );
   PairedDevice copyWithCompanion(PairedDevicesCompanion data) {
     return PairedDevice(
@@ -272,6 +302,7 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
       deviceType:
           data.deviceType.present ? data.deviceType.value : this.deviceType,
       isActive: data.isActive.present ? data.isActive.value : this.isActive,
+      expiresAt: data.expiresAt.present ? data.expiresAt.value : this.expiresAt,
     );
   }
 
@@ -284,14 +315,15 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           ..write('pairedAt: $pairedAt, ')
           ..write('lastConnectedAt: $lastConnectedAt, ')
           ..write('deviceType: $deviceType, ')
-          ..write('isActive: $isActive')
+          ..write('isActive: $isActive, ')
+          ..write('expiresAt: $expiresAt')
           ..write(')'))
         .toString();
   }
 
   @override
   int get hashCode => Object.hash(deviceId, deviceName, sessionToken, pairedAt,
-      lastConnectedAt, deviceType, isActive);
+      lastConnectedAt, deviceType, isActive, expiresAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -302,7 +334,8 @@ class PairedDevice extends DataClass implements Insertable<PairedDevice> {
           other.pairedAt == this.pairedAt &&
           other.lastConnectedAt == this.lastConnectedAt &&
           other.deviceType == this.deviceType &&
-          other.isActive == this.isActive);
+          other.isActive == this.isActive &&
+          other.expiresAt == this.expiresAt);
 }
 
 class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
@@ -313,6 +346,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
   final Value<DateTime?> lastConnectedAt;
   final Value<String> deviceType;
   final Value<bool> isActive;
+  final Value<DateTime?> expiresAt;
   final Value<int> rowid;
   const PairedDevicesCompanion({
     this.deviceId = const Value.absent(),
@@ -322,6 +356,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     this.lastConnectedAt = const Value.absent(),
     this.deviceType = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   PairedDevicesCompanion.insert({
@@ -332,6 +367,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     this.lastConnectedAt = const Value.absent(),
     this.deviceType = const Value.absent(),
     this.isActive = const Value.absent(),
+    this.expiresAt = const Value.absent(),
     this.rowid = const Value.absent(),
   })  : deviceId = Value(deviceId),
         deviceName = Value(deviceName),
@@ -345,6 +381,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     Expression<DateTime>? lastConnectedAt,
     Expression<String>? deviceType,
     Expression<bool>? isActive,
+    Expression<DateTime>? expiresAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -355,6 +392,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
       if (lastConnectedAt != null) 'last_connected_at': lastConnectedAt,
       if (deviceType != null) 'device_type': deviceType,
       if (isActive != null) 'is_active': isActive,
+      if (expiresAt != null) 'expires_at': expiresAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -367,6 +405,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
       Value<DateTime?>? lastConnectedAt,
       Value<String>? deviceType,
       Value<bool>? isActive,
+      Value<DateTime?>? expiresAt,
       Value<int>? rowid}) {
     return PairedDevicesCompanion(
       deviceId: deviceId ?? this.deviceId,
@@ -376,6 +415,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
       lastConnectedAt: lastConnectedAt ?? this.lastConnectedAt,
       deviceType: deviceType ?? this.deviceType,
       isActive: isActive ?? this.isActive,
+      expiresAt: expiresAt ?? this.expiresAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -404,6 +444,9 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
     if (isActive.present) {
       map['is_active'] = Variable<bool>(isActive.value);
     }
+    if (expiresAt.present) {
+      map['expires_at'] = Variable<DateTime>(expiresAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -420,6 +463,7 @@ class PairedDevicesCompanion extends UpdateCompanion<PairedDevice> {
           ..write('lastConnectedAt: $lastConnectedAt, ')
           ..write('deviceType: $deviceType, ')
           ..write('isActive: $isActive, ')
+          ..write('expiresAt: $expiresAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -806,6 +850,7 @@ typedef $$PairedDevicesTableCreateCompanionBuilder = PairedDevicesCompanion
   Value<DateTime?> lastConnectedAt,
   Value<String> deviceType,
   Value<bool> isActive,
+  Value<DateTime?> expiresAt,
   Value<int> rowid,
 });
 typedef $$PairedDevicesTableUpdateCompanionBuilder = PairedDevicesCompanion
@@ -817,6 +862,7 @@ typedef $$PairedDevicesTableUpdateCompanionBuilder = PairedDevicesCompanion
   Value<DateTime?> lastConnectedAt,
   Value<String> deviceType,
   Value<bool> isActive,
+  Value<DateTime?> expiresAt,
   Value<int> rowid,
 });
 
@@ -850,6 +896,9 @@ class $$PairedDevicesTableFilterComposer
 
   ColumnFilters<bool> get isActive => $composableBuilder(
       column: $table.isActive, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get expiresAt => $composableBuilder(
+      column: $table.expiresAt, builder: (column) => ColumnFilters(column));
 }
 
 class $$PairedDevicesTableOrderingComposer
@@ -883,6 +932,9 @@ class $$PairedDevicesTableOrderingComposer
 
   ColumnOrderings<bool> get isActive => $composableBuilder(
       column: $table.isActive, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get expiresAt => $composableBuilder(
+      column: $table.expiresAt, builder: (column) => ColumnOrderings(column));
 }
 
 class $$PairedDevicesTableAnnotationComposer
@@ -914,6 +966,9 @@ class $$PairedDevicesTableAnnotationComposer
 
   GeneratedColumn<bool> get isActive =>
       $composableBuilder(column: $table.isActive, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get expiresAt =>
+      $composableBuilder(column: $table.expiresAt, builder: (column) => column);
 }
 
 class $$PairedDevicesTableTableManager extends RootTableManager<
@@ -950,6 +1005,7 @@ class $$PairedDevicesTableTableManager extends RootTableManager<
             Value<DateTime?> lastConnectedAt = const Value.absent(),
             Value<String> deviceType = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
+            Value<DateTime?> expiresAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PairedDevicesCompanion(
@@ -960,6 +1016,7 @@ class $$PairedDevicesTableTableManager extends RootTableManager<
             lastConnectedAt: lastConnectedAt,
             deviceType: deviceType,
             isActive: isActive,
+            expiresAt: expiresAt,
             rowid: rowid,
           ),
           createCompanionCallback: ({
@@ -970,6 +1027,7 @@ class $$PairedDevicesTableTableManager extends RootTableManager<
             Value<DateTime?> lastConnectedAt = const Value.absent(),
             Value<String> deviceType = const Value.absent(),
             Value<bool> isActive = const Value.absent(),
+            Value<DateTime?> expiresAt = const Value.absent(),
             Value<int> rowid = const Value.absent(),
           }) =>
               PairedDevicesCompanion.insert(
@@ -980,6 +1038,7 @@ class $$PairedDevicesTableTableManager extends RootTableManager<
             lastConnectedAt: lastConnectedAt,
             deviceType: deviceType,
             isActive: isActive,
+            expiresAt: expiresAt,
             rowid: rowid,
           ),
           withReferenceMapper: (p0) => p0

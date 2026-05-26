@@ -10,13 +10,14 @@ class WidgetPickerDialog extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final layoutAsync = ref.watch(dashboardLayoutProvider);
     final screenSize = MediaQuery.sizeOf(context);
-    // Responsive dialog width: 90% of screen on small screens, max 420px on larger
-    final dialogWidth = screenSize.width < 500
-        ? screenSize.width * 0.9
-        : 420.0;
+    final dialogConstraints = AdaptiveDialogConstraints.hybrid(
+      context,
+      designMaxWidth: 420,
+      designMaxHeight: screenSize.height * 0.7,
+    );
 
     return AlertDialog(
       backgroundColor: colors.surface,
@@ -30,9 +31,9 @@ class WidgetPickerDialog extends ConsumerWidget {
       ),
       content: ConstrainedBox(
         constraints: BoxConstraints(
-          maxWidth: dialogWidth,
+          maxWidth: dialogConstraints.maxWidth,
           minWidth: 280,
-          maxHeight: screenSize.height * 0.7,
+          maxHeight: dialogConstraints.maxHeight,
         ),
         child: layoutAsync.when(
           data: (layout) {

@@ -284,6 +284,26 @@ class CanonicalNodeMapper {
         final raHours = _readDouble(a['raHours']) ?? 0;
         final decDegrees = _readDouble(a['decDegrees']) ?? 0;
         final rotation = _readDouble(a['rotation']);
+        // Telescopius mosaic panes (and similar formats) tag rows with
+        // mosaic group + panel metadata; surface it as MosaicPanelInfo so
+        // the rest of the app treats these as real mosaic panels (badge,
+        // mosaic-group dashboard, resume).
+        MosaicPanelInfo? mosaicPanel;
+        final mosaicName = a['mosaicName']?.toString();
+        final panelIndex = _readInt(a['mosaicPanelIndex']);
+        final totalPanels = _readInt(a['mosaicTotalPanels']);
+        if (mosaicName != null &&
+            panelIndex != null &&
+            totalPanels != null &&
+            totalPanels > 0) {
+          mosaicPanel = MosaicPanelInfo(
+            mosaicName: mosaicName,
+            panelIndex: panelIndex,
+            totalPanels: totalPanels,
+            row: _readInt(a['mosaicRow']) ?? 0,
+            column: _readInt(a['mosaicColumn']) ?? panelIndex,
+          );
+        }
         return TargetHeaderNode(
           id: id,
           name: targetName,
@@ -293,6 +313,7 @@ class CanonicalNodeMapper {
           raHours: raHours,
           decDegrees: decDegrees,
           rotation: rotation,
+          mosaicPanel: mosaicPanel,
         );
       case CanonicalKind.exposure:
         final duration = _readDouble(a['exposureTime']) ?? 60.0;

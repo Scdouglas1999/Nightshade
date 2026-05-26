@@ -72,20 +72,20 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
     try {
       final deviceService = _ref.read(deviceServiceProvider);
       await deviceService.disconnectCoverCalibrator();
+    } catch (_) {
+      // DeviceService logs; notifier always clears connection state (DV-P0-7).
+    } finally {
       setDisconnected();
-    } catch (e) {
-      state = state.copyWith(
-        lastError: DeviceError.fromException(e, deviceId: state.deviceId),
-      );
     }
   }
 
   void setConnecting(String deviceId, String deviceName) {
+    // DEV-P3-4: preserve `lastError` across Connecting; see camera
+    // provider for the full rationale.
     state = state.copyWith(
       connectionState: DeviceConnectionState.connecting,
       deviceId: deviceId,
       deviceName: deviceName,
-      clearError: true,
     );
   }
 
@@ -97,7 +97,13 @@ class CoverCalibratorStateNotifier extends StateNotifier<CoverCalibratorState> {
   }
 
   void setDisconnected() {
-    state = const CoverCalibratorState();
+    final preservedAutoReconnect = state.autoReconnectEnabled;
+    state = CoverCalibratorState(autoReconnectEnabled: preservedAutoReconnect);
+  }
+
+  /// Enable or disable auto-reconnection for the cover calibrator.
+  void setAutoReconnect(bool enabled) {
+    state = state.copyWith(autoReconnectEnabled: enabled);
   }
 
   void updateCoverStatus(CoverStatus status) {

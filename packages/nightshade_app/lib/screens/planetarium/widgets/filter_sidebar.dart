@@ -18,10 +18,22 @@ class FilterSidebar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     // Tokenized surface so Red Night theme stays red instead of falling
     // back to neutral grey — see audit §4.15.
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
+    final expandedWidth = AdaptiveDialogConstraints.clampPanelWidth(
+      context,
+      designWidth: 220,
+      minWidth: 180,
+      maxWidth: 280,
+    );
+    final collapsedWidth = AdaptiveDialogConstraints.clampPanelWidth(
+      context,
+      designWidth: 48,
+      minWidth: 44,
+      maxWidth: 56,
+    );
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: isExpanded ? 220 : 48,
+      width: isExpanded ? expandedWidth : collapsedWidth,
       decoration: BoxDecoration(
         color: colors.surfaceOverlay.withValues(alpha: 0.95),
         borderRadius: const BorderRadius.only(

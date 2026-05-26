@@ -30,6 +30,12 @@ class _DiscoveryPrefs {
   static const lastServerAuthMode = 'nightshade_last_server_auth_mode';
   static const lastServerPairingSupported =
       'nightshade_last_server_pairing_supported';
+  // P1-19: SHA-256 server fingerprint persisted so the LAN UDP push
+  // receiver can derive the same HMAC key as the broadcaster without a
+  // round-trip to /api/info. Stored next to host/port — the fingerprint
+  // is NOT a secret (it's also embedded in the pairing QR), so plaintext
+  // is acceptable.
+  static const lastServerFingerprint = 'nightshade_last_server_fingerprint';
   // Legacy plaintext slot. Reads only — never written. Cleared after migration.
   static const lastServerAuthToken = 'nightshade_last_server_auth_token';
   // Set once after the legacy plaintext token has been read into secure
@@ -122,6 +128,8 @@ class QrConnectionData {
   final String authenticationMode;
   final bool pairingSupported;
   final String? authToken;
+  /// Optional pairing code embedded in QR for one-scan enrollment.
+  final String? pairingCode;
 
   QrConnectionData({
     this.service = kQrServiceMarker,
@@ -136,6 +144,7 @@ class QrConnectionData {
     this.authenticationMode = 'none',
     this.pairingSupported = false,
     this.authToken,
+    this.pairingCode,
   });
 
   /// Short hash for confirmation UI (first 16 chars of the fingerprint).
@@ -155,6 +164,8 @@ class QrConnectionData {
         'authenticationMode': authenticationMode,
         'pairingSupported': pairingSupported,
         if (authToken != null && authToken!.isNotEmpty) 'authToken': authToken,
+        if (pairingCode != null && pairingCode!.isNotEmpty)
+          'pairingCode': pairingCode,
       };
 
   String toQrString() => jsonEncode(toJson());
@@ -290,6 +301,9 @@ class QrConnectionData {
           : false,
       authToken:
           decoded['authToken'] is String ? decoded['authToken'] as String : null,
+      pairingCode: decoded['pairingCode'] is String
+          ? decoded['pairingCode'] as String
+          : null,
     );
   }
 
@@ -304,12 +318,22 @@ class QrConnectionData {
         authenticationMode: authenticationMode,
         pairingSupported: pairingSupported,
         authToken: authToken,
+        fingerprint: fingerprint,
       );
 }
 
-/// Returns `true` iff [host] is in an RFC1918 / link-local / loopback / IPv6
-/// link-local range, or is an `.local` mDNS name. Public-Internet hosts in a
-/// pairing QR almost certainly mean the QR was tampered with.
+/// Returns `true` iff [host] is in an RFC1918 / RFC6598 CGNAT / link-local /
+/// loopback / IPv6 link-local / IPv6 unique-local range, or is an `.local`
+/// mDNS name. Public-Internet hosts in a pairing QR almost certainly mean the
+/// QR was tampered with.
+///
+/// P1-7: the previous implementation rejected Tailscale CGNAT addresses
+/// (100.64.0.0/10) and IPv6 ULA addresses (fc00::/7), which made QR pairing
+/// unusable for the common "remote observatory exposed via Tailscale" topology
+/// where the phone never lands on the same LAN as the rig. Both ranges are now
+/// accepted. We do NOT accept 100.0.0.0/8 wholesale — that would let an
+/// attacker craft a QR pointing at any of 16M public hosts in the leading /10
+/// before the CGNAT block starts.
 bool isLocalNetworkHost(String host) {
   if (host.isEmpty) return false;
   final lower = host.toLowerCase();
@@ -341,11 +365,20 @@ bool isLocalNetworkHost(String host) {
     if (a == 127) return true;
     // 169.254.0.0/16 (link-local)
     if (a == 169 && b == 254) return true;
+    // 100.64.0.0/10 — RFC 6598 carrier-grade NAT. Tailscale issues node
+    // addresses from this block (the default `100.x.y.z` magic-DNS range), so
+    // refusing it makes QR pairing impossible on the most common remote-
+    // observatory topology. The /10 boundary is precise: the first 10 bits
+    // must match `01100100 01xxxxxx`, which means `a == 100` AND
+    // `b` in [64, 127]. Do NOT widen to `a == 100` alone — that leaks 16M
+    // public IPs in 100.0/8.
+    if (a == 100 && b >= 64 && b <= 127) return true;
     return false;
   }
 
-  // IPv6 loopback `::1` and link-local `fe80::/10`. We don't fully parse
-  // arbitrary IPv6 forms here — InternetAddress.tryParse is the cheap canon.
+  // IPv6 loopback `::1`, link-local `fe80::/10`, and unique-local `fc00::/7`.
+  // We don't fully parse arbitrary IPv6 forms here — InternetAddress.tryParse
+  // is the cheap canon.
   final parsed = InternetAddress.tryParse(candidate);
   if (parsed != null && parsed.type == InternetAddressType.IPv6) {
     if (parsed.isLoopback) return true;
@@ -353,11 +386,42 @@ bool isLocalNetworkHost(String host) {
     if (raw.length >= 2) {
       // fe80::/10 → first byte 0xFE, top two bits of second byte 0b10xxxxxx.
       if (raw[0] == 0xFE && (raw[1] & 0xC0) == 0x80) return true;
+      // fc00::/7 — Unique Local Addresses (RFC 4193). The /7 means the
+      // first seven bits match `1111110x`, so the first byte is either 0xFC
+      // or 0xFD. Tailscale issues each tailnet a /48 inside `fd7a:115c::/32`,
+      // which falls in this range, so accepting it covers both vanilla IPv6
+      // ULA setups and Tailscale-over-IPv6.
+      if (raw[0] == 0xFC || raw[0] == 0xFD) return true;
     }
     return false;
   }
 
   return false;
+}
+
+/// Decode a TXT-record value into a UTF-8 string.
+///
+/// The `nsd` package surfaces TXT values as `Uint8List?` because mDNS
+/// permits raw binary, but our advertisement spec (see [MdnsServiceRegistration])
+/// only uses printable UTF-8. Older platform-interface versions might also
+/// emit a plain `String` via `toString()`, so we normalise both shapes here.
+/// Returns null for empty values so callers can treat "key present, value
+/// blank" the same as "key absent".
+String? _decodeTxtValue(Object? raw) {
+  if (raw == null) return null;
+  if (raw is List<int>) {
+    if (raw.isEmpty) return null;
+    try {
+      return utf8.decode(raw);
+    } on FormatException {
+      // Why: a non-UTF8 TXT value can't be ours, but it can come from a
+      // foreign `_nightshade._tcp` registration colliding on the LAN. Treat
+      // as missing rather than throwing — the caller falls back to defaults.
+      return null;
+    }
+  }
+  final asString = raw.toString();
+  return asString.isEmpty ? null : asString;
 }
 
 List<int>? _parseIpv4(String value) {
@@ -399,6 +463,12 @@ class EnhancedNightshadeDiscovery {
         _DiscoveryPrefs.lastServerAuthMode, server.authenticationMode);
     await prefs.setBool(
         _DiscoveryPrefs.lastServerPairingSupported, server.pairingSupported);
+    final fp = server.fingerprint;
+    if (fp != null && fp.isNotEmpty) {
+      await prefs.setString(_DiscoveryPrefs.lastServerFingerprint, fp);
+    } else {
+      await prefs.remove(_DiscoveryPrefs.lastServerFingerprint);
+    }
     if (server.authToken != null && server.authToken!.isNotEmpty) {
       await _secureStorage.write(
           key: _secureAuthTokenKey, value: server.authToken);
@@ -438,6 +508,7 @@ class EnhancedNightshadeDiscovery {
       pairingSupported:
           prefs.getBool(_DiscoveryPrefs.lastServerPairingSupported) ?? false,
       authToken: (authToken != null && authToken.isNotEmpty) ? authToken : null,
+      fingerprint: prefs.getString(_DiscoveryPrefs.lastServerFingerprint),
     );
   }
 
@@ -453,6 +524,7 @@ class EnhancedNightshadeDiscovery {
     await prefs.remove(_DiscoveryPrefs.lastServerAuthRequired);
     await prefs.remove(_DiscoveryPrefs.lastServerAuthMode);
     await prefs.remove(_DiscoveryPrefs.lastServerPairingSupported);
+    await prefs.remove(_DiscoveryPrefs.lastServerFingerprint);
     // Legacy slot — should already be empty post-migration but flush anyway
     // in case the user wiped storage out from under us.
     await prefs.remove(_DiscoveryPrefs.lastServerAuthToken);
@@ -487,17 +559,25 @@ class EnhancedNightshadeDiscovery {
           info['authenticationMode'] as String? ?? seed.authenticationMode,
       pairingSupported:
           info['pairingSupported'] as bool? ?? seed.pairingSupported,
+      fingerprint: info['fingerprint'] as String? ?? seed.fingerprint,
     );
   }
 
   static Future<DiscoveredServer?> fetchServerInfo(
     DiscoveredServer server, {
-    Duration timeout = const Duration(seconds: 2),
+    Duration timeout = const Duration(seconds: 5),
   }) async {
     try {
+      // Why scheme-aware: when mDNS told us this server is TLS-only, hitting
+      // `http://host:port/api/info` returns a `400 Bad Request` (Dart's
+      // HttpServer rejects plain HTTP on an HTTPS socket) and the un-enriched
+      // entry is shown to the operator. Honouring the scheme the discovery
+      // path inferred lets the enrichment land cleanly. UDP-broadcast paths
+      // default to `http`, matching legacy behaviour.
       final response = await http
           .get(
-            Uri.parse('http://${server.host}:${server.webPort}/api/info'),
+            Uri.parse(
+                '${server.scheme}://${server.host}:${server.webPort}/api/info'),
             headers: _authHeaders(server.authToken),
           )
           .timeout(timeout);
@@ -528,7 +608,7 @@ class EnhancedNightshadeDiscovery {
     String host,
     int port, {
     String? authToken,
-    Duration timeout = const Duration(seconds: 2),
+    Duration timeout = const Duration(seconds: 5),
   }) async {
     try {
       final infoResponse = await http
@@ -561,7 +641,9 @@ class EnhancedNightshadeDiscovery {
       }
 
       if (authToken == null || authToken.isEmpty) {
-        return false;
+        // Host is up; mobile will pair via /api/pairing/* before connecting.
+        final pairingSupported = info['pairingSupported'] as bool? ?? false;
+        return pairingSupported;
       }
 
       final statusResponse = await http
@@ -671,31 +753,54 @@ class EnhancedNightshadeDiscovery {
               final host = resolvedService.host!;
               final port = resolvedService.port!;
 
-              // Parse service name and TXT records for metadata
+              // Parse service name and TXT records for metadata.
+              //
+              // P1-6: the server registers `_nightshade._tcp` with a full TXT
+              // record set (version, scheme, fingerprint, pairingSupported,
+              // name). Parsing the extra keys here means a Tailscale / locked-
+              // down-Wi-Fi client connecting via mDNS-only (no QR, no UDP
+              // broadcast) lands on the right scheme and can cross-check the
+              // fingerprint against a previously-saved value before sending
+              // its bearer token.
               String serverName = resolvedService.name ?? 'Nightshade';
               String version = '2.0.0';
               int signalingPort = 45678;
+              String scheme = 'http';
+              String? fingerprint;
+              bool pairingSupported = false;
 
-              // Parse TXT records if available
-              if (resolvedService.txt != null &&
-                  resolvedService.txt!.isNotEmpty) {
-                final txtRecords = resolvedService.txt!;
-
-                // TXT records are typically in key=value format
-                for (var record in txtRecords.entries) {
+              final txtRecords = resolvedService.txt;
+              if (txtRecords != null && txtRecords.isNotEmpty) {
+                for (final record in txtRecords.entries) {
                   final key = record.key;
-                  final value = record.value;
+                  final rawValue = record.value;
+                  final value = _decodeTxtValue(rawValue);
+                  if (value == null) continue;
 
                   switch (key) {
                     case 'version':
-                      version = value?.toString() ?? version;
+                      version = value;
                       break;
                     case 'name':
-                      serverName = value?.toString() ?? serverName;
+                      serverName = value;
                       break;
                     case 'signaling_port':
-                      signalingPort = int.tryParse(value?.toString() ?? '') ??
-                          signalingPort;
+                      signalingPort = int.tryParse(value) ?? signalingPort;
+                      break;
+                    case 'scheme':
+                      final lowered = value.toLowerCase();
+                      if (lowered == 'http' || lowered == 'https') {
+                        scheme = lowered;
+                      }
+                      break;
+                    case 'fingerprint':
+                      if (value.isNotEmpty) {
+                        fingerprint = value;
+                      }
+                      break;
+                    case 'pairingSupported':
+                      pairingSupported =
+                          value.toLowerCase() == 'true' || value == '1';
                       break;
                   }
                 }
@@ -707,6 +812,9 @@ class EnhancedNightshadeDiscovery {
                 signalingPort: signalingPort,
                 name: serverName,
                 version: version,
+                scheme: scheme,
+                fingerprint: fingerprint,
+                pairingSupported: pairingSupported,
               );
 
               // Avoid duplicates
@@ -845,6 +953,7 @@ class EnhancedNightshadeDiscovery {
     String authenticationMode = 'none',
     bool pairingSupported = false,
     String? authToken,
+    String? pairingCode,
   }) {
     final data = QrConnectionData(
       host: host,
@@ -858,6 +967,7 @@ class EnhancedNightshadeDiscovery {
       authenticationMode: authenticationMode,
       pairingSupported: pairingSupported,
       authToken: authToken,
+      pairingCode: pairingCode,
     );
     return data.toQrString();
   }

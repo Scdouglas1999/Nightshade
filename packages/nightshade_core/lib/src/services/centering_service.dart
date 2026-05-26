@@ -7,10 +7,46 @@ import 'plate_solve_service.dart';
 import 'imaging_service.dart';
 import 'device_service.dart';
 import 'smart_notification_service.dart';
+import '../providers/backend_provider.dart';
 import '../providers/equipment_provider.dart';
 import '../providers/current_screen_provider.dart';
 import '../models/imaging/imaging_models.dart';
 import '../models/equipment/equipment_models.dart';
+
+/// Thrown when the mount status query fails for too many consecutive ticks
+/// during the post-slew settle poll. Distinguishes a sustained
+/// disconnect/hang from a single transient blip that the poll loop can ride
+/// out.
+///
+/// Errors are a feature — surfacing this as a typed exception (rather than
+/// silently waiting out the 60s wall-clock cap) lets callers and tests
+/// observe the actual failure mode instead of "centering timed out".
+class CenteringMountUnresponsiveException implements Exception {
+  /// Number of consecutive failed `getMountStatus` calls before giving up.
+  final int consecutiveFailures;
+
+  /// Total wall-clock duration spanned by [consecutiveFailures] at the
+  /// poll-tick rate.
+  final Duration elapsed;
+
+  /// The underlying error from the most recent failed mount status query.
+  final Object cause;
+
+  const CenteringMountUnresponsiveException({
+    required this.consecutiveFailures,
+    required this.elapsed,
+    required this.cause,
+  });
+
+  @override
+  String toString() {
+    final seconds = elapsed.inMilliseconds / 1000.0;
+    return 'Mount status query failed $consecutiveFailures times '
+        'consecutively over ${seconds.toStringAsFixed(1)}s '
+        '— aborting centering. The mount may be disconnected or '
+        'unresponsive. Last error: $cause';
+  }
+}
 
 /// Result of a centering operation
 class CenteringResult {
@@ -200,6 +236,25 @@ class CenteringStatus {
 /// Service for automated target centering using plate solving
 class CenteringService {
   final Ref _ref;
+
+  /// Interval between mount-status polls during post-slew settle.
+  ///
+  /// 500ms keeps UI status reasonably fresh without hammering the bridge.
+  static const Duration _pollInterval = Duration(milliseconds: 500);
+
+  /// Upper bound (in ticks) on the post-slew settle wait. 120 × 500ms = 60s
+  /// — preserves the existing wall-clock budget for slow-but-working mounts.
+  static const int _maxPollTicks = 120;
+
+  /// Maximum number of consecutive `getMountStatus` failures tolerated
+  /// during the settle poll before aborting centering with a typed
+  /// [CenteringMountUnresponsiveException].
+  ///
+  /// 6 ticks × [_pollInterval] = 3 seconds of unbroken failure. A single
+  /// transient blip (e.g. one missed COM frame, INDI reconnect) recovers on
+  /// the next tick and never trips this threshold; a permanently-broken
+  /// mount fails fast at 3s rather than dragging out the full 60s timeout.
+  static const int _maxConsecutiveQueryFailures = 6;
 
   // Flag flipped by [stop]; checked at every centering loop yield-point so the
   // user-visible Abort path returns promptly and the post-stop status is
@@ -554,8 +609,27 @@ class CenteringService {
 
       if (_abortRequested) return _abortedResult(iteration, iterations);
 
-      // Add a small delay before next iteration
-      await Future.delayed(const Duration(seconds: 2));
+      // Wait for slew to complete by polling mount status. May throw
+      // [CenteringMountUnresponsiveException] if the mount stops answering;
+      // the catch below converts that into a typed centering failure result.
+      final mountId = mountState.deviceId;
+      if (mountId != null) {
+        try {
+          await _waitForSlewComplete(mountId);
+        } on CenteringMountUnresponsiveException catch (e) {
+          if (_abortRequested) return _abortedResult(iteration, iterations);
+          return CenteringResult.failure(
+            errorMessage: e.toString(),
+            iterations: iteration,
+            iterationHistory: iterations,
+          );
+        }
+      } else {
+        await Future.delayed(const Duration(seconds: 2));
+      }
+
+      // Small delay before next iteration
+      await Future.delayed(const Duration(milliseconds: 500));
     }
 
     // Max iterations reached without achieving tolerance
@@ -708,6 +782,61 @@ class CenteringService {
         iterations: 1,
         iterationHistory: iterations,
       );
+    }
+  }
+
+  /// Poll the mount until `slewing == false`, the overall poll cap is hit, or
+  /// abort is requested.
+  ///
+  /// Two distinct timeouts protect this loop:
+  ///   1. [_maxPollTicks] (60s wall-clock) — upper bound for a
+  ///      slow-but-working mount that just hasn't finished slewing yet.
+  ///   2. [_maxConsecutiveQueryFailures] (3s of unbroken errors) — fail-fast
+  ///      escalation when the mount stops answering at all (disconnected,
+  ///      driver crashed, COM hung). A single transient failure resets on
+  ///      the next successful poll and never trips this; only sustained
+  ///      brokenness escalates by throwing
+  ///      [CenteringMountUnresponsiveException].
+  Future<void> _waitForSlewComplete(String mountId) async {
+    final backend = _ref.read(backendProvider);
+    await Future.delayed(_pollInterval);
+    int pollCount = 0;
+    int consecutiveQueryFailures = 0;
+    Object? lastQueryError;
+    while (pollCount < _maxPollTicks && !_abortRequested) {
+      try {
+        final status = await backend.getMountStatus(mountId);
+        // Success — clear the consecutive-failure counter. A single
+        // transient error followed by a good poll must NOT escalate.
+        consecutiveQueryFailures = 0;
+        lastQueryError = null;
+        if (!status.slewing) {
+          return;
+        }
+      } on CenteringMountUnresponsiveException {
+        // Never wrap our own escalation — preserve the original frame.
+        rethrow;
+      } on Object catch (e) {
+        consecutiveQueryFailures++;
+        lastQueryError = e;
+        // ignore: avoid_print
+        print('CenteringService: post-slew status poll failed '
+            '($consecutiveQueryFailures/$_maxConsecutiveQueryFailures): $e');
+
+        if (consecutiveQueryFailures >= _maxConsecutiveQueryFailures) {
+          // Errors are a feature: escalate the sustained outage as a
+          // typed exception so the caller can surface a precise failure
+          // reason in [CenteringResult], rather than silently riding out
+          // the 60s cap.
+          throw CenteringMountUnresponsiveException(
+            consecutiveFailures: consecutiveQueryFailures,
+            elapsed: _pollInterval * consecutiveQueryFailures,
+            cause: lastQueryError,
+          );
+        }
+      }
+      await Future.delayed(_pollInterval);
+      pollCount++;
     }
   }
 

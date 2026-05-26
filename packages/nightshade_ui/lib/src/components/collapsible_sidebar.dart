@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../theme/nightshade_colors.dart';
+import '../theme/nightshade_tokens.dart';
 import '../widgets/resizable_panel.dart';
 
 /// A sidebar that animates between a collapsed icon strip and an expanded
@@ -18,6 +19,11 @@ import '../widgets/resizable_panel.dart';
 ///     below `collapsedWidth + 20`, so the icon strip doesn't flicker.
 ///   * remembers user resize on the expanded side via the `ResizablePanel`
 ///     drag handle and notifies via [onExpandedWidthChanged].
+///
+/// Default widths match the main navigation rail
+/// ([NightshadeTokens.sidebarCollapsed] / [sidebarExpanded]). Wider tool
+/// panels (e.g. sequencer) should pass explicit [expandedWidth] and
+/// [maxExpandedWidth].
 class CollapsibleSidebar extends StatefulWidget {
   /// True when the sidebar is collapsed to the icon strip.
   final bool isCollapsed;
@@ -61,9 +67,9 @@ class CollapsibleSidebar extends StatefulWidget {
     required this.isCollapsed,
     required this.collapsedChild,
     required this.expandedChild,
-    this.collapsedWidth = 56.0,
-    this.expandedWidth = 280.0,
-    this.minExpandedWidth = 220.0,
+    this.collapsedWidth = NightshadeTokens.sidebarCollapsed,
+    this.expandedWidth = NightshadeTokens.sidebarExpanded,
+    this.minExpandedWidth = NightshadeTokens.sidebarExpanded,
     this.maxExpandedWidth = 480.0,
     this.side = ResizeSide.right,
     this.animationDuration = const Duration(milliseconds: 200),
@@ -145,7 +151,7 @@ class _CollapsibleSidebarState extends State<CollapsibleSidebar>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return AnimatedBuilder(
       animation: _widthAnimation,
@@ -170,7 +176,7 @@ class _CollapsibleSidebarState extends State<CollapsibleSidebar>
           return Container(
             width: widget.collapsedWidth,
             decoration: BoxDecoration(
-              color: colors.surface,
+              color: colors.surfaceAlt,
               border: Border(
                 left: widget.side == ResizeSide.left
                     ? BorderSide(color: colors.border)

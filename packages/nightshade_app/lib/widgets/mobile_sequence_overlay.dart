@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 // Import mobile-specific widgets
 import 'sequence_progress_card.dart';
@@ -38,8 +39,14 @@ class MobileSequenceOverlay extends ConsumerWidget {
             // Control buttons
             const SequenceControls(),
 
-            // Bottom padding for safe area
-            SizedBox(height: MediaQuery.paddingOf(context).bottom + 8),
+            // Clear bottom nav + status bar + safe area below the content stack.
+            SizedBox(
+              height: ShellChromeMetrics.floatingOverlayBottomInset(
+                context,
+                useBottomNav: true,
+                margin: 8,
+              ),
+            ),
           ],
         ),
       ),

@@ -150,34 +150,46 @@ class _SchedulerTabContentState extends ConsumerState<SchedulerTabContent>
       children: [
         Padding(
           padding: NightshadeTokens.screenPadding,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(
-                width: 380,
-                child: _DecisionPanel(
-                  status: status,
-                  decision: decision,
-                  config: engine.config,
-                  onStart: _onStart,
-                  onPause: _onPause,
-                  onResume: _onResume,
-                  onStop: _onStop,
-                  onForceReeval: _onForceReeval,
-                  onWeightsChanged: _onWeightsChanged,
-                  onMinAltitudeChanged: _onMinAltitudeChanged,
-                  onHysteresisChanged: _onHysteresisChanged,
-                ),
-              ),
-              const SizedBox(width: NightshadeTokens.spaceLg),
-              Expanded(
-                child: _QueueTable(
-                  decision: decision,
-                  currentTargetId: status.currentTargetId,
-                  onRowTap: _openEditor,
-                ),
-              ),
-            ],
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final panelWidth = clampPanelWidth(
+                constraints.maxWidth,
+                fraction: 0.28,
+                min: 280,
+                max: 380,
+              );
+              return Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: panelWidth,
+                    child: SingleChildScrollView(
+                      child: _DecisionPanel(
+                        status: status,
+                        decision: decision,
+                        config: engine.config,
+                        onStart: _onStart,
+                        onPause: _onPause,
+                        onResume: _onResume,
+                        onStop: _onStop,
+                        onForceReeval: _onForceReeval,
+                        onWeightsChanged: _onWeightsChanged,
+                        onMinAltitudeChanged: _onMinAltitudeChanged,
+                        onHysteresisChanged: _onHysteresisChanged,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: NightshadeTokens.spaceLg),
+                  Expanded(
+                    child: _QueueTable(
+                      decision: decision,
+                      currentTargetId: status.currentTargetId,
+                      onRowTap: _openEditor,
+                    ),
+                  ),
+                ],
+              );
+            },
           ),
         ),
         if (_editingTargetId != 0)
@@ -265,7 +277,7 @@ class _DecisionPanel extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
       decoration: BoxDecoration(
@@ -339,10 +351,9 @@ class _StateBadge extends StatelessWidget {
     };
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.15),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: color.withValues(alpha: 0.45)),
+      decoration: NightshadeDecorations.statusChip(
+        color,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
       ),
       child: Text(
         label,
@@ -868,12 +879,12 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final w = widget.config.weights;
     final c = widget.config;
     return Theme(
-      data: Theme.of(context)
-          .copyWith(dividerColor: Colors.transparent, splashColor: Colors.transparent),
+      data: Theme.of(context).copyWith(
+          dividerColor: Colors.transparent, splashColor: Colors.transparent),
       child: ExpansionTile(
         tilePadding: EdgeInsets.zero,
         childrenPadding: EdgeInsets.zero,
@@ -893,20 +904,17 @@ class _ConfigExpansionState extends State<_ConfigExpansion> {
           _WeightSlider(
             label: 'Altitude',
             value: w.altitude,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(altitude: v)),
+            onChanged: (v) => widget.onWeightsChanged(w.copyWith(altitude: v)),
           ),
           _WeightSlider(
             label: 'Meridian',
             value: w.meridian,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(meridian: v)),
+            onChanged: (v) => widget.onWeightsChanged(w.copyWith(meridian: v)),
           ),
           _WeightSlider(
             label: 'Moon',
             value: w.moon,
-            onChanged: (v) =>
-                widget.onWeightsChanged(w.copyWith(moon: v)),
+            onChanged: (v) => widget.onWeightsChanged(w.copyWith(moon: v)),
           ),
           _WeightSlider(
             label: 'Time remaining',
@@ -964,7 +972,7 @@ class _WeightSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -1025,7 +1033,7 @@ class _ParameterSlider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 2),
       child: Row(
@@ -1082,7 +1090,7 @@ class _QueueTable extends ConsumerWidget {
     int targetId,
     String targetName,
   ) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dCtx) {
@@ -1133,7 +1141,7 @@ class _QueueTable extends ConsumerWidget {
     BuildContext context,
     WidgetRef ref,
   ) async {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dCtx) {
@@ -1179,7 +1187,7 @@ class _QueueTable extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final goalsAsync = ref.watch(allIntegrationGoalsProvider);
     final hasRows = decision != null && decision!.scoredCandidates.isNotEmpty;
 
@@ -1209,7 +1217,8 @@ class _QueueTable extends ConsumerWidget {
               const Spacer(),
               if (decision != null)
                 Padding(
-                  padding: const EdgeInsets.only(right: NightshadeTokens.spaceSm),
+                  padding:
+                      const EdgeInsets.only(right: NightshadeTokens.spaceSm),
                   child: Text(
                     'Last evaluation ${_formatTime(decision!.evaluatedAt)}',
                     style: TextStyle(fontSize: 11, color: colors.textMuted),
@@ -1254,26 +1263,21 @@ class _QueueTable extends ConsumerWidget {
                 }
                 return Column(
                   children: [
-                    for (var i = 0;
-                        i < decision!.scoredCandidates.length;
-                        i++)
+                    for (var i = 0; i < decision!.scoredCandidates.length; i++)
                       Padding(
-                        padding:
-                            const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.only(bottom: 6),
                         child: _QueueRow(
                           score: decision!.scoredCandidates[i],
                           isWinner: i == 0 &&
                               !decision!
                                   .scoredCandidates[i].hardConstraintFailed,
-                          isCurrent: decision!
-                                  .scoredCandidates[i].targetId ==
+                          isCurrent: decision!.scoredCandidates[i].targetId ==
                               currentTargetId,
                           goalsForTarget: goalsByTarget[
-                                  decision!
-                                      .scoredCandidates[i].targetId] ??
+                                  decision!.scoredCandidates[i].targetId] ??
                               const <IntegrationGoal>[],
-                          onTap: () => onRowTap(
-                              decision!.scoredCandidates[i].targetId),
+                          onTap: () =>
+                              onRowTap(decision!.scoredCandidates[i].targetId),
                           onDelete: () => _confirmDeleteRow(
                             context,
                             ref,
@@ -1322,8 +1326,7 @@ class _ColumnHeaders extends StatelessWidget {
           const SizedBox(width: NightshadeTokens.spaceMd),
           SizedBox(
               width: 78,
-              child: Text('SCORE',
-                  textAlign: TextAlign.right, style: h())),
+              child: Text('SCORE', textAlign: TextAlign.right, style: h())),
           const SizedBox(width: NightshadeTokens.spaceMd),
           SizedBox(width: 130, child: Text('STATUS', style: h())),
           const SizedBox(width: NightshadeTokens.spaceMd),
@@ -1397,7 +1400,7 @@ class _TargetEditorOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final score = decision?.scoredCandidates
         .where((s) => s.targetId == targetId)
         .toList();
@@ -1415,80 +1418,100 @@ class _TargetEditorOverlay extends ConsumerWidget {
           color: Colors.black.withValues(alpha: 0.55),
           alignment: Alignment.center,
           child: GestureDetector(
-            onTap: () {},
+            onTap: () => FocusScope.of(context).unfocus(),
             child: Material(
               color: Colors.transparent,
-              child: Container(
-                width: 720,
-                constraints: const BoxConstraints(maxHeight: 720),
-                decoration: BoxDecoration(
-                  color: colors.surface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: colors.border),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black.withValues(alpha: 0.35),
-                      blurRadius: 24,
-                      offset: const Offset(0, 8),
-                    ),
-                  ],
+              child: ConstrainedBox(
+                constraints: Responsive.dialogConstraints(
+                  context,
+                  preferredWidth: dialogMaxWidth(context, 720),
+                  preferredHeight: 720,
+                  minWidth: 400,
+                  minHeight: 320,
+                  maxHeightPercent: 0.9,
                 ),
-                child: Padding(
-                  padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            name,
-                            style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.w700,
-                              color: colors.textPrimary,
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return SizedBox(
+                      width: constraints.maxWidth,
+                      height: constraints.maxHeight,
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: colors.surface,
+                          borderRadius:
+                              BorderRadius.circular(NightshadeTokens.radiusLg),
+                          border: Border.all(color: colors.border),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 24,
+                              offset: const Offset(0, 8),
                             ),
-                          ),
-                          const Spacer(),
-                          IconButton(
-                            icon: Icon(LucideIcons.x,
-                                size: NightshadeTokens.iconMd,
-                                color: colors.textSecondary),
-                            onPressed: onClose,
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: NightshadeTokens.spaceMd),
-                      Expanded(
-                        child: SingleChildScrollView(
+                          ],
+                        ),
+                        child: Padding(
+                          padding:
+                              const EdgeInsets.all(NightshadeTokens.spaceLg),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              IntegrationGoalsEditor(
-                                targetId: targetId,
-                                targetName: name,
-                                availableFilters: availableFilters,
+                              Row(
+                                children: [
+                                  Text(
+                                    name,
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.w700,
+                                      color: colors.textPrimary,
+                                    ),
+                                  ),
+                                  const Spacer(),
+                                  IconButton(
+                                    icon: Icon(
+                                      LucideIcons.x,
+                                      size: NightshadeTokens.iconMd,
+                                      color: colors.textSecondary,
+                                    ),
+                                    onPressed: onClose,
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: NightshadeTokens.space2xl),
-                              TargetConstraintsEditor(
-                                targetId: targetId,
-                                targetName: name,
-                                onChanged: () {
-                                  // Triggers an immediate re-evaluation
-                                  // so the operator sees constraint edits
-                                  // reflected on the queue table.
-                                  ref
-                                      .read(schedulerEngineProvider)
-                                      .evaluateNow(
-                                        reason: 'constraint edit',
-                                      );
-                                },
+                              const SizedBox(height: NightshadeTokens.spaceMd),
+                              Expanded(
+                                child: SingleChildScrollView(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      IntegrationGoalsEditor(
+                                        targetId: targetId,
+                                        targetName: name,
+                                        availableFilters: availableFilters,
+                                      ),
+                                      const SizedBox(
+                                        height: NightshadeTokens.space2xl,
+                                      ),
+                                      TargetConstraintsEditor(
+                                        targetId: targetId,
+                                        targetName: name,
+                                        onChanged: () {
+                                          ref
+                                              .read(schedulerEngineProvider)
+                                              .evaluateNow(
+                                                reason: 'constraint edit',
+                                              );
+                                        },
+                                      ),
+                                    ],
+                                  ),
+                                ),
                               ),
                             ],
                           ),
                         ),
                       ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -1523,10 +1546,9 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
-    final headline = widget.awaitingFirstEval
-        ? 'No decision yet'
-        : 'No targets to schedule';
+    final colors = NightshadeColors.of(context);
+    final headline =
+        widget.awaitingFirstEval ? 'No decision yet' : 'No targets to schedule';
     final body = widget.awaitingFirstEval
         ? 'The scheduler has not evaluated any targets yet. Press Start '
             'in the panel on the left, or tap Re-evaluate to compute an '
@@ -1590,8 +1612,8 @@ class _NoTargetsEmptyStateState extends State<_NoTargetsEmptyState> {
                     : LucideIcons.chevronDown,
                 size: ButtonSize.small,
                 variant: ButtonVariant.ghost,
-                onPressed: () => setState(
-                    () => _learnMoreExpanded = !_learnMoreExpanded),
+                onPressed: () =>
+                    setState(() => _learnMoreExpanded = !_learnMoreExpanded),
               ),
             ],
           ),

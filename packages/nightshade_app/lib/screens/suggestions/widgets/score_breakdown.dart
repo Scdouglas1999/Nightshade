@@ -145,7 +145,7 @@ class _ScoreBreakdownState extends State<ScoreBreakdown>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -342,14 +342,7 @@ class _ScoreBar extends StatelessWidget {
                 width: constraints.maxWidth * normalizedScore,
                 height: 6,
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      _lightenColor(color, 0.1),
-                      color,
-                    ],
-                  ),
+                  color: color,
                   borderRadius: NightshadeTokens.borderRadiusFull,
                 ),
               ),
@@ -358,11 +351,5 @@ class _ScoreBar extends StatelessWidget {
         },
       ),
     );
-  }
-
-  /// Creates a slightly lighter shade of the given color.
-  Color _lightenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl.withLightness((hsl.lightness + amount).clamp(0.0, 1.0)).toColor();
   }
 }

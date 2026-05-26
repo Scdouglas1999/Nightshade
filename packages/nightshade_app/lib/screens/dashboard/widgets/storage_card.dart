@@ -47,8 +47,8 @@ class StorageCard extends ConsumerWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(8),
-          decoration: BoxDecoration(
-            color: colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.tintedBadge(
+            colors.info,
             borderRadius: BorderRadius.circular(8),
           ),
           child: Icon(LucideIcons.hardDrive, size: 16, color: colors.info),

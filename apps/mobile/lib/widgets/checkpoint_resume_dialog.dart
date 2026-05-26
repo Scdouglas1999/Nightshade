@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:intl/intl.dart';
-
+import 'package:nightshade_ui/nightshade_ui.dart';
 /// Dialog to prompt user to resume from a checkpoint
 class CheckpointResumeDialog extends StatelessWidget {
   final CheckpointInfo checkpointInfo;
@@ -18,10 +18,7 @@ class CheckpointResumeDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
 
-    // Format timestamp
-    final dateFormat = DateFormat('MMM d, yyyy h:mm a');
     final timeAgo = _formatTimeAgo(checkpointInfo.ageSeconds);
 
     // Format integration time
@@ -30,19 +27,25 @@ class CheckpointResumeDialog extends StatelessWidget {
         ? '${integrationMins.toStringAsFixed(1)} min'
         : '${(integrationMins / 60).toStringAsFixed(1)} hr';
 
-    return AlertDialog(
-      title: Row(
-        children: [
-          Icon(
-            Icons.restore,
-            color: colorScheme.primary,
-            size: 28,
-          ),
-          const SizedBox(width: 12),
-          const Text('Resume Sequence?'),
-        ],
-      ),
-      content: Column(
+    return NightshadeDialog(
+      title: 'Resume Sequence?',
+      icon: LucideIcons.rotateCcw,
+      width: 420,
+      actions: [
+        NightshadeButton(
+          onPressed: onDiscard,
+          label: 'Discard',
+          variant: ButtonVariant.destructive,
+          size: ButtonSize.small,
+        ),
+        NightshadeButton(
+          onPressed: onResume,
+          label: 'Resume',
+          icon: LucideIcons.play,
+          size: ButtonSize.small,
+        ),
+      ],
+      child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -54,47 +57,28 @@ class CheckpointResumeDialog extends StatelessWidget {
           _buildInfoCard(
             context,
             checkpointInfo: checkpointInfo,
-            dateFormat: dateFormat,
             timeAgo: timeAgo,
             integrationText: integrationText,
           ),
         ],
       ),
-      actions: [
-        TextButton(
-          onPressed: onDiscard,
-          child: Text(
-            'Discard',
-            style: TextStyle(color: colorScheme.error),
-          ),
-        ),
-        FilledButton.icon(
-          onPressed: onResume,
-          icon: const Icon(Icons.play_arrow),
-          label: const Text('Resume'),
-        ),
-      ],
     );
   }
 
   Widget _buildInfoCard(
     BuildContext context, {
     required CheckpointInfo checkpointInfo,
-    required DateFormat dateFormat,
     required String timeAgo,
     required String integrationText,
   }) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = NightshadeColors.of(context);
 
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.3),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colorScheme.outline.withValues(alpha: 0.2),
-        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -105,7 +89,7 @@ class CheckpointResumeDialog extends StatelessWidget {
               Icon(
                 Icons.science,
                 size: 18,
-                color: colorScheme.primary,
+                color: colors.primary,
               ),
               const SizedBox(width: 8),
               Expanded(
@@ -154,20 +138,20 @@ class CheckpointResumeDialog extends StatelessWidget {
     required String value,
   }) {
     final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final colors = NightshadeColors.of(context);
 
     return Row(
       children: [
         Icon(
           icon,
           size: 16,
-          color: colorScheme.onSurfaceVariant,
+          color: colors.textSecondary,
         ),
         const SizedBox(width: 8),
         Text(
           '$label:',
           style: theme.textTheme.bodySmall?.copyWith(
-            color: colorScheme.onSurfaceVariant,
+            color: colors.textSecondary,
           ),
         ),
         const SizedBox(width: 4),

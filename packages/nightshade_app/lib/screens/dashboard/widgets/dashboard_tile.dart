@@ -115,29 +115,6 @@ class DashboardTileFrame extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Hero treatment: premium shadows and accent glow for live preview
-    final List<BoxShadow> shadow;
-    if (isHero) {
-      shadow = [
-        BoxShadow(
-          color: Colors.black.withValues(alpha: 0.3),
-          blurRadius: 24,
-          offset: const Offset(0, 8),
-        ),
-        BoxShadow(
-          color: colors.primary.withValues(alpha: 0.1),
-          blurRadius: 16,
-          spreadRadius: -2,
-        ),
-      ];
-    } else if (cardVariant == CardVariant.elevated) {
-      shadow = NightshadeTokens.elevationLevel1to2;
-    } else if (cardVariant == CardVariant.subtle) {
-      shadow = [];
-    } else {
-      shadow = NightshadeTokens.elevationLevel1;
-    }
-
     // Border with hero accent and edit mode highlight
     final borderColor = isDropTarget
         ? colors.primary.withValues(alpha: 0.7)
@@ -158,7 +135,6 @@ class DashboardTileFrame extends StatelessWidget {
               color: borderColor,
               width: isDropTarget ? 2 : (isHero ? 1.5 : 1),
             ),
-            boxShadow: shadow,
           ),
           child: ClipRRect(
             borderRadius: NightshadeTokens.borderRadiusMd,
@@ -168,31 +144,6 @@ class DashboardTileFrame extends StatelessWidget {
             ),
           ),
         ),
-
-        // Hero glow effect (top edge accent)
-        if (isHero)
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: Container(
-              height: 2,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [
-                    colors.primary.withValues(alpha: 0.6),
-                    colors.accent.withValues(alpha: 0.3),
-                    colors.primary.withValues(alpha: 0.1),
-                  ],
-                  stops: const [0.0, 0.5, 1.0],
-                ),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(8),
-                  topRight: Radius.circular(8),
-                ),
-              ),
-            ),
-          ),
 
         // Edit mode drag handle (top-left)
         if (isEditing)
@@ -243,7 +194,7 @@ class _EditIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Tooltip(
       message: tooltip,
       // Expanded touch target: 40x40px for easier tapping
@@ -290,13 +241,9 @@ class _DragHandleIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: colors.surfaceAlt.withValues(alpha: 0.9),
+      decoration: NightshadeDecorations.emphasisSurface(
+        colors.primary,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(
-          color: colors.primary.withValues(alpha: 0.3),
-          width: 1,
-        ),
       ),
       child: Icon(
         LucideIcons.gripVertical,
@@ -337,7 +284,7 @@ class DashboardLayoutError extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return DashboardGlassCardInline(
       colors: colors,
       child: Column(
@@ -400,13 +347,7 @@ class DashboardGlassCardInline extends StatelessWidget {
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
+        boxShadow: NightshadeTokens.elevationLevel1,
       ),
       child: Padding(
         padding: padding,

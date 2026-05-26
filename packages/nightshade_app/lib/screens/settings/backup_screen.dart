@@ -217,7 +217,7 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final autoSaveStatus = ref.watch(autoSaveStatusProvider);
 
@@ -234,8 +234,8 @@ class _BackupScreenState extends ConsumerState<BackupScreen> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.iconChip(
+                    colors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child:
@@ -352,7 +352,7 @@ class _AutoSaveStatusCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Card(
       color: colors.surface,
       child: Padding(
@@ -419,7 +419,7 @@ class _QuickActionsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Card(
       color: colors.surface,
       child: Padding(
@@ -485,7 +485,7 @@ class _RecentBackupsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Card(
       color: colors.surface,
       child: Padding(
@@ -575,7 +575,7 @@ class _BackupTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isAutoSave = backup.fileName.contains('autosave');
     final timestamp = DateFormat('MMM d, yyyy HH:mm').format(backup.createdAt);
 
@@ -583,10 +583,8 @@ class _BackupTile extends StatelessWidget {
       contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       leading: Container(
         padding: const EdgeInsets.all(8),
-        decoration: BoxDecoration(
-          color: isAutoSave
-              ? colors.warning.withValues(alpha: 0.1)
-              : colors.primary.withValues(alpha: 0.1),
+        decoration: NightshadeDecorations.iconChip(
+          isAutoSave ? colors.warning : colors.primary,
           borderRadius: BorderRadius.circular(8),
         ),
         child: Icon(
@@ -652,7 +650,7 @@ class _StatusRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
         Expanded(

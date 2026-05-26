@@ -4,6 +4,7 @@
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
+use crate::protocol::standard_properties::*;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -107,6 +108,32 @@ impl IndiRotator {
         client
             .is_property_busy(&self.device_name, "ABS_ROTATOR_ANGLE")
             .await
+    }
+
+    /// Sync reported sky angle to `angle` without moving (INDI `SYNC_ROTATOR_ANGLE`).
+    pub async fn sync(&self, angle: f64) -> IndiResult<()> {
+        let mut client = self.client.write().await;
+        client
+            .set_number(&self.device_name, SYNC_ROTATOR_ANGLE, "ANGLE", angle)
+            .await
+    }
+
+    /// Mechanical / encoder angle when the driver publishes it.
+    pub async fn get_mechanical_position(&self) -> Result<f64, String> {
+        let client = self.client.read().await;
+        for (property, element) in [
+            (ROTATOR_RAW_ANGLE, "ANGLE"),
+            ("ROTATOR_POSITION", "POSITION"),
+            ("MECHANICAL_POSITION", "POSITION"),
+        ] {
+            if let Some(angle) = client
+                .get_number(&self.device_name, property, element)
+                .await
+            {
+                return Ok(angle);
+            }
+        }
+        Err("Mechanical position not available".to_string())
     }
 
     /// Reverse direction

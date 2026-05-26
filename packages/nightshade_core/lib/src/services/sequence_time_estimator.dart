@@ -142,6 +142,8 @@ class TargetWindow {
 /// identifies timing conflicts where nodes may execute outside their target's
 /// visibility window.
 class SequenceTimeEstimator {
+  const SequenceTimeEstimator();
+
   // ============================================================================
   // Default timing constants (in seconds unless noted)
   // ============================================================================
@@ -243,6 +245,13 @@ class SequenceTimeEstimator {
   }) {
     if (!node.isEnabled) {
       return currentTime;
+    }
+
+    if (node is TargetHeaderNode) {
+      final startAfter = _effectiveStartAfter(node);
+      if (startAfter != null && currentTime.isBefore(startAfter)) {
+        currentTime = startAfter;
+      }
     }
 
     // Update target header ID if this is a target header node
@@ -416,11 +425,51 @@ class SequenceTimeEstimator {
     // a zero-duration default and mis-estimate sequence timing.
     return switch (node) {
       ExposureNode() => Duration(
-          milliseconds:
-              ((node.count * node.durationSecs + node.count * _downloadOverheadSecs) *
-                      1000)
-                  .round(),
+          milliseconds: ((node.count * node.durationSecs +
+                      node.count * _downloadOverheadSecs) *
+                  1000)
+              .round(),
         ),
+      // Wave 3 Agent 2: SmartExposure. Sum of (count * duration) across
+      // all plans + per-frame download overhead + one filter-change penalty
+      // per plan + dither-cost for each dither point. When an integration
+      // budget is set and is lower than the natural duration, we clamp to
+      // the budget so the Run Dashboard's "estimated total" shrinks to
+      // match expected behaviour.
+      SmartExposureNode() => () {
+          if (node.plans.isEmpty) return Duration.zero;
+          // Per-plan integration time + per-frame download overhead.
+          double secs = 0.0;
+          for (final p in node.plans) {
+            secs += p.count * p.durationSecs;
+            secs += p.count * _downloadOverheadSecs;
+            // Dither cost: one settle cycle per ditherEvery frames (treat
+            // 0 / null as "no dither"). Same heuristic as ExposureNode but
+            // applied per-plan.
+            final every = p.ditherEvery ?? 0;
+            if (every > 0) {
+              final ditherCount = (p.count / every).floor();
+              secs += ditherCount * _ditherDurationSecs;
+            }
+          }
+          // One filter change per plan (skipped only if two consecutive
+          // plans share the same filter — the estimator can't tell which
+          // ones will overlap with the live current-filter state, so we
+          // assume worst case). 10s mirrors the FilterChangeNode case
+          // below.
+          const filterChangeDurationSecs = 10.0;
+          secs += node.plans.length * filterChangeDurationSecs;
+          // Clamp to the integration budget when one is set. The budget
+          // measures *integration* not wall-clock — we approximate by
+          // capping the integration component only.
+          if (node.integrationBudgetSecs > 0 &&
+              node.totalIntegrationSecs > node.integrationBudgetSecs) {
+            final overshoot =
+                node.totalIntegrationSecs - node.integrationBudgetSecs;
+            secs -= overshoot;
+          }
+          return Duration(milliseconds: (secs * 1000).round());
+        }(),
       AutofocusNode() => Duration(
           milliseconds: (((node.stepsOut * 2 + 1) *
                       node.exposuresPerPoint *
@@ -495,8 +544,35 @@ class SequenceTimeEstimator {
       ParallelNode() ||
       ConditionalNode() ||
       RecoveryNode() ||
-      InstructionSetNode() =>
+      InstructionSetNode() ||
+      // Wave 3 Agent 1: TargetScheduler — duration is the sum of its
+      // selected child's runtime, accounted for by the recursive walker.
+      TargetSchedulerNode() ||
+      // Wave 7 Agent 2: LiveStacking — side-effect node that arms the
+      // broadcast service and returns immediately. The actual wall-clock
+      // cost is paid by sibling exposure nodes, which are accounted for
+      // separately. Zero intrinsic duration.
+      LiveStackingNode() =>
         Duration.zero,
+      // Wave 7 Science: SciencePhotometry — count * exposure + per-frame
+      // download overhead, plus one filter change at the start. No
+      // dithering during photometry runs.
+      SciencePhotometryNode() => Duration(
+          milliseconds: ((node.count * node.exposureSecs +
+                      node.count * _downloadOverheadSecs +
+                      10.0 /* filter change */) *
+                  1000)
+              .round(),
+        ),
+      // Audit §11 — plugin nodes execute opaque user-authored logic.
+      // We cannot estimate their duration without round-tripping into
+      // the plugin, so we use the optional per-node timeout as the
+      // upper bound; with no timeout configured the estimator returns
+      // zero (matching how it treats NotificationNode and other
+      // short-running side effects).
+      PluginInstructionNode() => node.timeoutSecs != null && node.timeoutSecs! > 0
+          ? Duration(seconds: node.timeoutSecs!)
+          : Duration.zero,
     };
   }
 
@@ -557,13 +633,14 @@ class SequenceTimeEstimator {
     // Find all TargetHeaderNode instances in the sequence
     for (final node in sequence.nodes.values) {
       if (node is TargetHeaderNode && node.isEnabled) {
+        final effectiveMinAltitude = _effectiveMinAltitude(node, minAltitude);
         final visibility = AstronomyCalculations.calculateObjectVisibility(
           raDeg: node.raHours * 15.0, // Convert RA hours to degrees
           decDeg: node.decDegrees,
           date: date,
           latitudeDeg: latitude,
           longitudeDeg: longitude,
-          minAltitude: minAltitude,
+          minAltitude: effectiveMinAltitude,
         );
 
         windows[node.id] = TargetWindow(
@@ -606,6 +683,27 @@ class SequenceTimeEstimator {
 
       final window = windows[timing.targetHeaderId];
       if (window == null) continue;
+      final targetNode = sequence.nodes[timing.targetHeaderId];
+      final targetName =
+          targetNode is TargetHeaderNode ? targetNode.targetName : 'Target';
+
+      if (targetNode is TargetHeaderNode) {
+        final startAfter = _effectiveStartAfter(targetNode);
+        if (startAfter != null && timing.estimatedStart.isBefore(startAfter)) {
+          conflicts.add(
+            '$targetName: "${timing.nodeName}" scheduled at ${_formatTime(timing.estimatedStart)} '
+            'before target start time ${_formatTime(startAfter)}',
+          );
+        }
+
+        final endBefore = _effectiveEndBefore(targetNode);
+        if (endBefore != null && timing.estimatedEnd.isAfter(endBefore)) {
+          conflicts.add(
+            '$targetName: "${timing.nodeName}" ends at ${_formatTime(timing.estimatedEnd)} '
+            'after target end time ${_formatTime(endBefore)}',
+          );
+        }
+      }
 
       // Check if the node executes during the target's visibility window
       if (window.neverRises) {
@@ -622,10 +720,6 @@ class SequenceTimeEstimator {
 
       // Check start time
       if (!window.isVisibleAt(timing.estimatedStart)) {
-        final targetNode = sequence.nodes[timing.targetHeaderId];
-        final targetName =
-            targetNode is TargetHeaderNode ? targetNode.targetName : 'Target';
-
         if (window.riseTime != null &&
             timing.estimatedStart.isBefore(window.riseTime!)) {
           conflicts.add(
@@ -644,10 +738,6 @@ class SequenceTimeEstimator {
       if (window.setTime != null &&
           timing.estimatedEnd.isAfter(window.setTime!) &&
           !window.isCircumpolar) {
-        final targetNode = sequence.nodes[timing.targetHeaderId];
-        final targetName =
-            targetNode is TargetHeaderNode ? targetNode.targetName : 'Target';
-
         conflicts.add(
           '$targetName: "${timing.nodeName}" ends at ${_formatTime(timing.estimatedEnd)} '
           'after target sets at ${_formatTime(window.setTime!)}',
@@ -657,6 +747,88 @@ class SequenceTimeEstimator {
 
     // Deduplicate conflicts (same target may have multiple nodes)
     return conflicts.toSet().toList();
+  }
+
+  DateTime? _effectiveStartAfter(TargetHeaderNode node) {
+    final triggerTime = _startTimeAfter(node.startWhen);
+    return _maxDate(node.startAfter, triggerTime);
+  }
+
+  DateTime? _effectiveEndBefore(TargetHeaderNode node) {
+    final triggerTime = _endTimeAfter(node.endWhen);
+    return _minDate(node.endBefore, triggerTime);
+  }
+
+  double _effectiveMinAltitude(TargetHeaderNode node, double globalMinAltitude) {
+    final triggerAltitude = _startAltitudeAbove(node.startWhen);
+    return [
+      globalMinAltitude,
+      if (node.minAltitude != null) node.minAltitude!,
+      if (triggerAltitude != null) triggerAltitude,
+    ].reduce((a, b) => a > b ? a : b);
+  }
+
+  DateTime? _startTimeAfter(TargetTrigger? trigger) {
+    return switch (trigger) {
+      null => null,
+      TimeAfterTrigger(unixSeconds: final ts) => _fromUnixSeconds(ts),
+      AndTrigger(children: final children) => children
+          .map(_startTimeAfter)
+          .whereType<DateTime>()
+          .fold<DateTime?>(null, _maxDate),
+      // An OR can be satisfied by a non-time term, so waiting on one branch
+      // would fabricate precision the runtime does not guarantee.
+      OrTrigger() => null,
+      _ => null,
+    };
+  }
+
+  DateTime? _endTimeAfter(TargetTrigger? trigger) {
+    return switch (trigger) {
+      null => null,
+      TimeAfterTrigger(unixSeconds: final ts) => _fromUnixSeconds(ts),
+      OrTrigger(children: final children) => children
+          .map(_endTimeAfter)
+          .whereType<DateTime>()
+          .fold<DateTime?>(null, _minDate),
+      // AND requires every term to become true, so a TimeAfter child is only
+      // a lower bound, not a reliable stop cap.
+      AndTrigger() => null,
+      _ => null,
+    };
+  }
+
+  double? _startAltitudeAbove(TargetTrigger? trigger) {
+    return switch (trigger) {
+      null => null,
+      AltitudeAboveTrigger(altitudeDeg: final altitude) => altitude,
+      AndTrigger(children: final children) => children
+          .map(_startAltitudeAbove)
+          .whereType<double>()
+          .fold<double?>(null, (current, next) {
+        if (current == null) return next;
+        return current > next ? current : next;
+      }),
+      // As with time ORs, an altitude OR may be satisfied by a different
+      // branch; treating it as a hard floor would over-constrain simulation.
+      OrTrigger() => null,
+      _ => null,
+    };
+  }
+
+  DateTime _fromUnixSeconds(int unixSeconds) =>
+      DateTime.fromMillisecondsSinceEpoch(unixSeconds * 1000);
+
+  DateTime? _maxDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isAfter(b) ? a : b;
+  }
+
+  DateTime? _minDate(DateTime? a, DateTime? b) {
+    if (a == null) return b;
+    if (b == null) return a;
+    return a.isBefore(b) ? a : b;
   }
 
   /// Convenience method to perform full timing analysis.

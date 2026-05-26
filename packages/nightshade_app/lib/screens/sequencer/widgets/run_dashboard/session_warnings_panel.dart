@@ -32,7 +32,7 @@ class _RunDashboardSessionWarningsPanelState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final stats = ref.watch(liveSequenceStatsProvider);
     final warnings = stats?.warningMessages ?? const <String>[];
     if (warnings.isEmpty) return const SizedBox.shrink();
@@ -67,18 +67,19 @@ class _RunDashboardSessionWarningsPanelState
                   Container(
                     padding:
                         const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                    decoration: BoxDecoration(
-                      color: colors.warning.withValues(alpha: 0.15),
+                    decoration: NightshadeDecorations.statusChip(
+                      colors.warning,
                       borderRadius:
                           BorderRadius.circular(NightshadeTokens.radiusXs),
+                      bordered: false,
                     ),
                     child: Text(
                       '${warnings.length}',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w700,
-                        color: colors.warning,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                      style: NightshadeTypography.withTabular(
+                        NightshadeTypography.labelQuiet.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: colors.warning,
+                        ),
                       ),
                     ),
                   ),

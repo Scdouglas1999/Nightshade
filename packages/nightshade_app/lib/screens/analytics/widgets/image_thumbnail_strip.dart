@@ -3,12 +3,15 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
         backendProvider,
+        imagesDaoProvider,
         isRemoteModeProvider,
         loggingServiceProvider,
         DbCapturedImage,
+        FramePhotometricCalibrationRow,
         FrameQualityAssessment,
         FrameQualityAssessmentService,
         FrameQualityLevel;
@@ -19,15 +22,31 @@ enum _QualityFilter {
   poor,
 }
 
-/// Horizontal scrollable strip of image thumbnails
+/// Fixed height for the horizontal thumbnail rail (not a chart plot area).
+const double kAnalyticsThumbnailRailHeight = 120;
+
+/// Horizontal scrollable strip of image thumbnails.
+///
+/// Decorates each thumbnail with the existing quality badge plus a richer set
+/// of science badges (plate-solve checkmark, zero-point chip when available)
+/// and exposes an accept/reject context menu via long-press so users can flag
+/// poor frames without losing them — implements the P3.4 "manual quality
+/// gate, no auto-delete" pattern from the science gap list.
 class ImageThumbnailStrip extends StatefulWidget {
   final List<DbCapturedImage> images;
   final Function(DbCapturedImage)? onImageTap;
+
+  /// Optional per-image calibration map (keyed by `image.id`). When supplied,
+  /// the thumbnail strip renders a small ZP badge per frame and tints the
+  /// border based on calibration status. Callers can omit this when they
+  /// don't want to fetch calibrations for performance reasons.
+  final Map<int, FramePhotometricCalibrationRow>? calibrationByImageId;
 
   const ImageThumbnailStrip({
     super.key,
     required this.images,
     this.onImageTap,
+    this.calibrationByImageId,
   });
 
   @override
@@ -61,7 +80,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     const assessor = FrameQualityAssessmentService();
     final assessments = assessor.assessBatch(widget.images);
     final summary = assessor.summarize(assessments);
@@ -71,7 +90,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
 
     if (widget.images.isEmpty) {
       return Container(
-        height: 100,
+        height: kAnalyticsThumbnailRailHeight,
         decoration: BoxDecoration(
           color: colors.surfaceAlt,
           borderRadius: BorderRadius.circular(8),
@@ -130,7 +149,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          height: 120,
+          // Thumbnail rail — fixed height (not chart-like).
+          height: kAnalyticsThumbnailRailHeight,
           child: filteredImages.isEmpty
               ? Container(
                   decoration: BoxDecoration(
@@ -155,6 +175,8 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
                     return _ImageThumbnail(
                       image: image,
                       assessment: assessments[image.id],
+                      calibration:
+                          widget.calibrationByImageId?[image.id],
                       onTap: widget.onImageTap != null
                           ? () => widget.onImageTap!(image)
                           : null,
@@ -182,8 +204,8 @@ class _SummaryChip extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.12),
+      decoration: NightshadeDecorations.tintedBadge(
+        color,
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
@@ -211,7 +233,7 @@ class _QualityFilterChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return ChoiceChip(
       label: Text(
         label,
@@ -246,11 +268,13 @@ class _ThumbnailPayload {
 class _ImageThumbnail extends ConsumerStatefulWidget {
   final DbCapturedImage image;
   final FrameQualityAssessment? assessment;
+  final FramePhotometricCalibrationRow? calibration;
   final VoidCallback? onTap;
 
   const _ImageThumbnail({
     required this.image,
     this.assessment,
+    this.calibration,
     this.onTap,
   });
 
@@ -278,7 +302,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final isRemoteMode = ref.watch(isRemoteModeProvider);
     final qualityColor = _getQualityColor(colors);
     final qualityBorderColor =
@@ -293,6 +317,8 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
       padding: const EdgeInsets.only(right: 8.0),
       child: InkWell(
         onTap: widget.onTap,
+        onLongPress: () => _showFrameMenu(context),
+        onSecondaryTap: () => _showFrameMenu(context),
         borderRadius: BorderRadius.circular(8),
         child: Container(
           width: 100,
@@ -457,6 +483,37 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             ),
                           ),
                         ),
+                      // P2.3 science badges: small solve checkmark + optional
+                      // ZP chip. Sit bottom-right so they don't fight the HFR
+                      // and quality badges, and only appear when there is
+                      // something meaningful to report.
+                      Positioned(
+                        right: 4,
+                        bottom: 4,
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (widget.calibration?.zeroPoint != null)
+                              _ScienceBadge(
+                                tooltip:
+                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} · '
+                                    '${widget.calibration!.matchedStarCount} stars',
+                                color: colors.info,
+                                label:
+                                    'ZP ${widget.calibration!.zeroPoint!.toStringAsFixed(1)}',
+                              ),
+                            if (widget.calibration?.zeroPoint != null &&
+                                widget.image.isPlateSolved)
+                              const SizedBox(width: 3),
+                            if (widget.image.isPlateSolved)
+                              _ScienceBadge(
+                                tooltip: 'Plate solved',
+                                color: colors.success,
+                                icon: LucideIcons.crosshair,
+                              ),
+                          ],
+                        ),
+                      ),
                       if (!widget.image.isAccepted)
                         Positioned(
                           bottom: 4,
@@ -629,5 +686,212 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
     } else {
       return colors.error;
     }
+  }
+
+  Future<void> _showFrameMenu(BuildContext context) async {
+    final colors = NightshadeColors.of(context);
+    final isAccepted = widget.image.isAccepted;
+    final action = await showMenu<_FrameMenuAction>(
+      context: context,
+      position: _menuPosition(context),
+      color: colors.surface,
+      items: <PopupMenuEntry<_FrameMenuAction>>[
+        PopupMenuItem(
+          value: isAccepted
+              ? _FrameMenuAction.reject
+              : _FrameMenuAction.accept,
+          child: Row(
+            children: [
+              Icon(
+                isAccepted ? LucideIcons.flag : LucideIcons.check,
+                size: 14,
+                color: isAccepted ? colors.warning : colors.success,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                isAccepted ? 'Flag as poor quality' : 'Restore as good',
+                style: TextStyle(color: colors.textPrimary, fontSize: 12),
+              ),
+            ],
+          ),
+        ),
+        if (widget.calibration != null)
+          PopupMenuItem(
+            value: _FrameMenuAction.info,
+            child: Row(
+              children: [
+                Icon(LucideIcons.info, size: 14, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Show calibration details',
+                  style: TextStyle(color: colors.textPrimary, fontSize: 12),
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+    if (!mounted || action == null) return;
+    switch (action) {
+      case _FrameMenuAction.accept:
+        await ref.read(imagesDaoProvider).acceptImage(widget.image.id);
+        break;
+      case _FrameMenuAction.reject:
+        await ref
+            .read(imagesDaoProvider)
+            .rejectImage(widget.image.id, 'Manual quality flag');
+        break;
+      case _FrameMenuAction.info:
+        if (!mounted) return;
+        _showCalibrationDetails(context);
+        break;
+    }
+  }
+
+  RelativeRect _menuPosition(BuildContext context) {
+    final renderBox = context.findRenderObject() as RenderBox?;
+    final overlay =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    if (renderBox == null || overlay == null) {
+      return const RelativeRect.fromLTRB(0, 0, 0, 0);
+    }
+    final tl = renderBox.localToGlobal(Offset.zero, ancestor: overlay);
+    return RelativeRect.fromRect(
+      Rect.fromPoints(tl, tl + const Offset(40, 40)),
+      Offset.zero & overlay.size,
+    );
+  }
+
+  void _showCalibrationDetails(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final c = widget.calibration;
+    if (c == null) return;
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: colors.surface,
+        title: Text('Frame ${widget.image.fileName}',
+            style: TextStyle(color: colors.textPrimary, fontSize: 15)),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            context,
+            designMaxWidth: 420,
+            designMaxHeight: 360,
+          ),
+          child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
+            _DetailRow(
+              'Zero point',
+              c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
+              colors,
+            ),
+            _DetailRow(
+                'Matched stars', c.matchedStarCount.toString(), colors),
+            _DetailRow(
+              'Fit RMS',
+              '${c.calibrationRms.toStringAsFixed(3)} mag',
+              colors,
+            ),
+            _DetailRow('Catalog', c.catalogSource, colors),
+            _DetailRow('Solver', c.solverId, colors),
+            if (c.limitingMag5Sigma != null)
+              _DetailRow(
+                'Lim mag (5σ)',
+                c.limitingMag5Sigma!.toStringAsFixed(2),
+                colors,
+              ),
+          ],
+        ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+enum _FrameMenuAction { accept, reject, info }
+
+class _ScienceBadge extends StatelessWidget {
+  final String tooltip;
+  final Color color;
+  final String? label;
+  final IconData? icon;
+
+  const _ScienceBadge({
+    required this.tooltip,
+    required this.color,
+    this.label,
+    this.icon,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Container(
+        padding: EdgeInsets.symmetric(
+          horizontal: label == null ? 3 : 4,
+          vertical: 2,
+        ),
+        decoration: BoxDecoration(
+          color: color.withValues(alpha: 0.85),
+          borderRadius: BorderRadius.circular(3),
+        ),
+        child: icon != null
+            ? Icon(icon, size: 9, color: const Color(0xFFFFFFFF))
+            : Text(
+                label ?? '',
+                style: const TextStyle(
+                  fontSize: 8,
+                  fontWeight: FontWeight.w700,
+                  color: Color(0xFFFFFFFF),
+                ),
+              ),
+      ),
+    );
+  }
+}
+
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final NightshadeColors colors;
+
+  const _DetailRow(this.label, this.value, this.colors);
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 3),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 120,
+            child: Text(
+              label,
+              style: TextStyle(color: colors.textSecondary, fontSize: 12),
+            ),
+          ),
+          Expanded(
+            child: Text(
+              value,
+              style: TextStyle(
+                color: colors.textPrimary,
+                fontSize: 12,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 }

@@ -3,8 +3,104 @@ import 'package:mocktail/mocktail.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/database/database.dart'
     show ImagingSession, Target;
+import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
 class _MockLoggingService extends Mock implements LoggingService {}
+
+/// Build a minimal [SessionReport] fixture so the analyze() tests can
+/// hit each insight branch without depending on the live DB stack.
+SessionReport _fakeReport({
+  Duration wallClock = const Duration(hours: 4),
+  Duration integration = const Duration(hours: 3),
+  int autofocusRuns = 0,
+  int framesAttempted = 100,
+  int framesAccepted = 95,
+  double? guideRmsTotal,
+  List<SessionTargetReport>? targets,
+}) {
+  final targetsToUse = targets ??
+      const [
+        SessionTargetReport(
+          targetId: 1,
+          targetName: 'M31',
+          filters: [
+            SessionFilterReport(
+              filter: 'L',
+              framesAttempted: 100,
+              framesAccepted: 95,
+              framesRejected: 5,
+              totalIntegrationSecs: 11400,
+              meanHfr: 2.4,
+              meanFwhm: 5.6,
+              meanStarCount: 480,
+              meanSnr: 21.5,
+              meanGuidingRmsTotal: 0.62,
+              meanSensorTemp: -10,
+              rejectionReasons: {},
+            ),
+          ],
+        ),
+      ];
+  // Override per-target frame counts so the test's framesAttempted /
+  // framesAccepted arguments propagate consistently to the report.
+  final effective = targetsToUse
+      .map((t) => SessionTargetReport(
+            targetId: t.targetId,
+            targetName: t.targetName,
+            filters: t.filters
+                .map((f) => SessionFilterReport(
+                      filter: f.filter,
+                      framesAttempted: framesAttempted,
+                      framesAccepted: framesAccepted,
+                      framesRejected: framesAttempted - framesAccepted,
+                      totalIntegrationSecs: f.totalIntegrationSecs,
+                      meanHfr: f.meanHfr,
+                      meanFwhm: f.meanFwhm,
+                      meanStarCount: f.meanStarCount,
+                      meanSnr: f.meanSnr,
+                      meanGuidingRmsTotal: f.meanGuidingRmsTotal,
+                      meanSensorTemp: f.meanSensorTemp,
+                      rejectionReasons: f.rejectionReasons,
+                    ))
+                .toList(),
+          ))
+      .toList();
+  return SessionReport(
+    sessionId: 1,
+    sessionName: 'Test session',
+    status: 'completed',
+    startTime: DateTime(2026, 1, 1, 22),
+    endTime: DateTime(2026, 1, 1, 22).add(wallClock),
+    wallClockDuration: wallClock,
+    totalIntegration: integration,
+    effectiveImagingFraction:
+        wallClock.inSeconds > 0 ? integration.inSeconds / wallClock.inSeconds : 0,
+    downtime: wallClock - integration,
+    targets: effective,
+    guideStats: SessionGuideStats(
+      meanRmsRaArcsec: guideRmsTotal,
+      meanRmsDecArcsec: guideRmsTotal,
+      meanRmsTotalArcsec: guideRmsTotal,
+      maxRmsRaArcsec: guideRmsTotal,
+      maxRmsDecArcsec: guideRmsTotal,
+      maxRmsTotalArcsec: guideRmsTotal,
+      percentUnguidedFrames: 0.0,
+    ),
+    mountStats: SessionMountStats(
+      autofocusRuns: autofocusRuns,
+      meridianFlips: 0,
+      ditherCount: 0,
+      triggerFires: 0,
+    ),
+    avgTemperatureC: null,
+    avgHumidityPercent: null,
+    avgSeeingArcsec: null,
+    notes: null,
+    errorMessages: const [],
+    warningMessages: const [],
+    generatedAt: DateTime(2026, 1, 2),
+  );
+}
 
 void main() {
   group('SessionOptimizerService', () {
@@ -76,7 +172,12 @@ void main() {
         targets: [
           target(id: 1, name: 'Vega', ra: 18.6, dec: 38.8, objectType: 'Star'),
           target(id: 2, name: 'Deneb', ra: 20.7, dec: 45.3, objectType: 'Star'),
-          target(id: 3, name: 'Andromeda', ra: 0.7, dec: 41.3, objectType: 'Galaxy'),
+          target(
+              id: 3,
+              name: 'Andromeda',
+              ra: 0.7,
+              dec: 41.3,
+              objectType: 'Galaxy'),
         ],
         sessions: const [],
         observationTime: DateTime(2026, 8, 1, 22),
@@ -130,6 +231,336 @@ void main() {
         plan.riskFactors.any((factor) => factor.contains('nearly complete')),
         isTrue,
       );
+    });
+
+    test('uses Smart Night exposure math when exposure context is available',
+        () {
+      final plan = service.buildPlanFromSuggestions(
+        [
+          const TargetSuggestion(
+            targetId: 42,
+            targetName: 'North America Nebula',
+            raHours: 20.98,
+            decDegrees: 44.33,
+            totalScore: 91,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 62,
+              currentAzimuth: 120,
+              airmass: 1.1,
+              moonDistance: 110,
+              peakAltitude: 75,
+              hoursAboveMinAlt: 5.5,
+            ),
+            objectType: 'Emission Nebula',
+            magnitude: 4.0,
+          ),
+        ],
+        generatedAt: DateTime(2026, 8, 1, 22),
+        exposureContext: const SmartNightExposureContext(
+          camera: CameraExposureSpec(
+            readNoiseE: 1.5,
+            fullWellE: 18000,
+            qePeak: 0.8,
+          ),
+          bortleClass: 5,
+          focalLengthMm: 480,
+          apertureMm: 80,
+          pixelSizeMicrons: 3.76,
+          availableFilterNames: ['Ha'],
+        ),
+      );
+
+      expect(plan.recommendedExposureSeconds, equals(300));
+      expect(plan.recommendedFilterName, equals('Ha'));
+      expect(plan.recommendedFilterNames, equals(['Ha']));
+      expect(
+        plan.rationale.any((line) => line.contains('Glover')),
+        isTrue,
+      );
+      expect(
+        plan.riskFactors.any((line) => line.contains('lookup table')),
+        isFalse,
+      );
+    });
+
+    test('planetary nebula prefers luminance over narrowband for exposure',
+        () {
+      const context = SmartNightExposureContext(
+        camera: CameraExposureSpec(
+          readNoiseE: 1.5,
+          fullWellE: 18000,
+          qePeak: 0.8,
+        ),
+        bortleClass: 5,
+        focalLengthMm: 480,
+        apertureMm: 80,
+        pixelSizeMicrons: 3.76,
+        availableFilterNames: ['L', 'R', 'G', 'B', 'Ha', 'OIII', 'SII'],
+      );
+      final plan = service.buildPlanFromSuggestions(
+        [
+          const TargetSuggestion(
+            targetId: 57,
+            targetName: 'M57',
+            raHours: 18.89,
+            decDegrees: 33.03,
+            totalScore: 88,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 62,
+              currentAzimuth: 120,
+              airmass: 1.1,
+              moonDistance: 110,
+              peakAltitude: 75,
+              hoursAboveMinAlt: 5.5,
+            ),
+            objectType: 'Planetary Nebula',
+            magnitude: 8.8,
+          ),
+        ],
+        generatedAt: DateTime(2026, 8, 1, 22),
+        exposureContext: context,
+      );
+
+      expect(plan.recommendedFilterName, equals('L'));
+      expect(plan.recommendedFilterNames, equals(['L', 'R', 'G', 'B']));
+      expect(
+        context.selectFilterForTarget(
+          const TargetSuggestion(
+            targetId: 57,
+            targetName: 'M57',
+            raHours: 18.89,
+            decDegrees: 33.03,
+            totalScore: 88,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 62,
+              currentAzimuth: 120,
+              airmass: 1.1,
+              moonDistance: 110,
+              peakAltitude: 75,
+              hoursAboveMinAlt: 5.5,
+            ),
+            objectType: 'Planetary Nebula',
+          ),
+        ).name,
+        equals('L'),
+      );
+    });
+
+    test('generic nebula label prefers luminance over narrowband for exposure',
+        () {
+      const context = SmartNightExposureContext(
+        camera: CameraExposureSpec(
+          readNoiseE: 1.5,
+          fullWellE: 18000,
+          qePeak: 0.8,
+        ),
+        bortleClass: 5,
+        focalLengthMm: 480,
+        apertureMm: 80,
+        pixelSizeMicrons: 3.76,
+        availableFilterNames: ['L', 'Ha', 'OIII'],
+      );
+      final filter = context.selectFilterForTarget(
+        const TargetSuggestion(
+          targetId: 2244,
+          targetName: 'NGC 2244',
+          raHours: 6.32,
+          decDegrees: 4.9,
+          totalScore: 80,
+          visibility: TargetVisibilityInfo(
+            currentAltitude: 55,
+            currentAzimuth: 180,
+            airmass: 1.2,
+            moonDistance: 90,
+            peakAltitude: 70,
+            hoursAboveMinAlt: 4.0,
+          ),
+          objectType: 'Nebula',
+        ),
+      );
+
+      expect(filter.name, equals('L'));
+    });
+
+    test('falls back to Smart Night exposure math when context is unavailable',
+        () {
+      final plan = service.buildPlanFromSuggestions(
+        [
+          const TargetSuggestion(
+            targetId: 43,
+            targetName: 'Fallback Nebula',
+            raHours: 20.98,
+            decDegrees: 44.33,
+            totalScore: 88,
+            visibility: TargetVisibilityInfo(
+              currentAltitude: 62,
+              currentAzimuth: 120,
+              airmass: 1.1,
+              moonDistance: 110,
+              peakAltitude: 75,
+              hoursAboveMinAlt: 5.5,
+            ),
+            objectType: 'Emission Nebula',
+            magnitude: 4.0,
+          ),
+        ],
+        generatedAt: DateTime(2026, 8, 1, 22),
+      );
+
+      expect(plan.recommendedExposureSeconds, greaterThan(0));
+      expect(plan.recommendedFilterName, equals('L'));
+      expect(
+        plan.rationale.any((line) => line.contains('Glover')),
+        isTrue,
+      );
+      expect(
+        plan.riskFactors.any((line) => line.contains('planning estimate')),
+        isTrue,
+      );
+    });
+
+    test('builds mosaic exposure defaults from the shared Smart Night context',
+        () {
+      const context = SmartNightExposureContext(
+        camera: CameraExposureSpec(
+          readNoiseE: 1.5,
+          fullWellE: 18000,
+          qePeak: 0.8,
+        ),
+        bortleClass: 5,
+        focalLengthMm: 480,
+        apertureMm: 80,
+        pixelSizeMicrons: 3.76,
+        availableFilterNames: ['R', 'L', 'Ha'],
+      );
+      final exposure = smartNightMosaicExposureSettings(context);
+
+      expect(exposure.filterName, equals('L'));
+      expect(
+        exposure.exposureSeconds,
+        equals(context.recommendForFilter('L').seconds),
+      );
+      expect(exposure.exposuresPerPanel, equals(10));
+      expect(exposure.binning, equals(1));
+    });
+
+    // ---------------------------------------------------------------
+    // Wave 7 — post-session analyze() insights
+    // ---------------------------------------------------------------
+
+    test('analyze surfaces altitudeWindow insight from trace data', () {
+      final report = _fakeReport(
+        wallClock: const Duration(hours: 6),
+        integration: const Duration(hours: 5),
+      );
+      final insights = service.analyze(
+        report: report,
+        altitudeTraces: const [
+          SessionTargetAltitudeTrace(
+            targetId: 1,
+            targetName: 'M31',
+            secondsBelowMinAltitude: 5400, // 90 minutes
+            minRecommendedAltitudeDeg: 40,
+            minObservedAltitudeDeg: 30,
+          ),
+        ],
+      );
+      final altitudeInsight = insights.where(
+          (i) => i.kind == SessionInsightKind.altitudeWindow);
+      expect(altitudeInsight, isNotEmpty);
+      final i = altitudeInsight.first;
+      expect(i.applyHint, isNotNull);
+      expect(i.applyHint!['altitudeAboveDeg'], isA<double>());
+      // Suggested value should be observed-min + margin (30 + 5 = 35).
+      expect(i.applyHint!['altitudeAboveDeg'], equals(35.0));
+      expect(i.title, contains('M31'));
+      expect(i.title, contains('40°'));
+    });
+
+    test('analyze surfaces autofocusFrequency when AF runs are excessive',
+        () {
+      final report = _fakeReport(
+        wallClock: const Duration(hours: 4),
+        autofocusRuns: 25, // 6.25/hour, above 4/hour threshold
+      );
+      final insights = service.analyze(report: report);
+      final afInsight = insights.where(
+          (i) => i.kind == SessionInsightKind.autofocusFrequency);
+      expect(afInsight, isNotEmpty);
+      expect(afInsight.first.applyHint, isNotNull);
+      expect(afInsight.first.applyHint!.containsKey('autofocusInterval'),
+          isTrue);
+    });
+
+    test('analyze surfaces rejectionRate when reject fraction is high', () {
+      final report = _fakeReport(
+        framesAttempted: 100,
+        framesAccepted: 70, // 30% reject rate
+      );
+      final insights = service.analyze(report: report);
+      expect(
+        insights.where((i) => i.kind == SessionInsightKind.rejectionRate),
+        isNotEmpty,
+      );
+    });
+
+    test('analyze surfaces guidingDegraded when RMS exceeds threshold', () {
+      final report = _fakeReport(guideRmsTotal: 2.5);
+      final insights = service.analyze(report: report);
+      expect(
+        insights
+            .where((i) => i.kind == SessionInsightKind.guidingDegraded),
+        isNotEmpty,
+      );
+    });
+
+    test('analyze suppresses dismissed insight ids', () {
+      final report = _fakeReport(guideRmsTotal: 2.5);
+      final insights = service.analyze(
+        report: report,
+        thresholds: const SessionInsightThresholds(
+          dismissedIds: {'guiding_degraded'},
+        ),
+      );
+      expect(
+        insights
+            .where((i) => i.kind == SessionInsightKind.guidingDegraded),
+        isEmpty,
+      );
+    });
+
+    test('analyze sorts insights by confidence descending', () {
+      // Build a session that triggers multiple insights with different
+      // confidence levels.
+      final report = _fakeReport(
+        wallClock: const Duration(hours: 6),
+        integration: const Duration(hours: 2), // 33% efficiency
+        autofocusRuns: 30, // 5/hour
+        framesAttempted: 100,
+        framesAccepted: 65, // 35% rejected
+        guideRmsTotal: 2.5,
+      );
+      final insights = service.analyze(report: report);
+      expect(insights.length, greaterThan(1));
+      for (var i = 1; i < insights.length; i++) {
+        expect(
+          insights[i - 1].confidence,
+          greaterThanOrEqualTo(insights[i].confidence),
+        );
+      }
+    });
+
+    test('analyze returns empty list when report is healthy', () {
+      final report = _fakeReport(
+        wallClock: const Duration(hours: 4),
+        integration: const Duration(hours: 3),
+        autofocusRuns: 1,
+        framesAttempted: 100,
+        framesAccepted: 98,
+        guideRmsTotal: 0.6,
+      );
+      final insights = service.analyze(report: report);
+      expect(insights, isEmpty);
     });
   });
 }

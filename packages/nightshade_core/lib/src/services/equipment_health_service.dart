@@ -1,15 +1,35 @@
 import '../database/database.dart' show ImagingSession;
+import 'usb_disconnect_log.dart';
 
 class DeviceHealthSnapshot {
   final String deviceId;
   final int lastSuccessfulTimestampMs;
   final bool isHealthy;
 
+  /// Number of times this device disconnected (or surfaced a connection
+  /// error) in the past 24 hours. Used by the pre-flight USB-stability
+  /// check (`UsbStabilityRule`) — > 3 disconnects warns the user that the
+  /// cable / hub / driver is suspect before a long unattended run begins.
+  ///
+  /// Defaults to 0 so existing call sites that only populate `isHealthy`
+  /// keep their current behaviour: an unhealthy device with no count
+  /// still surfaces as "device heartbeat failure" through the existing
+  /// `analyze()` path.
+  final int disconnectCountLast24h;
+
+  /// Optional human-readable device label (for UI / error messages).
+  /// Falls back to [deviceId] when null.
+  final String? deviceLabel;
+
   const DeviceHealthSnapshot({
     required this.deviceId,
     required this.lastSuccessfulTimestampMs,
     required this.isHealthy,
+    this.disconnectCountLast24h = 0,
+    this.deviceLabel,
   });
+
+  String get displayName => deviceLabel ?? deviceId;
 }
 
 enum EquipmentHealthSeverity { info, warning, critical }
@@ -36,9 +56,82 @@ class EquipmentHealthReport {
   });
 }
 
+/// Connected-device descriptor used by [EquipmentHealthService.buildSnapshots]
+/// to merge a USB disconnect log + the live connection state into one
+/// `DeviceHealthSnapshot` list. Matches the data the
+/// `*StateProvider` notifiers already track (deviceId, displayName,
+/// lastSuccessfulCommunication, isHealthy) without depending on any
+/// particular notifier so a remote backend or a headless tool can build
+/// the same shape.
+class DeviceConnectionDescriptor {
+  final String deviceId;
+  final String? deviceLabel;
+  final bool isHealthy;
+  final DateTime? lastSuccessfulCommunication;
+
+  const DeviceConnectionDescriptor({
+    required this.deviceId,
+    this.deviceLabel,
+    this.isHealthy = true,
+    this.lastSuccessfulCommunication,
+  });
+}
+
 /// Longitudinal equipment health scoring from session trends and heartbeats.
 class EquipmentHealthService {
   const EquipmentHealthService();
+
+  /// Build [DeviceHealthSnapshot]s from the connected-device list plus
+  /// the rolling USB disconnect log.
+  ///
+  /// This is the production path that fills
+  /// [DeviceHealthSnapshot.disconnectCountLast24h]. The pre-flight USB
+  /// stability rule reads the resulting list via
+  /// `deviceHealthSnapshotsProvider`; the post-session diagnostics
+  /// summary derives a "disconnects during session" count from the same
+  /// log directly.
+  ///
+  /// Devices that appear in the disconnect log but not in [connected]
+  /// are included (with `isHealthy: false`) so the user still sees the
+  /// flake count for a device that hasn't reconnected — e.g. an INDI
+  /// camera that vanished mid-session.
+  List<DeviceHealthSnapshot> buildSnapshots({
+    required List<DeviceConnectionDescriptor> connected,
+    required UsbDisconnectLog disconnectLog,
+    DateTime? now,
+  }) {
+    final perDeviceCounts = disconnectLog.perDeviceCounts(now: now);
+    final byId = <String, DeviceHealthSnapshot>{};
+
+    for (final device in connected) {
+      final id = device.deviceId;
+      byId[id] = DeviceHealthSnapshot(
+        deviceId: id,
+        deviceLabel: device.deviceLabel,
+        lastSuccessfulTimestampMs:
+            device.lastSuccessfulCommunication?.millisecondsSinceEpoch ?? 0,
+        isHealthy: device.isHealthy,
+        disconnectCountLast24h: perDeviceCounts[id] ?? 0,
+      );
+    }
+
+    // Pull in devices that disconnected and never came back (or that
+    // reconnected through a path that didn't populate the connected
+    // list). Without this branch the snapshot list would silently drop
+    // the most interesting cases — a USB cable yanked at the start of
+    // a run that the user is unaware of.
+    for (final entry in perDeviceCounts.entries) {
+      if (byId.containsKey(entry.key)) continue;
+      byId[entry.key] = DeviceHealthSnapshot(
+        deviceId: entry.key,
+        lastSuccessfulTimestampMs: 0,
+        isHealthy: false,
+        disconnectCountLast24h: entry.value,
+      );
+    }
+
+    return byId.values.toList(growable: false);
+  }
 
   EquipmentHealthReport analyze({
     required List<ImagingSession> sessions,

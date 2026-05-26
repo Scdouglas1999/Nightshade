@@ -52,7 +52,7 @@ class AllSkyTargetReticle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Default outer scale: 4× the acceptance threshold, but ensure a
     // sensible floor so a sub-arcsec threshold still renders cleanly.

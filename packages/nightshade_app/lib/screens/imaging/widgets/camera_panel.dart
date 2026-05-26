@@ -70,11 +70,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: widget.colors.warning.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                widget.colors.warning,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -396,7 +394,7 @@ class DebayeringCard extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
     final debayerEnabled = ref.watch(debayerEnabledProvider);
     final bayerPattern = ref.watch(bayerPatternProvider);
     final debayerAlgorithm = ref.watch(debayerAlgorithmProvider);
@@ -417,12 +415,11 @@ class DebayeringCard extends ConsumerWidget {
                   color: colors.textSecondary,
                 ),
               ),
-              Switch(
+              NightshadeSwitch(
                 value: debayerEnabled,
                 onChanged: (value) {
                   ref.read(debayerEnabledProvider.notifier).state = value;
                 },
-                activeThumbColor: colors.primary,
               ),
             ],
           ),
@@ -480,7 +477,7 @@ class DebayeringCard extends ConsumerWidget {
               final autoDetect = ref.watch(autoDetectBayerPatternProvider);
               return Row(
                 children: [
-                  Checkbox(
+                  NightshadeCheckbox(
                     value: autoDetect,
                     onChanged: debayerEnabled
                         ? (v) {
@@ -489,8 +486,6 @@ class DebayeringCard extends ConsumerWidget {
                                 .state = v ?? false;
                           }
                         : null,
-                    fillColor: WidgetStateProperty.all(colors.primary),
-                    side: BorderSide(color: colors.border),
                   ),
                   const SizedBox(width: 8),
                   Expanded(

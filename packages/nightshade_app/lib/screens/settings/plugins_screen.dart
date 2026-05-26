@@ -17,7 +17,7 @@ class PluginsScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final pluginHost = ref.watch(pluginHostProvider);
     final plugins = pluginHost.pluginInfo;
 
@@ -60,8 +60,8 @@ class PluginsScreen extends ConsumerWidget {
                 Container(
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    color: colors.primary.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.iconChip(
+                    colors.primary,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -100,13 +100,18 @@ class PluginsScreen extends ConsumerWidget {
 
           // Plugin list
           if (plugins.isEmpty)
-            _EmptyState(colors: colors)
+            const EmptyState(
+              icon: LucideIcons.package,
+              title: 'No Plugins Loaded',
+              body: 'Plugins extend Nightshade with custom functionality.\n'
+                  'Check the documentation to learn how to create plugins.',
+              padding: EdgeInsets.all(48),
+            )
           else
             ...plugins.map((plugin) => Padding(
                   padding: const EdgeInsets.only(bottom: 12),
                   child: _PluginCard(
                     plugin: plugin,
-                    colors: colors,
                     onToggle: (enabled) async {
                       try {
                         await pluginHost.setPluginEnabled(plugin.id, enabled);
@@ -122,53 +127,8 @@ class PluginsScreen extends ConsumerWidget {
           const SizedBox(height: 32),
 
           // Developer info
-          _DeveloperInfo(colors: colors),
+          const _DeveloperInfo(),
         ],
-      ),
-    );
-  }
-}
-
-/// Empty state when no plugins are loaded
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-
-  const _EmptyState({required this.colors});
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.package,
-              size: 64,
-              color: colors.textMuted,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              'No Plugins Loaded',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Plugins extend Nightshade with custom functionality.\n'
-              'Check the documentation to learn how to create plugins.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 13,
-                color: colors.textSecondary,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
@@ -177,12 +137,10 @@ class _EmptyState extends StatelessWidget {
 /// Card displaying plugin information
 class _PluginCard extends StatefulWidget {
   final PluginInfo plugin;
-  final NightshadeColors colors;
   final Function(bool) onToggle;
 
   const _PluginCard({
     required this.plugin,
-    required this.colors,
     required this.onToggle,
   });
 
@@ -199,12 +157,12 @@ class _PluginCardState extends State<_PluginCard> {
 
     return Container(
       decoration: BoxDecoration(
-        color: widget.colors.surface,
+        color: NightshadeColors.of(context).surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: hasError
-              ? widget.colors.error.withValues(alpha: 0.5)
-              : widget.colors.border,
+              ? NightshadeColors.of(context).error.withValues(alpha: 0.5)
+              : NightshadeColors.of(context).border,
         ),
       ),
       child: Column(
@@ -223,20 +181,20 @@ class _PluginCardState extends State<_PluginCard> {
                     height: 48,
                     decoration: BoxDecoration(
                       color: widget.plugin.enabled
-                          ? widget.colors.primary.withValues(alpha: 0.1)
-                          : widget.colors.surfaceAlt,
+                          ? NightshadeColors.of(context).primary.withValues(alpha: 0.1)
+                          : NightshadeColors.of(context).surfaceAlt,
                       borderRadius: BorderRadius.circular(8),
                       border: Border.all(
                         color: widget.plugin.enabled
-                            ? widget.colors.primary.withValues(alpha: 0.3)
-                            : widget.colors.border,
+                            ? NightshadeColors.of(context).primary.withValues(alpha: 0.3)
+                            : NightshadeColors.of(context).border,
                       ),
                     ),
                     child: Icon(
                       LucideIcons.puzzle,
                       color: widget.plugin.enabled
-                          ? widget.colors.primary
-                          : widget.colors.textMuted,
+                          ? NightshadeColors.of(context).primary
+                          : NightshadeColors.of(context).textMuted,
                       size: 24,
                     ),
                   ),
@@ -254,7 +212,7 @@ class _PluginCardState extends State<_PluginCard> {
                               style: TextStyle(
                                 fontSize: 15,
                                 fontWeight: FontWeight.w600,
-                                color: widget.colors.textPrimary,
+                                color: NightshadeColors.of(context).textPrimary,
                               ),
                             ),
                             const SizedBox(width: 8),
@@ -264,15 +222,15 @@ class _PluginCardState extends State<_PluginCard> {
                                 vertical: 2,
                               ),
                               decoration: BoxDecoration(
-                                color: widget.colors.surfaceAlt,
+                                color: NightshadeColors.of(context).surfaceAlt,
                                 borderRadius: BorderRadius.circular(4),
-                                border: Border.all(color: widget.colors.border),
+                                border: Border.all(color: NightshadeColors.of(context).border),
                               ),
                               child: Text(
                                 'v${widget.plugin.version}',
                                 style: TextStyle(
                                   fontSize: 10,
-                                  color: widget.colors.textMuted,
+                                  color: NightshadeColors.of(context).textMuted,
                                   fontFamily: 'monospace',
                                 ),
                               ),
@@ -284,7 +242,7 @@ class _PluginCardState extends State<_PluginCard> {
                           widget.plugin.description,
                           style: TextStyle(
                             fontSize: 12,
-                            color: widget.colors.textSecondary,
+                            color: NightshadeColors.of(context).textSecondary,
                           ),
                           maxLines: _expanded ? null : 2,
                           overflow: _expanded ? null : TextOverflow.ellipsis,
@@ -296,7 +254,7 @@ class _PluginCardState extends State<_PluginCard> {
                               Icon(
                                 LucideIcons.alertCircle,
                                 size: 14,
-                                color: widget.colors.error,
+                                color: NightshadeColors.of(context).error,
                               ),
                               const SizedBox(width: 6),
                               Expanded(
@@ -304,7 +262,7 @@ class _PluginCardState extends State<_PluginCard> {
                                   'Error: ${widget.plugin.error}',
                                   style: TextStyle(
                                     fontSize: 11,
-                                    color: widget.colors.error,
+                                    color: NightshadeColors.of(context).error,
                                   ),
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
@@ -319,10 +277,9 @@ class _PluginCardState extends State<_PluginCard> {
                   const SizedBox(width: 16),
 
                   // Enable/disable toggle
-                  _PluginToggle(
-                    enabled: widget.plugin.enabled,
+                  NightshadeSwitch(
+                    value: widget.plugin.enabled,
                     onChanged: widget.onToggle,
-                    colors: widget.colors,
                   ),
                   const SizedBox(width: 8),
 
@@ -330,7 +287,7 @@ class _PluginCardState extends State<_PluginCard> {
                   Icon(
                     _expanded ? LucideIcons.chevronUp : LucideIcons.chevronDown,
                     size: 18,
-                    color: widget.colors.textMuted,
+                    color: NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),
@@ -343,7 +300,7 @@ class _PluginCardState extends State<_PluginCard> {
               padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
               decoration: BoxDecoration(
                 border: Border(
-                  top: BorderSide(color: widget.colors.border),
+                  top: BorderSide(color: NightshadeColors.of(context).border),
                 ),
               ),
               child: Column(
@@ -353,28 +310,24 @@ class _PluginCardState extends State<_PluginCard> {
                   _DetailRow(
                     label: 'ID',
                     value: widget.plugin.id,
-                    colors: widget.colors,
                   ),
                   const SizedBox(height: 8),
                   _DetailRow(
                     label: 'Author',
                     value: widget.plugin.author,
-                    colors: widget.colors,
                   ),
                   const SizedBox(height: 8),
                   _DetailRow(
                     label: 'Loaded',
                     value: _formatDateTime(widget.plugin.loadedAt),
-                    colors: widget.colors,
                   ),
                   const SizedBox(height: 8),
                   _DetailRow(
                     label: 'Status',
                     value: widget.plugin.enabled ? 'Enabled' : 'Disabled',
-                    colors: widget.colors,
                     valueColor: widget.plugin.enabled
-                        ? widget.colors.success
-                        : widget.colors.textMuted,
+                        ? NightshadeColors.of(context).success
+                        : NightshadeColors.of(context).textMuted,
                   ),
                 ],
               ),
@@ -392,67 +345,21 @@ class _PluginCardState extends State<_PluginCard> {
   }
 }
 
-/// Toggle switch for enabling/disabling plugins
-class _PluginToggle extends StatelessWidget {
-  final bool enabled;
-  final Function(bool) onChanged;
-  final NightshadeColors colors;
-
-  const _PluginToggle({
-    required this.enabled,
-    required this.onChanged,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => onChanged(!enabled),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        width: 44,
-        height: 24,
-        padding: const EdgeInsets.all(2),
-        decoration: BoxDecoration(
-          color: enabled ? colors.primary : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: enabled ? colors.primary : colors.border,
-          ),
-        ),
-        child: AnimatedAlign(
-          duration: const Duration(milliseconds: 200),
-          alignment: enabled ? Alignment.centerRight : Alignment.centerLeft,
-          child: Container(
-            width: 18,
-            height: 18,
-            decoration: BoxDecoration(
-              color: colors.background,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Row displaying a plugin detail
 class _DetailRow extends StatelessWidget {
   final String label;
   final String value;
-  final NightshadeColors colors;
   final Color? valueColor;
 
   const _DetailRow({
     required this.label,
     required this.value,
-    required this.colors,
     this.valueColor,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -483,12 +390,12 @@ class _DetailRow extends StatelessWidget {
 
 /// Developer information section
 class _DeveloperInfo extends StatelessWidget {
-  final NightshadeColors colors;
 
-  const _DeveloperInfo({required this.colors});
+  const _DeveloperInfo();
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -540,25 +447,21 @@ class _DeveloperInfo extends StatelessWidget {
           _PluginTypeChip(
             label: 'Base Plugin',
             description: 'Core functionality',
-            colors: colors,
           ),
           const SizedBox(height: 6),
           _PluginTypeChip(
             label: 'UI Plugin',
             description: 'Add custom panels and widgets',
-            colors: colors,
           ),
           const SizedBox(height: 6),
           _PluginTypeChip(
             label: 'Device Plugin',
             description: 'Support new hardware',
-            colors: colors,
           ),
           const SizedBox(height: 6),
           _PluginTypeChip(
             label: 'Sequence Plugin',
             description: 'Custom automation nodes',
-            colors: colors,
           ),
         ],
       ),
@@ -570,16 +473,15 @@ class _DeveloperInfo extends StatelessWidget {
 class _PluginTypeChip extends StatelessWidget {
   final String label;
   final String description;
-  final NightshadeColors colors;
 
   const _PluginTypeChip({
     required this.label,
     required this.description,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
         Container(

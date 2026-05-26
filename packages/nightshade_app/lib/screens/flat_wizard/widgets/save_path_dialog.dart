@@ -82,13 +82,17 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-      child: Container(
-        width: 500,
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 500,
+        ),
+        child: Padding(
         padding: const EdgeInsets.all(24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -99,8 +103,8 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
               children: [
                 Container(
                   padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.warning,
                     borderRadius: BorderRadius.circular(10),
                   ),
                   child: Icon(
@@ -201,6 +205,7 @@ class _SavePathDialogState extends ConsumerState<SavePathDialog> {
             ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -230,10 +235,9 @@ class _OptionCheckbox extends StatelessWidget {
         padding: const EdgeInsets.symmetric(vertical: 4),
         child: Row(
           children: [
-            Checkbox(
+            NightshadeCheckbox(
               value: value,
               onChanged: onChanged,
-              activeColor: colors.primary,
             ),
             const SizedBox(width: 8),
             Expanded(

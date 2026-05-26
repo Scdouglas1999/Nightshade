@@ -59,6 +59,11 @@ export 'src/plugin_host.dart';
 // Plugin context implementations
 export 'src/plugin_context.dart';
 
+// Sequence-node registry + executor (the bridge between SequencePlugin
+// authors and the sequence-editor / sequence-executor consumers).
+export 'src/plugin_node_registry.dart';
+export 'src/plugin_node_executor.dart';
+
 // Example plugins demonstrating the API
 export 'src/example_plugin.dart';
 
@@ -66,6 +71,12 @@ export 'src/example_plugin.dart';
 export 'examples/weather_logger_plugin.dart';
 export 'examples/custom_notification_plugin.dart';
 export 'examples/sequence_delay_plugin.dart';
+
+// Wave 6 example plugins demonstrating real-world sequence-node authoring
+// against external services. Each is a self-contained file under examples/.
+export 'examples/pushover_notification_plugin.dart';
+export 'examples/discord_webhook_plugin.dart';
+export 'examples/home_assistant_plugin.dart';
 
 
 

@@ -166,8 +166,8 @@ class _CaptureSettingsCardState extends ConsumerState<CaptureSettingsCard> {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.warning.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    colors.warning,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: Text(
@@ -447,17 +447,18 @@ class _CompactDropdown extends StatelessWidget {
           child: Container(
             height: 28,
             padding: const EdgeInsets.symmetric(horizontal: 8),
-            decoration: BoxDecoration(
-              color: highlight
-                  ? colors.primary.withValues(alpha: 0.1)
-                  : colors.surfaceAlt,
-              borderRadius: BorderRadius.circular(4),
-              border: Border.all(
-                color: highlight
-                    ? colors.primary.withValues(alpha: 0.3)
-                    : colors.border.withValues(alpha: 0.5),
-              ),
-            ),
+            decoration: highlight
+                ? NightshadeDecorations.emphasisSurface(
+                    colors.primary,
+                    borderRadius: BorderRadius.circular(4),
+                  )
+                : BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(4),
+                    border: Border.all(
+                      color: colors.border.withValues(alpha: 0.5),
+                    ),
+                  ),
             child: DropdownButtonHideUnderline(
               child: IgnorePointer(
                 ignoring: !isEnabled,

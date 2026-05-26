@@ -95,7 +95,7 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return AlertDialog(
       backgroundColor: colors.surface,
@@ -111,8 +111,11 @@ class _ObservationLogDialogState extends ConsumerState<ObservationLogDialog> {
           ),
         ],
       ),
-      content: SizedBox(
-        width: 400,
+      content: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 400,
+        ),
         child: SingleChildScrollView(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,

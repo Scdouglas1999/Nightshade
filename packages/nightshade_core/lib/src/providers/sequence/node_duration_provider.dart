@@ -86,6 +86,31 @@ double _rollupSecs(
     return integration + download;
   }
 
+  // Wave 3 Agent 2: SmartExposure is a leaf that internally dispatches
+  // per-filter batches. Integration time is the sum of plan integrations;
+  // download overhead is one per planned frame. Filter-change and dither
+  // overheads are intentionally NOT modeled here — `sequence_time_estimator`
+  // has the rotation/batch-aware math and this provider rolls up totals
+  // for the tree-row "Duration" column, where a slight under-estimate is
+  // less misleading than double-counting overheads. When `rotateFilters`
+  // is true and `integrationBudgetSecs > 0` we cap the integration at the
+  // budget to match Rust runtime behaviour.
+  if (node is SmartExposureNode) {
+    var integration = 0.0;
+    var frameCount = 0;
+    for (final plan in node.plans) {
+      integration += plan.integrationSecs;
+      frameCount += plan.count;
+    }
+    if (node.integrationBudgetSecs > 0 &&
+        integration > node.integrationBudgetSecs) {
+      integration = node.integrationBudgetSecs;
+    }
+    final download =
+        overhead.downloadOverheadPerExposureSecs * frameCount;
+    return integration + download;
+  }
+
   // Compute child rollups first; we use them for every container shape.
   final childSecs = <double>[];
   double childSum = 0;

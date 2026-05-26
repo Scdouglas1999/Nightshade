@@ -270,6 +270,30 @@ void main() {
     });
   });
 
+  group('host-backed capturedImages', () {
+    test('aggregates from in-memory image list without SQL', () async {
+      final capturedAt = DateTime(2026, 5, 11, 1, 0);
+      await insertCaptures(
+        filter: 'Lum',
+        count: 2,
+        capturedAt: capturedAt,
+      );
+      final images = await database.select(database.capturedImages).get();
+
+      final progress = await progressService.forTarget(
+        targetId: targetId,
+        targetName: 'M31',
+        capturedImages: images,
+      );
+
+      expect(progress.totalCapturedFrames, 2);
+      expect(
+        progress.perFilter.firstWhere((f) => f.filter == 'Lum').capturedFrames,
+        2,
+      );
+    });
+  });
+
   group('filter matching is case-insensitive', () {
     test("goal 'Lum' matches capture 'lum'", () async {
       await insertCaptures(

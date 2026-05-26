@@ -74,18 +74,18 @@ void main() {
       expect(body['error'], 'y is required');
     });
 
-    test('disconnected backend failures return JSON internal server error',
+    test('disconnected backend returns connected false without HTTP error',
         () async {
       final response =
           await translateHandlerErrors(handlers.handlePhd2GetStatus(
         Request('GET', Uri.parse('http://localhost/api/phd2/status')),
       ));
 
-      expect(response.statusCode,
-          anyOf(HttpStatus.badRequest, HttpStatus.internalServerError));
+      expect(response.statusCode, HttpStatus.ok);
       expect(response.headers['content-type'], 'application/json');
       final body = jsonDecode(await response.readAsString()) as Map;
-      expect(body['error'], isA<String>());
+      expect(body['connected'], isFalse);
+      expect(body['state'], 'Disconnected');
     });
   });
 }

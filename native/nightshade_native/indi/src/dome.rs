@@ -16,6 +16,7 @@
 
 use crate::client::IndiClient;
 use crate::error::IndiResult;
+use crate::IndiPropertyState;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::RwLock;
@@ -35,6 +36,7 @@ pub enum IndiShutterStatus {
 pub struct IndiDome {
     client: Arc<RwLock<IndiClient>>,
     device_name: String,
+    last_shutter_command: Arc<RwLock<Option<IndiShutterStatus>>>,
 }
 
 impl IndiDome {
@@ -43,6 +45,7 @@ impl IndiDome {
         Self {
             client,
             device_name: device_name.to_string(),
+            last_shutter_command: Arc::new(RwLock::new(None)),
         }
     }
 
@@ -155,7 +158,9 @@ impl IndiDome {
         let mut client = self.client.write().await;
         client
             .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
-            .await
+            .await?;
+        *self.last_shutter_command.write().await = Some(IndiShutterStatus::Opening);
+        Ok(())
     }
 
     /// Close the dome shutter
@@ -163,7 +168,9 @@ impl IndiDome {
         let mut client = self.client.write().await;
         client
             .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
-            .await
+            .await?;
+        *self.last_shutter_command.write().await = Some(IndiShutterStatus::Closing);
+        Ok(())
     }
 
     /// Open the dome shutter with timeout
@@ -184,6 +191,7 @@ impl IndiDome {
                 .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
                 .await?;
         }
+        *self.last_shutter_command.write().await = Some(IndiShutterStatus::Opening);
 
         // Wait for shutter operation to complete
         let client = self.client.read().await;
@@ -214,6 +222,7 @@ impl IndiDome {
                 .set_switch(&self.device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
                 .await?;
         }
+        *self.last_shutter_command.write().await = Some(IndiShutterStatus::Closing);
 
         // Wait for shutter operation to complete
         let client = self.client.read().await;
@@ -241,8 +250,29 @@ impl IndiDome {
             // Why: see module-level §4.3 policy — INDI switch absent → status probe returns Unknown.
             .unwrap_or(false);
 
-        // Determine state based on property state and switch values
-        if is_open && !is_closed {
+        let shutter_state = client
+            .get_property_state(&self.device_name, "DOME_SHUTTER")
+            .await;
+        let shutter_busy = shutter_state == Some(IndiPropertyState::Busy);
+
+        if shutter_state == Some(IndiPropertyState::Alert) {
+            IndiShutterStatus::Error
+        } else if shutter_busy && is_open && !is_closed {
+            IndiShutterStatus::Opening
+        } else if shutter_busy && is_closed && !is_open {
+            IndiShutterStatus::Closing
+        } else if shutter_busy {
+            self.last_shutter_command
+                .read()
+                .await
+                .filter(|status| {
+                    matches!(
+                        status,
+                        IndiShutterStatus::Opening | IndiShutterStatus::Closing
+                    )
+                })
+                .unwrap_or(IndiShutterStatus::Unknown)
+        } else if is_open && !is_closed {
             IndiShutterStatus::Open
         } else if is_closed && !is_open {
             IndiShutterStatus::Closed
@@ -420,6 +450,51 @@ impl IndiDome {
 mod tests {
     use super::*;
     use crate::IndiClient;
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    async fn dome_from_fake_server(
+        payload: &'static [u8],
+    ) -> (IndiDome, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+            .await
+            .expect("bind fake INDI dome server");
+        let port = listener.local_addr().expect("read listener address").port();
+
+        let server = tokio::spawn(async move {
+            let (mut socket, _) = listener.accept().await.expect("accept INDI client");
+            let mut buf = [0_u8; 4096];
+            let _ = socket
+                .read(&mut buf)
+                .await
+                .expect("read initial getProperties");
+            socket
+                .write_all(payload)
+                .await
+                .expect("write fake dome payload");
+            loop {
+                match socket.read(&mut buf).await {
+                    Ok(0) | Err(_) => break,
+                    Ok(_) => {}
+                }
+            }
+        });
+
+        let mut timeout_config = crate::IndiTimeoutConfig::default();
+        timeout_config.connection_timeout_secs = 1;
+        let mut client = IndiClient::with_timeout_config("127.0.0.1", Some(port), timeout_config);
+        client.connect().await.expect("connect fake INDI client");
+
+        let deadline = tokio::time::Instant::now() + std::time::Duration::from_secs(2);
+        while client.get_property("Dome", "DOME_SHUTTER").await.is_none() {
+            assert!(
+                tokio::time::Instant::now() < deadline,
+                "fake INDI DOME_SHUTTER property was not parsed in time"
+            );
+            tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        }
+
+        (IndiDome::new(Arc::new(RwLock::new(client)), "Dome"), server)
+    }
 
     #[tokio::test]
     async fn test_dome_creation() {
@@ -482,5 +557,50 @@ mod tests {
             c.timeout_config().dome_slew_timeout_secs
         };
         assert_eq!(timeout_secs, 600);
+    }
+
+    #[tokio::test]
+    async fn shutter_status_reports_opening_when_shutter_property_busy_open_switch_active() {
+        let (dome, server) = dome_from_fake_server(
+            br#"
+<defSwitchVector device="Dome" name="DOME_SHUTTER" state="Idle" perm="rw">
+  <defSwitch name="SHUTTER_OPEN">Off</defSwitch>
+  <defSwitch name="SHUTTER_CLOSE">Off</defSwitch>
+</defSwitchVector>
+<setSwitchVector device="Dome" name="DOME_SHUTTER" state="Busy">
+  <oneSwitch name="SHUTTER_OPEN">On</oneSwitch>
+  <oneSwitch name="SHUTTER_CLOSE">Off</oneSwitch>
+</setSwitchVector>
+"#,
+        )
+        .await;
+
+        assert_eq!(dome.get_shutter_status().await, IndiShutterStatus::Opening);
+
+        drop(dome);
+        server.await.expect("fake server should finish");
+    }
+
+    #[tokio::test]
+    async fn shutter_status_uses_last_successful_command_when_busy_switches_are_clear() {
+        let (dome, server) = dome_from_fake_server(
+            br#"
+<defSwitchVector device="Dome" name="DOME_SHUTTER" state="Busy" perm="rw">
+  <defSwitch name="SHUTTER_OPEN">Off</defSwitch>
+  <defSwitch name="SHUTTER_CLOSE">Off</defSwitch>
+</defSwitchVector>
+"#,
+        )
+        .await;
+
+        assert_eq!(dome.get_shutter_status().await, IndiShutterStatus::Unknown);
+
+        dome.close_shutter()
+            .await
+            .expect("close_shutter command should be sent to fake server");
+        assert_eq!(dome.get_shutter_status().await, IndiShutterStatus::Closing);
+
+        drop(dome);
+        server.await.expect("fake server should finish");
     }
 }

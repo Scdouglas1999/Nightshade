@@ -2318,7 +2318,7 @@ class TemplatesTab extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final templatesAsync = ref.watch(sequenceTemplatesProvider);
     final searchQuery = ref.watch(templateSearchProvider);
     final category = ref.watch(templateCategoryProvider);
@@ -2368,8 +2368,14 @@ class TemplatesTab extends ConsumerWidget {
                 }
 
                 if (filtered.isEmpty) {
-                  return _EmptyState(
-                      colors: colors, hasSearch: searchQuery.isNotEmpty);
+                  final hasSearch = searchQuery.isNotEmpty;
+                  return EmptyState(
+                    icon: hasSearch ? LucideIcons.searchX : LucideIcons.fileStack,
+                    title: hasSearch ? 'No templates found' : 'No templates yet',
+                    body: hasSearch
+                        ? 'Try a different search term'
+                        : 'Save your sequences as templates for easy reuse',
+                  );
                 }
 
                 // Adapt grid for different screen sizes
@@ -2436,19 +2442,20 @@ class _SnippetSummaryCard extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        color: colors.accent.withValues(alpha: 0.08),
+      decoration: NightshadeDecorations.iconChip(
+        colors.accent,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: colors.accent.withValues(alpha: 0.2)),
+        borderAlpha: 0.2,
       ),
       child: Row(
         children: [
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: colors.accent.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              colors.accent,
               borderRadius: BorderRadius.circular(10),
+              bordered: false,
             ),
             child: Icon(
               LucideIcons.bookMarked,
@@ -2787,7 +2794,10 @@ class _CategoryFilterChips extends ConsumerWidget {
               onSelected: (_) {
                 ref.read(templateCategoryProvider.notifier).state = value;
               },
-              selectedColor: colors.primary.withValues(alpha: 0.16),
+              selectedColor: NightshadeDecorations.statusChip(
+                colors.primary,
+                bordered: false,
+              ).color,
               backgroundColor: colors.surfaceAlt,
               side: BorderSide(
                 color: selected ? colors.primary : colors.border,
@@ -3027,15 +3037,7 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                   : widget.colors.border,
               width: _isHovered ? 2 : 1,
             ),
-            boxShadow: _isHovered
-                ? [
-                    BoxShadow(
-                      color: templateColor.withValues(alpha: 0.15),
-                      blurRadius: 20,
-                      offset: const Offset(0, 8),
-                    ),
-                  ]
-                : null,
+            boxShadow: null,
           ),
           child: InkWell(
             onTap: canEdit ? () => _useTemplate(context) : null,
@@ -3051,8 +3053,8 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                       Container(
                         width: 48,
                         height: 48,
-                        decoration: BoxDecoration(
-                          color: templateColor.withValues(alpha: 0.1),
+                        decoration: NightshadeDecorations.tintedBadge(
+                          templateColor,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: Icon(
@@ -3243,24 +3245,33 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
             ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Which target should "${widget.template.name}" be added to?',
-              style: TextStyle(color: widget.colors.textSecondary),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            dialogContext,
+            designMaxWidth: 480,
+            designMaxHeight: 520,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Which target should "${widget.template.name}" be added to?',
+                  style: TextStyle(color: widget.colors.textSecondary),
+                ),
+                const SizedBox(height: 16),
+                ...targets.map((target) => _TargetOption(
+                      colors: widget.colors,
+                      target: target,
+                      onTap: () {
+                        Navigator.of(dialogContext).pop();
+                        _applyTemplateToTarget(context, target);
+                      },
+                    )),
+              ],
             ),
-            const SizedBox(height: 16),
-            ...targets.map((target) => _TargetOption(
-                  colors: widget.colors,
-                  target: target,
-                  onTap: () {
-                    Navigator.of(dialogContext).pop();
-                    _applyTemplateToTarget(context, target);
-                  },
-                )),
-          ],
+          ),
         ),
         actions: [
           NightshadeButton(
@@ -3404,10 +3415,18 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
     if (dbId != null) {
       try {
         final repository = ref.read(sequenceRepositoryProvider);
-        await repository.duplicateSequence(
+        final duplicated = await repository.duplicateSequence(
             dbId, '${widget.template.name} (Copy)');
 
-        // Refresh the templates list
+        if (duplicated?.databaseId != null) {
+          notifySequenceCatalogChanged(
+            ref,
+            sequenceId: duplicated!.databaseId!,
+            action: 'duplicated',
+            name: duplicated.name,
+            isTemplate: true,
+          );
+        }
         ref.invalidate(sequenceTemplatesProvider);
 
         if (context.mounted) {
@@ -3429,9 +3448,16 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           rootNodeId: widget.template.rootNodeId,
           isTemplate: true,
         );
-        await repository.saveSequence(newTemplate, isTemplate: true);
+        final savedId =
+            await repository.saveSequence(newTemplate, isTemplate: true);
 
-        // Refresh the templates list
+        notifySequenceCatalogChanged(
+          ref,
+          sequenceId: savedId,
+          action: 'created',
+          name: newTemplate.name,
+          isTemplate: true,
+        );
         ref.invalidate(sequenceTemplatesProvider);
 
         if (context.mounted) {
@@ -3463,9 +3489,15 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
           'Delete Template',
           style: TextStyle(color: widget.colors.textPrimary),
         ),
-        content: Text(
-          'Are you sure you want to delete "${widget.template.name}"? This action cannot be undone.',
-          style: TextStyle(color: widget.colors.textSecondary),
+        content: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            dialogContext,
+            designMaxWidth: 400,
+          ),
+          child: Text(
+            'Are you sure you want to delete "${widget.template.name}"? This action cannot be undone.',
+            style: TextStyle(color: widget.colors.textSecondary),
+          ),
         ),
         actions: [
           NightshadeButton(
@@ -3482,7 +3514,13 @@ class _TemplateCardState extends ConsumerState<_TemplateCard>
                 final repository = ref.read(sequenceRepositoryProvider);
                 await repository.deleteSequence(dbId);
 
-                // Refresh the templates list
+                notifySequenceCatalogChanged(
+                  ref,
+                  sequenceId: dbId,
+                  action: 'deleted',
+                  name: widget.template.name,
+                  isTemplate: true,
+                );
                 ref.invalidate(sequenceTemplatesProvider);
 
                 if (context.mounted) {
@@ -3556,7 +3594,10 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             height: 28,
             decoration: BoxDecoration(
               color: !disabled && _isHovered
-                  ? color.withValues(alpha: 0.1)
+                  ? NightshadeDecorations.tintedBadge(
+                      color,
+                      borderRadius: BorderRadius.circular(6),
+                    ).color
                   : Colors.transparent,
               borderRadius: BorderRadius.circular(6),
             ),
@@ -3567,59 +3608,6 @@ class _SmallIconButtonState extends State<_SmallIconButton> {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _EmptyState extends StatelessWidget {
-  final NightshadeColors colors;
-  final bool hasSearch;
-
-  const _EmptyState({
-    required this.colors,
-    this.hasSearch = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: colors.surface,
-              shape: BoxShape.circle,
-              border: Border.all(color: colors.border),
-            ),
-            child: Icon(
-              hasSearch ? LucideIcons.searchX : LucideIcons.fileStack,
-              size: 48,
-              color: colors.textMuted,
-            ),
-          ),
-          const SizedBox(height: 24),
-          Text(
-            hasSearch ? 'No templates found' : 'No templates yet',
-            style: TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: colors.textPrimary,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            hasSearch
-                ? 'Try a different search term'
-                : 'Save your sequences as templates for easy reuse',
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.textMuted,
-            ),
-          ),
-        ],
       ),
     );
   }
@@ -3679,10 +3667,16 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
         isTemplate: true,
       );
 
-      // Save to database as a template
-      await repository.saveSequence(templateSequence, isTemplate: true);
+      final savedId =
+          await repository.saveSequence(templateSequence, isTemplate: true);
 
-      // Refresh the templates list
+      notifySequenceCatalogChanged(
+        ref,
+        sequenceId: savedId,
+        action: 'saved',
+        name: templateSequence.name,
+        isTemplate: true,
+      );
       ref.invalidate(sequenceTemplatesProvider);
 
       if (mounted) {
@@ -3710,12 +3704,10 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
       backgroundColor: widget.colors.surface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       child: ConstrainedBox(
-        constraints: Responsive.dialogConstraints(
+        constraints: AdaptiveDialogConstraints.hybrid(
           context,
-          preferredWidth: 450,
-          preferredHeight: 500,
-          minWidth: 300,
-          minHeight: 400,
+          designMaxWidth: 450,
+          designMaxHeight: 500,
         ),
         child: Padding(
           padding: EdgeInsets.all(isMobile ? 16 : 24),
@@ -3728,8 +3720,8 @@ class _SaveTemplateDialogState extends ConsumerState<_SaveTemplateDialog> {
                   Container(
                     width: 40,
                     height: 40,
-                    decoration: BoxDecoration(
-                      color: widget.colors.primary.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      widget.colors.primary,
                       borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(
@@ -3922,7 +3914,10 @@ class _TargetOptionState extends State<_TargetOption> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
           decoration: BoxDecoration(
             color: _isHovered
-                ? widget.colors.warning.withValues(alpha: 0.1)
+                ? NightshadeDecorations.tintedBadge(
+                    widget.colors.warning,
+                    borderRadius: BorderRadius.circular(10),
+                  ).color
                 : widget.colors.surfaceAlt,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(
@@ -3935,9 +3930,10 @@ class _TargetOptionState extends State<_TargetOption> {
               Container(
                 width: 32,
                 height: 32,
-                decoration: BoxDecoration(
-                  color: widget.colors.warning.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  widget.colors.warning,
                   borderRadius: BorderRadius.circular(8),
+                  bordered: false,
                 ),
                 child: Icon(
                   LucideIcons.target,

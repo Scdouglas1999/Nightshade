@@ -124,17 +124,21 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
       ),
-      child: Container(
-        width: 420,
-        padding: const EdgeInsets.all(24),
-        child: Column(
+      child: ConstrainedBox(
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 420,
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // Icon with pulse animation
@@ -314,6 +318,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
               ],
             ),
           ],
+        ),
         ),
       ),
     );

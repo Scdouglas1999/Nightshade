@@ -1,13 +1,11 @@
 // CQ-W3-API-RS: split from monolithic api.rs (audit-rust §9 / audit-arch §1.2)
 #![allow(unused_imports)]
 // Shared imports inherited from the monolithic api.rs (audit-rust §9).
-use crate::adaptive_polling::{AdaptivePoller, PollerPreset};
 use crate::device::*;
 use crate::device_id::{parse_device_id_cached, ConnectionInfo};
 use crate::device_manager::DeviceManager;
 use crate::error::*;
 use crate::event::*;
-use crate::filter_matching::find_filter_match;
 use crate::state::*;
 use crate::storage::{AppSettings, ObserverLocation};
 use crate::unified_device_ops::create_unified_device_ops;
@@ -324,30 +322,14 @@ pub async fn api_disconnect_device(
 
 /// Check if a device is connected
 pub async fn api_is_device_connected(device_type: DeviceType, device_id: String) -> bool {
-    get_state()
+    get_device_manager()
         .is_device_connected(device_type, &device_id)
         .await
 }
 
 /// Get list of connected devices
 pub async fn api_get_connected_devices() -> Vec<DeviceInfo> {
-    let state = get_state();
-    let mut devices = Vec::new();
-
-    for device_type in [
-        DeviceType::Camera,
-        DeviceType::Mount,
-        DeviceType::Focuser,
-        DeviceType::FilterWheel,
-        DeviceType::Guider,
-        DeviceType::Rotator,
-        DeviceType::Dome,
-        DeviceType::Weather,
-    ] {
-        devices.extend(state.get_devices(device_type).await);
-    }
-
-    devices
+    get_device_manager().get_connected_device_infos().await
 }
 
 // =============================================================================
@@ -358,134 +340,96 @@ pub mod alpaca_connections {
     use super::*;
     // Re-export AlpacaClient for FRB bindings
     pub use nightshade_alpaca::AlpacaClient;
-    use nightshade_alpaca::{AlpacaDevice, AlpacaDeviceType};
-    use std::collections::HashMap;
+    use nightshade_alpaca::AlpacaDeviceType;
 
-    // Storage for active Alpaca connections using Arc to share ownership.
-    //
-    // Lifecycle invariant: `disconnect_alpaca_device` removes the entry before
-    // returning, so this map is bounded by the count of currently-connected
-    // Alpaca devices. Verified in audit-rust §3.5 (CQ-W1-UNIFIED-IMG): the
-    // legacy direct-API `connect_alpaca_device` / `disconnect_alpaca_device`
-    // pair is the only writer and the only reader. The unified
-    // `api_disconnect_device` path uses the per-type maps inside
-    // `DeviceManager` (devices.rs) which evict on disconnect as well.
-    static ALPACA_CLIENTS: OnceLock<Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>>> =
-        OnceLock::new();
-
-    fn get_alpaca_clients() -> &'static Arc<RwLock<HashMap<String, Arc<AlpacaClient>>>> {
-        ALPACA_CLIENTS.get_or_init(|| Arc::new(RwLock::new(HashMap::new())))
-    }
-
-    /// Parse an Alpaca device ID into its components
-    /// Format: "alpaca:{base_url}:{device_type}:{device_number}"
+    /// Parse an Alpaca device ID into its components.
+    ///
+    /// Canonical format: `alpaca:{protocol}://{host}:{port}:{device_type}:{device_num}`
+    /// (e.g. `alpaca:http://192.168.1.100:11111:camera:0`). Uses the shared
+    /// `ParsedDeviceId` parser so all Alpaca connect paths agree on base_url.
+    #[cfg_attr(not(test), allow(dead_code))]
     fn parse_alpaca_id(device_id: &str) -> Option<(String, AlpacaDeviceType, u32)> {
-        let id_part = device_id.strip_prefix("alpaca:")?;
-
-        // The format is: http://host:port:device_type:device_number
-        // We need to carefully parse this since base_url contains colons
-
-        // Find the last two colons which separate device_type and device_number
-        let mut parts: Vec<&str> = id_part.rsplitn(3, ':').collect();
-        parts.reverse();
-
-        if parts.len() < 3 {
-            return None;
+        let parsed = crate::device_id::parse_device_id_cached(device_id).ok()?;
+        match parsed.connection_info {
+            crate::device_id::ConnectionInfo::Alpaca {
+                base_url,
+                device_type,
+                device_num,
+                ..
+            } => {
+                let alpaca_type = AlpacaDeviceType::from_str(&device_type)?;
+                Some((base_url, alpaca_type, device_num))
+            }
+            _ => None,
         }
-
-        let base_url = parts[0].to_string();
-        let device_type = AlpacaDeviceType::from_str(parts[1])?;
-        let device_number: u32 = parts[2].parse().ok()?;
-
-        Some((base_url, device_type, device_number))
     }
 
-    /// Connect to an Alpaca device
+    /// Connect to an Alpaca device (delegates to unified `DeviceManager` registry).
     pub async fn connect_alpaca_device(
         device_type: DeviceType,
         device_id: &str,
     ) -> Result<(), NightshadeError> {
-        let (base_url, alpaca_type, device_number) =
-            parse_alpaca_id(device_id).ok_or_else(|| {
-                NightshadeError::invalid_device_id(device_id, "Failed to parse Alpaca device ID")
-            })?;
-
-        // Create the device struct
-        let device = AlpacaDevice {
-            device_type: alpaca_type,
-            device_number,
-            server_name: base_url.clone(),
-            manufacturer: String::new(),
-            device_name: format!("Alpaca {}", device_type.as_str()),
-            unique_id: device_id.to_string(),
-            base_url: base_url.clone(),
-        };
-
-        // Create and connect the client
-        let client = AlpacaClient::new(&device);
-
-        client.connect().await.map_err(|e| {
-            NightshadeError::connection_failed(
-                device_id,
-                format!("Alpaca connection failed: {}", e),
-            )
-        })?;
-
-        // Why (audit-rust §4.3): Alpaca `Name` is optional; falling back
-        // to the device ID is the same convention used elsewhere in this
-        // file for ASCOM drivers. Connection itself succeeded (line above
-        // would have early-returned with `?` on failure), so labelling
-        // with the ID is fine.
-        let name = client
-            .get_name()
-            .await
-            .unwrap_or_else(|_| device_id.to_string());
-        tracing::info!("Connected to Alpaca device: {}", name);
-
-        // Store the client wrapped in Arc
-        let mut clients = get_alpaca_clients().write().await;
-        clients.insert(device_id.to_string(), Arc::new(client));
-
-        Ok(())
+        api_connect_device(device_type, device_id.to_string()).await
     }
 
-    /// Disconnect from an Alpaca device
+    /// Disconnect from an Alpaca device (delegates to unified `DeviceManager` registry).
     pub async fn disconnect_alpaca_device(device_id: &str) -> Result<(), NightshadeError> {
-        let mut clients = get_alpaca_clients().write().await;
+        let device_type = get_device_manager()
+            .get_device(device_id)
+            .await
+            .map(|d| d.info.device_type)
+            .or_else(|| device_info_from_id(device_id, DeviceType::Camera).map(|i| i.device_type))
+            .unwrap_or(DeviceType::Camera);
 
-        if let Some(client) = clients.get(device_id) {
-            client.disconnect().await.map_err(|e| {
-                NightshadeError::OperationFailed(format!("Alpaca disconnect failed: {}", e))
-            })?;
+        api_disconnect_device(device_type, device_id.to_string()).await
+    }
+
+    /// Get an Alpaca client from the `DeviceManager` typed Alpaca maps.
+    pub async fn get_alpaca_client(device_id: &str) -> Option<Arc<AlpacaClient>> {
+        get_device_manager()
+            .alpaca_client_for_device(device_id)
+            .await
+    }
+
+    /// Check if Alpaca is connected via `DeviceManager` (not a separate static map).
+    pub async fn is_connected(device_id: &str) -> bool {
+        get_device_manager().is_connected(device_id).await
+    }
+
+    #[cfg(test)]
+    mod parse_alpaca_id_tests {
+        use super::*;
+
+        #[test]
+        fn canonical_camera_id_matches_parsed_device_id() {
+            let device_id = "alpaca:http://192.168.1.8:11111:camera:0";
+            let (base_url, alpaca_type, device_number) =
+                parse_alpaca_id(device_id).expect("parse_alpaca_id must succeed");
+            assert_eq!(base_url, "http://192.168.1.8:11111");
+            assert_eq!(alpaca_type, AlpacaDeviceType::Camera);
+            assert_eq!(device_number, 0);
         }
 
-        clients.remove(device_id);
-        Ok(())
-    }
+        #[test]
+        fn https_telescope_and_filterwheel_types() {
+            let tel = "alpaca:https://observatory.local:11111:telescope:0";
+            let (base, ty, num) = parse_alpaca_id(tel).unwrap();
+            assert_eq!(base, "https://observatory.local:11111");
+            assert_eq!(ty, AlpacaDeviceType::Telescope);
+            assert_eq!(num, 0);
 
-    /// Get an Alpaca client
-    pub async fn get_alpaca_client(device_id: &str) -> Option<Arc<AlpacaClient>> {
-        let clients = get_alpaca_clients().read().await;
-        clients.get(device_id).cloned()
-    }
+            let fw = "alpaca:http://host:11111:filterwheel:3";
+            let (base, ty, num) = parse_alpaca_id(fw).unwrap();
+            assert_eq!(base, "http://host:11111");
+            assert_eq!(ty, AlpacaDeviceType::FilterWheel);
+            assert_eq!(num, 3);
+        }
 
-    /// Check if Alpaca is connected
-    pub async fn is_connected(device_id: &str) -> bool {
-        let clients = get_alpaca_clients().read().await;
-        if let Some(client) = clients.get(device_id) {
-            match client.is_connected().await {
-                Ok(connected) => connected,
-                Err(e) => {
-                    tracing::warn!(
-                        "Failed to query Alpaca connection state for {}: {}",
-                        device_id,
-                        e
-                    );
-                    false
-                }
-            }
-        } else {
-            false
+        #[test]
+        fn rejects_non_alpaca_and_malformed_ids() {
+            assert!(parse_alpaca_id("ascom:ASCOM.Camera.Simulator").is_none());
+            assert!(parse_alpaca_id("alpaca:http://host:11111:camera:notanum").is_none());
+            assert!(parse_alpaca_id("alpaca:broken").is_none());
         }
     }
 }

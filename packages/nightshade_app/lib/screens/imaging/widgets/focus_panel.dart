@@ -46,16 +46,11 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Enter position (0 - $maxPosition):'),
-              const SizedBox(height: 12),
-              TextField(
+              NightshadeTextField(
+                label: 'Position',
+                hint: '0 - $maxPosition',
                 controller: controller,
                 keyboardType: TextInputType.number,
-                autofocus: true,
-                decoration: const InputDecoration(
-                  hintText: 'Position',
-                  border: OutlineInputBorder(),
-                ),
               ),
             ],
           ),
@@ -66,7 +61,7 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
               variant: ButtonVariant.ghost,
               size: ButtonSize.small,
             ),
-            GradientDialogButton(
+            NightshadeButton(
               onPressed: () {
                 final position = int.tryParse(controller.text);
                 if (position != null &&
@@ -79,8 +74,9 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                       'Invalid position. Must be between 0 and $maxPosition');
                 }
               },
-              color: Theme.of(context).extension<NightshadeColors>()!.primary,
-              child: const Text('Go'),
+              label: 'Go',
+              variant: ButtonVariant.primary,
+              size: ButtonSize.small,
             ),
           ],
         );
@@ -141,11 +137,9 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
             Container(
               padding: const EdgeInsets.all(12),
               margin: const EdgeInsets.only(bottom: 16),
-              decoration: BoxDecoration(
-                color: widget.colors.warning.withValues(alpha: 0.1),
+              decoration: NightshadeDecorations.emphasisSurface(
+                widget.colors.warning,
                 borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                    color: widget.colors.warning.withValues(alpha: 0.3)),
               ),
               child: Row(
                 children: [
@@ -253,17 +247,19 @@ class _FocusPanelState extends ConsumerState<FocusPanel> {
                           child: Container(
                             padding: const EdgeInsets.symmetric(
                                 horizontal: 8, vertical: 4),
-                            decoration: BoxDecoration(
-                              color: isSelected
-                                  ? widget.colors.primary.withValues(alpha: 0.2)
-                                  : widget.colors.background,
-                              borderRadius: BorderRadius.circular(4),
-                              border: Border.all(
-                                color: isSelected
-                                    ? widget.colors.primary
-                                    : widget.colors.border,
-                              ),
-                            ),
+                            decoration: isSelected
+                                ? NightshadeDecorations.selectedSurface(
+                                    widget.colors.primary,
+                                    borderRadius: BorderRadius.circular(4),
+                                    fillAlpha: 0.15,
+                                  )
+                                : BoxDecoration(
+                                    color: widget.colors.background,
+                                    borderRadius: BorderRadius.circular(4),
+                                    border: Border.all(
+                                      color: widget.colors.border,
+                                    ),
+                                  ),
                             child: Text(
                               '$step',
                               style: TextStyle(

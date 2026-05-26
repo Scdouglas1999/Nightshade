@@ -63,7 +63,7 @@ class NightshadeLocalizations {
       'mobileErrorLoadingApp': 'Error Loading App',
       'mobileHowToConnect': 'How to Connect',
       'mobileHowToConnectSteps':
-          '1. Make sure Nightshade is running in headless mode on Windows or Raspberry Pi\n2. Ensure both devices are on the same network\n3. Tap "Search for Server" or wait for automatic discovery\n4. The full desktop UI will load automatically',
+          '1. Make sure Nightshade is running on your imaging PC (desktop or headless server)\n2. Ensure both devices are on the same network\n3. Tap "Search for Server" or wait for automatic discovery\n4. After connecting, the full Nightshade app opens with the same screens as desktop',
       'mobileNotConnected': 'Not Connected',
       'mobileRetry': 'Retry',
       'mobileScanQr': 'Scan QR',
@@ -92,6 +92,8 @@ class NightshadeLocalizations {
       'navWeatherDesc': 'Cloud radar',
       'navPlanner': 'Plan Tonight',
       'navPlannerDesc': 'Session optimizer',
+      'navTransients': 'Transients',
+      'navTransientsDesc': 'Alert feed',
       'navMore': 'More',
       'navMoreDesc': 'Additional tools',
       'save': 'Save',
@@ -284,6 +286,14 @@ class NightshadeLocalizations {
       'remoteAccessPairDesc':
           'Generate a short-lived pairing code and review paired devices.',
       'remoteAccessManagePairing': 'Manage Pairing',
+      'remoteAccessQrTitle': 'Pair phones and tablets',
+      'remoteAccessQrBody':
+          'Scan this QR code from the Nightshade mobile app. Verify the fingerprint on both screens before connecting.',
+      'remoteAccessFingerprint': 'Fingerprint',
+      'remoteAccessQrStartHint':
+          'Start pairing mode to show a QR code and pairing phrase on this screen.',
+      'remoteAccessQrNoLanIp':
+          'Could not detect a LAN IP for this PC. QR pairing needs your Wi‑Fi address (e.g. 192.168.x.x). Check network settings, then restart remote access.',
       'remoteAccessInfoBody':
           'Desktop remote access serves the same dashboard locally and on your LAN. Localhost stays frictionless for this machine, while non-local clients must pair before they can control the app.',
       'remoteAccessCopiedUrl': 'Copied {url} to clipboard',
@@ -461,7 +471,7 @@ class NightshadeLocalizations {
       'mobileErrorLoadingApp': 'Error al cargar la aplicaci\u00F3n',
       'mobileHowToConnect': 'C\u00F3mo conectar',
       'mobileHowToConnectSteps':
-          '1. Aseg\u00FArate de que Nightshade est\u00E9 ejecut\u00E1ndose en modo headless en Windows o Raspberry Pi\n2. Verifica que ambos dispositivos est\u00E9n en la misma red\n3. Toca "Buscar servidor" o espera el descubrimiento autom\u00E1tico\n4. La interfaz completa se cargar\u00E1 autom\u00E1ticamente',
+          '1. Aseg\u00FArate de que Nightshade est\u00E9 ejecut\u00E1ndose en tu PC de captura (escritorio o servidor headless)\n2. Verifica que ambos dispositivos est\u00E9n en la misma red\n3. Toca "Buscar servidor" o espera el descubrimiento autom\u00E1tico\n4. Tras conectar, se abre la app completa de Nightshade con las mismas pantallas que en escritorio',
       'mobileNotConnected': 'Sin conexi\u00F3n',
       'mobileRetry': 'Reintentar',
       'mobileScanQr': 'Escanear QR',
@@ -490,6 +500,8 @@ class NightshadeLocalizations {
       'navWeatherDesc': 'Radar de nubes',
       'navPlanner': 'Plan Nocturno',
       'navPlannerDesc': 'Optimizador de sesiones',
+      'navTransients': 'Transientes',
+      'navTransientsDesc': 'Alertas',
       'navMore': 'Mas',
       'navMoreDesc': 'Herramientas adicionales',
       'save': 'Guardar',
@@ -687,6 +699,14 @@ class NightshadeLocalizations {
       'remoteAccessPairDesc':
           'Genera un codigo temporal de emparejamiento y revisa los dispositivos emparejados.',
       'remoteAccessManagePairing': 'Gestionar emparejamiento',
+      'remoteAccessQrTitle': 'Emparejar telefonos y tabletas',
+      'remoteAccessQrBody':
+          'Escanea este codigo QR desde la app movil de Nightshade. Verifica la huella en ambas pantallas antes de conectar.',
+      'remoteAccessFingerprint': 'Huella',
+      'remoteAccessQrStartHint':
+          'Inicia el emparejamiento para mostrar un codigo QR y la frase en esta pantalla.',
+      'remoteAccessQrNoLanIp':
+          'No se detecto una IP LAN en este PC. El QR necesita la direccion Wi-Fi (p. ej. 192.168.x.x). Revisa la red y reinicia el acceso remoto.',
       'remoteAccessInfoBody':
           'El acceso remoto de escritorio sirve el mismo panel localmente y en tu LAN. Localhost sigue siendo directo para esta maquina, mientras que los clientes no locales deben emparejarse antes de poder controlar la aplicacion.',
       'remoteAccessCopiedUrl': 'Se copio {url} al portapapeles',

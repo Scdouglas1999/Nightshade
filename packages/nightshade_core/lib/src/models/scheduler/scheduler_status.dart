@@ -33,7 +33,7 @@ class SchedulerWeights extends Equatable {
     this.moon = 1.0,
     this.timeRemaining = 0.75,
     this.filterCoverage = 1.25,
-    this.userPriority = 0.5,
+    this.userPriority = 1.0,
   });
 
   /// Default set of weights used when the operator has not customized them.

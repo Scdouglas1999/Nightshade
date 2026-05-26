@@ -113,20 +113,13 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = context.nightshadeColors;
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -204,14 +197,6 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: widget.isConnected ? colors.success : colors.error,
-                  boxShadow: [
-                    BoxShadow(
-                      color:
-                          (widget.isConnected ? colors.success : colors.error)
-                              .withValues(alpha: 0.4),
-                      blurRadius: 4,
-                    ),
-                  ],
                 ),
               ),
             ],
@@ -352,7 +337,7 @@ class _GuideControlsPanelState extends State<GuideControlsPanel> {
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(
-                '${widget.ditherAmount.toStringAsFixed(0)}',
+                widget.ditherAmount.toStringAsFixed(0),
                 style: TextStyle(
                   color: colors.textPrimary,
                   fontSize: 12,

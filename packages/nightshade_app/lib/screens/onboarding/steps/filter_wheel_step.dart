@@ -83,17 +83,32 @@ class _OnboardingFilterWheelStepState
   Widget build(BuildContext context) {
     final draft = ref.watch(onboardingDraftProvider);
     final notifier = ref.read(onboardingDraftProvider.notifier);
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final hasWheel = draft.filterWheelId != null;
+
+    final viewportHeight = MediaQuery.sizeOf(context).height;
+    final pickerHeight = hasWheel
+        ? clampPanelWidth(
+            viewportHeight,
+            fraction: 0.28,
+            min: 180,
+            max: 240,
+          )
+        : clampPanelWidth(
+            viewportHeight,
+            fraction: 0.45,
+            min: 240,
+            max: 380,
+          );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SizedBox(
-          // Picker takes a fixed portion so the filter editor below has
+          // Picker takes a viewport-fraction so the filter editor below has
           // breathing room when the wheel is selected.
-          height: hasWheel ? 240 : 380,
+          height: pickerHeight,
           child: OnboardingDevicePickerBody(
             title: 'Pick your filter wheel (optional)',
             subtitle:

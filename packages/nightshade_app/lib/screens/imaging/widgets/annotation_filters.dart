@@ -55,17 +55,16 @@ class AnnotationFilterChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(4),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? colors.primary.withValues(alpha: 0.15)
-              : colors.surfaceAlt,
-          borderRadius: BorderRadius.circular(4),
-          border: Border.all(
-            color: isSelected
-                ? colors.primary.withValues(alpha: 0.5)
-                : colors.border,
-          ),
-        ),
+        decoration: isSelected
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(4),
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                borderRadius: BorderRadius.circular(4),
+                border: Border.all(color: colors.border),
+              ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

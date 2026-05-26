@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../utils/profile_save_errors.dart';
 
 /// Single-page profile editor dialog replacing the multi-step wizard.
 /// Allows creating new profiles or editing existing ones.
@@ -66,6 +67,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   final _rotatorNameController = TextEditingController();
   final _domeNameController = TextEditingController();
   final _weatherNameController = TextEditingController();
+  final _safetyMonitorNameController = TextEditingController();
+  final _switchNameController = TextEditingController();
   final _coverCalibratorNameController = TextEditingController();
 
   String? _cameraId;
@@ -76,6 +79,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   String? _rotatorId;
   String? _domeId;
   String? _weatherId;
+  String? _safetyMonitorId;
+  String? _switchId;
   String? _coverCalibratorId;
 
   // Section 4: Filters (dynamic list)
@@ -88,6 +93,12 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
   final _coolingTargetController = TextEditingController();
   bool _coolOnConnect = false;
   final _centeringExposureController = TextEditingController();
+
+  // IMG-P3-2: auto-detect state for the camera's SDK-reported gain/offset.
+  // `null` means "not queried yet". An empty struct (all-None) means
+  // "SDK reported nothing" and is displayed as such.
+  CameraRecommendedSettings? _recommendedSettings;
+  bool _isQueryingRecommendation = false;
 
   // Available icons for profile customization
   static const List<String> _availableIcons = [
@@ -105,15 +116,15 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   // Available accent colors
   static const List<Color> _accentColors = [
-    Color(0xFF6366F1), // Indigo (default)
-    Color(0xFF8B5CF6), // Purple
+    Color(0xFF5B9EC4), // Cyan-blue (default)
+    Color(0xFF3A9BC4), // Sky
     Color(0xFFEC4899), // Pink
     Color(0xFFEF4444), // Red
     Color(0xFFF97316), // Orange
     Color(0xFFEAB308), // Yellow
     Color(0xFF22C55E), // Green
     Color(0xFF06B6D4), // Cyan
-    Color(0xFF3B82F6), // Blue
+    Color(0xFF4A7FB8), // Blue
   ];
 
   @override
@@ -163,6 +174,10 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       _domeNameController.text = profile.domeId ?? '';
       _weatherId = profile.weatherId;
       _weatherNameController.text = profile.weatherId ?? '';
+      _safetyMonitorId = profile.safetyMonitorId;
+      _safetyMonitorNameController.text = profile.safetyMonitorId ?? '';
+      _switchId = profile.switchId;
+      _switchNameController.text = profile.switchId ?? '';
       _coverCalibratorId = profile.coverCalibratorId;
       _coverCalibratorNameController.text = profile.coverCalibratorId ?? '';
 
@@ -208,6 +223,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     _rotatorNameController.dispose();
     _domeNameController.dispose();
     _weatherNameController.dispose();
+    _safetyMonitorNameController.dispose();
+    _switchNameController.dispose();
     _coverCalibratorNameController.dispose();
     _gainController.dispose();
     _offsetController.dispose();
@@ -335,6 +352,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final rotatorState = ref.read(rotatorStateProvider);
     final domeState = ref.read(domeStateProvider);
     final weatherState = ref.read(weatherStateProvider);
+    final safetyMonitorState = ref.read(safetyMonitorStateProvider);
+    final switchState = ref.read(switchStateProvider);
     final coverCalibratorState = ref.read(coverCalibratorStateProvider);
 
     setState(() {
@@ -418,6 +437,26 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         if (_weatherNameController.text.isEmpty) {
           _weatherNameController.text =
               weatherState.deviceName ?? weatherState.deviceId ?? '';
+        }
+      }
+
+      if (_safetyMonitorId == null &&
+          safetyMonitorState.connectionState ==
+              DeviceConnectionState.connected) {
+        _safetyMonitorId = safetyMonitorState.deviceId;
+        if (_safetyMonitorNameController.text.isEmpty) {
+          _safetyMonitorNameController.text = safetyMonitorState.deviceName ??
+              safetyMonitorState.deviceId ??
+              '';
+        }
+      }
+
+      if (_switchId == null &&
+          switchState.connectionState == DeviceConnectionState.connected) {
+        _switchId = switchState.deviceId;
+        if (_switchNameController.text.isEmpty) {
+          _switchNameController.text =
+              switchState.deviceName ?? switchState.deviceId ?? '';
         }
       }
 
@@ -505,6 +544,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           rotatorName: Value(_rotatorNameController.text.trimOrNull),
           domeId: Value(_domeId),
           weatherId: Value(_weatherId),
+          safetyMonitorId: Value(_safetyMonitorId),
+          switchId: Value(_switchId),
           coverCalibratorId: Value(_coverCalibratorId),
           filterNames:
               Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
@@ -558,6 +599,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           rotatorName: Value(_rotatorNameController.text.trimOrNull),
           domeId: Value(_domeId),
           weatherId: Value(_weatherId),
+          safetyMonitorId: Value(_safetyMonitorId),
+          switchId: Value(_switchId),
           coverCalibratorId: Value(_coverCalibratorId),
           filterNames:
               Value(filterNamesEncoded.isEmpty ? null : filterNamesEncoded),
@@ -588,9 +631,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             'Profile "${_nameController.text.trim()}" $action');
         Navigator.of(context).pop(true);
       }
-    } catch (e) {
+    } catch (e, st) {
+      ref.read(loggingServiceProvider).error(
+        'ProfileEditorDialog save failed: $e',
+        source: 'ProfileEditorDialog',
+        fields: {'error': e.toString(), 'stack': st.toString()},
+      );
       if (mounted) {
-        context.showErrorSnackBar('Failed to save profile: $e');
+        context.showErrorSnackBar(profileSaveErrorMessage(e));
         setState(() => _isSaving = false);
       }
     }
@@ -598,14 +646,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final isEditing = widget.profile != null;
 
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
-        width: 600,
+        width: dialogMaxWidth(context, 600),
         constraints: BoxConstraints(
           maxHeight: MediaQuery.sizeOf(context).height * 0.8,
         ),
@@ -673,10 +721,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           Container(
             width: 40,
             height: 40,
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.emphasisSurface(
+              colors.primary,
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: colors.primary.withValues(alpha: 0.3)),
             ),
             child: Icon(
               isEditing ? LucideIcons.edit : LucideIcons.plus,
@@ -973,6 +1020,9 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final rotators = discovery.getDevicesByType(DeviceType.rotator);
     final domes = discovery.getDevicesByType(DeviceType.dome);
     final weatherStations = discovery.getDevicesByType(DeviceType.weather);
+    final safetyMonitors =
+        discovery.getDevicesByType(DeviceType.safetyMonitor);
+    final switches = discovery.getDevicesByType(DeviceType.switch_);
     final coverCalibrators =
         discovery.getDevicesByType(DeviceType.coverCalibrator);
 
@@ -1156,6 +1206,46 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           const SizedBox(height: 12),
 
           _DeviceRow(
+            type: 'Safety Monitor',
+            icon: LucideIcons.shieldCheck,
+            nameController: _safetyMonitorNameController,
+            deviceId: _safetyMonitorId,
+            discoveredDevices: safetyMonitors,
+            onDeviceSelected: (id, name) => setState(() {
+              _safetyMonitorId = id;
+              if (name != null && _safetyMonitorNameController.text.isEmpty) {
+                _safetyMonitorNameController.text = name;
+              }
+            }),
+            onClear: () => setState(() {
+              _safetyMonitorId = null;
+              _safetyMonitorNameController.clear();
+            }),
+            colors: colors,
+          ),
+          const SizedBox(height: 12),
+
+          _DeviceRow(
+            type: 'Switch',
+            icon: LucideIcons.toggleLeft,
+            nameController: _switchNameController,
+            deviceId: _switchId,
+            discoveredDevices: switches,
+            onDeviceSelected: (id, name) => setState(() {
+              _switchId = id;
+              if (name != null && _switchNameController.text.isEmpty) {
+                _switchNameController.text = name;
+              }
+            }),
+            onClear: () => setState(() {
+              _switchId = null;
+              _switchNameController.clear();
+            }),
+            colors: colors,
+          ),
+          const SizedBox(height: 12),
+
+          _DeviceRow(
             type: 'Cover / Calibrator',
             icon: LucideIcons.sunMedium,
             nameController: _coverCalibratorNameController,
@@ -1198,6 +1288,8 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     if (_rotatorId != null) count++;
     if (_domeId != null) count++;
     if (_weatherId != null) count++;
+    if (_safetyMonitorId != null) count++;
+    if (_switchId != null) count++;
     if (_coverCalibratorId != null) count++;
     return count;
   }
@@ -1254,7 +1346,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
                 ),
                 const SizedBox(width: 8),
                 SizedBox(
-                  width: 100,
+                  width: dialogMaxWidth(context, 100),
                   child: Text(
                     'Focus Offset',
                     style: TextStyle(
@@ -1410,6 +1502,14 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
               ),
             ],
           ),
+          const SizedBox(height: 12),
+
+          // IMG-P3-2: SDK auto-detect button + recommendation card.
+          // The button is only useful when a camera is selected on this
+          // profile (so we have a device_id to query).
+          _buildAutoDetectRow(colors),
+          if (_recommendedSettings != null)
+            _buildRecommendationCard(colors, _recommendedSettings!),
           const SizedBox(height: 16),
 
           // Cooling row
@@ -1499,6 +1599,224 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       ),
     );
   }
+
+  // ===========================================================================
+  // IMG-P3-2: Auto-detect recommended camera gain/offset
+  // ===========================================================================
+
+  /// Build the auto-detect button row.
+  ///
+  /// The button is enabled only when the user has selected (or auto-populated)
+  /// a camera id for this profile AND that camera is currently connected.
+  /// Without a live camera we have no SDK to query.
+  Widget _buildAutoDetectRow(NightshadeColors colors) {
+    final cameraState = ref.watch(cameraStateProvider);
+    final liveDeviceId = cameraState.connectionState ==
+            DeviceConnectionState.connected
+        ? cameraState.deviceId
+        : null;
+    // Prefer the connected camera's id when it matches what the profile has
+    // selected; otherwise fall back to the live device.
+    final queryDeviceId = (_cameraId != null && _cameraId == liveDeviceId)
+        ? _cameraId
+        : liveDeviceId;
+
+    final enabled = queryDeviceId != null && !_isQueryingRecommendation;
+    final disabledReason = queryDeviceId == null
+        ? 'Connect a camera to query its SDK for recommended gain/offset.'
+        : null;
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Tooltip(
+          message: disabledReason ??
+              'Query the connected camera SDK for the '
+                  'manufacturer-recommended unity gain and offset.',
+          child: ElevatedButton.icon(
+            onPressed:
+                enabled ? () => _runAutoDetect(queryDeviceId) : null,
+            icon: _isQueryingRecommendation
+                ? const SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(LucideIcons.zap, size: 14),
+            label: const Text('Auto-detect from camera'),
+            style: ElevatedButton.styleFrom(
+              foregroundColor: colors.textPrimary,
+              backgroundColor: colors.surfaceAlt,
+              padding: const EdgeInsets.symmetric(
+                horizontal: 12,
+                vertical: 8,
+              ),
+              textStyle: const TextStyle(fontSize: 12),
+            ),
+          ),
+        ),
+        const SizedBox(width: 12),
+        if (disabledReason != null)
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                disabledReason,
+                style: TextStyle(color: colors.textMuted, fontSize: 11),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+
+  /// Build the info card that surfaces the SDK-reported recommendation.
+  ///
+  /// All values are shown verbatim — the field is "Not reported" when the SDK
+  /// returns null for it (we never invent a value to fill the gap).
+  Widget _buildRecommendationCard(
+      NightshadeColors colors, CameraRecommendedSettings rec) {
+    final hasAny = rec.unityGain != null || rec.defaultOffset != null;
+    final canApplyGain = rec.unityGain != null &&
+        rec.unityGain.toString() != _gainController.text;
+    final canApplyOffset = rec.defaultOffset != null &&
+        rec.defaultOffset.toString() != _offsetController.text;
+
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: colors.surfaceAlt,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                hasAny ? LucideIcons.info : LucideIcons.alertCircle,
+                size: 14,
+                color: hasAny ? colors.primary : colors.textMuted,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                hasAny
+                    ? 'Camera SDK reported:'
+                    : 'Camera SDK did not report any recommendation',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
+              ),
+            ],
+          ),
+          if (hasAny) ...[
+            const SizedBox(height: 6),
+            _buildRecRow('Unity gain', rec.unityGain, colors),
+            _buildRecRow('HCG gain', rec.hcgGain, colors),
+            _buildRecRow('Default offset', rec.defaultOffset, colors),
+          ],
+          if (rec.notes.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              rec.notes,
+              style: TextStyle(
+                fontSize: 11,
+                fontStyle: FontStyle.italic,
+                color: colors.textMuted,
+              ),
+            ),
+          ],
+          if (canApplyGain || canApplyOffset) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                TextButton.icon(
+                  onPressed: () => _applyRecommendation(rec),
+                  icon: const Icon(LucideIcons.check, size: 14),
+                  label: Text(
+                    'Apply${(canApplyGain && canApplyOffset)
+                        ? ' both'
+                        : canApplyGain
+                            ? ' gain'
+                            : ' offset'}',
+                  ),
+                  style: TextButton.styleFrom(
+                    foregroundColor: colors.primary,
+                    textStyle: const TextStyle(fontSize: 12),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecRow(String label, int? value, NightshadeColors colors) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 1),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 110,
+            child: Text(
+              '$label:',
+              style: TextStyle(fontSize: 12, color: colors.textSecondary),
+            ),
+          ),
+          Text(
+            value == null ? 'Not reported' : value.toString(),
+            style: TextStyle(
+              fontSize: 12,
+              color: value == null ? colors.textMuted : colors.textPrimary,
+              fontWeight: value == null ? FontWeight.normal : FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _runAutoDetect(String deviceId) async {
+    setState(() {
+      _isQueryingRecommendation = true;
+    });
+    try {
+      final rec = await ref
+          .read(deviceServiceProvider)
+          .queryRecommendedCameraSettings(deviceId);
+      if (!mounted) return;
+      setState(() {
+        _recommendedSettings = rec;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      // Surface the failure to the user — never silently fall back.
+      context.showErrorSnackBar('Auto-detect failed: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isQueryingRecommendation = false;
+        });
+      }
+    }
+  }
+
+  void _applyRecommendation(CameraRecommendedSettings rec) {
+    setState(() {
+      if (rec.unityGain != null) {
+        _gainController.text = rec.unityGain.toString();
+      }
+      if (rec.defaultOffset != null) {
+        _offsetController.text = rec.defaultOffset.toString();
+      }
+    });
+  }
 }
 
 // =============================================================================
@@ -1548,8 +1866,8 @@ class _SectionCard extends StatelessWidget {
                   Container(
                     width: 32,
                     height: 32,
-                    decoration: BoxDecoration(
-                      color: colors.primary.withValues(alpha: 0.1),
+                    decoration: NightshadeDecorations.tintedBadge(
+                      colors.primary,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Icon(icon, size: 16, color: colors.primary),
@@ -1798,8 +2116,8 @@ class _DeviceRow extends StatelessWidget {
               Container(
                 width: 28,
                 height: 28,
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.1),
+                decoration: NightshadeDecorations.tintedBadge(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Icon(icon, size: 14, color: colors.primary),
@@ -2143,7 +2461,7 @@ class _FilterRow extends StatelessWidget {
           ),
           const SizedBox(width: 8),
           SizedBox(
-            width: 100,
+            width: dialogMaxWidth(context, 100),
             height: 32,
             child: TextField(
               controller: offsetController,

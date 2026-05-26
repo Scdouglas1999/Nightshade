@@ -102,35 +102,13 @@ Future<void> _showSnippetRejectedDialog(
   SnippetDeserializationException e,
   String operationName,
 ) async {
-  final colors = Theme.of(context).extension<NightshadeColors>()!;
+  final colors = NightshadeColors.of(context);
   await showDialog<void>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      backgroundColor: colors.surface,
-      title: Row(
-        children: [
-          Icon(LucideIcons.alertTriangle, color: colors.warning, size: 20),
-          const SizedBox(width: 10),
-          Expanded(
-            child: Text(
-              'Could not $operationName',
-              style: TextStyle(color: colors.textPrimary, fontSize: 16),
-            ),
-          ),
-        ],
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Snippet "${e.snippetName}" contains unknown node type '
-            '"${e.unknownType}" — this may be from a newer version of '
-            'Nightshade. The snippet was not imported.',
-            style: TextStyle(color: colors.textSecondary, fontSize: 13),
-          ),
-        ],
-      ),
+    builder: (ctx) => NightshadeDialog(
+      title: 'Could not $operationName',
+      icon: LucideIcons.alertTriangle,
+      width: 420,
       actions: [
         NightshadeButton(
           onPressed: () => Navigator.of(ctx).pop(),
@@ -139,6 +117,12 @@ Future<void> _showSnippetRejectedDialog(
           size: ButtonSize.small,
         ),
       ],
+      child: Text(
+        'Snippet "${e.snippetName}" contains unknown node type '
+        '"${e.unknownType}" — this may be from a newer version of '
+        'Nightshade. The snippet was not imported.',
+        style: TextStyle(color: colors.textSecondary, fontSize: 13),
+      ),
     ),
   );
 }
@@ -160,7 +144,7 @@ Future<bool> showValidationIssueDialog(
   required String operationName,
   String? forceLabel = 'Force action anyway',
 }) async {
-  final colors = Theme.of(context).extension<NightshadeColors>()!;
+  final colors = NightshadeColors.of(context);
 
   final errors =
       issues.where((i) => i.severity == ValidationSeverity.error).toList();
@@ -177,9 +161,12 @@ Future<bool> showValidationIssueDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(8),
         ),
-        child: Container(
-          width: 520,
-          constraints: const BoxConstraints(maxHeight: 600),
+        child: ConstrainedBox(
+          constraints: AdaptiveDialogConstraints.hybrid(
+            ctx,
+            designMaxWidth: 520,
+            designMaxHeight: 600,
+          ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -265,9 +252,10 @@ class _ValidationDialogHeader extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              color,
               borderRadius: BorderRadius.circular(8),
+              bordered: false,
             ),
             child: Icon(
               hasErrors ? LucideIcons.xCircle : LucideIcons.alertTriangle,
@@ -350,9 +338,10 @@ class _ValidationIssueCard extends StatelessWidget {
         children: [
           Container(
             padding: const EdgeInsets.all(6),
-            decoration: BoxDecoration(
-              color: severityColor.withValues(alpha: 0.15),
+            decoration: NightshadeDecorations.statusChip(
+              severityColor,
               borderRadius: BorderRadius.circular(6),
+              bordered: false,
             ),
             child: Icon(severityIcon, size: 14, color: severityColor),
           ),

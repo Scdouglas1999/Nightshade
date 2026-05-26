@@ -23,6 +23,12 @@ class PairedDevices extends Table {
   /// Whether this device is currently active (not revoked)
   BoolColumn get isActive => boolean().withDefault(const Constant(true))();
 
+  /// Absolute expiry timestamp for the issued session token (nullable for
+  /// rows migrated from schema v1 — treated as "no expiry" for backward
+  /// compatibility). New pairings populate this with
+  /// `pairedAt + PairingService._defaultSessionTokenLifetime`.
+  DateTimeColumn get expiresAt => dateTime().nullable()();
+
   @override
   Set<Column> get primaryKey => {deviceId};
 }

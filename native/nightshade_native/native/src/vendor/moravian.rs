@@ -962,7 +962,7 @@ impl NativeCamera for MoravianCamera {
             width: binned_width,
             height: binned_height,
             data,
-            bits_per_pixel: 16,
+            bits_per_pixel: self.sensor_info.bit_depth,
             bayer_pattern: self.sensor_info.bayer_pattern,
             metadata,
         })
@@ -1107,10 +1107,8 @@ impl NativeCamera for MoravianCamera {
         Ok(())
     }
 
-    async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
-        // Moravian doesn't support offset
-        self.current_offset = offset;
-        Ok(())
+    async fn set_offset(&mut self, _offset: i32) -> Result<(), NativeError> {
+        Err(NativeError::NotSupported)
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
@@ -1232,7 +1230,7 @@ impl NativeCamera for MoravianCamera {
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        Ok(self.current_offset)
+        Err(NativeError::NotSupported)
     }
 
     async fn get_binning(&self) -> Result<(i32, i32), NativeError> {
@@ -1353,7 +1351,35 @@ impl NativeCamera for MoravianCamera {
             return Err(NativeError::NotConnected);
         }
 
-        // Moravian cameras typically have limited offset control.
-        Ok((0, 255))
+        Err(NativeError::NotSupported)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn moravian_offset_write_reports_not_supported_without_mutating_cache() {
+        let mut camera = MoravianCamera::new(0);
+        camera.current_offset = 7;
+
+        let err = camera.set_offset(22).await.unwrap_err();
+
+        assert!(matches!(err, NativeError::NotSupported));
+        assert_eq!(camera.current_offset, 7);
+    }
+
+    #[tokio::test]
+    async fn moravian_gain_write_reports_not_supported_without_mutating_cache() {
+        let mut camera = MoravianCamera::new(0);
+        camera.connected = true;
+        camera.capabilities.can_set_gain = false;
+        camera.current_gain = 11;
+
+        let err = camera.set_gain(42).await.unwrap_err();
+
+        assert!(matches!(err, NativeError::NotSupported));
+        assert_eq!(camera.current_gain, 11);
     }
 }

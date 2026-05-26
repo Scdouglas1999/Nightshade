@@ -12,17 +12,21 @@ import '../../widgets/animated_tab_bar_view.dart';
 import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/sequencer_keys.dart';
 import 'widgets/batch_operations_toolbar.dart';
+import 'widgets/delete_node_confirmation.dart';
 import 'widgets/sequence_toolbar.dart';
 import 'widgets/node_palette.dart';
 import 'widgets/snippet_palette.dart';
 import 'widgets/sequence_tree.dart';
 import 'widgets/node_properties_panel.dart';
+import 'widgets/notes_panel.dart';
 import 'widgets/sequence_progress_bar.dart';
 import 'widgets/session_report_dialog.dart';
 import 'widgets/equipment_telemetry_strip.dart';
 import 'widgets/mobile_playback_bar.dart';
+import 'widgets/target_queue_panel.dart';
 import 'tabs/history_tab.dart';
 import 'tabs/library_tab.dart';
+import 'tabs/sequence_library_tab.dart';
 import 'tabs/run_tab.dart';
 import 'tabs/targets_tab.dart';
 import 'tabs/templates_tab.dart';
@@ -46,55 +50,11 @@ final sequencerPropertiesCollapsedProvider =
 /// Whether the snippet palette is visible in the toolbox panel
 final snippetPaletteVisibleProvider = StateProvider<bool>((ref) => false);
 
-/// Confirm-then-delete helper used by both the Delete keyboard shortcut and
-/// the per-node trash button. Nodes with descendants prompt the user with
-/// "Delete N nodes?" before the actual mutation; leaf nodes (and missing
-/// nodes) are removed without prompting.
-///
-/// Centralised here so the keyboard path can't drift away from the tree's
-/// trash-icon path — both must apply the same confirmation policy.
-Future<void> _confirmAndRemoveNode(
-  BuildContext context,
-  WidgetRef ref,
-  String nodeId,
-) async {
-  final sequence = ref.read(currentSequenceProvider);
-  if (sequence == null) return;
-  final node = sequence.nodes[nodeId];
-  if (node == null) return;
-
-  final descendantCount = sequence.countDescendants(nodeId);
-  if (descendantCount > 0) {
-    final total = descendantCount + 1;
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Delete node?'),
-        content: Text(
-          'This will delete "${node.name}" and $descendantCount '
-          'descendant ${descendantCount == 1 ? "node" : "nodes"} '
-          '($total total). This cannot be undone except via Undo (Ctrl+Z).',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: const Text('Cancel'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('Delete $total nodes'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed != true) return;
-  }
-
-  ref.read(currentSequenceProvider.notifier).removeNode(nodeId);
-  if (ref.read(selectedNodeIdProvider) == nodeId) {
-    ref.read(selectedNodeIdProvider.notifier).state = null;
-  }
-}
+// Note: confirm-then-delete now lives in
+// `widgets/delete_node_confirmation.dart`. The Delete-key handler below
+// routes through that helper so the keyboard path can't drift from the
+// tree's trash-icon and right-click "Delete" paths — every
+// user-initiated delete must share one policy.
 
 class SequencerScreen extends ConsumerStatefulWidget {
   const SequencerScreen({super.key});
@@ -116,7 +76,7 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       duration: const Duration(milliseconds: 400),
     )..forward();
 
-    _tabController = TabController(length: 6, vsync: this);
+    _tabController = TabController(length: 7, vsync: this);
     _tabController.addListener(() {
       if (!_tabController.indexIsChanging) {
         ref.read(sequencerTabProvider.notifier).state = _tabController.index;
@@ -154,11 +114,24 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
       if (!isTerminal && !stoppedTerminal) return;
       final sessionId = ref.read(sessionStateProvider).dbSessionId;
       if (sessionId == null) return;
+      // Snapshot the run id BEFORE the executor clears its state, so
+      // the post-session prompt and the notes service can attach the
+      // freshly-created note to the run that just ended.
+      final runId = ref.read(currentRunIdProvider);
       // Schedule the open after the current frame so the executor finishes
       // its state-update path before we push a new route.
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (!mounted) return;
         SessionReportDialog.show(context, sessionId);
+        // Wave 6 Agent 5 — fire the auto-prompt for a journal note
+        // when the setting allows it (default true). We use the
+        // sequencer screen as the host because (a) it owns the
+        // execution-state listener that knows a run just ended and
+        // (b) the report dialog opens above this same Navigator so
+        // the prompt comes back into focus when the user closes the
+        // report. The prompt itself is opt-out — "Don't ask again"
+        // sets `notes.prompt_after_run = false`.
+        _maybeShowNotesAutoPrompt(runId);
       });
     });
 
@@ -178,9 +151,61 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
     super.dispose();
   }
 
+  /// Wave 6 Agent 5 — open the post-run notes prompt when:
+  ///   * The `notes.prompt_after_run` setting is true (or unset; default).
+  ///   * The current sequence has a TargetHeaderNode whose name we can
+  ///     attach the note to. We pick the first TargetHeader walking the
+  ///     tree from the root; for sequences with no target header, we
+  ///     skip the prompt rather than guess.
+  ///
+  /// The body is pre-filled with the run's wall-clock + frame counts so
+  /// the operator can edit-and-save in one click or type a paragraph.
+  Future<void> _maybeShowNotesAutoPrompt(int? runId) async {
+    if (!mounted) return;
+    final enabled =
+        await ref.read(promptForNotesAfterRunProvider.future).catchError(
+              (_) => true,
+            );
+    if (!enabled) return;
+    if (!mounted) return;
+    final sequence = ref.read(currentSequenceProvider);
+    if (sequence == null) return;
+    TargetHeaderNode? primaryTarget;
+    for (final node in sequence.nodes.values) {
+      if (node is TargetHeaderNode) {
+        primaryTarget = node;
+        break;
+      }
+    }
+    if (primaryTarget == null) return;
+    final liveStats = ref.read(liveSequenceStatsProvider);
+    final body = liveStats == null
+        ? '_How did this run go?_'
+        : buildAutoPromptNoteBody(
+            sequenceName: sequence.name,
+            wallClock: Duration(
+                milliseconds: (liveStats.wallClockSecs * 1000).round()),
+            framesCaptured: liveStats.framesCaptured,
+            framesRejected: liveStats.framesRejected,
+            triggerFires: liveStats.triggerFires,
+            autofocusRuns: liveStats.autofocusRuns,
+            meridianFlips: liveStats.meridianFlips,
+          );
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (_) => NotesQuickPromptDialog(
+        targetId: primaryTarget!.targetName,
+        sequenceRunId: runId,
+        prefilledBody: body,
+        prefilledTitle: 'Run on ${DateTime.now().toLocal()}',
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final executionState = ref.watch(sequenceExecutionStateProvider);
     final isRunning = executionState == SequenceExecutionState.running ||
         executionState == SequenceExecutionState.paused;
@@ -235,7 +260,11 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                   // would silently nuke the subtree. Route through the
                   // same confirmation helper the tree's trash button uses
                   // so the keyboard path has parity.
-                  _confirmAndRemoveNode(context, ref, selectedId);
+                  confirmAndDeleteSequenceNode(
+                    context: context,
+                    ref: ref,
+                    nodeId: selectedId,
+                  );
                 }
               }
             },
@@ -298,6 +327,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
             const SingleActivator(LogicalKeyboardKey.digit6, alt: true): () {
               _tabController.animateTo(5);
             },
+            const SingleActivator(LogicalKeyboardKey.digit7, alt: true): () {
+              _tabController.animateTo(6);
+            },
             // Ctrl+T (or Cmd+T on Mac) to toggle snippet palette visibility
             const SingleActivator(LogicalKeyboardKey.keyT, control: true): () {
               if (currentTab == 0) {
@@ -337,7 +369,9 @@ class _SequencerScreenState extends ConsumerState<SequencerScreen>
                       const TargetsTab(),
                       // Templates tab
                       const TemplatesTab(),
-                      // Library tab (bundled sample sequences, per audit §8.3.5)
+                      // Saved sequence catalog (host DB / remote list-full).
+                      const SequenceLibraryTab(),
+                      // Bundled read-only samples (audit §8.3.5).
                       const LibraryTab(),
                       // History tab
                       const HistoryTab(),
@@ -387,9 +421,10 @@ class _SequencerTabBar extends StatelessWidget {
                 isScrollable: true,
                 tabAlignment: TabAlignment.start,
                 indicatorSize: TabBarIndicatorSize.tab,
-                indicator: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.15),
+                indicator: NightshadeDecorations.statusChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(8),
+                  bordered: false,
                 ),
                 dividerColor: Colors.transparent,
                 labelColor: colors.primary,
@@ -451,9 +486,19 @@ class _SequencerTabBar extends StatelessWidget {
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        Icon(LucideIcons.folderOpen, size: isMobile ? 14 : 16),
+                        SizedBox(width: isMobile ? 4 : 8),
+                        const Text('Sequences'),
+                      ],
+                    ),
+                  ),
+                  Tab(
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
                         Icon(LucideIcons.library, size: isMobile ? 14 : 16),
                         SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Library'),
+                        const Text('Samples'),
                       ],
                     ),
                   ),
@@ -477,11 +522,9 @@ class _SequencerTabBar extends StatelessWidget {
             Container(
               margin: const EdgeInsets.only(right: 20),
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: colors.success.withValues(alpha: 0.15),
+              decoration: NightshadeDecorations.statusChip(
+                colors.success,
                 borderRadius: BorderRadius.circular(8),
-                border:
-                    Border.all(color: colors.success.withValues(alpha: 0.3)),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
@@ -759,7 +802,7 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
     // Seed initial tab from the provider once. After this, sync flows via
     // the ref.listenManual hook below — keeps animateTo out of build()
     // (audit §4.3).
@@ -771,6 +814,10 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
 
     ref.listenManual<bool>(snippetPaletteVisibleProvider, (prev, next) {
       if (!mounted) return;
+      // The snippet tab provider is binary; only nudge tab 0 ↔ 1.
+      // Tab 2 (target queue) is selected manually by the user and
+      // does not write back to the snippet provider.
+      if (_tabController.index == 2) return;
       final target = next ? 1 : 0;
       if (_tabController.index != target) {
         _tabController.animateTo(target);
@@ -780,8 +827,14 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
 
   void _onTabChanged() {
     if (!_tabController.indexIsChanging) {
-      ref.read(snippetPaletteVisibleProvider.notifier).state =
-          _tabController.index == 1;
+      // Only mirror tab 0 ↔ 1 to the snippet provider. Tab 2 (target
+      // queue) leaves the snippet pref untouched so that flipping
+      // back to "Nodes" or "Snippets" lands on the user's last
+      // non-queue choice.
+      if (_tabController.index < 2) {
+        ref.read(snippetPaletteVisibleProvider.notifier).state =
+            _tabController.index == 1;
+      }
     }
   }
 
@@ -815,11 +868,12 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                     isScrollable: true,
                     tabAlignment: TabAlignment.start,
                     indicatorSize: TabBarIndicatorSize.tab,
-                    indicator: BoxDecoration(
-                      color: widget.colors.primary.withValues(alpha: 0.15),
+                    indicator: NightshadeDecorations.statusChip(
+                      widget.colors.primary,
                       borderRadius: const BorderRadius.vertical(
                         top: Radius.circular(8),
                       ),
+                      bordered: false,
                     ),
                     dividerColor: Colors.transparent,
                     labelColor: widget.colors.primary,
@@ -843,6 +897,10 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                       Tab(
                         height: Responsive.spacing(context, 34),
                         child: const Text('Snippets'),
+                      ),
+                      Tab(
+                        height: Responsive.spacing(context, 34),
+                        child: const Text('Queue'),
                       ),
                     ],
                   ),
@@ -876,6 +934,10 @@ class _ToolboxPanelState extends ConsumerState<_ToolboxPanel>
                 _NodePaletteContent(colors: widget.colors),
                 // Snippet Palette
                 _SnippetPaletteContent(colors: widget.colors),
+                // Wave 5 Agent 1 — Target Queue panel mirrors the
+                // planetarium's queue and lets the user drag queued
+                // targets onto the sequence tree.
+                TargetQueuePanel(colors: widget.colors),
               ],
             ),
           ),
@@ -1103,11 +1165,10 @@ class _NodePaletteContentState extends ConsumerState<_NodePaletteContent> {
         Container(
           padding: EdgeInsets.all(Responsive.spacing(context, 10)),
           margin: EdgeInsets.all(Responsive.spacing(context, 10)),
-          decoration: BoxDecoration(
-            color: widget.colors.info.withValues(alpha: 0.1),
+          decoration: NightshadeDecorations.iconChip(
+            widget.colors.info,
             borderRadius: BorderRadius.circular(8),
-            border:
-                Border.all(color: widget.colors.info.withValues(alpha: 0.2)),
+            borderAlpha: 0.2,
           ),
           child: Row(
             children: [
@@ -1179,9 +1240,10 @@ class _NodeCategorySectionState extends ConsumerState<_NodeCategorySection> {
                 Container(
                   width: badgeSize,
                   height: badgeSize,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.15),
+                  decoration: NightshadeDecorations.statusChip(
+                    widget.categoryColor,
                     borderRadius: BorderRadius.circular(6),
+                    bordered: false,
                   ),
                   child: Icon(
                     widget.getIcon(widget.category.icon),
@@ -1300,18 +1362,10 @@ class _DraggableNodeItemCompactState
         color: Colors.transparent,
         child: Container(
           padding: EdgeInsets.symmetric(horizontal: hPadding, vertical: 6),
-          decoration: BoxDecoration(
-            color: widget.categoryColor.withValues(alpha: 0.2),
+          decoration: NightshadeDecorations.selectedSurface(
+            widget.categoryColor,
             borderRadius: BorderRadius.circular(6),
-            border:
-                Border.all(color: widget.categoryColor.withValues(alpha: 0.5)),
-            boxShadow: [
-              BoxShadow(
-                color: widget.categoryColor.withValues(alpha: 0.3),
-                blurRadius: 10,
-                offset: const Offset(0, 3),
-              ),
-            ],
+            fillAlpha: 0.2,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1357,8 +1411,8 @@ class _DraggableNodeItemCompactState
                 Container(
                   width: iconBoxSize,
                   height: iconBoxSize,
-                  decoration: BoxDecoration(
-                    color: widget.categoryColor.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.tintedBadge(
+                    widget.categoryColor,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Icon(
@@ -1912,10 +1966,10 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
         color: Colors.transparent,
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-          decoration: BoxDecoration(
-            color: widget.tint.withValues(alpha: 0.2),
+          decoration: NightshadeDecorations.selectedSurface(
+            widget.tint,
             borderRadius: BorderRadius.circular(8),
-            border: Border.all(color: widget.tint.withValues(alpha: 0.5)),
+            fillAlpha: 0.2,
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -1948,7 +2002,10 @@ class _RailDraggableState extends ConsumerState<_RailDraggable> {
               height: 36,
               decoration: BoxDecoration(
                 color: _hovered
-                    ? widget.tint.withValues(alpha: 0.12)
+                    ? NightshadeDecorations.tintedBadge(
+                        widget.tint,
+                        borderRadius: BorderRadius.circular(6),
+                      ).color
                     : Colors.transparent,
                 borderRadius: BorderRadius.circular(6),
                 border: Border.all(
@@ -2034,6 +2091,10 @@ class _MobileBuilderLayout extends ConsumerWidget {
         // Main content
         Column(
           children: [
+            // File/edit actions (New, Open, Save, Undo) — desktop builder has
+            // SequenceToolbar; mobile remote clients need the same affordances.
+            SequenceToolbar(key: SequencerTutorialKeys.toolbar, colors: colors),
+
             // Compact playback controls
             MobilePlaybackBar(colors: colors),
 

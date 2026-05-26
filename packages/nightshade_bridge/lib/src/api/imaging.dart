@@ -5,12 +5,13 @@
 
 import '../error.dart';
 import '../frb_generated.dart';
+import '../lib.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median_from_sorted_f64`, `median`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
+// These functions are ignored because they are not marked as `pub`: `apply_auto_white_balance`, `compute_quality_maps_from_linear_data`, `convert_config`, `convert_result`, `convert_stats`, `defect_apply_flags`, `defect_map_path`, `defect_maps_root`, `display_data_to_rgba`, `generate_simulated_image`, `get_autofocus_cancel_token`, `get_unified_image_storage`, `image_data_to_linear_f64`, `mad`, `median`, `parse_combine_method`, `parse_master_kind`, `parse_output_type`, `percentile_sorted`, `percentile`, `sanitize_camera_id`, `store_captured_image_atomically`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CapturedImageData`, `RawImageInfo`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
-// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `get_last_raw_image_info`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
+// These functions are ignored (category: IgnoreBecauseExplicitAttribute): `from_frame_context`, `get_last_raw_image_info`
 
 /// Run autofocus
 Future<AutofocusResultApi> apiRunAutofocus(
@@ -66,6 +67,22 @@ Future<void> apiCameraCancelExposure({required String deviceId}) =>
 /// Read a FITS file from disk
 Future<FitsReadResult> apiReadFitsFile({required String filePath}) =>
     RustLib.instance.api.crateApiImagingApiReadFitsFile(filePath: filePath);
+
+/// Update (overwrite or inject) one or more keywords on an existing FITS file.
+///
+/// Implementation: reads the full file into memory, mutates the header in
+/// place, writes the result to a sibling `<filename>.nshatmp` file, then
+/// atomically renames it over the original. If any step fails the original
+/// file is left untouched.
+///
+/// This is the writeback mechanism used by `ScienceProcessingService` to
+/// stamp `MAGZP`, `MAGZPERR`, `TRANSPAR`, etc. back onto captured frames so
+/// that PixInsight / AstroPixelProcessor / Siril can read Nightshade's
+/// science products without going through our database.
+Future<void> apiUpdateFitsKeywords(
+        {required String filePath, required List<FitsKeywordUpdate> updates}) =>
+    RustLib.instance.api.crateApiImagingApiUpdateFitsKeywords(
+        filePath: filePath, updates: updates);
 
 /// Read a FITS file and return unstretched linear pixel values for science analysis.
 Future<FitsLinearReadResult> apiReadFitsLinearData(
@@ -255,6 +272,28 @@ Future<void> apiSaveFitsFile(
         required List<int> data,
         required FitsWriteHeader headerData}) =>
     RustLib.instance.api.crateApiImagingApiSaveFitsFile(
+        filePath: filePath,
+        width: width,
+        height: height,
+        data: data,
+        headerData: headerData);
+
+/// Wave 3 Image Grading: save FITS with the rich (~40-keyword) header
+/// bundle. Used by the sequencer's per-frame save path. Not FRB-exposed —
+/// Dart callers continue to use [`api_save_fits_file`] / [`FitsWriteHeader`].
+///
+/// Writes every keyword the standard astrophotography workflow expects
+/// (NINA / SGP / APP / PixInsight / ASTAP all read these), plus the
+/// Nightshade-specific `NS-*` keywords for session / mosaic / frame
+/// accounting. Missing optional fields are silently omitted — never
+/// substituted with sentinel values.
+Future<void> saveFitsFileRich(
+        {required String filePath,
+        required int width,
+        required int height,
+        required List<int> data,
+        required FitsWriteHeaderRich headerData}) =>
+    RustLib.instance.api.crateApiImagingSaveFitsFileRich(
         filePath: filePath,
         width: width,
         height: height,
@@ -459,6 +498,39 @@ Future<void> apiDefectMapClear(
         height: height,
         sensorTemperatureCelsius: sensorTemperatureCelsius);
 
+/// Wave 7 Agent 3 — push the active defect-map application state to the
+/// running sequencer.
+///
+/// When `enabled == true`, the bridge loads the `.ndm` file for
+/// `(camera_id, width, height, sensor_temperature_celsius)` from disk
+/// (returning an error if no map exists), wraps it in a
+/// `DefectMapApplyState` along with the configured method + kernel +
+/// save-original flag, and pushes the state via
+/// `executor.update_defect_map(Some(state))`. When `enabled == false`,
+/// `None` is pushed (the sequencer disables per-frame correction).
+///
+/// Method / kernel come from the user's settings (validated here so a
+/// bad combination is rejected at the FFI boundary rather than at
+/// per-frame application time).
+Future<void> apiSequencerApplyDefectMap(
+        {required String cameraId,
+        required int width,
+        required int height,
+        required double sensorTemperatureCelsius,
+        required bool enabled,
+        required String method,
+        required int kernelDiameter,
+        required bool saveOriginal}) =>
+    RustLib.instance.api.crateApiImagingApiSequencerApplyDefectMap(
+        cameraId: cameraId,
+        width: width,
+        height: height,
+        sensorTemperatureCelsius: sensorTemperatureCelsius,
+        enabled: enabled,
+        method: method,
+        kernelDiameter: kernelDiameter,
+        saveOriginal: saveOriginal);
+
 /// Look up the status of the stored defect map for a camera at the given
 /// sensor size and temperature. Returns `Ok(None)` if no map is stored
 /// for that combination.
@@ -472,6 +544,72 @@ Future<ApiDefectMapStatus?> apiDefectMapGetStatus(
         width: width,
         height: height,
         sensorTemperatureCelsius: sensorTemperatureCelsius);
+
+/// Combine a set of calibration frames into a single master and write it
+/// to disk as FITS.
+///
+/// Inputs:
+/// - `input_paths`: paths to each constituent calibration frame. All must
+///   exist, share dimensions/channels/pixel type, and be readable by the
+///   normal Nightshade image reader (FITS/XISF/PNG/TIFF/etc).
+/// - `kind`: "BIAS" | "DARK" | "FLAT" — controls normalisation (flats only).
+/// - `method`: combine algorithm + parameters; see `ApiCombineMethod`.
+/// - `output_type`: "U16" | "F32" — pixel type of the produced master.
+/// - `output_path`: where to write the FITS master.
+///
+/// Errors:
+/// - Empty input list, mismatched dimensions/channels/pixel types, or any
+///   read failure surfaces as `NightshadeError::ImageError`/`InvalidParameter`.
+///   No silent fallback to a partial result.
+Future<ApiMasterFrameResult> apiCombineMasterFrames(
+        {required List<String> inputPaths,
+        required String kind,
+        required ApiCombineMethod method,
+        required String outputType,
+        required String outputPath}) =>
+    RustLib.instance.api.crateApiImagingApiCombineMasterFrames(
+        inputPaths: inputPaths,
+        kind: kind,
+        method: method,
+        outputType: outputType,
+        outputPath: outputPath);
+
+/// Combine method exposed across the FFI surface.
+///
+/// Dart sends a tag string ("MEAN", "MEDIAN", "SIGMA_CLIP") with optional
+/// sigma parameters. We deliberately use a flat struct rather than a
+/// tagged enum here because flutter_rust_bridge handles plain structs
+/// with optional fields cleanly across both Dart isolates and the new
+/// codec path.
+class ApiCombineMethod {
+  /// "MEAN" | "MEDIAN" | "SIGMA_CLIP" (case-insensitive)
+  final String method;
+
+  /// Kappa threshold for sigma clip; required for SIGMA_CLIP, ignored otherwise.
+  final double? sigmaKappa;
+
+  /// Number of clip iterations; required for SIGMA_CLIP, ignored otherwise.
+  final int? sigmaIterations;
+
+  const ApiCombineMethod({
+    required this.method,
+    this.sigmaKappa,
+    this.sigmaIterations,
+  });
+
+  @override
+  int get hashCode =>
+      method.hashCode ^ sigmaKappa.hashCode ^ sigmaIterations.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiCombineMethod &&
+          runtimeType == other.runtimeType &&
+          method == other.method &&
+          sigmaKappa == other.sigmaKappa &&
+          sigmaIterations == other.sigmaIterations;
+}
 
 /// Status of a stored defect map for a given camera / sensor / temperature.
 class ApiDefectMapStatus {
@@ -631,6 +769,81 @@ class ApiLiveStackingStats {
           avgMatchedPairs == other.avgMatchedPairs &&
           avgAlignmentResidual == other.avgAlignmentResidual &&
           totalSigmaRejectedPixels == other.totalSigmaRejectedPixels;
+}
+
+/// Result returned from a master-frame build.
+class ApiMasterFrameResult {
+  /// Where the master FITS was written.
+  final String outputPath;
+
+  /// "BIAS" | "DARK" | "FLAT"
+  final String kind;
+
+  /// "U16" | "F32"
+  final String outputType;
+
+  /// How many input frames contributed.
+  final int frameCount;
+
+  /// String rendering of the combine method actually used.
+  final String method;
+
+  /// Width of the resulting master in pixels.
+  final int width;
+
+  /// Height of the resulting master in pixels.
+  final int height;
+
+  /// Channel count of the resulting master.
+  final int channels;
+
+  /// Pre-normalisation mean of the combined master.
+  final double inputMean;
+
+  /// Post-normalisation mean (equals `input_mean` for bias/dark, 1.0 / 32768 for flat).
+  final double outputMean;
+
+  const ApiMasterFrameResult({
+    required this.outputPath,
+    required this.kind,
+    required this.outputType,
+    required this.frameCount,
+    required this.method,
+    required this.width,
+    required this.height,
+    required this.channels,
+    required this.inputMean,
+    required this.outputMean,
+  });
+
+  @override
+  int get hashCode =>
+      outputPath.hashCode ^
+      kind.hashCode ^
+      outputType.hashCode ^
+      frameCount.hashCode ^
+      method.hashCode ^
+      width.hashCode ^
+      height.hashCode ^
+      channels.hashCode ^
+      inputMean.hashCode ^
+      outputMean.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ApiMasterFrameResult &&
+          runtimeType == other.runtimeType &&
+          outputPath == other.outputPath &&
+          kind == other.kind &&
+          outputType == other.outputType &&
+          frameCount == other.frameCount &&
+          method == other.method &&
+          width == other.width &&
+          height == other.height &&
+          channels == other.channels &&
+          inputMean == other.inputMean &&
+          outputMean == other.outputMean;
 }
 
 /// Autofocus configuration for API
@@ -843,6 +1056,51 @@ class DetectedStarInfo {
           sharpness == other.sharpness;
 }
 
+/// A single keyword to inject (or overwrite) on an existing FITS file.
+///
+/// Exactly one of `string_value`, `int_value`, `float_value` must be `Some`.
+/// The remaining fields must be `None`. The Rust side validates this and
+/// returns an `InvalidParameters` error rather than guessing — silent
+/// fallbacks would let a caller bury a typo and have the keyword vanish.
+class FitsKeywordUpdate {
+  /// FITS keyword. Uppercased on insert. Must be 1..=8 ASCII chars per the
+  /// FITS Standard (4.4.2.1); longer keys are rejected at write time.
+  final String keyword;
+
+  /// Optional inline comment ("/ comment" segment of the value card).
+  final String? comment;
+  final String? stringValue;
+  final PlatformInt64? intValue;
+  final double? floatValue;
+
+  const FitsKeywordUpdate({
+    required this.keyword,
+    this.comment,
+    this.stringValue,
+    this.intValue,
+    this.floatValue,
+  });
+
+  @override
+  int get hashCode =>
+      keyword.hashCode ^
+      comment.hashCode ^
+      stringValue.hashCode ^
+      intValue.hashCode ^
+      floatValue.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FitsKeywordUpdate &&
+          runtimeType == other.runtimeType &&
+          keyword == other.keyword &&
+          comment == other.comment &&
+          stringValue == other.stringValue &&
+          intValue == other.intValue &&
+          floatValue == other.floatValue;
+}
+
 /// Result from reading FITS file linear pixel data.
 /// This is intended for scientific workflows that require unstretched values.
 class FitsLinearReadResult {
@@ -972,7 +1230,18 @@ class FitsReadResult {
           bayerPattern == other.bayerPattern;
 }
 
-/// Header data for FITS file writing
+/// Header data for FITS file writing.
+///
+/// Public FRB-exposed surface. Kept frozen at the original 22 fields so
+/// Dart consumers (Dart-driven snapshot saves, network-backend FITS writes)
+/// don't need a coordinated FRB regen.
+///
+/// Wave 3 Image Grading: the sequencer's per-frame save path uses
+/// [`FitsWriteHeaderRich`] instead, which carries every extended keyword
+/// (focuser position, rotator angle, guide RMS, plate-solve, mosaic
+/// panel, etc.). The rich path is internal — not exposed via FRB — so
+/// sequencer-driven saves can grow the FITS surface without disrupting
+/// Dart-side FRB schema.
 class FitsWriteHeader {
   final String? objectName;
   final double exposureTime;
@@ -1078,6 +1347,271 @@ class FitsWriteHeader {
           siteLatitude == other.siteLatitude &&
           siteLongitude == other.siteLongitude &&
           siteElevation == other.siteElevation;
+}
+
+/// Wave 3 Image Grading: internal FITS-header bundle used by the
+/// sequencer's per-frame save path. Carries every field the standard
+/// astrophotography FITS header expects PLUS the Nightshade-specific
+/// session / mosaic / plate-solve keywords.
+///
+/// Not FRB-exposed: only Rust code (the sequencer's `save_fits` impl in
+/// `real_device_ops.rs` / `unified_device_ops.rs` / `sequencer_ops.rs`)
+/// constructs this. Dart callers continue to use the simpler
+/// [`FitsWriteHeader`] for ad-hoc snapshot saves.
+class FitsWriteHeaderRich {
+  final String? objectName;
+  final double exposureTime;
+  final String captureTimestamp;
+  final String frameType;
+  final String? filter;
+
+  /// 1-based filter wheel position (FITS `FILTPOS`).
+  final int? filterPosition;
+  final int? gain;
+  final int? offset;
+  final double? ccdTemp;
+
+  /// Cooler target temperature in °C (FITS `SET-TEMP`).
+  final double? setTemp;
+  final double? ra;
+  final double? dec;
+  final double? altitude;
+  final String? telescope;
+  final String? instrument;
+  final String? observer;
+  final int binX;
+  final int binY;
+  final double? focalLength;
+  final double? aperture;
+  final double? pixelSizeX;
+  final double? pixelSizeY;
+  final double? siteLatitude;
+  final double? siteLongitude;
+  final double? siteElevation;
+
+  /// Focuser absolute position (FITS `FOCUSPOS`).
+  final int? focuserPosition;
+
+  /// Focuser temperature in °C (FITS `FOCTEMP`).
+  final double? focuserTemperature;
+
+  /// Rotator mechanical angle in degrees (FITS `ROTATPOS`).
+  final double? rotatorAngle;
+
+  /// Total guiding RMS in arcseconds (FITS `GUIDERMS`).
+  final double? guideRmsArcsec;
+
+  /// Plate-solved RA in hours (FITS `SOLVED-RA`).
+  final double? solvedRaHours;
+
+  /// Plate-solved Dec in degrees (FITS `SOLVED-DEC`).
+  final double? solvedDecDegrees;
+
+  /// Solved pixel scale in arcsec/pixel (FITS `PIXSCALE`).
+  final double? plateSolvePixelScaleArcsec;
+
+  /// Solved field rotation in degrees (FITS `CROTA1` and `CROTA2`).
+  final double? plateSolveRotationDeg;
+
+  /// Bayer pattern ("RGGB", "BGGR", etc.) (FITS `BAYERPAT`).
+  final String? bayerPattern;
+
+  /// Nightshade session identifier (FITS `NS-SESID`).
+  final String? sessionId;
+
+  /// 1-based frame index within the burst (FITS `NS-FIDX`).
+  final int? frameIndex;
+
+  /// Total planned frames in the burst (FITS `NS-NPLN`).
+  final int? totalPlannedFrames;
+
+  /// Mosaic identification (FITS `NS-MOSNM`).
+  final String? mosaicName;
+
+  /// 0-based mosaic panel index (FITS `NS-PIDX`).
+  final int? mosaicPanelIndex;
+
+  /// Mosaic panel row (FITS `NS-PROW`).
+  final int? mosaicPanelRow;
+
+  /// Mosaic panel column (FITS `NS-PCOL`).
+  final int? mosaicPanelColumn;
+
+  /// Mosaic total panel count (FITS `NS-NPAN`).
+  final int? mosaicTotalPanels;
+  final DefectMapCorrectionRecord? defectMapCorrection;
+  final String? photometryObjectCatalog;
+  final String? photometryReferenceStars;
+  final double? photometryMjdObs;
+  final double? photometryInstrumentalMag;
+  final double? photometryDifferentialMag;
+  final double? photometryFwhmArcsec;
+  final double? photometrySnr;
+
+  const FitsWriteHeaderRich({
+    this.objectName,
+    required this.exposureTime,
+    required this.captureTimestamp,
+    required this.frameType,
+    this.filter,
+    this.filterPosition,
+    this.gain,
+    this.offset,
+    this.ccdTemp,
+    this.setTemp,
+    this.ra,
+    this.dec,
+    this.altitude,
+    this.telescope,
+    this.instrument,
+    this.observer,
+    required this.binX,
+    required this.binY,
+    this.focalLength,
+    this.aperture,
+    this.pixelSizeX,
+    this.pixelSizeY,
+    this.siteLatitude,
+    this.siteLongitude,
+    this.siteElevation,
+    this.focuserPosition,
+    this.focuserTemperature,
+    this.rotatorAngle,
+    this.guideRmsArcsec,
+    this.solvedRaHours,
+    this.solvedDecDegrees,
+    this.plateSolvePixelScaleArcsec,
+    this.plateSolveRotationDeg,
+    this.bayerPattern,
+    this.sessionId,
+    this.frameIndex,
+    this.totalPlannedFrames,
+    this.mosaicName,
+    this.mosaicPanelIndex,
+    this.mosaicPanelRow,
+    this.mosaicPanelColumn,
+    this.mosaicTotalPanels,
+    this.defectMapCorrection,
+    this.photometryObjectCatalog,
+    this.photometryReferenceStars,
+    this.photometryMjdObs,
+    this.photometryInstrumentalMag,
+    this.photometryDifferentialMag,
+    this.photometryFwhmArcsec,
+    this.photometrySnr,
+  });
+
+  static Future<FitsWriteHeaderRich> default_() =>
+      RustLib.instance.api.crateApiImagingFitsWriteHeaderRichDefault();
+
+  @override
+  int get hashCode =>
+      objectName.hashCode ^
+      exposureTime.hashCode ^
+      captureTimestamp.hashCode ^
+      frameType.hashCode ^
+      filter.hashCode ^
+      filterPosition.hashCode ^
+      gain.hashCode ^
+      offset.hashCode ^
+      ccdTemp.hashCode ^
+      setTemp.hashCode ^
+      ra.hashCode ^
+      dec.hashCode ^
+      altitude.hashCode ^
+      telescope.hashCode ^
+      instrument.hashCode ^
+      observer.hashCode ^
+      binX.hashCode ^
+      binY.hashCode ^
+      focalLength.hashCode ^
+      aperture.hashCode ^
+      pixelSizeX.hashCode ^
+      pixelSizeY.hashCode ^
+      siteLatitude.hashCode ^
+      siteLongitude.hashCode ^
+      siteElevation.hashCode ^
+      focuserPosition.hashCode ^
+      focuserTemperature.hashCode ^
+      rotatorAngle.hashCode ^
+      guideRmsArcsec.hashCode ^
+      solvedRaHours.hashCode ^
+      solvedDecDegrees.hashCode ^
+      plateSolvePixelScaleArcsec.hashCode ^
+      plateSolveRotationDeg.hashCode ^
+      bayerPattern.hashCode ^
+      sessionId.hashCode ^
+      frameIndex.hashCode ^
+      totalPlannedFrames.hashCode ^
+      mosaicName.hashCode ^
+      mosaicPanelIndex.hashCode ^
+      mosaicPanelRow.hashCode ^
+      mosaicPanelColumn.hashCode ^
+      mosaicTotalPanels.hashCode ^
+      defectMapCorrection.hashCode ^
+      photometryObjectCatalog.hashCode ^
+      photometryReferenceStars.hashCode ^
+      photometryMjdObs.hashCode ^
+      photometryInstrumentalMag.hashCode ^
+      photometryDifferentialMag.hashCode ^
+      photometryFwhmArcsec.hashCode ^
+      photometrySnr.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is FitsWriteHeaderRich &&
+          runtimeType == other.runtimeType &&
+          objectName == other.objectName &&
+          exposureTime == other.exposureTime &&
+          captureTimestamp == other.captureTimestamp &&
+          frameType == other.frameType &&
+          filter == other.filter &&
+          filterPosition == other.filterPosition &&
+          gain == other.gain &&
+          offset == other.offset &&
+          ccdTemp == other.ccdTemp &&
+          setTemp == other.setTemp &&
+          ra == other.ra &&
+          dec == other.dec &&
+          altitude == other.altitude &&
+          telescope == other.telescope &&
+          instrument == other.instrument &&
+          observer == other.observer &&
+          binX == other.binX &&
+          binY == other.binY &&
+          focalLength == other.focalLength &&
+          aperture == other.aperture &&
+          pixelSizeX == other.pixelSizeX &&
+          pixelSizeY == other.pixelSizeY &&
+          siteLatitude == other.siteLatitude &&
+          siteLongitude == other.siteLongitude &&
+          siteElevation == other.siteElevation &&
+          focuserPosition == other.focuserPosition &&
+          focuserTemperature == other.focuserTemperature &&
+          rotatorAngle == other.rotatorAngle &&
+          guideRmsArcsec == other.guideRmsArcsec &&
+          solvedRaHours == other.solvedRaHours &&
+          solvedDecDegrees == other.solvedDecDegrees &&
+          plateSolvePixelScaleArcsec == other.plateSolvePixelScaleArcsec &&
+          plateSolveRotationDeg == other.plateSolveRotationDeg &&
+          bayerPattern == other.bayerPattern &&
+          sessionId == other.sessionId &&
+          frameIndex == other.frameIndex &&
+          totalPlannedFrames == other.totalPlannedFrames &&
+          mosaicName == other.mosaicName &&
+          mosaicPanelIndex == other.mosaicPanelIndex &&
+          mosaicPanelRow == other.mosaicPanelRow &&
+          mosaicPanelColumn == other.mosaicPanelColumn &&
+          mosaicTotalPanels == other.mosaicTotalPanels &&
+          defectMapCorrection == other.defectMapCorrection &&
+          photometryObjectCatalog == other.photometryObjectCatalog &&
+          photometryReferenceStars == other.photometryReferenceStars &&
+          photometryMjdObs == other.photometryMjdObs &&
+          photometryInstrumentalMag == other.photometryInstrumentalMag &&
+          photometryDifferentialMag == other.photometryDifferentialMag &&
+          photometryFwhmArcsec == other.photometryFwhmArcsec &&
+          photometrySnr == other.photometrySnr;
 }
 
 /// A single focus data point (position and HFR)

@@ -22,15 +22,11 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
     final foreground = identical(colors, NightshadeColors.redNight)
         ? colors.textPrimary
         : colors.success;
-    final background = colors.success.withValues(alpha: 0.12);
-    final border = colors.success.withValues(alpha: 0.45);
-
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: background,
+      decoration: NightshadeDecorations.statusChip(
+        colors.success,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: border),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -62,8 +58,8 @@ class ReAnnotateSuggestionBanner extends ConsumerWidget {
             borderRadius: BorderRadius.circular(4),
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-              decoration: BoxDecoration(
-                color: colors.success.withValues(alpha: 0.18),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.success,
                 borderRadius: BorderRadius.circular(4),
               ),
               child: Text(

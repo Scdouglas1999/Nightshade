@@ -11,6 +11,8 @@ import 'package:nightshade_core/nightshade_core.dart' hide TwilightTimes;
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../analytics/widgets/adaptive_chart_container.dart';
+
 /// Altitude chart widget showing target visibility over time
 class AltitudeChart extends ConsumerStatefulWidget {
   final double raHours;
@@ -147,7 +149,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -264,8 +266,9 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
   }
 
   Widget _buildNoLocationWarning(NightshadeColors colors) {
-    return Container(
+    return AdaptiveChartContainer.fixed(
       height: 120,
+      child: Container(
       decoration: BoxDecoration(
         color: colors.surfaceAlt,
         borderRadius: BorderRadius.circular(8),
@@ -283,6 +286,7 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           ],
         ),
       ),
+    ),
     );
   }
 
@@ -291,8 +295,8 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
     final nowX = now.difference(_startTime).inMinutes.toDouble();
     final totalMinutes = _endTime.difference(_startTime).inMinutes.toDouble();
 
-    return SizedBox(
-      height: 140,
+    return AdaptiveChartContainer(
+      preferredHeight: 140,
       child: LineChart(
         LineChartData(
           minX: 0,

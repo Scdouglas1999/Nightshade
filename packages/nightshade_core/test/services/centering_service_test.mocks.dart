@@ -9,6 +9,8 @@ import 'package:mockito/mockito.dart' as _i1;
 import 'package:nightshade_core/src/backend/nightshade_backend.dart' as _i2;
 import 'package:nightshade_core/src/models/imaging/imaging_models.dart' as _i6;
 import 'package:nightshade_core/src/models/plate_solver.dart' as _i3;
+import 'package:nightshade_core/src/providers/profiles_provider.dart' as _i10;
+import 'package:nightshade_core/src/services/device_exceptions.dart' as _i9;
 import 'package:nightshade_core/src/services/device_service.dart' as _i8;
 import 'package:nightshade_core/src/services/imaging_service.dart' as _i4;
 import 'package:nightshade_core/src/services/plate_solve_service.dart' as _i7;
@@ -70,9 +72,9 @@ class _FakePlateSolverPreference_3 extends _i1.SmartFake
         );
 }
 
-class _FakeAutofocusResult_4 extends _i1.SmartFake
-    implements _i2.AutofocusResult {
-  _FakeAutofocusResult_4(
+class _FakeCameraRecommendedSettings_4 extends _i1.SmartFake
+    implements _i2.CameraRecommendedSettings {
+  _FakeCameraRecommendedSettings_4(
     Object parent,
     Invocation parentInvocation,
   ) : super(
@@ -81,9 +83,20 @@ class _FakeAutofocusResult_4 extends _i1.SmartFake
         );
 }
 
-class _FakeSequencerStatus_5 extends _i1.SmartFake
+class _FakeAutofocusResult_5 extends _i1.SmartFake
+    implements _i2.AutofocusResult {
+  _FakeAutofocusResult_5(
+    Object parent,
+    Invocation parentInvocation,
+  ) : super(
+          parent,
+          parentInvocation,
+        );
+}
+
+class _FakeSequencerStatus_6 extends _i1.SmartFake
     implements _i2.SequencerStatus {
-  _FakeSequencerStatus_5(
+  _FakeSequencerStatus_6(
     Object parent,
     Invocation parentInvocation,
   ) : super(
@@ -111,6 +124,8 @@ class MockImagingService extends _i1.Mock implements _i4.ImagingService {
     required _i6.ExposureSettings? settings,
     String? targetName,
     int? frameNumber,
+    String? producingNodeId,
+    String? producingRunId,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -120,6 +135,8 @@ class MockImagingService extends _i1.Mock implements _i4.ImagingService {
             #settings: settings,
             #targetName: targetName,
             #frameNumber: frameNumber,
+            #producingNodeId: producingNodeId,
+            #producingRunId: producingRunId,
           },
         ),
         returnValue: _i5.Future<_i6.CapturedImageData?>.value(),
@@ -311,6 +328,27 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
   }
 
   @override
+  _i5.Future<void> quiesce({Duration? timeout}) => (super.noSuchMethod(
+        Invocation.method(
+          #quiesce,
+          [],
+          {#timeout: timeout},
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> prepareForBackendSwap() => (super.noSuchMethod(
+        Invocation.method(
+          #prepareForBackendSwap,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
   void dispose() => super.noSuchMethod(
         Invocation.method(
           #dispose,
@@ -370,6 +408,35 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
         returnValue: _i5.Future<void>.value(),
         returnValueForMissingStub: _i5.Future<void>.value(),
       ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<_i2.CameraRecommendedSettings> queryRecommendedCameraSettings(
+          String? deviceId) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #queryRecommendedCameraSettings,
+          [deviceId],
+        ),
+        returnValue: _i5.Future<_i2.CameraRecommendedSettings>.value(
+            _FakeCameraRecommendedSettings_4(
+          this,
+          Invocation.method(
+            #queryRecommendedCameraSettings,
+            [deviceId],
+          ),
+        )),
+      ) as _i5.Future<_i2.CameraRecommendedSettings>);
+
+  @override
+  _i5.Future<bool> applyRecommendedCameraSettings(
+          _i2.CameraRecommendedSettings? rec) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #applyRecommendedCameraSettings,
+          [rec],
+        ),
+        returnValue: _i5.Future<bool>.value(false),
+      ) as _i5.Future<bool>);
 
   @override
   _i5.Future<void> setCameraCooling({
@@ -562,6 +629,53 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
       ) as _i5.Future<void>);
 
   @override
+  _i5.Future<void> connectSwitch(String? deviceId) => (super.noSuchMethod(
+        Invocation.method(
+          #connectSwitch,
+          [deviceId],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> disconnectSwitch() => (super.noSuchMethod(
+        Invocation.method(
+          #disconnectSwitch,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> refreshSwitchChannels() => (super.noSuchMethod(
+        Invocation.method(
+          #refreshSwitchChannels,
+          [],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
+  _i5.Future<void> setSwitchChannel(
+    int? channelIndex,
+    bool? on,
+  ) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #setSwitchChannel,
+          [
+            channelIndex,
+            on,
+          ],
+        ),
+        returnValue: _i5.Future<void>.value(),
+        returnValueForMissingStub: _i5.Future<void>.value(),
+      ) as _i5.Future<void>);
+
+  @override
   _i5.Future<void> connectRotator(String? deviceId) => (super.noSuchMethod(
         Invocation.method(
           #connectRotator,
@@ -609,6 +723,13 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
     String? focuserId,
     String? filterWheelId,
     String? guiderId,
+    String? rotatorId,
+    String? domeId,
+    String? weatherId,
+    String? safetyMonitorId,
+    String? switchId,
+    String? coverCalibratorId,
+    void Function(_i9.DeviceConnectProgress)? onProgress,
   }) =>
       (super.noSuchMethod(
         Invocation.method(
@@ -620,6 +741,13 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
             #focuserId: focuserId,
             #filterWheelId: filterWheelId,
             #guiderId: guiderId,
+            #rotatorId: rotatorId,
+            #domeId: domeId,
+            #weatherId: weatherId,
+            #safetyMonitorId: safetyMonitorId,
+            #switchId: switchId,
+            #coverCalibratorId: coverCalibratorId,
+            #onProgress: onProgress,
           },
         ),
         returnValue: _i5.Future<void>.value(),
@@ -635,6 +763,17 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
         returnValue: _i5.Future<void>.value(),
         returnValueForMissingStub: _i5.Future<void>.value(),
       ) as _i5.Future<void>);
+
+  @override
+  _i5.Stream<_i9.DeviceConnectProgress> connectAllFromProfile(
+          _i10.EquipmentProfileModel? profile) =>
+      (super.noSuchMethod(
+        Invocation.method(
+          #connectAllFromProfile,
+          [profile],
+        ),
+        returnValue: _i5.Stream<_i9.DeviceConnectProgress>.empty(),
+      ) as _i5.Stream<_i9.DeviceConnectProgress>);
 
   @override
   _i5.Future<void> disconnectAll() => (super.noSuchMethod(
@@ -858,7 +997,7 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           },
         ),
         returnValue:
-            _i5.Future<_i2.AutofocusResult>.value(_FakeAutofocusResult_4(
+            _i5.Future<_i2.AutofocusResult>.value(_FakeAutofocusResult_5(
           this,
           Invocation.method(
             #runAutofocus,
@@ -996,7 +1135,7 @@ class MockDeviceService extends _i1.Mock implements _i8.DeviceService {
           [],
         ),
         returnValue:
-            _i5.Future<_i2.SequencerStatus>.value(_FakeSequencerStatus_5(
+            _i5.Future<_i2.SequencerStatus>.value(_FakeSequencerStatus_6(
           this,
           Invocation.method(
             #getSequencerStatus,

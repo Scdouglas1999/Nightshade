@@ -21,7 +21,7 @@ class RunDashboardTriggerFeed extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final events = ref.watch(runDashboardRecentEventsProvider(limit));
 
     return NightshadeCard(
@@ -142,10 +142,10 @@ class _EventRow extends StatelessWidget {
                   const SizedBox(width: 6),
                   Text(
                     formatTimeOfDay(event.time),
-                    style: TextStyle(
-                      fontSize: 10,
-                      color: colors.textMuted,
-                      fontFeatures: const [FontFeature.tabularFigures()],
+                    style: NightshadeTypography.withTabular(
+                      NightshadeTypography.captionSm.copyWith(
+                        color: colors.textMuted,
+                      ),
                     ),
                   ),
                 ],

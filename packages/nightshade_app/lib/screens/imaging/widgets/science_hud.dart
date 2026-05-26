@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../analytics/widgets/science_status_banner.dart';
 import '../imaging_science_state.dart';
 
 class ScienceHudPanel extends ConsumerWidget {
@@ -28,23 +29,17 @@ class ScienceHudPanel extends ConsumerWidget {
     final comparisonAnchors = photometrySelection.comparisons;
 
     return Container(
-      width: 320,
+      width: double.infinity,
       decoration: BoxDecoration(
-        color: colors.surface.withValues(alpha: 0.94),
+        color: colors.surface,
         borderRadius: BorderRadius.circular(10),
         border: Border.all(color: colors.border),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.25),
-            blurRadius: 14,
-            offset: const Offset(0, 6),
-          ),
-        ],
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
               children: [
@@ -69,6 +64,11 @@ class ScienceHudPanel extends ConsumerWidget {
               ],
             ),
             const SizedBox(height: 10),
+            // P0.2: status banner — collapses to a single line when there is
+            // nothing in flight, expands when science is working. Hidden
+            // entirely if the pipeline is idle AND empty.
+            const ScienceStatusBanner(hideWhenIdle: true),
+            const SizedBox(height: 10),
             _FeatureToggle(
               colors: colors,
               title: 'Moving object mode',
@@ -81,6 +81,22 @@ class ScienceHudPanel extends ConsumerWidget {
                   sessionConfig.copyWith(movingObjectsEnabled: value),
                 );
               },
+            ),
+            // P3.1: contextual suggestions. Watches the current session's
+            // image list and offers one-tap enable for features the user
+            // looks ready for (multi-frame for moving objects, NB filter
+            // set for line ratios). Hidden when the feature is already on.
+            _ContextualOffers(
+              colors: colors,
+              sessionConfig: sessionConfig,
+              onEnableMovingObjects: () => _updateSessionConfig(
+                ref,
+                sessionConfig.copyWith(movingObjectsEnabled: true),
+              ),
+              onEnableNarrowband: () => _updateSessionConfig(
+                ref,
+                sessionConfig.copyWith(narrowbandEnabled: true),
+              ),
             ),
             _FeatureToggle(
               colors: colors,
@@ -107,6 +123,11 @@ class ScienceHudPanel extends ConsumerWidget {
                 sessionConfig.copyWith(transparencyEnabled: value),
               ),
             ),
+            // P3.2: transparency unlock progress — surfaces the
+            // "N more calibrated frames" hint directly in the HUD so the
+            // user understands why the transparency reading is blank.
+            if (sessionConfig.transparencyEnabled)
+              _TransparencyUnlockProgress(colors: colors),
             _FeatureToggle(
               colors: colors,
               title: 'PSF map',
@@ -409,10 +430,239 @@ class _FeatureToggle extends StatelessWidget {
               ),
             ),
           ),
-          Switch.adaptive(
+          NightshadeSwitch(
             value: value,
             onChanged: onChanged,
-            materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Contextual one-tap suggestions for the imaging HUD. Implements P3.1.
+///
+/// Two rules today:
+///   * **Moving objects**: when the session has 3+ light frames in the same
+///     filter we offer to enable moving-object mode, since the detector
+///     needs multiple frames to work.
+///   * **Narrowband ratios**: when the session contains at least one frame
+///     in each of Ha / OIII / SII we offer to enable narrowband tools.
+///
+/// Both suggestions self-suppress as soon as the corresponding feature is
+/// enabled, so they're informational nudges rather than recurring nags.
+class _ContextualOffers extends ConsumerWidget {
+  final NightshadeColors colors;
+  final ScienceSessionConfig sessionConfig;
+  final VoidCallback onEnableMovingObjects;
+  final VoidCallback onEnableNarrowband;
+
+  const _ContextualOffers({
+    required this.colors,
+    required this.sessionConfig,
+    required this.onEnableMovingObjects,
+    required this.onEnableNarrowband,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+    if (sessionId == null) return const SizedBox.shrink();
+
+    final imageStream = ref.watch(_huddedImagesProvider(sessionId));
+    final images = imageStream.valueOrNull ?? const <DbCapturedImage>[];
+    if (images.isEmpty) return const SizedBox.shrink();
+
+    final lights = images
+        .where((image) => image.frameType.toLowerCase() == 'light')
+        .toList(growable: false);
+
+    final filterCounts = <String, int>{};
+    for (final image in lights) {
+      final f = (image.filter ?? '').toUpperCase();
+      if (f.isEmpty) continue;
+      filterCounts[f] = (filterCounts[f] ?? 0) + 1;
+    }
+
+    final hasNarrowband = _hasFilter(filterCounts, ['HA', 'H-ALPHA']) &&
+        _hasFilter(filterCounts, ['OIII', 'O3']) &&
+        _hasFilter(filterCounts, ['SII', 'S2']);
+
+    final tiles = <Widget>[];
+
+    if (!sessionConfig.movingObjectsEnabled && lights.length >= 3) {
+      tiles.add(_OfferTile(
+        colors: colors,
+        icon: LucideIcons.rocket,
+        title: 'Enable moving-object detection?',
+        body:
+            'You have ${lights.length} light frames — enough for the detector to spot drifting candidates.',
+        onAccept: onEnableMovingObjects,
+      ));
+    }
+
+    if (!sessionConfig.narrowbandEnabled && hasNarrowband) {
+      tiles.add(_OfferTile(
+        colors: colors,
+        icon: LucideIcons.slidersHorizontal,
+        title: 'Enable narrowband ratios?',
+        body:
+            'Ha, OIII, and SII frames are all present — Nightshade can produce line ratios from this session.',
+        onAccept: onEnableNarrowband,
+      ));
+    }
+
+    if (tiles.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Column(children: tiles),
+    );
+  }
+
+  bool _hasFilter(Map<String, int> counts, List<String> aliases) {
+    for (final alias in aliases) {
+      if ((counts[alias] ?? 0) > 0) return true;
+    }
+    return false;
+  }
+}
+
+/// Internal family provider so the contextual offers widget only fetches the
+/// session's image list once per session id change. Drift de-dupes parallel
+/// watchers automatically.
+final _huddedImagesProvider =
+    StreamProvider.family<List<DbCapturedImage>, int>((ref, sessionId) {
+  return ref.watch(imagesDaoProvider).watchImagesForSession(sessionId);
+});
+
+class _OfferTile extends StatelessWidget {
+  final NightshadeColors colors;
+  final IconData icon;
+  final String title;
+  final String body;
+  final VoidCallback onAccept;
+
+  const _OfferTile({
+    required this.colors,
+    required this.icon,
+    required this.title,
+    required this.body,
+    required this.onAccept,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        decoration: NightshadeDecorations.emphasisSurface(
+          colors.info,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, size: 14, color: colors.info),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    title,
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 11,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    body,
+                    style: TextStyle(
+                      color: colors.textSecondary,
+                      fontSize: 10,
+                      height: 1.3,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 6),
+            NightshadeButton(
+              onPressed: onAccept,
+              label: 'Enable',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Tiny progress indicator that surfaces how many more calibrated frames are
+/// needed before transparency estimates stabilise. Implements P3.2.
+class _TransparencyUnlockProgress extends ConsumerWidget {
+  final NightshadeColors colors;
+
+  const _TransparencyUnlockProgress({required this.colors});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sessionId = ref.watch(sessionStateProvider).dbSessionId;
+    if (sessionId == null) return const SizedBox.shrink();
+
+    final calibrationRows =
+        ref.watch(sessionFrameCalibrationsProvider(sessionId)).valueOrNull ??
+            const <FramePhotometricCalibrationRow>[];
+    final transparency = ref
+            .watch(sessionTransparencySamplesProvider(sessionId))
+            .valueOrNull ??
+        const <TransparencySampleRow>[];
+    if (transparency.isNotEmpty) return const SizedBox.shrink();
+
+    final calibrated =
+        calibrationRows.where((row) => row.isCalibrated).length;
+    const target = ScienceInsightsEngine.minCalibratedForTransparency;
+    if (calibrated >= target) return const SizedBox.shrink();
+    final ratio = (calibrated / target).clamp(0.0, 1.0);
+
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, right: 4, bottom: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(LucideIcons.cloud, size: 11, color: colors.textMuted),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  'Transparency unlocks at $calibrated / $target calibrated frames',
+                  style: TextStyle(
+                    color: colors.textMuted,
+                    fontSize: 10,
+                  ),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: ratio,
+              minHeight: 4,
+              backgroundColor: colors.surfaceAlt,
+              valueColor:
+                  AlwaysStoppedAnimation<Color>(colors.info.withValues(alpha: 0.8)),
+            ),
           ),
         ],
       ),
@@ -440,15 +690,17 @@ class _OverlayChip extends StatelessWidget {
       borderRadius: BorderRadius.circular(5),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-        decoration: BoxDecoration(
-          color: active
-              ? colors.primary.withValues(alpha: 0.2)
-              : colors.surfaceAlt.withValues(alpha: 0.8),
-          border: Border.all(
-            color: active ? colors.primary : colors.border,
-          ),
-          borderRadius: BorderRadius.circular(5),
-        ),
+        decoration: active
+            ? NightshadeDecorations.selectedSurface(
+                colors.primary,
+                borderRadius: BorderRadius.circular(5),
+                fillAlpha: 0.2,
+              )
+            : BoxDecoration(
+                color: colors.surfaceAlt,
+                border: Border.all(color: colors.border),
+                borderRadius: BorderRadius.circular(5),
+              ),
         child: Text(
           label,
           style: TextStyle(

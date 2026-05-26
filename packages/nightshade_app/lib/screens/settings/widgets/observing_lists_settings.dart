@@ -9,7 +9,7 @@ class ObservingListsSettings extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final listsAsync = ref.watch(observingListsProvider);
 
     return SingleChildScrollView(
@@ -52,7 +52,6 @@ class ObservingListsSettings extends ConsumerWidget {
                 children: lists.map((list) {
                   return _ObservingListManagementCard(
                     list: list,
-                    colors: colors,
                   );
                 }).toList(),
               );
@@ -174,15 +173,14 @@ class ObservingListsSettings extends ConsumerWidget {
 
 class _ObservingListManagementCard extends ConsumerWidget {
   final ObservingList list;
-  final NightshadeColors colors;
 
   const _ObservingListManagementCard({
     required this.list,
-    required this.colors,
-  });
+    });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final colors = NightshadeColors.of(context);
     final itemsAsync = ref.watch(observingListItemsProvider(list.id));
     final itemCount = itemsAsync.valueOrNull?.length ?? 0;
 
@@ -243,14 +241,12 @@ class _ObservingListManagementCard extends ConsumerWidget {
               _ActionChip(
                 icon: LucideIcons.pencil,
                 label: 'Rename',
-                colors: colors,
                 onTap: () => _showRenameDialog(context, ref),
               ),
               const SizedBox(width: 8),
               _ActionChip(
                 icon: LucideIcons.copy,
                 label: 'Duplicate',
-                colors: colors,
                 onTap: () async {
                   await ref
                       .read(observingListNotifierProvider.notifier)
@@ -261,7 +257,6 @@ class _ObservingListManagementCard extends ConsumerWidget {
               _ActionChip(
                 icon: LucideIcons.trash2,
                 label: 'Delete',
-                colors: colors,
                 isDestructive: true,
                 onTap: () => _showDeleteConfirmation(context, ref),
               ),
@@ -354,35 +349,34 @@ class _ObservingListManagementCard extends ConsumerWidget {
 class _ActionChip extends StatelessWidget {
   final IconData icon;
   final String label;
-  final NightshadeColors colors;
   final bool isDestructive;
   final VoidCallback onTap;
 
   const _ActionChip({
     required this.icon,
     required this.label,
-    required this.colors,
     this.isDestructive = false,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
     final color = isDestructive ? colors.error : colors.textSecondary;
 
     return GestureDetector(
       onTap: onTap,
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: (isDestructive ? colors.error : colors.primary)
-              .withValues(alpha: 0.08),
-          borderRadius: BorderRadius.circular(6),
-          border: Border.all(
-            color: (isDestructive ? colors.error : colors.border)
-                .withValues(alpha: 0.3),
-          ),
-        ),
+        decoration: isDestructive
+            ? NightshadeDecorations.emphasisSurface(
+                colors.error,
+                borderRadius: BorderRadius.circular(6),
+              )
+            : NightshadeDecorations.iconChip(
+                colors.primary,
+                borderRadius: BorderRadius.circular(6),
+              ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [

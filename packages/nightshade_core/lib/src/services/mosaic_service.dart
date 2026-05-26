@@ -326,9 +326,36 @@ class MosaicService {
     );
   }
 
-  /// Create a sequence from mosaic panels
+  /// Create a sequence from mosaic panels.
   ///
-  /// Generates a complete imaging sequence with target groups for each panel
+  /// Generates a complete imaging sequence with one [TargetHeaderNode]
+  /// per panel, each carrying its own [MosaicPanelInfo] (mosaic name,
+  /// panel index, row, column, total panels). The Rust executor
+  /// populates the per-panel `MosaicPanelInfo` into the
+  /// `ExecutionContext` at TargetHeader entry, which then flows into
+  /// every FITS frame written for that panel (`MOSAIC=1`, `PANELIDX`,
+  /// `PANELROW`, `PANELCOL`, `NS-MOSNM`, `NS-PIDX`, `NS-PROW`,
+  /// `NS-PCOL`, `NS-NPAN`).
+  ///
+  /// ## Canonical execution path (Wave 4 Mosaic-Resume)
+  ///
+  /// This static-expansion approach IS the canonical mosaic path
+  /// today. The Rust [`crate::mosaic`] module's [`Wizard`]
+  /// infrastructure exists as forward-compatible scaffolding for a
+  /// future refactor where per-panel orchestration lives entirely in
+  /// Rust; until that lands, `createMosaicSequence` here is what
+  /// every Nightshade mosaic actually runs.
+  ///
+  /// ## Resume behaviour
+  ///
+  /// Because every panel is a distinct [TargetHeaderNode] with a
+  /// stable UUID, panel-level resume Just Works through the
+  /// executor's existing [SessionCheckpoint.nodeStatuses] map: nodes
+  /// marked `Success` on a previous run are skipped on resume, so a
+  /// 3×3 mosaic killed mid-panel-5 resumes at panel 5. There is NO
+  /// mosaic-specific resume code path on the Dart side and there
+  /// does not need to be one — the Wizard checkpoint slot
+  /// `wizard_states["mosaic"]` is dormant under this path.
   Map<String, SequenceNode> createMosaicSequence({
     required String mosaicName,
     required MosaicConfig config,

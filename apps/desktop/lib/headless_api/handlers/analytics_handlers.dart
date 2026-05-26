@@ -108,6 +108,12 @@ class AnalyticsHandlers {
       sequenceId: optionalInt(payload, 'sequenceId'),
     );
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.session,
+      action: HostMutationAction.created,
+      entityId: id.toString(),
+    );
     return jsonOk({"status": "created", "id": id});
   }
 
@@ -155,6 +161,12 @@ class AnalyticsHandlers {
           .updateSessionStatus(sessionId, requireString(payload, 'status'));
     }
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.session,
+      action: HostMutationAction.updated,
+      entityId: sessionId.toString(),
+    );
     return jsonOk({"status": "updated"});
   }
 
@@ -171,6 +183,13 @@ class AnalyticsHandlers {
 
     await database.sessionsDao.endSession(sessionId, status: status);
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.session,
+      action: HostMutationAction.updated,
+      entityId: sessionId.toString(),
+      extra: {'status': status},
+    );
     return jsonOk({"status": "ended"});
   }
 
@@ -188,6 +207,12 @@ class AnalyticsHandlers {
       return jsonNotFound({"error": "Session not found: $id"});
     }
 
+    publishHostMutationFromContainer(
+      container,
+      entityType: HostMutationEntity.session,
+      action: HostMutationAction.deleted,
+      entityId: sessionId.toString(),
+    );
     return jsonOk({"status": "deleted"});
   }
 

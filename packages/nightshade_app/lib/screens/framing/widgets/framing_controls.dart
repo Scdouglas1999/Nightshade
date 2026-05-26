@@ -150,16 +150,10 @@ class FramingActionButton extends StatefulWidget {
 class _FramingActionButtonState extends State<FramingActionButton> {
   bool _isHovered = false;
 
-  Color _darkenColor(Color color, double amount) {
-    final hsl = HSLColor.fromColor(color);
-    return hsl
-        .withLightness((hsl.lightness - amount).clamp(0.0, 1.0))
-        .toColor();
-  }
-
   @override
   Widget build(BuildContext context) {
     final enabled = widget.isEnabled && widget.onTap != null;
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
 
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
@@ -170,38 +164,25 @@ class _FramingActionButtonState extends State<FramingActionButton> {
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
-            gradient: widget.isPrimary && enabled
-                ? LinearGradient(
-                    colors: [
-                      widget.colors.primary,
-                      _darkenColor(widget.colors.primary, 0.08),
-                    ],
-                  )
-                : null,
             color: widget.isPrimary
-                ? null
+                ? (enabled
+                    ? widget.colors.primary
+                    : widget.colors.surfaceAlt)
                 : enabled
                     ? (_isHovered
                         ? widget.colors.surfaceAlt
                         : widget.colors.background)
                     : widget.colors.surfaceAlt.withValues(alpha: 0.5),
             borderRadius: BorderRadius.circular(8),
-            border: widget.isPrimary
-                ? null
-                : Border.all(
-                    color: enabled
-                        ? widget.colors.border
-                        : widget.colors.border.withValues(alpha: 0.5),
-                  ),
-            boxShadow: widget.isPrimary && _isHovered && enabled
-                ? [
-                    BoxShadow(
-                      color: widget.colors.primary.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            border: Border.all(
+              color: widget.isPrimary
+                  ? (enabled
+                      ? widget.colors.primary.withValues(alpha: 0.85)
+                      : widget.colors.border)
+                  : (enabled
+                      ? widget.colors.border
+                      : widget.colors.border.withValues(alpha: 0.5)),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -210,7 +191,7 @@ class _FramingActionButtonState extends State<FramingActionButton> {
                 widget.icon,
                 size: 14,
                 color: widget.isPrimary
-                    ? (enabled ? Colors.white : Colors.white60)
+                    ? (enabled ? onPrimary : widget.colors.textMuted)
                     : (enabled
                         ? widget.colors.textSecondary
                         : widget.colors.textMuted),
@@ -222,7 +203,7 @@ class _FramingActionButtonState extends State<FramingActionButton> {
                   fontSize: 11,
                   fontWeight: FontWeight.w500,
                   color: widget.isPrimary
-                      ? (enabled ? Colors.white : Colors.white60)
+                      ? (enabled ? onPrimary : widget.colors.textMuted)
                       : (enabled
                           ? widget.colors.textSecondary
                           : widget.colors.textMuted),
@@ -335,11 +316,9 @@ class FramingPreviewFovSlider extends StatelessWidget {
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: colors.info.withValues(alpha: 0.1),
+                  decoration: NightshadeDecorations.emphasisSurface(
+                    colors.info,
                     borderRadius: BorderRadius.circular(4),
-                    border:
-                        Border.all(color: colors.info.withValues(alpha: 0.3)),
                   ),
                   child: Text(
                     'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
@@ -519,11 +498,9 @@ class FramingEquipmentFovOverlayControls extends StatelessWidget {
                   ),
                 ),
               ),
-              Switch(
+              NightshadeSwitch(
                 value: showOverlay,
                 onChanged: (_) => onToggle(),
-                activeThumbColor: colors.info,
-                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               ),
             ],
           ),
@@ -920,6 +897,8 @@ class _FramingExportMosaicButtonState
 
   @override
   Widget build(BuildContext context) {
+    final onPrimary = Theme.of(context).colorScheme.onPrimary;
+
     return MouseRegion(
       onEnter: (_) => setState(() => _isHovered = true),
       onExit: (_) => setState(() => _isHovered = false),
@@ -929,50 +908,41 @@ class _FramingExportMosaicButtonState
           duration: const Duration(milliseconds: 150),
           padding: const EdgeInsets.symmetric(vertical: 10),
           decoration: BoxDecoration(
-            gradient: LinearGradient(
-              colors: [
-                widget.colors.primary,
-                widget.colors.primary.withValues(alpha: 0.8),
-              ],
-            ),
+            color: _isHovered
+                ? widget.colors.primary.withValues(alpha: 0.92)
+                : widget.colors.primary,
             borderRadius: BorderRadius.circular(8),
-            boxShadow: _isHovered
-                ? [
-                    BoxShadow(
-                      color: widget.colors.primary.withValues(alpha: 0.4),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ]
-                : null,
+            border: Border.all(
+              color: widget.colors.primary.withValues(alpha: 0.85),
+            ),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               if (_isExporting)
-                const SizedBox(
+                SizedBox(
                   width: 14,
                   height: 14,
                   child: CircularProgressIndicator(
                     strokeWidth: 2,
-                    color: Colors.white,
+                    color: onPrimary,
                   ),
                 )
               else
-                const Icon(
+                Icon(
                   LucideIcons.download,
                   size: 14,
-                  color: Colors.white,
+                  color: onPrimary,
                 ),
               const SizedBox(width: 8),
               Text(
                 _isExporting
                     ? 'Exporting...'
                     : 'Export ${widget.panels.length} Panels to Targets',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
-                  color: Colors.white,
+                  color: onPrimary,
                 ),
               ),
             ],

@@ -45,6 +45,19 @@ void main() {
       expect(body['error'], 'Missing lat/lon query parameters');
     });
 
+    test('current weather returns JSON with safe-imaging fields', () async {
+      final response = await translateHandlerErrors(handlers.handleGetCurrent(
+        Request('GET', Uri.parse('http://localhost/api/weather/current')),
+      ));
+
+      expect(response.statusCode, HttpStatus.ok);
+      final body = jsonDecode(await response.readAsString()) as Map;
+      expect(body.containsKey('safeToImage'), isTrue);
+      expect(body.containsKey('alertLevel'), isTrue);
+      expect(body.containsKey('temperature'), isTrue);
+      expect(body.containsKey('hardwareConnected'), isTrue);
+    });
+
     test('malformed settings payload returns JSON internal error', () async {
       final response =
           await translateHandlerErrors(handlers.handleUpdateSettings(

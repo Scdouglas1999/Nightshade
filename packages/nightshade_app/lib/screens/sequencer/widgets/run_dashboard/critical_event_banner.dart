@@ -39,7 +39,7 @@ class _RunDashboardCriticalBannerState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final events = ref.watch(runDashboardCriticalEventsProvider);
     if (events.isEmpty) return const SizedBox.shrink();
 
@@ -48,8 +48,11 @@ class _RunDashboardCriticalBannerState
 
     return Container(
       width: double.infinity,
-      decoration: BoxDecoration(
-        color: colors.error.withValues(alpha: 0.18),
+      decoration: NightshadeDecorations.statusChip(
+        colors.error,
+        borderRadius: BorderRadius.zero,
+        bordered: false,
+      ).copyWith(
         border: Border(
           top: BorderSide(color: colors.error, width: 1.5),
           bottom: BorderSide(color: colors.error.withValues(alpha: 0.6)),
@@ -70,8 +73,7 @@ class _RunDashboardCriticalBannerState
                     colors: colors,
                     count: tail.length,
                     expanded: _expanded,
-                    onToggle: () =>
-                        setState(() => _expanded = !_expanded),
+                    onToggle: () => setState(() => _expanded = !_expanded),
                   ),
           ),
           if (_expanded)
@@ -109,10 +111,6 @@ class _RunDashboardCriticalBannerState
                       .clearAll(),
                   icon: const Icon(LucideIcons.checkCheck, size: 14),
                   label: const Text('Dismiss all'),
-                  style: TextButton.styleFrom(
-                    foregroundColor: colors.error,
-                    visualDensity: VisualDensity.compact,
-                  ),
                 ),
               ),
             ),
@@ -190,10 +188,10 @@ class _BannerRow extends StatelessWidget {
                     const SizedBox(width: 8),
                     Text(
                       formatTimeOfDay(event.time),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: colors.textMuted,
-                        fontFeatures: const [FontFeature.tabularFigures()],
+                      style: NightshadeTypography.withTabular(
+                        NightshadeTypography.captionSm.copyWith(
+                          color: colors.textMuted,
+                        ),
                       ),
                     ),
                   ],

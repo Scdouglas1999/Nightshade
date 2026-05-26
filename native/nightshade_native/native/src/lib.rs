@@ -49,7 +49,6 @@ pub enum NativeVendor {
     Atik,
     Fli,
     Touptek,
-    StarlightXpress,
     Moravian,
     Fujifilm,
     GPhoto2,
@@ -57,9 +56,7 @@ pub enum NativeVendor {
     // Mount vendors
     SkyWatcher,
     IOptron,
-    Celestron,
     Meade,
-    Pegasus,
     // Generic
     Other(String),
 }
@@ -74,16 +71,13 @@ impl NativeVendor {
             NativeVendor::Atik => "Atik",
             NativeVendor::Fli => "FLI",
             NativeVendor::Touptek => "Touptek",
-            NativeVendor::StarlightXpress => "StarlightXpress",
             NativeVendor::Moravian => "Moravian",
             NativeVendor::Fujifilm => "Fujifilm",
             NativeVendor::GPhoto2 => "gPhoto2",
             NativeVendor::Ascom => "ASCOM",
             NativeVendor::SkyWatcher => "Sky-Watcher",
             NativeVendor::IOptron => "iOptron",
-            NativeVendor::Celestron => "Celestron",
             NativeVendor::Meade => "Meade",
-            NativeVendor::Pegasus => "Pegasus",
             NativeVendor::Other(s) => s,
         }
     }
@@ -98,25 +92,27 @@ pub const SUPPORTED_NATIVE_VENDORS: &[&str] = &[
     "qhy_cfw",
     "playerone",
     "player_one",
+    "playerone_pw",
     "svbony",
     "atik",
+    "atik_efw",
     "fli",
     "fli_focuser",
     "fli_fw",
     "touptek",
-    "starlightxpress",
     "moravian",
     "fujifilm",
     "gphoto2",
     "ascom",
     "skywatcher",
     "ioptron",
-    "celestron",
     "lx200",
     "meade",
     "onstep",
     "losmandy",
     "10micron",
+    // Pegasus NYX speaks the OnStep/LX200 mount path; this is a
+    // protocol-backed alias, not a standalone Pegasus Astro SDK module.
     "pegasus",
     "builtin_guider",
 ];
@@ -125,6 +121,7 @@ pub const SUPPORTED_NATIVE_VENDORS: &[&str] = &[
 pub const NATIVE_VENDOR_SUBTYPES: &[(&str, &[&str])] = &[
     ("zwo", &["eaf", "efw"]),
     ("qhy", &["cfw"]),
+    ("atik", &["efw"]),
     ("fli", &["focuser", "fw"]),
 ];
 

@@ -526,3 +526,63 @@ class RotatorCapabilities {
         'canSync': canSync,
       };
 }
+
+/// Dome capabilities
+///
+/// Mirrors the Rust `DomeCapabilities` struct exposed by
+/// `bridge::device_capabilities::DomeCapabilities`. Added for DEV-P3-1 to
+/// drive capability-gated UI on dome controls (shutter, parking, slewing,
+/// sync). Only flag fields are required for gating; dynamic state fields
+/// (azimuth, slewing, etc.) are not exposed because the existing
+/// `domeStateProvider` already provides live status.
+class DomeCapabilities {
+  final bool canSetAzimuth;
+  final bool canPark;
+  final bool canFindHome;
+  final bool canSetShutter;
+  final bool canSyncAzimuth;
+  final bool canSlave;
+  final bool canAbort;
+
+  const DomeCapabilities({
+    this.canSetAzimuth = false,
+    this.canPark = false,
+    this.canFindHome = false,
+    this.canSetShutter = false,
+    this.canSyncAzimuth = false,
+    this.canSlave = false,
+    this.canAbort = false,
+  });
+
+  factory DomeCapabilities.fromJson(Map<String, dynamic> json) {
+    return DomeCapabilities(
+      canSetAzimuth: json['canSetAzimuth'] as bool? ??
+          json['can_set_azimuth'] as bool? ??
+          false,
+      canPark: json['canPark'] as bool? ?? json['can_park'] as bool? ?? false,
+      canFindHome: json['canFindHome'] as bool? ??
+          json['can_find_home'] as bool? ??
+          false,
+      canSetShutter: json['canSetShutter'] as bool? ??
+          json['can_set_shutter'] as bool? ??
+          false,
+      canSyncAzimuth: json['canSyncAzimuth'] as bool? ??
+          json['can_sync_azimuth'] as bool? ??
+          false,
+      canSlave:
+          json['canSlave'] as bool? ?? json['can_slave'] as bool? ?? false,
+      canAbort:
+          json['canAbort'] as bool? ?? json['can_abort'] as bool? ?? false,
+    );
+  }
+
+  Map<String, dynamic> toJson() => {
+        'canSetAzimuth': canSetAzimuth,
+        'canPark': canPark,
+        'canFindHome': canFindHome,
+        'canSetShutter': canSetShutter,
+        'canSyncAzimuth': canSyncAzimuth,
+        'canSlave': canSlave,
+        'canAbort': canAbort,
+      };
+}

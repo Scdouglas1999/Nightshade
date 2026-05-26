@@ -55,13 +55,19 @@ void main() {
         return 1;
       }),
     ]));
-    await tester.pumpAndSettle();
+    // pump() with explicit duration (NOT pumpAndSettle) because the
+    // dashboard subscribes to the shared tickerProvider which emits forever.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('No sequence running'), findsOneWidget);
     expect(find.text('Go to Builder'), findsOneWidget);
 
     await tester.tap(find.text('Go to Builder'));
-    await tester.pumpAndSettle();
+    // pump() with explicit duration (NOT pumpAndSettle) because the
+    // dashboard subscribes to the shared tickerProvider which emits forever.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
     expect(observedTab, 0);
   });
 
@@ -85,7 +91,10 @@ void main() {
         ),
       ),
     ]));
-    await tester.pumpAndSettle();
+    // pump() with explicit duration (NOT pumpAndSettle) because the
+    // dashboard subscribes to the shared tickerProvider which emits forever.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     // Section headers from the various panels — proves they all rendered.
     expect(find.text('EXPOSURE'), findsOneWidget);
@@ -117,7 +126,10 @@ void main() {
         () => _FakeRunDashboardPrefsNotifier(initialPrefs),
       ),
     ]));
-    await tester.pumpAndSettle();
+    // pump() with explicit duration (NOT pumpAndSettle) because the
+    // dashboard subscribes to the shared tickerProvider which emits forever.
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text('GUIDING'), findsNothing);
     expect(find.text('SAFETY'), findsOneWidget);

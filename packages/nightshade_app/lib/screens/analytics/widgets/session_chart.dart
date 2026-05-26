@@ -4,6 +4,8 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart' show DbCapturedImage;
 
+import 'adaptive_chart_container.dart';
+
 /// Chart data point with timestamp and value
 class ChartDataPoint {
   final DateTime timestamp;
@@ -36,7 +38,7 @@ class SessionChart extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     if (dataPoints.isEmpty) {
       return NightshadeCard(
@@ -54,16 +56,18 @@ class SessionChart extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 16),
-              Container(
+              AdaptiveChartContainer.fixed(
                 height: 150,
-                decoration: BoxDecoration(
-                  color: colors.surfaceAlt,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Center(
-                  child: Text(
-                    'No data',
-                    style: TextStyle(fontSize: 12, color: colors.textMuted),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.surfaceAlt,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Center(
+                    child: Text(
+                      'No data',
+                      style: TextStyle(fontSize: 12, color: colors.textMuted),
+                    ),
                   ),
                 ),
               ),
@@ -106,8 +110,8 @@ class SessionChart extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
-            SizedBox(
-              height: 150,
+            AdaptiveChartContainer(
+              preferredHeight: 150,
               child: LineChart(
                 LineChartData(
                   gridData: FlGridData(
@@ -326,7 +330,7 @@ class FocuserPositionChart extends StatelessWidget {
       title: 'Focus Drift',
       yAxisLabel: 'Position',
       dataPoints: dataPoints,
-      lineColor: Colors.purple,
+      lineColor: NightshadeChartColors.seriesViolet,
     );
   }
 }

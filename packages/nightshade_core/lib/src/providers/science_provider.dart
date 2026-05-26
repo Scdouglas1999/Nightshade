@@ -16,10 +16,12 @@ import '../database/database.dart'
         MovingObjectCandidateRow,
         LineRatioProductRow;
 import '../models/science/science_models.dart';
+import '../services/science/frame_grade_rules.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import '../backend/network_backend.dart';
 import 'session_provider.dart';
+import 'settings_provider.dart';
 
 class ScienceSettings {
   final bool advancedModeEnabled;
@@ -35,6 +37,18 @@ class ScienceSettings {
   final bool surface3dEnabled;
   final bool manualPurgeOnly;
 
+  /// When true, after calibration + transparency complete the science
+  /// pipeline writes a small set of standard keywords back onto the
+  /// captured FITS file (MAGZP, MAGZPERR, MAGZPSRC, TRANSPAR, NSHA_VER,
+  /// NSHA_RUN). This makes Nightshade's photometric and atmospheric
+  /// measurements directly visible to PixInsight, AstroPixelProcessor,
+  /// Siril, and any other tool that reads the original capture.
+  ///
+  /// Default true — explicit opt-out exists for users who want the
+  /// captured frame's header to remain byte-identical to what the camera
+  /// driver produced.
+  final bool fitsHeaderWritebackEnabled;
+
   /// MPC observatory code (3 characters, e.g. "G40").
   /// Required for generating Minor Planet Center reports.
   final String mpcObservatoryCode;
@@ -42,6 +56,16 @@ class ScienceSettings {
   /// AAVSO observer code (up to 5 characters, e.g. "XYZ").
   /// Required for generating AAVSO Extended Format reports.
   final String aavsoObserverCode;
+
+  /// When true, each captured light frame is evaluated against
+  /// [frameGradeRulesJson] (or [FrameGradeRules.conservativeDefaults] when
+  /// unset) and rejected in the database when it fails — same semantics as
+  /// the Image Grader dialog, but automatic on every capture.
+  final bool autoFrameGradingEnabled;
+
+  /// JSON blob persisted via [FrameGradeRules.toJsonString]. Null uses
+  /// conservative defaults while auto-grading is enabled.
+  final String? frameGradeRulesJson;
 
   const ScienceSettings({
     this.advancedModeEnabled = false,
@@ -56,9 +80,20 @@ class ScienceSettings {
     this.frameQualityMapsEnabled = true,
     this.surface3dEnabled = true,
     this.manualPurgeOnly = true,
+    this.fitsHeaderWritebackEnabled = true,
     this.mpcObservatoryCode = '',
     this.aavsoObserverCode = '',
+    this.autoFrameGradingEnabled = false,
+    this.frameGradeRulesJson,
   });
+
+  /// Rules applied by [FrameAutoGrader] and shown in the Image Grader UI.
+  FrameGradeRules resolvedFrameGradeRules() {
+    final parsed = FrameGradeRules.fromJsonString(frameGradeRulesJson);
+    if (parsed != null && !parsed.isEmpty) return parsed;
+    if (autoFrameGradingEnabled) return FrameGradeRules.conservativeDefaults;
+    return const FrameGradeRules();
+  }
 
   ScienceSettings copyWith({
     bool? advancedModeEnabled,
@@ -73,8 +108,12 @@ class ScienceSettings {
     bool? frameQualityMapsEnabled,
     bool? surface3dEnabled,
     bool? manualPurgeOnly,
+    bool? fitsHeaderWritebackEnabled,
     String? mpcObservatoryCode,
     String? aavsoObserverCode,
+    bool? autoFrameGradingEnabled,
+    String? frameGradeRulesJson,
+    bool clearFrameGradeRulesJson = false,
   }) {
     return ScienceSettings(
       advancedModeEnabled: advancedModeEnabled ?? this.advancedModeEnabled,
@@ -93,8 +132,15 @@ class ScienceSettings {
           frameQualityMapsEnabled ?? this.frameQualityMapsEnabled,
       surface3dEnabled: surface3dEnabled ?? this.surface3dEnabled,
       manualPurgeOnly: manualPurgeOnly ?? this.manualPurgeOnly,
+      fitsHeaderWritebackEnabled:
+          fitsHeaderWritebackEnabled ?? this.fitsHeaderWritebackEnabled,
       mpcObservatoryCode: mpcObservatoryCode ?? this.mpcObservatoryCode,
       aavsoObserverCode: aavsoObserverCode ?? this.aavsoObserverCode,
+      autoFrameGradingEnabled:
+          autoFrameGradingEnabled ?? this.autoFrameGradingEnabled,
+      frameGradeRulesJson: clearFrameGradeRulesJson
+          ? null
+          : (frameGradeRulesJson ?? this.frameGradeRulesJson),
     );
   }
 }
@@ -113,8 +159,11 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
     'frameQualityMaps': 'science.feature.frame_quality_maps',
     'surface3d': 'science.feature.surface3d',
     'manualPurgeOnly': 'science.retention.manual_purge_only',
+    'fitsHeaderWriteback': 'science.writeback.fits_header_enabled',
     'mpcObservatoryCode': 'science.mpc.observatory_code',
     'aavsoObserverCode': 'science.aavso.observer_code',
+    'autoFrameGrading': 'science.grading.auto_enabled',
+    'frameGradeRules': 'science.grading.rules_json',
   };
 
   @override
@@ -138,10 +187,14 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
           _parseBool(settings[_keys['frameQualityMaps']], true),
       surface3dEnabled: _parseBool(settings[_keys['surface3d']], true),
       manualPurgeOnly: _parseBool(settings[_keys['manualPurgeOnly']], true),
-      mpcObservatoryCode:
-          settings[_keys['mpcObservatoryCode']] ?? '',
-      aavsoObserverCode:
-          settings[_keys['aavsoObserverCode']] ?? '',
+      fitsHeaderWritebackEnabled:
+          _parseBool(settings[_keys['fitsHeaderWriteback']], true),
+      mpcObservatoryCode: settings[_keys['mpcObservatoryCode']] ?? '',
+      aavsoObserverCode: settings[_keys['aavsoObserverCode']] ?? '',
+      autoFrameGradingEnabled:
+          _parseBool(settings[_keys['autoFrameGrading']], false) ||
+              _parseBool(settings['image_grading_enabled'], false),
+      frameGradeRulesJson: settings[_keys['frameGradeRules']],
     );
   }
 
@@ -227,6 +280,26 @@ class ScienceSettingsNotifier extends AsyncNotifier<ScienceSettings> {
         .copyWith(aavsoObserverCode: code));
   }
 
+  Future<void> setFitsHeaderWritebackEnabled(bool enabled) async {
+    await _setSetting(_keys['fitsHeaderWriteback']!, enabled);
+    state = AsyncData((state.value ?? const ScienceSettings())
+        .copyWith(fitsHeaderWritebackEnabled: enabled));
+  }
+
+  Future<void> setAutoFrameGradingEnabled(bool enabled) async {
+    await _setSetting(_keys['autoFrameGrading']!, enabled);
+    await ref.read(appSettingsProvider.notifier).setEnableImageGrading(enabled);
+    state = AsyncData((state.value ?? const ScienceSettings())
+        .copyWith(autoFrameGradingEnabled: enabled));
+  }
+
+  Future<void> setFrameGradeRules(FrameGradeRules rules) async {
+    final json = rules.isEmpty ? '' : rules.toJsonString();
+    await _writeScienceSettings(ref, {_keys['frameGradeRules']!: json});
+    state = AsyncData((state.value ?? const ScienceSettings())
+        .copyWith(frameGradeRulesJson: json.isEmpty ? null : json));
+  }
+
   bool _parseBool(String? value, bool fallback) {
     if (value == null) {
       return fallback;
@@ -251,8 +324,7 @@ class SciencePhotometrySelectionNotifier
     final settings = await _loadScienceSettingsMap(ref);
     final enabled = _parseBool(settings[_enabledKey], false);
     final target = _decodeAnchor(settings[_targetKey]);
-    final comparisons =
-        _decodeAnchors(settings[_comparisonsKey], maxItems: 8);
+    final comparisons = _decodeAnchors(settings[_comparisonsKey], maxItems: 8);
 
     return SciencePhotometrySelection(
       differentialEnabled: enabled,
@@ -544,7 +616,8 @@ final _remoteSessionlessScienceBundleProvider =
     FutureProvider<RemoteScienceBundle>((ref) async {
   final backend = ref.watch(backendProvider);
   if (backend is! NetworkBackend) {
-    throw StateError('Remote sessionless science bundle requested in local mode');
+    throw StateError(
+        'Remote sessionless science bundle requested in local mode');
   }
   final bundle = await backend.getSessionlessScienceBundle();
   Timer? timer;
@@ -576,8 +649,7 @@ final sessionFrameCalibrationsProvider =
   if (backend is NetworkBackend) {
     return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
           data: (bundle) => Stream.value(bundle.calibrations),
-          loading: () =>
-              Stream.value(const <FramePhotometricCalibrationRow>[]),
+          loading: () => Stream.value(const <FramePhotometricCalibrationRow>[]),
           error: (_, __) =>
               Stream.value(const <FramePhotometricCalibrationRow>[]),
         );
@@ -618,8 +690,7 @@ final sessionFrameQualityMetricsProvider =
   if (backend is NetworkBackend) {
     return ref.watch(_remoteScienceSessionBundleProvider(sessionId)).when(
           data: (bundle) => Stream.value(bundle.frameQuality),
-          loading: () =>
-              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+          loading: () => Stream.value(const <ScienceFrameQualityMetricsRow>[]),
           error: (_, __) =>
               Stream.value(const <ScienceFrameQualityMetricsRow>[]),
         );
@@ -747,8 +818,7 @@ final sessionlessCalibrationsProvider =
   if (backend is NetworkBackend) {
     return ref.watch(_remoteSessionlessScienceBundleProvider).when(
           data: (bundle) => Stream.value(bundle.calibrations),
-          loading: () =>
-              Stream.value(const <FramePhotometricCalibrationRow>[]),
+          loading: () => Stream.value(const <FramePhotometricCalibrationRow>[]),
           error: (_, __) =>
               Stream.value(const <FramePhotometricCalibrationRow>[]),
         );
@@ -788,8 +858,7 @@ final sessionlessFrameQualityMetricsProvider =
   if (backend is NetworkBackend) {
     return ref.watch(_remoteSessionlessScienceBundleProvider).when(
           data: (bundle) => Stream.value(bundle.frameQuality),
-          loading: () =>
-              Stream.value(const <ScienceFrameQualityMetricsRow>[]),
+          loading: () => Stream.value(const <ScienceFrameQualityMetricsRow>[]),
           error: (_, __) =>
               Stream.value(const <ScienceFrameQualityMetricsRow>[]),
         );
@@ -966,7 +1035,8 @@ Future<Map<String, String>> _loadScienceSettingsMap(Ref ref) async {
   return ref.read(settingsDaoProvider).getAllSettings();
 }
 
-Future<void> _writeScienceSettings(Ref ref, Map<String, String> settings) async {
+Future<void> _writeScienceSettings(
+    Ref ref, Map<String, String> settings) async {
   final backend = ref.read(backendProvider);
   if (backend is NetworkBackend) {
     await backend.updateScienceSettings(settings);

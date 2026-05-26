@@ -79,9 +79,11 @@ class _TargetConstraintsEditorState
             ))
         .toList();
 
-    final hpRows = await db.customSelect(
-      'SELECT id, name, samples_json FROM horizon_profiles ORDER BY name ASC',
-    ).get();
+    final hpRows = await db
+        .customSelect(
+          'SELECT id, name, samples_json FROM horizon_profiles ORDER BY name ASC',
+        )
+        .get();
     final profiles = hpRows
         .map((r) => HorizonProfile.fromRow(
               id: r.read<int>('id'),
@@ -140,7 +142,7 @@ class _TargetConstraintsEditorState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return FutureBuilder<_LoadedConstraints>(
       future: _future,
       builder: (context, snap) {
@@ -236,7 +238,7 @@ class _ConstraintRow extends StatefulWidget {
 class _ConstraintRowState extends State<_ConstraintRow> {
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final c = widget.constraint;
     return Padding(
       padding: const EdgeInsets.only(bottom: NightshadeTokens.spaceSm),
@@ -252,7 +254,7 @@ class _ConstraintRowState extends State<_ConstraintRow> {
         ),
         child: Row(
           children: [
-            Switch(
+            NightshadeSwitch(
               value: c.enabled,
               onChanged: (v) => widget.onChange(c.copyWith(enabled: v)),
             ),
@@ -322,8 +324,7 @@ class _ConstraintBody extends StatelessWidget {
                 startMinutes: 22 * 60,
                 endMinutes: 5 * 60,
               ),
-          onChange: (w) =>
-              onChange(constraint.copyWith(timeWindow: w)),
+          onChange: (w) => onChange(constraint.copyWith(timeWindow: w)),
         );
       case TargetConstraintKind.moonIlluminationMax:
         return _MoonField(
@@ -335,8 +336,7 @@ class _ConstraintBody extends StatelessWidget {
         return _HorizonField(
           selectedId: constraint.customHorizonId,
           profiles: horizonProfiles,
-          onChange: (id) =>
-              onChange(constraint.copyWith(customHorizonId: id)),
+          onChange: (id) => onChange(constraint.copyWith(customHorizonId: id)),
         );
       case TargetConstraintKind.scheduledWindow:
         return _ScheduledWindowField(
@@ -346,8 +346,7 @@ class _ConstraintBody extends StatelessWidget {
                 endUtc: DateTime.now().toUtc().add(const Duration(hours: 6)),
                 priorityBoost: 0.5,
               ),
-          onChange: (w) =>
-              onChange(constraint.copyWith(scheduledWindow: w)),
+          onChange: (w) => onChange(constraint.copyWith(scheduledWindow: w)),
         );
     }
   }
@@ -360,7 +359,7 @@ class _TimeWindowField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
         OutlinedButton.icon(
@@ -431,7 +430,7 @@ class _MoonField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Row(
       children: [
         Expanded(
@@ -475,7 +474,7 @@ class _HorizonField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     if (profiles.isEmpty) {
       return Text(
         'No horizon profiles defined yet.',
@@ -500,12 +499,11 @@ class _HorizonField extends StatelessWidget {
 class _ScheduledWindowField extends StatelessWidget {
   final ScheduledWindow window;
   final void Function(ScheduledWindow) onChange;
-  const _ScheduledWindowField(
-      {required this.window, required this.onChange});
+  const _ScheduledWindowField({required this.window, required this.onChange});
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final startLocal = window.startUtc.toLocal();
     final endLocal = window.endUtc.toLocal();
     return Column(
@@ -691,15 +689,19 @@ class _AddConstraintWizardDialogState
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Dialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusLg),
         side: BorderSide(color: colors.border),
       ),
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540, maxHeight: 680),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 540,
+          designMaxHeight: 680,
+        ),
         child: Padding(
           padding: const EdgeInsets.all(NightshadeTokens.spaceLg),
           child: Column(
@@ -911,7 +913,7 @@ class _Step1ChooseKind extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -931,8 +933,7 @@ class _Step1ChooseKind extends StatelessWidget {
           title: 'Time window',
           body: 'Only image between these hours of the night.',
           selected: selected == TargetConstraintKind.timeWindow,
-          disabled:
-              existingKinds.contains(TargetConstraintKind.timeWindow),
+          disabled: existingKinds.contains(TargetConstraintKind.timeWindow),
           onTap: () => onSelect(TargetConstraintKind.timeWindow),
         ),
         _KindCard(
@@ -942,8 +943,8 @@ class _Step1ChooseKind extends StatelessWidget {
           title: 'Moon avoidance',
           body: 'Skip this target when the moon is bright nearby.',
           selected: selected == TargetConstraintKind.moonIlluminationMax,
-          disabled: existingKinds
-              .contains(TargetConstraintKind.moonIlluminationMax),
+          disabled:
+              existingKinds.contains(TargetConstraintKind.moonIlluminationMax),
           onTap: () => onSelect(TargetConstraintKind.moonIlluminationMax),
         ),
         _KindCard(
@@ -953,8 +954,7 @@ class _Step1ChooseKind extends StatelessWidget {
           title: 'Custom horizon',
           body: 'Respect terrain blocking from a saved horizon profile.',
           selected: selected == TargetConstraintKind.customHorizon,
-          disabled:
-              existingKinds.contains(TargetConstraintKind.customHorizon),
+          disabled: existingKinds.contains(TargetConstraintKind.customHorizon),
           onTap: () => onSelect(TargetConstraintKind.customHorizon),
         ),
         _KindCard(
@@ -996,7 +996,7 @@ class _KindCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final borderColor = selected
         ? colors.primary
         : disabled
@@ -1121,7 +1121,7 @@ class _Step2Params extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     Widget body;
     switch (kind) {
       case TargetConstraintKind.timeWindow:
@@ -1231,7 +1231,7 @@ class _Step3Review extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     String typeLabel;
     String summary;
     switch (kind) {

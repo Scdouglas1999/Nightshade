@@ -3,6 +3,9 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
+/// Default accent color hex — matches `NightshadeColors.dark.primary` (#5B9EC4).
+const kDefaultAccentColorHex = '#5B9EC4';
+
 /// Defines how the safety system behaves when weather/safety devices fail or are unavailable
 enum SafetyFailMode {
   /// Treat unavailable safety data as safe; allow imaging to continue uninterrupted.
@@ -74,6 +77,60 @@ class AppSettings with _$AppSettings {
     @Default('') String skippedUpdateVersion,
     // Safety settings
     @Default(SafetyFailMode.failClosed) SafetyFailMode safetyFailMode,
+    // -------------------------------------------------------------------
+    // Wave 3 Image Grading: live frame Pass/Reject thresholds. Opt-in:
+    // disabled by default so existing users keep current behaviour
+    // (every captured frame saved, none auto-rejected).
+    // -------------------------------------------------------------------
+    /// Master switch: when false, no grading runs at all.
+    @Default(false) bool enableImageGrading,
+    /// Reject if HFR exceeds this absolute pixel value. `null` => don't
+    /// apply the absolute check.
+    double? imageGradingHfrThresholdPx,
+    /// Reject if HFR exceeds `baseline * (1 + percent / 100)`. `null` =>
+    /// don't apply the baseline-relative check.
+    double? imageGradingHfrBaselinePercent,
+    /// Reject if star eccentricity exceeds this value. `null` => don't apply.
+    double? imageGradingEccentricityThreshold,
+    /// Reject if detected star count falls below this. `null` => don't apply.
+    int? imageGradingStarCountMin,
+    /// Pause sequence after this many consecutive rejects (default 3).
+    @Default(3) int imageGradingMaxConsecutiveRejects,
+    /// Override for the reject folder. `null` => use `<save_path>/Reject/`.
+    /// Relative paths resolve against the run save_path; absolute paths
+    /// are used verbatim.
+    String? imageGradingRejectFolderPath,
+    // -------------------------------------------------------------------
+    // Wave 5 Agent 2 — Sky-brightness adaptive exposures: global defaults.
+    // Per-ExposureNode overrides still win at runtime; these are the
+    // values pushed into the executor via
+    // `sequencerUpdateDefaultAdaptiveExposure` when none of the active
+    // nodes carry their own block.
+    // -------------------------------------------------------------------
+    /// Master switch — when false, the global default adaptive-exposure
+    /// is cleared and the executor falls back to nominal duration for
+    /// any node without an explicit per-node override.
+    @Default(false) bool adaptiveExposureEnabled,
+    /// Target SNR for the SNR-based scaling (informational; the live
+    /// math uses background flux ratio).
+    @Default(30.0) double adaptiveExposureTargetSnr,
+    /// Reference sky brightness in mag/arcsec² the nominal exposure
+    /// duration was calibrated for. Dark-site default is 21.5.
+    @Default(21.5) double adaptiveExposureReferenceMag,
+    /// Global minimum exposure clamp in seconds.
+    @Default(5.0) double adaptiveExposureMinSecs,
+    /// Global maximum exposure clamp in seconds.
+    @Default(600.0) double adaptiveExposureMaxSecs,
+    /// Per-filter enable map (filter name -> bool). Empty => apply
+    /// globally (matches the Rust `is_enabled_for_filter` semantics).
+    @Default(<String, bool>{}) Map<String, bool>
+        adaptiveExposurePerFilterEnabled,
+    /// Per-filter minimum exposure overrides (seconds).
+    @Default(<String, double>{}) Map<String, double>
+        adaptiveExposurePerFilterMinSecs,
+    /// Per-filter maximum exposure overrides (seconds).
+    @Default(<String, double>{}) Map<String, double>
+        adaptiveExposurePerFilterMaxSecs,
   }) = _AppSettings;
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>

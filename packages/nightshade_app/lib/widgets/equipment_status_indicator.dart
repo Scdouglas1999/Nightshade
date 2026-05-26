@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_app/screens/equipment/utils/equipment_disconnect.dart';
+import 'package:nightshade_app/utils/snackbar_helper.dart';
 
 /// A compact equipment status indicator for the global status bar.
 ///
@@ -14,7 +16,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
 
     // Watch active profile
     final activeProfile = ref.watch(activeEquipmentProfileProvider);
@@ -425,7 +427,7 @@ class EquipmentStatusIndicator extends ConsumerWidget {
   void _handleMenuSelection(BuildContext context, WidgetRef ref, String value) {
     switch (value) {
       case 'disconnect':
-        _disconnectAll(ref);
+        _disconnectAll(ref, context);
         break;
       case 'equipment':
         context.go('/equipment');
@@ -433,15 +435,15 @@ class EquipmentStatusIndicator extends ConsumerWidget {
     }
   }
 
-  Future<void> _disconnectAll(WidgetRef ref) async {
-    // Disconnect each device via its state notifier
-    // This properly cleans up state and notifies listeners
-    await ref.read(cameraStateProvider.notifier).disconnect();
-    await ref.read(mountStateProvider.notifier).disconnect();
-    await ref.read(focuserStateProvider.notifier).disconnect();
-    await ref.read(filterWheelStateProvider.notifier).disconnect();
-    await ref.read(guiderStateProvider.notifier).disconnect();
-    await ref.read(rotatorStateProvider.notifier).disconnect();
+  Future<void> _disconnectAll(WidgetRef ref, BuildContext context) async {
+    // UI-P0-3: skip by connection state via [runEquipmentDisconnectAll], not
+    // error-message substring matching in notifier disconnect paths.
+    final summary = await runEquipmentDisconnectAll(ref);
+    if (!context.mounted) return;
+
+    for (final failure in summary.failures) {
+      context.showErrorSnackBar('Failed to disconnect $failure');
+    }
   }
 }
 

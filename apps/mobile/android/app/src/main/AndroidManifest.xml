@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
     <!-- Internet permission for network access -->
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
@@ -7,11 +8,27 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
 
+    <!-- QR pairing scanner (mobile_scanner) -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
+
     <!-- Background operation permissions -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <!-- P1-16b: hold a WiFi lock for the duration of the foreground service
+         so aggressive OEM battery firmware (Xiaomi/Huawei/Samsung) does not
+         release WiFi when the screen is off, which would kill the WS
+         mid-sequence. allowWifiLock=true in ForegroundTaskOptions
+         requires this permission to take effect. -->
+    <uses-permission android:name="android.permission.CHANGE_WIFI_STATE" />
+    <!-- P1-16a: requesting battery-optimization whitelist requires this
+         permission. Without it, FlutterForegroundTask.requestIgnoreBatteryOptimization()
+         crashes on Android 11+. The user still chooses whether to grant
+         the whitelist via the standard system dialog. -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"
+        tools:ignore="BatteryLife" />
     
     <application
         android:usesCleartextTraffic="true"

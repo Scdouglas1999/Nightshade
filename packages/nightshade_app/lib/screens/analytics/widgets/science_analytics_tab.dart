@@ -10,6 +10,8 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as path;
 import 'package:path_provider/path_provider.dart';
 
+import '../analytics_screen.dart'
+    show dbSessionImagesProvider, standaloneImagesProvider;
 import 'mpc_export_panel.dart';
 import 'period_analysis_panel.dart';
 import 'photometric_calibration_wizard.dart';
@@ -17,8 +19,14 @@ import 'science_export_hub.dart';
 import 'science_insights_panel.dart';
 import 'science_kpi_strip.dart';
 import 'science_overlay_composer.dart';
+import 'science_solve_rate_card.dart';
+import 'image_grader_dialog.dart';
+import 'science_status_banner.dart';
 import 'science_surface_explorer.dart';
 import 'science_timeline_scrubber.dart';
+import 'science_campaign_strip.dart';
+import 'science_trend_cards.dart';
+import 'adaptive_chart_container.dart';
 
 // Jump-nav anchor keys for the science tab. Declared at file scope so the
 // build method's section bar and section bodies share the same key instances
@@ -61,7 +69,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final activeSessionId = _resolveSessionId(ref);
 
     // When no session is available, render the full layout with empty data
@@ -186,6 +194,20 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         transparencyRows.isEmpty ? null : transparencyRows.last;
     final isNarrow = MediaQuery.sizeOf(context).width < 1080;
 
+    // Pull the underlying captured-image list so the solve-rate card and the
+    // insights engine can report on plate-solve health. Same provider the
+    // Session tab uses, so Drift only runs the query once.
+    final imageList = activeSessionId == null
+        ? (ref.watch(standaloneImagesProvider).valueOrNull ?? const [])
+        : (ref.watch(dbSessionImagesProvider(activeSessionId)).valueOrNull ??
+            const []);
+    final lightFrames = imageList
+        .where((image) => image.frameType.toLowerCase() == 'light')
+        .toList(growable: false);
+    final solvedFrames =
+        lightFrames.where((image) => image.isPlateSolved).length;
+    final calibratedRowCount = calibrations.where((c) => c.isCalibrated).length;
+
     // Audit §4.12: when neither an active session nor any standalone capture
     // has produced science data, render a single shared placeholder instead
     // of stacking nine "no data" cards (one per panel).
@@ -200,16 +222,36 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
         frameMetrics.isEmpty &&
         tileMetrics.isEmpty;
     if (allEmpty) {
-      return EmptyState(
-        icon: LucideIcons.flaskConical,
-        title: 'No science data yet',
-        body: activeSessionId == null
-            ? 'Capture some plate-solved frames to populate the science tab. '
-                'Photometry, PSF maps, and anomaly detections appear here once '
-                'a session has produced calibrated data.'
-            : 'This session has not produced calibrated science products yet. '
-                'PSF tiles, residual maps, and photometry will populate as '
-                'frames are processed.',
+      // P0.2 + P0.3: even when no science products exist yet, show the live
+      // pipeline status and the solve-rate card so users can see *why*
+      // products are missing (queue idle, plate solver not configured, etc.)
+      // and take action. The literal "empty state" message stays as the
+      // anchor explanation.
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const ScienceStatusBanner(),
+            const SizedBox(height: 16),
+            ScienceSolveRateCard(
+              colors: colors,
+              lightFrames: lightFrames,
+            ),
+            const SizedBox(height: 16),
+            EmptyState(
+              icon: LucideIcons.flaskConical,
+              title: 'No science data yet',
+              body: activeSessionId == null
+                  ? 'Capture some plate-solved frames to populate the science tab. '
+                      'Photometry, PSF maps, and anomaly detections appear here once '
+                      'a session has produced calibrated data.'
+                  : 'This session has not produced calibrated science products yet. '
+                      'PSF tiles, residual maps, and photometry will populate as '
+                      'frames are processed.',
+            ),
+          ],
+        ),
       );
     }
 
@@ -219,6 +261,16 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // P0.2: always-on pipeline status. Tells the user whether science
+          // is currently running, idle, or failing — instead of inferring
+          // from empty cards.
+          const ScienceStatusBanner(),
+          const SizedBox(height: 12),
+          // First-run welcome: dismissible "what's new" card that teaches the
+          // four flagship science actions (photometry, transparency, grader,
+          // report). Dismissal persists across launches via
+          // `dismissedTourPromptsProvider`, so power users never see it twice.
+          const _ScienceWelcomeCard(),
           // Audit §4.13: jump nav for the three logical sections below. Sits
           // at the top of the scroll view; the IndexedStack containing this
           // tab keeps it pinned visually whenever the tab is active.
@@ -227,6 +279,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             onPhotometry: () => _jumpTo(_sectionKeys.photometry),
             onFieldQuality: () => _jumpTo(_sectionKeys.fieldQuality),
             onAnomalies: () => _jumpTo(_sectionKeys.anomalies),
+            sessionId: activeSessionId,
           ),
           const SizedBox(height: 12),
           ScienceKpiStrip(
@@ -236,6 +289,15 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
             latestFrameQuality: latestFrameQuality,
             movingCandidateCount: moving.length,
           ),
+          const SizedBox(height: 16),
+          // P0.3: solve-rate health card. Always visible — turns a soft
+          // "no data" failure mode into an actionable diagnosis.
+          ScienceSolveRateCard(
+            colors: colors,
+            lightFrames: lightFrames,
+          ),
+          const SizedBox(height: 12),
+          const ScienceCampaignStrip(),
           const SizedBox(height: 16),
           if (isNarrow) ...[
             ScienceSurfaceExplorer(
@@ -257,6 +319,9 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               latestTransparency: latestTransparencyRow,
               diagnostics: diagnostics,
               healthReport: healthReport,
+              calibratedFrameCount: calibratedRowCount,
+              processedFrameCount: lightFrames.length,
+              solvedFrameCount: solvedFrames,
             ),
           ] else
             Row(
@@ -287,6 +352,9 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                         latestTransparency: latestTransparencyRow,
                         diagnostics: diagnostics,
                         healthReport: healthReport,
+                        calibratedFrameCount: calibratedRowCount,
+                        processedFrameCount: lightFrames.length,
+                        solvedFrameCount: solvedFrames,
                       ),
                     ],
                   ),
@@ -348,6 +416,25 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                 sessionId: activeSessionId,
               ),
             ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: ZeroPointTrendCard(
+                  colors: colors,
+                  calibrations: calibrations,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: SolveRateTrendCard(
+                  colors: colors,
+                  lightFrames: lightFrames,
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 16),
           PeriodAnalysisPanel(
             colors: colors,
@@ -363,8 +450,58 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
               colors: colors,
               label: 'FIELD QUALITY',
               icon: LucideIcons.grid,
+              trailing: lightFrames.isEmpty
+                  ? null
+                  : NightshadeButton(
+                      variant: ButtonVariant.outline,
+                      size: ButtonSize.small,
+                      onPressed: () async {
+                        final rejected = await ImageGraderDialog.show(
+                          context,
+                          frames: lightFrames,
+                          sessionId: activeSessionId,
+                        );
+                        if (rejected != null &&
+                            rejected > 0 &&
+                            context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Rejected $rejected frame'
+                                '${rejected == 1 ? "" : "s"} '
+                                'using the threshold rules.',
+                              ),
+                              behavior: SnackBarBehavior.floating,
+                            ),
+                          );
+                        }
+                      },
+                      label:
+                          'Grade ${lightFrames.length} frame${lightFrames.length == 1 ? "" : "s"}',
+                      icon: LucideIcons.sliders,
+                    ),
             ),
           ),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: HfrTrendCard(
+                  colors: colors,
+                  lightFrames: lightFrames,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: UniformityTrendCard(
+                  colors: colors,
+                  frameMetrics: frameMetrics,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -419,8 +556,7 @@ class _ScienceAnalyticsTabState extends ConsumerState<ScienceAnalyticsTab> {
                   hubExportButton: moving.isEmpty
                       ? null
                       : _CardHubExportButton(
-                          tooltip:
-                              'Open export hub (Moving object candidates)',
+                          tooltip: 'Open export hub (Moving object candidates)',
                           dataset: ScienceExportDataset.movingObjects,
                           mpcCandidates: moving,
                         ),
@@ -477,7 +613,7 @@ class _CardHubExportButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     return Tooltip(
       message: tooltip,
       child: InkWell(
@@ -508,21 +644,23 @@ class _CardHubExportButton extends StatelessWidget {
 /// the top of the science analytics scroll view. Implements audit §4.13 so
 /// users do not have to scroll through several hundred pixels of dense panels
 /// to reach the section they care about.
-class _ScienceJumpNav extends StatelessWidget {
+class _ScienceJumpNav extends ConsumerWidget {
   final NightshadeColors colors;
   final VoidCallback onPhotometry;
   final VoidCallback onFieldQuality;
   final VoidCallback onAnomalies;
+  final int? sessionId;
 
   const _ScienceJumpNav({
     required this.colors,
     required this.onPhotometry,
     required this.onFieldQuality,
     required this.onAnomalies,
+    required this.sessionId,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
       decoration: BoxDecoration(
@@ -552,9 +690,68 @@ class _ScienceJumpNav extends StatelessWidget {
             label: 'Anomalies',
             onTap: onAnomalies,
           ),
+          const Spacer(),
+          if (sessionId != null)
+            _JumpChip(
+              colors: colors,
+              icon: LucideIcons.fileText,
+              label: 'Export report',
+              onTap: () => _exportReport(context, ref, sessionId!),
+            ),
         ],
       ),
     );
+  }
+
+  Future<void> _exportReport(
+      BuildContext context, WidgetRef ref, int sessionId) async {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Generating science report…'),
+        duration: Duration(seconds: 2),
+        behavior: SnackBarBehavior.floating,
+      ),
+    );
+    try {
+      final exporter = ref.read(scienceReportExporterProvider);
+      final file = await exporter.exportToDisk(sessionId);
+      if (!context.mounted) return;
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Saved to ${file.path}'),
+          action: SnackBarAction(
+            label: 'Open folder',
+            onPressed: () async {
+              final dir = file.parent.path;
+              await _openInShell(dir);
+            },
+          ),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 6),
+        ),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      messenger.clearSnackBars();
+      messenger.showSnackBar(
+        SnackBar(
+          content: Text('Export failed: $e'),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    }
+  }
+
+  Future<void> _openInShell(String path) async {
+    if (Platform.isWindows) {
+      await Process.start('explorer', [path], runInShell: true);
+    } else if (Platform.isMacOS) {
+      await Process.start('open', [path], runInShell: true);
+    } else if (Platform.isLinux) {
+      await Process.start('xdg-open', [path], runInShell: true);
+    }
   }
 }
 
@@ -602,11 +799,13 @@ class _SectionHeading extends StatelessWidget {
   final NightshadeColors colors;
   final String label;
   final IconData icon;
+  final Widget? trailing;
 
   const _SectionHeading({
     required this.colors,
     required this.label,
     required this.icon,
+    this.trailing,
   });
 
   @override
@@ -626,6 +825,10 @@ class _SectionHeading extends StatelessWidget {
               letterSpacing: 0.4,
             ),
           ),
+          if (trailing != null) ...[
+            const Spacer(),
+            trailing!,
+          ],
         ],
       ),
     );
@@ -879,21 +1082,21 @@ const _kScienceInfoContent = <String, String>{
 
 /// Shows a themed info dialog explaining a science visualization.
 void _showScienceInfoDialog(BuildContext context, String title, String body) {
-  final colors = Theme.of(context).extension<NightshadeColors>()!;
+  final colors = NightshadeColors.of(context);
   showDialog(
     context: context,
     builder: (context) => AlertDialog(
       backgroundColor: colors.surface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(8),
-        side: BorderSide(color: colors.primary.withValues(alpha: 0.25)),
+        side: BorderSide(color: colors.borderHighlight),
       ),
       title: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: colors.primary.withValues(alpha: 0.1),
+            decoration: NightshadeDecorations.tintedBadge(
+              colors.primary,
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -916,7 +1119,11 @@ void _showScienceInfoDialog(BuildContext context, String title, String body) {
         ],
       ),
       content: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 520, maxHeight: 420),
+        constraints: AdaptiveDialogConstraints.hybrid(
+          context,
+          designMaxWidth: 520,
+          designMaxHeight: 420,
+        ),
         child: SingleChildScrollView(
           child: Text(
             body.trim(),
@@ -947,7 +1154,7 @@ class _ScienceInfoButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final colors = NightshadeColors.of(context);
     final body = _kScienceInfoContent[title];
     if (body == null) return const SizedBox.shrink();
 
@@ -1000,7 +1207,7 @@ class _SeriesChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (points.isEmpty) {
       return NightshadeCard(
-        child: SizedBox(
+        child: AdaptiveChartContainer.fixed(
           height: 240,
           child: Center(
             child: Text(
@@ -1057,8 +1264,8 @@ class _SeriesChartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 190,
+            AdaptiveChartContainer(
+              preferredHeight: 190,
               child: LineChart(
                 LineChartData(
                   minX: 0,
@@ -1243,27 +1450,34 @@ class _AavsoExportButtonState extends ConsumerState<_AavsoExportButton> {
       builder: (ctx) {
         return AlertDialog(
           title: const Text('Export to AAVSO'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Enter the AAVSO star designation for this target '
-                '(e.g., "SS CYG", "R LEO"):',
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: controller,
-                autofocus: true,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  hintText: 'Star name',
-                  border: OutlineInputBorder(),
-                  isDense: true,
+          content: ConstrainedBox(
+            constraints: AdaptiveDialogConstraints.hybrid(
+              ctx,
+              designMaxWidth: 480,
+              designMaxHeight: 320,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Enter the AAVSO star designation for this target '
+                  '(e.g., "SS CYG", "R LEO"):',
                 ),
-                onSubmitted: (value) => Navigator.of(ctx).pop(value),
-              ),
-            ],
+                const SizedBox(height: 12),
+                TextField(
+                  controller: controller,
+                  autofocus: true,
+                  textCapitalization: TextCapitalization.characters,
+                  decoration: const InputDecoration(
+                    hintText: 'Star name',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onSubmitted: (value) => Navigator.of(ctx).pop(value),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
@@ -1312,7 +1526,7 @@ class _LightCurveChartCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (lightCurve.isEmpty) {
       return NightshadeCard(
-        child: SizedBox(
+        child: AdaptiveChartContainer.fixed(
           height: 240,
           child: Center(
             child: Text(
@@ -1377,8 +1591,8 @@ class _LightCurveChartCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              height: 190,
+            AdaptiveChartContainer(
+              preferredHeight: 190,
               child: LineChart(
                 LineChartData(
                   minX: 0,
@@ -1543,7 +1757,7 @@ class _PsfHeatmapCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             if (tiles.isEmpty)
-              SizedBox(
+              AdaptiveChartContainer.fixed(
                 height: 170,
                 child: Center(
                   child: Text(
@@ -1592,8 +1806,8 @@ class _PsfHeatmapGrid extends StatelessWidget {
         ? 1.0
         : _percentile(valid, 0.95).clamp(low + 1e-6, double.infinity);
 
-    return SizedBox(
-      height: 170,
+    return AdaptiveChartContainer(
+      preferredHeight: 170,
       child: Column(
         children: List.generate(rowCount, (row) {
           return Expanded(
@@ -2203,9 +2417,10 @@ class _TransformRow extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: colors.primary.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  colors.primary,
                   borderRadius: BorderRadius.circular(4),
+                  bordered: false,
                 ),
                 child: Text(
                   transform.filterName,
@@ -2219,9 +2434,10 @@ class _TransformRow extends StatelessWidget {
               const SizedBox(width: 8),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                decoration: BoxDecoration(
-                  color: qualityColor.withValues(alpha: 0.15),
+                decoration: NightshadeDecorations.statusChip(
+                  qualityColor,
                   borderRadius: BorderRadius.circular(4),
+                  bordered: false,
                 ),
                 child: Text(
                   quality,
@@ -2327,6 +2543,160 @@ class _CoefficientChip extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
             overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// First-run welcome strip that hand-walks new users through the science
+/// differentiators (live photometric calibration, transparency monitoring,
+/// the image grader, the markdown report, and FITS keyword writeback) the
+/// first time they land on the Science tab.
+///
+/// Dismissal is persisted via `dismissedTourPromptsProvider`, so power users
+/// only ever see this card once across all launches of the app. We keep the
+/// surface intentionally compact — four bullet rows plus a "Got it" button —
+/// to avoid masking the live data below.
+class _ScienceWelcomeCard extends ConsumerWidget {
+  static const String _screenId = 'science_welcome_v1';
+
+  const _ScienceWelcomeCard();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final dismissed = ref.watch(dismissedTourPromptsProvider);
+    if (dismissed.contains(_screenId)) {
+      return const SizedBox.shrink();
+    }
+    final colors = NightshadeColors.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+        decoration: NightshadeDecorations.emphasisSurface(
+          colors.primary,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(LucideIcons.sparkles, size: 16, color: colors.primary),
+                const SizedBox(width: 8),
+                Text(
+                  'Welcome to Nightshade Science',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontWeight: FontWeight.w700,
+                    fontSize: 13,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints:
+                      const BoxConstraints(minWidth: 28, minHeight: 28),
+                  icon: Icon(LucideIcons.x,
+                      size: 14, color: colors.textSecondary),
+                  tooltip: 'Dismiss',
+                  onPressed: () => ref
+                      .read(dismissedTourPromptsProvider.notifier)
+                      .dismissPrompt(_screenId),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _bullet(
+              colors,
+              LucideIcons.gauge,
+              'Live photometric calibration:',
+              'every plate-solved frame is matched to Gaia DR3, so you get '
+                  'a zero point, limiting magnitude, and atmospheric '
+                  'transparency in seconds — no external pipeline needed.',
+            ),
+            _bullet(
+              colors,
+              LucideIcons.sliders,
+              'Image grader:',
+              'set HFR / FWHM / star-count / RMS thresholds and reject sub-par '
+                  'frames in one click. Rejections persist back to the '
+                  'database so stacking tools see them.',
+            ),
+            _bullet(
+              colors,
+              LucideIcons.fileText,
+              'Export report:',
+              'one tap produces a markdown science report — session '
+                  'summary, photometry snapshot, transparency, top issues — '
+                  'ready to drop into a logbook.',
+            ),
+            _bullet(
+              colors,
+              LucideIcons.archive,
+              'FITS keyword writeback:',
+              'MAGZP, TRANSPAR, and friends are stamped straight into your '
+                  'FITS files so PixInsight, AstroPixelProcessor, and Siril '
+                  'can read Nightshade\'s measurements directly.',
+            ),
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () => ref
+                    .read(dismissedTourPromptsProvider.notifier)
+                    .dismissPrompt(_screenId),
+                icon: const Icon(LucideIcons.check, size: 13),
+                label: const Text('Got it',
+                    style:
+                        TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bullet(
+    NightshadeColors colors,
+    IconData icon,
+    String lead,
+    String body,
+  ) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 2),
+            child: Icon(icon, size: 13, color: colors.textSecondary),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: RichText(
+              text: TextSpan(
+                style: TextStyle(
+                  color: colors.textSecondary,
+                  fontSize: 11.5,
+                  height: 1.35,
+                ),
+                children: [
+                  TextSpan(
+                    text: '$lead ',
+                    style: TextStyle(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  TextSpan(text: body),
+                ],
+              ),
+            ),
           ),
         ],
       ),
