@@ -62,4 +62,9 @@ flutter {
 
 dependencies {
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // Wave 7C — ShortcutManagerCompat for App Actions / Assistant
+    // shortcuts. Provides pushDynamicShortcut + updateShortcuts which
+    // MainActivity uses to surface the live sequence status to the
+    // launcher and Assistant.
+    implementation("androidx.core:core-ktx:1.13.1")
 }

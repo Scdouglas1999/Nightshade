@@ -57,6 +57,34 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
+
+            <!--
+              Wave 7C — Google Assistant App Actions deep link.
+
+              The Assistant resolves "Pause Nightshade" against
+              `custom.actions.intent.PAUSE_SEQUENCE` (declared in
+              res/xml/shortcuts.xml) and dispatches an Intent with
+              data=nightshade://voice-action/pause_sequence. The handler
+              in MainActivity.kt decodes the wire id from the URI and
+              forwards it to Dart over the `nightshade/voice_control`
+              MethodChannel.
+            -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <category android:name="android.intent.category.BROWSABLE"/>
+                <data android:scheme="nightshade"
+                      android:host="voice-action"/>
+            </intent-filter>
+
+            <!--
+              Wave 7C — bind the shortcuts.xml resource to the activity
+              so the launcher and Assistant both pick up the static
+              shortcuts and App Action capabilities declared there.
+            -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->

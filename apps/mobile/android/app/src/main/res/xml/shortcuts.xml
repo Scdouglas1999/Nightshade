@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Wave 7C — Google Assistant App Actions / Static Shortcuts.
+
+  Each <capability> binds a built-in or custom intent name to a target
+  inside this app, plus a list of <parameter> shortcuts that surface in
+  the Assistant grammar. App Actions ship via this static XML so the
+  Assistant grammar is registered at install time; dynamic per-session
+  state (current sequence, frames complete, ETA) is pushed at runtime
+  through `ShortcutManagerCompat.pushDynamicShortcut(...)` in
+  MainActivity, which is what the Assistant launcher's "What's
+  Nightshade doing?" suggestion reads.
+
+  Custom capability names use the `custom.actions.intent.*` namespace as
+  recommended by https://developers.google.com/assistant/app/action-schema
+  for actions that don't have a built-in intent equivalent. (There is no
+  built-in BII for "report status of a long-running task", which is
+  what this app needs.)
+
+  URL targets use the `nightshade://voice-action/<wireId>` scheme. The
+  MainActivity's onNewIntent handler decodes the wireId from
+  `intent.data` and forwards it to Dart over the `nightshade/voice_control`
+  channel. Wire ids MUST match `VoiceControlAction.wireId` in
+  apps/mobile/lib/services/voice_control_service.dart.
+-->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Read-only: "What's Nightshade doing?" -->
+    <capability android:name="custom.actions.intent.SEQUENCE_STATUS">
+        <intent
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:action="android.intent.action.VIEW"
+            android:data="nightshade://voice-action/refresh_status" />
+    </capability>
+
+    <!-- Control: "Pause Nightshade" -->
+    <capability android:name="custom.actions.intent.PAUSE_SEQUENCE">
+        <intent
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:action="android.intent.action.VIEW"
+            android:data="nightshade://voice-action/pause_sequence" />
+    </capability>
+
+    <!-- Control: "Resume Nightshade" -->
+    <capability android:name="custom.actions.intent.RESUME_SEQUENCE">
+        <intent
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:action="android.intent.action.VIEW"
+            android:data="nightshade://voice-action/resume_sequence" />
+    </capability>
+
+    <!-- Deep link: "Show the last Nightshade image" -->
+    <capability android:name="custom.actions.intent.OPEN_LAST_IMAGE">
+        <intent
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:action="android.intent.action.VIEW"
+            android:data="nightshade://voice-action/open_last_image" />
+    </capability>
+
+    <!--
+      Static shortcuts: long-pressing the app icon surfaces these in the
+      launcher menu so the user can trigger the same actions without
+      voice. They also seed the Assistant's "Get suggestions" list.
+
+      The dynamic `current_status` shortcut (containing the live
+      sequence summary) is pushed at runtime by
+      VoiceControlMethodChannelHandler.publishStatus(...) in MainActivity.
+    -->
+    <shortcut
+        android:shortcutId="pause_sequence"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/voice_shortcut_pause"
+        android:shortcutLongLabel="@string/voice_shortcut_pause_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:data="nightshade://voice-action/pause_sequence" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="resume_sequence"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/voice_shortcut_resume"
+        android:shortcutLongLabel="@string/voice_shortcut_resume_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:data="nightshade://voice-action/resume_sequence" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="open_last_image"
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutShortLabel="@string/voice_shortcut_last_image"
+        android:shortcutLongLabel="@string/voice_shortcut_last_image_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.nightshade.mobile"
+            android:targetClass="com.example.nightshade_mobile.MainActivity"
+            android:data="nightshade://voice-action/open_last_image" />
+    </shortcut>
+
+</shortcuts>
