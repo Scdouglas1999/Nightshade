@@ -9,6 +9,14 @@ const _jsonOutputPath =
 const _markdownOutputPath =
     'docs/production-readiness/headless-route-policy-audit.md';
 const _serverPath = 'apps/desktop/lib/headless_api_server.dart';
+
+/// Directory of per-domain declarative route tables. Each file there
+/// exposes a top-level `buildXxxRoutes(...)` whose `HeadlessRoute`
+/// entries replaced the legacy inline `router.<verb>(...)` calls in
+/// `start()`. The audit scans this directory in addition to
+/// [_serverPath] so the body-limit inventory survives the refactor.
+const _routesDirectory = 'apps/desktop/lib/headless_api/routes';
+
 const _serverMiddlewareTestPath =
     'apps/desktop/test/headless_api/auth_middleware_test.dart';
 
@@ -248,14 +256,42 @@ List<_ApiRoute> _registeredBodyApiRoutes(String? source) {
     return const [];
   }
   final routes = <_ApiRoute>{};
-  final pattern = RegExp(r"router\.(post|put|patch)\(\s*'([^']+)'");
-  for (final match in pattern.allMatches(source)) {
+
+  // Legacy inline `router.<verb>(...)` registrations in the server.
+  // The active codebase moved these into per-domain `routes/*.dart`
+  // files (scanned below), but the pattern is kept so a one-off
+  // inline registration that hasn't been migrated is still seen.
+  final inlinePattern = RegExp(r"router\.(post|put|patch)\(\s*'([^']+)'");
+  for (final match in inlinePattern.allMatches(source)) {
     final path = match.group(2)!;
     if (!path.startsWith('/api/')) {
       continue;
     }
     routes.add(_ApiRoute(match.group(1)!.toUpperCase(), path));
   }
+
+  // Per-domain `HeadlessRoute(HttpMethod.<verb>, '<path>', ...)`
+  // entries. Only `post`/`put`/`patch` carry a body so those are the
+  // only verbs we collect; `get`/`delete` writes are not contemplated
+  // here because the legacy audit also ignored them.
+  final headlessRoutePattern = RegExp(
+    r"HeadlessRoute\(\s*HttpMethod\.(post|put|patch)\s*,\s*'([^']+)'",
+  );
+  final routesDir = Directory(_routesDirectory);
+  if (routesDir.existsSync()) {
+    for (final entity in routesDir.listSync(recursive: false)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final fileSource = entity.readAsStringSync();
+      for (final match in headlessRoutePattern.allMatches(fileSource)) {
+        final path = match.group(2)!;
+        if (!path.startsWith('/api/')) {
+          continue;
+        }
+        routes.add(_ApiRoute(match.group(1)!.toUpperCase(), path));
+      }
+    }
+  }
+
   return routes.toList()
     ..sort((a, b) {
       final pathCompare = a.path.compareTo(b.path);

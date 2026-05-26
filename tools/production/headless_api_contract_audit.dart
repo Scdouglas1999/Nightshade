@@ -3,6 +3,15 @@ import 'dart:io';
 
 const _serverPath = 'apps/desktop/lib/headless_api_server.dart';
 
+/// Directory holding per-domain declarative route tables. Every file
+/// under here exposes a top-level `List<HeadlessRoute> buildXxxRoutes
+/// (...)` whose entries take the shape
+/// `HeadlessRoute(HttpMethod.<verb>, '<path>', ...)`. The audit scans
+/// this directory in addition to [_serverPath] so the registered-route
+/// inventory survives the refactor that moved the inline
+/// `router.<verb>(...)` calls out of `start()`.
+const _routesDirectory = 'apps/desktop/lib/headless_api/routes';
+
 /// File the canonical `availableHeadlessEndpoints()` catalog now lives
 /// in. Moved out of `headless_api_server.dart` when the system
 /// handlers were extracted into their own class; the audit reads this
@@ -356,27 +365,72 @@ Map<String, bool> _versionNegotiationCoverage({
 }
 
 Set<String> _registeredApiRoutes(String source) {
-  return RegExp(r"router\.(get|post|put|delete|patch)\(\s*'([^']+)'")
-      .allMatches(source)
-      .map((match) {
-        final path = match.group(2)!;
-        if (!path.startsWith('/api/') && path != '/events') {
-          return null;
-        }
+  final result = <String>{};
 
-        final callEnd = source.indexOf(';', match.end);
-        final routeCall = source.substring(
-          match.start,
-          callEnd == -1 ? match.end : callEnd,
-        );
-        final method =
-            routeCall.contains('webSocketHandler') || path == '/events'
-                ? 'WS'
-                : match.group(1)!.toUpperCase();
-        return '$method ${_normalizeRoute(path)}';
-      })
-      .whereType<String>()
-      .toSet();
+  // Legacy inline-`router.<verb>(...)` registrations. The Pi
+  // operator's `start()` method used to register hundreds of routes
+  // this way; the refactor moved them into per-domain route files
+  // under `apps/desktop/lib/headless_api/routes/` (scanned below).
+  // The pattern is still scanned in the server source so any one-off
+  // legacy registration that hasn't been migrated is still seen.
+  final routerPattern =
+      RegExp(r"router\.(get|post|put|delete|patch)\(\s*'([^']+)'");
+  for (final match in routerPattern.allMatches(source)) {
+    final path = match.group(2)!;
+    if (!path.startsWith('/api/') && path != '/events') {
+      continue;
+    }
+    final callEnd = source.indexOf(';', match.end);
+    final routeCall = source.substring(
+      match.start,
+      callEnd == -1 ? match.end : callEnd,
+    );
+    final method = routeCall.contains('webSocketHandler') || path == '/events'
+        ? 'WS'
+        : match.group(1)!.toUpperCase();
+    result.add('$method ${_normalizeRoute(path)}');
+  }
+
+  // Per-domain `HeadlessRoute(HttpMethod.<verb>, '<path>', ...)`
+  // entries. Pattern matches:
+  //   HeadlessRoute(HttpMethod.get,  '/api/info', h.handleInfo)
+  //   HeadlessRoute(HttpMethod.post, '/api/...', _foo.bar)
+  // Trailing whitespace / line breaks between the comma and the path
+  // string are tolerated so the audit doesn't care about formatter
+  // line-wrapping inside the per-domain lists.
+  final headlessRoutePattern = RegExp(
+    r"HeadlessRoute\(\s*HttpMethod\.(get|post|put|delete|patch|head|options)\s*,\s*'([^']+)'",
+  );
+  // Routes registered via the WebSocket builder. The list takes
+  // `Handler` closures (not method tear-offs), so we can't tag them as
+  // WS from a textual scan of the routes file alone — there is no
+  // verb prefix to disambiguate from a plain HTTP GET. The
+  // `_wsRoutes` set hard-codes which paths the WebSocket builder
+  // owns; everything else from a `routes/*.dart` file is HTTP.
+  const wsRoutes = {'/api/ws', '/events', '/ws/live-view'};
+  final routesDir = Directory(_routesDirectory);
+  if (routesDir.existsSync()) {
+    for (final entity in routesDir.listSync(recursive: false)) {
+      if (entity is! File || !entity.path.endsWith('.dart')) continue;
+      final fileSource = entity.readAsStringSync();
+      for (final match in headlessRoutePattern.allMatches(fileSource)) {
+        final path = match.group(2)!;
+        final isWs = wsRoutes.contains(path);
+        // Static-file SPA fallthroughs and the broadcast page are not
+        // part of the API contract; the legacy regex would only match
+        // them under `router.<verb>(...)` in the server source and
+        // even then they were not surfaced (the legacy scanner only
+        // accepted `/api/*` and `/events`). Reproduce that filter here.
+        if (!path.startsWith('/api/') && !isWs) {
+          continue;
+        }
+        final method = isWs ? 'WS' : match.group(1)!.toUpperCase();
+        result.add('$method ${_normalizeRoute(path)}');
+      }
+    }
+  }
+
+  return result;
 }
 
 Set<String> _advertisedApiRoutes(String source) {
