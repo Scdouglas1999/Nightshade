@@ -9,6 +9,7 @@
 //! Cohesive concerns are split into sibling submodules:
 //!   * [`lifecycle`]    — operator pause/resume/stop/skip/recovery-button.
 //!   * [`recovery`]     — recovery state-machine snapshot accessors.
+//!   * [`setup`]        — pre-start `set_*` wiring and post-run `reset`.
 //!   * [`runtime_config`] — `update_*` mid-flight config mutators.
 //!   * [`checkpoint`]   — crash-recovery save/load surface.
 //!   * [`decision`]     — Wave 8 structured-decision logging surface.
@@ -25,6 +26,7 @@
 mod decision;
 mod lifecycle;
 mod recovery;
+mod setup;
 
 use crate::device_ops::SharedDeviceOps;
 use crate::node::{
@@ -1307,109 +1309,6 @@ impl SequenceExecutor {
             // sessions) so we ship enabled-by-default.
             decision_logging_enabled: Arc::new(AtomicBool::new(true)),
         }
-    }
-
-    /// Set the safety fail mode for the sequencer
-    pub fn set_safety_fail_mode(&mut self, mode: SafetyFailMode) {
-        self.safety_fail_mode = mode;
-        {
-            let mut rc = self.runtime_config.write();
-            rc.safety_fail_mode = mode;
-        }
-        if let Some(tx) = &self.command_tx {
-            let _ = tx.try_send(ExecutorCommand::UpdateSafetyFailMode { mode });
-        }
-    }
-
-    /// Set the safety/humidity polling interval for the sequencer.
-    pub fn set_safety_check_interval_secs(&mut self, seconds: u64) {
-        let seconds = effective_safety_check_interval_secs(seconds);
-        {
-            let mut rc = self.runtime_config.write();
-            rc.safety_check_interval_secs = seconds;
-        }
-        if let Some(tx) = &self.command_tx {
-            let _ = tx.try_send(ExecutorCommand::UpdateSafetyCheckInterval { seconds });
-        }
-    }
-
-    /// Get the trigger manager for configuration
-    pub fn trigger_manager(&self) -> Arc<RwLock<TriggerManager>> {
-        self.trigger_manager.clone()
-    }
-
-    /// Enable or disable trigger monitoring
-    pub fn set_triggers_enabled(&mut self, enabled: bool) {
-        self.triggers_enabled = enabled;
-    }
-
-    /// Update trigger state with current readings
-    pub async fn update_trigger_state<F>(&self, updater: F)
-    where
-        F: FnOnce(&mut TriggerState),
-    {
-        let manager = self.trigger_manager.read().await;
-        let state_lock = manager.state();
-        let mut state = state_lock.write().await;
-        updater(&mut state);
-    }
-
-    /// Set the device operations handler
-    /// This MUST be called before starting a sequence, otherwise start() will return an error.
-    pub fn set_device_ops(&mut self, ops: SharedDeviceOps) {
-        self.device_ops = Some(ops);
-    }
-
-    /// Check if device operations have been configured
-    pub fn has_device_ops(&self) -> bool {
-        self.device_ops.is_some()
-    }
-
-    /// Set connected device IDs
-    pub fn set_devices(
-        &mut self,
-        camera: Option<String>,
-        mount: Option<String>,
-        focuser: Option<String>,
-        filterwheel: Option<String>,
-        rotator: Option<String>,
-    ) {
-        self.camera_id = camera;
-        self.mount_id = mount;
-        self.focuser_id = focuser;
-        self.filterwheel_id = filterwheel;
-        self.rotator_id = rotator;
-    }
-
-    /// Set dome device ID
-    pub fn set_dome(&mut self, dome_id: Option<String>) {
-        self.dome_id = dome_id;
-    }
-
-    /// Set cover calibrator (flat panel) device ID
-    pub fn set_cover_calibrator(&mut self, cover_calibrator_id: Option<String>) {
-        self.cover_calibrator_id = cover_calibrator_id;
-    }
-
-    /// Set save path for images
-    pub fn set_save_path(&mut self, path: Option<std::path::PathBuf>) {
-        self.save_path = path;
-    }
-
-    /// Set observer location
-    pub fn set_location(&mut self, lat: Option<f64>, lon: Option<f64>) {
-        self.latitude = lat;
-        self.longitude = lon;
-    }
-
-    /// Set filter focus offsets from equipment profile
-    pub fn set_filter_focus_offsets(&mut self, offsets: std::collections::HashMap<String, i32>) {
-        self.filter_focus_offsets = offsets;
-    }
-
-    /// Subscribe to executor events
-    pub fn subscribe(&self) -> broadcast::Receiver<ExecutorEvent> {
-        self.event_tx.subscribe()
     }
 
     async fn prepare_sequence_recovery_triggers(&self) -> Result<HashMap<String, NodeId>, String> {
@@ -5726,18 +5625,6 @@ impl SequenceExecutor {
         let _ = self.event_tx.send(ExecutorEvent::RuntimeConfigUpdated {
             what: "default_adaptive_exposure".to_string(),
         });
-    }
-
-    /// Reset the executor
-    pub async fn reset(&mut self) {
-        self.command_tx = None;
-        self.is_cancelled.store(false, Ordering::Relaxed);
-        *self.state.write().await = ExecutorState::Idle;
-        *self.progress.write() = SequenceProgress::default();
-
-        if let Some(ref mut node) = self.root_node {
-            node.reset();
-        }
     }
 
     // =========================================================================
