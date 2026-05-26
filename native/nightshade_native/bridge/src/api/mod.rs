@@ -141,6 +141,11 @@ pub mod diagnostics;
 pub mod discovery;
 pub mod event_stream;
 pub(crate) mod heartbeat;
+// `pub(crate)` not `pub`: keep this submodule's name out of the crate-root
+// glob (`pub use api::*` in lib.rs) so it doesn't shadow `crate::hotplug`,
+// the top-level listener module. The single Dart-callable function inside
+// is re-exported by name below.
+pub(crate) mod hotplug;
 pub mod imaging;
 pub mod init;
 pub mod phd2;
@@ -158,6 +163,11 @@ pub use diagnostics::*;
 pub use discovery::*;
 pub use event_stream::*;
 pub use heartbeat::*;
+// Re-export the hotplug FFI function explicitly rather than glob-importing
+// the submodule — `crate::hotplug` (the listener / poll implementation) is
+// also a top-level module, and a glob `pub use hotplug::*` would shadow it
+// in the crate root namespace.
+pub use hotplug::api_rescan_devices;
 pub use imaging::*;
 pub use init::*;
 pub use phd2::*;
