@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../providers/equipment_provider.dart';
-import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
 import '../providers/profiles_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/sequence_provider.dart';
@@ -22,6 +21,7 @@ import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart' show AutofocusSettings;
 import '../models/sequence/sequence_models.dart';
 import '../utils/device_id_utils.dart';
+import 'camera_temperature_poller.dart';
 import 'device_exceptions.dart';
 import 'notification_service.dart';
 import 'logging_service.dart';
@@ -155,9 +155,7 @@ class DeviceService {
   }
 
   StreamSubscription? _eventSubscription;
-  Timer? _temperaturePollingTimer;
-  String? _connectedCameraId;
-  int _temperaturePollingGeneration = 0;
+  late final CameraTemperaturePoller _temperaturePoller;
   Timer? _warmingTimer;
   bool _warmingCancelled = false;
 
@@ -200,6 +198,10 @@ class DeviceService {
   bool get isAutofocusRunning => _isAutofocusRunning;
 
   DeviceService(this._ref, this._backend) {
+    _temperaturePoller = CameraTemperaturePoller(
+      ref: _ref,
+      backend: _backend,
+    );
     DeviceServiceLifecycle.register(this);
     _initEventListening();
   }
@@ -252,97 +254,6 @@ class DeviceService {
       names: syncedNames,
     );
     notifier.setConnected(filterNames: syncedNames);
-  }
-
-  /// Start polling camera temperature every 5 seconds
-  void _startTemperaturePolling(String deviceId) {
-    _connectedCameraId = deviceId;
-    final generation = ++_temperaturePollingGeneration;
-    _temperaturePollingTimer?.cancel();
-    _temperaturePollingTimer =
-        Timer.periodic(const Duration(seconds: 5), (_) async {
-      await _pollCameraTemperature(deviceId, generation);
-    });
-    // Poll immediately on start
-    unawaited(_pollCameraTemperature(deviceId, generation));
-  }
-
-  /// Stop temperature polling
-  void _stopTemperaturePolling() {
-    _temperaturePollingGeneration++;
-    _temperaturePollingTimer?.cancel();
-    _temperaturePollingTimer = null;
-    _connectedCameraId = null;
-  }
-
-  /// Poll camera temperature and update providers
-  Future<void> _pollCameraTemperature(String deviceId, int generation) async {
-    if (_connectedCameraId != deviceId ||
-        _temperaturePollingGeneration != generation) {
-      return;
-    }
-
-    try {
-      final status = await _backend.getCameraStatus(deviceId);
-      if (_connectedCameraId != deviceId ||
-          _temperaturePollingGeneration != generation) {
-        return;
-      }
-
-      // Use typed CameraStatus accessors
-      final temp = status.sensorTemp;
-      final power = status.coolerPower;
-      final targetTemp = status.targetTemp;
-
-      // Log temperature readings for debugging
-      try {
-        final logger = _ref.read(loggingServiceProvider);
-        logger.debug(
-          'Camera temp: ${temp?.toStringAsFixed(1) ?? "null"}°C, power: ${power?.toStringAsFixed(0) ?? "null"}%, target: ${targetTemp?.toStringAsFixed(1) ?? "null"}°C',
-          source: 'DeviceService',
-        );
-      } on Object catch (e) {
-        // Why: logger lookup happens inside a temperature poll tick; if the
-        // logging service itself is mid-disposal we must not propagate up the
-        // poll loop. Diagnostic-only failure — emit to stderr so it isn't
-        // fully silent.
-        // ignore: avoid_print
-        print('DeviceService: temp-log emission failed: $e');
-      }
-
-      if (temp != null) {
-        // Update camera state
-        _ref
-            .read(cameraStateProvider.notifier)
-            .updateTemperature(temp, power ?? 0.0);
-
-        // Update temperature history for the graph
-        _ref.read(temperatureHistoryProvider.notifier).addPoint(
-              temp,
-              targetTemp: targetTemp,
-              coolerPower: power,
-            );
-      }
-    } catch (e) {
-      if (_connectedCameraId != deviceId ||
-          _temperaturePollingGeneration != generation) {
-        return;
-      }
-      // Log polling errors for debugging
-      try {
-        final logger = _ref.read(loggingServiceProvider);
-        logger.warning('Temperature polling error: $e',
-            source: 'DeviceService');
-      } on Object catch (loggerErr) {
-        // Why: nested catch around logger emission during the poll-loop's
-        // error path. If the logging provider is itself disposing we must
-        // not re-throw — that would mask the original temperature-polling
-        // failure. Surface to stderr so it isn't fully silent.
-        // ignore: avoid_print
-        print('DeviceService: warn-log emission failed: $loggerErr '
-            '(original temp-poll error: $e)');
-      }
-    }
   }
 
   void _initEventListening() {
@@ -398,7 +309,7 @@ class DeviceService {
     _userDisconnectDebounceTimer?.cancel();
     _userDisconnectDebounceTimer = null;
     cancelWarmCamera();
-    _stopTemperaturePolling();
+    _temperaturePoller.stop();
     _focuserVerifyGeneration++;
     _rotatorVerifyGeneration++;
     _filterWheelVerifyGeneration++;
@@ -1069,13 +980,14 @@ class DeviceService {
         // kill polling/IDs for the CURRENT camera. We still flip the
         // notifier and schedule reconnect — those operations are
         // device-id aware via _attemptReconnect/setDisconnected.
-        if (_connectedCameraId != null && _connectedCameraId == deviceId) {
-          _stopTemperaturePolling();
-        } else if (_connectedCameraId != null) {
+        final trackedCameraId = _temperaturePoller.connectedCameraId;
+        if (trackedCameraId != null && trackedCameraId == deviceId) {
+          _temperaturePoller.stop();
+        } else if (trackedCameraId != null) {
           _safeLog(
             (logger) => logger.warning(
               'Ignoring stale camera Disconnected for $deviceId; '
-              'currently-tracked camera is $_connectedCameraId',
+              'currently-tracked camera is $trackedCameraId',
               source: 'DeviceService',
             ),
             'camera-disconnect-guard',
@@ -1727,7 +1639,7 @@ class DeviceService {
     _disposed = true;
     DeviceServiceLifecycle.unregister(this);
     _eventSubscription?.cancel();
-    _temperaturePollingTimer?.cancel();
+    _temperaturePoller.dispose();
     _warmingTimer?.cancel();
     _userDisconnectDebounceTimer?.cancel();
     _cancelAllReconnections();
@@ -1820,7 +1732,7 @@ class DeviceService {
         await _autoApplyRecommendedCameraSettings(deviceId, deviceName);
 
         // Start temperature polling (this will immediately poll and update)
-        _startTemperaturePolling(deviceId);
+        _temperaturePoller.start(deviceId);
 
         // Start heartbeat monitoring (10 second interval)
         try {
@@ -2210,7 +2122,7 @@ class DeviceService {
       // Cancel any warming in progress
       cancelWarmCamera();
       // Stop temperature polling first
-      _stopTemperaturePolling();
+      _temperaturePoller.stop();
 
       final notifier = _ref.read(cameraStateProvider.notifier);
       final state = _ref.read(cameraStateProvider);
