@@ -748,8 +748,31 @@ class _AdaptiveExposureSectionState
   }
 
   void _clearOverride() {
+    // Rebuild explicitly: ExposureNode.copyWith now uses plain
+    // `?? this.adaptiveExposure` semantics, so a null arg means "keep
+    // current". The only way to set adaptiveExposure back to null
+    // ("inherit global default") is to construct a fresh node.
+    final n = widget.node;
     ref.read(currentSequenceProvider.notifier).updateNode(
-          widget.node.copyWith(clearAdaptiveExposure: true),
+          ExposureNode(
+            id: n.id,
+            name: n.name,
+            isEnabled: n.isEnabled,
+            childIds: n.childIds,
+            parentId: n.parentId,
+            orderIndex: n.orderIndex,
+            comment: n.comment,
+            durationSecs: n.durationSecs,
+            count: n.count,
+            frameType: n.frameType,
+            filter: n.filter,
+            filterIndex: n.filterIndex,
+            gain: n.gain,
+            offset: n.offset,
+            binning: n.binning,
+            ditherEvery: n.ditherEvery,
+            triggers: n.triggers,
+          ),
         );
   }
 

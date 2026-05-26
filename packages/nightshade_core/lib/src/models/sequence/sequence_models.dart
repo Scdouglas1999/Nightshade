@@ -1813,11 +1813,13 @@ class ExposureNode extends SequenceNode {
     BinningMode? binning,
     int? ditherEvery,
     List<Map<String, dynamic>>? triggers,
-    // Wave 5 Agent 2: pass `clearAdaptiveExposure: true` to reset to
-    // "use global default"; passing a non-null `adaptiveExposure`
-    // installs an explicit per-node override.
+    // Plain `?? this.X` semantics: passing `adaptiveExposure: someConfig`
+    // installs an explicit per-node override; omitting it keeps the
+    // current value. To CLEAR the override (reset to "use global default"),
+    // callers must build a new node directly — see
+    // `_AdaptiveExposureSectionState._clearOverride` in the editor for
+    // the canonical rebuild-explicit pattern.
     AdaptiveExposureConfig? adaptiveExposure,
-    bool clearAdaptiveExposure = false,
   }) {
     return ExposureNode(
       id: id ?? this.id,
@@ -1837,9 +1839,7 @@ class ExposureNode extends SequenceNode {
       binning: binning ?? this.binning,
       ditherEvery: ditherEvery ?? this.ditherEvery,
       triggers: triggers ?? this.triggers,
-      adaptiveExposure: clearAdaptiveExposure
-          ? null
-          : (adaptiveExposure ?? this.adaptiveExposure),
+      adaptiveExposure: adaptiveExposure ?? this.adaptiveExposure,
     );
   }
 

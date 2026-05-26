@@ -9,7 +9,9 @@
 //   * RecoveryNode (no JSON, but has toRustTriggerConfig sliced by
 //                   trigger_type_serialization_test.dart; here we test
 //                   the data shape)
-//   * ExposureNode (clearAdaptiveExposure flag)
+//   * ExposureNode (Phase 5: clearAdaptiveExposure flag removed —
+//     copyWith now uses plain `?? this.adaptiveExposure` semantics;
+//     the "clear override" path is rebuild-explicit at the editor.)
 //   * NotificationNode is already covered by `notification_node_test.dart`
 //     — we add complementary copyWith-per-field tests here.
 //   * MeridianFlipNode (plain copyWith; the sticky-override UX heuristic
@@ -466,19 +468,61 @@ void main() {
       expect(n.totalDurationSecs, equals(3600.0));
     });
 
-    test('copyWith_clear_adaptive_exposure_flag_clears_field', () {
-      // PHASE-2-NOTE: ExposureNode uses an explicit boolean flag
-      // `clearAdaptiveExposure: true` instead of the sentinel pattern
-      // — distinct from TargetHeaderNode. Phase 2 should switch to the
-      // freezed nullable-copyWith pattern (passing `null` explicitly)
-      // and DROP the `clearAdaptiveExposure` parameter. This IS a
-      // public-API change; the conversion must update every call site.
-      // The current behaviour is preserved here.
+    test('copyWith_adaptive_exposure_uses_plain_keep_or_replace', () {
+      // PHASE-5: the `clearAdaptiveExposure` flag is gone. copyWith
+      // now follows the plain `?? this.adaptiveExposure` rule:
+      //   * omitted  → keep current
+      //   * non-null → install per-node override
+      //   * null     → also keeps current (cannot clear via copyWith)
+      // The "clear back to inherit-global" path is rebuild-explicit
+      // at the editor layer; see _AdaptiveExposureSectionState
+      // ._clearOverride. We pin BOTH halves of the new contract.
       final n = ExposureNode(
         adaptiveExposure: const AdaptiveExposureConfig(),
       );
-      final cleared = n.copyWith(clearAdaptiveExposure: true);
+      // Omitted → keep
+      expect(n.copyWith().adaptiveExposure, isNotNull);
+      // Explicit null → still keeps (plain `??` semantics)
+      expect(n.copyWith(adaptiveExposure: null).adaptiveExposure, isNotNull);
+      // Non-null → replaces
+      const replacement = AdaptiveExposureConfig(targetSnr: 250);
+      expect(
+        n.copyWith(adaptiveExposure: replacement).adaptiveExposure,
+        equals(replacement),
+      );
+    });
+
+    test('adaptive_exposure_clear_via_rebuild_explicit', () {
+      // PHASE-5: the only way to clear an explicit per-node
+      // adaptiveExposure override is to construct a fresh ExposureNode
+      // without it (the rebuild-explicit pattern). This test pins the
+      // recipe so editor authors can copy it directly.
+      final n = ExposureNode(
+        id: 'e1',
+        adaptiveExposure: const AdaptiveExposureConfig(),
+      );
+      final cleared = ExposureNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        durationSecs: n.durationSecs,
+        count: n.count,
+        frameType: n.frameType,
+        filter: n.filter,
+        filterIndex: n.filterIndex,
+        gain: n.gain,
+        offset: n.offset,
+        binning: n.binning,
+        ditherEvery: n.ditherEvery,
+        triggers: n.triggers,
+      );
       expect(cleared.adaptiveExposure, isNull);
+      // All other fields equal.
+      expect(cleared.copyWith(adaptiveExposure: n.adaptiveExposure), equals(n));
     });
 
     test('copyWith_each_field', () {
@@ -506,9 +550,8 @@ void main() {
       expect(n.copyWith(adaptiveExposure: ae).adaptiveExposure, equals(ae));
     });
 
-    test('copyWith_with_value_dominant_over_clear_flag_when_both_omitted', () {
-      // Verify the "no-op" path: passing neither clearAdaptiveExposure
-      // nor adaptiveExposure preserves the existing value.
+    test('copyWith_no_args_preserves_existing_adaptive_exposure', () {
+      // PHASE-5: with the flag removed, copyWith() is a pure keep-all.
       const ae = AdaptiveExposureConfig(targetSnr: 99);
       final n = ExposureNode(adaptiveExposure: ae);
       expect(n.copyWith().adaptiveExposure, equals(ae));
