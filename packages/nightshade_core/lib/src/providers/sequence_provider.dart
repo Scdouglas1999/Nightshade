@@ -59,6 +59,19 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     state = state.copyWith(state: executionState);
   }
 
+  // Phase 3 Step 2 — `updateProgress` keeps its caller-friendly "null
+  // argument means leave alone" semantic without relying on the pre-freezed
+  // `copyWith(x: x ?? this.x)` quirk. Freezed's generated copyWith treats
+  // `null` differently per field-nullability: for non-null fields the
+  // exposed type is non-null (a compile error if we pass `int?`); for
+  // nullable fields `null` means "clear", not "omit". Both contradict the
+  // historical `?? this.x` pattern this method has always implemented.
+  //
+  // We rebuild the next `SequenceProgress` explicitly: each non-null
+  // method argument overrides the current field; `null` arguments fall
+  // back to the existing value. This is independent of how `copyWith` is
+  // implemented (Equatable today, freezed in Step 3) and preserves every
+  // observable behaviour the current Wave-4/-7 event pump relies on.
   void updateProgress({
     String? currentNodeId,
     String? currentNodeName,
@@ -71,17 +84,27 @@ class SequenceProgressNotifier extends StateNotifier<SequenceProgress> {
     String? currentFilter,
     String? message,
   }) {
-    state = state.copyWith(
-      currentNodeId: currentNodeId,
-      currentNodeName: currentNodeName,
-      currentNodeStatus: currentNodeStatus,
-      completedExposures: completedExposures,
-      completedIntegrationSecs: completedIntegrationSecs,
-      elapsedSecs: elapsedSecs,
-      estimatedRemainingSecs: estimatedRemainingSecs,
-      currentTarget: currentTarget,
-      currentFilter: currentFilter,
-      message: message,
+    final current = state;
+    state = SequenceProgress(
+      state: current.state,
+      currentNodeId: currentNodeId ?? current.currentNodeId,
+      currentNodeName: currentNodeName ?? current.currentNodeName,
+      currentNodeStatus: currentNodeStatus ?? current.currentNodeStatus,
+      totalExposures: current.totalExposures,
+      completedExposures: completedExposures ?? current.completedExposures,
+      totalIntegrationSecs: current.totalIntegrationSecs,
+      completedIntegrationSecs:
+          completedIntegrationSecs ?? current.completedIntegrationSecs,
+      elapsedSecs: elapsedSecs ?? current.elapsedSecs,
+      estimatedRemainingSecs:
+          estimatedRemainingSecs ?? current.estimatedRemainingSecs,
+      currentTarget: currentTarget ?? current.currentTarget,
+      currentFilter: currentFilter ?? current.currentFilter,
+      message: message ?? current.message,
+      nodeStatuses: current.nodeStatuses,
+      nodeProgressPercent: current.nodeProgressPercent,
+      nodeProgressDetail: current.nodeProgressDetail,
+      nodeProgressStructuredDetail: current.nodeProgressStructuredDetail,
     );
   }
 
