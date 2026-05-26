@@ -1,6 +1,7 @@
 import ActivityKit
 import Flutter
 import UIKit
+import WidgetKit
 
 // MARK: - Live Activity host bridge
 //
@@ -52,9 +53,127 @@ import UIKit
         }
         self.handleLiveActivityCall(call, result: result)
       }
+
+      // Wave 7D — Apple Watch complication snapshot publisher.
+      //
+      // The Dart host writes a pre-encoded JSON snapshot of the current
+      // sequence + weather state to the App Group `UserDefaults` suite
+      // and asks WidgetKit to reload the complication timeline. The
+      // watchOS extension in
+      // `apps/mobile/ios/NightshadeWatchComplication/` reads the same
+      // key when its `TimelineProvider.getTimeline(...)` fires.
+      //
+      // Channel name + method/argument names MUST stay in lockstep with
+      // `apps/mobile/lib/services/watch_complication_service.dart`.
+      let watchChannel = FlutterMethodChannel(
+        name: "nightshade/watch_complication",
+        binaryMessenger: controller.binaryMessenger
+      )
+      watchChannel.setMethodCallHandler { [weak self] call, result in
+        guard let self = self else {
+          result(
+            FlutterError(
+              code: "host_deallocated",
+              message:
+                "AppDelegate was released before watch_complication.\(call.method) completed",
+              details: nil
+            )
+          )
+          return
+        }
+        self.handleWatchComplicationCall(call, result: result)
+      }
     }
 
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
+  }
+
+  // MARK: - Watch complication (Wave 7D)
+  //
+  // Shared App Group + UserDefaults pattern between the iOS host and the
+  // watchOS WidgetKit extension. The suite name MUST also be set as an
+  // App Group entitlement on both the Runner target and the
+  // NightshadeWatchComplication extension target in Xcode (see
+  // `apps/mobile/ios/NightshadeWatchComplication/SETUP.md`).
+
+  static let watchComplicationAppGroupSuite = "group.com.nightshade.app"
+  static let watchComplicationSnapshotKey = "watch_complication_snapshot"
+
+  private func handleWatchComplicationCall(
+    _ call: FlutterMethodCall, result: @escaping FlutterResult
+  ) {
+    switch call.method {
+    case "isSupported":
+      // `WidgetCenter` is available from iOS 14 onwards; the host can
+      // always *attempt* to write a snapshot regardless. The complication
+      // extension itself runs on the paired watch and may not be
+      // installed even when the host returns true here — we deliberately
+      // don't try to detect that, since failing to publish only costs us
+      // a UserDefaults write (no user-visible side-effect).
+      if #available(iOS 14.0, *) {
+        result(true)
+      } else {
+        result(false)
+      }
+    case "publishSnapshot":
+      publishWatchComplicationSnapshot(call.arguments, result: result)
+    default:
+      result(FlutterMethodNotImplemented)
+    }
+  }
+
+  private func publishWatchComplicationSnapshot(
+    _ rawArgs: Any?, result: @escaping FlutterResult
+  ) {
+    guard let args = rawArgs as? [String: Any] else {
+      result(
+        FlutterError(
+          code: "invalid_arguments",
+          message:
+            "publishSnapshot() expected a Map argument, got \(type(of: rawArgs))",
+          details: nil
+        )
+      )
+      return
+    }
+    guard let snapshotJson = args["snapshotJson"] as? String,
+      !snapshotJson.isEmpty
+    else {
+      result(
+        FlutterError(
+          code: "missing_snapshot_json",
+          message:
+            "publishSnapshot() requires a non-empty snapshotJson string",
+          details: nil
+        )
+      )
+      return
+    }
+    guard
+      let defaults = UserDefaults(
+        suiteName: AppDelegate.watchComplicationAppGroupSuite
+      )
+    else {
+      // Loud failure (repo policy: errors are a feature). The App Group
+      // entitlement is missing on the Runner target. The complication
+      // would never see snapshots — surface the cause now rather than
+      // letting the watch face silently render the empty placeholder.
+      result(
+        FlutterError(
+          code: "app_group_unavailable",
+          message:
+            "Cannot open UserDefaults(suiteName: \(AppDelegate.watchComplicationAppGroupSuite)). " +
+            "See apps/mobile/ios/NightshadeWatchComplication/SETUP.md.",
+          details: nil
+        )
+      )
+      return
+    }
+    defaults.set(snapshotJson, forKey: AppDelegate.watchComplicationSnapshotKey)
+    if #available(iOS 14.0, *) {
+      WidgetCenter.shared.reloadAllTimelines()
+    }
+    result(nil)
   }
 
   // MARK: - Dispatch
