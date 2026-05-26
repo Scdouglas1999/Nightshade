@@ -1093,11 +1093,12 @@ class ConditionalNode extends SequenceNode {
     ConditionalType? conditionType,
     double? thresholdValue,
     DateTime? thresholdTime,
-    // Sentinel-based optional: callers omit the argument to keep the
-    // existing value, or pass `safetyMonitorId: null` to explicitly clear
-    // it. The `?? this.X` pattern used for the other fields cannot
-    // distinguish those two cases.
-    Object? safetyMonitorId = _unsetSentinel,
+    // PHASE-5: plain `?? this.safetyMonitorId` semantics — omitted or
+    // null keeps, non-null replaces. No production callers ever
+    // cleared this field via copyWith; the previous sentinel pattern
+    // was unused weight. To clear, construct a new ConditionalNode
+    // without the arg.
+    String? safetyMonitorId,
   }) {
     return ConditionalNode(
       id: id ?? this.id,
@@ -1110,9 +1111,7 @@ class ConditionalNode extends SequenceNode {
       conditionType: conditionType ?? this.conditionType,
       thresholdValue: thresholdValue ?? this.thresholdValue,
       thresholdTime: thresholdTime ?? this.thresholdTime,
-      safetyMonitorId: identical(safetyMonitorId, _unsetSentinel)
-          ? this.safetyMonitorId
-          : safetyMonitorId as String?,
+      safetyMonitorId: safetyMonitorId ?? this.safetyMonitorId,
     );
   }
 
@@ -1125,11 +1124,6 @@ class ConditionalNode extends SequenceNode {
         safetyMonitorId,
       ];
 }
-
-/// Sentinel used by [ConditionalNode.copyWith] to distinguish "argument
-/// omitted" from "argument explicitly cleared to null". File-private; a
-/// pure marker — never compared by value, only by identity.
-const Object _unsetSentinel = Object();
 
 /// Recovery node - handles errors with retry/recovery logic
 class RecoveryNode extends SequenceNode {

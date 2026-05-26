@@ -5,7 +5,8 @@
 // Covered here:
 //   * TargetHeaderNode (sentinel-based nullable copyWith for 4 fields)
 //   * LoopNode
-//   * ConditionalNode (sentinel for safetyMonitorId)
+//   * ConditionalNode (Phase 5: sentinel removed — safetyMonitorId
+//     uses plain keep-or-replace)
 //   * RecoveryNode (no JSON, but has toRustTriggerConfig sliced by
 //                   trigger_type_serialization_test.dart; here we test
 //                   the data shape)
@@ -269,18 +270,37 @@ void main() {
       expect(n.category, equals(NodeCategory.logic));
     });
 
-    test('copyWith_safety_monitor_id_sentinel_allows_explicit_null', () {
-      // PHASE-2-NOTE: ConditionalNode.copyWith uses `_unsetSentinel` for
-      // `safetyMonitorId` because the field is the only nullable on
-      // this class that needs three-way semantics (omit / set / clear).
-      // Phase 2's freezed nullable-copyWith handles this naturally.
+    test('copyWith_safety_monitor_id_keeps_or_replaces', () {
+      // PHASE-5: ConditionalNode.copyWith now uses plain `?? this.X`.
+      // No production caller ever cleared this via copyWith — clearing
+      // requires constructing a fresh ConditionalNode.
       final n = ConditionalNode(safetyMonitorId: 'mon-1');
       expect(n.copyWith().safetyMonitorId, equals('mon-1'));
-      expect(n.copyWith(safetyMonitorId: null).safetyMonitorId, isNull);
+      // Plain `?? this.X`: null arg keeps current.
+      expect(n.copyWith(safetyMonitorId: null).safetyMonitorId, equals('mon-1'));
+      // Non-null replaces.
       expect(
         n.copyWith(safetyMonitorId: 'mon-2').safetyMonitorId,
         equals('mon-2'),
       );
+    });
+
+    test('safety_monitor_id_clear_via_rebuild_explicit', () {
+      // PHASE-5: the rebuild-explicit recipe for clearing the field.
+      final n = ConditionalNode(id: 'c', safetyMonitorId: 'mon-1');
+      final cleared = ConditionalNode(
+        id: n.id,
+        name: n.name,
+        isEnabled: n.isEnabled,
+        childIds: n.childIds,
+        parentId: n.parentId,
+        orderIndex: n.orderIndex,
+        comment: n.comment,
+        conditionType: n.conditionType,
+        thresholdValue: n.thresholdValue,
+        thresholdTime: n.thresholdTime,
+      );
+      expect(cleared.safetyMonitorId, isNull);
     });
 
     test('copyWith_each_non_sentinel_field', () {
