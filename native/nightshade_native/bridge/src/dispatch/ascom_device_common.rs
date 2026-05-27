@@ -43,6 +43,7 @@ use crate::ascom_wrapper::mount::AscomMountWrapper;
 use crate::ascom_wrapper::rotator::AscomRotatorWrapper;
 use crate::ascom_wrapper::safetymonitor::AscomSafetyMonitorWrapper;
 use crate::ascom_wrapper::switch::AscomSwitchWrapper;
+use crate::ascom_wrapper::weather::AscomObservingConditionsWrapper;
 use crate::dispatch::device_common_metadata::DeviceCommonMetadata;
 
 // =========================================================================
@@ -191,6 +192,21 @@ impl DeviceCommonMetadata for AscomRotatorWrapper {
 }
 
 impl DeviceCommonMetadata for AscomSafetyMonitorWrapper {
+    async fn interface_version(&self) -> Result<i32, String> {
+        Self::interface_version(self).await
+    }
+    async fn driver_version(&self) -> Result<String, String> {
+        Self::driver_version(self).await
+    }
+    async fn driver_info(&self) -> Result<String, String> {
+        Self::driver_info(self).await
+    }
+    async fn supported_actions(&self) -> Result<Vec<String>, String> {
+        Self::supported_actions(self).await
+    }
+}
+
+impl DeviceCommonMetadata for AscomObservingConditionsWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
         Self::interface_version(self).await
     }
