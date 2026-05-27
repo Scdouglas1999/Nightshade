@@ -1,4 +1,4 @@
-/// Wave 8 — Frame-Failure Forensics: detail dialog.
+﻿/// Wave 8 â€” Frame-Failure Forensics: detail dialog.
 ///
 /// Modal that shows the rejected frame's preview, the grader's reason
 /// string, the classifier's verdict + evidence bullets, and the
@@ -6,9 +6,9 @@
 ///
 /// Opens from two surfaces:
 ///
-/// * The thumbnail strip (Wave 6 Agent 4) — tapping a rejected
+/// * The thumbnail strip (Wave 6 Agent 4) â€” tapping a rejected
 ///   thumbnail.
-/// * The Forensics panel — tapping a row.
+/// * The Forensics panel â€” tapping a row.
 ///
 /// Both call `showDialog(builder: (_) => FrameDetailDialog(record: r))`.
 ///
@@ -201,7 +201,7 @@ class _Header extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                'Frame ${record.frameIndex}/${record.totalFrames} • '
+                'Frame ${record.frameIndex}/${record.totalFrames} â€¢ '
                 'Captured ${_formatDateTime(record.createdAt)}',
                 style: TextStyle(
                   fontSize: 11,
@@ -231,7 +231,7 @@ class _ImagePreview extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     if (capturedImageId != null) {
       return FutureBuilder<Uint8List>(
-        future: ref.read(backendProvider).getImageThumbnail(capturedImageId!),
+        future: ref.read(imagingBackendProvider).getImageThumbnail(capturedImageId!),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return Center(
@@ -414,7 +414,7 @@ class _DetailSidePanel extends StatelessWidget {
         const SizedBox(height: NightshadeTokens.spaceSm),
         if (record.evidence.isEmpty)
           Text(
-            'No structured evidence — classifier could not muster a verdict.',
+            'No structured evidence â€” classifier could not muster a verdict.',
             style: TextStyle(
               fontSize: 11,
               fontStyle: FontStyle.italic,
@@ -461,7 +461,7 @@ class _DetailSidePanel extends StatelessWidget {
           rows: [
             ('HFR', _formatNumber(record.hfr, ' px')),
             ('Eccentricity', _formatNumber(record.eccentricity, '')),
-            ('Star count', record.starCount?.toString() ?? '—'),
+            ('Star count', record.starCount?.toString() ?? 'â€”'),
           ],
           colors: colors,
         ),
@@ -482,7 +482,7 @@ class _DetailSidePanel extends StatelessWidget {
             rows: [
               (
                 'Sky brightness',
-                _formatNumber(env.skyBrightnessMag, ' mag/arcsec²')
+                _formatNumber(env.skyBrightnessMag, ' mag/arcsecÂ²')
               ),
               (
                 'Cloud cover',
@@ -490,7 +490,7 @@ class _DetailSidePanel extends StatelessWidget {
               ),
               ('Wind', _formatNumber(env.windKph, ' km/h', digits: 0)),
               ('Guide RMS', _formatNumber(env.guideRmsArcsec, '"')),
-              ('Sensor temp', _formatNumber(env.sensorTempC, ' °C')),
+              ('Sensor temp', _formatNumber(env.sensorTempC, ' Â°C')),
             ],
             colors: colors,
           ),
@@ -569,7 +569,7 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 String _formatNumber(double? value, String suffix, {int digits = 2}) {
-  if (value == null || value.isNaN || value.isInfinite) return '—';
+  if (value == null || value.isNaN || value.isInfinite) return 'â€”';
   return '${value.toStringAsFixed(digits)}$suffix';
 }
 

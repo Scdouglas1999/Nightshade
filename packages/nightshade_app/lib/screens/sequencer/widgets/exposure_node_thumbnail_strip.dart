@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -7,7 +7,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
         ProducingNodeThumbnail,
-        backendProvider,
+        imagingBackendProvider,
         exposureNodeThumbnailsProvider,
         isRemoteModeProvider,
         loggingServiceProvider;
@@ -15,17 +15,17 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'thumbnail_strip_prefs.dart';
 
-/// Wave 6 Thumbnails — inline frame strip rendered beneath each
+/// Wave 6 Thumbnails â€” inline frame strip rendered beneath each
 /// ExposureNode in the sequence tree.
 ///
 /// Each tile is a square (size driven by [ThumbnailStripPrefs]) with a
 /// coloured border encoding the runtime grade verdict:
-///   * green  — accepted (Wave 3 grader passed all thresholds)
-///   * yellow — borderline (HFR above the running baseline but still inside
-///              the reject threshold — surfaced via `runtimeGrade='pending'`
+///   * green  â€” accepted (Wave 3 grader passed all thresholds)
+///   * yellow â€” borderline (HFR above the running baseline but still inside
+///              the reject threshold â€” surfaced via `runtimeGrade='pending'`
 ///              or via the FrameQuality advisor's "needsReview" level)
-///   * red    — rejected (`isAccepted=false` or runtime grade == reject)
-///   * grey   — ungraded / pending
+///   * red    â€” rejected (`isAccepted=false` or runtime grade == reject)
+///   * grey   â€” ungraded / pending
 ///
 /// Hover (desktop) or long-press (mobile) surfaces an HFR / eccentricity
 /// / exposure / filter / timestamp tooltip. Tap opens the full image in a
@@ -33,14 +33,14 @@ import 'thumbnail_strip_prefs.dart';
 /// preview followed by a "Open in viewer" affordance.
 ///
 /// The strip lazy-loads thumbnails: only the actual JPEG/PNG bytes are
-/// fetched on demand (via `backend.getImageThumbnail` — same path as the
+/// fetched on demand (via `backend.getImageThumbnail` â€” same path as the
 /// analytics strip), keeping tree-render cost flat regardless of the
 /// number of attached frames. Pagination kicks in past 10 tiles via a
 /// horizontal scroll plus a trailing "+N more" badge.
 class ExposureNodeThumbnailStrip extends ConsumerWidget {
   final String nodeId;
 
-  /// Optional override — when the consumer has already obtained
+  /// Optional override â€” when the consumer has already obtained
   /// [ThumbnailStripPrefs] (e.g. from a parent rebuild), we skip the
   /// `AsyncValue` plumbing and render directly. Tests pass this so they
   /// don't have to seed the SettingsDao.
@@ -60,7 +60,7 @@ class ExposureNodeThumbnailStrip extends ConsumerWidget {
 
     return prefsAsync.when(
       data: (prefs) {
-        // Visibility toggle OFF — collapse silently so the tree stays
+        // Visibility toggle OFF â€” collapse silently so the tree stays
         // compact. We deliberately return SizedBox.shrink rather than
         // null so callers can drop the result into a Column without
         // worrying about nullability.
@@ -85,7 +85,7 @@ class _StripBody extends ConsumerWidget {
     return thumbnailsAsync.when(
       data: (thumbnails) {
         if (thumbnails.isEmpty) {
-          // No frames yet — render nothing (the spec is explicit: an empty
+          // No frames yet â€” render nothing (the spec is explicit: an empty
           // strip is collapsed silently so the tree row keeps its compact
           // height until a frame actually lands).
           return const SizedBox.shrink();
@@ -166,7 +166,7 @@ class _ThumbnailRow extends StatelessWidget {
           itemBuilder: (context, index) {
             if (hiddenCount > 0 && index == 0) {
               // Leading badge tells the user there are older frames not
-              // shown — clicking it could scroll to a full library view
+              // shown â€” clicking it could scroll to a full library view
               // in a future iteration; today it's an informational chip.
               return _MoreBadge(
                 count: hiddenCount,
@@ -263,7 +263,7 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
 
   Future<Uint8List?> _loadBytes() async {
     try {
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(imagingBackendProvider);
       final bytes = await backend.getImageThumbnail(widget.thumbnail.id);
       if (bytes.isNotEmpty) return bytes;
     } catch (e) {
@@ -293,7 +293,7 @@ class _ThumbnailTileState extends ConsumerState<_ThumbnailTile> {
   String _tooltip() {
     final t = widget.thumbnail;
     final parts = <String>[];
-    parts.add('${t.filter ?? 'L'} · ${t.exposureDuration.toStringAsFixed(0)}s');
+    parts.add('${t.filter ?? 'L'} Â· ${t.exposureDuration.toStringAsFixed(0)}s');
     if (t.hfr != null) parts.add('HFR ${t.hfr!.toStringAsFixed(2)}');
     if (t.eccentricity != null) {
       parts.add('ecc ${t.eccentricity!.toStringAsFixed(2)}');
@@ -605,11 +605,11 @@ class _FrameMetadata extends StatelessWidget {
     return Wrap(
       runSpacing: 6,
       children: [
-        chip('Filter', thumb.filter ?? '—'),
+        chip('Filter', thumb.filter ?? 'â€”'),
         chip('Exposure', '${thumb.exposureDuration.toStringAsFixed(1)}s'),
-        chip('HFR', thumb.hfr?.toStringAsFixed(2) ?? '—'),
-        chip('Eccentricity', thumb.eccentricity?.toStringAsFixed(2) ?? '—'),
-        chip('Stars', thumb.starCount?.toString() ?? '—'),
+        chip('HFR', thumb.hfr?.toStringAsFixed(2) ?? 'â€”'),
+        chip('Eccentricity', thumb.eccentricity?.toStringAsFixed(2) ?? 'â€”'),
+        chip('Stars', thumb.starCount?.toString() ?? 'â€”'),
         chip(
           'Grade',
           thumb.isAccepted

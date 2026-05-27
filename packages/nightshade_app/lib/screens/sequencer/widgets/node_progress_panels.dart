@@ -1,4 +1,4 @@
-import 'dart:typed_data';
+﻿import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -113,9 +113,9 @@ class _CoolingProgressPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Parse detail string: "Cooling: 15.2°C → -10.0°C (85% power)"
-    // or "At target: -10.3°C (45% power)"
-    final tempMatch = RegExp(r'(-?\d+\.?\d*)°C').allMatches(detail);
+    // Parse detail string: "Cooling: 15.2Â°C â†’ -10.0Â°C (85% power)"
+    // or "At target: -10.3Â°C (45% power)"
+    final tempMatch = RegExp(r'(-?\d+\.?\d*)Â°C').allMatches(detail);
     final powerMatch = RegExp(r'(\d+\.?\d*)% power').firstMatch(detail);
 
     double? currentTemp;
@@ -228,7 +228,7 @@ class _TempDisplay extends StatelessWidget {
           ),
         ),
         Text(
-          temp != null ? '${temp!.toStringAsFixed(1)}°C' : '--°C',
+          temp != null ? '${temp!.toStringAsFixed(1)}Â°C' : '--Â°C',
           style: TextStyle(
             fontSize: 16,
             fontWeight: FontWeight.w700,
@@ -390,7 +390,7 @@ class _AutofocusProgressPanelState extends ConsumerState<_AutofocusProgressPanel
       }
 
       // Request fresh star crops from the backend
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(imagingBackendProvider);
       final crops = await backend.getStarCropsFromLastImage(deviceId, maxCrops: 5);
 
       if (mounted) {
@@ -851,7 +851,7 @@ class _VCurvePainter extends CustomPainter {
 
     // X-axis labels (focus range)
     final rangeLabel = TextPainter(
-      text: TextSpan(text: '${range.min} → ${range.max}', style: textStyle),
+      text: TextSpan(text: '${range.min} â†’ ${range.max}', style: textStyle),
       textDirection: TextDirection.ltr,
     );
     rangeLabel.layout();

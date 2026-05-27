@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -6,7 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart'
     show
-        backendProvider,
+        imagingBackendProvider,
         imagesDaoProvider,
         isRemoteModeProvider,
         loggingServiceProvider,
@@ -30,7 +30,7 @@ const double kAnalyticsThumbnailRailHeight = 120;
 /// Decorates each thumbnail with the existing quality badge plus a richer set
 /// of science badges (plate-solve checkmark, zero-point chip when available)
 /// and exposes an accept/reject context menu via long-press so users can flag
-/// poor frames without losing them — implements the P3.4 "manual quality
+/// poor frames without losing them â€” implements the P3.4 "manual quality
 /// gate, no auto-delete" pattern from the science gap list.
 class ImageThumbnailStrip extends StatefulWidget {
   final List<DbCapturedImage> images;
@@ -149,7 +149,7 @@ class _ImageThumbnailStripState extends State<ImageThumbnailStrip> {
         ),
         const SizedBox(height: 8),
         SizedBox(
-          // Thumbnail rail — fixed height (not chart-like).
+          // Thumbnail rail â€” fixed height (not chart-like).
           height: kAnalyticsThumbnailRailHeight,
           child: filteredImages.isEmpty
               ? Container(
@@ -496,7 +496,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
                             if (widget.calibration?.zeroPoint != null)
                               _ScienceBadge(
                                 tooltip:
-                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} · '
+                                    'Zero-point ${widget.calibration!.zeroPoint!.toStringAsFixed(2)} Â· '
                                     '${widget.calibration!.matchedStarCount} stars',
                                 color: colors.info,
                                 label:
@@ -601,7 +601,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
   }
 
   Future<_ThumbnailPayload> _loadThumbnail() async {
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(imagingBackendProvider);
     String? backendError;
     try {
       final bytes = await backend.getImageThumbnail(widget.image.id);
@@ -785,7 +785,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
             _DetailRow('Calibrated', c.isCalibrated ? 'Yes' : 'No', colors),
             _DetailRow(
               'Zero point',
-              c.zeroPoint == null ? '—' : c.zeroPoint!.toStringAsFixed(3),
+              c.zeroPoint == null ? 'â€”' : c.zeroPoint!.toStringAsFixed(3),
               colors,
             ),
             _DetailRow(
@@ -799,7 +799,7 @@ class _ImageThumbnailState extends ConsumerState<_ImageThumbnail> {
             _DetailRow('Solver', c.solverId, colors),
             if (c.limitingMag5Sigma != null)
               _DetailRow(
-                'Lim mag (5σ)',
+                'Lim mag (5Ïƒ)',
                 c.limitingMag5Sigma!.toStringAsFixed(2),
                 colors,
               ),
