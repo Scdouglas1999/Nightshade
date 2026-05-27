@@ -111,7 +111,7 @@ class SafetyMonitorHandlers {
 
     List<DeviceInfo> connectedDevices = [];
     try {
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       connectedDevices = await backend.getConnectedDevices();
     } catch (e) {
       _logError('Failed to read connected devices for safety status: $e');
@@ -246,7 +246,7 @@ class SafetyMonitorHandlers {
     final payload = await _buildSettingsPayload();
 
     try {
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       final connectedDevices = await backend.getConnectedDevices();
       payload['enabledMonitors'] = connectedDevices
           .where((d) => d.deviceType == DeviceType.safetyMonitor)
@@ -286,7 +286,7 @@ class SafetyMonitorHandlers {
 
     final settingsNotifier = container.read(appSettingsProvider.notifier);
     final database = container.read(databaseProvider);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final toPersist = <String, String>{};
 
     if (failMode != null) {

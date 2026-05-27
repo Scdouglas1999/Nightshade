@@ -667,7 +667,7 @@ class SystemHandlers {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/status');
     try {
-      final backend = container.read(backendProvider);
+      final backend = container.read(sequencerBackendProvider);
       final status = await backend.sequencerGetStatus();
       return jsonOk({
         "sequencer": {
@@ -695,6 +695,10 @@ class SystemHandlers {
     try {
       final platformCapabilities =
           PlatformCapabilityMatrix.forPlatform(Platform.operatingSystem);
+      // A-12: self-test needs `backend.runtimeType` to report which backend
+      // implementation is active (FfiBackend / NetworkBackend / Disconnected).
+      // Role providers all return the same instance widened to a role
+      // interface, so the concrete-type query stays on backendProvider.
       final backend = container.read(backendProvider);
       final storageChecks = await _runStorageSelfTests();
       final databaseCheck = _runDatabaseSelfTest();

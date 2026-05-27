@@ -127,6 +127,10 @@ class RunWatchHandlers {
   /// degrade gracefully per-section — a failing weather service must
   /// not blank out the rest of the dashboard.
   Future<Response> handleSnapshot(Request request) async {
+    // A-12: legitimately multi-role — snapshot aggregates sequencer status,
+    // PHD2 guiding status, device list, and recovery context for the
+    // run-watch dashboard. Stays on backendProvider rather than threading
+    // four role refs through one method.
     final backend = container.read(backendProvider);
 
     // Sequencer status (FFI call). We pull from the backend (always
@@ -460,7 +464,7 @@ class RunWatchHandlers {
   ///               the payload phone-friendly.
   ///   quality   — optional JPEG quality 1..100, default 75.
   Future<Response> handleFrameThumbnail(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     final queryDeviceId = request.url.queryParameters['deviceId']?.trim();
     String? deviceId =

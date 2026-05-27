@@ -29,7 +29,7 @@ class PlanetariumHandlers {
   /// Returns current mount RA/Dec/rotation for FOV display on client planetarium.
   Future<Response> handleGetMountPosition(Request request) async {
     _logInfo('[API] GET /api/planetarium/mount-position');
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -100,6 +100,10 @@ class PlanetariumHandlers {
   /// Returns camera sensor size, pixel size, focal length, reducer for FOV calculation.
   Future<Response> handleGetFovConfig(Request request) async {
     _logInfo('[API] GET /api/planetarium/fov-config');
+    // A-12: legitimately multi-role — needs ProfileSettings (getActiveProfile)
+    // plus Device (getConnectedDevices, getCameraCapabilities). Stays on the
+    // aggregate backend marker rather than carrying two role refs through one
+    // 20-line handler.
     final backend = container.read(backendProvider);
 
     // Get active equipment profile
@@ -185,7 +189,7 @@ class PlanetariumHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -289,7 +293,7 @@ class PlanetariumHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -456,7 +460,7 @@ class PlanetariumHandlers {
     }
 
     // Get observer location for visibility calculation
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final location = await backend.getLocation();
 
     // Calculate visibility if we have location
@@ -544,7 +548,7 @@ class PlanetariumHandlers {
   /// Get current observer location for astronomical calculations.
   Future<Response> handleGetLocation(Request request) async {
     _logInfo('[API] GET /api/planetarium/location');
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final location = await backend.getLocation();
 
     if (location == null) {
