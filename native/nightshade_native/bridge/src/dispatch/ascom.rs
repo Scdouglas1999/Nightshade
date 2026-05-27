@@ -256,7 +256,7 @@ impl DeviceManager {
             return Err(format!("Device {} is not an ASCOM device", device_id));
         }
 
-        // The 7-arm fan-out below differs only in (a) which typed storage map
+        // The 10-arm fan-out below differs only in (a) which typed storage map
         // we read from and (b) the human-readable role label embedded in the
         // "not connected" error message. The four-property probe body is
         // identical and lives in `fetch_api_version<T: DeviceCommonMetadata>`
@@ -280,6 +280,17 @@ impl DeviceManager {
             }
             DeviceType::CoverCalibrator => {
                 probe_ascom_metadata(&self.ascom_cover_calibrators, device_id, "cover calibrator")
+                    .await?
+            }
+            DeviceType::Rotator => {
+                probe_ascom_metadata(&self.ascom_rotators, device_id, "rotator").await?
+            }
+            DeviceType::SafetyMonitor => {
+                probe_ascom_metadata(&self.ascom_safety_monitors, device_id, "safety monitor")
+                    .await?
+            }
+            DeviceType::Weather => {
+                probe_ascom_metadata(&self.ascom_weather, device_id, "observing conditions")
                     .await?
             }
             _ => {
