@@ -1,10 +1,10 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/database_entities.dart' as settings_models;
 // `NightshadeEvent` / `EventCategory` / `EventSeverity` /
 // `settingsChangedEventType` are re-exported through
-// `nightshade_backend.dart` → `backend_types.dart` → `event_types.dart`,
+// `nightshade_backend.dart` â†’ `backend_types.dart` â†’ `event_types.dart`,
 // so the public barrel below is enough.
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -16,7 +16,7 @@ import '../validation.dart';
 class ProfileHandlers {
   final ProviderContainer container;
 
-  /// Wave 6B (P2-4) — emit `settings.changed` events for each individual
+  /// Wave 6B (P2-4) â€” emit `settings.changed` events for each individual
   /// field that differs between the previous and new settings. Injected by
   /// [HeadlessApiServer.start] so the handler can fan events out to every
   /// connected WebSocket client. The callback is `broadcastEvent` on the
@@ -41,7 +41,7 @@ class ProfileHandlers {
   // ===========================================================================
 
   Future<Response> handleGetProfiles(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final profiles = await backend.getProfiles();
     return jsonOk({"profiles": profiles.map((p) => p.toJson()).toList()});
   }
@@ -52,7 +52,7 @@ class ProfileHandlers {
     final profileJson = requireObject(payload, 'profile');
     final profile = EquipmentProfile.fromJson(profileJson);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     await backend.saveProfile(profile);
     publishHostMutationFromContainer(
       container,
@@ -67,7 +67,7 @@ class ProfileHandlers {
   Future<Response> handleDeleteProfile(
       Request request, String profileId) async {
     _logInfo('[API] DELETE /api/profiles/$profileId');
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     await backend.deleteProfile(profileId);
     publishHostMutationFromContainer(
       container,
@@ -80,7 +80,7 @@ class ProfileHandlers {
 
   Future<Response> handleLoadProfile(Request request, String profileId) async {
     _logInfo('[API] POST /api/profiles/$profileId/load');
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     await backend.loadProfile(profileId);
     publishHostMutationFromContainer(
       container,
@@ -92,7 +92,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleGetActiveProfile(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final profile = await backend.getActiveProfile();
     return jsonOk({"profile": profile?.toJson()});
   }
@@ -102,7 +102,7 @@ class ProfileHandlers {
   // ===========================================================================
 
   Future<Response> handleGetSettings(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final settings = await backend.getSettings();
     return jsonOk({"settings": settings.toJson()});
   }
@@ -119,7 +119,7 @@ class ProfileHandlers {
     final settingsJson = requireObject(payload, 'settings');
     final settings = settings_models.AppSettings.fromJson(settingsJson);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     // [Wave 6B settings sync] read previous so we can diff against the
     // new state and emit one fine-grained `settings.changed` event per
     // changed field. If the read fails (first-boot / driver hiccup),
@@ -142,7 +142,7 @@ class ProfileHandlers {
     // [Wave 6B settings sync] emit live settings-change events so every
     // connected WS client can update its in-memory state without a GET
     // round-trip. The diff is field-by-field on the freezed `AppSettings`
-    // JSON projection — same JSON the client originally sent, so the
+    // JSON projection â€” same JSON the client originally sent, so the
     // keys match what the receiver expects.
     _emitSettingsChanges(
       previous: previous,
@@ -153,7 +153,7 @@ class ProfileHandlers {
     return jsonOk({"status": "updated"});
   }
 
-  /// Wave 6B (P2-4) — fan out one `settings.changed` event per
+  /// Wave 6B (P2-4) â€” fan out one `settings.changed` event per
   /// changed field between [previous] and [next]. When [previous] is
   /// null, the entire `next` snapshot is emitted as a single event with
   /// key `__snapshot__` so the client can still rehydrate.
@@ -224,7 +224,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleGetLocation(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     final location = await backend.getLocation();
     return jsonOk({"location": location?.toJson()});
   }
@@ -237,7 +237,7 @@ class ProfileHandlers {
         ? settings_models.ObserverLocation.fromJson(locationJson)
         : null;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(profileSettingsBackendProvider);
     await backend.setLocation(location);
     publishHostMutationFromContainer(
       container,
@@ -249,7 +249,7 @@ class ProfileHandlers {
   }
 
   Future<Response> handleGetLocationFromInternet(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(diagnosticsBackendProvider);
     final location = await backend.getLocationFromInternet();
     return jsonOk({
       "latitude": location.latitude,
