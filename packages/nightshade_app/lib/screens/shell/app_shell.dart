@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+﻿import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -154,7 +154,7 @@ class _AppShellState extends ConsumerState<AppShell> {
     _hasCheckedCheckpoint = true;
 
     try {
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(sequencerBackendProvider);
       final hasCheckpoint = await backend.hasCheckpoint();
       if (!hasCheckpoint) return;
 
@@ -350,13 +350,13 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     // Activate the error notification bridge so backend errors show as toast notifications
     ref.watch(errorNotificationBridgeProvider);
-    // Why (audit-handoff §1.2): keep the meridian-flip disconnect guard alive
+    // Why (audit-handoff Â§1.2): keep the meridian-flip disconnect guard alive
     // for the shell's lifetime so a mount disconnect during an in-flight flip
     // resets `flipExecutionStateProvider` to `aborted` and unsticks the UI.
     ref.watch(meridianFlipDisconnectGuardProvider);
-    // Why (audit-handoff §1.2): the standalone meridian monitor must be kept
+    // Why (audit-handoff Â§1.2): the standalone meridian monitor must be kept
     // alive while the shell is mounted so the Sequencer Settings ->
-    // "Standalone monitoring" toggle actually does something — when enabled,
+    // "Standalone monitoring" toggle actually does something â€” when enabled,
     // it polls mount HA against the configured trigger and alerts the
     // operator when the meridian is crossed outside of a sequence run.
     ref.watch(meridianFlipStandaloneMonitorProvider);
@@ -396,7 +396,7 @@ class _AppShellState extends ConsumerState<AppShell> {
             body: Column(
               children: [
                 // Desktop title bar (window drag + global actions). Hidden on
-                // mobile — bottom nav covers primary routes; saves vertical space.
+                // mobile â€” bottom nav covers primary routes; saves vertical space.
                 if (!useBottomNav) const TitleBar(),
 
                 // Mobile-only persistent connection indicator strip (audit
@@ -418,7 +418,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                   ),
 
                 // Disconnected Banner
-                if (ref.watch(backendProvider) is DisconnectedBackend)
+                if (ref.watch(sequencerBackendProvider) is DisconnectedBackend)
                   Container(
                     width: double.infinity,
                     color: colors.error,
@@ -434,7 +434,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     ),
                   ),
 
-                // iOS background-monitoring advisory (audit §3.2). Renders
+                // iOS background-monitoring advisory (audit Â§3.2). Renders
                 // above the weather banner so it's the first thing the
                 // operator sees while a sequence is running on iOS.
                 const IosBackgroundBanner(),
@@ -445,7 +445,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                 // wake them and points to System Settings.
                 const AndroidNotificationsBanner(),
 
-                // Stale-connection advisory (audit §3.6). Visible during
+                // Stale-connection advisory (audit Â§3.6). Visible during
                 // the WS reconnect grace window so the operator knows
                 // controls may be momentarily out of date.
                 const ConnectionStaleBanner(),
@@ -474,14 +474,14 @@ class _AppShellState extends ConsumerState<AppShell> {
                             TutorialKeys.navWeather,
                             TutorialKeys.navPlanner,
                             // Scheduler merged into Plan Tonight as a tab
-                            // (§UX consolidation, W8-SCHED-MERGE), so its
+                            // (Â§UX consolidation, W8-SCHED-MERGE), so its
                             // top-level nav slot is gone. TutorialKeys.
                             // navScheduler still exists for one release so a
                             // stale deep-link from the previous onboarding
                             // tour does not crash; the onboarding step now
                             // targets TutorialKeys.navPlanner instead.
                             // Diagnostics moved into Analytics as a tab
-                            // (§UX consolidation), so its top-level nav slot
+                            // (Â§UX consolidation), so its top-level nav slot
                             // (and tutorial key) are no longer wired here.
                           ],
                           currentIndex: currentIndex,

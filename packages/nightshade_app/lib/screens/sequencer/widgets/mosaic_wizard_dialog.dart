@@ -1,4 +1,4 @@
-// Wave 5 Agent 1 — Mosaic Wizard powered by the planetarium's mosaic
+﻿// Wave 5 Agent 1 â€” Mosaic Wizard powered by the planetarium's mosaic
 // planner.
 //
 // The visual planner draws a grid of camera-FOV-shaped panels over a
@@ -14,7 +14,7 @@
 // The generated `MosaicConfig` shape is identical to the pre-Wave-5
 // wizard, so the executor and resume logic don't change.
 //
-// The Wave 4 Mosaic-Resume banner remains at the top of the dialog —
+// The Wave 4 Mosaic-Resume banner remains at the top of the dialog â€”
 // see `_buildResumeBanner` below.
 
 import 'dart:math' as math;
@@ -81,7 +81,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
   Future<void> _probeForInterruptedMosaic() async {
     try {
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(sequencerBackendProvider);
       final hasCheckpoint = await backend.hasCheckpoint();
       if (!hasCheckpoint) return;
       final info = await backend.getCheckpointInfo();
@@ -102,12 +102,12 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   Future<void> _resumeInterruptedMosaic() async {
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(sequencerBackendProvider);
     try {
       await backend.resumeFromCheckpoint();
       if (mounted) {
         Navigator.of(context).pop();
-        context.showSuccessSnackBar('Resuming mosaic from checkpoint…');
+        context.showSuccessSnackBar('Resuming mosaic from checkpointâ€¦');
       }
     } catch (e) {
       if (mounted) {
@@ -117,7 +117,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   }
 
   Future<void> _discardMosaicCheckpoint() async {
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(sequencerBackendProvider);
     try {
       await backend.discardCheckpoint();
       if (mounted) {
@@ -134,7 +134,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
   /// Compute panel positions for the visual planner.
   ///
   /// Delegates to the planetarium's `MosaicPlanner.generateRectangularMosaic`
-  /// for the actual spherical geometry — that ensures the on-screen
+  /// for the actual spherical geometry â€” that ensures the on-screen
   /// preview matches the framing-view's mosaic overlay (the
   /// planetarium uses the same planner to render its own mosaic
   /// preview). The wizard then maps those panels into the local
@@ -224,7 +224,7 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
 
     final nodes = mosaicService.createMosaicSequence(
       mosaicName:
-          'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}°',
+          'Mosaic ${_centerRa.toStringAsFixed(2)}h ${_centerDec.toStringAsFixed(1)}Â°',
       config: config,
       exposure: exposure,
       options: options,
@@ -481,9 +481,9 @@ class _MosaicWizardDialogState extends ConsumerState<MosaicWizardDialog> {
                     colors: colors,
                     activePanels: _panelsHorizontal * _panelsVertical -
                         _disabledPanels.length,
-                    gridLabel: '$_panelsHorizontal×$_panelsVertical',
+                    gridLabel: '$_panelsHorizontalÃ—$_panelsVertical',
                     panelArcminLabel:
-                        '${(_panelWidthArcmin / 60).toStringAsFixed(2)}° × ${(_panelHeightArcmin / 60).toStringAsFixed(2)}°',
+                        '${(_panelWidthArcmin / 60).toStringAsFixed(2)}Â° Ã— ${(_panelHeightArcmin / 60).toStringAsFixed(2)}Â°',
                     overlapLabel: '${_overlapPercent.toStringAsFixed(0)}%',
                     exposureSeconds: exposure.exposureSeconds,
                     exposuresPerPanel: exposure.exposuresPerPanel,
@@ -719,7 +719,7 @@ class _GridSizer extends StatelessWidget {
             value: rotation,
             min: -180,
             max: 180,
-            suffix: '°',
+            suffix: 'Â°',
             onChanged: (v) => onChange(rotation: v),
           ),
         ],
@@ -1146,7 +1146,7 @@ class _NumberFieldState extends State<_NumberField> {
 }
 
 // ============================================================================
-// Visual planner — interactive sky view with FOV panels
+// Visual planner â€” interactive sky view with FOV panels
 // ============================================================================
 
 class _PanelPosition {
@@ -1293,8 +1293,8 @@ class _CoordHud extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
-        'RA ${ra.toStringAsFixed(3)}h   Dec ${dec.toStringAsFixed(2)}°   '
-        'Rot ${rotation.toStringAsFixed(0)}°',
+        'RA ${ra.toStringAsFixed(3)}h   Dec ${dec.toStringAsFixed(2)}Â°   '
+        'Rot ${rotation.toStringAsFixed(0)}Â°',
         style: TextStyle(
           color: colors.textPrimary,
           fontSize: 11,

@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -10,7 +10,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// This provider stays narrow so tests can override only the adaptive-swap
 /// surface instead of mocking the full device backend.
 final adaptiveSwapBackendProvider = Provider<AdaptiveSwapBackend>((ref) {
-  return ref.watch(backendProvider);
+  return ref.watch(sequencerBackendProvider);
 });
 
 /// Latest adaptive-swap snapshot from the sequencer executor.

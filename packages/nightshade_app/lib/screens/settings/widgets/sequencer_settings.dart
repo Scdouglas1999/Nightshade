@@ -1,4 +1,4 @@
-import 'package:flutter/foundation.dart';
+﻿import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -17,7 +17,7 @@ class SequencerSettings extends ConsumerStatefulWidget {
 }
 
 class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
-  // Wave 7.5 — Live Stacking & Broadcast settings controllers. The
+  // Wave 7.5 â€” Live Stacking & Broadcast settings controllers. The
   // watermark template is kept as a TextEditingController so the
   // VariablePicker can splice values into the caret position; the port
   // input shares the same SettingsNumberInput pattern used by the rest of
@@ -30,7 +30,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
   final _autoFocusController = TextEditingController();
   // Wave 1.5 Pack A: frames-based cadence for the standard AutofocusInterval
   // trigger. Distinct from `_autoFocusController` (which is in minutes for the
-  // app-level AppSettings UX) — this one targets the Rust trigger directly.
+  // app-level AppSettings UX) â€” this one targets the Rust trigger directly.
   final _autoFocusIntervalFramesController = TextEditingController();
   final _ditherController = TextEditingController();
 
@@ -77,7 +77,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         SettingRow(
           icon: LucideIcons.shieldOff,
           title: 'Disable broadcast everywhere',
-          subtitle: 'Master kill switch — every LiveStacking node will '
+          subtitle: 'Master kill switch â€” every LiveStacking node will '
               'build the stack in memory but refuse public requests. '
               'Useful when you want to test without exposing imagery.',
           trailing: SettingsSwitch(
@@ -130,12 +130,12 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           icon: LucideIcons.type,
           title: 'Default watermark template',
           subtitle: 'Rendered on the broadcast JPEG. Variable interpolation '
-              r'(e.g. "${target.name} — L ${integration.hms}") applied at '
+              r'(e.g. "${target.name} â€” L ${integration.hms}") applied at '
               'render time. Leave empty for no watermark.',
           trailing: settingsTrailingTextInput(
             context: context,
             controller: _broadcastWatermarkController,
-            hint: 'e.g. M42 — \${integration.hms}',
+            hint: 'e.g. M42 â€” \${integration.hms}',
             designWidth: 240,
             isMobile: widget.isMobile,
             onChanged: (value) {
@@ -152,7 +152,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
         SettingRow(
           icon: LucideIcons.globe2,
           title: 'Public by default',
-          subtitle: 'Off → new nodes start with auth required. Turn on '
+          subtitle: 'Off â†’ new nodes start with auth required. Turn on '
               'only if you routinely run public outreach events.',
           trailing: SettingsSwitch(
             value: defaults.livestackingPublicByDefault,
@@ -504,7 +504,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
       ),
       data: (settings) {
         _initControllers(settings);
-        // Wave 7.5 — seed the broadcast-section controllers on the
+        // Wave 7.5 â€” seed the broadcast-section controllers on the
         // first build that has both Settings + SequencerDefaults loaded.
         final seqDefaults = ref.watch(sequencerDefaultsProvider);
         _initBroadcastControllers(seqDefaults);
@@ -631,7 +631,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                       // honours the new cadence without a reload. The bridge
                       // function rejects 0, which we already clamp at 1.
                       try {
-                        final backend = ref.read(backendProvider);
+                        final backend = ref.read(sequencerBackendProvider);
                         await backend.sequencerUpdateAutofocusInterval(frames);
                       } catch (e) {
                         // Surfacing the error via a snackbar would be noisy;
@@ -682,7 +682,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            // Wave 7.5 — Live Stacking & Broadcast defaults. New
+            // Wave 7.5 â€” Live Stacking & Broadcast defaults. New
             // LiveStackingNodes inherit these knobs (port, stack method,
             // watermark template, thumbnail size, public-by-default,
             // master kill switch). Sits between Dithering and Notes
@@ -690,7 +690,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
             // pipeline knobs above and precedes the post-run journaling
             // surface below.
             _buildBroadcastSection(seqDefaults),
-            // Wave 6 Agent 5 — Notes prompt opt-out lives here under
+            // Wave 6 Agent 5 â€” Notes prompt opt-out lives here under
             // Sequencer because the prompt fires at sequence-run end.
             // Placed before Development so the user always sees the
             // toggle (Development section is hidden in release builds).
@@ -714,7 +714,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
                 ),
               ],
             ),
-            // Wave 6 Agent 1 — Smart Night defaults live here too because
+            // Wave 6 Agent 1 â€” Smart Night defaults live here too because
             // they all govern sequence-builder behaviour. The wizard
             // mutates these values as the user adjusts knobs, and reads
             // them back on next launch so preferences persist across
