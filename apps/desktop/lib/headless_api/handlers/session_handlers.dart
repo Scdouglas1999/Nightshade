@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -30,7 +30,7 @@ class SessionHandlers {
 
   /// Parse an integer ID from a URL path segment, raising BadRequestError on
   /// malformed input. Without this, `int.parse` throws FormatException and the
-  /// middleware would surface a 500 — but the caller's mistake is a 400.
+  /// middleware would surface a 500 â€” but the caller's mistake is a 400.
   int _parsePathId(String value, String field) {
     final id = int.tryParse(value);
     if (id == null) {
@@ -74,7 +74,7 @@ class SessionHandlers {
         deviceId: null,
         work: (sink, cancellation) async {
           sink.update(null, 'Starting polar alignment');
-          final backend = container.read(backendProvider);
+          final backend = container.read(imagingBackendProvider);
           await backend.startPolarAlignment(
             exposureTime: exposureTime,
             stepSize: stepSize,
@@ -97,7 +97,7 @@ class SessionHandlers {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     await backend.startPolarAlignment(
       exposureTime: exposureTime,
       stepSize: stepSize,
@@ -115,7 +115,7 @@ class SessionHandlers {
 
   Future<Response> handleStopPolarAlignment(Request request) async {
     _logInfo('[API] POST /api/polar-alignment/stop');
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     await backend.stopPolarAlignment();
     return jsonOk({"status": "stopped"});
   }
@@ -142,7 +142,7 @@ class SessionHandlers {
         deviceId: null,
         work: (sink, cancellation) async {
           sink.update(null, 'Starting all-sky polar alignment');
-          final backend = container.read(backendProvider);
+          final backend = container.read(imagingBackendProvider);
           await backend.startAllSkyPolarAlignment(
             exposureTime: exposureTime,
             solveTimeout: solveTimeout,
@@ -163,7 +163,7 @@ class SessionHandlers {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     await backend.startAllSkyPolarAlignment(
       exposureTime: exposureTime,
       solveTimeout: solveTimeout,
@@ -251,7 +251,7 @@ class SessionHandlers {
         ? DateTime.fromMillisecondsSinceEpoch(capturedAtMs)
         : DateTime.tryParse(capturedAtMs?.toString() ?? '') ?? DateTime.now();
 
-    // P0-5 #2 — honour fileSize from the payload if supplied; otherwise
+    // P0-5 #2 â€” honour fileSize from the payload if supplied; otherwise
     // try to stat the on-disk file. The latter only succeeds when the
     // POSTed filePath happens to be local to the server (e.g. a sidecar
     // helper that wrote the FITS via NFS and then registered the row);
@@ -265,11 +265,11 @@ class SessionHandlers {
           fileSize = await f.length();
         }
       } catch (e) {
-        // The file exists check passed but length() still failed —
+        // The file exists check passed but length() still failed â€”
         // unusual enough to log so the operator knows the row went in
         // without a size.
         _logger.warning(
-          'handleCreateImage: failed to stat $postedPath: $e — row will '
+          'handleCreateImage: failed to stat $postedPath: $e â€” row will '
           'be inserted with NULL file_size',
           source: 'SessionHandlers',
         );
@@ -333,7 +333,7 @@ class SessionHandlers {
 
     // P1-13: schedule fire-and-forget sidecar generation for the new row.
     // Skips when filePath is empty (no FITS to encode) or the file isn't
-    // on disk — the service logs both cases at warning severity. The
+    // on disk â€” the service logs both cases at warning severity. The
     // capture is fully recorded by this point so a sidecar failure does
     // not impact the response.
     if (postedPath.isNotEmpty) {
@@ -526,7 +526,7 @@ class SessionHandlers {
   /// FITS at insert time (best-effort, fire-and-forget). This handler
   /// serves that sidecar with strong-validator ETag headers so repeat
   /// gallery loads from a mobile client hit a `304 Not Modified` instead
-  /// of redoing the FITS → JPEG encode.
+  /// of redoing the FITS â†’ JPEG encode.
   ///
   /// Cold-read fallback: when the sidecar is missing (legacy row, or the
   /// fire-and-forget write hasn't landed yet), we synthesise the JPEG via
@@ -536,7 +536,7 @@ class SessionHandlers {
   /// Limitation (documented for ops): if the operator replaces a FITS
   /// out-of-band (e.g. a re-stretched copy), the sidecar's mtime is no
   /// longer a true validator. The `POST /api/images/{id}/regenerate-
-  /// thumbnail` endpoint is the escape hatch — it forces a re-encode and
+  /// thumbnail` endpoint is the escape hatch â€” it forces a re-encode and
   /// rewrites the sidecar so the ETag changes.
   Future<Response> handleGetImageThumbnail(
       Request request, String imageId) async {
@@ -757,7 +757,7 @@ class SessionHandlers {
     if (mgr == null) {
       // The job manager is constructed by the headless server and wired
       // into SessionHandlers when present. A missing manager means the
-      // server was bootstrapped without job support — surface a 503 so
+      // server was bootstrapped without job support â€” surface a 503 so
       // the operator/client knows to retry against a properly-configured
       // build rather than silently sidestepping cancellation/progress.
       return jsonServiceUnavailable({
@@ -805,7 +805,7 @@ class SessionHandlers {
 
           if (candidatePath != null &&
               await File(candidatePath).exists()) {
-            // Already-present sidecar — make sure the DB stamp matches
+            // Already-present sidecar â€” make sure the DB stamp matches
             // the on-disk location so subsequent GETs hit it directly.
             if (stampedSidecar != candidatePath) {
               await database.imagesDao
@@ -845,7 +845,7 @@ class SessionHandlers {
               timeSinceLast >= const Duration(milliseconds: 1000)) {
             sink.update(
               total == 0 ? 1.0 : processed / total,
-              'Processed $processed of $total — ${row.filePath}',
+              'Processed $processed of $total â€” ${row.filePath}',
             );
             lastEmit = now;
           }
@@ -867,7 +867,7 @@ class SessionHandlers {
     });
   }
 
-  /// P0-5 — FITS download with HTTP Range support (RFC 7233).
+  /// P0-5 â€” FITS download with HTTP Range support (RFC 7233).
   ///
   /// Mobile clients on flaky cellular need partial-content resumption;
   /// a 30 MB FITS that dropped at byte 27 MB was previously unrecoverable
@@ -880,7 +880,7 @@ class SessionHandlers {
   /// An `etag` of `"<imageId>-<mtime-ms>"` lets the client validate the
   /// resource hasn't changed between resume attempts via `If-Range`.
   /// Multi-range (`bytes=0-499,1000-1499`) is explicitly rejected with
-  /// 416 — out of scope per P0-5.
+  /// 416 â€” out of scope per P0-5.
   Future<Response> handleDownloadImage(Request request, String imageId) async {
     final iid = _parsePathId(imageId, 'imageId');
     _logInfo('[API] GET /api/images/$iid/download');
@@ -904,7 +904,7 @@ class SessionHandlers {
     // Stat the file. A permission-denied here is a 403; a generic I/O
     // error is a 500. We deliberately surface these rather than letting
     // the middleware turn everything into a 500 (CLAUDE.md: "errors are
-    // a feature" — distinguish real failure modes).
+    // a feature" â€” distinguish real failure modes).
     final int fileLength;
     final DateTime mtime;
     try {
@@ -953,7 +953,7 @@ class SessionHandlers {
     final ifRange = request.headers['if-range'];
 
     // If the caller passes If-Range but it doesn't match our current
-    // etag, RFC 7233 §3.2 says we MUST ignore the Range header and
+    // etag, RFC 7233 Â§3.2 says we MUST ignore the Range header and
     // return the full body. Strong-validator semantics (etag must match
     // exactly, weak etags like `W/"..."` are deliberately not generated
     // here so we don't have to handle weak matching).
@@ -991,7 +991,7 @@ class SessionHandlers {
     }
 
     // File.openRead's `end` parameter is exclusive; the Range header
-    // bounds are inclusive — convert here.
+    // bounds are inclusive â€” convert here.
     final body = file.openRead(rangeStart, rangeEnd + 1);
     return partialContentResponse(
       body,

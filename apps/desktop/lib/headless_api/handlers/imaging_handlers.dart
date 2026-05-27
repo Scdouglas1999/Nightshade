@@ -1,4 +1,4 @@
-import 'dart:io';
+﻿import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -70,7 +70,7 @@ class ImagingHandlers {
         deviceId: null,
         work: (sink, cancellation) async {
           sink.update(null, 'Solving $imagePath');
-          final backend = container.read(backendProvider);
+          final backend = container.read(imagingBackendProvider);
           final workFuture = backend.plateSolve(
             imagePath: imagePath,
             ra: ra,
@@ -107,7 +107,7 @@ class ImagingHandlers {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     final result = await backend.plateSolve(
       imagePath: imagePath,
       ra: ra,
@@ -155,7 +155,7 @@ class ImagingHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     final crops = await backend.getStarCropsFromLastImage(
       deviceId,
       maxCrops: maxCrops,
@@ -180,7 +180,9 @@ class ImagingHandlers {
 
   Future<Response> handleGetLastRawImageData(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    // getLastRawImageData lives on DeviceBackend (raw pixels come from the
+    // camera driver, not the imaging pipeline).
+    final backend = container.read(deviceBackendProvider);
     final data = await backend.getLastRawImageData(deviceId);
 
     // Why: raw image data is returned as a binary stream rather than JSON
@@ -204,7 +206,7 @@ class ImagingHandlers {
     final headerJson = requireObject(payload, 'headerData');
     final headerData = FitsWriteHeader.fromJson(headerJson);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(imagingBackendProvider);
     await backend.saveFitsFromLastCapture(
       deviceId: deviceId,
       filePath: filePath,
@@ -216,7 +218,9 @@ class ImagingHandlers {
   Future<Response> handleClearDeviceImage(
       Request request, String deviceId) async {
     _logInfo('[API] DELETE /api/imaging/device-image/$deviceId');
-    final backend = container.read(backendProvider);
+    // clearDeviceImage lives on DeviceBackend (operates on the camera
+    // driver's last-image cache).
+    final backend = container.read(deviceBackendProvider);
     await backend.clearDeviceImage(deviceId);
     return jsonOk({'status': 'cleared'});
   }
