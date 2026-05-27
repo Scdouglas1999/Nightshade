@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:developer' as developer;
 import 'dart:io' show Platform;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,7 +7,7 @@ import 'package:nightshade_core/nightshade_core.dart'
         DeviceConnectionState,
         SequenceExecutionState,
         appVersionProvider,
-        backendProvider,
+        sequencerBackendProvider,
         cameraStateProvider,
         mountStateProvider,
         sequenceExecutionStateProvider;
@@ -28,7 +28,7 @@ typedef UpdateApplySafetyCheck = Future<void> Function();
 /// substituting a hardcoded default. A wrong default here silently
 /// breaks update polling (the server uses this string to decide whether
 /// to advertise a newer build), so per CLAUDE.md "errors are a feature"
-/// we refuse to start rather than ship a 2.0.0 fallback (§7A.10).
+/// we refuse to start rather than ship a 2.0.0 fallback (Â§7A.10).
 final updateProvider =
     StateNotifierProvider<UpdateNotifier, UpdateState>((ref) {
   final versionInfo = ref.watch(appVersionProvider);
@@ -52,14 +52,14 @@ Future<void> _checkpointIfSessionLoaded(Ref ref) async {
     return;
   }
 
-  await ref.read(backendProvider).saveCheckpoint();
+  await ref.read(sequencerBackendProvider).saveCheckpoint();
 }
 
 Future<void> defaultUpdateApplySafetyCheck(Ref ref) async {
   final sequenceState = ref.read(sequenceExecutionStateProvider);
   if (_isActiveSequenceState(sequenceState)) {
     try {
-      await ref.read(backendProvider).saveCheckpoint();
+      await ref.read(sequencerBackendProvider).saveCheckpoint();
     } catch (e, stackTrace) {
       developer.log(
         'Failed to save checkpoint before refusing update apply: $e',
@@ -372,7 +372,7 @@ class UpdateNotifier extends StateNotifier<UpdateState> {
   }
 
   /// Pop the most recent one-shot UI banner queued by the underlying
-  /// [UpdateService] (e.g. corrupted-marker recovery in §7A.12). Returns
+  /// [UpdateService] (e.g. corrupted-marker recovery in Â§7A.12). Returns
   /// null if no notice is pending. Subsequent calls return null until a
   /// new notice is queued.
   UpdateNotice? takePendingNotice() => _updateService.takePendingNotice();

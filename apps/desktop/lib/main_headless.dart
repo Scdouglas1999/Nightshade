@@ -332,7 +332,7 @@ void main(List<String> args) async {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(diagnosticsBackendProvider);
     backend.eventStream.listen(
       (event) => apiServer?.broadcastEvent(event),
       onError: (Object error, StackTrace stackTrace) {
@@ -789,7 +789,7 @@ Future<StreamSubscription<DiskSpaceWatchdogEvent>?> _startDiskSpaceWatchdog({
             source: _headlessLogSource,
           );
           try {
-            final backend = container.read(backendProvider);
+            final backend = container.read(sequencerBackendProvider);
             await backend.sequencerStop();
             logger.info(
               '[disk-watchdog] Sequencer stop command issued successfully',
