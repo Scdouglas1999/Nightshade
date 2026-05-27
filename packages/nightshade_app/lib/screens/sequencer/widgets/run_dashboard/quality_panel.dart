@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -13,14 +13,14 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// bridge dispatch (`SequencerEvent::FrameAccepted` / `FrameRejected`).
 ///
 /// Pre-Pack-H this code parsed `InstructionProgress.detail` strings with
-/// regex. That parser has been deleted — every metric the panel needs
+/// regex. That parser has been deleted â€” every metric the panel needs
 /// (HFR, eccentricity, star count, reject reason, consecutive-reject
 /// counter) now arrives as typed data via [FrameGradeEvent.fromTypedData].
 ///
 /// Hidden when grading is disabled in settings AND no events have arrived
 /// (an idle dashboard stays clean).
 ///
-/// Wave 5 Agent 2 — the panel also surfaces the most recent sky-brightness
+/// Wave 5 Agent 2 â€” the panel also surfaces the most recent sky-brightness
 /// adaptive-exposure decision so the user sees live sky brightness +
 /// nominal/adapted exposure pair on the dashboard.
 class RunDashboardQualityPanel extends ConsumerWidget {
@@ -33,7 +33,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
     final adaptive = ref.watch(runDashboardAdaptiveExposureProvider);
 
     // Hidden when no grading has happened yet AND no adaptive event has
-    // landed — keeps an idle dashboard uncluttered. The panel auto-
+    // landed â€” keeps an idle dashboard uncluttered. The panel auto-
     // appears the moment the Rust path emits its first event.
     if (summary.total == 0 && adaptive == null) {
       return const SizedBox.shrink();
@@ -156,7 +156,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
               ),
             ),
           ],
-          // Wave 5 Agent 2 — adaptive-exposure status row. Embedded
+          // Wave 5 Agent 2 â€” adaptive-exposure status row. Embedded
           // inside the quality panel so the user has one place to look
           // for "is the rig adapting tonight?".
           if (adaptive != null) ...[
@@ -171,7 +171,7 @@ class RunDashboardQualityPanel extends ConsumerWidget {
   }
 }
 
-/// Wave 5 Agent 2 — slim banner used when adaptive-exposure has fired
+/// Wave 5 Agent 2 â€” slim banner used when adaptive-exposure has fired
 /// but no image-grading events have arrived yet (e.g. grading disabled).
 class _AdaptiveExposureBanner extends StatelessWidget {
   const _AdaptiveExposureBanner({required this.event, required this.colors});
@@ -188,7 +188,7 @@ class _AdaptiveExposureBanner extends StatelessWidget {
   }
 }
 
-/// Wave 5 Agent 2 — the inline body that renders the live adaptive-
+/// Wave 5 Agent 2 â€” the inline body that renders the live adaptive-
 /// exposure state for the quality panel.
 class _AdaptiveExposureInline extends StatelessWidget {
   const _AdaptiveExposureInline({
@@ -215,10 +215,10 @@ class _AdaptiveExposureInline extends StatelessWidget {
         isAdjusted ? colors.primary : colors.textPrimary,
     };
     final skyLabel = event.skyBrightnessMag != null
-        ? '${event.skyBrightnessMag!.toStringAsFixed(2)} mag/arcsec²'
+        ? '${event.skyBrightnessMag!.toStringAsFixed(2)} mag/arcsecÂ²'
         : 'sky brightness unavailable';
     final filterLabel =
-        event.filter == null ? '' : '${event.filter} · ';
+        event.filter == null ? '' : '${event.filter} Â· ';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
@@ -324,7 +324,7 @@ class _GradeRow extends StatelessWidget {
 }
 
 /// Lightweight HFR-over-time sparkline. Renders the last N accepted-frame
-/// HFR values as a polyline. No axes — this is a sparkline, not a chart.
+/// HFR values as a polyline. No axes â€” this is a sparkline, not a chart.
 class _HfrSparklinePainter extends CustomPainter {
   _HfrSparklinePainter({required this.values, required this.color});
   final List<double> values;
@@ -363,7 +363,7 @@ class _HfrSparklinePainter extends CustomPainter {
 }
 
 // ============================================================================
-// Provider — accumulates grading events into a per-run summary.
+// Provider â€” accumulates grading events into a per-run summary.
 // ============================================================================
 
 /// Maximum recent events retained for the dashboard. Older events scroll
@@ -377,17 +377,17 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
   final Ref _ref;
   StreamSubscription<NightshadeEvent>? _subscription;
-  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  ProviderSubscription<DiagnosticsBackend>? _backendSubscription;
 
   void _wireBackendEvents() {
-    void resubscribe(NightshadeBackend backend) {
+    void resubscribe(DiagnosticsBackend backend) {
       _subscription?.cancel();
       _subscription = backend.eventStream.listen(_onEvent);
     }
 
-    resubscribe(_ref.read(backendProvider));
+    resubscribe(_ref.read(diagnosticsBackendProvider));
     _backendSubscription =
-        _ref.listen<NightshadeBackend>(backendProvider, (_, next) {
+        _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
       resubscribe(next);
     });
   }
@@ -400,7 +400,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
       return;
     }
     // Pack H: only the typed grading variants drive the panel. We no
-    // longer parse `InstructionProgress.detail` strings — the regex
+    // longer parse `InstructionProgress.detail` strings â€” the regex
     // pipeline has been removed entirely.
     if (event.eventType != 'FrameAccepted' &&
         event.eventType != 'FrameRejected') {
@@ -416,7 +416,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
     // Sparkline only tracks accepted-frame HFRs because reject HFR may
     // be a known-bad outlier. The typed event carries the HFR directly
-    // — no parsing — so we can populate the trend line honestly.
+    // â€” no parsing â€” so we can populate the trend line honestly.
     final nextSparkline = List<double>.from(state.hfrSparkline);
     if (grade.decision == FrameGradeDecision.accepted && grade.hfr != null) {
       nextSparkline.add(grade.hfr!);
@@ -447,7 +447,7 @@ class _QualityNotifier extends StateNotifier<FrameGradeRunSummary> {
 
 /// Per-run quality summary fed by the backend event stream.
 ///
-/// Pack H: removed the duplicate `ref.onDispose(notifier.dispose)` —
+/// Pack H: removed the duplicate `ref.onDispose(notifier.dispose)` â€”
 /// Riverpod's StateNotifierProvider already auto-disposes the notifier
 /// when the container shuts down, so the manual hook was triggering
 /// `Bad state: Tried to use _QualityNotifier after dispose was called`
@@ -458,7 +458,7 @@ final runDashboardQualitySummaryProvider =
 });
 
 // ============================================================================
-// Wave 5 Agent 2 — Sky-brightness adaptive exposure surface
+// Wave 5 Agent 2 â€” Sky-brightness adaptive exposure surface
 // ============================================================================
 //
 // Mirrors the `_QualityNotifier` pattern: subscribe to the active backend
@@ -474,17 +474,17 @@ class _AdaptiveExposureNotifier
 
   final Ref _ref;
   StreamSubscription<NightshadeEvent>? _subscription;
-  ProviderSubscription<NightshadeBackend>? _backendSubscription;
+  ProviderSubscription<DiagnosticsBackend>? _backendSubscription;
 
   void _wireBackendEvents() {
-    void resubscribe(NightshadeBackend backend) {
+    void resubscribe(DiagnosticsBackend backend) {
       _subscription?.cancel();
       _subscription = backend.eventStream.listen(_onEvent);
     }
 
-    resubscribe(_ref.read(backendProvider));
+    resubscribe(_ref.read(diagnosticsBackendProvider));
     _backendSubscription =
-        _ref.listen<NightshadeBackend>(backendProvider, (_, next) {
+        _ref.listen<DiagnosticsBackend>(diagnosticsBackendProvider, (_, next) {
       resubscribe(next);
     });
   }
