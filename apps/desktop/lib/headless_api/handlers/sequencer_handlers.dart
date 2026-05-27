@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -24,7 +24,7 @@ class SequencerHandlers {
       _logger.info(message, source: 'SequencerHandlers');
 
   Future<Response> handleSequencerStatus(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final status = await backend.sequencerGetStatus();
 
     return jsonOk({
@@ -38,7 +38,7 @@ class SequencerHandlers {
 
   /// Start the sequencer via the canonical [SequenceExecutor.start] path.
   ///
-  /// Audit C3 — historical bug: this handler called
+  /// Audit C3 â€” historical bug: this handler called
   /// `backend.sequencerStart()` directly, bypassing the executor entirely.
   /// That skipped pre-flight validation, the session row, the
   /// sequence_runs row, the checkpoint timer, the disk-space watchdog,
@@ -77,14 +77,14 @@ class SequencerHandlers {
 
   /// Stop the sequencer via the canonical [SequenceExecutor.stop] path.
   ///
-  /// Audit C3 — historical bug: this handler bypassed the executor and
+  /// Audit C3 â€” historical bug: this handler bypassed the executor and
   /// only called `backend.sequencerStop()`, leaving the session row, run
   /// row, and progress timers dangling. It also discarded the checkpoint
   /// unconditionally with no way for the operator to opt out.
   ///
   /// The new wire contract accepts an optional `preserveCheckpoint`
   /// boolean (defaults to `true` for parity with the desktop Stop
-  /// button — operator-initiated stops keep the resume point). Callers
+  /// button â€” operator-initiated stops keep the resume point). Callers
   /// that want a destructive reset-style stop pass `false`.
   Future<Response> handleSequencerStop(Request request) async {
     _logInfo('[API] POST /api/sequencer/stop');
@@ -95,7 +95,7 @@ class SequencerHandlers {
       try {
         decoded = jsonDecode(body);
       } on FormatException {
-        // Legacy clients post an empty / non-JSON body — we silently
+        // Legacy clients post an empty / non-JSON body â€” we silently
         // fall back to the default so the wire contract stays
         // backward-compatible. Any caller intending to set the flag
         // must send a JSON object.
@@ -135,7 +135,7 @@ class SequencerHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.pause',
     );
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerPause();
     publishHostMutationFromContainer(
       container,
@@ -153,7 +153,7 @@ class SequencerHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.resume',
     );
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerResume();
     publishHostMutationFromContainer(
       container,
@@ -171,7 +171,7 @@ class SequencerHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'sequencer.skip',
     );
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSkip();
     return jsonOk({
       if (commandId != null) 'commandId': commandId,
@@ -190,7 +190,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final nodeId = requireString(payload, 'nodeId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSkipToNode(nodeId);
     return jsonOk({'status': 'skipped', 'nodeId': nodeId});
   }
@@ -198,7 +198,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerPluginNodeFinished(Request request) async {
     _logInfo('[API] POST /api/sequencer/plugin-node-finished');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerPluginNodeFinished(
       nodeId: requireString(payload, 'nodeId'),
       success: requireBool(payload, 'success'),
@@ -210,7 +210,7 @@ class SequencerHandlers {
 
   Future<Response> handleSequencerReset(Request request) async {
     _logInfo('[API] POST /api/sequencer/reset');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerReset();
     return jsonOk({'status': 'reset'});
   }
@@ -220,7 +220,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final json = requireString(payload, 'json');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerLoadJson(json);
     return jsonOk({'status': 'loaded'});
   }
@@ -230,7 +230,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final enabled = requireBool(payload, 'enabled');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetSimulationMode(enabled);
     return jsonOk({'status': 'ok'});
   }
@@ -263,7 +263,7 @@ class SequencerHandlers {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetDevices(
       cameraId: optionalString(payload, 'cameraId'),
       mountId: optionalString(payload, 'mountId'),
@@ -281,7 +281,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final mode = requireString(payload, 'mode');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetSafetyFailMode(mode);
     return jsonOk({'status': 'ok'});
   }
@@ -292,7 +292,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final seconds = requireInt(payload, 'seconds', min: 5, max: 3600);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetSafetyCheckIntervalSeconds(seconds);
     return jsonOk({'status': 'ok'});
   }
@@ -300,7 +300,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerSetSavePath(Request request) async {
     _logInfo('[API] POST /api/sequencer/save-path');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetSavePath(optionalString(payload, 'path'));
     return jsonOk({'status': 'ok'});
   }
@@ -310,7 +310,7 @@ class SequencerHandlers {
   ) async {
     _logInfo('[API] POST /api/sequencer/active-sequence-run-id');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetActiveSequenceRunId(
       optionalInt(payload, 'sequence_run_id'),
     );
@@ -322,7 +322,7 @@ class SequencerHandlers {
   ) async {
     _logInfo('[API] POST /api/sequencer/decision-logging-enabled');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetDecisionLoggingEnabled(
       requireBool(payload, 'enabled'),
     );
@@ -332,7 +332,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerUpdateDitherConfig(Request request) async {
     _logInfo('[API] POST /api/sequencer/update-dither-config');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateDitherConfig(
       pixels: requireDouble(payload, 'pixels'),
       settlePixels: requireDouble(payload, 'settlePixels'),
@@ -346,7 +346,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerUpdateLocation(Request request) async {
     _logInfo('[API] POST /api/sequencer/update-location');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateLocation(
       latitude: requireDouble(payload, 'latitude'),
       longitude: requireDouble(payload, 'longitude'),
@@ -358,7 +358,7 @@ class SequencerHandlers {
     _logInfo('[API] POST /api/sequencer/update-filter-offsets');
     final payload = await readJsonObject(request);
     final rawOffsets = payload['offsets'];
-    // Why: same as set-devices — Dart's Map<String,int> can't be expressed
+    // Why: same as set-devices â€” Dart's Map<String,int> can't be expressed
     // through requireList; we validate per-entry to give callers a precise
     // error path rather than a generic ClassCastException.
     final offsets = <String, int>{};
@@ -377,7 +377,7 @@ class SequencerHandlers {
       });
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateFilterOffsets(offsets);
     return jsonOk({'status': 'ok'});
   }
@@ -387,7 +387,7 @@ class SequencerHandlers {
   ) async {
     _logInfo('[API] POST /api/sequencer/update-pending-integration-carry-over');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdatePendingIntegrationCarryOver(
       _readNestedDoubleMap(payload, 'carry_over'),
     );
@@ -407,7 +407,7 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final everyNFrames = requireInt(payload, 'everyNFrames', min: 1);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateAutofocusInterval(everyNFrames);
     return jsonOk({'status': 'ok', 'everyNFrames': everyNFrames});
   }
@@ -417,7 +417,7 @@ class SequencerHandlers {
   ) async {
     _logInfo('[API] POST /api/sequencer/update-default-quality-check');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateDefaultQualityCheck(
       hfrThreshold: optionalDouble(payload, 'hfrThreshold'),
       hfrBaselinePercent: optionalDouble(payload, 'hfrBaselinePercent'),
@@ -434,7 +434,7 @@ class SequencerHandlers {
       Request request) async {
     _logInfo('[API] POST /api/sequencer/update-reject-folder-path');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateRejectFolderPath(
       optionalString(payload, 'path'),
     );
@@ -444,7 +444,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerUpdateObserverProfile(Request request) async {
     _logInfo('[API] POST /api/sequencer/update-observer-profile');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateObserverProfile(
       observerName: optionalString(payload, 'observerName'),
       siteElevationM: optionalDouble(payload, 'siteElevationM'),
@@ -460,7 +460,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerUpdateSkyBrightness(Request request) async {
     _logInfo('[API] POST /api/sequencer/update-sky-brightness');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateSkyBrightness(
       mag: _readNullableDouble(payload, 'mag'),
     );
@@ -472,7 +472,7 @@ class SequencerHandlers {
   ) async {
     _logInfo('[API] POST /api/sequencer/update-default-adaptive-exposure');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateDefaultAdaptiveExposure(
       enabled: requireBool(payload, 'enabled'),
       targetSnr: requireDouble(payload, 'targetSnr', min: 0),
@@ -493,7 +493,7 @@ class SequencerHandlers {
     Request request,
   ) async {
     _logInfo('[API] POST /api/sequencer/clear-default-adaptive-exposure');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerClearDefaultAdaptiveExposure();
     return jsonOk({'status': 'ok'});
   }
@@ -503,46 +503,46 @@ class SequencerHandlers {
     final payload = await readJsonObject(request);
     final path = requireString(payload, 'path');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerSetCheckpointDir(path);
     return jsonOk({'status': 'ok'});
   }
 
   Future<Response> handleSequencerHasCheckpoint(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final hasCheckpoint = await backend.hasCheckpoint();
     return jsonOk({'hasCheckpoint': hasCheckpoint});
   }
 
   Future<Response> handleSequencerGetCheckpointInfo(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final info = await backend.getCheckpointInfo();
     return jsonOk({'info': info?.toJson()});
   }
 
   Future<Response> handleSequencerResumeFromCheckpoint(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/resume');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.resumeFromCheckpoint();
     return jsonOk({'status': 'resumed'});
   }
 
   Future<Response> handleSequencerDiscardCheckpoint(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/discard');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.discardCheckpoint();
     return jsonOk({'status': 'discarded'});
   }
 
   Future<Response> handleSequencerSaveCheckpoint(Request request) async {
     _logInfo('[API] POST /api/sequencer/checkpoint/save');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.saveCheckpoint();
     return jsonOk({'status': 'saved'});
   }
 
   // ==========================================================================
-  // Wave 4 Recovery Mode — HTTP handlers
+  // Wave 4 Recovery Mode â€” HTTP handlers
   // ==========================================================================
   //
   // These mirror the NetworkBackend client calls in
@@ -556,7 +556,7 @@ class SequencerHandlers {
   /// immediately. No-op when the executor is not in `Recovering`.
   Future<Response> handleSequencerRecoveryTryNow(Request request) async {
     _logInfo('[API] POST /api/sequencer/recovery/try-now');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.recoveryTryNow();
     return jsonOk({'status': 'try_now_requested'});
   }
@@ -565,7 +565,7 @@ class SequencerHandlers {
   /// transitions the executor to `Failed`. No-op when not in `Recovering`.
   Future<Response> handleSequencerRecoveryAbort(Request request) async {
     _logInfo('[API] POST /api/sequencer/recovery/abort');
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.recoveryAbort();
     return jsonOk({'status': 'abort_requested'});
   }
@@ -586,7 +586,7 @@ class SequencerHandlers {
     final audibleAlertWhenEntered =
         requireBool(payload, 'audibleAlertWhenEntered');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.updateRecoveryConfig(
       retryIntervalSecs: retryIntervalSecs,
       maxDurationSecs: maxDurationSecs,
@@ -597,26 +597,26 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// GET — snapshot the current in-flight recovery context as a JSON
+  /// GET â€” snapshot the current in-flight recovery context as a JSON
   /// string. Returns `{"context": null}` when not recovering and
   /// `{"context": "<json>"}` while recovering. The wrapped-string shape
   /// matches what `NetworkBackend.getCurrentRecoveryJson` expects.
   Future<Response> handleSequencerGetCurrentRecovery(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final ctx = await backend.getCurrentRecoveryJson();
     return jsonOk({'context': ctx});
   }
 
-  /// GET — dump every completed recovery loop in the current run. Returns
+  /// GET â€” dump every completed recovery loop in the current run. Returns
   /// `{"history": "<json-array-string>"}`. Empty array `[]` when no
   /// recoveries have completed yet.
   Future<Response> handleSequencerGetRecoveryHistory(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final history = await backend.getRecoveryHistoryJson();
     return jsonOk({'history': history});
   }
 
-  /// Wave 5 Agent 4 — POST /api/sequencer/update-cloud-motion.
+  /// Wave 5 Agent 4 â€” POST /api/sequencer/update-cloud-motion.
   ///
   /// Mirrors `NetworkBackend.sequencerUpdateCloudMotion`. Forwards the
   /// payload into the local executor; remote controllers running the
@@ -625,7 +625,7 @@ class SequencerHandlers {
   Future<Response> handleSequencerUpdateCloudMotion(Request request) async {
     _logInfo('[API] POST /api/sequencer/update-cloud-motion');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateCloudMotion(
       currentCoverPercent: _readNullableDouble(payload, 'currentCoverPercent'),
       predictedArrivalMinutes:
@@ -641,17 +641,17 @@ class SequencerHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 5 Agent 4 — GET /api/sequencer/cloud-motion.
+  /// Wave 5 Agent 4 â€” GET /api/sequencer/cloud-motion.
   ///
   /// Returns `{"cloud_motion": "<json>"}` (or `null`) so the remote run
   /// dashboard can render the same panel as the local one.
   Future<Response> handleSequencerGetCloudMotion(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final json = await backend.sequencerGetCloudMotionJson();
     return jsonOk({'cloud_motion': json});
   }
 
-  /// Wave 8 — POST /api/sequencer/update-conditions-score.
+  /// Wave 8 â€” POST /api/sequencer/update-conditions-score.
   ///
   /// Remote controllers push the same composite sky-conditions score the
   /// local adaptive-swap driver would send through FFI. `score: null`
@@ -671,22 +671,22 @@ class SequencerHandlers {
       throw BadRequestError(field: 'score', expected: 'object or null');
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     await backend.sequencerUpdateConditionsScore(score);
     return jsonOk({'status': 'ok'});
   }
 
-  /// Wave 8 — GET /api/sequencer/adaptive-swap.
+  /// Wave 8 â€” GET /api/sequencer/adaptive-swap.
   ///
   /// Returns a structured snapshot so remote dashboards do not have to parse
   /// the native JSON string format.
   Future<Response> handleSequencerGetAdaptiveSwap(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(sequencerBackendProvider);
     final snapshot = await backend.sequencerGetAdaptiveSwapSnapshot();
     return jsonOk({'adaptive_swap': snapshot?.toJson()});
   }
 
-  /// Wave 5 Agent 4 — narrow helper: pull an optional double out of the
+  /// Wave 5 Agent 4 â€” narrow helper: pull an optional double out of the
   /// JSON payload, accepting either `num` or `null`. Lives next to the
   /// handler that needs it instead of in the shared helpers because no
   /// other endpoint currently surfaces optional doubles.
