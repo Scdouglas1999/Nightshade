@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/backend/device_capabilities.dart';
 import 'backend_provider.dart';
 
@@ -6,7 +6,7 @@ import 'backend_provider.dart';
 /// Returns null if the device is not connected or doesn't support capabilities
 final cameraCapabilitiesProvider = FutureProvider.family<CameraCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   return backend.getCameraCapabilities(deviceId);
 });
 
@@ -14,7 +14,7 @@ final cameraCapabilitiesProvider = FutureProvider.family<CameraCapabilities?, St
 /// Returns null if the device is not connected or doesn't support capabilities
 final mountCapabilitiesProvider = FutureProvider.family<MountCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   return backend.getMountCapabilities(deviceId);
 });
 
@@ -22,7 +22,7 @@ final mountCapabilitiesProvider = FutureProvider.family<MountCapabilities?, Stri
 /// Returns null if the device is not connected or doesn't support capabilities
 final focuserCapabilitiesProvider = FutureProvider.family<FocuserCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   return backend.getFocuserCapabilities(deviceId);
 });
 
@@ -30,7 +30,7 @@ final focuserCapabilitiesProvider = FutureProvider.family<FocuserCapabilities?, 
 /// Returns null if the device is not connected or doesn't support capabilities
 final filterWheelCapabilitiesProvider = FutureProvider.family<FilterWheelCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   return backend.getFilterWheelCapabilities(deviceId);
 });
 
@@ -38,7 +38,7 @@ final filterWheelCapabilitiesProvider = FutureProvider.family<FilterWheelCapabil
 /// Returns null if the device is not connected or doesn't support capabilities
 final rotatorCapabilitiesProvider = FutureProvider.family<RotatorCapabilities?, String>((ref, deviceId) async {
   if (deviceId.isEmpty) return null;
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(deviceBackendProvider);
   return backend.getRotatorCapabilities(deviceId);
 });
 

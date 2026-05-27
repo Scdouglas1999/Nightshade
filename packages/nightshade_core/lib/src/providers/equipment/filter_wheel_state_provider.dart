@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/equipment/equipment_models.dart';
@@ -127,7 +127,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
               : profileFilterNames;
         }
 
-        await _ref.read(backendProvider).filterWheelSetNames(
+        await _ref.read(deviceBackendProvider).filterWheelSetNames(
               deviceId,
               syncedNames,
             );
@@ -162,7 +162,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
               : sessionFilterNames;
         }
 
-        await _ref.read(backendProvider).filterWheelSetNames(
+        await _ref.read(deviceBackendProvider).filterWheelSetNames(
               deviceId,
               syncedNames,
             );
@@ -285,7 +285,7 @@ class FilterWheelStateNotifier extends StateNotifier<FilterWheelState> {
             'FilterWheelStateNotifier: Syncing session filter names to driver: $names',
             name: 'FilterWheelStateNotifier',
             level: 800);
-        await _ref.read(backendProvider).filterWheelSetNames(
+        await _ref.read(deviceBackendProvider).filterWheelSetNames(
               state.deviceId!,
               names,
             );
