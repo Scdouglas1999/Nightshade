@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -31,7 +31,7 @@ final hostLocalSyncProvider = Provider<void>((ref) {
   void bindIfNeeded() {
     teardown();
 
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(diagnosticsBackendProvider);
     if (backend is! FfiBackend) {
       return;
     }

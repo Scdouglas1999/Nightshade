@@ -1,4 +1,4 @@
-// Wave 6B (P2-1) — Hot-plug discovery event bridge.
+﻿// Wave 6B (P2-1) â€” Hot-plug discovery event bridge.
 //
 // The Rust hot-plug watcher in `native/nightshade_native/bridge/src/hotplug.rs`
 // polls the native (vendor SDK) and ASCOM (Windows only) device lists every
@@ -37,7 +37,7 @@ import 'unified_discovery_provider.dart';
 /// reading it once (via `ref.watch` from a long-lived widget) is enough to
 /// keep the subscription alive.
 final hotplugEventBridgeProvider = Provider<void>((ref) {
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(diagnosticsBackendProvider);
 
   StreamSubscription<core_events.NightshadeEvent>? subscription;
   subscription = backend.eventStream.listen(
@@ -48,7 +48,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
       // regen (see event.rs TODO). The wire shape is:
       //   eventType: 'PropertyChanged'
       //   data.property: 'device_discovered' | 'device_lost'
-      // so a simple eventType filter is not enough — we must inspect
+      // so a simple eventType filter is not enough â€” we must inspect
       // `data.property` to distinguish hot-plug events from the unrelated
       // (and frequent) Mount / Camera / Focuser property-changed traffic.
       if (event.eventType != 'PropertyChanged') return;
@@ -83,7 +83,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
       ref.invalidate(availableSafetyMonitorsProvider);
       ref.invalidate(availableSwitchesProvider);
 
-      // The unified discovery state is a StateNotifier — invalidating it
+      // The unified discovery state is a StateNotifier â€” invalidating it
       // would lose the in-progress scan, which is the wrong behaviour
       // when an arrival lands during a manual rescan. Instead, re-read
       // the notifier and let its next discover call pull the fresh
@@ -95,7 +95,7 @@ final hotplugEventBridgeProvider = Provider<void>((ref) {
       try {
         ref.read(unifiedDiscoveryProvider.notifier);
       } catch (_) {
-        // Provider not yet read by any UI — nothing to do, the next
+        // Provider not yet read by any UI â€” nothing to do, the next
         // read will see the invalidated per-class FutureProviders.
       }
     },

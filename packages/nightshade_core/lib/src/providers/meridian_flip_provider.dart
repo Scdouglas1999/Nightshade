@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -201,7 +201,7 @@ final effectiveMeridianFlipSettingsProvider = Provider<MeridianFlipSettings>((re
 /// Listens to the backend event stream for equipment events with
 /// meridian-flip-related event types and maps them to [MeridianFlipEvent].
 final meridianFlipEventStreamProvider = StreamProvider<MeridianFlipEvent?>((ref) {
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(diagnosticsBackendProvider);
 
   return backend.eventStream
       .where((event) =>
@@ -344,7 +344,7 @@ final isMeridianFlipEnabledProvider = Provider<bool>((ref) {
 /// the scheduler engine already uses an identical inline computation. Lifting
 /// it to a shared helper would be a larger refactor; duplicating the proven
 /// formula here keeps the change local. See
-/// `scheduler_engine.dart:_localSiderealTime` — the algorithm is the same.
+/// `scheduler_engine.dart:_localSiderealTime` â€” the algorithm is the same.
 double computeLocalSiderealTimeHours(DateTime utc, double longitudeDeg) {
   final t = utc.toUtc();
   int y = t.year;
@@ -409,7 +409,7 @@ enum MeridianMonitorDecision {
   /// Cooldown active from a recent trigger fire.
   cooldown,
 
-  /// A sequence is running — let the sequencer own the flip.
+  /// A sequence is running â€” let the sequencer own the flip.
   sequenceRunning,
 
   /// Trigger condition met and an alert was emitted.
@@ -419,7 +419,7 @@ enum MeridianMonitorDecision {
 /// Watcher that fires meridian-flip alerts when standalone monitoring is on
 /// and the mount crosses the configured trigger condition.
 ///
-/// Why this exists (audit-handoff §1.2):
+/// Why this exists (audit-handoff Â§1.2):
 ///   The Sequencer Settings -> Meridian Flip section exposes a
 ///   `standaloneMonitoringEnabled` toggle. Prior to this wire-up the toggle
 ///   flipped a database row that nothing watched. Operators reasonably expect
@@ -429,13 +429,13 @@ enum MeridianMonitorDecision {
 ///
 /// Why this implementation alerts rather than auto-flips:
 ///   The Rust meridian flip executor is only reachable through the sequencer
-///   today — there is no `api_perform_meridian_flip` bridge call. Hijacking
+///   today â€” there is no `api_perform_meridian_flip` bridge call. Hijacking
 ///   the user's loaded sequence to inject a one-node flip would silently
 ///   destroy in-progress edits, which is a worse failure mode than missing
 ///   a flip. So when the trigger fires we surface it via:
 ///     1. `flipExecutionStateProvider` -> `executing` (UI banner + log
 ///        timeline pick this up via the existing event subscribers).
-///     2. `NotificationService.notifyMeridianFlip` — routes through the
+///     2. `NotificationService.notifyMeridianFlip` â€” routes through the
 ///        operator-configured Discord / Pushover / push channels per the
 ///        `pushNotificationOnFlip` setting.
 ///     3. `LoggingService.warning` so the trigger is captured in diagnostics.
@@ -459,7 +459,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
   /// Poll cadence while monitoring is active.
   ///
   /// Why: a 30-second cadence matches the sequencer's trigger evaluation
-  /// frequency — finer resolution buys nothing because meridian crossings
+  /// frequency â€” finer resolution buys nothing because meridian crossings
   /// move slowly (mount sidereal rate is 15"/sec).
   static const Duration _pollInterval = Duration(seconds: 30);
 
@@ -485,7 +485,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     _pollTimer = Timer.periodic(_pollInterval, (_) => evaluateOnce());
   }
 
-  /// Public for tests — runs a single poll cycle and returns the decision.
+  /// Public for tests â€” runs a single poll cycle and returns the decision.
   MeridianMonitorDecision evaluateOnce() {
     final settings = _ref.read(globalMeridianFlipSettingsProvider);
     if (!settings.standaloneMonitoringEnabled) {
@@ -518,7 +518,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     if (appSettings == null ||
         (appSettings.latitude == 0.0 && appSettings.longitude == 0.0)) {
       // Why: HA computation needs a real longitude. Refuse to alert from a
-      // 0,0 default — that would be a spurious notification.
+      // 0,0 default â€” that would be a spurious notification.
       return MeridianMonitorDecision.inactive;
     }
 
@@ -551,7 +551,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
       case MeridianTriggerMethod.minutesBeforeLimit:
         // Why: requires mount-advertised tracking-limit time, which is only
         // surfaced inside the Rust sequencer state. Standalone Dart side
-        // has no equivalent today — explicitly skip rather than approximate.
+        // has no equivalent today â€” explicitly skip rather than approximate.
         return false;
       case MeridianTriggerMethod.onTrackingLimitHit:
         // Why: tracking-limit detection lives in the Rust trigger evaluator
@@ -584,7 +584,7 @@ class MeridianFlipStandaloneMonitor extends StateNotifier<void> {
     if (settings.pushNotificationOnFlip) {
       // Why: the operator opted into push notifications for flip events.
       // Route through NotificationService so Discord / Pushover / system push
-      // all honor the toggle. Errors here are reported but never propagate —
+      // all honor the toggle. Errors here are reported but never propagate â€”
       // a missed notification must not stall the monitor.
       unawaited(_ref
           .read(notificationServiceProvider)

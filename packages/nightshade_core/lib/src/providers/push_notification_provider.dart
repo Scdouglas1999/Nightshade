@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -132,7 +132,7 @@ final pushNotificationConfigProvider =
 /// Config changes are applied in-place via [PushNotificationService.updateConfig]
 /// to avoid creating duplicate event stream subscriptions.
 final pushNotificationServiceProvider = Provider<PushNotificationService>((ref) {
-  final backend = ref.watch(backendProvider);
+  final backend = ref.watch(diagnosticsBackendProvider);
 
   // Read (don't watch) config for initial value -- changes are handled via
   // ref.listen below to avoid tearing down the entire service on each toggle.

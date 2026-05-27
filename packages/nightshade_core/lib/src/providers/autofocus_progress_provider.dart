@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/autofocus_progress.dart';
 import '../models/backend/autofocus_result.dart';
@@ -112,7 +112,7 @@ class AutofocusOverlayNotifier extends StateNotifier<AutofocusOverlayState> {
   }
 
   void _listenToEvents() {
-    _eventSubscription = _ref.read(backendProvider).eventStream.listen((event) {
+    _eventSubscription = _ref.read(diagnosticsBackendProvider).eventStream.listen((event) {
       if (!mounted) return;
       if (event.category == EventCategory.equipment &&
           event.eventType == 'AutofocusProgress') {
