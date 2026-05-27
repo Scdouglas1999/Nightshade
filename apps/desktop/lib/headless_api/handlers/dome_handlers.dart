@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -14,7 +14,7 @@ class DomeHandlers {
 
   Future<bool> _isConnectedDome(String deviceId) async {
     try {
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       final connectedDevices = await backend.getConnectedDevices();
       return connectedDevices.any(
         (d) => d.id == deviceId && d.deviceType == DeviceType.dome,
@@ -128,7 +128,7 @@ class DomeHandlers {
 
   /// POST /api/dome/sync
   ///
-  /// Body: `{ "deviceId": "...", "enable": true }` — enables/disables mount slaving.
+  /// Body: `{ "deviceId": "...", "enable": true }` â€” enables/disables mount slaving.
   Future<Response> handleDomeSync(Request request) async {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');

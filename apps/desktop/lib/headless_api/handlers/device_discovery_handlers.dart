@@ -1,14 +1,14 @@
-/// Device-discovery HTTP handlers for the headless API.
+﻿/// Device-discovery HTTP handlers for the headless API.
 ///
 /// Owns the read-only catalog endpoints under `/api/devices/*`:
-///   * `GET /api/devices` — enumerate every discoverable device, optionally
+///   * `GET /api/devices` â€” enumerate every discoverable device, optionally
 ///     filtered by `?deviceType=`. Per-driver discovery errors are surfaced
-///     in the response body (audit §2.26) instead of being silently
+///     in the response body (audit Â§2.26) instead of being silently
 ///     swallowed.
-///   * `GET /api/devices/discover-indi` — point-source discovery against a
+///   * `GET /api/devices/discover-indi` â€” point-source discovery against a
 ///     specific INDI server (`?host=...&port=...`).
-///   * `GET /api/devices/discover-alpaca` — same shape for ASCOM Alpaca.
-///   * `GET /api/devices/connected` — currently-connected devices.
+///   * `GET /api/devices/discover-alpaca` â€” same shape for ASCOM Alpaca.
+///   * `GET /api/devices/connected` â€” currently-connected devices.
 ///
 /// The mutating endpoints (`/api/devices/connect` / `/api/devices/disconnect`)
 /// live in [DeviceHandlers] (`device_handlers.dart`) because they need the
@@ -41,22 +41,22 @@ class DeviceDiscoveryHandlers {
   void _logError(String message) =>
       _logger.error(message, source: 'DeviceDiscoveryHandlers');
 
-  /// `GET /api/devices` — discover every supported device type, optionally
+  /// `GET /api/devices` â€” discover every supported device type, optionally
   /// filtered by `?deviceType=`. Per-driver failures are surfaced in
   /// `discoveryErrors` so the dashboard can render an actionable warning
-  /// per category (was previously silently swallowed; see §2.26).
+  /// per category (was previously silently swallowed; see Â§2.26).
   Future<Response> handleGetDevices(Request request) async {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices');
     try {
       final deviceTypeStr = request.url.queryParameters['deviceType'];
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
 
       // If no device type specified, discover all device types.
       List<DeviceInfo> allDevices = [];
       // Why surfaced: silent catch_(_) hid persistent driver failures (e.g.
       // missing TouptekSdk DLL, INDI server unreachable) for months because
-      // the UI saw an empty discovery list and shrugged (§2.26). Per-type
+      // the UI saw an empty discovery list and shrugged (Â§2.26). Per-type
       // errors now bubble up to the response so the dashboard can render an
       // actionable warning per category.
       final discoveryErrors = <String, String>{};
@@ -116,7 +116,7 @@ class DeviceDiscoveryHandlers {
     }
   }
 
-  /// `GET /api/devices/discover-indi?host=&port=` — point-source INDI
+  /// `GET /api/devices/discover-indi?host=&port=` â€” point-source INDI
   /// discovery. Used by the equipment wizard when the user enters an
   /// explicit INDI server address rather than relying on mDNS.
   Future<Response> handleDiscoverIndiAtAddress(Request request) async {
@@ -129,7 +129,7 @@ class DeviceDiscoveryHandlers {
         return jsonBadRequest({'error': 'host and port are required'});
       }
 
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       final devices = await backend.discoverIndiAtAddress(host, port);
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
     } catch (e, stackTrace) {
@@ -139,7 +139,7 @@ class DeviceDiscoveryHandlers {
     }
   }
 
-  /// `GET /api/devices/discover-alpaca?host=&port=` — point-source ASCOM
+  /// `GET /api/devices/discover-alpaca?host=&port=` â€” point-source ASCOM
   /// Alpaca discovery against an explicit host:port.
   Future<Response> handleDiscoverAlpacaAtAddress(Request request) async {
     final requestId = requestIdFrom(request);
@@ -151,7 +151,7 @@ class DeviceDiscoveryHandlers {
         return jsonBadRequest({'error': 'host and port are required'});
       }
 
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       final devices = await backend.discoverAlpacaAtAddress(host, port);
       return jsonOk({'devices': devices.map((d) => d.toJson()).toList()});
     } catch (e, stackTrace) {
@@ -161,14 +161,14 @@ class DeviceDiscoveryHandlers {
     }
   }
 
-  /// `GET /api/devices/connected` — currently-connected devices. The
+  /// `GET /api/devices/connected` â€” currently-connected devices. The
   /// response payload mirrors the GET /api/devices envelope so a client
   /// can render both lists with one renderer.
   Future<Response> handleGetConnectedDevices(Request request) async {
     final requestId = requestIdFrom(request);
     _logInfo('[API][$requestId] GET /api/devices/connected');
     try {
-      final backend = container.read(backendProvider);
+      final backend = container.read(deviceBackendProvider);
       final devices = await backend.getConnectedDevices();
       return jsonOk({
         "devices": devices

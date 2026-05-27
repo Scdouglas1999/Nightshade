@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -13,7 +13,7 @@ class AuxiliaryHandlers {
   AuxiliaryHandlers(this.container);
 
   Future<List<DeviceInfo>> _connectedDevicesByType(DeviceType type) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final connectedDevices = await backend.getConnectedDevices();
     return connectedDevices.where((d) => d.deviceType == type).toList();
   }
@@ -93,10 +93,10 @@ class AuxiliaryHandlers {
       }
 
       // Why: per-device read errors are reported as `error` fields per entry
-      // rather than failing the whole request — one bad device shouldn't blind
+      // rather than failing the whole request â€” one bad device shouldn't blind
       // the caller to other working ones.
       //
-      // §6a-fixed: emit a stable `read_failed` code rather than the legacy
+      // Â§6a-fixed: emit a stable `read_failed` code rather than the legacy
       // pattern of shipping the raw exception message, which would leak
       // Dart type names. Full detail is logged for operator triage.
       final logger = container.read(loggingServiceProvider);

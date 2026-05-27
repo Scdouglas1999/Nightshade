@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart' show Value;
+﻿import 'package:drift/drift.dart' show Value;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -36,7 +36,7 @@ class FramingHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -175,7 +175,7 @@ class FramingHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -202,7 +202,7 @@ class FramingHandlers {
 
   Future<Response> handleGetCurrentPosition(Request request) async {
     _logInfo('[API] GET /api/framing/current-position');
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -240,7 +240,7 @@ class FramingHandlers {
 
     final angle = requireDouble(payload, 'angle');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected rotator
     final connectedDevices = await backend.getConnectedDevices();
@@ -266,7 +266,7 @@ class FramingHandlers {
 
   Future<Response> handleAbortSlew(Request request) async {
     _logInfo('[API] POST /api/framing/abort-slew');
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -289,7 +289,7 @@ class FramingHandlers {
 
   Future<Response> handleParkMount(Request request) async {
     _logInfo('[API] POST /api/framing/park');
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -312,7 +312,7 @@ class FramingHandlers {
 
   Future<Response> handleUnparkMount(Request request) async {
     _logInfo('[API] POST /api/framing/unpark');
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
 
     // Get connected mount
     final connectedDevices = await backend.getConnectedDevices();
@@ -449,7 +449,7 @@ class FramingHandlers {
 }
 
 /// Sentinel marking the cancellation branch of a Future.any race against
-/// the multi-step centering loop. Library-private — see the analogous
+/// the multi-step centering loop. Library-private â€” see the analogous
 /// sentinels in imaging_handlers / device_handlers.
 class _CenteringCancelled {
   const _CenteringCancelled._();

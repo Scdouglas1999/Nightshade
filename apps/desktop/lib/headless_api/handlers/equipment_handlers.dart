@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
 
@@ -22,35 +22,35 @@ class EquipmentHandlers {
 
   Future<Response> handleCameraStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getCameraStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleMountStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getMountStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleFocuserStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getFocuserStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleFilterWheelStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getFilterWheelStatus(deviceId);
     return jsonOk(status.toJson());
   }
 
   Future<Response> handleRotatorStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getRotatorStatus(deviceId);
     return jsonOk(status.toJson());
   }
@@ -61,7 +61,7 @@ class EquipmentHandlers {
 
   Future<Response> handleCameraCapabilities(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getCameraCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -73,7 +73,7 @@ class EquipmentHandlers {
 
   Future<Response> handleMountCapabilities(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getMountCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -85,7 +85,7 @@ class EquipmentHandlers {
 
   Future<Response> handleFocuserCapabilities(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getFocuserCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -97,7 +97,7 @@ class EquipmentHandlers {
 
   Future<Response> handleFilterWheelCapabilities(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getFilterWheelCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -109,7 +109,7 @@ class EquipmentHandlers {
 
   Future<Response> handleRotatorCapabilities(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getRotatorCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -139,7 +139,7 @@ class EquipmentHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.startDeviceHeartbeat(
       deviceType: deviceType,
       deviceId: deviceId,
@@ -153,14 +153,14 @@ class EquipmentHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'device_id');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.stopDeviceHeartbeat(deviceId);
     return jsonOk({'status': 'stopped'});
   }
 
   Future<Response> handleGetDeviceHealth(
       Request request, String deviceId) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final (lastComm, isHealthy) = await backend.getDeviceHealth(deviceId);
     return jsonOk({
       'last_successful_comm': lastComm,

@@ -1,4 +1,4 @@
-// P2-10 — Push-based live-view streaming over WebSocket.
+﻿// P2-10 â€” Push-based live-view streaming over WebSocket.
 //
 // The legacy `GET /api/camera/live-view/frame` endpoint forces the phone
 // to poll at ~2 Hz, which (a) burns LTE bandwidth even when the camera
@@ -10,7 +10,7 @@
 //
 // Wire protocol (text JSON unless noted):
 //
-//   Client → Server:
+//   Client â†’ Server:
 //     1. `{"type": "subscribe", "deviceId": "ascom:Camera.QHY",
 //          "maxDim": 1024, "maxFps": 2, "jpegQuality": 70,
 //          "region": {"x": 0, "y": 0, "w": 4000, "h": 4000}?}`
@@ -20,7 +20,7 @@
 //        faster than the most demanding subscriber asks for). `region`
 //        is in MASTER (pre-downscale) coordinates so a phone can zoom
 //        without first downloading the full frame; omit for full sensor.
-//        `jpegQuality` defaults to 70 — a sweet spot for cellular at
+//        `jpegQuality` defaults to 70 â€” a sweet spot for cellular at
 //        1024 px.
 //
 //     2. `{"type": "unsubscribe"}`
@@ -28,13 +28,13 @@
 //        client can resubscribe with different parameters without a
 //        new upgrade.
 //
-//     3. `{"type": "ping"}` → server replies with
+//     3. `{"type": "ping"}` â†’ server replies with
 //        `{"type": "pong", "timestamp": "<iso8601>"}`. Useful on cell
 //        gateways with aggressive idle timeouts.
 //
-//   Server → Client:
+//   Server â†’ Client:
 //     a. `{"type": "ready", "deviceId": "...", "maxDim": 1024,
-//          "maxFps": 2, ...}` — emitted once per successful subscribe.
+//          "maxFps": 2, ...}` â€” emitted once per successful subscribe.
 //     b. `{"type": "frame_meta", "deviceId": "...", "width": 1024,
 //          "height": 768, "frameNumber": N,
 //          "serverTimestamp": "<iso8601>"}` followed immediately by a
@@ -82,7 +82,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 /// Routing/diagnostic owner for the `/ws/live-view` endpoint. Stateless
-/// on its own — all per-subscriber state lives inside the [LiveViewStreamHub]
+/// on its own â€” all per-subscriber state lives inside the [LiveViewStreamHub]
 /// instance that is created once per server lifetime.
 class LiveViewStreamHandlers {
   final ProviderContainer container;
@@ -276,7 +276,7 @@ class LiveViewStreamHub {
           'reason': 'server_shutdown',
         });
       } catch (_) {
-        // socket might already be dead; ignore — we're tearing down.
+        // socket might already be dead; ignore â€” we're tearing down.
       }
       final adapter = _sinkAdapters[socket];
       if (adapter != null) {
@@ -303,7 +303,7 @@ class LiveViewStreamHub {
 
   void _onMessage(Object socket, Object? raw) {
     if (raw is! String) {
-      // Binary frames from the client are not part of the protocol — log
+      // Binary frames from the client are not part of the protocol â€” log
       // and drop. CLAUDE.md: errors are a feature; we surface this loud
       // enough that protocol drift is visible.
       _logger.warning(
@@ -450,7 +450,7 @@ class LiveViewStreamHub {
       _producerTimer?.cancel();
       _producerTimer = null;
       _logger.info(
-        '/ws/live-view producer idled — no active subscribers',
+        '/ws/live-view producer idled â€” no active subscribers',
         source: 'LiveViewStreamHub',
       );
     }
@@ -483,7 +483,7 @@ class LiveViewStreamHub {
         masterJpeg = await _fetchMasterFrame(deviceId);
       } catch (e) {
         // Surface the error to every subscriber on this device and
-        // proceed — the hub stays up.
+        // proceed â€” the hub stays up.
         for (final s in subscribers) {
           _writeJson(s.key, {
             'type': 'error',
@@ -507,7 +507,7 @@ class LiveViewStreamHub {
       }
 
       // Decode once; reuse the bitmap across subscriber encodes. We swallow
-      // a decode failure rather than crashing the loop — the next tick will
+      // a decode failure rather than crashing the loop â€” the next tick will
       // try again.
       final img.Image? master = img.decodeJpg(masterJpeg);
       if (master == null) {
@@ -604,14 +604,14 @@ class LiveViewStreamHub {
   }
 
   /// Fetch a master live-view JPEG from the backend (or the test seam).
-  /// We deliberately do NOT wrap this in a try/catch — the caller in
+  /// We deliberately do NOT wrap this in a try/catch â€” the caller in
   /// [_producerTick] surfaces failures to the affected subscribers.
   Future<Uint8List> _fetchMasterFrame(String deviceId) async {
     final injected = testFrameProducer;
     if (injected != null) {
       return injected(deviceId);
     }
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     return backend.cameraLiveViewFrame(deviceId);
   }
 

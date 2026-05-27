@@ -1,4 +1,4 @@
-import 'package:flutter_riverpod/flutter_riverpod.dart';
+﻿import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_error;
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:shelf/shelf.dart';
@@ -81,7 +81,7 @@ class DeviceHandlers {
   //
   // It also left the per-device-type StateNotifier (`cameraStateProvider`,
   // `mountStateProvider`, ...) untouched, so any local UI listening to the
-  // Riverpod state still believed nothing was connected — exactly the same
+  // Riverpod state still believed nothing was connected â€” exactly the same
   // failure mode we just fixed for sequencer start (audit C3).
   //
   // The fix routes every connect through `DeviceService.connect<Type>` so
@@ -125,7 +125,7 @@ class DeviceHandlers {
         },
       );
     } catch (e, stackTrace) {
-      // The connect threw after passing discovery — most likely the
+      // The connect threw after passing discovery â€” most likely the
       // underlying driver refused (cable unplugged, ASCOM driver not
       // installed, INDI server unreachable, etc.). Surface a 502 with the
       // service's own message so the remote operator sees the same
@@ -420,7 +420,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraStartExposure(
       deviceId: deviceId,
       exposureTime: exposureTime,
@@ -451,7 +451,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraAbortExposure(deviceId);
 
     return jsonOk({
@@ -474,7 +474,7 @@ class DeviceHandlers {
     }
 
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final image = await backend.cameraGetLastImage(deviceId);
 
     if (image == null) {
@@ -531,7 +531,7 @@ class DeviceHandlers {
         (int.tryParse(request.url.queryParameters['quality'] ?? '') ?? 85)
             .clamp(1, 100);
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final image = await backend.cameraGetLastImage(deviceId);
 
     if (image == null) {
@@ -577,12 +577,12 @@ class DeviceHandlers {
   /// Returns a JPEG live-view frame from the host-native preview pipeline when
   /// the connected camera driver supports it (gPhoto2 DSLRs, Fujifilm live view).
   ///
-  /// Poll this endpoint at 2–5 Hz for a simple remote viewer. For push delivery,
+  /// Poll this endpoint at 2â€“5 Hz for a simple remote viewer. For push delivery,
   /// clients may also open `GET /api/run-watch/frame-thumbnail` (last capture) or
   /// subscribe to imaging SSE events on `/api/run-watch/events`.
   ///
   /// Query params:
-  ///   deviceId — required connected camera id
+  ///   deviceId â€” required connected camera id
   Future<Response> handleCameraLiveViewFrame(Request request) async {
     final deviceId = request.url.queryParameters['deviceId']?.trim() ?? '';
     if (deviceId.isEmpty) {
@@ -593,7 +593,7 @@ class DeviceHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     List<DeviceInfo> connected = [];
     try {
       connected = await backend.getConnectedDevices();
@@ -663,7 +663,7 @@ class DeviceHandlers {
     final enabled = requireBool(payload, 'enabled');
     final targetTemp = optionalDouble(payload, 'targetTemp');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraSetCooling(
       deviceId: deviceId,
       enabled: enabled,
@@ -673,12 +673,12 @@ class DeviceHandlers {
     return jsonOk({'status': 'ok'});
   }
 
-  /// GET /api/camera/cooling — dedicated cooling-state snapshot.
+  /// GET /api/camera/cooling â€” dedicated cooling-state snapshot.
   ///
   /// Why a focused endpoint vs. polling /api/equipment/camera/status: the
   /// cooling panel only needs four fields and we don't want to round-trip the
   /// full sensor/binning/gain payload at the cooling poll cadence. Source of
-  /// truth is the same CameraStatus model — we just project the cooling
+  /// truth is the same CameraStatus model â€” we just project the cooling
   /// fields out of it.
   Future<Response> handleCameraGetCooling(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
@@ -689,7 +689,7 @@ class DeviceHandlers {
         message: "Missing 'deviceId' query parameter",
       );
     }
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.getCameraStatus(deviceId);
     return jsonOk({
       'coolerOn': status.coolerOn,
@@ -700,12 +700,12 @@ class DeviceHandlers {
     });
   }
 
-  /// GET /api/camera/readout-modes — list available readout modes.
+  /// GET /api/camera/readout-modes â€” list available readout modes.
   ///
   /// Why a focused endpoint vs. /api/equipment/camera/capabilities: the
   /// readout-mode dropdown only needs the string list, not the full
   /// capabilities payload (bayer pattern, sensor geometry, supported binning,
-  /// etc.). Source of truth remains CameraCapabilities — we project the
+  /// etc.). Source of truth remains CameraCapabilities â€” we project the
   /// `readoutModes` field out of it.
   Future<Response> handleCameraGetReadoutModes(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
@@ -716,7 +716,7 @@ class DeviceHandlers {
         message: "Missing 'deviceId' query parameter",
       );
     }
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final caps = await backend.getCameraCapabilities(deviceId);
     if (caps == null) {
       return jsonNotFound({
@@ -726,12 +726,12 @@ class DeviceHandlers {
     return jsonOk({'readoutModes': caps.readoutModes});
   }
 
-  /// GET /api/camera/recommended-settings — manufacturer-recommended
+  /// GET /api/camera/recommended-settings â€” manufacturer-recommended
   /// gain/offset values, when the vendor SDK exposes them.
   ///
   /// Mirrors the FFI shape: the JSON body is the exact projection of
   /// [CameraRecommendedSettings] (unityGain, hcgGain, defaultOffset, notes).
-  /// Older remote hosts won't expose this route — the network backend's
+  /// Older remote hosts won't expose this route â€” the network backend's
   /// fallback handles the resulting 404 by returning an empty recommendation.
   ///
   /// Errors bubble out as the standard `{code, message, ...}` envelope so
@@ -745,7 +745,7 @@ class DeviceHandlers {
         message: "Missing 'deviceId' query parameter",
       );
     }
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final recommended = await backend.cameraGetRecommendedSettings(deviceId);
     return jsonOk({
       'unityGain': recommended.unityGain,
@@ -761,7 +761,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final modeIndex = requireInt(payload, 'modeIndex');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraSetReadoutMode(deviceId, modeIndex);
 
     return jsonOk({'status': 'ok'});
@@ -773,7 +773,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final gain = requireInt(payload, 'gain');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraSetGain(deviceId, gain);
 
     return jsonOk({'status': 'ok'});
@@ -785,7 +785,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final offset = requireInt(payload, 'offset');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.cameraSetOffset(deviceId, offset);
 
     return jsonOk({'status': 'ok'});
@@ -807,7 +807,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountSlewToCoordinates(deviceId, ra, dec);
 
     return jsonOk({
@@ -823,7 +823,7 @@ class DeviceHandlers {
     final ra = requireDouble(payload, 'ra');
     final dec = requireDouble(payload, 'dec');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountSync(deviceId, ra, dec);
 
     return jsonOk({'status': 'synced'});
@@ -839,7 +839,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountPark(deviceId);
 
     return jsonOk({
@@ -858,7 +858,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountUnpark(deviceId);
 
     return jsonOk({
@@ -873,7 +873,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final enabled = requireBool(payload, 'enabled');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountSetTracking(deviceId, enabled);
 
     return jsonOk({'status': 'ok'});
@@ -886,7 +886,7 @@ class DeviceHandlers {
     final direction = requireString(payload, 'direction');
     final durationMs = requireInt(payload, 'durationMs');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountPulseGuide(
       deviceId: deviceId,
       direction: direction,
@@ -901,7 +901,7 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountAbort(deviceId);
 
     return jsonOk({'status': 'aborted'});
@@ -910,7 +910,7 @@ class DeviceHandlers {
   Future<Response> handleMountGetStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final status = await backend.mountGetStatus(deviceId);
 
     return jsonOk(status);
@@ -922,7 +922,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final rate = requireInt(payload, 'rate');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountSetTrackingRate(deviceId, rate);
 
     return jsonOk({'status': 'ok'});
@@ -935,7 +935,7 @@ class DeviceHandlers {
     final axis = requireInt(payload, 'axis');
     final rate = requireDouble(payload, 'rate');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountMoveAxis(deviceId, axis, rate);
 
     return jsonOk({'status': 'ok'});
@@ -953,7 +953,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountSlewAltAz(deviceId, altitude, azimuth);
 
     return jsonOk({
@@ -967,7 +967,7 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.mountFindHome(deviceId);
 
     return jsonOk({'status': 'finding_home'});
@@ -988,7 +988,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.focuserMoveTo(deviceId, position);
 
     return jsonOk({
@@ -1008,7 +1008,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.focuserMoveRelative(deviceId, delta);
 
     return jsonOk({
@@ -1022,7 +1022,7 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.focuserHalt(deviceId);
 
     return jsonOk({'status': 'halted'});
@@ -1042,8 +1042,8 @@ class DeviceHandlers {
     // P1-4: register the command so any later event with a matching
     // operation kind picks up `correlatingCommandId`. We still register
     // even in the new job-model path because the event correlator's
-    // matching is independent of the job's own jobId — they evolve in
-    // parallel (the audit's §3 lays out the rationale).
+    // matching is independent of the job's own jobId â€” they evolve in
+    // parallel (the audit's Â§3 lays out the rationale).
     final commandId = commandCorrelator?.beginCommand(
       operation: 'focuser.autofocus.start',
       deviceId: deviceId,
@@ -1063,9 +1063,9 @@ class DeviceHandlers {
         commandId: commandId,
         work: (sink, cancellation) async {
           sink.update(null, 'Starting autofocus');
-          final backend = container.read(backendProvider);
+          final backend = container.read(deviceBackendProvider);
           // The backend call is currently a long synchronous FFI
-          // operation — see audit Q6 — so cooperative cancellation has
+          // operation â€” see audit Q6 â€” so cooperative cancellation has
           // to wait for it to return. We race the work against the
           // cancellation token so the JobManager can flag the job as
           // cancelled even though the FFI side keeps running. A future
@@ -1102,7 +1102,7 @@ class DeviceHandlers {
 
     // Legacy fallback (no JobManager wired or client opted into
     // synchronous shape). Existing behaviour preserved.
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final result = await backend.autofocusStart(
       deviceId: deviceId,
       cameraId: cameraId,
@@ -1124,7 +1124,7 @@ class DeviceHandlers {
     final commandId = commandCorrelator?.beginCommand(
       operation: 'focuser.autofocus.cancel',
     );
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.autofocusCancel();
 
     return jsonOk({
@@ -1148,7 +1148,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.filterWheelSetPosition(deviceId, position);
 
     return jsonOk({
@@ -1160,7 +1160,7 @@ class DeviceHandlers {
   Future<Response> handleFilterWheelGetNames(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final names = await backend.filterWheelGetNames(deviceId);
 
     return jsonOk({'names': names});
@@ -1172,13 +1172,13 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final names = requireList<String>(payload, 'names');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.filterWheelSetNames(deviceId, names);
 
     return jsonOk({'status': 'ok'});
   }
 
-  /// P2-7 — remote GET for the current filter-wheel position/state.
+  /// P2-7 â€” remote GET for the current filter-wheel position/state.
   ///
   /// Reads from `filterWheelStateProvider` which the device-service
   /// keeps in sync with the underlying driver via the position-settle
@@ -1210,7 +1210,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final name = requireString(payload, 'name');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.filterWheelSetByName(deviceId, name);
 
     return jsonOk({'status': 'ok'});
@@ -1231,7 +1231,7 @@ class DeviceHandlers {
       deviceId: deviceId,
     );
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.rotatorMoveTo(deviceId, angle);
 
     return jsonOk({
@@ -1246,7 +1246,7 @@ class DeviceHandlers {
     final deviceId = requireString(payload, 'deviceId');
     final delta = requireDouble(payload, 'delta');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.rotatorMoveRelative(deviceId, delta);
 
     return jsonOk({'status': 'moving'});
@@ -1255,7 +1255,7 @@ class DeviceHandlers {
   Future<Response> handleRotatorGetStatus(Request request) async {
     final deviceId = request.url.queryParameters['deviceId'] ?? '';
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     final angle = await backend.rotatorGetAngle(deviceId);
 
     return jsonOk({'position': angle});
@@ -1266,13 +1266,13 @@ class DeviceHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.rotatorHalt(deviceId);
 
     return jsonOk({'status': 'halted'});
   }
 
-  /// POST /api/rotator/sync — sync rotator reported sky angle to the supplied
+  /// POST /api/rotator/sync â€” sync rotator reported sky angle to the supplied
   /// position angle (degrees) without moving the hardware. Used by the "Sync
   /// to image PA" workflow after a plate solve.
   ///
@@ -1281,7 +1281,7 @@ class DeviceHandlers {
   /// (motion). Conflating them would slew the rotator every time the operator
   /// hit "Sync to image", which is the opposite of the intended effect.
   ///
-  /// Body: `{deviceId, positionAngle}` — `positionAngle` is the canonical
+  /// Body: `{deviceId, positionAngle}` â€” `positionAngle` is the canonical
   /// field; `angle` is accepted as an alias for compatibility with older
   /// clients that mirrored the move-to body shape.
   Future<Response> handleRotatorSync(Request request) async {
@@ -1301,7 +1301,7 @@ class DeviceHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(deviceBackendProvider);
     await backend.rotatorSyncToPa(deviceId, pa);
 
     return jsonOk({'status': 'synced'});
