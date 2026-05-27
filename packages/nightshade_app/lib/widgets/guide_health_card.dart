@@ -1,10 +1,10 @@
-// Phone-friendly diagnostic card surfacing PHD2 guide health at a glance.
+﻿// Phone-friendly diagnostic card surfacing PHD2 guide health at a glance.
 //
 // Why this exists: the companion DevicesTab showed total RMS as a single
 // line of text, which gives no sense of whether guiding is trending or
 // spiking, and the shared GuidingScreen full chart is cramped at 390pt
 // width. The card lives in nightshade_app (not nightshade_ui) because it
-// subscribes to Riverpod providers and the backend event stream — it's
+// subscribes to Riverpod providers and the backend event stream â€” it's
 // not a pure visual primitive.
 //
 // Subscriptions:
@@ -17,7 +17,7 @@
 // The sparkline ring buffer lives in widget state (not a provider) so the
 // data does not survive route changes or hot-restarts. That avoids stale
 // samples leaking across sessions when the same PHD2 connection produced
-// different statistics. Capacity = 200 samples (≈3 minutes at PHD2's ~1Hz
+// different statistics. Capacity = 200 samples (â‰ˆ3 minutes at PHD2's ~1Hz
 // step rate).
 
 import 'dart:async';
@@ -39,7 +39,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///   * Guider device name
 ///   * Sparkline of total RMS over the last ~3 minutes
 ///   * RA RMS / Dec RMS bottom row
-///   * "Details" button → `/guiding`
+///   * "Details" button â†’ `/guiding`
 class GuideHealthCard extends ConsumerStatefulWidget {
   /// When non-null, replaces the default "navigate to /guiding" Details
   /// affordance. The shared GuidingScreen mounts the card and doesn't need
@@ -62,7 +62,7 @@ class GuideHealthCard extends ConsumerStatefulWidget {
 
 class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
   /// Fixed-capacity ring buffer of total-RMS samples (arcsec). We use a
-  /// plain `List<double>` and trim the head when we cross [_capacity] —
+  /// plain `List<double>` and trim the head when we cross [_capacity] â€”
   /// `dart:collection`'s `Queue` would work but iterating it inside the
   /// CustomPainter twice per frame allocates more than a List slice.
   static const int _capacity = 200;
@@ -78,7 +78,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
 
   void _bindEvents() {
     _eventSub?.cancel();
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(diagnosticsBackendProvider);
     _eventSub = backend.eventStream.listen(_onEvent);
     // Why also listen for backend swap: when the mobile companion connects
     // to a remote rig, `backendProvider` flips from DisconnectedBackend to
@@ -165,7 +165,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
                     padding: const EdgeInsets.only(top: 8),
                     child: _StatusBanner(
                       icon: LucideIcons.alertTriangle,
-                      message: 'Lost star — guiding paused',
+                      message: 'Lost star â€” guiding paused',
                       tint: colors.error,
                     ),
                   )
@@ -174,7 +174,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
                     padding: const EdgeInsets.only(top: 8),
                     child: _StatusBanner(
                       icon: LucideIcons.gauge,
-                      message: 'Calibrating — settle expected shortly',
+                      message: 'Calibrating â€” settle expected shortly',
                       tint: colors.warning,
                     ),
                   ),
@@ -205,12 +205,12 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
     final rmsColor = _rmsColor(stats.rmsTotal, phd2State, colors);
     final rmsText = phd2State == Phd2State.guiding && stats.frameCount > 0
         ? stats.rmsTotal.toStringAsFixed(2)
-        : '—';
+        : 'â€”';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
-        // Large RMS badge — single source of "how bad is it right now".
+        // Large RMS badge â€” single source of "how bad is it right now".
         Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
@@ -239,7 +239,7 @@ class _GuideHealthCardState extends ConsumerState<GuideHealthCard> {
                     height: 1.0,
                   ),
                 ),
-                if (rmsText != '—')
+                if (rmsText != 'â€”')
                   Text(
                     '"',
                     style: TextStyle(
@@ -546,7 +546,7 @@ class _Sparkline extends StatelessWidget {
       return Center(
         child: Text(
           samples.isEmpty
-              ? 'Waiting for guide steps…'
+              ? 'Waiting for guide stepsâ€¦'
               : 'Need at least two samples for trend',
           style: TextStyle(
             fontSize: 11,
@@ -585,7 +585,7 @@ class _SparklinePainter extends CustomPainter {
 
     // Find min/max but bias the visible scale so a perfect "all zeros"
     // doesn't crash the divisor. A lower bound of 0 keeps the chart
-    // anchored — negative RMS is impossible by definition.
+    // anchored â€” negative RMS is impossible by definition.
     double maxVal = samples[0];
     for (final v in samples) {
       if (v > maxVal) maxVal = v;
@@ -673,7 +673,7 @@ class _SparklinePainter extends CustomPainter {
     if (identical(old.samples, samples)) return false;
     if (old.samples.length != samples.length) return true;
     if (old.line != line || old.grid != grid) return true;
-    // Cheap reference equality on the last element is enough — when a new
+    // Cheap reference equality on the last element is enough â€” when a new
     // sample arrives the list reference changed already.
     return true;
   }

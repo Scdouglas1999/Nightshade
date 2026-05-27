@@ -1,4 +1,4 @@
-import 'dart:math' as math;
+﻿import 'dart:math' as math;
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,7 +18,7 @@ class DefaultScienceBackend implements ScienceBackend {
 
   DefaultScienceBackend(this._ref);
 
-  NightshadeBackend get _backend => _ref.read(backendProvider);
+  ImagingBackend get _backend => _ref.read(imagingBackendProvider);
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
   @override
@@ -148,7 +148,7 @@ class DefaultScienceBackend implements ScienceBackend {
         await measureStars(imagePath, const PhotometryOptions(minSnr: 5.0));
     // WHY: writing a sentinel-RMS isCalibrated:false row would let downstream
     // aggregations (transparency confidence, observation reports) treat the
-    // row as data. Returning null instead means no DB row is inserted —
+    // row as data. Returning null instead means no DB row is inserted â€”
     // "not calibrated" is encoded by absence, not by a fabricated metric.
     if (stars.length < 8) {
       return null;
@@ -241,7 +241,7 @@ class DefaultScienceBackend implements ScienceBackend {
       limitingMag3Sigma: lim3,
       limitingMag5Sigma: lim5,
       matchedStarCount: clipped.length,
-      // WHY: do NOT cap RMS at a sentinel ceiling — that would hide poor fits
+      // WHY: do NOT cap RMS at a sentinel ceiling â€” that would hide poor fits
       // from observation-report aggregates and the science insights panel.
       // High RMS is real data; downstream code already thresholds at 0.2.
       calibrationRms: rms,
@@ -310,14 +310,14 @@ class DefaultScienceBackend implements ScienceBackend {
       extinction = math.max(0.0, -slope);
 
       // Transparency = how much the ACTUAL latest ZP deviates from what
-      // the airmass model PREDICTS.  A clear sky gives residual ≈ 0 →
-      // transparency ≈ 100%, regardless of airmass.  Clouds / haze push
-      // the actual ZP below the prediction → transparency < 100%.
+      // the airmass model PREDICTS.  A clear sky gives residual â‰ˆ 0 â†’
+      // transparency â‰ˆ 100%, regardless of airmass.  Clouds / haze push
+      // the actual ZP below the prediction â†’ transparency < 100%.
       final currentAirmass = withAirmass.last.airmass!.clamp(1.0, 5.0);
       final predictedZp = intercept + slope * currentAirmass;
       final actualZp = withAirmass.last.zeroPoint!;
       final residualMag =
-          predictedZp - actualZp; // positive ⇒ dimmer than expected
+          predictedZp - actualZp; // positive â‡’ dimmer than expected
       transparency = (math.pow(10.0, -0.4 * residualMag) * 100.0)
           .clamp(0.0, 100.0)
           .toDouble();
@@ -509,7 +509,7 @@ class DefaultScienceBackend implements ScienceBackend {
         _deltaMinutes(firstFits.dateObs, lastFits.dateObs, imagePaths.length);
 
     // When 3+ frames are available, measure the middle frame for linear
-    // motion validation — a candidate must also appear near the
+    // motion validation â€” a candidate must also appear near the
     // interpolated position in this frame.
     final midIndex = imagePaths.length ~/ 2;
     final bool hasMiddleFrame = imagePaths.length >= 3 &&
@@ -1676,7 +1676,7 @@ final scienceBackendProvider = Provider<ScienceBackend>((ref) {
 /// given a WCS rotation in degrees.
 ///
 /// WHY: the rotation convention here is "WCS rotation = angle from celestial
-/// North to image up (after the standard pixel-Y → sky-Y flip)", matching
+/// North to image up (after the standard pixel-Y â†’ sky-Y flip)", matching
 /// the FITS CROTA2 sense used by ASTAP and Astrometry.net. Under that
 /// convention the inverse-rotation matrix is the *transpose* of the standard
 /// 2D rotation, which is what we apply here. If a future plate solver

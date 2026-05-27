@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,7 +28,7 @@ class PolarAlignmentService {
       );
     }
 
-    final backend = _ref.read(backendProvider);
+    final backend = _ref.read(imagingBackendProvider);
     await backend.startPolarAlignment(
       exposureTime: config.exposureTime,
       stepSize: config.stepSize,
@@ -45,15 +45,15 @@ class PolarAlignmentService {
   }
 
   /// Start the all-sky (Sharpcap-style) polar alignment routine. Works from
-  /// any direction in the sky — does **not** require the pole region to be
+  /// any direction in the sky â€” does **not** require the pole region to be
   /// visible. Requires an external plate solver (ASTAP); the backend throws
   /// if one is not installed.
   ///
   /// The `acceptanceThresholdArcsec` argument controls when the alignment
   /// auto-completes: the total error must stay below this value for 3
-  /// consecutive seconds. The default (30″) corresponds to ~3-minute
-  /// unguided imaging precision. Use 10″ for guided long-sub work,
-  /// 60–120″ for visual / planetary use.
+  /// consecutive seconds. The default (30â€³) corresponds to ~3-minute
+  /// unguided imaging precision. Use 10â€³ for guided long-sub work,
+  /// 60â€“120â€³ for visual / planetary use.
   ///
   /// The `iterationCadenceSecs` argument throttles re-solves so the user
   /// can read the on-screen arrows. Defaults to 3 seconds.
@@ -82,7 +82,7 @@ class PolarAlignmentService {
       );
     }
 
-    final backend = _ref.read(backendProvider);
+    final backend = _ref.read(imagingBackendProvider);
     try {
       await backend.startAllSkyPolarAlignment(
         exposureTime: config.exposureTime,
@@ -96,7 +96,7 @@ class PolarAlignmentService {
       );
     } catch (e) {
       // Re-emit as a structured exception so the UI can show an actionable
-      // message. The Rust layer returns a clear "Plate solver required —
+      // message. The Rust layer returns a clear "Plate solver required â€”
       // install ASTAP" error when no solver is configured; surface it
       // verbatim rather than wrapping.
       developer.log('[PolarAlignmentService] allSky failed: $e',
@@ -107,7 +107,7 @@ class PolarAlignmentService {
 
   /// Stop any currently-running polar alignment (TPPA or all-sky).
   Future<void> stop() async {
-    final backend = _ref.read(backendProvider);
+    final backend = _ref.read(imagingBackendProvider);
     await backend.stopPolarAlignment();
   }
 }

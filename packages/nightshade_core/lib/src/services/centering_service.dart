@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:math' as math;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart'
@@ -18,7 +18,7 @@ import '../models/equipment/equipment_models.dart';
 /// disconnect/hang from a single transient blip that the poll loop can ride
 /// out.
 ///
-/// Errors are a feature — surfacing this as a typed exception (rather than
+/// Errors are a feature â€” surfacing this as a typed exception (rather than
 /// silently waiting out the 60s wall-clock cap) lets callers and tests
 /// observe the actual failure mode instead of "centering timed out".
 class CenteringMountUnresponsiveException implements Exception {
@@ -43,7 +43,7 @@ class CenteringMountUnresponsiveException implements Exception {
     final seconds = elapsed.inMilliseconds / 1000.0;
     return 'Mount status query failed $consecutiveFailures times '
         'consecutively over ${seconds.toStringAsFixed(1)}s '
-        '— aborting centering. The mount may be disconnected or '
+        'â€” aborting centering. The mount may be disconnected or '
         'unresponsive. Last error: $cause';
   }
 }
@@ -242,15 +242,15 @@ class CenteringService {
   /// 500ms keeps UI status reasonably fresh without hammering the bridge.
   static const Duration _pollInterval = Duration(milliseconds: 500);
 
-  /// Upper bound (in ticks) on the post-slew settle wait. 120 × 500ms = 60s
-  /// — preserves the existing wall-clock budget for slow-but-working mounts.
+  /// Upper bound (in ticks) on the post-slew settle wait. 120 Ã— 500ms = 60s
+  /// â€” preserves the existing wall-clock budget for slow-but-working mounts.
   static const int _maxPollTicks = 120;
 
   /// Maximum number of consecutive `getMountStatus` failures tolerated
   /// during the settle poll before aborting centering with a typed
   /// [CenteringMountUnresponsiveException].
   ///
-  /// 6 ticks × [_pollInterval] = 3 seconds of unbroken failure. A single
+  /// 6 ticks Ã— [_pollInterval] = 3 seconds of unbroken failure. A single
   /// transient blip (e.g. one missed COM frame, INDI reconnect) recovers on
   /// the next tick and never trips this threshold; a permanently-broken
   /// mount fails fast at 3s rather than dragging out the full 60s timeout.
@@ -398,7 +398,7 @@ class CenteringService {
           targetName: 'Centering',
         );
       } catch (e) {
-        // Abort interrupts the in-flight exposure via cancelExposure() — the
+        // Abort interrupts the in-flight exposure via cancelExposure() â€” the
         // imaging service surfaces this as a thrown error. Translate to an
         // explicit aborted result so the UI doesn't show "Centering Failed:
         // exposure cancelled".
@@ -789,16 +789,16 @@ class CenteringService {
   /// abort is requested.
   ///
   /// Two distinct timeouts protect this loop:
-  ///   1. [_maxPollTicks] (60s wall-clock) — upper bound for a
+  ///   1. [_maxPollTicks] (60s wall-clock) â€” upper bound for a
   ///      slow-but-working mount that just hasn't finished slewing yet.
-  ///   2. [_maxConsecutiveQueryFailures] (3s of unbroken errors) — fail-fast
+  ///   2. [_maxConsecutiveQueryFailures] (3s of unbroken errors) â€” fail-fast
   ///      escalation when the mount stops answering at all (disconnected,
   ///      driver crashed, COM hung). A single transient failure resets on
   ///      the next successful poll and never trips this; only sustained
   ///      brokenness escalates by throwing
   ///      [CenteringMountUnresponsiveException].
   Future<void> _waitForSlewComplete(String mountId) async {
-    final backend = _ref.read(backendProvider);
+    final backend = _ref.read(deviceBackendProvider);
     await Future.delayed(_pollInterval);
     int pollCount = 0;
     int consecutiveQueryFailures = 0;
@@ -806,7 +806,7 @@ class CenteringService {
     while (pollCount < _maxPollTicks && !_abortRequested) {
       try {
         final status = await backend.getMountStatus(mountId);
-        // Success — clear the consecutive-failure counter. A single
+        // Success â€” clear the consecutive-failure counter. A single
         // transient error followed by a good poll must NOT escalate.
         consecutiveQueryFailures = 0;
         lastQueryError = null;
@@ -814,7 +814,7 @@ class CenteringService {
           return;
         }
       } on CenteringMountUnresponsiveException {
-        // Never wrap our own escalation — preserve the original frame.
+        // Never wrap our own escalation â€” preserve the original frame.
         rethrow;
       } on Object catch (e) {
         consecutiveQueryFailures++;

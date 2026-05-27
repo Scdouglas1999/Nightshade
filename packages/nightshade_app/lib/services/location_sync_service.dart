@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'dart:developer' as developer;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -66,7 +66,7 @@ final locationSyncProvider = Provider<void>((ref) {
 /// Sync location to the Rust backend (for Provider ref)
 Future<void> _syncLocationToBackend(Ref ref, double latitude, double longitude, double elevation) async {
   try {
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(profileSettingsBackendProvider);
     developer.log('Syncing observer location to Rust backend: lat=$latitude, lon=$longitude, elev=$elevation',
         name: 'LocationSync');
     await backend.setLocation(ObserverLocation(
@@ -84,7 +84,7 @@ Future<void> _syncLocationToBackend(Ref ref, double latitude, double longitude, 
 /// Sync location to the Rust backend (for WidgetRef)
 Future<void> _syncLocationToBackendWidget(WidgetRef ref, double latitude, double longitude, double elevation) async {
   try {
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(profileSettingsBackendProvider);
     developer.log('Syncing observer location to Rust backend (widget): lat=$latitude, lon=$longitude, elev=$elevation',
         name: 'LocationSync');
     await backend.setLocation(ObserverLocation(
