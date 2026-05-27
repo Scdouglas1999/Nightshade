@@ -5,7 +5,7 @@ import 'dart:io';
 
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_core/src/database/database.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 
 const _jsonOutputPath =
     '../../docs/production-readiness/manual-migration-probe.json';

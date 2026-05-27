@@ -27,3 +27,13 @@ typedef DbCapturedImage = drift.CapturedImage;
 /// (`src/models/equipment_profile.dart`) which uses string IDs and contains
 /// computed/extension properties not persisted to the database.
 typedef DbEquipmentProfile = drift.EquipmentProfile;
+
+/// Drift row type for the `targets` table.
+///
+/// Distinct from the domain `Target` types used by sequence nodes and the
+/// scheduler. Consumers that read raw target rows from the database (e.g.
+/// `searchTargets` results in the quick-start wizard, smart-night drafts)
+/// reach this alias through the public barrel so the raw Drift `Target`
+/// class can stay hidden from the barrel without forcing an
+/// `// ignore: implementation_imports`.
+typedef DbTarget = drift.Target;
