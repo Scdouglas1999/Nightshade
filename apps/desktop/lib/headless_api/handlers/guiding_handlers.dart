@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
@@ -21,14 +21,14 @@ class GuidingHandlers {
   Future<Response> handlePhd2Connect(Request request) async {
     _logInfo('[API] POST /api/phd2/connect');
     // Route through DeviceService so the host auto-launches PHD2 when
-    // configured, matching the desktop Equipment → Guider connect path.
+    // configured, matching the desktop Equipment â†’ Guider connect path.
     // Raw backend.phd2Connect skips _ensurePhd2Running on the desktop.
     final deviceService = container.read(deviceServiceProvider);
     await deviceService.connectGuider('phd2_guider');
 
     // Mobile companions verify GET /api/phd2/status immediately after POST
     // connect. Block until PHD2 RPC is live so we do not return success early.
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await pollPhd2Connected(backend);
 
     publishHostMutationFromContainer(
@@ -43,7 +43,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2Disconnect(Request request) async {
     _logInfo('[API] POST /api/phd2/disconnect');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2Disconnect();
 
     publishHostMutationFromContainer(
@@ -62,7 +62,7 @@ class GuidingHandlers {
     final settleTime = optionalDouble(payload, 'settleTime') ?? 10.0;
     final settleTimeout = optionalDouble(payload, 'settleTimeout') ?? 60.0;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2StartGuiding(
       settlePixels: settlePixels,
       settleTime: settleTime,
@@ -81,7 +81,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2StopGuiding(Request request) async {
     _logInfo('[API] POST /api/phd2/stop-guiding');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2StopGuiding();
 
     publishHostMutationFromContainer(
@@ -103,7 +103,7 @@ class GuidingHandlers {
     final settleTime = optionalDouble(payload, 'settleTime') ?? 10.0;
     final settleTimeout = optionalDouble(payload, 'settleTimeout') ?? 60.0;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2Dither(
       amount: amount,
       raOnly: raOnly,
@@ -116,7 +116,7 @@ class GuidingHandlers {
   }
 
   Future<Response> handlePhd2GetStatus(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final status = await readPhd2StatusOrDisconnected(backend);
 
     return jsonOk({
@@ -136,7 +136,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final paused = requireBool(payload, 'paused');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2SetPaused(paused);
 
     publishHostMutationFromContainer(
@@ -154,7 +154,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final which = optionalString(payload, 'which') ?? 'both';
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2ClearCalibration(which: which);
 
     return jsonOk({"status": "ok"});
@@ -162,7 +162,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2FlipCalibration(Request request) async {
     _logInfo('[API] POST /api/phd2/flip-calibration');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2FlipCalibration();
 
     return jsonOk({"status": "ok"});
@@ -170,7 +170,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2GetCalibrationData(Request request) async {
     _logInfo('[API] POST /api/phd2/get-calibration-data');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final data = await backend.phd2GetCalibrationData();
 
     return jsonOk({
@@ -183,7 +183,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2FindStar(Request request) async {
     _logInfo('[API] POST /api/phd2/find-star');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final (x, y) = await backend.phd2FindStar();
 
     return jsonOk({"x": x, "y": y});
@@ -196,14 +196,14 @@ class GuidingHandlers {
     final y = requireDouble(payload, 'y');
     final exact = optionalBool(payload, 'exact') ?? false;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2SetLockPosition(x: x, y: y, exact: exact);
 
     return jsonOk({"status": "ok"});
   }
 
   Future<Response> handlePhd2GetLockPosition(Request request) async {
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final (x, y) = await backend.phd2GetLockPosition();
 
     return jsonOk({"x": x, "y": y});
@@ -211,7 +211,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2Loop(Request request) async {
     _logInfo('[API] POST /api/phd2/loop');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2Loop();
 
     return jsonOk({"status": "ok"});
@@ -219,7 +219,7 @@ class GuidingHandlers {
 
   Future<Response> handlePhd2DeselectStar(Request request) async {
     _logInfo('[API] POST /api/phd2/deselect-star');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2DeselectStar();
 
     return jsonOk({"status": "ok"});
@@ -229,7 +229,7 @@ class GuidingHandlers {
     final sizeStr = request.url.queryParameters['size'];
     final size = sizeStr != null ? int.tryParse(sizeStr) ?? 50 : 50;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final starImage = await backend.phd2GetStarImage(size: size);
 
     // Return the star image data as JSON with base64-encoded pixels
@@ -253,7 +253,7 @@ class GuidingHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final names = await backend.phd2GetAlgoParamNames(axis: axis);
 
     return jsonOk({"axis": axis, "names": names});
@@ -279,7 +279,7 @@ class GuidingHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final value = await backend.phd2GetAlgoParam(axis: axis, name: name);
 
     return jsonOk({"axis": axis, "name": name, "value": value});
@@ -298,7 +298,7 @@ class GuidingHandlers {
     final name = requireString(payload, 'name');
     final value = requireDouble(payload, 'value');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.phd2SetAlgoParam(axis: axis, name: name, value: value);
 
     return jsonOk(
@@ -311,7 +311,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderStartGuiding(
       deviceId: deviceId,
       settlePixels: optionalDouble(payload, 'settlePixels') ?? 1.0,
@@ -327,7 +327,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderStopGuiding(deviceId: deviceId);
 
     return jsonOk({"status": "stopped", "deviceId": deviceId});
@@ -338,7 +338,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderDither(
       deviceId: deviceId,
       amount: optionalDouble(payload, 'amount') ?? 5.0,
@@ -356,7 +356,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderLoop(deviceId: deviceId);
 
     return jsonOk({"status": "looping", "deviceId": deviceId});
@@ -367,7 +367,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final (x, y) = await backend.guiderFindStar(deviceId: deviceId);
 
     return jsonOk({"x": x, "y": y, "deviceId": deviceId});
@@ -380,7 +380,7 @@ class GuidingHandlers {
     final x = requireDouble(payload, 'x');
     final y = requireDouble(payload, 'y');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderSetLockPosition(
       deviceId: deviceId,
       x: x,
@@ -401,7 +401,7 @@ class GuidingHandlers {
       );
     }
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final (x, y) = await backend.guiderGetLockPosition(deviceId: deviceId);
     return jsonOk({"x": x, "y": y, "deviceId": deviceId});
   }
@@ -411,7 +411,7 @@ class GuidingHandlers {
     final payload = await readJsonObject(request);
     final deviceId = requireString(payload, 'deviceId');
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend.guiderDeselectStar(deviceId: deviceId);
     return jsonOk({"status": "ok", "deviceId": deviceId});
   }
@@ -427,7 +427,7 @@ class GuidingHandlers {
     }
     final size = int.tryParse(request.url.queryParameters['size'] ?? '') ?? 50;
 
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final image =
         await backend.guiderGetStarImage(deviceId: deviceId, size: size);
 
@@ -444,7 +444,7 @@ class GuidingHandlers {
 
   Future<Response> handleBuiltinGuiderGetConfig(Request request) async {
     _logInfo('[API] GET /api/builtin-guider/config');
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     final config = await backend.builtinGuiderGetConfig();
     return jsonOk(config.toJson());
   }
@@ -452,7 +452,7 @@ class GuidingHandlers {
   Future<Response> handleBuiltinGuiderSetConfig(Request request) async {
     _logInfo('[API] POST /api/builtin-guider/config');
     final payload = await readJsonObject(request);
-    final backend = container.read(backendProvider);
+    final backend = container.read(guidingBackendProvider);
     await backend
         .builtinGuiderSetConfig(BuiltinGuiderConfig.fromJson(payload));
     return jsonOk({"status": "ok"});
