@@ -5,16 +5,14 @@
 //! [`crate::dispatch::device_common_metadata`]; this module only contains
 //! the per-wrapper delegations.
 //!
-//! # Why only 7 wrappers (vs. 10 on the Alpaca side)
+//! # All 10 ASCOM wrappers covered
 //!
-//! Three ASCOM wrappers (`AscomRotatorWrapper`, `AscomSafetyMonitorWrapper`,
-//! `AscomObservingConditionsWrapper`) do not expose the four ASCOM-Common
-//! identification methods today and were already absent from the per-arm
-//! `query_ascom_api_version` match they would otherwise appear in. Adding
-//! them here without first implementing the underlying COM probes would be a
-//! stub — out of scope for this pass and explicitly forbidden by CLAUDE.md.
-//! If/when those wrappers grow the four properties, add a verbatim impl
-//! block here following the pattern below.
+//! All 10 typed ASCOM wrappers (camera, mount, focuser, filter wheel, dome,
+//! switch, cover calibrator, rotator, safety monitor, observing conditions)
+//! now expose the four ASCOM-Common identification properties and have impl
+//! blocks here. Each impl is a verbatim forwarder to the wrapper's inherent
+//! method of the same name; see [`fetch_api_version`] for the silent-fallback
+//! contract that operates at the dispatch layer above the trait.
 //!
 //! # Error-type normalization
 //!
@@ -42,6 +40,7 @@ use crate::ascom_wrapper::dome::AscomDomeWrapper;
 use crate::ascom_wrapper::filterwheel::AscomFilterWheelWrapper;
 use crate::ascom_wrapper::focuser::AscomFocuserWrapper;
 use crate::ascom_wrapper::mount::AscomMountWrapper;
+use crate::ascom_wrapper::rotator::AscomRotatorWrapper;
 use crate::ascom_wrapper::switch::AscomSwitchWrapper;
 use crate::dispatch::device_common_metadata::DeviceCommonMetadata;
 
@@ -161,6 +160,21 @@ impl DeviceCommonMetadata for AscomDomeWrapper {
 }
 
 impl DeviceCommonMetadata for AscomCoverCalibratorWrapper {
+    async fn interface_version(&self) -> Result<i32, String> {
+        Self::interface_version(self).await
+    }
+    async fn driver_version(&self) -> Result<String, String> {
+        Self::driver_version(self).await
+    }
+    async fn driver_info(&self) -> Result<String, String> {
+        Self::driver_info(self).await
+    }
+    async fn supported_actions(&self) -> Result<Vec<String>, String> {
+        Self::supported_actions(self).await
+    }
+}
+
+impl DeviceCommonMetadata for AscomRotatorWrapper {
     async fn interface_version(&self) -> Result<i32, String> {
         Self::interface_version(self).await
     }
