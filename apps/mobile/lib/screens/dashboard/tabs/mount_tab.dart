@@ -1,4 +1,4 @@
-import 'dart:developer' as developer;
+﻿import 'dart:developer' as developer;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -9,13 +9,13 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/error_snackbar.dart';
 
-/// Mount tab — phone-native mount control:
+/// Mount tab â€” phone-native mount control:
 ///   * Live RA/Dec/Alt/Az from `mountStateProvider`.
-///   * Press-and-hold d-pad (port of the §2.7 web dashboard pattern).
+///   * Press-and-hold d-pad (port of the Â§2.7 web dashboard pattern).
 ///   * Park/unpark + tracking on/off.
 ///   * Slew-to-target by NGC/IC/Messier name or manual RA/Dec.
 ///
-/// All hardware calls go through `DeviceService` — this widget is pure UI
+/// All hardware calls go through `DeviceService` â€” this widget is pure UI
 /// with the d-pad lifecycle (pointer capture, axis stop on release) as the
 /// only stateful piece.
 class MountTab extends ConsumerStatefulWidget {
@@ -26,13 +26,13 @@ class MountTab extends ConsumerStatefulWidget {
 }
 
 class _MountTabState extends ConsumerState<MountTab> {
-  /// Slew rate multiplier (deg/s) — mirrors the desktop dashboard's
-  /// 0.5×/1×/2×/4×/8× preset menu.
+  /// Slew rate multiplier (deg/s) â€” mirrors the desktop dashboard's
+  /// 0.5Ã—/1Ã—/2Ã—/4Ã—/8Ã— preset menu.
   double _slewRate = 2.0;
 
   /// Track which axis is currently held down so we can issue the matching
-  /// stop on pointer release, matching §2.7 ("release == stop, no implicit
-  /// timeout"). Map of axis → direction.
+  /// stop on pointer release, matching Â§2.7 ("release == stop, no implicit
+  /// timeout"). Map of axis â†’ direction.
   final Map<int, int> _activeAxes = {};
 
   /// Cached device id so the dispose hook can stop motion without
@@ -49,7 +49,7 @@ class _MountTabState extends ConsumerState<MountTab> {
     if (id == null) return;
     _lastDeviceId = id;
     _activeAxes[axis] = direction;
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(deviceBackendProvider);
     try {
       await backend.mountMoveAxis(id, axis, _slewRate * direction);
     } catch (e) {
@@ -63,7 +63,7 @@ class _MountTabState extends ConsumerState<MountTab> {
     _activeAxes.remove(axis);
     final id = _lastDeviceId;
     if (id == null) return;
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(deviceBackendProvider);
     try {
       await backend.mountMoveAxis(id, axis, 0.0);
     } catch (e) {
@@ -98,7 +98,7 @@ class _MountTabState extends ConsumerState<MountTab> {
     final id = _lastDeviceId;
     if (id != null && _activeAxes.isNotEmpty) {
       try {
-        final backend = ref.read(backendProvider);
+        final backend = ref.read(deviceBackendProvider);
         backend.mountMoveAxis(id, 0, 0.0).ignore();
         backend.mountMoveAxis(id, 1, 0.0).ignore();
       } catch (e) {
@@ -175,14 +175,14 @@ class _PositionCard extends StatelessWidget {
               Expanded(
                 child: _MetricCell(
                   label: 'RA',
-                  value: ra != null ? _formatRa(ra) : '—',
+                  value: ra != null ? _formatRa(ra) : 'â€”',
                   colors: colors,
                 ),
               ),
               Expanded(
                 child: _MetricCell(
                   label: 'Dec',
-                  value: dec != null ? _formatDec(dec) : '—',
+                  value: dec != null ? _formatDec(dec) : 'â€”',
                   colors: colors,
                 ),
               ),
@@ -194,14 +194,14 @@ class _PositionCard extends StatelessWidget {
               Expanded(
                 child: _MetricCell(
                   label: 'Alt',
-                  value: alt != null ? '${alt.toStringAsFixed(1)}°' : '—',
+                  value: alt != null ? '${alt.toStringAsFixed(1)}Â°' : 'â€”',
                   colors: colors,
                 ),
               ),
               Expanded(
                 child: _MetricCell(
                   label: 'Az',
-                  value: az != null ? '${az.toStringAsFixed(1)}°' : '—',
+                  value: az != null ? '${az.toStringAsFixed(1)}Â°' : 'â€”',
                   colors: colors,
                 ),
               ),
@@ -295,11 +295,11 @@ class _SlewRateSelector extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
     const options = <(double, String)>[
-      (0.5, '0.5×'),
-      (1.0, '1×'),
-      (2.0, '2×'),
-      (4.0, '4×'),
-      (8.0, '8×'),
+      (0.5, '0.5Ã—'),
+      (1.0, '1Ã—'),
+      (2.0, '2Ã—'),
+      (4.0, '4Ã—'),
+      (8.0, '8Ã—'),
     ];
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -378,7 +378,7 @@ class _RateChip extends StatelessWidget {
 }
 
 /// Press-and-hold d-pad. Each direction starts a slew on pointer down and
-/// stops it on pointer up / leave / cancel. Mirrors §2.7 of the web
+/// stops it on pointer up / leave / cancel. Mirrors Â§2.7 of the web
 /// dashboard so the runaway-slew failure mode (start without matching
 /// stop) cannot occur on a phone either.
 class _Dpad extends StatelessWidget {
@@ -538,7 +538,7 @@ class _DpadButtonState extends State<_DpadButton> {
       enabled: widget.enabled,
       child: Listener(
         // Listener (vs GestureDetector) is what guarantees we get a
-        // pointer-up event even when the finger drifts to a sibling — the
+        // pointer-up event even when the finger drifts to a sibling â€” the
         // hit-target is the pointer's initial widget. We additionally
         // listen for pointer-cancel to recover from system pre-empts
         // (notification shade pulled down, etc.).
@@ -621,7 +621,7 @@ class _ControlsRow extends ConsumerWidget {
         await fn();
       } catch (e) {
         if (context.mounted) {
-          // [Wave 6D error parsing] — typed envelope so park/unpark/track
+          // [Wave 6D error parsing] â€” typed envelope so park/unpark/track
           // failures surface the server's machine code (e.g.
           // "Mount is currently slewing (mount_busy)").
           showApiError(context, e);
@@ -784,7 +784,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
           SizedBox(
             width: double.infinity,
             child: NightshadeButton(
-              label: _searching ? 'Searching…' : 'Look up',
+              label: _searching ? 'Searchingâ€¦' : 'Look up',
               icon: LucideIcons.search,
               size: ButtonSize.large,
               variant: ButtonVariant.outline,
@@ -827,7 +827,7 @@ class _SlewToTargetState extends ConsumerState<_SlewToTarget> {
                   controller: _decCtrl,
                   decoration: InputDecoration(
                     labelText: 'Dec',
-                    hintText: '+41°16\'',
+                    hintText: '+41Â°16\'',
                     border: const OutlineInputBorder(),
                     isDense: true,
                     filled: true,
@@ -921,5 +921,5 @@ String _formatDec(double decDeg) {
   final a = decDeg.abs();
   final d = a.floor();
   final m = ((a - d) * 60).round();
-  return '$sign${d.toString().padLeft(2, '0')}°${m.toString().padLeft(2, '0')}\'';
+  return '$sign${d.toString().padLeft(2, '0')}Â°${m.toString().padLeft(2, '0')}\'';
 }
