@@ -1,4 +1,4 @@
-// Adapter that converts a Drift-row `db.EquipmentProfile` (returned by
+// Adapter that converts a Drift-row `DbEquipmentProfile` (returned by
 // `activeProfileProvider`) into the freezed `EquipmentProfile` model
 // consumed by `SmartNightOrchestrator.buildPlanForTonight`.
 //
@@ -8,17 +8,15 @@
 // freezed model directly; the rest of the app works with the Drift row
 // or with `EquipmentProfileModel` (UI-friendly variant) instead.
 
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' as db;
 import 'package:nightshade_core/nightshade_core.dart';
 
-/// Convert a Drift-row [db.EquipmentProfile] into the freezed
+/// Convert a Drift-row [DbEquipmentProfile] into the freezed
 /// [EquipmentProfile] model that `SmartNightOrchestrator` expects.
 ///
 /// Column names line up 1:1; the only adaptation is the id type (int in
 /// the DB row, String on the freezed model — the orchestrator round-trips
 /// it through the draft's `profileId` text column).
-EquipmentProfile smartNightProfileFromDb(db.EquipmentProfile row) {
+EquipmentProfile smartNightProfileFromDb(DbEquipmentProfile row) {
   return EquipmentProfile(
     id: row.id.toString(),
     name: row.name,

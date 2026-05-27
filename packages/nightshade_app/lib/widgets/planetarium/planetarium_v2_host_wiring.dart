@@ -5,15 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart' as planetarium_v1;
 import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart' as planetarium_v2;
-// ignore: implementation_imports
-import 'package:nightshade_planetarium_v2/src/providers/observer_provider.dart'
-    as v2_observer;
-// ignore: implementation_imports
-import 'package:nightshade_planetarium_v2/src/providers/render_config_provider.dart'
-    as v2_render;
-// ignore: implementation_imports
-import 'package:nightshade_planetarium_v2/src/providers/view_pose_provider.dart'
-    as v2_pose;
 
 /// Activates planetarium v2 engine sync providers and mirrors v1 sky state.
 class PlanetariumV2HostWiring extends ConsumerStatefulWidget {
@@ -25,7 +16,8 @@ class PlanetariumV2HostWiring extends ConsumerStatefulWidget {
 
   final Widget child;
 
-  /// When true, [planetarium_v1.skyViewStateProvider] drives [v2_pose.viewPoseProvider].
+  /// When true, [planetarium_v1.skyViewStateProvider] drives
+  /// [planetarium_v2.viewPoseProvider].
   final bool syncViewPoseFromV1;
 
   @override
@@ -65,7 +57,7 @@ class _PlanetariumV2HostWiringState extends ConsumerState<PlanetariumV2HostWirin
       return;
     }
     final sky = ref.read(planetarium_v1.skyViewStateProvider);
-    final poseNotifier = ref.read(v2_pose.viewPoseProvider.notifier);
+    final poseNotifier = ref.read(planetarium_v2.viewPoseProvider.notifier);
     poseNotifier.setCenter(sky.centerRA, sky.centerDec);
     poseNotifier.setFieldOfView(sky.fieldOfView);
     poseNotifier.setRotation(sky.rotation);
@@ -87,9 +79,9 @@ class _PlanetariumV2HostWiringState extends ConsumerState<PlanetariumV2HostWirin
 
   @override
   Widget build(BuildContext context) {
-    ref.watch(v2_pose.planetariumViewPoseSyncProvider);
-    ref.watch(v2_observer.planetariumObserverSyncProvider);
-    ref.watch(v2_render.planetariumRenderConfigSyncProvider);
+    ref.watch(planetarium_v2.planetariumViewPoseSyncProvider);
+    ref.watch(planetarium_v2.planetariumObserverSyncProvider);
+    ref.watch(planetarium_v2.planetariumRenderConfigSyncProvider);
     ref.watch(planetarium_v2.sceneSnapshotProvider);
     ref.watch(planetarium_v2.planetariumSelectionSyncProvider);
 

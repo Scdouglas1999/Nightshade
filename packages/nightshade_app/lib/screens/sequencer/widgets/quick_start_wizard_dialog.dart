@@ -5,8 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-// ignore: implementation_imports
-import 'package:nightshade_core/src/database/database.dart' show Target;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:uuid/uuid.dart';
 
@@ -127,10 +125,10 @@ class _QuickStartWizardDialogState
   final _targetNameController = TextEditingController();
   final _raController = TextEditingController();
   final _decController = TextEditingController();
-  List<Target> _searchResults = [];
+  List<DbTarget> _searchResults = [];
   Timer? _searchDebounce;
   bool _isSearching = false;
-  Target? _selectedTarget;
+  DbTarget? _selectedTarget;
 
   // Step 2: Filters & Exposures
   List<_FilterExposureConfig> _filterConfigs = [];
@@ -357,7 +355,7 @@ class _QuickStartWizardDialogState
     });
   }
 
-  void _selectTarget(Target target) {
+  void _selectTarget(DbTarget target) {
     setState(() {
       _selectedTarget = target;
       _targetNameController.text = target.name;

@@ -1,7 +1,9 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_core/nightshade_core.dart';
-import 'package:nightshade_core/src/models/backend/event_types.dart'
-    as core_events;
+// EventCategory exists in both core (via the nightshade_backend re-export
+// chain in the barrel) and the bridge. The unprefixed barrel above gives
+// us the core enum; bridge_event below is prefixed so the two stay
+// disambiguated at call sites in this file.
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_event;
 
 /// The active target during execution.
@@ -461,23 +463,23 @@ const Duration _audibleAlertCooldown = Duration(seconds: 5);
 /// Why two enums: the bridge layer's enum is generated from FRB and lives
 /// in `nightshade_bridge`; `nightshade_core` has its own copy used by
 /// services (`PushNotification.category` is the core enum).
-core_events.EventCategory _bridgeCategoryToCore(
+EventCategory _bridgeCategoryToCore(
     bridge_event.EventCategory cat) {
   switch (cat) {
     case bridge_event.EventCategory.equipment:
-      return core_events.EventCategory.equipment;
+      return EventCategory.equipment;
     case bridge_event.EventCategory.imaging:
-      return core_events.EventCategory.imaging;
+      return EventCategory.imaging;
     case bridge_event.EventCategory.guiding:
-      return core_events.EventCategory.guiding;
+      return EventCategory.guiding;
     case bridge_event.EventCategory.sequencer:
-      return core_events.EventCategory.sequencer;
+      return EventCategory.sequencer;
     case bridge_event.EventCategory.safety:
-      return core_events.EventCategory.safety;
+      return EventCategory.safety;
     case bridge_event.EventCategory.system:
-      return core_events.EventCategory.system;
+      return EventCategory.system;
     case bridge_event.EventCategory.polarAlignment:
-      return core_events.EventCategory.polarAlignment;
+      return EventCategory.polarAlignment;
   }
 }
 

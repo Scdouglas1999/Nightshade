@@ -7,13 +7,11 @@ import 'package:nightshade_core/nightshade_core.dart'
         FirstNightWizardStep,
         FirstNightWizardState,
         firstNightWizardProvider,
-        FirstNightWizardNotifier;
-// The core's FirstNightWizard model class is hidden from the barrel
-// (it collides with this widget's class of the same name); we reach it
-// directly via tutorial_step.dart with a prefix alias.
-// ignore: implementation_imports
-import 'package:nightshade_core/src/models/tutorial/tutorial_step.dart'
-    as core_tutorial;
+        FirstNightWizardNotifier,
+        // Alias for the model-layer `FirstNightWizard` (hidden from the
+        // barrel because it collides with this widget class of the same
+        // name). Defined in `src/legacy_aliases.dart`.
+        FirstNightWizardModel;
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'tutorial_step_widget.dart';
@@ -54,7 +52,7 @@ class _FirstNightWizardState extends ConsumerState<FirstNightWizard> {
   // seven-step length invariant on every read; doing it once per dialog
   // is sufficient and avoids re-running that check on every rebuild.
   late final List<FirstNightWizardStep> _steps =
-      core_tutorial.FirstNightWizard.steps;
+      FirstNightWizardModel.steps;
 
   @override
   Widget build(BuildContext context) {

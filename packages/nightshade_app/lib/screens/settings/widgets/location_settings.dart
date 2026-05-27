@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-// Hide HorizonProfile from the barrel — the barrel publishes the
-// scheduler's samples-based class. This file needs the legacy 8-point
-// compass class, which we pull in directly via the leaf path below.
-import 'package:nightshade_core/nightshade_core.dart' hide HorizonProfile;
-import 'package:nightshade_core/src/providers/settings_provider.dart'
-    show HorizonProfile;
+// The barrel's `HorizonProfile` is the scheduler's samples-based class;
+// this screen needs the legacy 8-point compass profile, exported through
+// the barrel under the `LegacyHorizonProfile` alias (see
+// `src/legacy_aliases.dart`).
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 
@@ -56,7 +55,8 @@ class _LocationSettingsState extends ConsumerState<LocationSettingsPage> {
       _lonController.text = settings.longitude.toStringAsFixed(6);
       _elevController.text = settings.elevation.toStringAsFixed(0);
 
-      final profile = HorizonProfile.fromJson(settings.horizonProfileJson);
+      final profile =
+          LegacyHorizonProfile.fromJson(settings.horizonProfileJson);
       for (final dir in horizonDirections) {
         _horizonControllers[dir]!.text =
             profile.altitudeAt(dir).toStringAsFixed(0);

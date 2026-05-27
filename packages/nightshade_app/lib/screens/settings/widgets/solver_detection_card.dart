@@ -1,11 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:lucide_icons/lucide_icons.dart';
-// Imports the model leaf directly rather than `nightshade_core.dart` so
-// tests can exercise this widget without pulling in the entire core
-// barrel (which transitively touches broken framing/scheduler providers
-// on the v2.5.0-hardening base). Once those are fixed, the import can
-// move back to the public barrel — both surfaces export the same types.
-import 'package:nightshade_core/src/models/plate_solver.dart';
+import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:url_launcher/url_launcher.dart';
 
