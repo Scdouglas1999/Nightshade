@@ -1,4 +1,4 @@
-import 'dart:async';
+﻿import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -97,7 +97,7 @@ class _MountUnparkDialogState extends ConsumerState<MountUnparkDialog>
       final mountState = ref.read(mountStateProvider);
       if (mountState.deviceId != null && mountState.isParked) {
         // Unpark the mount
-        final backend = ref.read(backendProvider);
+        final backend = ref.read(deviceBackendProvider);
         await backend.mountUnpark(mountState.deviceId!);
       }
 

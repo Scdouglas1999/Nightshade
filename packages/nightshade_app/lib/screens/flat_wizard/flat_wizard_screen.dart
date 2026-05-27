@@ -902,6 +902,9 @@ class _ActionButtons extends ConsumerWidget {
   Future<void> _runCaptureSequence(WidgetRef ref, FlatWizardState state) async {
     final notifier = ref.read(flatWizardProvider.notifier);
     final cameraState = ref.read(cameraStateProvider);
+    // A-12: legitimately multi-role — _runCaptureSequence drives camera
+    // exposures (DeviceBackend) AND saves FITS via saveFitsFromLastCapture
+    // (ImagingBackend) in one coordinated loop.
     final backend = ref.read(backendProvider);
     final flatService = ref.read(flatWizardServiceProvider);
     final db = ref.read(databaseProvider);
@@ -1181,7 +1184,7 @@ class _ActionButtons extends ConsumerWidget {
       return; // Already at correct position
     }
 
-    final backend = ref.read(backendProvider);
+    final backend = ref.read(deviceBackendProvider);
     await backend.filterWheelSetPosition(fwState.deviceId!, position);
 
     // Wait for filter wheel to settle

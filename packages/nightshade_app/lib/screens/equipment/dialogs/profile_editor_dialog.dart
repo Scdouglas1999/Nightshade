@@ -1,4 +1,4 @@
-import 'dart:convert';
+﻿import 'dart:convert';
 
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
@@ -311,7 +311,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     // (which may have a different count than the actual wheel)
     List<String> filterNames;
     try {
-      final backend = ref.read(backendProvider);
+      final backend = ref.read(deviceBackendProvider);
       final status = await backend.getFilterWheelStatus(deviceId);
       filterNames = status.filterNames;
     } catch (error, stack) {
@@ -1672,7 +1672,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
 
   /// Build the info card that surfaces the SDK-reported recommendation.
   ///
-  /// All values are shown verbatim — the field is "Not reported" when the SDK
+  /// All values are shown verbatim â€” the field is "Not reported" when the SDK
   /// returns null for it (we never invent a value to fill the gap).
   Widget _buildRecommendationCard(
       NightshadeColors colors, CameraRecommendedSettings rec) {
@@ -1796,7 +1796,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       });
     } catch (e) {
       if (!mounted) return;
-      // Surface the failure to the user — never silently fall back.
+      // Surface the failure to the user â€” never silently fall back.
       context.showErrorSnackBar('Auto-detect failed: $e');
     } finally {
       if (mounted) {

@@ -567,7 +567,7 @@ class _CenteringDialogState extends State<_CenteringDialog> {
         // Wait for slew to complete by polling mount status
         final mountNotifierState = widget.ref.read(mountStateProvider);
         if (mountNotifierState.deviceId != null) {
-          final backend = widget.ref.read(backendProvider);
+          final backend = widget.ref.read(deviceBackendProvider);
           await Future.delayed(const Duration(milliseconds: 500));
           int pollCount = 0;
           while (pollCount < 120 && _isRunning) {
