@@ -514,6 +514,26 @@ class _CanvasControls extends StatelessWidget {
               colors: colors,
               onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
             ),
+            // HiPS deep-survey tiles toggle. Only shown for surveys that have a
+            // verified HiPS pyramid (the toggle would be inert otherwise — the
+            // capability gate, hipsSurveyIsTileCapable, would keep tiles off);
+            // for those surveys it flips hipsFramingEnabledProvider, the same
+            // user preference hipsFramingActiveProvider combines with the
+            // capability gate to mount/unmount the streamed tile mosaic.
+            if (hipsSurveyIsTileCapable(framingState.surveySource)) ...[
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              _ControlChip(
+                icon: LucideIcons.sparkles,
+                label: 'HiPS Tiles',
+                isActive: ref.watch(hipsFramingEnabledProvider),
+                colors: colors,
+                onTap: () {
+                  final notifier =
+                      ref.read(hipsFramingEnabledProvider.notifier);
+                  notifier.state = !notifier.state;
+                },
+              ),
+            ],
             const Spacer(),
             if (framingState.isLoadingImage)
               Container(

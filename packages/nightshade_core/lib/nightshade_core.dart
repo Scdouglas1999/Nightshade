@@ -64,6 +64,11 @@ export 'src/models/sequence/template_snippet.dart';
 // of the Rust `expressions::catalog`. Drives the VariablePicker UI.
 export 'src/models/sequence/interpolation_catalog.dart';
 export 'src/models/target/target_models.dart';
+// HiPS framing tile-layer value types (pure Dart): properties parser, tile
+// addressing, and the SurveySource -> CDS HiPS survey registry.
+export 'src/models/hips/hips_properties.dart';
+export 'src/models/hips/hips_tile_id.dart';
+export 'src/models/hips/hips_survey_registry.dart';
 export 'src/models/annotation_data.dart';
 export 'src/models/annotation_settings.dart';
 export 'src/models/tutorial/tutorial_models.dart';
@@ -125,6 +130,11 @@ export 'src/providers/framing_provider.dart';
 // snapshot cache; export it so framing UI (action rail, screen) can resolve
 // and override the same instance the framing notifier uses.
 export 'src/providers/framing_image_cache_provider.dart';
+// HiPS framing tile-layer Riverpod wiring (C7): fetcher/cache/loader DI handles,
+// the resident-tiles snapshot the framing painter watches, and the feature flag
+// gating the GPU-composited tiled survey background. Renders inside the framing
+// path (not the planetarium renderer) so it works regardless of RenderingPlatform.
+export 'src/providers/hips_framing_provider.dart';
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';
@@ -264,6 +274,7 @@ export 'src/services/import/ics_calendar_importer.dart';
 export 'src/services/import/generic_csv_importer.dart';
 export 'src/services/wcs_overlay.dart';
 export 'src/services/wcs/gnomonic_projection.dart';
+export 'src/services/hips/healpix_nested.dart';
 export 'src/services/catalog_overlay_service.dart';
 export 'src/providers/catalog_overlay_provider.dart';
 export 'src/services/annotation_service.dart';

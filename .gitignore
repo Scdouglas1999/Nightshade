@@ -258,3 +258,6 @@ lcov.info
 .melos_tool/
 nightshade.db
 .worktrees/
+
+# HiPS framing verification scratch output (rendered PNGs for human inspection)
+.hips_verify/

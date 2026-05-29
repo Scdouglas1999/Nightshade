@@ -8,6 +8,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_app/utils/snackbar_helper.dart';
 import 'package:nightshade_app/utils/plan_tonight_sequencer_helper.dart';
 import 'framing_altaz.dart';
+import 'framing_hips_layer_wiring.dart';
 import 'framing_search_provider.dart';
 import '../../widgets/tutorial_keys/framing_keys.dart';
 import '../../widgets/contextual_tour_prompt.dart';
@@ -278,6 +279,17 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     },
                   ),
                 ),
+                // GPU HiPS framing tile layer (C8). Sits directly above the
+                // framing canvas: the canvas (its single survey snapshot /
+                // starfield) is the never-blank fallback underneath, and this
+                // streams the deep, zoomable HiPS mosaic registered to the same
+                // FramingPlateScale on top. Gated internally by
+                // hipsFramingActiveProvider, so it contributes nothing (and the
+                // pre-HiPS background is unchanged) when the feature is off or
+                // the survey has no verified HiPS pyramid. Works regardless of
+                // the planetarium RenderingPlatform setting — this is the
+                // framing render path, not the planetarium renderer.
+                const Positioned.fill(child: FramingHipsLayerWiring()),
                 if (framingState.showOpticalConfigPanel)
                   const Positioned(
                     top: 16,
