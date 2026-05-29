@@ -502,12 +502,14 @@ impl GPhoto2Sdk {
             }
         }
 
-        tracing::error!(
-            "libgphoto2 not found! Checked {} locations. DSLR/mirrorless camera support will be unavailable.",
+        // WARN, not ERROR: libgphoto2 is an OPTIONAL dependency for DSLR /
+        // mirrorless support. Dedicated astro cameras (ZWO/QHY/etc.) don't need
+        // it, so its absence is an expected capability-unavailable notice, not a
+        // failure — logging it at ERROR on every startup was misleading alarm.
+        tracing::warn!(
+            "libgphoto2 not found (checked {} locations) — DSLR/mirrorless support unavailable. \
+             To enable it install libgphoto2: Linux `apt install libgphoto2-dev`, macOS `brew install libgphoto2`, Windows see https://github.com/gphoto/libgphoto2",
             lib_paths.len()
-        );
-        tracing::error!(
-            "To use DSLR cameras, install libgphoto2: Linux: apt install libgphoto2-dev | macOS: brew install libgphoto2 | Windows: see https://github.com/gphoto/libgphoto2"
         );
         None
     }

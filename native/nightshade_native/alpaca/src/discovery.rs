@@ -18,6 +18,21 @@ use tracing::{debug, info, warn};
 /// Alpaca discovery probe (ASCOM Alpaca protocol).
 pub const ALPACA_DISCOVERY_MESSAGE: &[u8] = b"alpacadiscovery1";
 
+/// Process-global dedupe for device-fetch failure warnings. Discovery runs
+/// once per device type (~11x per startup sweep) and re-queries every known
+/// Alpaca server each time, so a single non-compliant/unreachable server would
+/// otherwise emit the identical WARN ~11x. Returns `true` the first time a
+/// given `ip:port` fails so we WARN once and DEBUG the repeats.
+fn first_device_fetch_failure(addr: &str) -> bool {
+    use std::sync::{Mutex, OnceLock};
+    static WARNED: OnceLock<Mutex<HashSet<String>>> = OnceLock::new();
+    WARNED
+        .get_or_init(|| Mutex::new(HashSet::new()))
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(addr.to_string())
+}
+
 /// IPv6 all-nodes link-local multicast (Alpaca discovery uses multicast instead of broadcast).
 const IPV6_DISCOVERY_MULTICAST: &str = "ff02::1";
 
@@ -275,7 +290,10 @@ pub async fn discover_servers_detailed_with_config(
                 if let Ok(response) = serde_json::from_slice::<DiscoveryResponse>(&buf[..len]) {
                     let server = (addr.ip().to_string(), response.alpaca_port);
                     if servers.insert(server.clone()) {
-                        info!("Discovered Alpaca server at {}:{}", server.0, server.1);
+                        // debug, not info: discovery runs once per device-type
+                        // (Camera, Mount, Focuser, ...), so the same server is
+                        // re-discovered ~11x per startup sweep — noise at INFO.
+                        debug!("Discovered Alpaca server at {}:{}", server.0, server.1);
                     }
                 } else {
                     debug!("Received non-JSON response from {}", addr);
@@ -430,7 +448,12 @@ pub async fn discover_all_devices_with_config(config: DiscoveryConfig) -> Vec<Al
                         devices
                     }
                     Err(e) => {
-                        warn!("Failed to get devices from {}:{}: {}", ip, port, e);
+                        let addr = format!("{}:{}", ip, port);
+                        if first_device_fetch_failure(&addr) {
+                            warn!("Failed to get devices from {}: {}", addr, e);
+                        } else {
+                            debug!("Failed to get devices from {} (repeat): {}", addr, e);
+                        }
                         Vec::new()
                     }
                 }
