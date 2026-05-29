@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../utils/snackbar_helper.dart';
+import 'steps/camera_defaults_step.dart';
 import 'steps/camera_step.dart';
 import 'steps/capture_dir_step.dart';
 import 'steps/driver_step.dart';
@@ -13,6 +14,7 @@ import 'steps/filter_wheel_step.dart';
 import 'steps/focuser_step.dart';
 import 'steps/guider_step.dart';
 import 'steps/mount_step.dart';
+import 'steps/next_steps_step.dart';
 import 'steps/optical_train_step.dart';
 import 'steps/summary_step.dart';
 import 'steps/welcome_step.dart';
@@ -50,7 +52,15 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
 
     if (draft.currentStep == OnboardingStep.summary) {
-      await _finish();
+      await _createProfileAndAdvance();
+      return;
+    }
+
+    if (draft.currentStep == OnboardingStep.nextSteps) {
+      // Primary action on the terminal step: retire the wizard and land on
+      // the dashboard. The secondary "Capture first light" path is handled by
+      // [_finishToFirstLight].
+      await _finishTo('/dashboard');
       return;
     }
 
@@ -90,19 +100,46 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     context.go('/dashboard');
   }
 
-  Future<void> _finish() async {
+  /// Summary step "Save profile": create the equipment profile, then advance
+  /// to the terminal `nextSteps` step WITHOUT navigating away. The rig now
+  /// exists and is active; the wizard stays open so the user sees the
+  /// "what's next" guidance. Retiring onboarding (marking the tutorial
+  /// complete, wiping the draft, flipping the gate) is deferred until the user
+  /// leaves the next-steps step via [finishNextSteps].
+  Future<void> _createProfileAndAdvance() async {
     setState(() => _saving = true);
     try {
-      await ref.read(onboardingDraftProvider.notifier).complete();
+      final notifier = ref.read(onboardingDraftProvider.notifier);
+      await notifier.complete();
+      await notifier.next();
       if (!mounted) return;
       context.showSuccessSnackBar('Profile created. Welcome to Nightshade.');
-      context.go('/dashboard');
+      setState(() => _saving = false);
     } catch (e) {
       if (!mounted) return;
       context.showErrorSnackBar('Could not save profile: $e');
       setState(() => _saving = false);
     }
   }
+
+  /// Leave the terminal `nextSteps` step toward [location]. Retires the wizard
+  /// first ([finishNextSteps] is idempotent), then navigates. Used by the
+  /// footer "Go to dashboard" / "Capture first light" actions and by the
+  /// in-body next-step cards.
+  Future<void> _finishTo(String location) async {
+    setState(() => _saving = true);
+    try {
+      await ref.read(onboardingDraftProvider.notifier).finishNextSteps();
+      if (!mounted) return;
+      context.go(location);
+    } catch (e) {
+      if (!mounted) return;
+      context.showErrorSnackBar('Could not finish setup: $e');
+      setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _finishToFirstLight() => _finishTo('/imaging?firstLight=1');
 
   /// Validate that the user has provided the data this step requires.
   /// Returns null if OK, or a human-readable message that we surface in
@@ -144,6 +181,11 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
           return 'Reducer factor must be greater than zero.';
         }
         return null;
+      case OnboardingStep.cameraDefaults:
+        // Always valid: the preset (or the camera step's pixel size) pre-fills
+        // sensible gain/offset/binning/cooling defaults, and every field is
+        // individually editable. There is nothing here the user must supply.
+        return null;
       case OnboardingStep.captureDir:
         if (draft.captureDirectory == null ||
             draft.captureDirectory!.trim().isEmpty) {
@@ -154,6 +196,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
         if ((draft.profileName ?? '').trim().isEmpty) {
           return 'Give your profile a name.';
         }
+        return null;
+      case OnboardingStep.nextSteps:
+        // Terminal step: the profile already exists. Leaving it is always
+        // allowed (either to the dashboard or to first light).
         return null;
     }
   }
@@ -208,7 +254,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
                               BorderRadius.circular(NightshadeTokens.radiusLg),
                           border: Border.all(color: colors.border),
                         ),
-                        child: _StepBody(currentStep: draft.currentStep),
+                        child: _StepBody(
+                          currentStep: draft.currentStep,
+                          onFinishTo: _finishTo,
+                        ),
                       ),
                     ),
                   ],
@@ -218,13 +267,22 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               _Footer(
                 currentStep: draft.currentStep,
                 isSaving: _saving,
-                onBack: draft.currentStep == OnboardingStep.welcome || _saving
+                onBack: draft.currentStep == OnboardingStep.welcome ||
+                        // On the terminal step the profile is already created;
+                        // there is nothing to go "back" to that wouldn't
+                        // re-open the create flow, so Back is suppressed.
+                        draft.currentStep == OnboardingStep.nextSteps ||
+                        _saving
                     ? null
                     : _onBack,
                 onSkipStep: draft.currentStep.isOptional && !_saving
                     ? _onSkipStep
                     : null,
                 onNext: _saving ? null : _onNext,
+                onFirstLight:
+                    draft.currentStep == OnboardingStep.nextSteps && !_saving
+                        ? _finishToFirstLight
+                        : null,
               ),
             ],
           ),
@@ -302,8 +360,10 @@ class _StepSidebar extends StatelessWidget {
     OnboardingStep.filterWheel: 'Filter wheel',
     OnboardingStep.guider: 'Guider',
     OnboardingStep.opticalTrain: 'Optical train',
+    OnboardingStep.cameraDefaults: 'Camera defaults',
     OnboardingStep.captureDir: 'Capture folder',
     OnboardingStep.summary: 'Review & save',
+    OnboardingStep.nextSteps: "What's next",
   };
 
   static const _stepIcons = <OnboardingStep, IconData>{
@@ -315,8 +375,10 @@ class _StepSidebar extends StatelessWidget {
     OnboardingStep.filterWheel: LucideIcons.disc,
     OnboardingStep.guider: LucideIcons.crosshair,
     OnboardingStep.opticalTrain: LucideIcons.ruler,
+    OnboardingStep.cameraDefaults: LucideIcons.sliders,
     OnboardingStep.captureDir: LucideIcons.folder,
     OnboardingStep.summary: LucideIcons.clipboardCheck,
+    OnboardingStep.nextSteps: LucideIcons.rocket,
   };
 
   @override
@@ -403,8 +465,14 @@ class _StepSidebar extends StatelessWidget {
 }
 
 class _StepBody extends StatelessWidget {
-  const _StepBody({required this.currentStep});
+  const _StepBody({required this.currentStep, required this.onFinishTo});
+
   final OnboardingStep currentStep;
+
+  /// Routes a terminal next-step card to its destination after retiring the
+  /// wizard. Forwarded from [_OnboardingScreenState._finishTo] so the in-body
+  /// "what's next" cards and the footer share one finalize path.
+  final ValueChanged<String> onFinishTo;
 
   @override
   Widget build(BuildContext context) {
@@ -428,10 +496,14 @@ class _StepBody extends StatelessWidget {
         return const OnboardingGuiderStep();
       case OnboardingStep.opticalTrain:
         return const OnboardingOpticalTrainStep();
+      case OnboardingStep.cameraDefaults:
+        return const OnboardingCameraDefaultsStep();
       case OnboardingStep.captureDir:
         return const OnboardingCaptureDirStep();
       case OnboardingStep.summary:
         return const OnboardingSummaryStep();
+      case OnboardingStep.nextSteps:
+        return OnboardingNextStepsStep(onNavigate: onFinishTo);
     }
   }
 }
@@ -443,6 +515,7 @@ class _Footer extends StatelessWidget {
     required this.onBack,
     required this.onSkipStep,
     required this.onNext,
+    required this.onFirstLight,
   });
 
   final OnboardingStep currentStep;
@@ -451,9 +524,28 @@ class _Footer extends StatelessWidget {
   final VoidCallback? onSkipStep;
   final VoidCallback? onNext;
 
+  /// Secondary "Capture first light" action, present only on the terminal
+  /// `nextSteps` step. Null elsewhere.
+  final VoidCallback? onFirstLight;
+
   @override
   Widget build(BuildContext context) {
-    final isLast = currentStep == OnboardingStep.summary;
+    final isSummary = currentStep == OnboardingStep.summary;
+    final isNextSteps = currentStep == OnboardingStep.nextSteps;
+
+    final IconData primaryIcon;
+    final String primaryLabel;
+    if (isNextSteps) {
+      primaryIcon = LucideIcons.layoutDashboard;
+      primaryLabel = 'Go to dashboard';
+    } else if (isSummary) {
+      primaryIcon = LucideIcons.check;
+      primaryLabel = 'Save profile';
+    } else {
+      primaryIcon = LucideIcons.arrowRight;
+      primaryLabel = 'Next';
+    }
+
     return Row(
       children: [
         NightshadeButton(
@@ -469,11 +561,20 @@ class _Footer extends StatelessWidget {
             variant: ButtonVariant.ghost,
             onPressed: onSkipStep,
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: NightshadeTokens.spaceMd),
+        ],
+        if (isNextSteps && onFirstLight != null) ...[
+          NightshadeButton(
+            icon: LucideIcons.sparkles,
+            label: 'Capture first light',
+            variant: ButtonVariant.outline,
+            onPressed: isSaving ? null : onFirstLight,
+          ),
+          const SizedBox(width: NightshadeTokens.spaceMd),
         ],
         NightshadeButton(
-          icon: isLast ? LucideIcons.check : LucideIcons.arrowRight,
-          label: isLast ? 'Save profile' : 'Next',
+          icon: primaryIcon,
+          label: primaryLabel,
           variant: ButtonVariant.primary,
           isLoading: isSaving,
           onPressed: onNext,

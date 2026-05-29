@@ -7,6 +7,8 @@ import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge_api;
 import '../../../services/mount_command_service.dart';
 import '../../../utils/device_format_utils.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
+import '../utils/device_error_subtitle.dart';
 
 // ============================================================================
 // Device Type Enum
@@ -99,6 +101,34 @@ extension ConnectedDeviceTypeExtension on ConnectedDeviceType {
   /// Status colors (success/warning/error) are reserved for the connection
   /// state border and badge — they are not used as device accents here so the
   /// border color is unambiguous.
+  /// Maps the card's local device-type enum to the canonical core
+  /// [DeviceType] consumed by the connection troubleshooter (so its
+  /// classifier produces hardware-aware copy: "camera" vs "mount", etc.).
+  DeviceType get coreDeviceType {
+    switch (this) {
+      case ConnectedDeviceType.camera:
+        return DeviceType.camera;
+      case ConnectedDeviceType.mount:
+        return DeviceType.mount;
+      case ConnectedDeviceType.focuser:
+        return DeviceType.focuser;
+      case ConnectedDeviceType.filterWheel:
+        return DeviceType.filterWheel;
+      case ConnectedDeviceType.guider:
+        return DeviceType.guider;
+      case ConnectedDeviceType.rotator:
+        return DeviceType.rotator;
+      case ConnectedDeviceType.dome:
+        return DeviceType.dome;
+      case ConnectedDeviceType.weather:
+        return DeviceType.weather;
+      case ConnectedDeviceType.safetyMonitor:
+        return DeviceType.safetyMonitor;
+      case ConnectedDeviceType.coverCalibrator:
+        return DeviceType.coverCalibrator;
+    }
+  }
+
   Color accentColor(NightshadeColors colors) {
     switch (this) {
       // Imaging chain
@@ -232,6 +262,10 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
               // Header Row
               _buildHeader(colors, accentColor, connectionState),
 
+              // Onboarding C4: troubleshooter-backed error subtitle + Diagnose
+              // affordance, shown only when the device is in an error state.
+              _buildErrorSubtitle(colors, connectionState),
+
               const SizedBox(height: 16),
 
               // Primary Metrics Row
@@ -357,6 +391,153 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         _buildConnectionBadge(state, colors),
       ],
     );
+  }
+
+  /// Onboarding C4: when the device is in an error state, render a full-width
+  /// row beneath the header that surfaces the same plain-language headline the
+  /// troubleshooter dialog uses (via [DeviceErrorSubtitle]), with the raw driver
+  /// message carried verbatim in the tooltip and a Diagnose button that opens
+  /// the full [ConnectionTroubleshooterDialog]. Returns
+  /// [SizedBox.shrink] when the device is healthy so the card keeps its compact
+  /// layout. Placed as its own full-width row (not inside the header's narrow
+  /// name column) so the headline and the Diagnose affordance have room to sit
+  /// side by side without crowding the connection badge.
+  Widget _buildErrorSubtitle(
+      NightshadeColors colors, DeviceConnectionState state) {
+    if (state != DeviceConnectionState.error) {
+      return const SizedBox.shrink();
+    }
+    final errorMessage = _getDeviceError()?.message;
+    if (errorMessage == null || errorMessage.isEmpty) {
+      return const SizedBox.shrink();
+    }
+    final deviceId = _getDeviceId();
+    return Padding(
+      padding: const EdgeInsets.only(top: NightshadeTokens.spaceSm),
+      child: DeviceErrorSubtitle(
+        descriptiveSubtitle: '',
+        isError: true,
+        errorMessage: errorMessage,
+        deviceType: widget.type.coreDeviceType,
+        driverType: driverTypeFromDeviceId(deviceId) ?? DriverType.native,
+        colors: colors,
+        onDiagnose: () => _openTroubleshooter(
+          deviceId: deviceId,
+          rawError: errorMessage,
+        ),
+      ),
+    );
+  }
+
+  /// Opens the guided [ConnectionTroubleshooterDialog] for this device,
+  /// classifying the failure with the same knowledge base that powers the
+  /// inline [DeviceErrorSubtitle] headline. The raw driver string is carried
+  /// through verbatim (errors-are-a-feature). If the user chooses "Retry
+  /// connection", the device's connect is re-attempted exactly once through the
+  /// device service.
+  Future<void> _openTroubleshooter({
+    required String? deviceId,
+    required String rawError,
+  }) async {
+    final retry = await ConnectionTroubleshooterDialog.show(
+      context,
+      deviceType: widget.type.coreDeviceType,
+      driverType: driverTypeFromDeviceId(deviceId) ?? DriverType.native,
+      rawError: rawError,
+    );
+    if (!retry || !mounted || deviceId == null) return;
+    // Single, bounded retry — no loop. A second failure simply updates the
+    // device state's lastError, which re-renders this subtitle and lets the
+    // user open the troubleshooter again deliberately.
+    final deviceService = ref.read(deviceServiceProvider);
+    try {
+      await _reconnect(deviceService, deviceId);
+    } catch (e) {
+      if (mounted) {
+        context.showErrorSnackBar('Failed to reconnect: $e');
+      }
+    }
+  }
+
+  /// Re-attempts the connection for this card's device type via the device
+  /// service. Mirrors the connect dispatch used by the discovery panel.
+  Future<void> _reconnect(DeviceService deviceService, String deviceId) {
+    switch (widget.type) {
+      case ConnectedDeviceType.camera:
+        return deviceService.connectCamera(deviceId);
+      case ConnectedDeviceType.mount:
+        return deviceService.connectMount(deviceId);
+      case ConnectedDeviceType.focuser:
+        return deviceService.connectFocuser(deviceId);
+      case ConnectedDeviceType.filterWheel:
+        return deviceService.connectFilterWheel(deviceId);
+      case ConnectedDeviceType.guider:
+        return deviceService.connectGuider(deviceId);
+      case ConnectedDeviceType.rotator:
+        return deviceService.connectRotator(deviceId);
+      case ConnectedDeviceType.dome:
+        return deviceService.connectDome(deviceId);
+      case ConnectedDeviceType.weather:
+        return deviceService.connectWeather(deviceId);
+      case ConnectedDeviceType.safetyMonitor:
+        return deviceService.connectSafetyMonitor(deviceId);
+      case ConnectedDeviceType.coverCalibrator:
+        return deviceService.connectCoverCalibrator(deviceId);
+    }
+  }
+
+  /// The device's last error (if any) for the current device type.
+  DeviceError? _getDeviceError() {
+    switch (widget.type) {
+      case ConnectedDeviceType.camera:
+        return ref.watch(cameraStateProvider).lastError;
+      case ConnectedDeviceType.mount:
+        return ref.watch(mountStateProvider).lastError;
+      case ConnectedDeviceType.focuser:
+        return ref.watch(focuserStateProvider).lastError;
+      case ConnectedDeviceType.filterWheel:
+        return ref.watch(filterWheelStateProvider).lastError;
+      case ConnectedDeviceType.guider:
+        return ref.watch(guiderStateProvider).lastError;
+      case ConnectedDeviceType.rotator:
+        return ref.watch(rotatorStateProvider).lastError;
+      case ConnectedDeviceType.dome:
+        return ref.watch(domeStateProvider).lastError;
+      case ConnectedDeviceType.weather:
+        return ref.watch(weatherStateProvider).lastError;
+      case ConnectedDeviceType.safetyMonitor:
+        return ref.watch(safetyMonitorStateProvider).lastError;
+      case ConnectedDeviceType.coverCalibrator:
+        return ref.watch(coverCalibratorStateProvider).lastError;
+    }
+  }
+
+  /// The device's namespaced device id for the current device type. Used to
+  /// resolve the [DriverType] for the troubleshooter and to drive the bounded
+  /// reconnect retry.
+  String? _getDeviceId() {
+    switch (widget.type) {
+      case ConnectedDeviceType.camera:
+        return ref.watch(cameraStateProvider).deviceId;
+      case ConnectedDeviceType.mount:
+        return ref.watch(mountStateProvider).deviceId;
+      case ConnectedDeviceType.focuser:
+        return ref.watch(focuserStateProvider).deviceId;
+      case ConnectedDeviceType.filterWheel:
+        return ref.watch(filterWheelStateProvider).deviceId;
+      case ConnectedDeviceType.guider:
+        return ref.watch(guiderStateProvider).deviceId;
+      case ConnectedDeviceType.rotator:
+        return ref.watch(rotatorStateProvider).deviceId;
+      case ConnectedDeviceType.dome:
+        return ref.watch(domeStateProvider).deviceId;
+      case ConnectedDeviceType.weather:
+        return ref.watch(weatherStateProvider).deviceId;
+      case ConnectedDeviceType.safetyMonitor:
+        return ref.watch(safetyMonitorStateProvider).deviceId;
+      case ConnectedDeviceType.coverCalibrator:
+        return ref.watch(coverCalibratorStateProvider).deviceId;
+    }
   }
 
   String _getDeviceName() {

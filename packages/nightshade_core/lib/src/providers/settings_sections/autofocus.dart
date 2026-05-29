@@ -127,7 +127,7 @@ extension AutofocusSettingsSection on AppSettingsNotifier {
   /// serializes back to JSON, and persists to the database.
   Future<void> setFilterAutofocusConfig(
       String filterName, FilterAutofocusConfig config) async {
-    final currentJson = state.value?.afFilterSettingsJson ?? '{}';
+    final currentJson = _currentValueOrNull?.afFilterSettingsJson ?? '{}';
     final map = AutofocusSettings.parseFilterSettingsJson(currentJson);
     map[filterName] = config;
     final newJson = AutofocusSettings.encodeFilterSettingsJson(map);
@@ -136,7 +136,7 @@ extension AutofocusSettingsSection on AppSettingsNotifier {
 
   /// Remove a filter's autofocus configuration.
   Future<void> removeFilterAutofocusConfig(String filterName) async {
-    final currentJson = state.value?.afFilterSettingsJson ?? '{}';
+    final currentJson = _currentValueOrNull?.afFilterSettingsJson ?? '{}';
     final map = AutofocusSettings.parseFilterSettingsJson(currentJson);
     map.remove(filterName);
     final newJson = AutofocusSettings.encodeFilterSettingsJson(map);

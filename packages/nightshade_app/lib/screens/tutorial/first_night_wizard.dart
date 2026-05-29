@@ -18,11 +18,16 @@ import 'tutorial_step_widget.dart';
 
 /// First-night wizard — a 7-step modal walkthrough for new users.
 ///
-/// The wizard auto-opens on first launch via `app.dart`'s bootstrap flow.
-/// Existing users can replay it from Settings → Help → "First Night
-/// Walkthrough". The wizard's progress is persisted to `tutorial_progress`
-/// so closing the dialog mid-way and re-opening from Settings resumes at
-/// the same step.
+/// This wizard is replay-only: it is reached solely from Settings → Help &
+/// Tutorials (the single replay hub for walkthroughs). It is NO LONGER
+/// auto-launched at startup. After the onboarding consolidation, the startup
+/// spine is the single equipment-onboarding wizard, gated by
+/// `EquipmentOnboardingLauncher` in `app.dart` — not this widget. Removing the
+/// (former) "auto-opens on first launch" behavior is intentional and does not
+/// break startup; do not re-wire this wizard into bootstrap.
+///
+/// The wizard's progress is persisted to `tutorial_progress` so closing the
+/// dialog mid-way and re-opening it from Settings resumes at the same step.
 ///
 /// Why a ConsumerStatefulWidget instead of a stateless dialog: the
 /// wizard waits for the saved-progress load before painting any step, so

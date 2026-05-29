@@ -6,6 +6,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../widgets/tutorial_keys/settings_keys.dart';
+import '../../../widgets/first_light/first_light_flow_dialog.dart';
 import 'settings_widgets.dart';
 
 class HelpTutorialsSettings extends ConsumerWidget {
@@ -25,8 +26,13 @@ class HelpTutorialsSettings extends ConsumerWidget {
       title: 'Help & Tutorials',
       description: 'Guided tours and learning resources',
       children: [
+        // Onboarding & First-Light IA (C13): this is the single replay hub
+        // for the guided first-run flows. Each flow auto-launches at most
+        // once on the single startup spine; every one of them is replayable
+        // here on demand. "Capture your first light" and "Re-run equipment
+        // setup" are new replay entry points (Flow A previously had none).
         SettingsSection(
-          title: 'First-Night Walkthrough',
+          title: 'Guided Flows',
           children: [
             SettingRow(
               icon: LucideIcons.sparkles,
@@ -52,6 +58,52 @@ class HelpTutorialsSettings extends ConsumerWidget {
               ),
             ),
             SettingRow(
+              icon: LucideIcons.aperture,
+              iconColor: colors.primary,
+              title: 'Capture your first light',
+              subtitle:
+                  'Run the one-click first-light flow again — short exposure, '
+                  'auto-stretch, plate-solve, and label the field. Make sure a '
+                  'camera is connected first.',
+              trailing: NightshadeButton(
+                label: 'Start',
+                variant: ButtonVariant.primary,
+                size: ButtonSize.small,
+                icon: LucideIcons.play,
+                // The first-light flow is camera-driven and self-contained:
+                // FirstLightFlowDialog opens over the current screen,
+                // resetting its controller on dismissal so a replay starts
+                // from a clean intro panel. No route change needed.
+                onPressed: () => FirstLightFlowDialog.show(context),
+              ),
+            ),
+            SettingRow(
+              icon: LucideIcons.wrench,
+              iconColor: colors.primary,
+              title: 'Re-run equipment setup',
+              subtitle:
+                  'Walk back through the equipment onboarding wizard to scan '
+                  'for gear, pick devices, and rebuild a profile from scratch.',
+              trailing: NightshadeButton(
+                label: 'Re-run',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                icon: LucideIcons.refreshCw,
+                // Clear the in-progress draft so the spine starts on the
+                // welcome step rather than resuming a stale half-finished
+                // draft, then route to the onboarding spine. The gate
+                // provider (shouldRunEquipmentOnboardingProvider) is not
+                // touched — re-running setup with profiles already present
+                // is an explicit user action, not an auto-launch, so the
+                // gate stays satisfied and won't auto-fire on next launch.
+                onPressed: () async {
+                  await ref.read(onboardingDraftProvider.notifier).reset();
+                  if (!context.mounted) return;
+                  context.go('/onboarding');
+                },
+              ),
+            ),
+            SettingRow(
               icon: LucideIcons.compass,
               iconColor: colors.primary,
               title: 'Re-run onboarding tour',
@@ -64,11 +116,12 @@ class HelpTutorialsSettings extends ConsumerWidget {
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
                 icon: LucideIcons.refreshCw,
-                // Reset the DAO row + in-memory pointer; the launcher in
-                // app.dart watches firstLaunchTourStatusProvider and will
-                // re-mount the overlay as soon as the status flips back
-                // to pending. No route change needed — the overlay sits
-                // above the current screen.
+                // Reset the DAO row + in-memory pointer. The first-launch
+                // tour overlay is replay-only now (no longer on the startup
+                // spine): resetting flips firstLaunchTourStatusProvider back
+                // to pending, and OnboardingTourReplayLauncher (mounted at the
+                // app-shell level) watches that provider and re-mounts the
+                // overlay immediately — no restart needed.
                 onPressed: () async {
                   await ref.read(onboardingTourProvider.notifier).reset();
                 },
@@ -95,25 +148,11 @@ class HelpTutorialsSettings extends ConsumerWidget {
         SettingsSection(
           title: 'Tutorial Tours',
           children: [
-            _TutorialRow(
-              icon: LucideIcons.sparkles,
-              title: 'Quick Start Tour',
-              category: TutorialCategory.firstLight,
-              completedSteps:
-                  notifier.getCompletedStepsCount(TutorialCategory.firstLight),
-              totalSteps:
-                  notifier.getTotalStepsCount(TutorialCategory.firstLight),
-              isCompleted:
-                  notifier.isCategoryCompletedSync(TutorialCategory.firstLight),
-              hasProgress:
-                  notifier.hasCategoryProgress(TutorialCategory.firstLight),
-              onStart: () =>
-                  notifier.startTutorial(TutorialCategory.firstLight),
-              onResume: () =>
-                  notifier.resumeTutorial(TutorialCategory.firstLight),
-              onRestart: () =>
-                  notifier.restartTutorial(TutorialCategory.firstLight),
-            ),
+            // The "Quick Start Tour" (TutorialCategory.firstLight step tour)
+            // was removed here: it is superseded by the real, camera-driven
+            // first-light flow surfaced as "Capture your first light" in the
+            // Guided Flows section above. Keeping both would offer two
+            // different things under near-identical names.
             _TutorialRow(
               icon: LucideIcons.boxes,
               title: 'Equipment Setup',

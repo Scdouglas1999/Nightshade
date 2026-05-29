@@ -5,11 +5,13 @@ import 'package:go_router/go_router.dart';
 import 'package:nightshade_planetarium/nightshade_planetarium.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../localization/nightshade_localizations.dart';
 import '../../widgets/catalog_setup_dialog.dart';
+import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
 import '../../widgets/welcome_flow.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
@@ -155,6 +157,25 @@ class _AppShellState extends ConsumerState<AppShell> {
 
     try {
       final backend = ref.read(sequencerBackendProvider);
+
+      // Initialize the checkpoint directory on desktop so checkpoints are
+      // actually persisted this session. The desktop GUI never set it, so no
+      // checkpoint was ever written and a mid-night crash was unrecoverable
+      // (no resume banner, all sequence state lost). Mobile sets its own
+      // checkpoint dir in its bootstrap, so restrict this to desktop to avoid
+      // overriding the mobile path with a different directory.
+      if (Platform.isWindows || Platform.isMacOS || Platform.isLinux) {
+        try {
+          final supportDir = await getApplicationSupportDirectory();
+          await backend.sequencerSetCheckpointDir(supportDir.path);
+        } catch (e) {
+          ref.read(loggingServiceProvider).warning(
+              '[AppShell] Failed to initialize checkpoint directory: $e',
+              source: 'AppShell',
+              fields: {'error': e.toString()});
+        }
+      }
+
       final hasCheckpoint = await backend.hasCheckpoint();
       if (!hasCheckpoint) return;
 
@@ -390,7 +411,13 @@ class _AppShellState extends ConsumerState<AppShell> {
           );
         }
 
-        return TutorialOverlay(
+        // The first-launch tour is replay-only (C13): this launcher watches
+        // firstLaunchTourStatusProvider and overlays OnboardingOverlay on top
+        // of the whole shell when the user re-runs it from Settings → Help.
+        // Mounted at the shell level so the spotlight cutouts can target the
+        // live side-navigation TutorialKeys.
+        return OnboardingTourReplayLauncher(
+          child: TutorialOverlay(
           child: Scaffold(
             backgroundColor: colors.background,
             body: Column(
@@ -555,6 +582,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     },
                   )
                 : null,
+          ),
           ),
         );
       },

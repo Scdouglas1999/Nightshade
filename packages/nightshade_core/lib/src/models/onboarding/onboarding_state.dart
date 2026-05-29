@@ -17,8 +17,19 @@ enum OnboardingStep {
   filterWheel,
   guider,
   opticalTrain,
+
+  /// Camera acquisition defaults (gain/offset/binning/cooling). Optional —
+  /// sensible defaults are pre-filled from the selected camera preset, so the
+  /// user can accept them with a single tap and never has to hunt forum
+  /// threads. Sits between the optical train and the capture directory.
+  cameraDefaults,
   captureDir,
   summary,
+
+  /// Terminal "what's next" step shown after the profile is created. This is
+  /// the true end of the wizard: leaving it (via [OnboardingNotifier.finishNextSteps])
+  /// is what marks the tutorial complete and flips the bootstrap gate off.
+  nextSteps,
 }
 
 extension OnboardingStepOrder on OnboardingStep {
@@ -36,6 +47,10 @@ extension OnboardingStepOrder on OnboardingStep {
       case OnboardingStep.focuser:
       case OnboardingStep.filterWheel:
       case OnboardingStep.guider:
+      // Camera defaults are optional: the preset pre-fills sensible
+      // gain/offset/binning/cooling values, so the user can move on without
+      // touching them.
+      case OnboardingStep.cameraDefaults:
         return true;
       case OnboardingStep.welcome:
       case OnboardingStep.drivers:
@@ -44,6 +59,9 @@ extension OnboardingStepOrder on OnboardingStep {
       case OnboardingStep.opticalTrain:
       case OnboardingStep.captureDir:
       case OnboardingStep.summary:
+      // The terminal step is the end of the wizard, not a forward-skippable
+      // step — there is nothing after it to skip to.
+      case OnboardingStep.nextSteps:
         return false;
     }
   }
@@ -110,6 +128,30 @@ class OnboardingDraft {
   /// first time the summary renders, but the user can override it.
   final String? profileName;
 
+  /// Id of the telescope hardware preset the user picked at the optical-train
+  /// step, when prefilled from the built-in catalog. `null` when the user
+  /// typed optics manually. Persisting the id (not just the derived numbers)
+  /// lets the wizard re-highlight the chosen preset on resume.
+  final String? telescopePresetId;
+
+  /// Display name of the chosen telescope preset (`brand model`). Threaded
+  /// into the created profile's `telescopeName` so the rig shows a real OTA
+  /// name rather than just focal length / aperture numbers.
+  final String? telescopeName;
+
+  /// Id of the camera-defaults preset applied at the camera-defaults step.
+  /// `null` when the user did not pick a preset (defaults stay manual/empty).
+  final String? cameraPresetId;
+
+  /// Acquisition defaults captured at the camera-defaults step. All nullable
+  /// so an unset value (e.g. a DSLR with no regulated cooling) stays null
+  /// rather than collapsing to a misleading 0.
+  final int? defaultGain;
+  final int? defaultOffset;
+  final int? defaultBinX;
+  final int? defaultBinY;
+  final double? defaultCoolingTempC;
+
   const OnboardingDraft({
     this.currentStep = OnboardingStep.welcome,
     this.selectedDrivers = const {},
@@ -130,6 +172,14 @@ class OnboardingDraft {
     this.filterNames = const [],
     this.captureDirectory,
     this.profileName,
+    this.telescopePresetId,
+    this.telescopeName,
+    this.cameraPresetId,
+    this.defaultGain,
+    this.defaultOffset,
+    this.defaultBinX,
+    this.defaultBinY,
+    this.defaultCoolingTempC,
   });
 
   OnboardingDraft copyWith({
@@ -152,11 +202,20 @@ class OnboardingDraft {
     List<String>? filterNames,
     String? captureDirectory,
     String? profileName,
+    String? telescopePresetId,
+    String? telescopeName,
+    String? cameraPresetId,
+    int? defaultGain,
+    int? defaultOffset,
+    int? defaultBinX,
+    int? defaultBinY,
+    double? defaultCoolingTempC,
     bool clearCamera = false,
     bool clearMount = false,
     bool clearFocuser = false,
     bool clearFilterWheel = false,
     bool clearGuider = false,
+    bool clearCoolingTempC = false,
   }) {
     return OnboardingDraft(
       currentStep: currentStep ?? this.currentStep,
@@ -180,6 +239,16 @@ class OnboardingDraft {
       filterNames: filterNames ?? this.filterNames,
       captureDirectory: captureDirectory ?? this.captureDirectory,
       profileName: profileName ?? this.profileName,
+      telescopePresetId: telescopePresetId ?? this.telescopePresetId,
+      telescopeName: telescopeName ?? this.telescopeName,
+      cameraPresetId: cameraPresetId ?? this.cameraPresetId,
+      defaultGain: defaultGain ?? this.defaultGain,
+      defaultOffset: defaultOffset ?? this.defaultOffset,
+      defaultBinX: defaultBinX ?? this.defaultBinX,
+      defaultBinY: defaultBinY ?? this.defaultBinY,
+      defaultCoolingTempC: clearCoolingTempC
+          ? null
+          : (defaultCoolingTempC ?? this.defaultCoolingTempC),
     );
   }
 
@@ -221,6 +290,14 @@ class OnboardingDraft {
         'filterNames': filterNames,
         'captureDirectory': captureDirectory,
         'profileName': profileName,
+        'telescopePresetId': telescopePresetId,
+        'telescopeName': telescopeName,
+        'cameraPresetId': cameraPresetId,
+        'defaultGain': defaultGain,
+        'defaultOffset': defaultOffset,
+        'defaultBinX': defaultBinX,
+        'defaultBinY': defaultBinY,
+        'defaultCoolingTempC': defaultCoolingTempC,
       };
 
   /// Deserialize a draft. Returns the default draft on parse failure so a
@@ -274,6 +351,14 @@ class OnboardingDraft {
       filterNames: parseFilters(json['filterNames']),
       captureDirectory: json['captureDirectory'] as String?,
       profileName: json['profileName'] as String?,
+      telescopePresetId: json['telescopePresetId'] as String?,
+      telescopeName: json['telescopeName'] as String?,
+      cameraPresetId: json['cameraPresetId'] as String?,
+      defaultGain: (json['defaultGain'] as num?)?.toInt(),
+      defaultOffset: (json['defaultOffset'] as num?)?.toInt(),
+      defaultBinX: (json['defaultBinX'] as num?)?.toInt(),
+      defaultBinY: (json['defaultBinY'] as num?)?.toInt(),
+      defaultCoolingTempC: (json['defaultCoolingTempC'] as num?)?.toDouble(),
     );
   }
 
@@ -315,7 +400,15 @@ class OnboardingDraft {
         other.reducerFactor == reducerFactor &&
         _listEquals(other.filterNames, filterNames) &&
         other.captureDirectory == captureDirectory &&
-        other.profileName == profileName;
+        other.profileName == profileName &&
+        other.telescopePresetId == telescopePresetId &&
+        other.telescopeName == telescopeName &&
+        other.cameraPresetId == cameraPresetId &&
+        other.defaultGain == defaultGain &&
+        other.defaultOffset == defaultOffset &&
+        other.defaultBinX == defaultBinX &&
+        other.defaultBinY == defaultBinY &&
+        other.defaultCoolingTempC == defaultCoolingTempC;
   }
 
   @override
@@ -334,6 +427,18 @@ class OnboardingDraft {
         Object.hashAll(filterNames),
         captureDirectory,
         profileName,
+        // Group the camera-defaults + telescope-preset fields into a single
+        // nested hash to stay under Object.hash's 20-argument limit.
+        Object.hash(
+          telescopePresetId,
+          telescopeName,
+          cameraPresetId,
+          defaultGain,
+          defaultOffset,
+          defaultBinX,
+          defaultBinY,
+          defaultCoolingTempC,
+        ),
       );
 }
 

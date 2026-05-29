@@ -8,6 +8,8 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
+import '../../../widgets/help/field_help_label.dart';
 import '../utils/profile_save_errors.dart';
 
 /// Single-page profile editor dialog replacing the multi-step wizard.
@@ -932,6 +934,23 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // One-tap prefill from the built-in + user telescope library (C10).
+          // Manual entry below remains fully available afterwards.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: NightshadeButton(
+              // lucide_icons ships no `telescope` glyph; `aperture` is this
+              // codebase's established optics/telescope icon (the onboarding
+              // optical-train step uses the same).
+              icon: LucideIcons.aperture,
+              label: 'Telescope library',
+              variant: ButtonVariant.outline,
+              size: ButtonSize.small,
+              onPressed: _pickTelescopeFromLibrary,
+            ),
+          ),
+          const SizedBox(height: 16),
+
           // Telescope name
           NightshadeTextField(
             label: 'Telescope / OTA',
@@ -940,30 +959,62 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           ),
           const SizedBox(height: 16),
 
-          // Focal length and aperture row
+          // Focal length and aperture row. Each carries an inline help
+          // affordance (C10) beside its label; the labels are rendered
+          // externally (matching the file's existing literal fontSize-12/w500
+          // label style) so the help icon can sit next to them.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(
-                child: NightshadeTextField(
-                  label: 'Focal Length',
-                  controller: _focalLengthController,
-                  hint: 'e.g., 550',
-                  suffix: 'mm',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => setState(() {}),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabelWithHelp(
+                      colors,
+                      label: 'Focal Length',
+                      helpTitle: 'Focal length (mm)',
+                      helpBody:
+                          "The telescope's focal length in millimetres — on "
+                          'the OTA label or its spec sheet. Sets your image '
+                          'scale and field of view together with the camera '
+                          'pixel size.',
+                    ),
+                    const SizedBox(height: 4),
+                    NightshadeTextField(
+                      controller: _focalLengthController,
+                      hint: 'e.g., 550',
+                      suffix: 'mm',
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(width: 16),
               Expanded(
-                child: NightshadeTextField(
-                  label: 'Aperture',
-                  controller: _apertureController,
-                  hint: 'e.g., 100',
-                  suffix: 'mm',
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  onChanged: (_) => setState(() {}),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _fieldLabelWithHelp(
+                      colors,
+                      label: 'Aperture',
+                      helpTitle: 'Aperture (mm)',
+                      helpBody: 'The diameter of the telescope in millimetres. '
+                          'Focal length ÷ aperture gives your focal ratio and '
+                          'sets how much light you gather.',
+                    ),
+                    const SizedBox(height: 4),
+                    NightshadeTextField(
+                      controller: _apertureController,
+                      hint: 'e.g., 100',
+                      suffix: 'mm',
+                      keyboardType:
+                          const TextInputType.numberWithOptions(decimal: true),
+                      onChanged: (_) => setState(() {}),
+                    ),
+                  ],
                 ),
               ),
             ],
@@ -1004,6 +1055,56 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
         ],
       ),
     );
+  }
+
+  /// A field label rendered externally (matching this file's literal
+  /// fontSize-12 / w500 / textSecondary label style) with an inline rich help
+  /// affordance (C10) beside it.
+  Widget _fieldLabelWithHelp(
+    NightshadeColors colors, {
+    required String label,
+    required String helpTitle,
+    required String helpBody,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: colors.textSecondary,
+          ),
+        ),
+        const SizedBox(width: NightshadeTokens.spaceXs),
+        helpAffordance(context, title: helpTitle, body: helpBody),
+      ],
+    );
+  }
+
+  /// Open the telescope library (C10) and, on selection, prefill the OTA name,
+  /// focal length, and aperture fields. Manual edits afterwards remain fully
+  /// available — this is a one-tap convenience, not a lock-in.
+  Future<void> _pickTelescopeFromLibrary() async {
+    final preset = await HardwarePresetPickerDialog.showTelescope(context);
+    if (preset == null || !mounted) return;
+    setState(() {
+      _telescopeNameController.text = preset.displayName;
+      // The presets store whole-number optics as e.g. 550.0; render them as
+      // plain integers when they have no fractional part to match how a user
+      // would type the value.
+      _focalLengthController.text = _formatOptic(preset.focalLengthMm);
+      _apertureController.text = _formatOptic(preset.apertureMm);
+    });
+  }
+
+  /// Format an optic dimension: integral values as a bare integer (e.g. `550`),
+  /// otherwise with its decimal places (e.g. `714.5`).
+  static String _formatOptic(double value) {
+    return value == value.roundToDouble()
+        ? value.round().toString()
+        : value.toString();
   }
 
   // ============================================================================
@@ -1656,6 +1757,18 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           ),
         ),
         const SizedBox(width: 12),
+        // Camera library (C10): a curated fallback that does NOT require a live
+        // camera. It complements the SDK auto-detect above — the user can pull
+        // sensible gain/offset (+ binning, cooling) from the built-in catalog
+        // even when no camera is connected.
+        NightshadeButton(
+          label: 'Camera library',
+          icon: LucideIcons.camera,
+          variant: ButtonVariant.outline,
+          size: ButtonSize.small,
+          onPressed: _pickCameraFromLibrary,
+        ),
+        const SizedBox(width: 12),
         if (disabledReason != null)
           Expanded(
             child: Padding(
@@ -1668,6 +1781,29 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
           ),
       ],
     );
+  }
+
+  /// Open the camera library (C10) and, on selection, prefill the camera
+  /// defaults: gain, offset, binning, and (when the preset has regulated
+  /// cooling) the cooling set-point. Cameras without cooling leave the cooling
+  /// field untouched rather than collapsing it to 0 °C.
+  Future<void> _pickCameraFromLibrary() async {
+    final preset = await HardwarePresetPickerDialog.showCamera(context);
+    if (preset == null || !mounted) return;
+    setState(() {
+      _gainController.text = preset.recommendedGain.toString();
+      _offsetController.text = preset.recommendedOffset.toString();
+      // The binning dropdown is square (binX == binY) in this editor; presets
+      // store the recommended X binning, which we apply directly when it is one
+      // of the offered factors.
+      if (preset.recommendedBinX >= 1 && preset.recommendedBinX <= 4) {
+        _binning = preset.recommendedBinX;
+      }
+      final coolingTemp = preset.recommendedCoolingTempC;
+      if (coolingTemp != null) {
+        _coolingTargetController.text = _formatOptic(coolingTemp);
+      }
+    });
   }
 
   /// Build the info card that surfaces the SDK-reported recommendation.

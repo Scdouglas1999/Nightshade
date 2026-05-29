@@ -1,3 +1,18 @@
+// `@JsonSerializable(...)` and `@JsonKey(...)` are attached to the freezed
+// redirecting factory constructors / their parameters below. freezed copies
+// those decorators verbatim onto the generated concrete `class` (where they
+// are valid) — see `freezed/lib/src/templates/concrete_template.dart`, which
+// joins `constructor.decorators` directly above the emitted class. There is no
+// other channel to pass per-class json_serializable options such as
+// `fieldRename`, `explicitToJson`, and `includeIfNull`: the `@Freezed`
+// annotation does not expose them (freezed_annotation 2.4.x), and a global
+// `build.yaml` `field_rename` would also rewrite the camelCase models in this
+// same file that intentionally keep their Dart key names. The analyzer reports
+// these required-on-the-constructor annotations as `invalid_annotation_target`
+// because json_annotation's `@Target` is `classType` / field-or-getter only;
+// freezed's own generated output silences the identical false positive with
+// this exact directive.
+// ignore_for_file: invalid_annotation_target
 import 'package:equatable/equatable.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 import 'package:uuid/uuid.dart';

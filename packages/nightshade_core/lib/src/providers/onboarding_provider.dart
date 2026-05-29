@@ -4,12 +4,15 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/backend/device_types.dart';
+import '../models/hardware_presets/hardware_preset_models.dart';
 import '../models/onboarding/onboarding_state.dart';
 import '../backend/network_backend.dart';
 import '../providers/backend_provider.dart';
 import '../providers/database_provider.dart';
+import '../providers/hardware_presets_provider.dart';
 import '../providers/profiles_provider.dart';
 import '../providers/tutorial_provider.dart';
+import '../services/hardware_presets/hardware_presets_service.dart';
 
 /// Riverpod plumbing for the equipment-onboarding wizard (F4).
 ///
@@ -256,6 +259,70 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     await _persistDraft();
   }
 
+  /// Read-only access to the merged hardware-presets service (built-ins +
+  /// user overrides) so the optical-train and camera-defaults steps can render
+  /// the preset pickers without reaching through to the provider themselves.
+  HardwarePresetsService get hardwarePresets =>
+      _ref.read(hardwarePresetsServiceProvider);
+
+  /// Apply a telescope preset picked at the optical-train step. Pins the
+  /// preset id + display name and prefills the optics (focal length, aperture)
+  /// from the catalog so the image-scale readout updates immediately. The
+  /// reducer factor is intentionally left untouched — a reducer is a separate
+  /// physical accessory the user may add on top of any OTA.
+  Future<void> applyTelescopePreset(TelescopePreset preset) async {
+    state = state.copyWith(
+      telescopePresetId: preset.id,
+      telescopeName: preset.displayName,
+      focalLengthMm: preset.focalLengthMm,
+      apertureMm: preset.apertureMm,
+    );
+    await _persistDraft();
+  }
+
+  /// Apply a camera-defaults preset picked at the camera-defaults step. Pins
+  /// the preset id, prefills the pixel size (feeding the image-scale math) and
+  /// the acquisition defaults (gain/offset/binning/cooling). A preset with no
+  /// regulated cooling (e.g. a DSLR) clears the cooling set-point rather than
+  /// collapsing it to 0 °C.
+  Future<void> applyCameraPreset(CameraDefaultsPreset preset) async {
+    state = state.copyWith(
+      cameraPresetId: preset.id,
+      pixelSizeMicrons: preset.pixelSizeMicrons,
+      defaultGain: preset.recommendedGain,
+      defaultOffset: preset.recommendedOffset,
+      defaultBinX: preset.recommendedBinX,
+      defaultBinY: preset.recommendedBinY,
+      defaultCoolingTempC: preset.recommendedCoolingTempC,
+      clearCoolingTempC: preset.recommendedCoolingTempC == null,
+    );
+    await _persistDraft();
+  }
+
+  /// Set (or override) the camera acquisition defaults captured at the
+  /// camera-defaults step. Any argument left null preserves the existing draft
+  /// value, except [coolingTempC]: pass [clearCoolingTempC] true to explicitly
+  /// null out the cooling set-point (e.g. the user toggled cooling off), since
+  /// a plain null cannot distinguish "leave unchanged" from "clear".
+  Future<void> setCameraDefaults({
+    int? gain,
+    int? offset,
+    int? binX,
+    int? binY,
+    double? coolingTempC,
+    bool clearCoolingTempC = false,
+  }) async {
+    state = state.copyWith(
+      defaultGain: gain ?? state.defaultGain,
+      defaultOffset: offset ?? state.defaultOffset,
+      defaultBinX: binX ?? state.defaultBinX,
+      defaultBinY: binY ?? state.defaultBinY,
+      defaultCoolingTempC: coolingTempC ?? state.defaultCoolingTempC,
+      clearCoolingTempC: clearCoolingTempC,
+    );
+    await _persistDraft();
+  }
+
   Future<void> setCaptureDirectory(String path) async {
     state = state.copyWith(captureDirectory: path);
     await _persistDraft();
@@ -266,8 +333,16 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
     await _persistDraft();
   }
 
-  /// Result of completing the wizard: returns the created profile id so
-  /// the launcher can immediately activate it.
+  /// Create the equipment profile from the current draft and persist the
+  /// capture directory. Returns the created profile id so the launcher can
+  /// immediately activate it.
+  ///
+  /// This is invoked at the summary step. It deliberately does NOT mark the
+  /// tutorial complete, wipe the draft, or flip the bootstrap gate — that
+  /// happens in [finishNextSteps] once the user leaves the terminal
+  /// `nextSteps` step. Splitting the two lets the wizard create the profile,
+  /// then show the "what's next" guidance while the rig is already live, and
+  /// only retire onboarding when the user actually finishes.
   Future<int> complete() async {
     final draft = state;
     // Persist the new equipment profile. The DAO marks the first profile
@@ -295,12 +370,23 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       filterWheelName: draft.filterWheelName,
       guiderId: draft.guiderId,
       guiderName: draft.guiderName,
+      telescopeName: draft.telescopeName,
       focalLength:
           draft.focalLengthMm != null ? draft.focalLengthMm! * draft.reducerFactor : 0.0,
       aperture: draft.apertureMm ?? 0.0,
       focalRatio: focalRatio,
       telescopeFocalLength: draft.focalLengthMm,
       telescopeAperture: draft.apertureMm,
+      // Camera acquisition defaults captured at the camera-defaults step.
+      // defaultBinX/Y are non-nullable on the model (default 1), so fall back
+      // to 1 when the draft never set them.
+      defaultGain: draft.defaultGain,
+      defaultOffset: draft.defaultOffset,
+      defaultBinX: draft.defaultBinX ?? 1,
+      defaultBinY: draft.defaultBinY ?? 1,
+      defaultCoolingTemp: draft.defaultCoolingTempC,
+      // Cool-on-connect only makes sense when a cooling set-point exists.
+      coolOnConnect: draft.defaultCoolingTempC != null,
       filterNames: draft.filterNames,
     );
 
@@ -344,7 +430,19 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       await settingsDao.setDefaultImageDirectory(draft.captureDirectory!.trim());
     }
 
-    // Mark onboarding done in tutorial_progress + wipe the draft blob.
+    // Note: marking the tutorial complete, wiping the draft blob, and flipping
+    // the bootstrap gate are deferred to [finishNextSteps] — the profile now
+    // exists, but onboarding is not "done" until the user leaves the terminal
+    // next-steps screen.
+    return id;
+  }
+
+  /// Retire the wizard once the user leaves the terminal `nextSteps` step.
+  /// Marks `tutorial_progress` completed, wipes the draft blob, and flips the
+  /// bootstrap gate so the wizard does not auto-launch again. Idempotent —
+  /// safe to call more than once (the DAO upserts and deleteSetting is a no-op
+  /// on a missing row).
+  Future<void> finishNextSteps() async {
     final tutorialDao = _ref.read(tutorialProgressDaoProvider);
     await tutorialDao.markCompleted(OnboardingDraft.persistenceCategory);
     final settingsDao = _ref.read(settingsDaoProvider);
@@ -352,8 +450,6 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
 
     // Invalidate the bootstrap gate so the next launch reads `false`.
     _ref.invalidate(shouldRunEquipmentOnboardingProvider);
-
-    return id;
   }
 
   /// User pressed "Skip onboarding". We mark the wizard dismissed in

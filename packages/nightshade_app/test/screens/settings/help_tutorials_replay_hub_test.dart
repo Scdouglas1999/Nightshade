@@ -1,0 +1,176 @@
+// Widget tests for the Help & Tutorials replay hub (Onboarding & First-Light
+// IA, C13).
+//
+// These assert the consolidation outcome:
+//   * the new "Capture your first light" and "Re-run equipment setup" replay
+//     rows render (Flow A previously had no replay entry),
+//   * the superseded "Quick Start Tour" step-tour row is gone,
+//   * "Re-run equipment setup" resets the onboarding draft and routes to the
+//     `/onboarding` spine.
+//
+// The replay-hub providers (tutorialProvider, onboardingDraftProvider) derive
+// from databaseProvider/backendProvider, so an in-memory DB + MockBackend is
+// enough to resolve the graph. The screen calls `context.go(...)`, which needs
+// a real GoRouter ancestor — so this test pumps inside a MaterialApp.router
+// rather than the harness's bare MaterialApp.
+
+import 'package:drift/native.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
+import 'package:nightshade_app/screens/settings/widgets/help_tutorials_settings.dart';
+import 'package:nightshade_app/screens/settings/widgets/settings_widgets.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../harness/harness.dart';
+
+NightshadeDatabase _newInMemoryDb() =>
+    NightshadeDatabase.forTesting(NativeDatabase.memory());
+
+/// Pump [HelpTutorialsSettings] inside a MaterialApp.router with a `/help`
+/// (the screen under test) and a sentinel `/onboarding` route so navigation
+/// from the replay rows can be asserted. Returns the container for post-pump
+/// provider reads and the router so tests can inspect the current location.
+Future<({ProviderContainer container, GoRouter router})> _pumpHelpScreen(
+  WidgetTester tester, {
+  required NightshadeDatabase db,
+}) async {
+  tester.view.devicePixelRatio = 1.0;
+  tester.view.physicalSize = const Size(1280, 900);
+  addTearDown(() {
+    tester.view.resetPhysicalSize();
+    tester.view.resetDevicePixelRatio();
+  });
+
+  final container = ProviderContainer(
+    overrides: [
+      backendProvider.overrideWith(
+        (ref) => TestBackendNotifier(ref, mockBackend()),
+      ),
+      databaseProvider.overrideWithValue(db),
+      appVersionProvider.overrideWithValue(
+        const AppVersionInfo(version: '0.0.0-test', buildNumber: 0),
+      ),
+    ],
+  );
+  addTearDown(container.dispose);
+
+  final router = GoRouter(
+    initialLocation: '/help',
+    routes: [
+      GoRoute(
+        path: '/help',
+        builder: (context, state) =>
+            const Scaffold(body: HelpTutorialsSettings()),
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (context, state) => const Scaffold(
+          body: Center(child: Text('ONBOARDING_SPINE')),
+        ),
+      ),
+    ],
+  );
+  addTearDown(router.dispose);
+
+  await tester.pumpWidget(
+    UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        theme: NightshadeTheme.dark,
+        routerConfig: router,
+      ),
+    ),
+  );
+  await tester.pumpAndSettle(const Duration(seconds: 5));
+
+  return (container: container, router: router);
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  testWidgets('renders the new first-light + equipment-setup replay rows',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+
+    await _pumpHelpScreen(tester, db: db);
+
+    expect(find.text('Capture your first light'), findsOneWidget);
+    expect(find.text('Re-run equipment setup'), findsOneWidget);
+    // The replay hub still carries the first-night + tour replays.
+    expect(find.text('First Night Walkthrough'), findsOneWidget);
+    expect(find.text('Re-run onboarding tour'), findsOneWidget);
+  });
+
+  testWidgets('drops the superseded "Quick Start Tour" step-tour row',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+
+    await _pumpHelpScreen(tester, db: db);
+
+    // Superseded by the real, camera-driven "Capture your first light" flow.
+    expect(find.text('Quick Start Tour'), findsNothing);
+    // The other step tours are untouched.
+    expect(find.text('Equipment Setup'), findsOneWidget);
+    expect(find.text('Calibration Frames'), findsOneWidget);
+  });
+
+  testWidgets(
+      '"Re-run equipment setup" resets the draft and routes to /onboarding',
+      (tester) async {
+    final db = _newInMemoryDb();
+    addTearDown(() async => db.close());
+
+    final result = await _pumpHelpScreen(tester, db: db);
+    final container = result.container;
+    final router = result.router;
+
+    // Dirty the onboarding draft so we can prove the reset ran. The draft
+    // notifier hydrates asynchronously; wait for it before mutating so the
+    // hydration write doesn't clobber our change.
+    final notifier = container.read(onboardingDraftProvider.notifier);
+    await notifier.loaded;
+    await notifier.setCaptureDirectory('/tmp/first-light-test');
+    expect(
+      container.read(onboardingDraftProvider).captureDirectory,
+      '/tmp/first-light-test',
+      reason: 'precondition: the draft is dirty before the reset',
+    );
+
+    // The replay row's button is labelled "Re-run"; there are two ("Re-run
+    // equipment setup" and "Re-run onboarding tour"). Target the one inside
+    // the equipment-setup row via its SettingRow ancestor title.
+    final equipmentRow = find.ancestor(
+      of: find.text('Re-run equipment setup'),
+      matching: find.byType(SettingRow),
+    );
+    expect(equipmentRow, findsOneWidget);
+    final rerunButton = find.descendant(
+      of: equipmentRow,
+      matching: find.widgetWithText(NightshadeButton, 'Re-run'),
+    );
+    expect(rerunButton, findsOneWidget);
+
+    await tester.tap(rerunButton);
+    await tester.pumpAndSettle();
+
+    // Routed to the onboarding spine.
+    expect(
+      router.routerDelegate.currentConfiguration.uri.path,
+      '/onboarding',
+    );
+    expect(find.text('ONBOARDING_SPINE'), findsOneWidget);
+
+    // The draft was reset (capture directory cleared back to its default).
+    expect(
+      container.read(onboardingDraftProvider).captureDirectory,
+      isNot('/tmp/first-light-test'),
+      reason: 'the reset must clear the dirtied draft',
+    );
+  });
+}

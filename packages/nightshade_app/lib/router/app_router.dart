@@ -23,6 +23,7 @@ import '../screens/diagnostics/diagnostics_screen.dart';
 import '../screens/diagnostics/diagnostic_dump_screen.dart';
 import '../screens/tutorial/first_night_wizard_route.dart';
 import '../screens/onboarding/onboarding_screen.dart';
+import '../widgets/first_light/first_light_launcher.dart';
 import 'page_transitions.dart';
 
 /// Builder for the legacy ops-only companion dashboard route.
@@ -89,8 +90,15 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/imaging',
             name: 'imaging',
+            // The first-light "wow moment" is triggered post-onboarding by
+            // routing to `/imaging?firstLight=1`. FirstLightQueryLauncher
+            // reads that query and opens the FirstLightFlowDialog exactly
+            // once on arrival (then strips the query so a rebuild or
+            // back-navigation can't re-fire it). It renders ImagingScreen
+            // unchanged when the query is absent, so wrapping here is inert
+            // for ordinary navigation to Imaging.
             pageBuilder: (context, state) => const CustomTransitionPage(
-              child: ImagingScreen(),
+              child: FirstLightQueryLauncher(child: ImagingScreen()),
               transitionsBuilder: PageTransitions.slideFadeTransition,
               transitionDuration: Duration(milliseconds: 300),
             ),

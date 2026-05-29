@@ -175,12 +175,12 @@ void main() {
       await tester.pumpAndSettle();
 
       // Initially nothing computed. The widget renders the
-      // human-friendly "Awaiting inputs..." placeholder (NOT "--") in
+      // human-friendly "Awaiting inputs…" placeholder (NOT "--") in
       // each computed-row slot — a stale comment in the widget
       // mentions "--" but the actual UI text was updated. Three rows
       // (effective focal length, focal ratio, image scale) all show
       // the placeholder.
-      expect(find.text('Awaiting inputs...'), findsNWidgets(3));
+      expect(find.text('Awaiting inputs…'), findsNWidgets(3));
 
       // Enter realistic values: 1000mm, 80mm, 3.76µm, 1.0x reducer
       // -> image scale ≈ 0.78 arcsec/px, f/12.5

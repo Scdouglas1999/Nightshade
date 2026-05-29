@@ -37,6 +37,7 @@ class NightshadeLocalizations {
       'closeNightshadeTitle': 'Close Nightshade?',
       'collapse': 'Collapse',
       'connect': 'Connect',
+      'diagnose': 'Diagnose',
       'dashboardTitle': 'Dashboard',
       'dashboardTourDescription':
           'Learn about the dashboard controls and status displays.',
@@ -442,6 +443,7 @@ class NightshadeLocalizations {
       'collapse': 'Contraer',
       'connect': 'Conectar',
       'dashboardTitle': 'Panel',
+      'diagnose': 'Diagnosticar',
       'dashboardTourDescription':
           'Aprende los controles y estados del panel principal.',
       'dashboardTourTitle': 'Tour del panel',

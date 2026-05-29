@@ -10,7 +10,7 @@ import 'widgets/profile_sidebar.dart';
 import 'widgets/connected_device_card.dart';
 import 'widgets/discovery_panel.dart';
 import 'widgets/equipment_health_panel.dart';
-import 'dialogs/first_time_setup_wizard_dialog.dart';
+import 'widgets/equipment_readiness_panel.dart';
 import 'dialogs/profile_editor_dialog.dart';
 import 'tabs/settings_tab.dart';
 import 'utils/connect_all_summary.dart';
@@ -216,20 +216,16 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
     }
   }
 
-  Future<void> _showCreateProfileWizard(BuildContext context) async {
-    // DEV-P2-5: real first-time setup wizard — Scan → Select → Save — replaces
-    // the previous flow that silently created an empty profile and kicked off
-    // discovery. The wizard returns a non-null result only when the user
-    // saves; cancellation makes no DB writes.
-    final result = await FirstTimeSetupWizardDialog.show(context);
-    if (!mounted || result == null) return;
-
-    _bumpProfileMutationEpoch();
-    ref.read(selectedEquipmentProfileIdProvider.notifier).state =
-        result.profileId;
-    // The wizard ran its own discovery, so record the scan timestamp for the
-    // discovery panel's "Last scan: N seconds ago" label.
-    ref.read(lastScanTimeProvider.notifier).state = DateTime.now();
+  void _showCreateProfileWizard(BuildContext context) {
+    // Onboarding & First-Light IA (C13): the empty-state "Start Setup" now
+    // routes to the single onboarding spine rather than opening a bespoke
+    // in-screen wizard dialog. The `/onboarding` route owns the full
+    // Scan → Select → Save flow, persists the first profile, and hands off
+    // to first light on completion — keeping a single linear first-run path
+    // instead of two competing setup experiences. The manual fallback
+    // (`_createEmptyProfile`) is unchanged for users who'd rather build a
+    // profile by hand.
+    context.go('/onboarding');
   }
 
   Future<void> _setDefaultProfile(EquipmentProfileModel profile) async {
@@ -767,6 +763,21 @@ class _EquipmentMainColumn extends StatelessWidget {
         const _ProfileMismatchBanner(),
         const _ConnectAllProgressStrip(),
         const EquipmentHealthPanel(),
+        // C13/C14: the actionable "ready to image" checklist. Sits above the
+        // device dashboard so the readiness summary and its per-item Fix
+        // deep-links are the first thing an operator sees on the Equipment
+        // screen. Wrapped in a loose Flexible with an internal scroll so on a
+        // short screen it yields height to the device dashboard (and scrolls
+        // its own content) instead of overflowing the column.
+        const Flexible(
+          fit: FlexFit.loose,
+          child: SingleChildScrollView(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 8, 16, 8),
+              child: EquipmentReadinessPanel(),
+            ),
+          ),
+        ),
         const _PolarAlignmentShortcut(),
         Expanded(
           child: _DeviceDashboard(

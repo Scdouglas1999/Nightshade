@@ -5,11 +5,17 @@
 // "Re-run tutorial" reset. We use an in-memory Drift database so the
 // underlying [TutorialProgressDao] path is exercised end-to-end without
 // touching the production sqlite file.
+//
+// Onboarding & First-Light IA (C13): the auto-launch gating that the old
+// `OnboardingTourLauncher` performed was removed when the launcher stack
+// collapsed to the single startup spine — the first-launch tour is now
+// replay-only (Settings → Help & Tutorials → "Re-run onboarding tour").
+// The launcher-gating group and its helper were therefore deleted; the
+// overlay itself is unchanged and remains fully covered below.
 import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nightshade_app/widgets/onboarding/onboarding_launcher.dart';
 import 'package:nightshade_app/widgets/onboarding/onboarding_overlay.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/database/daos/tutorial_progress_dao.dart';
@@ -19,41 +25,6 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 NightshadeDatabase _newInMemoryDb() {
   return NightshadeDatabase.forTesting(NativeDatabase.memory());
-}
-
-Future<void> _pumpLauncher(
-  WidgetTester tester, {
-  required NightshadeDatabase db,
-  Widget? body,
-}) async {
-  tester.view.devicePixelRatio = 1.0;
-  tester.view.physicalSize = const Size(1200, 800);
-  addTearDown(() {
-    tester.view.resetPhysicalSize();
-    tester.view.resetDevicePixelRatio();
-  });
-
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        databaseProvider.overrideWithValue(db),
-      ],
-      child: MaterialApp(
-        theme: NightshadeTheme.dark,
-        home: Scaffold(
-          body: OnboardingTourLauncher(
-            child: body ?? const SizedBox.expand(),
-          ),
-        ),
-      ),
-    ),
-  );
-  // Two pumps: first to mount, second to allow the FutureProvider for
-  // the status check to resolve and the launcher to mount the overlay.
-  await tester.pump();
-  await tester.pump();
-  // One more for the post-frame setState that re-resolves nav rects.
-  await tester.pump();
 }
 
 Future<void> _pumpOverlayDirect(
@@ -86,51 +57,6 @@ Future<void> _pumpOverlayDirect(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  group('OnboardingTourLauncher gating', () {
-    testWidgets(
-        'renders welcome card on first launch (no tutorial_progress row)',
-        (tester) async {
-      final db = _newInMemoryDb();
-      addTearDown(() async => db.close());
-
-      await _pumpLauncher(tester, db: db);
-
-      // Welcome title is the first step's title.
-      expect(find.text('Welcome to Nightshade'), findsOneWidget);
-      // Welcome card uses "Show me around" as its primary button.
-      expect(find.text('Show me around'), findsOneWidget);
-      // And exposes the explicit skip with the secondary copy.
-      expect(find.text("Skip — I know what I'm doing"), findsOneWidget);
-    });
-
-    testWidgets('does not mount overlay when tour was completed',
-        (tester) async {
-      final db = _newInMemoryDb();
-      addTearDown(() async => db.close());
-
-      // Seed the DAO with a completed row before mounting the launcher.
-      final dao = TutorialProgressDao(db);
-      await dao.markCompleted(firstLaunchTourCategory);
-
-      await _pumpLauncher(tester, db: db);
-
-      expect(find.text('Welcome to Nightshade'), findsNothing);
-    });
-
-    testWidgets('does not mount overlay when tour was skipped',
-        (tester) async {
-      final db = _newInMemoryDb();
-      addTearDown(() async => db.close());
-
-      final dao = TutorialProgressDao(db);
-      await dao.markDismissed(firstLaunchTourCategory);
-
-      await _pumpLauncher(tester, db: db);
-
-      expect(find.text('Welcome to Nightshade'), findsNothing);
-    });
-  });
 
   group('OnboardingOverlay step advancement', () {
     testWidgets('Next button advances welcome → equipment step',

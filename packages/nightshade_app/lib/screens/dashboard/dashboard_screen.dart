@@ -11,6 +11,7 @@ import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
 import 'widgets/dashboard_widget_registry.dart';
+import 'widgets/readiness_dashboard_overlay.dart';
 import 'widgets/smart_night_prompt_card.dart';
 import 'widgets/widget_picker_dialog.dart';
 import 'widgets/zone_layout.dart';
@@ -122,6 +123,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
                     .setTileZone(id, zone);
               },
             ),
+            // C14: floating "ready to image" overlay. Self-collapses when the
+            // rig is fully ready, so it only surfaces outstanding setup work.
+            const ReadinessDashboardOverlay(),
             SmartNightPromptCard(colors: colors),
           ],
         ),

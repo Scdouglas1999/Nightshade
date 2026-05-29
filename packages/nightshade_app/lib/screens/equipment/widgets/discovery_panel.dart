@@ -9,6 +9,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import '../../../mixins/device_connection_mixin.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/troubleshooter/connection_troubleshooter_dialog.dart';
 import '../dialogs/fujifilm_disclaimer_dialog.dart';
 
 /// Action for assigning a device to a profile
@@ -40,6 +41,44 @@ class DiscoveryPanel extends ConsumerStatefulWidget {
 
   @override
   ConsumerState<DiscoveryPanel> createState() => _DiscoveryPanelState();
+
+  /// Derives the troubleshooter inputs from the backend the user actually tried
+  /// to connect and shows [ConnectionTroubleshooterDialog], resolving to `true`
+  /// when the user asked to retry.
+  ///
+  /// Exposed for testing so the connect-failure → troubleshooter orchestration
+  /// can be exercised directly without standing up the full discovery panel and
+  /// its device-state providers. The caller is responsible for the `mounted`
+  /// guards around the (async) dialog.
+  /// Resolves the namespaced [DriverType] for the backend the user actually
+  /// tried to connect, so the troubleshooter playbook is protocol-aware.
+  ///
+  /// `availableBackends` may not contain the resolved key in pathological
+  /// cases, so we fall back to the backend identity itself rather than
+  /// guessing. This is the authoritative resolution for the discovery surface
+  /// (more accurate than deriving the driver from the device-id prefix), and it
+  /// is shared by both the inline connect path and the test-only
+  /// [showConnectionTroubleshooter] entry point.
+  @visibleForTesting
+  static DriverType resolveDriverType(UnifiedDevice device) {
+    final backend = device.selectedBackend ?? device.recommendedBackend;
+    final info = device.availableBackends[backend];
+    return info?.driverType ?? backend;
+  }
+
+  @visibleForTesting
+  static Future<bool> showConnectionTroubleshooter(
+    BuildContext context,
+    UnifiedDevice device,
+    Object error,
+  ) {
+    return ConnectionTroubleshooterDialog.show(
+      context,
+      deviceType: device.type,
+      driverType: resolveDriverType(device),
+      rawError: error.toString(),
+    );
+  }
 }
 
 class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
@@ -637,43 +676,61 @@ class _DiscoveryPanelState extends ConsumerState<DiscoveryPanel>
     final deviceService = ref.read(deviceServiceProvider);
     final deviceId = device.activeDeviceId;
 
-    // Fujifilm warranty disclaimer check
+    // Fujifilm warranty disclaimer check — must clear before we attempt the
+    // connection, so it stays out of the shared mixin connect path.
     if (device.type == DeviceType.camera &&
         isFujifilmDevice(deviceId, device.displayName)) {
       final accepted = await showFujifilmDisclaimerIfNeeded(context);
       if (!accepted) return;
     }
 
-    try {
-      switch (device.type) {
-        case DeviceType.camera:
-          await deviceService.connectCamera(deviceId);
-          break;
-        case DeviceType.mount:
-          await deviceService.connectMount(deviceId);
-          break;
-        case DeviceType.focuser:
-          await deviceService.connectFocuser(deviceId);
-          break;
-        case DeviceType.filterWheel:
-          await deviceService.connectFilterWheel(deviceId);
-          break;
-        case DeviceType.guider:
-          await deviceService.connectGuider(deviceId);
-          break;
-        case DeviceType.rotator:
-          await deviceService.connectRotator(deviceId);
-          break;
-        default:
-          throw Exception('Unsupported device type: ${device.type}');
-      }
-      if (mounted) {
-        context.showSuccessSnackBar('Connected to ${device.displayName}');
-      }
-    } catch (e) {
-      if (mounted) {
-        context.showErrorSnackBar('Failed to connect: $e');
-      }
+    // Route through the shared [DeviceConnectionMixin.connectDevice] so the
+    // guided troubleshooter recovery (bounded single retry, raw error carried
+    // verbatim into the dialog's "Technical details") is the one canonical
+    // connect path for the equipment surfaces — not a fork duplicated here.
+    //
+    // We pass the backend-resolved [DriverType] (more accurate than the mixin's
+    // device-id-prefix fallback) and the device type so the opt-in
+    // troubleshooter branch fires. The per-type connect dispatch lives in
+    // [connectFn]; the success toast lives in [onConnected] so it only fires on
+    // a genuinely successful connection.
+    await connectDevice(
+      deviceId: deviceId,
+      deviceName: device.displayName,
+      deviceType: device.type,
+      driverType: DiscoveryPanel.resolveDriverType(device),
+      connectFn: (id) => _dispatchConnect(deviceService, device.type, id),
+      onConnected: () async {
+        if (mounted) {
+          context.showSuccessSnackBar('Connected to ${device.displayName}');
+        }
+      },
+    );
+  }
+
+  /// Per-device-type connect dispatch shared by the discovery connect path.
+  /// Throws for unsupported types so the mixin surfaces the failure through the
+  /// troubleshooter rather than silently no-op'ing (errors-are-a-feature).
+  Future<void> _dispatchConnect(
+    DeviceService deviceService,
+    DeviceType type,
+    String deviceId,
+  ) {
+    switch (type) {
+      case DeviceType.camera:
+        return deviceService.connectCamera(deviceId);
+      case DeviceType.mount:
+        return deviceService.connectMount(deviceId);
+      case DeviceType.focuser:
+        return deviceService.connectFocuser(deviceId);
+      case DeviceType.filterWheel:
+        return deviceService.connectFilterWheel(deviceId);
+      case DeviceType.guider:
+        return deviceService.connectGuider(deviceId);
+      case DeviceType.rotator:
+        return deviceService.connectRotator(deviceId);
+      default:
+        throw Exception('Unsupported device type: $type');
     }
   }
 

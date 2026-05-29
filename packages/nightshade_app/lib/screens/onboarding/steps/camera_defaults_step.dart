@@ -1,0 +1,365 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
+
+import '../../../widgets/help/field_help_label.dart';
+import '../../../widgets/hardware/hardware_preset_picker_dialog.dart';
+
+/// Camera-defaults step — the acquisition set-points (gain / offset /
+/// binning / cooling) that the created equipment profile is seeded with.
+///
+/// New imagers routinely lose their first night hunting forum threads for the
+/// "right" gain and offset. This step removes that friction: picking from the
+/// built-in camera library (the [HardwarePresetPickerDialog], C10) prefills
+/// every field with the community-standard set-point for that sensor, and the
+/// user can accept them as-is or tweak any value. Each field carries an inline
+/// [FieldHelpLabel] explaining what it does.
+///
+/// The step is optional — the wizard footer shows a "Skip this step" affordance
+/// and validation always passes — because sensible defaults already exist.
+class OnboardingCameraDefaultsStep extends ConsumerStatefulWidget {
+  const OnboardingCameraDefaultsStep({super.key});
+
+  @override
+  ConsumerState<OnboardingCameraDefaultsStep> createState() =>
+      _OnboardingCameraDefaultsStepState();
+}
+
+class _OnboardingCameraDefaultsStepState
+    extends ConsumerState<OnboardingCameraDefaultsStep> {
+  late final TextEditingController _gainController;
+  late final TextEditingController _offsetController;
+  late final TextEditingController _binXController;
+  late final TextEditingController _binYController;
+  late final TextEditingController _coolingController;
+
+  String? _gainError;
+  String? _offsetError;
+  String? _binXError;
+  String? _binYError;
+  String? _coolingError;
+
+  @override
+  void initState() {
+    super.initState();
+    final draft = ref.read(onboardingDraftProvider);
+    _gainController =
+        TextEditingController(text: draft.defaultGain?.toString() ?? '');
+    _offsetController =
+        TextEditingController(text: draft.defaultOffset?.toString() ?? '');
+    _binXController =
+        TextEditingController(text: (draft.defaultBinX ?? 1).toString());
+    _binYController =
+        TextEditingController(text: (draft.defaultBinY ?? 1).toString());
+    _coolingController = TextEditingController(
+      text: draft.defaultCoolingTempC != null
+          ? draft.defaultCoolingTempC!.toStringAsFixed(0)
+          : '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _gainController.dispose();
+    _offsetController.dispose();
+    _binXController.dispose();
+    _binYController.dispose();
+    _coolingController.dispose();
+    super.dispose();
+  }
+
+  /// Push the edited integer set-points (gain/offset/binning) into the draft,
+  /// validating each. Cooling is committed separately by [_commitCooling]
+  /// because it is nullable and gated behind the cooling toggle.
+  void _commitIntegers() {
+    final gain = int.tryParse(_gainController.text.trim());
+    final offset = int.tryParse(_offsetController.text.trim());
+    final binX = int.tryParse(_binXController.text.trim());
+    final binY = int.tryParse(_binYController.text.trim());
+
+    setState(() {
+      _gainError = _gainController.text.trim().isEmpty || gain != null
+          ? null
+          : 'Enter a whole number.';
+      _offsetError = _offsetController.text.trim().isEmpty || offset != null
+          ? null
+          : 'Enter a whole number.';
+      _binXError = (binX != null && binX >= 1) ? null : 'Binning is 1 or more.';
+      _binYError = (binY != null && binY >= 1) ? null : 'Binning is 1 or more.';
+    });
+
+    ref.read(onboardingDraftProvider.notifier).setCameraDefaults(
+          gain: gain,
+          offset: offset,
+          binX: (binX != null && binX >= 1) ? binX : null,
+          binY: (binY != null && binY >= 1) ? binY : null,
+        );
+  }
+
+  void _commitCooling() {
+    final raw = _coolingController.text.trim();
+    final temp = double.tryParse(raw);
+    setState(() {
+      _coolingError = raw.isEmpty || temp != null
+          ? null
+          : 'Enter a temperature in °C (e.g. -10).';
+    });
+    if (temp != null) {
+      ref
+          .read(onboardingDraftProvider.notifier)
+          .setCameraDefaults(coolingTempC: temp);
+    }
+  }
+
+  Future<void> _toggleCooling(bool enabled) async {
+    final notifier = ref.read(onboardingDraftProvider.notifier);
+    if (enabled) {
+      // Seed a sensible -10 °C set-point when the user turns cooling on and
+      // nothing is entered yet, matching the built-in cooled-CMOS defaults.
+      final existing = double.tryParse(_coolingController.text.trim());
+      final seed = existing ?? -10.0;
+      _coolingController.text = seed.toStringAsFixed(0);
+      setState(() => _coolingError = null);
+      await notifier.setCameraDefaults(coolingTempC: seed);
+    } else {
+      _coolingController.clear();
+      setState(() => _coolingError = null);
+      await notifier.setCameraDefaults(clearCoolingTempC: true);
+    }
+  }
+
+  Future<void> _pickFromLibrary() async {
+    final preset = await HardwarePresetPickerDialog.showCamera(context);
+    if (preset == null || !mounted) return;
+
+    await ref.read(onboardingDraftProvider.notifier).applyCameraPreset(preset);
+    if (!mounted) return;
+
+    // Reflect the applied preset in the editable fields.
+    _gainController.text = preset.recommendedGain.toString();
+    _offsetController.text = preset.recommendedOffset.toString();
+    _binXController.text = preset.recommendedBinX.toString();
+    _binYController.text = preset.recommendedBinY.toString();
+    _coolingController.text = preset.recommendedCoolingTempC != null
+        ? preset.recommendedCoolingTempC!.toStringAsFixed(0)
+        : '';
+    setState(() {
+      _gainError = null;
+      _offsetError = null;
+      _binXError = null;
+      _binYError = null;
+      _coolingError = null;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final draft = ref.watch(onboardingDraftProvider);
+    final colors = NightshadeColors.of(context);
+    final theme = Theme.of(context);
+
+    final coolingEnabled = draft.defaultCoolingTempC != null;
+
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Set your capture defaults',
+            style: theme.textTheme.titleLarge?.copyWith(
+              color: colors.textPrimary,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceXs + 2),
+          Text(
+            'These seed every new sequence. Pick your camera to load the recommended set-points, then adjust to taste — you can change them any time later.',
+            style: theme.textTheme.bodyMedium?.copyWith(
+              color: colors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Row(
+            children: [
+              NightshadeButton(
+                icon: LucideIcons.camera,
+                label: 'Choose from camera library',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: _pickFromLibrary,
+              ),
+              if (draft.cameraPresetId != null) ...[
+                const SizedBox(width: NightshadeTokens.spaceMd),
+                Icon(LucideIcons.checkCircle2,
+                    size: NightshadeTokens.iconSm, color: colors.success),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                Flexible(
+                  child: Text(
+                    'Defaults loaded from preset',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _NumberField(
+                  controller: _gainController,
+                  label: 'Gain',
+                  help:
+                      'Gain sets sensor amplification; for most CMOS the unity/recommended value is a good start.',
+                  hint: 'e.g. 100',
+                  allowNegative: false,
+                  errorText: _gainError,
+                  onChanged: _commitIntegers,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: _NumberField(
+                  controller: _offsetController,
+                  label: 'Offset',
+                  help:
+                      'Offset lifts the black point so darks are not clipped.',
+                  hint: 'e.g. 50',
+                  allowNegative: false,
+                  errorText: _offsetError,
+                  onChanged: _commitIntegers,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceMd),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: _NumberField(
+                  controller: _binXController,
+                  label: 'Bin X',
+                  help:
+                      'Horizontal pixel binning. 1 keeps full resolution; 2 combines 2×2 pixels for higher signal at lower resolution.',
+                  hint: '1',
+                  allowNegative: false,
+                  errorText: _binXError,
+                  onChanged: _commitIntegers,
+                ),
+              ),
+              const SizedBox(width: NightshadeTokens.spaceMd),
+              Expanded(
+                child: _NumberField(
+                  controller: _binYController,
+                  label: 'Bin Y',
+                  help: 'Vertical pixel binning. Almost always matches Bin X.',
+                  hint: '1',
+                  allowNegative: false,
+                  errorText: _binYError,
+                  onChanged: _commitIntegers,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NightshadeTokens.spaceLg),
+          NightshadeCard(
+            variant: CardVariant.subtle,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                NightshadeSwitchRow(
+                  label: 'Regulated cooling',
+                  subtitle:
+                      'Turn on for a cooled camera; leave off for a DSLR or an uncooled sensor.',
+                  value: coolingEnabled,
+                  onChanged: (v) => _toggleCooling(v),
+                ),
+                if (coolingEnabled) ...[
+                  const SizedBox(height: NightshadeTokens.spaceMd),
+                  _NumberField(
+                    controller: _coolingController,
+                    label: 'Cooling set-point',
+                    help:
+                        'Target sensor temperature in °C. −10 is a common all-season set-point; pick something your cooler can hold below ambient.',
+                    hint: 'e.g. -10',
+                    suffix: '°C',
+                    allowNegative: true,
+                    allowDecimal: true,
+                    errorText: _coolingError,
+                    onChanged: _commitCooling,
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// A labelled numeric input pairing a [FieldHelpLabel] with a
+/// [NightshadeTextField]. Integer-only by default; pass [allowDecimal] /
+/// [allowNegative] for the cooling set-point.
+class _NumberField extends StatelessWidget {
+  const _NumberField({
+    required this.controller,
+    required this.label,
+    required this.help,
+    required this.hint,
+    required this.onChanged,
+    this.suffix,
+    this.errorText,
+    this.allowNegative = false,
+    this.allowDecimal = false,
+  });
+
+  final TextEditingController controller;
+  final String label;
+  final String help;
+  final String hint;
+  final String? suffix;
+  final String? errorText;
+  final bool allowNegative;
+  final bool allowDecimal;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final pattern = StringBuffer('[0-9');
+    if (allowNegative) pattern.write(r'\-');
+    if (allowDecimal) pattern.write(r'\.');
+    pattern.write(']');
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FieldHelpLabel(label: label, help: help),
+        const SizedBox(height: NightshadeTokens.spaceXs + 2),
+        NightshadeTextField(
+          controller: controller,
+          hint: hint,
+          suffix: suffix,
+          errorText: errorText,
+          keyboardType: TextInputType.numberWithOptions(
+            decimal: allowDecimal,
+            signed: allowNegative,
+          ),
+          inputFormatters: [
+            FilteringTextInputFormatter.allow(RegExp(pattern.toString())),
+          ],
+          onChanged: (_) => onChanged(),
+        ),
+      ],
+    );
+  }
+}

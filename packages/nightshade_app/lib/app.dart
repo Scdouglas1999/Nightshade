@@ -12,9 +12,7 @@ import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_app/widgets/quick_start_checker.dart';
 import 'package:nightshade_app/widgets/auto_discovery_launcher.dart';
 import 'package:nightshade_app/widgets/database_recovery_launcher.dart';
-import 'package:nightshade_app/widgets/first_night_wizard_launcher.dart';
 import 'package:nightshade_app/widgets/equipment_onboarding_launcher.dart';
-import 'package:nightshade_app/widgets/onboarding/onboarding_launcher.dart';
 
 class NightshadeApp extends ConsumerWidget {
   final bool isMobile;
@@ -152,31 +150,37 @@ class NightshadeApp extends ConsumerWidget {
               );
             }
             // Wrap with ScaledConfigProvider to make responsive scaling
-            // configuration available to all descendant widgets.
-            // The first-night wizard launcher sits inside the scaled
-            // config so the wizard dialog inherits text scaling and theme
-            // — putting it outside would render the wizard at unscaled
+            // configuration available to all descendant widgets. Everything
+            // below inherits the app's text scale and theme — putting a
+            // launcher's dialog outside this would render it at unscaled
             // size on high-DPI displays.
-            // DatabaseRecoveryLauncher wraps the onboarding + first-night
-            // launchers so its one-shot dialog wins over them on the first
-            // launch after corruption recovery — the user needs to know
-            // their data is gone before they get pulled into onboarding
-            // for what looks like a fresh install. It sits inside
-            // ScaledConfigProvider so the dialog inherits the app's scale
-            // and theme.
-            // EquipmentOnboardingLauncher sits outermost (after database
-            // recovery) so a brand-new install — zero profiles, no
-            // onboarding completion record — gets routed to the
-            // equipment wizard before any tutorial overlay or first-
-            // night dialog can fire. Tutorials only make sense once
-            // there's a profile to use them with.
+            //
+            // Single-spine startup model (Onboarding & First-Light IA, C13):
+            // the launcher stack is now exactly two startup gates, ordered
+            // by priority so the higher-priority one always wins the dialog
+            // stack:
+            //
+            //   1. DatabaseRecoveryLauncher — one-shot "your data was reset"
+            //      dialog after corruption recovery. Outermost so it fires
+            //      before the user is pulled into onboarding for what would
+            //      otherwise look like a fresh install.
+            //   2. EquipmentOnboardingLauncher — routes a brand-new install
+            //      (zero profiles, no onboarding completion record) to the
+            //      `/onboarding` spine. This is the *single* entry point for
+            //      first-run setup; the spine itself hands off to first
+            //      light by routing to `/imaging?firstLight=1` when setup
+            //      finishes (see app_router.dart's FirstLightQueryLauncher).
+            //
+            // The legacy first-launch tour overlay (OnboardingTourLauncher)
+            // and the first-night wizard auto-launcher
+            // (FirstNightWizardLauncher) were removed from the startup spine:
+            // both are now replay-only, reachable from Settings → Help &
+            // Tutorials. Collapsing them here means a first-run user follows
+            // one linear path (recovery → equipment onboarding → first light)
+            // instead of racing overlapping auto-launching dialogs.
             Widget result = ScaledConfigProvider(
               child: DatabaseRecoveryLauncher(
-                child: EquipmentOnboardingLauncher(
-                  child: OnboardingTourLauncher(
-                    child: FirstNightWizardLauncher(child: scaledChild),
-                  ),
-                ),
+                child: EquipmentOnboardingLauncher(child: scaledChild),
               ),
             );
 

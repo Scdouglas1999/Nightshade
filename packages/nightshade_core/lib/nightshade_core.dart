@@ -80,9 +80,11 @@ export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/onboarding/onboarding_state.dart';
+export 'src/models/hardware_presets/hardware_preset_models.dart';
 export 'src/models/science/science_models.dart';
 export 'src/models/defect_map.dart';
 export 'src/models/plate_solver.dart';
+export 'src/models/readiness/readiness_models.dart';
 export 'src/models/session_report.dart';
 export 'src/models/campaign_rollup.dart';
 
@@ -202,6 +204,7 @@ export 'src/providers/period_analysis_provider.dart';
 export 'src/providers/photometric_transform_provider.dart';
 export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
+export 'src/providers/readiness_provider.dart';
 export 'src/providers/onboarding_provider.dart';
 export 'src/providers/disk_space_provider.dart';
 
@@ -230,6 +233,8 @@ export 'src/services/imaging_service.dart';
 export 'src/services/thumbnail_sidecar_service.dart';
 export 'src/providers/thumbnail_sidecar_provider.dart';
 export 'src/services/plate_solve_service.dart';
+export 'src/services/first_light/first_light_orchestrator.dart';
+export 'src/providers/first_light_provider.dart';
 export 'src/services/polar_alignment_service.dart';
 export 'src/services/centering_service.dart';
 export 'src/services/profile_service.dart';

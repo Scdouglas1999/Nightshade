@@ -2681,6 +2681,17 @@ class AppSettingsNotifier extends AsyncNotifier<AppSettingsState> {
     state = AsyncData(updater(current));
   }
 
+  /// Read-side companion to [_patchState] for section extensions.
+  ///
+  /// Section setters live in `settings_sections/*.dart` as extensions on this
+  /// class. Riverpod's [AsyncNotifier.state] is `@protected` /
+  /// `@visibleForTesting`, and the analyzer does not treat extension members as
+  /// "instance members of subclasses", so reaching for `state` directly from a
+  /// section file is a static warning. Sections that need the current value
+  /// (e.g. read-modify-write of a JSON map) go through this accessor instead,
+  /// keeping all `state` access inside the notifier class body.
+  AppSettingsState? get _currentValueOrNull => state.valueOrNull;
+
   // Section setters are defined in `settings_sections/*.dart` (split via
   // Dart `part` files). The class body below keeps only the lifecycle
   // (build), persistence helpers (_saveSetting, _saveSettings,

@@ -65,7 +65,7 @@ void main() {
     });
 
     test('JSON round-trip preserves all fields', () {
-      final draft = OnboardingDraft(
+      const draft = OnboardingDraft(
         currentStep: OnboardingStep.opticalTrain,
         selectedDrivers: {DriverType.native, DriverType.ascom},
         cameraId: 'native:zwo:0',
@@ -76,7 +76,7 @@ void main() {
         apertureMm: 80,
         pixelSizeMicrons: 3.76,
         reducerFactor: 0.79,
-        filterNames: const ['L', 'R', 'G', 'B'],
+        filterNames: ['L', 'R', 'G', 'B'],
         captureDirectory: 'C:/captures',
         profileName: 'Main rig',
       );
@@ -108,8 +108,11 @@ void main() {
 
     test('step order maps to display index', () {
       expect(OnboardingStep.welcome.order, 0);
+      // The terminal step is now `nextSteps` (the post-creation "what's next"
+      // screen), which sits after `summary`.
+      expect(OnboardingStep.nextSteps.order, OnboardingStep.values.length - 1);
       expect(OnboardingStep.summary.order,
-          OnboardingStep.values.length - 1);
+          OnboardingStep.nextSteps.order - 1);
       expect(OnboardingStepOrder.total, OnboardingStep.values.length);
     });
   });
