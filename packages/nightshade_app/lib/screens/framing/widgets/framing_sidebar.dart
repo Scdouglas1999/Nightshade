@@ -6,10 +6,10 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import 'package:nightshade_app/utils/snackbar_helper.dart';
-import 'package:nightshade_app/widgets/slew_dropdown_button.dart';
 import '../../../widgets/tutorial_keys/framing_keys.dart';
 import '../altitude_chart.dart';
 import '../framing_search_provider.dart';
+import 'framing_actions_panel.dart';
 import 'framing_controls.dart';
 import 'framing_overlays.dart';
 
@@ -1092,9 +1092,16 @@ class FramingMosaicSection extends ConsumerWidget {
   }
 }
 
-/// Actions panel at the bottom of the sidebar: Slew, Add to Sequence, Save
-/// Target, Cache Image, Reload. Slew uses the SlewDropdownButton when both a
-/// target and a connected mount are available.
+/// Actions surface at the bottom of the framing sidebar.
+///
+/// The canonical, guided "resolve → frame → solve → slew" flow lives in
+/// [FramingActionRail] (component C7) — there is no longer a second, inline
+/// Slew button here, so the slew/survey controls are not duplicated across two
+/// surfaces. This panel mounts that single rail and then exposes only the
+/// supplementary utility actions the rail does not own (add the framed target
+/// to a sequence, save it, cache the survey cutout, and reload it). The survey
+/// source and rotation are read from `framingProvider`, so the rail and the
+/// [FramingControlsSection] dropdown stay in lockstep automatically.
 class FramingActionsPanel extends ConsumerWidget {
   final NightshadeColors colors;
   final FramingState framingState;
@@ -1114,107 +1121,69 @@ class FramingActionsPanel extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final hasTarget = framingState.target != null;
-    final mountState = ref.watch(mountStateProvider);
-    final hasMountConnected =
-        mountState.connectionState == DeviceConnectionState.connected;
-
-    // Slew requires a target and a connected mount (FOV/equipment profile is optional)
-    final canSlew = hasTarget && hasMountConnected;
+    final hasSurveyImage = framingState.surveyImageBytes != null;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Canonical guided framing flow (target → frame → solve → slew).
+        const FramingActionRail(),
+
+        const SizedBox(height: NightshadeTokens.spaceXl),
+
+        // Supplementary utility actions not covered by the guided rail.
         Text(
-          'Actions',
-          style: TextStyle(
-            fontSize: 12,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-          ),
+          'Utilities',
+          style: NightshadeTypography.h6.copyWith(color: colors.textPrimary),
         ),
-        const SizedBox(height: 12),
-
-        SizedBox(
-          width: double.infinity,
-          child: hasTarget
-              ? SlewDropdownButton(
-                  key: FramingTutorialKeys.slewBtn,
-                  ra: framingState.target!.raHours,
-                  dec: framingState.target!.decDegrees,
-                  targetName: framingState.target!.name,
-                  targetRotation:
-                      framingState.rotation != 0 ? framingState.rotation : null,
-                  isEnabled: canSlew,
-                  icon: LucideIcons.compass,
-                  label: 'Slew to Target',
-                )
-              : FramingActionButton(
-                  key: FramingTutorialKeys.slewBtn,
-                  icon: LucideIcons.compass,
-                  label: 'Slew to Target',
-                  isPrimary: true,
-                  colors: colors,
-                  isEnabled: false,
-                  onTap: null,
-                ),
-        ),
-
-        // Show hint if slew is disabled
-        if (hasTarget && !hasMountConnected)
-          Padding(
-            padding: const EdgeInsets.only(top: 4),
-            child: Text(
-              'Connect a mount to enable slewing',
-              style: TextStyle(fontSize: 10, color: colors.textMuted),
-              textAlign: TextAlign.center,
-            ),
-          ),
-
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        // Utility actions use the design-system NightshadeButton (outline)
+        // so the whole panel — guided rail + utilities — speaks one button
+        // language (matching the rail's NightshadeButton solve action) rather
+        // than mixing in a bespoke local button with different heights/radii.
         Row(
           children: [
             Expanded(
-              child: FramingActionButton(
+              child: NightshadeButton(
                 icon: LucideIcons.plus,
                 label: 'Add to Sequence',
-                colors: colors,
-                isEnabled: hasTarget,
-                onTap: hasTarget ? onAddToSequence : null,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: hasTarget ? onAddToSequence : null,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
-              child: FramingActionButton(
+              child: NightshadeButton(
                 icon: LucideIcons.bookmark,
                 label: 'Save Target',
-                colors: colors,
-                isEnabled: hasTarget,
-                onTap: hasTarget ? onSaveTarget : null,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: hasTarget ? onSaveTarget : null,
               ),
             ),
           ],
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: NightshadeTokens.spaceSm),
         Row(
           children: [
             Expanded(
-              child: FramingActionButton(
+              child: NightshadeButton(
                 icon: LucideIcons.download,
                 label: 'Cache Image',
-                colors: colors,
-                isEnabled: framingState.surveyImageBytes != null,
-                onTap:
-                    framingState.surveyImageBytes != null ? onCacheImage : null,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: hasSurveyImage ? onCacheImage : null,
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: NightshadeTokens.spaceSm),
             Expanded(
-              child: FramingActionButton(
+              child: NightshadeButton(
                 icon: LucideIcons.refreshCw,
                 label: 'Reload',
-                colors: colors,
-                isEnabled: hasTarget,
-                onTap: hasTarget
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: hasTarget
                     ? () => ref.read(framingProvider.notifier).loadSurveyImage()
                     : null,
               ),

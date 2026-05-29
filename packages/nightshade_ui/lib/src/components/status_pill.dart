@@ -6,6 +6,10 @@ enum StatusPillStatus { active, warning, error, inactive, success }
 
 class StatusPill extends StatefulWidget {
   final IconData icon;
+
+  /// Leading label rendered as `'$label: $value'`. Pass an empty string for a
+  /// value-only pill (`'$value'` with no prefix) when the surrounding UI
+  /// already names what the value refers to.
   final String label;
   final String value;
   final StatusPillStatus status;
@@ -140,7 +144,9 @@ class _StatusPillState extends State<StatusPill>
               ),
               const SizedBox(width: 4),
               Text(
-                '${widget.label}: ${widget.value}',
+                widget.label.isEmpty
+                    ? widget.value
+                    : '${widget.label}: ${widget.value}',
                 style: TextStyle(
                   fontSize: 11,
                   color: colors.textSecondary,

@@ -1,16 +1,68 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:nightshade_ui/nightshade_ui.dart';
+// FramingPlateScale is the C1 single-source-of-truth astrometric scale shared by
+// every framing painter and the gesture hit-tester. It lives in nightshade_core's
+// models layer and is not surfaced through the public barrel, so it is imported
+// directly here, matching the established app->core src-model convention used by
+// the sibling background painters in this same folder.
+// ignore: implementation_imports
+import 'package:nightshade_core/src/models/framing_plate_scale.dart';
+// FramingMosaicConfig / FramingMosaicPanel are exported from the public barrel.
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_ui/nightshade_ui.dart';
 
 /// Equipment FOV rectangle drawn at the canvas center when the preview FOV is
-/// at or below the equipment FOV. Includes corner markers, a rotation handle
-/// stub, FOV dimensions, and optional cardinal directions.
+/// at or below the equipment FOV. Includes corner markers, a rotation handle,
+/// FOV dimensions, and optional cardinal directions.
+///
+/// The rectangle is scaled by the shared [FramingPlateScale] so the FOV reticle
+/// is astrometrically co-registered with the survey background, the equipment
+/// overlay, and the mosaic grid — they all derive on-screen pixels-per-degree
+/// from the *same* plate scale. This eliminates the historical triple-scale bug
+/// where this painter used a hardcoded `60px/deg`, the equipment overlay used
+/// `size.width / previewFov`, and the mosaic grid used yet another `60px/deg`,
+/// so the reticle drawn over a patch of sky did not line up with the pixels the
+/// survey imagery occupied there.
 class FramingFOVPainter extends CustomPainter {
+  /// Radial gap, in logical pixels, between the top edge of the FOV rectangle
+  /// and the center of the rotation handle.
+  ///
+  /// The handle circle is drawn this far above the rectangle's top edge so it
+  /// sits clear of the corner markers. Exported as a public constant so the C6
+  /// gesture ring imports the *same* value and its hit geometry matches where
+  /// the handle is actually painted — there is no second, divergent copy of
+  /// this number in the gesture code.
+  static const double rotationHandleGap = 18.0;
+
+  /// Radius, in logical pixels, of the rotation handle circle.
+  ///
+  /// The handle is drawn as a filled circle of this radius centered
+  /// [rotationHandleGap] above the FOV rectangle's top edge. The C6 gesture
+  /// hit-test ring is sized from this radius (see [rotationHitTolerance]) so a
+  /// drag that visually lands on the handle is recognised as a rotation gesture.
+  static const double rotationHandleRadius = 10.0;
+
+  /// Slack, in logical pixels, added on either side of the handle radius when
+  /// hit-testing the rotation gesture.
+  ///
+  /// The C6 gesture hit-tester treats a pointer-down within
+  /// `rotationHandleRadius + rotationHitTolerance` of the handle center as
+  /// grabbing the rotation handle. Centralizing this here keeps the touch
+  /// target a fixed, documented size regardless of zoom (the handle itself is
+  /// drawn at a zoom-independent radius), and guarantees the gesture ring and
+  /// the painted handle never drift apart.
+  static const double rotationHitTolerance = 10.0;
+
   final double fovWidth;
   final double fovHeight;
   final double zoom;
+
+  /// Shared astrometric geometry supplying on-screen pixels-per-degree; the FOV
+  /// rectangle is sized from [FramingPlateScale.pixelsPerDegree] so it stays
+  /// pixel-aligned with the survey background and the other framing overlays.
+  final FramingPlateScale plateScale;
+
   final NightshadeColors colors;
   final bool showDirections;
 
@@ -18,14 +70,16 @@ class FramingFOVPainter extends CustomPainter {
     required this.fovWidth,
     required this.fovHeight,
     required this.zoom,
+    required this.plateScale,
     required this.colors,
     required this.showDirections,
   });
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Scale: roughly 60 pixels per degree at zoom 1.0
-    final pixelsPerDegree = 60.0 * zoom;
+    // One shared astrometric scale: identical to the survey background and the
+    // equipment / mosaic overlays. No hardcoded 60px/deg.
+    final pixelsPerDegree = plateScale.pixelsPerDegree(size, zoom);
     final rectWidth = fovWidth * pixelsPerDegree;
     final rectHeight = fovHeight * pixelsPerDegree;
 
@@ -33,7 +87,7 @@ class FramingFOVPainter extends CustomPainter {
 
     // Semi-transparent fill
     final fillPaint = Paint()
-      ..color = colors.primary.withValues(alpha: 0.1)
+      ..color = colors.primary.withValues(alpha: NightshadeTokens.opacitySubtle)
       ..style = PaintingStyle.fill;
 
     // Border
@@ -49,38 +103,43 @@ class FramingFOVPainter extends CustomPainter {
     );
 
     // Draw frame
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(4));
+    final rrect = RRect.fromRectAndRadius(
+        rect, const Radius.circular(NightshadeTokens.radiusXs));
     canvas.drawRRect(rrect, fillPaint);
     canvas.drawRRect(rrect, borderPaint);
 
     // Draw corner markers
     _drawCorners(canvas, rect, borderPaint);
 
-    // Draw rotation handle
+    // Draw rotation handle. The handle geometry is published via the static
+    // constants above so the C6 gesture ring hit-tests exactly where the handle
+    // is painted.
     final handlePaint = Paint()
       ..color = colors.primary
       ..style = PaintingStyle.fill;
-    final handleY = center.dy - rectHeight / 2 - 18;
-    canvas.drawCircle(Offset(center.dx, handleY), 10, handlePaint);
+    final handleY = center.dy - rectHeight / 2 - rotationHandleGap;
+    canvas.drawCircle(
+        Offset(center.dx, handleY), rotationHandleRadius, handlePaint);
     canvas.drawLine(
       Offset(center.dx, center.dy - rectHeight / 2),
-      Offset(center.dx, handleY + 10),
+      Offset(center.dx, handleY + rotationHandleRadius),
       borderPaint,
     );
 
     // Draw rotation icon
     final iconPainter = TextPainter(
-      text: const TextSpan(
+      text: TextSpan(
         text: '↻',
-        style: TextStyle(
-          color: Colors.white,
-          fontSize: 12,
-        ),
+        style: NightshadeTypography.labelSm
+            .copyWith(color: colors.onPrimary, fontWeight: FontWeight.w600),
       ),
       textDirection: TextDirection.ltr,
     );
     iconPainter.layout();
-    iconPainter.paint(canvas, Offset(center.dx - 6, handleY - 7));
+    iconPainter.paint(
+      canvas,
+      Offset(center.dx - iconPainter.width / 2, handleY - iconPainter.height / 2),
+    );
 
     // Draw cardinal directions
     if (showDirections) {
@@ -93,25 +152,25 @@ class FramingFOVPainter extends CustomPainter {
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
-        style: TextStyle(
-          color: colors.primary,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
+        style: NightshadeTypography.labelSm.copyWith(color: colors.primary),
       ),
       textDirection: TextDirection.ltr,
     );
     textPainter.layout();
 
-    // Draw text background
+    // Draw text background scrim using the semantic overlay surface so the label
+    // stays legible over arbitrary survey imagery across all themes.
     final textBg = Rect.fromCenter(
       center: Offset(center.dx, center.dy + rectHeight / 2 + 18),
       width: textPainter.width + 12,
       height: textPainter.height + 6,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(textBg, const Radius.circular(4)),
-      Paint()..color = Colors.black.withValues(alpha: 0.7),
+      RRect.fromRectAndRadius(
+          textBg, const Radius.circular(NightshadeTokens.radiusXs)),
+      Paint()
+        ..color =
+            colors.surfaceOverlay.withValues(alpha: NightshadeTokens.opacityHoverBorder),
     );
     textPainter.paint(
       canvas,
@@ -151,9 +210,8 @@ class FramingFOVPainter extends CustomPainter {
 
   void _drawCardinalDirections(
       Canvas canvas, Offset center, double width, double height) {
-    final style = TextStyle(
-      color: Colors.white.withValues(alpha: 0.6),
-      fontSize: 10,
+    final style = NightshadeTypography.overline.copyWith(
+      color: colors.textPrimary.withValues(alpha: NightshadeTokens.opacityMuted),
       fontWeight: FontWeight.w500,
     );
 
@@ -183,17 +241,31 @@ class FramingFOVPainter extends CustomPainter {
     return fovWidth != oldDelegate.fovWidth ||
         fovHeight != oldDelegate.fovHeight ||
         zoom != oldDelegate.zoom ||
+        plateScale != oldDelegate.plateScale ||
+        colors != oldDelegate.colors ||
         showDirections != oldDelegate.showDirections;
   }
 }
 
-/// Draws the equipment FOV overlay when preview FOV is larger than equipment FOV
-/// This shows the user what their actual capture area will be
+/// Draws the equipment FOV overlay when the preview FOV is larger than the
+/// equipment FOV. This shows the user what their actual capture area will be.
+///
+/// Like [FramingFOVPainter] and [FramingMosaicGridPainter], the rectangle is
+/// scaled from the shared [FramingPlateScale] — the *same* plate scale the
+/// survey background is drawn at — instead of the old `size.width / previewFov`
+/// re-derivation. The capture area therefore lines up to the pixel with both
+/// the survey imagery and the FOV / mosaic overlays.
 class FramingEquipmentFOVOverlayPainter extends CustomPainter {
   final double fovWidth;
   final double fovHeight;
-  final double previewFov;
   final double zoom;
+
+  /// Shared astrometric geometry supplying on-screen pixels-per-degree. This
+  /// replaces the painter's former `size.width / previewFov * zoom` scale, which
+  /// was a third, divergent mapping. The equipment rectangle is now consistent
+  /// with both the survey background and the FOV / mosaic painters.
+  final FramingPlateScale plateScale;
+
   final NightshadeColors colors;
   final double opacity;
   final bool showDirections;
@@ -201,8 +273,8 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
   FramingEquipmentFOVOverlayPainter({
     required this.fovWidth,
     required this.fovHeight,
-    required this.previewFov,
     required this.zoom,
+    required this.plateScale,
     required this.colors,
     required this.opacity,
     required this.showDirections,
@@ -210,8 +282,9 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // Scale: the preview FOV fills the canvas
-    final pixelsPerDegree = size.width / previewFov * zoom;
+    // Shared astrometric scale — consistent with the survey background AND the
+    // FOV / mosaic painters.
+    final pixelsPerDegree = plateScale.pixelsPerDegree(size, zoom);
     final rectWidth = fovWidth * pixelsPerDegree;
     final rectHeight = fovHeight * pixelsPerDegree;
 
@@ -219,12 +292,14 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 
     // Semi-transparent fill for the equipment FOV area
     final fillPaint = Paint()
-      ..color = colors.info.withValues(alpha: opacity * 0.3)
+      ..color = colors.info
+          .withValues(alpha: opacity * NightshadeTokens.opacityStrong)
       ..style = PaintingStyle.fill;
 
     // Border for the equipment FOV
     final borderPaint = Paint()
-      ..color = colors.info.withValues(alpha: 0.8)
+      ..color =
+          colors.info.withValues(alpha: NightshadeTokens.opacityHoverBorder)
       ..strokeWidth = 2
       ..style = PaintingStyle.stroke;
 
@@ -234,7 +309,8 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
       height: rectHeight,
     );
 
-    // Draw dark overlay outside the equipment FOV
+    // Draw scrim outside the equipment FOV using the semantic overlay surface so
+    // the masked region dims survey imagery consistently across themes.
     final path = Path()
       ..addRect(Rect.fromLTWH(0, 0, size.width, size.height))
       ..addRect(rect)
@@ -242,11 +318,12 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 
     canvas.drawPath(
       path,
-      Paint()..color = Colors.black.withValues(alpha: opacity),
+      Paint()..color = colors.surfaceOverlay.withValues(alpha: opacity),
     );
 
     // Draw equipment FOV frame
-    final rrect = RRect.fromRectAndRadius(rect, const Radius.circular(4));
+    final rrect = RRect.fromRectAndRadius(
+        rect, const Radius.circular(NightshadeTokens.radiusXs));
     canvas.drawRRect(rrect, fillPaint);
     canvas.drawRRect(rrect, borderPaint);
 
@@ -259,11 +336,7 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
     final textPainter = TextPainter(
       text: TextSpan(
         text: fovText,
-        style: TextStyle(
-          color: colors.info,
-          fontSize: 11,
-          fontWeight: FontWeight.w500,
-        ),
+        style: NightshadeTypography.labelSm.copyWith(color: colors.info),
       ),
       textDirection: TextDirection.ltr,
     );
@@ -276,13 +349,17 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
       height: textPainter.height + 8,
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(textBg, const Radius.circular(4)),
-      Paint()..color = colors.info.withValues(alpha: 0.15),
+      RRect.fromRectAndRadius(
+          textBg, const Radius.circular(NightshadeTokens.radiusXs)),
+      Paint()
+        ..color = colors.info
+            .withValues(alpha: NightshadeTokens.opacityStatusFill),
     );
     canvas.drawRRect(
-      RRect.fromRectAndRadius(textBg, const Radius.circular(4)),
+      RRect.fromRectAndRadius(
+          textBg, const Radius.circular(NightshadeTokens.radiusXs)),
       Paint()
-        ..color = colors.info.withValues(alpha: 0.5)
+        ..color = colors.info.withValues(alpha: NightshadeTokens.opacityHalf)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1,
     );
@@ -329,9 +406,8 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 
   void _drawCardinalDirections(
       Canvas canvas, Offset center, double width, double height) {
-    final style = TextStyle(
-      color: colors.info.withValues(alpha: 0.7),
-      fontSize: 10,
+    final style = NightshadeTypography.overline.copyWith(
+      color: colors.info.withValues(alpha: NightshadeTokens.opacityMuted),
       fontWeight: FontWeight.w500,
     );
 
@@ -360,8 +436,9 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
   bool shouldRepaint(covariant FramingEquipmentFOVOverlayPainter oldDelegate) {
     return fovWidth != oldDelegate.fovWidth ||
         fovHeight != oldDelegate.fovHeight ||
-        previewFov != oldDelegate.previewFov ||
         zoom != oldDelegate.zoom ||
+        plateScale != oldDelegate.plateScale ||
+        colors != oldDelegate.colors ||
         opacity != oldDelegate.opacity ||
         showDirections != oldDelegate.showDirections;
   }
@@ -369,12 +446,23 @@ class FramingEquipmentFOVOverlayPainter extends CustomPainter {
 
 /// Draws the mosaic panel grid: panel outlines, optional numbering, optional
 /// sequence path, selection highlight, and a START marker on panel 1.
+///
+/// Panel dimensions are scaled from the shared [FramingPlateScale] so each
+/// panel's on-screen size matches the equipment FOV rectangle and the survey
+/// background exactly — the mosaic tiles cover precisely the sky the imagery
+/// shows beneath them.
 class FramingMosaicGridPainter extends CustomPainter {
   final FramingMosaicConfig config;
   final List<FramingMosaicPanel> panels;
   final double fovWidth;
   final double fovHeight;
   final double zoom;
+
+  /// Shared astrometric geometry supplying on-screen pixels-per-degree; the
+  /// panel grid is sized from [FramingPlateScale.pixelsPerDegree], the same
+  /// scale used by the survey background and the FOV / equipment overlays.
+  final FramingPlateScale plateScale;
+
   final NightshadeColors colors;
   final bool showPanelNumbers;
   final bool showSequencePath;
@@ -386,6 +474,7 @@ class FramingMosaicGridPainter extends CustomPainter {
     required this.fovWidth,
     required this.fovHeight,
     required this.zoom,
+    required this.plateScale,
     required this.colors,
     required this.showPanelNumbers,
     required this.showSequencePath,
@@ -396,8 +485,9 @@ class FramingMosaicGridPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
 
-    // Scale: convert degrees to pixels (60 pixels per degree at zoom 1)
-    final scale = 60 * zoom;
+    // Shared astrometric scale — identical to the survey background and the FOV
+    // / equipment overlays. No hardcoded 60px/deg.
+    final scale = plateScale.pixelsPerDegree(size, zoom);
     final panelWidth = fovWidth * scale;
     final panelHeight = fovHeight * scale;
 
@@ -416,7 +506,7 @@ class FramingMosaicGridPainter extends CustomPainter {
 
     // Draw mosaic outline
     final outlinePaint = Paint()
-      ..color = colors.warning.withValues(alpha: 0.5)
+      ..color = colors.warning.withValues(alpha: NightshadeTokens.opacityHalf)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
@@ -432,7 +522,8 @@ class FramingMosaicGridPainter extends CustomPainter {
     // Draw sequence path if enabled
     if (showSequencePath && panels.length > 1) {
       final pathPaint = Paint()
-        ..color = colors.warning.withValues(alpha: 0.4)
+        ..color =
+            colors.warning.withValues(alpha: NightshadeTokens.opacityBadgeBorder)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1;
 
@@ -471,16 +562,18 @@ class FramingMosaicGridPainter extends CustomPainter {
       // Draw panel fill
       final fillPaint = Paint()
         ..color = isSelected
-            ? colors.primary.withValues(alpha: 0.2)
-            : colors.warning.withValues(alpha: 0.05)
+            ? colors.primary.withValues(alpha: NightshadeTokens.opacityMedium)
+            : colors.warning.withValues(alpha: NightshadeTokens.opacityTint)
         ..style = PaintingStyle.fill;
       canvas.drawRect(panelRect, fillPaint);
 
       // Draw panel border
       final borderPaint = Paint()
         ..color = isSelected
-            ? colors.primary.withValues(alpha: 0.8)
-            : colors.warning.withValues(alpha: 0.4)
+            ? colors.primary
+                .withValues(alpha: NightshadeTokens.opacityHoverBorder)
+            : colors.warning
+                .withValues(alpha: NightshadeTokens.opacityBadgeBorder)
         ..style = PaintingStyle.stroke
         ..strokeWidth = isSelected ? 2 : 1;
       canvas.drawRect(panelRect, borderPaint);
@@ -490,10 +583,11 @@ class FramingMosaicGridPainter extends CustomPainter {
         final textPainter = TextPainter(
           text: TextSpan(
             text: '${panel.index + 1}',
-            style: TextStyle(
+            style: NightshadeTypography.label.copyWith(
               color: isSelected ? colors.primary : colors.warning,
-              fontSize: 14 * zoom.clamp(0.5, 2.0),
               fontWeight: FontWeight.bold,
+              fontSize:
+                  NightshadeTypography.label.fontSize! * zoom.clamp(0.5, 2.0),
             ),
           ),
           textDirection: TextDirection.ltr,
@@ -511,7 +605,8 @@ class FramingMosaicGridPainter extends CustomPainter {
       // Draw crosshair on selected panel
       if (isSelected) {
         final crosshairPaint = Paint()
-          ..color = colors.primary.withValues(alpha: 0.6)
+          ..color =
+              colors.primary.withValues(alpha: NightshadeTokens.opacityMuted)
           ..strokeWidth = 1;
 
         canvas.drawLine(
@@ -534,7 +629,8 @@ class FramingMosaicGridPainter extends CustomPainter {
       final startY2 = startY + firstPanel.row * stepY;
 
       final startPaint = Paint()
-        ..color = colors.success.withValues(alpha: 0.8)
+        ..color =
+            colors.success.withValues(alpha: NightshadeTokens.opacityHoverBorder)
         ..style = PaintingStyle.fill;
 
       canvas.drawCircle(
@@ -546,10 +642,11 @@ class FramingMosaicGridPainter extends CustomPainter {
       final textPainter = TextPainter(
         text: TextSpan(
           text: 'START',
-          style: TextStyle(
+          style: NightshadeTypography.overline.copyWith(
             color: colors.success,
-            fontSize: 8 * zoom.clamp(0.7, 1.3),
             fontWeight: FontWeight.bold,
+            fontSize:
+                NightshadeTypography.overline.fontSize! * zoom.clamp(0.7, 1.3),
           ),
         ),
         textDirection: TextDirection.ltr,
@@ -573,6 +670,8 @@ class FramingMosaicGridPainter extends CustomPainter {
         fovWidth != oldDelegate.fovWidth ||
         fovHeight != oldDelegate.fovHeight ||
         zoom != oldDelegate.zoom ||
+        plateScale != oldDelegate.plateScale ||
+        colors != oldDelegate.colors ||
         showPanelNumbers != oldDelegate.showPanelNumbers ||
         showSequencePath != oldDelegate.showSequencePath ||
         selectedPanelIndex != oldDelegate.selectedPanelIndex ||

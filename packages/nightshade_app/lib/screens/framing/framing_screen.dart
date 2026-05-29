@@ -263,11 +263,18 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
                     colors: colors,
                     framingState: framingState,
                     equipmentResult: equipmentResult.valueOrNull,
-                    onPan: (dx, dy) {
-                      ref.read(framingProvider.notifier).pan(dx, dy);
+                    onPan: (dx, dy, canvasSize) {
+                      ref
+                          .read(framingProvider.notifier)
+                          .pan(dx, dy, canvasSize: canvasSize);
                     },
                     onRotate: (angle) {
                       ref.read(framingProvider.notifier).setRotation(angle);
+                    },
+                    onCanvasResized: (canvasSize) {
+                      ref
+                          .read(framingProvider.notifier)
+                          .onCanvasResized(canvasSize);
                     },
                   ),
                 ),
@@ -505,7 +512,7 @@ class _FramingScreenState extends ConsumerState<FramingScreen>
       return;
     }
 
-    final service = FramingImageCacheService();
+    final service = ref.read(framingImageCacheServiceProvider);
     try {
       final entry = await service.saveSurveyImage(
         bytes: bytes,

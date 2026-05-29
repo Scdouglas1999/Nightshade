@@ -117,6 +117,10 @@ export 'src/providers/event_provider.dart';
 // (geometry-flavored: centerRa/panelWidthArcmin/...) live under their
 // canonical names and are now safe to re-export from the barrel.
 export 'src/providers/framing_provider.dart';
+// framingImageCacheServiceProvider is the canonical DI handle for the survey
+// snapshot cache; export it so framing UI (action rail, screen) can resolve
+// and override the same instance the framing notifier uses.
+export 'src/providers/framing_image_cache_provider.dart';
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
 export 'src/providers/sequence_provider.dart';

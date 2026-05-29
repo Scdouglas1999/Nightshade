@@ -123,100 +123,6 @@ class FramingToggleChip extends StatelessWidget {
   }
 }
 
-/// Action button (icon + label) used in the Actions panel; supports a primary
-/// gradient variant with hover shadow, and a disabled state.
-class FramingActionButton extends StatefulWidget {
-  final IconData icon;
-  final String label;
-  final bool isPrimary;
-  final bool isEnabled;
-  final NightshadeColors colors;
-  final VoidCallback? onTap;
-
-  const FramingActionButton({
-    super.key,
-    required this.icon,
-    required this.label,
-    this.isPrimary = false,
-    this.isEnabled = true,
-    required this.colors,
-    this.onTap,
-  });
-
-  @override
-  State<FramingActionButton> createState() => _FramingActionButtonState();
-}
-
-class _FramingActionButtonState extends State<FramingActionButton> {
-  bool _isHovered = false;
-
-  @override
-  Widget build(BuildContext context) {
-    final enabled = widget.isEnabled && widget.onTap != null;
-    final onPrimary = Theme.of(context).colorScheme.onPrimary;
-
-    return MouseRegion(
-      onEnter: (_) => setState(() => _isHovered = true),
-      onExit: (_) => setState(() => _isHovered = false),
-      child: GestureDetector(
-        onTap: enabled ? widget.onTap : null,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          decoration: BoxDecoration(
-            color: widget.isPrimary
-                ? (enabled
-                    ? widget.colors.primary
-                    : widget.colors.surfaceAlt)
-                : enabled
-                    ? (_isHovered
-                        ? widget.colors.surfaceAlt
-                        : widget.colors.background)
-                    : widget.colors.surfaceAlt.withValues(alpha: 0.5),
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: widget.isPrimary
-                  ? (enabled
-                      ? widget.colors.primary.withValues(alpha: 0.85)
-                      : widget.colors.border)
-                  : (enabled
-                      ? widget.colors.border
-                      : widget.colors.border.withValues(alpha: 0.5)),
-            ),
-          ),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                widget.icon,
-                size: 14,
-                color: widget.isPrimary
-                    ? (enabled ? onPrimary : widget.colors.textMuted)
-                    : (enabled
-                        ? widget.colors.textSecondary
-                        : widget.colors.textMuted),
-              ),
-              const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: widget.isPrimary
-                      ? (enabled ? onPrimary : widget.colors.textMuted)
-                      : (enabled
-                          ? widget.colors.textSecondary
-                          : widget.colors.textMuted),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 /// Compact icon button with tooltip and hover state, used next to the manual
 /// RA/Dec entry fields.
 class FramingSmallIconButton extends StatefulWidget {
@@ -313,18 +219,24 @@ class FramingPreviewFovSlider extends StatelessWidget {
                 ),
               ),
               if (hasEquipment && equipmentFov != null)
-                Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: NightshadeDecorations.emphasisSurface(
-                    colors.info,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: colors.info,
+                // Flexible so the equipment badge clips/ellipsizes rather than
+                // overflowing the row when this slider is hosted in a narrow
+                // column (the guided framing rail inside the 250-500px sidebar).
+                Flexible(
+                  child: Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: NightshadeDecorations.emphasisSurface(
+                      colors.info,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      'Equipment: ${equipmentFov!.toStringAsFixed(2)}°',
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: colors.info,
+                      ),
                     ),
                   ),
                 ),
@@ -359,8 +271,14 @@ class FramingPreviewFovSlider extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          // Quick presets
-          Row(
+          // Quick presets. A Wrap (not a Row) so the preset chips reflow to a
+          // second line instead of overflowing when this slider is hosted in a
+          // narrow column (e.g. the guided framing rail inside the 250-500px
+          // framing sidebar), where the optional "Equip" chip would otherwise
+          // push the Row past its width.
+          Wrap(
+            spacing: 6,
+            runSpacing: 6,
             children: [
               _FovPresetButton(
                   label: '0.5°',
@@ -368,29 +286,25 @@ class FramingPreviewFovSlider extends StatelessWidget {
                   currentValue: value,
                   colors: colors,
                   onTap: () => onChanged(0.5)),
-              const SizedBox(width: 6),
               _FovPresetButton(
                   label: '1°',
                   value: 1.0,
                   currentValue: value,
                   colors: colors,
                   onTap: () => onChanged(1.0)),
-              const SizedBox(width: 6),
               _FovPresetButton(
                   label: '2°',
                   value: 2.0,
                   currentValue: value,
                   colors: colors,
                   onTap: () => onChanged(2.0)),
-              const SizedBox(width: 6),
               _FovPresetButton(
                   label: '5°',
                   value: 5.0,
                   currentValue: value,
                   colors: colors,
                   onTap: () => onChanged(5.0)),
-              if (hasEquipment && equipmentFov != null) ...[
-                const SizedBox(width: 6),
+              if (hasEquipment && equipmentFov != null)
                 _FovPresetButton(
                   label: 'Equip',
                   value: equipmentFov!,
@@ -399,7 +313,6 @@ class FramingPreviewFovSlider extends StatelessWidget {
                   onTap: () => onChanged(equipmentFov!),
                   isEquipment: true,
                 ),
-              ],
             ],
           ),
         ],
@@ -841,7 +754,7 @@ class _CornerOption extends StatelessWidget {
 }
 
 /// Gradient button that writes each computed mosaic panel into the targets
-/// database as an individual target named "<targetName> - Panel <n>".
+/// database as an individual target named `<targetName> - Panel <n>`.
 class FramingExportMosaicButton extends ConsumerStatefulWidget {
   final NightshadeColors colors;
   final List<FramingMosaicPanel> panels;

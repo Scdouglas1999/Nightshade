@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
+import 'dart:io';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:drift/drift.dart';
@@ -10,11 +12,13 @@ import 'package:http/http.dart' as http;
 import '../backend/network_backend.dart';
 import '../database/database.dart';
 import '../models/equipment/equipment_models.dart';
+import '../models/framing_plate_scale.dart';
 import '../models/planning/target_suggestion.dart';
 import '../models/target/target_models.dart';
 import 'backend_provider.dart';
 import 'database_provider.dart';
 import 'equipment_provider.dart';
+import 'framing_image_cache_provider.dart';
 import 'profiles_provider.dart';
 
 // =============================================================================
@@ -46,6 +50,15 @@ class FramingState {
 
   /// Decoded survey image for display
   final ui.Image? surveyImage;
+
+  /// Astrometric registration linkage for the currently-loaded survey image.
+  ///
+  /// Populated whenever a survey cutout is successfully loaded (from network or
+  /// cache). It pairs the *angular field of view that was requested* with the
+  /// *actual decoded pixel dimensions* of the returned image, which is the one
+  /// authoritative scale every framing painter and gesture handler projects
+  /// through (see [FramingPlateScale]). `null` whenever no image is loaded.
+  final FramingPlateScale? plateScale;
 
   /// Is the survey image loading?
   final bool isLoadingImage;
@@ -110,6 +123,7 @@ class FramingState {
     this.surveySource = SurveySource.dss2Red,
     this.surveyImageBytes,
     this.surveyImage,
+    this.plateScale,
     this.isLoadingImage = false,
     this.imageError,
     this.rotation = 0,
@@ -139,6 +153,7 @@ class FramingState {
     SurveySource? surveySource,
     Uint8List? surveyImageBytes,
     ui.Image? surveyImage,
+    FramingPlateScale? plateScale,
     bool? isLoadingImage,
     String? imageError,
     double? rotation,
@@ -173,6 +188,7 @@ class FramingState {
       surveyImageBytes:
           clearImage ? null : (surveyImageBytes ?? this.surveyImageBytes),
       surveyImage: clearImage ? null : (surveyImage ?? this.surveyImage),
+      plateScale: clearImage ? null : (plateScale ?? this.plateScale),
       isLoadingImage: isLoadingImage ?? this.isLoadingImage,
       imageError: clearImage ? null : imageError,
       rotation: rotation ?? this.rotation,
@@ -305,14 +321,14 @@ class FramingEquipment {
 
   /// FOV width in degrees
   double get fovWidthDeg {
-    final fovRad = 2 * _atan(sensorWidthMm / (2 * effectiveFocalLength));
-    return fovRad * 180 / 3.14159265359;
+    final fovRad = 2 * math.atan(sensorWidthMm / (2 * effectiveFocalLength));
+    return fovRad * 180 / math.pi;
   }
 
   /// FOV height in degrees
   double get fovHeightDeg {
-    final fovRad = 2 * _atan(sensorHeightMm / (2 * effectiveFocalLength));
-    return fovRad * 180 / 3.14159265359;
+    final fovRad = 2 * math.atan(sensorHeightMm / (2 * effectiveFocalLength));
+    return fovRad * 180 / math.pi;
   }
 
   /// Image scale in arcsec/pixel
@@ -322,20 +338,6 @@ class FramingEquipment {
   }
 
   double get focalRatio => effectiveFocalLength / apertureMm;
-
-  static double _atan(double x) {
-    if (x.abs() < 1) {
-      final x2 = x * x;
-      return x *
-          (1 -
-              x2 *
-                  (1 / 3 -
-                      x2 * (1 / 5 - x2 * (1 / 7 - x2 * (1 / 9 - x2 / 11)))));
-    } else {
-      final sign = x.sign;
-      return sign * (3.14159265359 / 2 - _atan(1 / x.abs()));
-    }
-  }
 }
 
 /// Survey image sources
@@ -511,7 +513,76 @@ class FramingNotifier extends StateNotifier<FramingState> {
   final Ref _ref;
   static const _surveyImageTimeout = Duration(seconds: 30);
 
+  /// Pixel width of the survey cutout to request when the canvas size is not
+  /// yet known (first load before any layout pass). Once the canvas has been
+  /// measured, the request resolution tracks the canvas width (see
+  /// [_requestPixelWidthFor]) so the imagery stays crisp on wide displays.
+  static const int _defaultRequestPixelWidth = 800;
+
+  /// Hard cap on the requested cutout pixel width. Bounds the network payload
+  /// and decode cost even on ultra-wide canvases.
+  static const int _maxRequestPixelWidth = 2048;
+
+  /// Fractional canvas-width change required before a resize triggers a
+  /// higher-resolution survey re-fetch. A resize that grows the canvas by less
+  /// than this is absorbed by the existing cutout (scaled up by the painter)
+  /// rather than hammering the survey servers on every drag of the splitter.
+  static const double _resizeRefetchGrowthFraction = 0.25;
+
+  /// The canvas width (logical px) the currently-loaded cutout was sized for.
+  /// Drives the resize-reload decision in [onCanvasResized]; reset to `null`
+  /// whenever the image is cleared so the next load re-establishes it.
+  double? _cutoutCanvasWidthPx;
+
   FramingNotifier(this._ref) : super(const FramingState());
+
+  /// The cutout pixel width to request for a canvas of [canvasWidthLogicalPx]
+  /// logical pixels.
+  ///
+  /// We request roughly one survey pixel per logical canvas pixel (clamped to
+  /// [_maxRequestPixelWidth]) so the fit-to-canvas draw does not visibly
+  /// upscale the imagery. With no measured canvas yet we fall back to
+  /// [_defaultRequestPixelWidth].
+  int _requestPixelWidthFor(double? canvasWidthLogicalPx) {
+    if (canvasWidthLogicalPx == null || canvasWidthLogicalPx <= 0) {
+      return _defaultRequestPixelWidth;
+    }
+    return canvasWidthLogicalPx
+        .ceil()
+        .clamp(_defaultRequestPixelWidth, _maxRequestPixelWidth);
+  }
+
+  /// React to the framing canvas being resized.
+  ///
+  /// C9's plate-scale-aware reload: when the canvas grows enough that the
+  /// loaded cutout would be upscaled past [_resizeRefetchGrowthFraction], we
+  /// re-fetch a higher-resolution cutout sized to the new canvas so the survey
+  /// imagery stays sharp. Shrinking the canvas, or a not-yet-loaded image, is a
+  /// no-op (the existing cutout already over-covers a smaller canvas).
+  void onCanvasResized(ui.Size canvasSize) {
+    final width = canvasSize.width;
+    if (width <= 0 || state.target == null || state.surveyImage == null) {
+      return;
+    }
+    final last = _cutoutCanvasWidthPx;
+    if (last == null) {
+      _cutoutCanvasWidthPx = width;
+      return;
+    }
+    if (width <= last * (1.0 + _resizeRefetchGrowthFraction)) {
+      // Growth within tolerance (or a shrink): keep the existing cutout.
+      return;
+    }
+    // Avoid re-fetching past the resolution cap — once we are already at the
+    // max cutout width, a larger canvas cannot get any sharper.
+    if (_requestPixelWidthFor(last) >= _maxRequestPixelWidth &&
+        _requestPixelWidthFor(width) >= _maxRequestPixelWidth) {
+      _cutoutCanvasWidthPx = width;
+      return;
+    }
+    _cutoutCanvasWidthPx = width;
+    loadSurveyImage(canvasWidthLogicalPx: width);
+  }
 
   /// Set the target by coordinates
   void setTargetCoordinates(
@@ -622,9 +693,22 @@ class FramingNotifier extends StateNotifier<FramingState> {
     }
   }
 
-  /// Set frame rotation
+  /// Set frame rotation, normalized to the canonical [-180, 180) domain.
+  ///
+  /// The on-canvas rotation handle reports angles via `atan2`, which can fall
+  /// anywhere in (-180, 180], and a wrapping `% 360` would push values into
+  /// (180, 360). The paired rotation `Slider` is declared `min: -180, max: 180`
+  /// and asserts `min <= value <= max`, so the rotation domain must agree:
+  /// wrap into [-180, 180) here so the gesture and the slider never desync (and
+  /// the slider can never be handed an out-of-range value).
   void setRotation(double degrees) {
-    state = state.copyWith(rotation: degrees % 360);
+    var normalized = degrees % 360;
+    if (normalized >= 180) {
+      normalized -= 360;
+    } else if (normalized < -180) {
+      normalized += 360;
+    }
+    state = state.copyWith(rotation: normalized);
   }
 
   /// Set zoom level
@@ -652,12 +736,105 @@ class FramingNotifier extends StateNotifier<FramingState> {
     state = state.copyWith(panX: x, panY: y);
   }
 
-  /// Add to current pan
-  void pan(double dx, double dy) {
-    state = state.copyWith(
-      panX: state.panX + dx,
-      panY: state.panY + dy,
+  /// Accumulated pan, as a fraction of the survey FOV width, at which the view
+  /// has drifted far enough from the fetched cutout's center that we re-fetch a
+  /// fresh cutout centered on the new look-direction. Beyond this the existing
+  /// survey background no longer covers what the user is looking at.
+  static const double _panRefetchFovFraction = 0.35;
+
+  /// Add to the current pan offset (in logical canvas pixels).
+  ///
+  /// Most pans are a pure display transform. However, once the accumulated pan
+  /// has dragged the view center more than [_panRefetchFovFraction] of the
+  /// survey FOV away from the fetched cutout's center, the on-screen background
+  /// no longer covers the look-direction, so we recompute a new sky center and
+  /// re-fetch a cutout there (resetting pan to zero).
+  ///
+  /// The pan delta is converted to an angular displacement through the loaded
+  /// [FramingPlateScale]: `degrees = pan_px / pixelsPerDegree`, exactly as the
+  /// painters and gesture math do. [canvasSize] is the logical size of the
+  /// framing canvas the pan was measured against — it is required because the
+  /// pan deltas are in *drawn* canvas pixels, whose relationship to sky degrees
+  /// depends on the canvas geometry and current zoom (a small cached cutout and
+  /// a large network cutout fill the canvas at very different native-pixel
+  /// densities, so the native image pixel width is *not* a valid substitute).
+  void pan(double dx, double dy, {required ui.Size canvasSize}) {
+    final newPanX = state.panX + dx;
+    final newPanY = state.panY + dy;
+    state = state.copyWith(panX: newPanX, panY: newPanY);
+
+    final scale = state.plateScale;
+    final target = state.target;
+    if (scale == null || target == null) return;
+
+    // Convert the accumulated pan (drawn canvas pixels) to an angular
+    // displacement through the plate scale's authoritative on-screen mapping at
+    // the current zoom. This is the same px-per-degree the survey painter and
+    // FOV reticle use, so the re-fetch threshold tracks what the user actually
+    // sees regardless of the cutout's native pixel size.
+    final pxPerDeg = scale.pixelsPerDegree(canvasSize, state.zoom);
+    if (pxPerDeg <= 0) return;
+    final degreesMovedX = newPanX / pxPerDeg;
+    final degreesMovedY = newPanY / pxPerDeg;
+
+    final thresholdDeg = scale.surveyFovWidthDeg * _panRefetchFovFraction;
+    final movedDeg =
+        math.sqrt(degreesMovedX * degreesMovedX + degreesMovedY * degreesMovedY);
+    if (movedDeg <= thresholdDeg) return;
+
+    // The view has drifted past the margin: recompute a new sky center using a
+    // real spherical offset (RA scaled by 1/cos(dec)), mirroring the mosaic
+    // panel math, then re-fetch a cutout there and reset the pan.
+    _recenterFromPan(
+      target: target,
+      raDisplacementDeg: degreesMovedX,
+      decDisplacementDeg: degreesMovedY,
     );
+  }
+
+  /// Recompute the target center after a pan past the re-fetch margin and load
+  /// a fresh survey cutout there.
+  ///
+  /// Screen convention: dragging the background to the right (+pan x) reveals
+  /// sky to the *west*, so the look-direction RA decreases; dragging down
+  /// (+pan y) reveals sky to the *north*, so the look-direction Dec increases.
+  /// RA offset is divided by cos(dec) so a fixed on-screen pan corresponds to a
+  /// smaller absolute RA step near the celestial poles — the same cos(dec)
+  /// scaling used by [_recalculateMosaicPanels].
+  void _recenterFromPan({
+    required FramingTarget target,
+    required double raDisplacementDeg,
+    required double decDisplacementDeg,
+  }) {
+    final decRad = target.decDegrees * math.pi / 180;
+    final cosDec = math.cos(decRad);
+    final safeCosDec = cosDec.abs() > 0.01 ? cosDec : (cosDec.isNegative ? -0.01 : 0.01);
+
+    final raOffsetHours = (-raDisplacementDeg / 15.0) / safeCosDec;
+    final decOffsetDeg = decDisplacementDeg;
+
+    var newRaHours = (target.raHours + raOffsetHours) % 24.0;
+    if (newRaHours < 0) newRaHours += 24.0;
+    final newDecDegrees = (target.decDegrees + decOffsetDeg).clamp(-90.0, 90.0);
+
+    final recentered = FramingTarget(
+      name: target.name,
+      catalogId: target.catalogId,
+      raHours: newRaHours,
+      decDegrees: newDecDegrees,
+      type: target.type,
+      magnitude: target.magnitude,
+      sizeArcmin: target.sizeArcmin,
+      constellation: target.constellation,
+    );
+
+    state = state.copyWith(
+      target: recentered,
+      panX: 0,
+      panY: 0,
+      clearImage: true,
+    );
+    loadSurveyImage();
   }
 
   /// Toggle grid display
@@ -718,52 +895,62 @@ class FramingNotifier extends StateNotifier<FramingState> {
         state.copyWith(showEquipmentFovOverlay: !state.showEquipmentFovOverlay);
   }
 
-  /// Load survey image from NASA SkyView or Aladin
-  Future<void> loadSurveyImage() async {
+  /// Load survey image, preferring an offline cache, then network.
+  ///
+  /// Order of operations (offline-first):
+  ///  1. Compute the angular FOV to request for the current target/equipment.
+  ///  2. Probe the on-disk framing cache. A cached snapshot is served only when
+  ///     both the image file *and* the FOV companion sidecar (written by a
+  ///     previous successful fetch — see [_fovSidecarPath]) are present. Without
+  ///     a stored FOV we cannot reconstruct the [FramingPlateScale] registration
+  ///     linkage, so the entry is treated as a miss and we fetch over the
+  ///     network instead (never a silent, scale-less fallback).
+  ///  3. Fetch from Aladin HiPS2FITS, falling back to NASA SkyView.
+  ///
+  /// On any successful load the decoded image is paired with the requested FOV
+  /// into a [FramingPlateScale] — the single source of truth the framing
+  /// painters and gesture handlers project through. If both the cache and both
+  /// network endpoints fail the existing surfaced [FramingState.imageError] is
+  /// preserved (errors are a feature; no silent fallback).
+  /// Load the survey cutout for the current target.
+  ///
+  /// [canvasWidthLogicalPx], when supplied, sizes the requested cutout's pixel
+  /// resolution to the canvas so wide displays get sharp imagery (see
+  /// [_requestPixelWidthFor]); when omitted the last-known canvas width — or the
+  /// default — is used. The angular field of view is independent of this and is
+  /// resolved from the target + equipment via [_computeRequestFov].
+  Future<void> loadSurveyImage({double? canvasWidthLogicalPx}) async {
     if (state.target == null) return;
 
     state = state.copyWith(isLoadingImage: true, imageError: null);
 
+    final target = state.target!;
+    final source = state.surveySource;
+    final effectiveCanvasWidth = canvasWidthLogicalPx ?? _cutoutCanvasWidthPx;
+    if (effectiveCanvasWidth != null && effectiveCanvasWidth > 0) {
+      _cutoutCanvasWidthPx = effectiveCanvasWidth;
+    }
+    final requestPixelWidth = _requestPixelWidthFor(effectiveCanvasWidth);
+
     try {
-      // Get FOV to determine image size
-      final equipmentFov = await _getCurrentFOV();
+      final (requestWidth, requestHeight) = await _computeRequestFov();
 
-      // Use user's preview FOV, or equipment FOV if configured
-      final previewFov = state.previewFovDegrees;
-      final hasEquipment = equipmentFov != null;
+      // ---- OFFLINE-FIRST: serve a pinned cache entry when available. --------
+      final served = await _tryServeFromCache(
+        raHours: target.raHours,
+        decDegrees: target.decDegrees,
+        source: source,
+      );
+      if (served) return;
 
-      // Determine the actual FOV to fetch
-      double requestWidth;
-      double requestHeight;
-
-      if (hasEquipment) {
-        // If preview FOV is larger than equipment FOV, use preview FOV
-        // Otherwise use equipment FOV with some context
-        final equipmentWidth = equipmentFov.$1;
-        final equipmentHeight = equipmentFov.$2;
-
-        if (previewFov > equipmentWidth) {
-          // User wants to see more context - use preview FOV
-          requestWidth = previewFov;
-          requestHeight = previewFov * (equipmentHeight / equipmentWidth);
-        } else {
-          // Use equipment FOV with 2.5x context
-          requestWidth = equipmentWidth * 2.5;
-          requestHeight = equipmentHeight * 2.5;
-        }
-      } else {
-        // No equipment - use preview FOV
-        requestWidth = previewFov;
-        requestHeight = previewFov * 0.75; // Default 4:3 aspect
-      }
-
-      // Use Aladin HiPS2FITS service (more reliable than SkyView for images)
+      // ---- NETWORK: Aladin HiPS2FITS primary, NASA SkyView fallback. -------
       final url = _buildAladinUrl(
-        state.target!.raDegrees,
-        state.target!.decDegrees,
+        target.raDegrees,
+        target.decDegrees,
         requestWidth,
         requestHeight,
-        state.surveySource,
+        source,
+        requestPixelWidth,
       );
 
       final client = http.Client();
@@ -787,29 +974,23 @@ class FramingNotifier extends StateNotifier<FramingState> {
         }
 
         if (response != null && response.statusCode == 200) {
-          final bytes = response.bodyBytes;
-
-          // Decode to ui.Image
-          final completer = Completer<ui.Image>();
-          ui.decodeImageFromList(bytes, (image) {
-            completer.complete(image);
-          });
-          final image = await completer.future;
-
-          if (!mounted) return;
-          state = state.copyWith(
-            surveyImageBytes: bytes,
-            surveyImage: image,
-            isLoadingImage: false,
+          await _applyFetchedImage(
+            bytes: response.bodyBytes,
+            raHours: target.raHours,
+            decDegrees: target.decDegrees,
+            source: source,
+            requestWidth: requestWidth,
+            requestHeight: requestHeight,
           );
         } else {
           // Fallback to SkyView
           final skyViewUrl = _buildSkyViewUrl(
-            state.target!.raDegrees,
-            state.target!.decDegrees,
+            target.raDegrees,
+            target.decDegrees,
             requestWidth,
             requestHeight,
-            state.surveySource,
+            source,
+            requestPixelWidth,
           );
 
           final skyViewResponse =
@@ -822,18 +1003,13 @@ class FramingNotifier extends StateNotifier<FramingState> {
                   );
 
           if (skyViewResponse.statusCode == 200) {
-            final bytes = skyViewResponse.bodyBytes;
-            final completer = Completer<ui.Image>();
-            ui.decodeImageFromList(bytes, (image) {
-              completer.complete(image);
-            });
-            final image = await completer.future;
-
-            if (!mounted) return;
-            state = state.copyWith(
-              surveyImageBytes: bytes,
-              surveyImage: image,
-              isLoadingImage: false,
+            await _applyFetchedImage(
+              bytes: skyViewResponse.bodyBytes,
+              raHours: target.raHours,
+              decDegrees: target.decDegrees,
+              source: source,
+              requestWidth: requestWidth,
+              requestHeight: requestHeight,
             );
           } else {
             if (!mounted) return;
@@ -867,21 +1043,247 @@ class FramingNotifier extends StateNotifier<FramingState> {
     }
   }
 
+  /// Resolve the angular field of view (width, height) in degrees to request
+  /// for the current target and equipment configuration.
+  Future<(double, double)> _computeRequestFov() async {
+    final equipmentFov = await _getCurrentFOV();
+    final previewFov = state.previewFovDegrees;
+
+    if (equipmentFov != null) {
+      final equipmentWidth = equipmentFov.$1;
+      final equipmentHeight = equipmentFov.$2;
+
+      if (previewFov > equipmentWidth) {
+        // User wants to see more context - use preview FOV.
+        return (previewFov, previewFov * (equipmentHeight / equipmentWidth));
+      }
+      // Use equipment FOV with 2.5x context.
+      return (equipmentWidth * 2.5, equipmentHeight * 2.5);
+    }
+
+    // No equipment - use preview FOV at the default 4:3 aspect.
+    return (previewFov, previewFov * 0.75);
+  }
+
+  /// Decode [bytes], publish the image plus its [FramingPlateScale], and record
+  /// the requested FOV alongside any pinned cache entry so a future offline load
+  /// can reconstruct the same registration linkage.
+  Future<void> _applyFetchedImage({
+    required Uint8List bytes,
+    required double raHours,
+    required double decDegrees,
+    required SurveySource source,
+    required double requestWidth,
+    required double requestHeight,
+  }) async {
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromList(bytes, completer.complete);
+    final image = await completer.future;
+
+    // Persist the request FOV into the cache metadata sidecar (when a pinned
+    // snapshot exists) so offline-first can rebuild the plate scale without a
+    // network round-trip.
+    await _recordRequestFov(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      source: source,
+      fovWidthDeg: requestWidth,
+      fovHeightDeg: requestHeight,
+    );
+
+    if (!mounted) return;
+    state = state.copyWith(
+      surveyImageBytes: bytes,
+      surveyImage: image,
+      plateScale: FramingPlateScale(
+        surveyFovWidthDeg: requestWidth,
+        surveyFovHeightDeg: requestHeight,
+        imagePixelWidth: image.width,
+        imagePixelHeight: image.height,
+      ),
+      isLoadingImage: false,
+    );
+  }
+
+  /// Attempt to serve a pinned survey snapshot from the on-disk cache.
+  ///
+  /// Returns `true` (and updates state with the decoded image + plate scale)
+  /// only when both the cached image file and its FOV companion sidecar exist.
+  /// A miss — including the case where the sidecar is absent and the recorded
+  /// FOV cannot be recovered — returns `false` so the caller falls through to
+  /// the network. Any IO/decode error is surfaced via [developer.log] and also
+  /// returns `false` rather than masking a real fetch failure.
+  Future<bool> _tryServeFromCache({
+    required double raHours,
+    required double decDegrees,
+    required SurveySource source,
+  }) async {
+    try {
+      // Probe the cache through the single offline-first read API so the
+      // notifier, the family provider's consumers, and any test override all
+      // share one read path (and one overridable cache-dir configuration).
+      // `refresh` (not `read`) forces a fresh disk probe so a snapshot pinned
+      // since the last load is seen rather than a memoized miss.
+      final file = await _ref.refresh(
+        cachedSurveyImageFileProvider((
+          raHours: raHours,
+          decDegrees: decDegrees,
+          source: source,
+        )).future,
+      );
+      if (file == null) return false;
+
+      final fov = await _readRequestFov(
+        raHours: raHours,
+        decDegrees: decDegrees,
+        source: source,
+      );
+      if (fov == null) {
+        // Image is cached but the meta sidecar carries no stored FOV: rebuilding
+        // the registration linkage would be guesswork, so treat as a miss and
+        // refetch (which will then record the FOV into the sidecar).
+        return false;
+      }
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return false;
+
+      final completer = Completer<ui.Image>();
+      ui.decodeImageFromList(bytes, completer.complete);
+      final image = await completer.future;
+
+      if (!mounted) return true;
+      state = state.copyWith(
+        surveyImageBytes: bytes,
+        surveyImage: image,
+        plateScale: FramingPlateScale(
+          surveyFovWidthDeg: fov.$1,
+          surveyFovHeightDeg: fov.$2,
+          imagePixelWidth: image.width,
+          imagePixelHeight: image.height,
+        ),
+        isLoadingImage: false,
+      );
+      return true;
+    } catch (e, stack) {
+      developer.log(
+        'FramingProvider: offline cache read failed; falling back to network: $e',
+        name: 'FramingProvider',
+        level: 900,
+        error: e,
+        stackTrace: stack,
+      );
+      return false;
+    }
+  }
+
+  /// Absolute path of the cache metadata sidecar for a survey snapshot.
+  ///
+  /// This mirrors the framing cache service's own convention
+  /// (`<imagePath>.meta.json`) so the FOV is stored *inside the meta already
+  /// written* by [FramingImageCacheService.saveSurveyImage] rather than in a
+  /// separate file. Reusing the same sidecar means `listCachedImages` (which
+  /// already filters `.meta.json`) does not surface a phantom cache entry.
+  Future<String> _metaSidecarPath({
+    required double raHours,
+    required double decDegrees,
+    required SurveySource source,
+  }) async {
+    final cache = _ref.read(framingImageCacheServiceProvider);
+    final imagePath = await cache.resolvePath(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      source: source,
+    );
+    return '$imagePath.meta.json';
+  }
+
+  /// Record the requested FOV into the cache metadata sidecar so a later offline
+  /// load can rebuild the plate scale.
+  ///
+  /// Read-modify-write: it only augments a sidecar the cache service already
+  /// wrote (i.e. an image the user pinned). When no sidecar exists there is no
+  /// pinned image to register against, so there is nothing to record and the
+  /// method is a no-op. Best-effort: a write failure is logged (errors are a
+  /// feature) but never fails the network load — the in-memory image is good.
+  Future<void> _recordRequestFov({
+    required double raHours,
+    required double decDegrees,
+    required SurveySource source,
+    required double fovWidthDeg,
+    required double fovHeightDeg,
+  }) async {
+    try {
+      final path = await _metaSidecarPath(
+        raHours: raHours,
+        decDegrees: decDegrees,
+        source: source,
+      );
+      final file = File(path);
+      if (!await file.exists()) {
+        // No pinned snapshot to register against; nothing to record.
+        return;
+      }
+      final decoded = jsonDecode(await file.readAsString());
+      final meta = decoded is Map
+          ? Map<String, Object?>.from(decoded)
+          : <String, Object?>{};
+      meta['fovWidthDeg'] = fovWidthDeg;
+      meta['fovHeightDeg'] = fovHeightDeg;
+      await file.writeAsString(jsonEncode(meta), flush: true);
+    } catch (e, stack) {
+      developer.log(
+        'FramingProvider: failed to record request FOV in cache metadata: $e',
+        name: 'FramingProvider',
+        level: 900,
+        error: e,
+        stackTrace: stack,
+      );
+    }
+  }
+
+  /// Read back the requested FOV recorded by [_recordRequestFov] from the cache
+  /// metadata sidecar, or `null` when no sidecar exists or it lacks a valid FOV.
+  Future<(double, double)?> _readRequestFov({
+    required double raHours,
+    required double decDegrees,
+    required SurveySource source,
+  }) async {
+    final path = await _metaSidecarPath(
+      raHours: raHours,
+      decDegrees: decDegrees,
+      source: source,
+    );
+    final file = File(path);
+    if (!await file.exists()) return null;
+
+    final decoded = jsonDecode(await file.readAsString());
+    if (decoded is! Map) return null;
+    final width = (decoded['fovWidthDeg'] as num?)?.toDouble();
+    final height = (decoded['fovHeightDeg'] as num?)?.toDouble();
+    if (width == null || height == null || width <= 0 || height <= 0) {
+      return null;
+    }
+    return (width, height);
+  }
+
   String _buildAladinUrl(
     double raDeg,
     double decDeg,
     double widthDeg,
     double heightDeg,
     SurveySource source,
+    int pixelWidth,
   ) {
     final hipsId = _getHipsId(source);
+    final pixelHeight = (pixelWidth * heightDeg / widthDeg).round();
     return 'https://alasky.cds.unistra.fr/hips-image-services/hips2fits'
         '?hips=$hipsId'
         '&ra=$raDeg'
         '&dec=$decDeg'
         '&fov=${widthDeg.toStringAsFixed(4)}'
-        '&width=800'
-        '&height=${(800 * heightDeg / widthDeg).round()}'
+        '&width=$pixelWidth'
+        '&height=$pixelHeight'
         '&format=jpg';
   }
 
@@ -891,12 +1293,14 @@ class FramingNotifier extends StateNotifier<FramingState> {
     double widthDeg,
     double heightDeg,
     SurveySource source,
+    int pixelWidth,
   ) {
     final surveyId = _getSkyViewSurvey(source);
+    final pixelHeight = (pixelWidth * heightDeg / widthDeg).round();
     return 'https://skyview.gsfc.nasa.gov/current/cgi/runquery.pl'
         '?Position=$raDeg,$decDeg'
         '&Survey=$surveyId'
-        '&Pixels=800,${(800 * heightDeg / widthDeg).round()}'
+        '&Pixels=$pixelWidth,$pixelHeight'
         '&Size=${widthDeg.toStringAsFixed(4)},${heightDeg.toStringAsFixed(4)}'
         '&Return=JPEG'
         '&Projection=Tan'
@@ -953,59 +1357,28 @@ class FramingNotifier extends StateNotifier<FramingState> {
       );
     }
 
-    // Try to get from active equipment profile (host or local).
+    // Delegate profile FOV math to the canonical OpticalConfig.fieldOfView,
+    // which derives sensor dimensions from the active profile + connected
+    // camera capabilities. This replaces the hand-rolled Taylor-series atan
+    // approximation and keeps a single source of truth for FOV across the app.
     try {
-      final active = _ref.read(activeEquipmentProfileProvider);
-      if (active == null) {
+      final optical = _ref.read(opticalConfigProvider);
+      if (optical == null) {
         return null;
       }
-
-      if (active.focalLength > 0) {
-        if (active.cameraId == null || active.cameraId!.isEmpty) {
-          developer.log(
-            'Cannot compute profile FOV for "${active.name}" without a configured camera.',
-            name: 'Framing',
-            level: 900,
-          );
-          return null;
-        }
-
-        final cameraState = _ref.read(cameraStateProvider);
-        if (cameraState.connectionState != DeviceConnectionState.connected) {
-          developer.log(
-            'Cannot compute profile FOV for "${active.name}" because the camera is not connected.',
-            name: 'Framing',
-            level: 900,
-          );
-          return null;
-        }
-
-        final backend = _ref.read(backendProvider);
-        final status = await backend.getCameraStatus(active.cameraId!);
-        if (status.sensorWidth <= 0 ||
-            status.sensorHeight <= 0 ||
-            status.pixelSizeX <= 0) {
-          developer.log(
-            'Camera status lacks sensor dimensions for "${active.name}" (width=${status.sensorWidth}, height=${status.sensorHeight}, pixelSize=${status.pixelSizeX}).',
-            name: 'Framing',
-            level: 1000,
-          );
-          return null;
-        }
-
-        final sensorWidth = (status.sensorWidth * status.pixelSizeX) / 1000.0;
-        final sensorHeight = (status.sensorHeight * status.pixelSizeY) / 1000.0;
-
-        final fovWidthRad =
-            2 * FramingEquipment._atan(sensorWidth / (2 * active.focalLength));
-        final fovHeightRad =
-            2 * FramingEquipment._atan(sensorHeight / (2 * active.focalLength));
-
-        return (
-          fovWidthRad * 180 / 3.14159265359,
-          fovHeightRad * 180 / 3.14159265359
+      final fov = optical.fieldOfView;
+      if (fov == null) {
+        developer.log(
+          'Cannot compute profile FOV: optical config lacks focal length or '
+          'camera sensor specs (focalLength=${optical.focalLength}, '
+          'sensorWidth=${optical.sensorWidth}, sensorHeight=${optical.sensorHeight}, '
+          'pixelSize=${optical.pixelSize}).',
+          name: 'Framing',
+          level: 900,
         );
+        return null;
       }
+      return fov;
     } catch (error, stack) {
       developer.log(
         'Failed to compute framing FOV from active profile.',
@@ -1128,8 +1501,8 @@ class FramingNotifier extends StateNotifier<FramingState> {
 
         // Calculate panel center RA/Dec
         // Note: RA offset needs to account for declination (cos(dec) factor)
-        final decRad = centerDec * 3.14159265359 / 180;
-        final cosDec = _cos(decRad);
+        final decRad = centerDec * math.pi / 180;
+        final cosDec = math.cos(decRad);
         final raOffsetHours = (startRaOffset + actualCol * stepWidthDeg) /
             15 /
             (cosDec.abs() > 0.01 ? cosDec : 0.01);
@@ -1170,15 +1543,6 @@ class FramingNotifier extends StateNotifier<FramingState> {
       return config.columns - 1 - baseCol;
     }
     return baseCol;
-  }
-
-  static double _cos(double x) {
-    // Simple cosine approximation
-    x = x % (2 * 3.14159265359);
-    if (x < 0) x += 2 * 3.14159265359;
-
-    final x2 = x * x;
-    return 1 - x2 / 2 + x2 * x2 / 24 - x2 * x2 * x2 / 720;
   }
 
   /// Recalculate panels when target or equipment changes
