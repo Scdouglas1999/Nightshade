@@ -11,6 +11,7 @@ use glam::{DMat3, DVec3, Mat4, Quat, Vec3};
 use crate::astrometry::frames::FrameChain;
 use crate::renderer::Scene;
 use crate::scene::dev_catalog::{DevStar, DEV_STARS};
+use crate::scene::lod::{frame_star_mag_limit, MagLimitConfig, QualityConfig};
 use crate::types::{RenderConfig, SkyProjection, ViewPose};
 
 /// std140 uniform block size for [`StarUniforms`].
@@ -112,10 +113,11 @@ pub fn psf_radius_px(magnitude: f32, fov_rad: f32) -> f32 {
     (psf_base_radius_px(magnitude) * zoom).clamp(0.5, 25.0)
 }
 
-/// Brightness tone from apparent magnitude (v1 `_magnitudeToBrightness`).
+/// Brightness tone from apparent magnitude. Mirrors
+/// `stars.wgsl::magnitude_to_tone` — keep both in sync.
 #[must_use]
 pub fn magnitude_to_tone(magnitude: f32) -> f32 {
-    ((7.0 - magnitude) / 6.0).clamp(0.3, 1.0)
+    ((7.0 - magnitude) / 6.0).clamp(0.04, 1.0)
 }
 
 /// Whether twinkle uniforms should animate (matches [`crate::animation::AnimationSet::twinkle_active`]).
@@ -477,10 +479,22 @@ fn build_uniforms(scene: &Scene, width: u32, height: u32) -> StarUniforms {
     let icrs_to_view = icrs_to_view_matrix(pose);
     let proj_scale = stereographic_proj_scale(pose);
     let chain = FrameChain::r#for(scene.astro_time, scene.observer);
+    // The CPU side culls stars to `frame_star_mag_limit(...)` (FOV-boosted,
+    // catalog/quality-capped). The shader uses the SAME value as its hard
+    // clip so the GPU doesn't second-guess the CPU and drop 95% of the
+    // already-uploaded instance buffer. Wiring `config.magnitude_limit`
+    // directly was the bug: a default user value of 6.0 made every star
+    // fainter than naked-eye-limit vanish even after the CPU had carefully
+    // selected a much fainter LOD band for the current zoom.
+    let mag_limit = frame_star_mag_limit(
+        pose.fov_rad,
+        QualityConfig::from_tier(scene.config.quality),
+        MagLimitConfig::new(scene.config.magnitude_limit),
+    );
     StarUniforms {
         icrs_to_view: icrs_to_view.to_cols_array_2d(),
         proj_scale: [proj_scale[0], proj_scale[1]],
-        mag_limit: scene.config.magnitude_limit,
+        mag_limit,
         psf_scale: psf_zoom_factor_from_fov_rad(pose.fov_rad),
         twinkle_phase: scene.twinkle_phase,
         twinkle_enabled: twinkle_enabled(&scene.config),
@@ -603,10 +617,19 @@ mod tests {
 
     #[test]
     fn magnitude_to_tone_matches_v1() {
+        // Bright stars still pin at 1.0 (Sirius, Vega).
         assert!((magnitude_to_tone(-1.46) - 1.0).abs() < 1e-5);
         assert!((magnitude_to_tone(0.03) - 1.0).abs() < 1e-5);
+        // Mid-range stars on the linear slope.
         assert!((magnitude_to_tone(1.98) - 0.837).abs() < 0.01);
-        assert!((magnitude_to_tone(7.0) - 0.3).abs() < 1e-5);
+        // Floor was lowered from 0.3 → 0.04 so faint stars actually
+        // fade out at zoom-in (otherwise mag 10-12 stars uploaded by
+        // LOD all rendered at identical brightness and crowded out the
+        // bright ones — the "zoom darkens the sky" symptom).
+        // mag 7.0 sits exactly on (7-7)/6 = 0 → clamped to floor.
+        assert!((magnitude_to_tone(7.0) - 0.04).abs() < 1e-5);
+        // Far below the floor still clamps.
+        assert!((magnitude_to_tone(12.0) - 0.04).abs() < 1e-5);
     }
 
     #[test]

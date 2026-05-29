@@ -24,13 +24,22 @@ ObserverDto observerDtoFromLocation(LocationSettings location) {
 
 /// Observer site for planetarium v2 (lat/lon/elev + atmosphere defaults).
 ///
-/// Sourced from [appObserverLocationProvider]. Fails loud when location is unset.
+/// Sourced from [appObserverLocationProvider]. Falls back to a 0°/0°/0 m
+/// observer when the location is unset so the v2 renderer can still draw
+/// stars in equatorial coordinates instead of blacking out the whole host
+/// subtree. Throwing here used to bubble through
+/// [planetariumObserverSyncProvider]'s `ref.watch` and kill every other
+/// provider in the host wiring — including the render-config and
+/// scene-snapshot listeners, masquerading as "v2 doesn't render".
 final observerProvider = Provider<ObserverDto>((ref) {
   final location = ref.watch(appObserverLocationProvider);
   if (location == null) {
-    throw StateError(
-      'appObserverLocationProvider returned null — configure observer '
-      'latitude/longitude in Settings before opening planetarium v2',
+    return const ObserverDto(
+      latitudeRad: 0,
+      longitudeRad: 0,
+      elevationM: 0,
+      pressureHpa: kDefaultObserverPressureHpa,
+      temperatureC: kDefaultObserverTemperatureC,
     );
   }
   return observerDtoFromLocation(location);

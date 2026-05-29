@@ -34,13 +34,85 @@ pub use pipelines::stars::{
 
 use crate::types::{AstroTime, Observer, RenderConfig, ViewPose};
 
-/// Clear color for pass 0 (design §5.1 — black sky before atmosphere overwrites).
+/// Night-sky clear color (pass 0 default).
 pub const FRAME_CLEAR: wgpu::Color = wgpu::Color {
     r: 0.0,
     g: 0.0,
     b: 0.0,
     a: 1.0,
 };
+
+/// Sun-altitude-driven clear color for pass 0. The Bruneton atmosphere
+/// pipeline that would normally paint the sky is not yet wired into the
+/// frame graph (see `graph.rs::run_pass` — the `Atmosphere` slot is a
+/// no-op). Until it lands, this gives the renderer a serviceable
+/// day/twilight/night background so the user doesn't see a black screen
+/// at noon. The color sweeps:
+///
+/// * Sun above +6° → full day Rayleigh blue, scaled by altitude
+/// * Sun in [+6°, -6°] → civil twilight gradient (warm horizon → indigo)
+/// * Sun in [-6°, -12°] → nautical twilight, deep indigo
+/// * Sun below -12° → astronomical night, black
+///
+/// All math runs once per frame on the CPU — cheap enough to drop in front
+/// of the existing pipeline list without measurable overhead.
+pub fn sky_clear_color(scene: &Scene) -> wgpu::Color {
+    if !scene.config.show_atmosphere {
+        return FRAME_CLEAR;
+    }
+    let alt_deg = match crate::scene::pose::body_equatorial_rad(
+        crate::scene::pose::BodyId::Sun,
+        scene.astro_time,
+    ) {
+        Ok((ra, dec)) => {
+            let chain = crate::astrometry::frames::FrameChain::r#for(
+                scene.astro_time,
+                scene.observer,
+            );
+            let cd = dec.cos();
+            let dir = glam::DVec3::new(cd * ra.cos(), cd * ra.sin(), dec.sin());
+            let enu = chain.icrs_to_horizontal() * dir;
+            enu.z.clamp(-1.0, 1.0).asin().to_degrees()
+        }
+        Err(_) => -90.0,
+    };
+
+    // Smoothstep helper.
+    let mix = |a: f64, b: f64, t: f64| a + (b - a) * t.clamp(0.0, 1.0);
+    let smooth01 = |x: f64, lo: f64, hi: f64| {
+        let t = ((x - lo) / (hi - lo)).clamp(0.0, 1.0);
+        t * t * (3.0 - 2.0 * t)
+    };
+
+    let (r, g, b) = if alt_deg >= 6.0 {
+        // Day: classic mid-day sky blue, slight desaturation near horizon
+        // (`alt_factor` 0..1 from 6°..90°).
+        let alt_factor = smooth01(alt_deg, 6.0, 60.0);
+        let r = mix(0.40, 0.30, alt_factor);
+        let g = mix(0.55, 0.55, alt_factor);
+        let b = mix(0.80, 0.95, alt_factor);
+        (r, g, b)
+    } else if alt_deg >= -6.0 {
+        // Civil twilight: warm horizon-orange fading to indigo.
+        let t = smooth01(alt_deg, -6.0, 6.0);
+        let r = mix(0.20, 0.40, t);
+        let g = mix(0.15, 0.55, t);
+        let b = mix(0.35, 0.80, t);
+        (r, g, b)
+    } else if alt_deg >= -12.0 {
+        // Nautical twilight: deep indigo fading to near-black.
+        let t = smooth01(alt_deg, -12.0, -6.0);
+        let r = mix(0.04, 0.20, t);
+        let g = mix(0.04, 0.15, t);
+        let b = mix(0.08, 0.35, t);
+        (r, g, b)
+    } else {
+        // Astronomical night: pure black so stars and DSOs read.
+        (0.0, 0.0, 0.0)
+    };
+
+    wgpu::Color { r, g, b, a: 1.0 }
+}
 
 /// Render-thread scene inputs consumed by the frame graph.
 #[derive(Debug, Clone, PartialEq)]

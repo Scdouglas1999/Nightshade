@@ -206,12 +206,31 @@ impl GestureStateMachine {
 }
 
 fn apply_pan_delta(pose: &mut ViewPose, dx: f32, dy: f32) {
-    let pan_scale = f64::from(pose.fov_rad.to_degrees()) / 500.0;
-    let d_ra_hours = -(f64::from(dx)) * pan_scale / 15.0;
-    let d_dec_deg = f64::from(dy) * pan_scale;
-    pose.ra_rad = wrap_ra_rad(pose.ra_rad + d_ra_hours * (std::f64::consts::PI / 12.0));
-    let dec = pose.dec_rad + d_dec_deg.to_radians();
-    pose.dec_rad = dec.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
+    // `dx`/`dy` arrive as normalized screen-fraction deltas (pixelDelta /
+    // widget extent) from the Dart side — see
+    // `interactive_sky_view.dart` / `gesture_events.dart`.
+    //
+    // Stellarium "drag the sky" convention (which v1 also followed):
+    //   mouse moves right (dx > 0) → sky scrolls right → camera looks
+    //   further east → RA INCREASES.
+    //   mouse moves down (dy > 0) → sky scrolls down → camera looks
+    //   further south → Dec DECREASES.
+    //
+    // Earlier iteration inverted RA (gave the user the feeling that
+    // grabbing the sky and dragging right moved it LEFT). Both signs
+    // now match the "grab and throw" mental model.
+    //
+    // Scale: a full-screen drag rotates by ~one FOV, with cos(dec)
+    // correction so peripheral panning near the poles stays cursor-locked.
+    let fov = f64::from(pose.fov_rad);
+    // `cos(dec)` collapses to zero at the poles; clamp the divisor so the
+    // longitudinal step never explodes when looking nearly straight up.
+    let cos_dec = pose.dec_rad.cos().abs().max(0.05);
+    let d_ra = f64::from(dx) * fov / cos_dec;
+    let d_dec = -f64::from(dy) * fov;
+    pose.ra_rad = wrap_ra_rad(pose.ra_rad + d_ra);
+    pose.dec_rad = (pose.dec_rad + d_dec)
+        .clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 fn apply_zoom(pose: &mut ViewPose, factor: f32) -> bool {

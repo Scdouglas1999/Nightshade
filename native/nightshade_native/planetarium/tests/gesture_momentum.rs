@@ -39,13 +39,24 @@ fn simulate_v1_momentum_ticks(vx: f32, vy: f32, pose: &mut ViewPose, max_frames:
     frames
 }
 
+// Mirrors `gesture::mod.rs::apply_pan_delta` — kept in lockstep so this
+// trajectory match-test confirms that a series of `tick_momentum` calls
+// produces the same pose evolution as a sequence of explicit PanUpdate
+// events with the same per-frame deltas. If the gesture formula changes,
+// update this replica too.
 fn apply_pan_like_gesture(pose: &mut ViewPose, dx: f32, dy: f32) {
-    let pan_scale = f64::from(pose.fov_rad.to_degrees()) / 500.0;
-    let d_ra_hours = -(f64::from(dx)) * pan_scale / 15.0;
-    let d_dec_deg = f64::from(dy) * pan_scale;
-    pose.ra_rad += d_ra_hours * (std::f64::consts::PI / 12.0);
-    let dec = pose.dec_rad + d_dec_deg.to_radians();
-    pose.dec_rad = dec.clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
+    let fov = f64::from(pose.fov_rad);
+    let cos_dec = pose.dec_rad.cos().abs().max(0.05);
+    let d_ra = f64::from(dx) * fov / cos_dec;
+    let d_dec = -f64::from(dy) * fov;
+    let two_pi = std::f64::consts::TAU;
+    let mut ra = (pose.ra_rad + d_ra) % two_pi;
+    if ra < 0.0 {
+        ra += two_pi;
+    }
+    pose.ra_rad = ra;
+    pose.dec_rad = (pose.dec_rad + d_dec)
+        .clamp(-std::f64::consts::FRAC_PI_2, std::f64::consts::FRAC_PI_2);
 }
 
 #[test]

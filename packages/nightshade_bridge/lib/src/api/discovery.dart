@@ -8,28 +8,36 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            // These functions are ignored because they are not marked as `pub`: `drivers_for_device_type`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `scan_alpaca_for_type`, `scan_ascom_for_type`, `scan_devices_for_pair`, `scan_indi_for_type`, `scan_native_for_type`, `scan_simulator_for_type`
+// These functions are ignored because they are not marked as `pub`: `drivers_for_device_type`, `query_indi_device_serial_from_client`, `query_indi_serials_for_server`, `scan_alpaca_for_type`, `scan_ascom_for_type`, `scan_devices_for_pair`, `scan_indi_for_type`, `scan_native_for_type`, `scan_simulator_for_type`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `scan_ascom_for_type_public`, `scan_native_for_type_public`
 
-
-            /// Discover available Alpaca devices on the network
-Future<List<DeviceInfo>>  apiDiscoverAlpacaDevices() => RustLib.instance.api.crateApiDiscoveryApiDiscoverAlpacaDevices();
+/// Discover available Alpaca devices on the network
+Future<List<DeviceInfo>> apiDiscoverAlpacaDevices() =>
+    RustLib.instance.api.crateApiDiscoveryApiDiscoverAlpacaDevices();
 
 /// Discover Alpaca devices at a specific server address
-Future<List<DeviceInfo>>  apiDiscoverAlpacaAtAddress({required String host , required int port }) => RustLib.instance.api.crateApiDiscoveryApiDiscoverAlpacaAtAddress(host: host, port: port);
+Future<List<DeviceInfo>> apiDiscoverAlpacaAtAddress(
+        {required String host, required int port}) =>
+    RustLib.instance.api
+        .crateApiDiscoveryApiDiscoverAlpacaAtAddress(host: host, port: port);
 
 /// Discover INDI devices at a specific server address
-Future<List<DeviceInfo>>  apiDiscoverIndiAtAddress({required String host , required int port }) => RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiAtAddress(host: host, port: port);
+Future<List<DeviceInfo>> apiDiscoverIndiAtAddress(
+        {required String host, required int port}) =>
+    RustLib.instance.api
+        .crateApiDiscoveryApiDiscoverIndiAtAddress(host: host, port: port);
 
 /// Auto-discover INDI servers on localhost
-Future<List<DeviceInfo>>  apiDiscoverIndiLocalhost() => RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiLocalhost();
+Future<List<DeviceInfo>> apiDiscoverIndiLocalhost() =>
+    RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiLocalhost();
 
 /// Auto-discover INDI servers on common hostnames (localhost, raspberrypi, stellarmate, etc.)
-Future<List<DeviceInfo>>  apiDiscoverIndiCommonHosts() => RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiCommonHosts();
+Future<List<DeviceInfo>> apiDiscoverIndiCommonHosts() =>
+    RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiCommonHosts();
 
 /// Auto-discover INDI servers on the local network (scans subnet)
-Future<List<DeviceInfo>>  apiDiscoverIndiNetwork() => RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiNetwork();
+Future<List<DeviceInfo>> apiDiscoverIndiNetwork() =>
+    RustLib.instance.api.crateApiDiscoveryApiDiscoverIndiNetwork();
 
 /// Discover available devices of a specific type.
 ///
@@ -47,7 +55,6 @@ Future<List<DeviceInfo>>  apiDiscoverIndiNetwork() => RustLib.instance.api.crate
 ///     stores the error so retry-after-TTL semantics still apply (avoids
 ///     hammering a broken backend), but successful sibling entries remain
 ///     valid.
-Future<List<DeviceInfo>>  apiDiscoverDevices({required DeviceType deviceType }) => RustLib.instance.api.crateApiDiscoveryApiDiscoverDevices(deviceType: deviceType);
-
-            
-            
+Future<List<DeviceInfo>> apiDiscoverDevices({required DeviceType deviceType}) =>
+    RustLib.instance.api
+        .crateApiDiscoveryApiDiscoverDevices(deviceType: deviceType);

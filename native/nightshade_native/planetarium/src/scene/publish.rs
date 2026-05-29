@@ -6,6 +6,7 @@ use crate::catalog::constellation_lines::{icrs_dir_from_j2000, CONSTELLATIONS};
 use crate::catalog::variable_stars::{brighter_than, icrs_dir, VariableStar};
 use crate::catalog::CatalogSet;
 use crate::scene::dev_catalog::DEV_STARS;
+use crate::scene::lod::{frame_star_mag_limit, MagLimitConfig, QualityConfig};
 use crate::scene::pose::{body_equatorial_rad, BodyId};
 use crate::scene::projection::project_icrs;
 use crate::scene::snapshot::ConstellationArtPlacement;
@@ -13,6 +14,15 @@ use crate::scene::{
     publish, LabelCategory, LabelHint, SceneSnapshot, SelectedObject, SmallString, SnapshotSlot,
 };
 use crate::types::{RenderConfig, ViewPose};
+
+/// Upper bound on how many star labels enter the snapshot per frame. The
+/// renderer can comfortably draw 100k stars, but the Dart-side
+/// `LabelLayer` runs an overlap-resolution layout per label per frame —
+/// at 10k+ labels the layout alone burns several ms. Stellarium-style
+/// label density tops out well below 500 visible labels at any one zoom;
+/// 400 leaves headroom while keeping per-frame `format!("HIP {hip_id}")`
+/// allocations bounded.
+const MAX_STAR_LABELS: usize = 400;
 
 /// Inputs required to build and publish one frame snapshot.
 #[derive(Debug, Clone)]
@@ -91,22 +101,70 @@ fn collect_star_labels(
         return collect_dev_star_labels(view_pose, config);
     }
 
-    let mut labels = Vec::new();
+    // Use the FOV-aware label cutoff. Without this we'd format a name for
+    // every star up to the user's wide-field baseline (default 11.0 →
+    // tens of thousands of allocations per frame). Label cutoff is one
+    // magnitude brighter than the render cutoff because faint stars
+    // shouldn't carry textual labels even when they're drawn — that
+    // matches Stellarium's label density.
+    let render_limit = frame_star_mag_limit(
+        view_pose.fov_rad,
+        QualityConfig::from_tier(config.quality),
+        MagLimitConfig::new(config.magnitude_limit),
+    );
+    let label_limit = (render_limit - 1.0).max(2.0);
+
+    // First pass: collect *only the brightest* candidates within the
+    // visibility cone. The catalog query already iterates in pack-order;
+    // we keep a fixed-size min-heap by (apparent_mag, hip_id) so the
+    // output is the brightest `MAX_STAR_LABELS` after culling — without
+    // formatting names for the rejects.
+    let mut shortlist: Vec<(f32, u32, [f32; 3])> = Vec::with_capacity(MAX_STAR_LABELS + 8);
     let query = catalog
-        .query(*view_pose, config.magnitude_limit)
+        .query(*view_pose, label_limit)
         .expect("catalog visibility query must not fail with registered packs");
     for hit in query {
-        let (ra_rad, dec_rad) = radec_from_icrs_dir(hit.star.icrs_dir);
+        let mag = hit.star.mag;
+        if shortlist.len() < MAX_STAR_LABELS {
+            shortlist.push((mag, hit.star.hip_id, hit.star.icrs_dir));
+            if shortlist.len() == MAX_STAR_LABELS {
+                // First time at capacity: switch to max-mag eviction. Sort
+                // ascending by magnitude so worst (faintest, highest mag)
+                // is at the end.
+                shortlist.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal));
+            }
+            continue;
+        }
+        // Compare against worst (faintest) entry.
+        let worst_mag = shortlist.last().expect("non-empty").0;
+        if mag >= worst_mag {
+            continue;
+        }
+        // Insert in sorted order, pop the worst.
+        let pos = shortlist
+            .binary_search_by(|probe| {
+                probe.0.partial_cmp(&mag).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or_else(|e| e);
+        shortlist.insert(pos, (mag, hit.star.hip_id, hit.star.icrs_dir));
+        shortlist.pop();
+    }
+
+    // Second pass: project, format names, build LabelHints. At most
+    // `MAX_STAR_LABELS` allocations — bounded regardless of catalog size.
+    let mut labels = Vec::with_capacity(shortlist.len());
+    for (mag, hip_id, icrs_dir) in shortlist {
+        let (ra_rad, dec_rad) = radec_from_icrs_dir(icrs_dir);
         let Some((screen_x, screen_y)) = project_icrs(ra_rad, dec_rad, *view_pose) else {
             continue;
         };
         labels.push(LabelHint {
-            object_id: u64::from(hit.star.hip_id),
+            object_id: u64::from(hip_id),
             screen_x,
             screen_y,
-            apparent_mag: hit.star.mag,
-            priority: label_priority(hit.star.mag),
-            text: star_display_name(hit.star.hip_id),
+            apparent_mag: mag,
+            priority: label_priority(mag),
+            text: star_display_name(hip_id),
             category: LabelCategory::Star,
         });
     }

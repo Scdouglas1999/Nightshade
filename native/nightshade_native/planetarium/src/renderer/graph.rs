@@ -7,7 +7,7 @@ use crate::renderer::pipelines::dsos::DsosPipeline;
 use crate::renderer::pipelines::lines::LinesPipeline;
 use crate::renderer::pipelines::milky_way::MilkyWayPipeline;
 use crate::renderer::pipelines::stars::StarsPipeline;
-use crate::renderer::FRAME_CLEAR;
+use crate::renderer::sky_clear_color;
 
 /// Ordered render passes (design doc §5.1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -112,8 +112,11 @@ impl FrameGraph {
         is_first: bool,
     ) {
         let label = format!("planetarium.pass.{pass_id:?}");
+        // First pass clears to a sun-altitude-driven sky color so daytime
+        // scenes get a visible background (the dedicated Atmosphere pass
+        // is still a no-op stub — see `sky_clear_color` docs).
         let load = if is_first {
-            wgpu::LoadOp::Clear(FRAME_CLEAR)
+            wgpu::LoadOp::Clear(sky_clear_color(scene))
         } else {
             wgpu::LoadOp::Load
         };

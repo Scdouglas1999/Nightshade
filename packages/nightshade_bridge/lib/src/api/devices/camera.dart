@@ -9,34 +9,58 @@ import '../../error.dart';
 import '../../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            
-
-            /// Start camera exposure
+/// Start camera exposure
 /// This delegates to api_camera_start_exposure which handles the full exposure
 /// workflow including waiting for completion, image processing, and storage.
-Future<void>  startExposure({required String deviceId , required double durationSecs , required int gain , required int offset , required int binX , required int binY }) => RustLib.instance.api.crateApiDevicesCameraStartExposure(deviceId: deviceId, durationSecs: durationSecs, gain: gain, offset: offset, binX: binX, binY: binY);
+Future<void> startExposure(
+        {required String deviceId,
+        required double durationSecs,
+        required int gain,
+        required int offset,
+        required int binX,
+        required int binY}) =>
+    RustLib.instance.api.crateApiDevicesCameraStartExposure(
+        deviceId: deviceId,
+        durationSecs: durationSecs,
+        gain: gain,
+        offset: offset,
+        binX: binX,
+        binY: binY);
 
 /// Abort/cancel camera exposure
-Future<void>  cancelExposure({required String deviceId }) => RustLib.instance.api.crateApiDevicesCameraCancelExposure(deviceId: deviceId);
+Future<void> cancelExposure({required String deviceId}) => RustLib.instance.api
+    .crateApiDevicesCameraCancelExposure(deviceId: deviceId);
 
 /// Get camera status
-Future<CameraStatus>  getCameraStatus({required String deviceId }) => RustLib.instance.api.crateApiDevicesCameraGetCameraStatus(deviceId: deviceId);
+Future<CameraStatus> getCameraStatus({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDevicesCameraGetCameraStatus(deviceId: deviceId);
 
 /// Set camera cooler
-Future<void>  setCameraCooler({required String deviceId , required int enabled , double? targetTemp }) => RustLib.instance.api.crateApiDevicesCameraSetCameraCooler(deviceId: deviceId, enabled: enabled, targetTemp: targetTemp);
+Future<void> setCameraCooler(
+        {required String deviceId, required int enabled, double? targetTemp}) =>
+    RustLib.instance.api.crateApiDevicesCameraSetCameraCooler(
+        deviceId: deviceId, enabled: enabled, targetTemp: targetTemp);
 
 /// Set camera readout mode by index
 ///
 /// mode_index: 0 = default/high quality, 1 = fast readout, etc.
 /// The available modes are camera-dependent.
-Future<void>  apiCameraSetReadoutMode({required String deviceId , required int modeIndex }) => RustLib.instance.api.crateApiDevicesCameraApiCameraSetReadoutMode(deviceId: deviceId, modeIndex: modeIndex);
+Future<void> apiCameraSetReadoutMode(
+        {required String deviceId, required int modeIndex}) =>
+    RustLib.instance.api.crateApiDevicesCameraApiCameraSetReadoutMode(
+        deviceId: deviceId, modeIndex: modeIndex);
 
 /// Set camera binning
-Future<void>  apiSetCameraBinning({required String deviceId , required int binX , required int binY }) => RustLib.instance.api.crateApiDevicesCameraApiSetCameraBinning(deviceId: deviceId, binX: binX, binY: binY);
+Future<void> apiSetCameraBinning(
+        {required String deviceId, required int binX, required int binY}) =>
+    RustLib.instance.api.crateApiDevicesCameraApiSetCameraBinning(
+        deviceId: deviceId, binX: binX, binY: binY);
 
 /// Capture a live-view / preview JPEG frame when the driver supports it.
-Future<Uint8List>  apiCameraCapturePreview({required String deviceId }) => RustLib.instance.api.crateApiDevicesCameraApiCameraCapturePreview(deviceId: deviceId);
+Future<Uint8List> apiCameraCapturePreview({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDevicesCameraApiCameraCapturePreview(deviceId: deviceId);
 
 /// Query the camera SDK for manufacturer-recommended gain/offset values.
 ///
@@ -53,7 +77,7 @@ Future<Uint8List>  apiCameraCapturePreview({required String deviceId }) => RustL
 /// equipment profile's `defaultGain` / `defaultOffset` are populated from
 /// the result IFF they are currently `null` (user-set values are never
 /// overwritten).
-Future<CameraRecommendedSettings>  apiCameraGetRecommendedSettings({required String deviceId }) => RustLib.instance.api.crateApiDevicesCameraApiCameraGetRecommendedSettings(deviceId: deviceId);
-
-            
-            
+Future<CameraRecommendedSettings> apiCameraGetRecommendedSettings(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiDevicesCameraApiCameraGetRecommendedSettings(
+        deviceId: deviceId);

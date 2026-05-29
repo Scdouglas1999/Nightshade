@@ -11,8 +11,8 @@ use winapi::{
     shared::{dxgiformat, dxgitype, winerror::SUCCEEDED},
     um::{
         d3d12::{
-            D3D12_HEAP_FLAG_SHARED, D3D12_HEAP_PROPERTIES, D3D12_HEAP_TYPE_CUSTOM,
-            D3D12_MEMORY_POOL_L0, D3D12_RESOURCE_DIMENSION_TEXTURE2D,
+            D3D12_CPU_PAGE_PROPERTY_UNKNOWN, D3D12_HEAP_FLAG_SHARED, D3D12_HEAP_PROPERTIES,
+            D3D12_HEAP_TYPE_DEFAULT, D3D12_MEMORY_POOL_UNKNOWN, D3D12_RESOURCE_DIMENSION_TEXTURE2D,
             D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET, D3D12_RESOURCE_STATE_COMMON,
             D3D12_TEXTURE_LAYOUT_UNKNOWN,
         },
@@ -110,10 +110,18 @@ unsafe fn create_shared_d3d12_texture(
     let d3d_device: &D3d12Device = hal_device.raw_device();
     let mut resource = D3d12Resource::null();
 
+    // DEFAULT heap = GPU-local memory (VRAM on discrete GPUs, system RAM on
+    // UMA/integrated). Required for cross-API sharing into Flutter's D3D11
+    // embedder via `OpenSharedResource1`; with a CUSTOM + L0 (system memory)
+    // heap on a discrete adapter, Flutter logs
+    // "external_texture_d3d.cc(107): Binding D3D surface failed" because the
+    // shared NT handle can't be opened as a usable D3D11 resource. With
+    // DEFAULT, the runtime picks CPUPageProperty / MemoryPoolPreference
+    // appropriately, and both must be specified as UNKNOWN.
     let heap_properties = D3D12_HEAP_PROPERTIES {
-        Type: D3D12_HEAP_TYPE_CUSTOM,
-        CPUPageProperty: winapi::um::d3d12::D3D12_CPU_PAGE_PROPERTY_NOT_AVAILABLE,
-        MemoryPoolPreference: D3D12_MEMORY_POOL_L0,
+        Type: D3D12_HEAP_TYPE_DEFAULT,
+        CPUPageProperty: D3D12_CPU_PAGE_PROPERTY_UNKNOWN,
+        MemoryPoolPreference: D3D12_MEMORY_POOL_UNKNOWN,
         CreationNodeMask: 0,
         VisibleNodeMask: 0,
     };

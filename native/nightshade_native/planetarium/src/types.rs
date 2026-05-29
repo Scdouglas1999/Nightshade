@@ -115,7 +115,14 @@ impl Default for RenderConfig {
             show_satellites: false,
             show_minor_planets: false,
             show_variable_stars: false,
-            magnitude_limit: 6.0,
+            // Default user "wide-field baseline" magnitude. With LOD on
+            // top, this becomes the floor at full zoom-out and pushes up
+            // to ~`STAR_MAG_CEILING` (12.0) as you zoom in. The previous
+            // value of 6.0 was naked-eye-only, which produced a sparse
+            // ~5k-star sky regardless of zoom. 11.0 yields the dense,
+            // Stellarium-like look the user expects out of the box; the
+            // settings slider still scales below for low-end machines.
+            magnitude_limit: 11.0,
             quality: 1,
             bortle_class: 4,
             twinkle: true,

@@ -9,12 +9,10 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            // These functions are ignored because they are not marked as `pub`: `get_qhy_discovery_timeout_ms`
+// These functions are ignored because they are not marked as `pub`: `get_qhy_discovery_timeout_ms`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
-
-            /// Get capabilities for any device by its device ID.
+/// Get capabilities for any device by its device ID.
 ///
 /// This function queries the actual device to determine what features it supports.
 /// The result varies by device type (camera, mount, focuser, filter wheel).
@@ -27,7 +25,10 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 ///
 /// # Errors
 /// * Returns error if device type is unsupported or device cannot be queried
-Future<DeviceCapabilities>  apiGetDeviceCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetDeviceCapabilities(deviceId: deviceId);
+Future<DeviceCapabilities> apiGetDeviceCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetDeviceCapabilities(deviceId: deviceId);
 
 /// Get camera capabilities for a specific camera device.
 ///
@@ -38,7 +39,10 @@ Future<DeviceCapabilities>  apiGetDeviceCapabilities({required String deviceId }
 ///
 /// # Returns
 /// * `CameraCapabilities` - Camera-specific capability information
-Future<CameraCapabilities>  apiGetCameraCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetCameraCapabilities(deviceId: deviceId);
+Future<CameraCapabilities> apiGetCameraCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetCameraCapabilities(deviceId: deviceId);
 
 /// Get mount capabilities for a specific mount device.
 ///
@@ -49,7 +53,9 @@ Future<CameraCapabilities>  apiGetCameraCapabilities({required String deviceId }
 ///
 /// # Returns
 /// * `MountCapabilities` - Mount-specific capability information
-Future<MountCapabilities>  apiGetMountCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetMountCapabilities(deviceId: deviceId);
+Future<MountCapabilities> apiGetMountCapabilities({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetMountCapabilities(deviceId: deviceId);
 
 /// Get focuser capabilities for a specific focuser device.
 ///
@@ -60,7 +66,10 @@ Future<MountCapabilities>  apiGetMountCapabilities({required String deviceId }) 
 ///
 /// # Returns
 /// * `FocuserCapabilities` - Focuser-specific capability information
-Future<FocuserCapabilities>  apiGetFocuserCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetFocuserCapabilities(deviceId: deviceId);
+Future<FocuserCapabilities> apiGetFocuserCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetFocuserCapabilities(deviceId: deviceId);
 
 /// Get filter wheel capabilities for a specific filter wheel device.
 ///
@@ -71,7 +80,10 @@ Future<FocuserCapabilities>  apiGetFocuserCapabilities({required String deviceId
 ///
 /// # Returns
 /// * `FilterWheelCapabilities` - Filter wheel-specific capability information
-Future<FilterWheelCapabilities>  apiGetFilterwheelCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetFilterwheelCapabilities(deviceId: deviceId);
+Future<FilterWheelCapabilities> apiGetFilterwheelCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetFilterwheelCapabilities(deviceId: deviceId);
 
 /// Get rotator capabilities for a specific rotator device.
 ///
@@ -82,7 +94,10 @@ Future<FilterWheelCapabilities>  apiGetFilterwheelCapabilities({required String 
 ///
 /// # Returns
 /// * `RotatorCapabilities` - Rotator-specific capability information
-Future<RotatorCapabilities>  apiGetRotatorCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetRotatorCapabilities(deviceId: deviceId);
+Future<RotatorCapabilities> apiGetRotatorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetRotatorCapabilities(deviceId: deviceId);
 
 /// Get dome capabilities for a specific dome device.
 ///
@@ -93,7 +108,9 @@ Future<RotatorCapabilities>  apiGetRotatorCapabilities({required String deviceId
 ///
 /// # Returns
 /// * `DomeCapabilities` - Dome-specific capability information
-Future<DomeCapabilities>  apiGetDomeCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetDomeCapabilities(deviceId: deviceId);
+Future<DomeCapabilities> apiGetDomeCapabilities({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetDomeCapabilities(deviceId: deviceId);
 
 /// Get cover calibrator capabilities for a specific cover calibrator device.
 ///
@@ -104,7 +121,10 @@ Future<DomeCapabilities>  apiGetDomeCapabilities({required String deviceId }) =>
 ///
 /// # Returns
 /// * `CoverCalibratorCapabilities` - Cover calibrator-specific capability information
-Future<CoverCalibratorCapabilities>  apiGetCoverCalibratorCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetCoverCalibratorCapabilities(deviceId: deviceId);
+Future<CoverCalibratorCapabilities> apiGetCoverCalibratorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api.crateApiDiagnosticsApiGetCoverCalibratorCapabilities(
+        deviceId: deviceId);
 
 /// Get weather capabilities for a specific weather/observing conditions device.
 ///
@@ -115,7 +135,10 @@ Future<CoverCalibratorCapabilities>  apiGetCoverCalibratorCapabilities({required
 ///
 /// # Returns
 /// * `WeatherCapabilities` - Weather-specific capability information
-Future<WeatherCapabilities>  apiGetWeatherCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetWeatherCapabilities(deviceId: deviceId);
+Future<WeatherCapabilities> apiGetWeatherCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetWeatherCapabilities(deviceId: deviceId);
 
 /// Get safety monitor capabilities for a specific safety monitor device.
 ///
@@ -126,7 +149,10 @@ Future<WeatherCapabilities>  apiGetWeatherCapabilities({required String deviceId
 ///
 /// # Returns
 /// * `SafetyMonitorCapabilities` - Safety monitor-specific capability information
-Future<SafetyMonitorCapabilities>  apiGetSafetyMonitorCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetSafetyMonitorCapabilities(deviceId: deviceId);
+Future<SafetyMonitorCapabilities> apiGetSafetyMonitorCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetSafetyMonitorCapabilities(deviceId: deviceId);
 
 /// Get switch capabilities for a specific switch device.
 ///
@@ -137,7 +163,10 @@ Future<SafetyMonitorCapabilities>  apiGetSafetyMonitorCapabilities({required Str
 ///
 /// # Returns
 /// * `SwitchCapabilities` - Switch-specific capability information
-Future<SwitchCapabilities>  apiGetSwitchCapabilities({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetSwitchCapabilities(deviceId: deviceId);
+Future<SwitchCapabilities> apiGetSwitchCapabilities(
+        {required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetSwitchCapabilities(deviceId: deviceId);
 
 /// Get known quirks for a connected device.
 ///
@@ -150,7 +179,9 @@ Future<SwitchCapabilities>  apiGetSwitchCapabilities({required String deviceId }
 ///
 /// # Returns
 /// * `Vec<QuirkInfo>` - List of quirks with categories and descriptions
-List<QuirkInfo>  apiGetDeviceQuirks({required String deviceId }) => RustLib.instance.api.crateApiDiagnosticsApiGetDeviceQuirks(deviceId: deviceId);
+List<QuirkInfo> apiGetDeviceQuirks({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiDiagnosticsApiGetDeviceQuirks(deviceId: deviceId);
 
 /// Check if QHY camera discovery is enabled.
 ///
@@ -160,7 +191,8 @@ List<QuirkInfo>  apiGetDeviceQuirks({required String deviceId }) => RustLib.inst
 /// # Returns
 /// * `true` - QHY discovery is enabled (default)
 /// * `false` - QHY discovery is disabled
-bool  apiIsQhyDiscoveryEnabled() => RustLib.instance.api.crateApiDiagnosticsApiIsQhyDiscoveryEnabled();
+bool apiIsQhyDiscoveryEnabled() =>
+    RustLib.instance.api.crateApiDiagnosticsApiIsQhyDiscoveryEnabled();
 
 /// Enable or disable QHY camera discovery.
 ///
@@ -181,67 +213,68 @@ bool  apiIsQhyDiscoveryEnabled() => RustLib.instance.api.crateApiDiagnosticsApiI
 /// 1. Disable if QHY SDK not installed to speed up discovery
 /// 2. Disable if QHY SDK crashes on this system
 /// 3. Disable temporarily to troubleshoot conflicts
-void  apiSetQhyDiscoveryEnabled({required bool enabled }) => RustLib.instance.api.crateApiDiagnosticsApiSetQhyDiscoveryEnabled(enabled: enabled);
+void apiSetQhyDiscoveryEnabled({required bool enabled}) => RustLib.instance.api
+    .crateApiDiagnosticsApiSetQhyDiscoveryEnabled(enabled: enabled);
 
 /// Get information about QHY SDK availability and discovery status.
 ///
 /// # Returns
 /// * `QhyDiscoveryStatus` - Status information about QHY discovery
-QhyDiscoveryStatus  apiGetQhyDiscoveryStatus() => RustLib.instance.api.crateApiDiagnosticsApiGetQhyDiscoveryStatus();
+QhyDiscoveryStatus apiGetQhyDiscoveryStatus() =>
+    RustLib.instance.api.crateApiDiagnosticsApiGetQhyDiscoveryStatus();
 
-            /// Status information about QHY discovery
-class QhyDiscoveryStatus  {
-                /// Whether the QHY SDK DLL/SO was loaded successfully
-final bool sdkAvailable;
-/// Whether QHY discovery is currently enabled
-final bool discoveryEnabled;
-/// The timeout for discovery operations in milliseconds
-final BigInt timeoutMs;
+/// Status information about QHY discovery
+class QhyDiscoveryStatus {
+  /// Whether the QHY SDK DLL/SO was loaded successfully
+  final bool sdkAvailable;
 
-                const QhyDiscoveryStatus({required this.sdkAvailable ,required this.discoveryEnabled ,required this.timeoutMs ,});
+  /// Whether QHY discovery is currently enabled
+  final bool discoveryEnabled;
 
-                
-                
+  /// The timeout for discovery operations in milliseconds
+  final BigInt timeoutMs;
 
-                
-        @override
-        int get hashCode => sdkAvailable.hashCode^discoveryEnabled.hashCode^timeoutMs.hashCode;
-        
+  const QhyDiscoveryStatus({
+    required this.sdkAvailable,
+    required this.discoveryEnabled,
+    required this.timeoutMs,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is QhyDiscoveryStatus &&
-                runtimeType == other.runtimeType
-                && sdkAvailable == other.sdkAvailable&& discoveryEnabled == other.discoveryEnabled&& timeoutMs == other.timeoutMs;
-        
-            }
+  @override
+  int get hashCode =>
+      sdkAvailable.hashCode ^ discoveryEnabled.hashCode ^ timeoutMs.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QhyDiscoveryStatus &&
+          runtimeType == other.runtimeType &&
+          sdkAvailable == other.sdkAvailable &&
+          discoveryEnabled == other.discoveryEnabled &&
+          timeoutMs == other.timeoutMs;
+}
 
 /// Information about a known device quirk, suitable for UI display.
-class QuirkInfo  {
-                /// Quirk category (e.g. "Temperature", "Timing", "Discovery")
-final String category;
-/// Human-readable description of the quirk
-final String description;
+class QuirkInfo {
+  /// Quirk category (e.g. "Temperature", "Timing", "Discovery")
+  final String category;
 
-                const QuirkInfo({required this.category ,required this.description ,});
+  /// Human-readable description of the quirk
+  final String description;
 
-                
-                
+  const QuirkInfo({
+    required this.category,
+    required this.description,
+  });
 
-                
-        @override
-        int get hashCode => category.hashCode^description.hashCode;
-        
+  @override
+  int get hashCode => category.hashCode ^ description.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is QuirkInfo &&
-                runtimeType == other.runtimeType
-                && category == other.category&& description == other.description;
-        
-            }
-            
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is QuirkInfo &&
+          runtimeType == other.runtimeType &&
+          category == other.category &&
+          description == other.description;
+}

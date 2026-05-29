@@ -101,7 +101,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -897549093;
+  int get rustContentHash => -565498043;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -893,6 +893,19 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiStorageApiSaveProfile({required EquipmentProfile profile});
 
+  Future<void> crateApiImagingApiSaveRgbaJpegFile(
+      {required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba,
+      required int quality});
+
+  Future<void> crateApiImagingApiSaveRgbaPngFile(
+      {required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba});
+
   Future<void> crateApiImagingApiSaveTiffFile(
       {required String filePath,
       required int width,
@@ -1324,6 +1337,9 @@ abstract class RustLibApi extends BaseApi {
   SelectedObjectDto? crateApiPlanetariumPlanetariumHitTest(
       {required PlatformInt64 handle, required double x, required double y});
 
+  String? crateApiPlanetariumPlanetariumLastSurfaceError(
+      {required PlatformInt64 handle});
+
   void crateApiPlanetariumPlanetariumLoadPack(
       {required PlatformInt64 handle, required String path});
 
@@ -1364,6 +1380,9 @@ abstract class RustLibApi extends BaseApi {
       {required PlatformInt64 handle, TrackingTargetDto? target});
 
   SceneSnapshotDto crateApiPlanetariumPlanetariumSnapshot(
+      {required PlatformInt64 handle});
+
+  PlatformInt64 crateApiPlanetariumPlanetariumTextureId(
       {required PlatformInt64 handle});
 
   Future<void> crateApiImagingSaveFitsFileRich(
@@ -7409,6 +7428,70 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<void> crateApiImagingApiSaveRgbaJpegFile(
+      {required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba,
+      required int quality}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(filePath);
+        var arg1 = cst_encode_u_32(width);
+        var arg2 = cst_encode_u_32(height);
+        var arg3 = cst_encode_list_prim_u_8_loose(rgba);
+        var arg4 = cst_encode_u_8(quality);
+        return wire.wire__crate__api__imaging__api_save_rgba_jpeg_file(
+            port_, arg0, arg1, arg2, arg3, arg4);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiImagingApiSaveRgbaJpegFileConstMeta,
+      argValues: [filePath, width, height, rgba, quality],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiImagingApiSaveRgbaJpegFileConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_save_rgba_jpeg_file",
+        argNames: ["filePath", "width", "height", "rgba", "quality"],
+      );
+
+  @override
+  Future<void> crateApiImagingApiSaveRgbaPngFile(
+      {required String filePath,
+      required int width,
+      required int height,
+      required List<int> rgba}) {
+    return handler.executeNormal(NormalTask(
+      callFfi: (port_) {
+        var arg0 = cst_encode_String(filePath);
+        var arg1 = cst_encode_u_32(width);
+        var arg2 = cst_encode_u_32(height);
+        var arg3 = cst_encode_list_prim_u_8_loose(rgba);
+        return wire.wire__crate__api__imaging__api_save_rgba_png_file(
+            port_, arg0, arg1, arg2, arg3);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_unit,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiImagingApiSaveRgbaPngFileConstMeta,
+      argValues: [filePath, width, height, rgba],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiImagingApiSaveRgbaPngFileConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_save_rgba_png_file",
+        argNames: ["filePath", "width", "height", "rgba"],
+      );
+
+  @override
   Future<void> crateApiImagingApiSaveTiffFile(
       {required String filePath,
       required int width,
@@ -11051,6 +11134,32 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  String? crateApiPlanetariumPlanetariumLastSurfaceError(
+      {required PlatformInt64 handle}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        return wire
+            .wire__crate__api__planetarium__planetarium_last_surface_error(
+                arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_opt_String,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumLastSurfaceErrorConstMeta,
+      argValues: [handle],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumLastSurfaceErrorConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_last_surface_error",
+        argNames: ["handle"],
+      );
+
+  @override
   void crateApiPlanetariumPlanetariumLoadPack(
       {required PlatformInt64 handle, required String path}) {
     return handler.executeSync(SyncTask(
@@ -11393,6 +11502,30 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiPlanetariumPlanetariumSnapshotConstMeta =>
       const TaskConstMeta(
         debugName: "planetarium_snapshot",
+        argNames: ["handle"],
+      );
+
+  @override
+  PlatformInt64 crateApiPlanetariumPlanetariumTextureId(
+      {required PlatformInt64 handle}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_i_64(handle);
+        return wire.wire__crate__api__planetarium__planetarium_texture_id(arg0);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_i_64,
+        decodeErrorData: dco_decode_String,
+      ),
+      constMeta: kCrateApiPlanetariumPlanetariumTextureIdConstMeta,
+      argValues: [handle],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiPlanetariumPlanetariumTextureIdConstMeta =>
+      const TaskConstMeta(
+        debugName: "planetarium_texture_id",
         argNames: ["handle"],
       );
 
@@ -13690,6 +13823,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as Uint32List;
+  }
+
+  @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw as List<int>;
   }
 
   @protected
@@ -17857,6 +17996,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var len_ = sse_decode_i_32(deserializer);
     return deserializer.buffer.getUint32List(len_);
+  }
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var len_ = sse_decode_i_32(deserializer);
+    return deserializer.buffer.getUint8List(len_);
   }
 
   @protected
@@ -22177,6 +22323,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.length, serializer);
     serializer.buffer.putUint32List(self);
+  }
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(
+      List<int> self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    serializer.buffer
+        .putUint8List(self is Uint8List ? self : Uint8List.fromList(self));
   }
 
   @protected

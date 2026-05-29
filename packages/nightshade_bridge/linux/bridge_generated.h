@@ -145,6 +145,11 @@ typedef struct wire_cst_equipment_profile {
   double telescope_aperture;
 } wire_cst_equipment_profile;
 
+typedef struct wire_cst_list_prim_u_8_loose {
+  uint8_t *ptr;
+  int32_t len;
+} wire_cst_list_prim_u_8_loose;
+
 typedef struct wire_cst_record_string_string {
   struct wire_cst_list_prim_u_8_strict *field0;
   struct wire_cst_list_prim_u_8_strict *field1;
@@ -2959,6 +2964,19 @@ void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_png_file(int64
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__storage__api_save_profile(struct wire_cst_equipment_profile *profile);
 
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_jpeg_file(int64_t port_,
+                                                                                 struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                                 uint32_t width,
+                                                                                 uint32_t height,
+                                                                                 struct wire_cst_list_prim_u_8_loose *rgba,
+                                                                                 uint8_t quality);
+
+void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_png_file(int64_t port_,
+                                                                                struct wire_cst_list_prim_u_8_strict *file_path,
+                                                                                uint32_t width,
+                                                                                uint32_t height,
+                                                                                struct wire_cst_list_prim_u_8_loose *rgba);
+
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_tiff_file(int64_t port_,
                                                                             struct wire_cst_list_prim_u_8_strict *file_path,
                                                                             uint32_t width,
@@ -3437,6 +3455,8 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
                                                                                                   float x,
                                                                                                   float y);
 
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_last_surface_error(int64_t handle);
+
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_load_pack(int64_t handle,
                                                                                                    struct wire_cst_list_prim_u_8_strict *path);
 
@@ -3477,6 +3497,8 @@ WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__pla
                                                                                                              struct wire_cst_tracking_target_dto *target);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot(int64_t handle);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_texture_id(int64_t handle);
 
 void frbgen_nightshade_bridge_wire__crate__api__imaging__save_fits_file_rich(int64_t port_,
                                                                              struct wire_cst_list_prim_u_8_strict *file_path,
@@ -3695,6 +3717,8 @@ struct wire_cst_list_prim_u_16_strict *frbgen_nightshade_bridge_cst_new_list_pri
 
 struct wire_cst_list_prim_u_32_strict *frbgen_nightshade_bridge_cst_new_list_prim_u_32_strict(int32_t len);
 
+struct wire_cst_list_prim_u_8_loose *frbgen_nightshade_bridge_cst_new_list_prim_u_8_loose(int32_t len);
+
 struct wire_cst_list_prim_u_8_strict *frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict(int32_t len);
 
 struct wire_cst_list_quality_tile_metric_api *frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api(int32_t len);
@@ -3800,6 +3824,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_loose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_16_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_32_strict);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_loose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_prim_u_8_strict);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quality_tile_metric_api);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_cst_new_list_quirk_info);
@@ -4007,6 +4032,8 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_fits_from_last_capture);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_jpeg_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_png_file);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_jpeg_file);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_png_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_tiff_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_xisf_file);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_sequencer_apply_defect_map);
@@ -4074,6 +4101,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_create);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_dispose);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_hit_test);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_last_surface_error);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_load_pack);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_push_gesture);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_register_star_pack);
@@ -4087,6 +4115,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_time);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_set_tracking_target);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_snapshot);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_texture_id);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_get_plate_solver_path);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_is_plate_solver_available);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__plate_solve__api_plate_solve_blind);

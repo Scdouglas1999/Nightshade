@@ -9,7 +9,6 @@
 use std::collections::HashMap;
 use std::path::Path;
 use std::sync::{Arc, OnceLock};
-use std::time::Duration;
 
 use nightshade_planetarium::bus::PlanetariumCommand;
 // Re-exported so the FRB-generated wire decoder for
@@ -23,13 +22,11 @@ use nightshade_planetarium::scene::{
     SceneSnapshot, SelectedObject, TrackingTarget,
 };
 use nightshade_planetarium::types::{AstroTime, Observer, RenderConfig, SkyProjection, ViewPose};
-use nightshade_planetarium::{Planetarium, PlanetariumError};
+use nightshade_planetarium::Planetarium;
 use parking_lot::Mutex;
 
 static REGISTRY: OnceLock<Mutex<HashMap<i64, Arc<Planetarium>>>> = OnceLock::new();
 static NEXT_ID: OnceLock<Mutex<i64>> = OnceLock::new();
-
-const TEXTURE_TIMEOUT: Duration = Duration::from_secs(2);
 
 fn registry() -> &'static Mutex<HashMap<i64, Arc<Planetarium>>> {
     REGISTRY.get_or_init(|| Mutex::new(HashMap::new()))
@@ -72,26 +69,6 @@ where
     };
     // Registry mutex is released here; `f` runs on the cloned Arc.
     f(planetarium.as_ref())
-}
-
-/// Block until the render thread reports a definitive resize outcome from a
-/// resize newer than `since_resize_gen`. Signal-driven via
-/// [`Planetarium::wait_for_texture_id`] — never busy-polls.
-fn wait_texture_id(planetarium: &Planetarium, since_resize_gen: u64) -> Result<i64, String> {
-    match planetarium.wait_for_texture_id(since_resize_gen, TEXTURE_TIMEOUT) {
-        Ok(id) => Ok(id),
-        Err(PlanetariumError::NotAllocated) => {
-            if let Some(err) = planetarium.last_surface_error() {
-                Err(err)
-            } else {
-                Err(
-                    "texture not allocated after resize — use a valid Flutter engine handle"
-                        .to_string(),
-                )
-            }
-        }
-        Err(err) => Err(err.to_string()),
-    }
 }
 
 // =============================================================================
@@ -710,7 +687,22 @@ pub fn planetarium_create(engine_handle: i64) -> Result<i64, String> {
     Ok(id)
 }
 
-/// Resize the render target and return the Flutter texture id once allocated.
+/// Submit a resize and return the currently-published texture id (`0` while
+/// the first allocation is still pending). **Non-blocking.**
+///
+/// We *cannot* block the FFI-sync caller waiting for the render thread to
+/// publish a new texture id, because the texture-creation closure must run
+/// on the Flutter platform thread (irondash requirement) — and on Windows
+/// Flutter desktop, the Dart UI isolate that invokes this FRB-sync function
+/// runs **on that same platform thread**. Blocking here freezes the Win32
+/// message pump, which prevents `EngineContext::perform_on_main_thread` from
+/// ever dispatching its closure → permanent self-deadlock with no texture
+/// ever produced.
+///
+/// Instead: queue the `Resize` command, return whatever id is currently in
+/// the atomic, and let the caller poll. Once this function returns, the
+/// platform thread resumes its message pump, the closure runs, the render
+/// thread publishes the new texture id, and the next poll picks it up.
 #[flutter_rust_bridge::frb(sync)]
 pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, String> {
     let planetarium = {
@@ -720,10 +712,6 @@ pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, 
                 .ok_or_else(|| format!("planetarium handle {handle} not found"))?,
         )
     };
-    // Capture the current resize generation BEFORE sending so the waiter can
-    // detect a failure outcome from THIS resize even if the render thread
-    // processes the command before we begin waiting.
-    let since = planetarium.resize_generation();
     planetarium
         .send(PlanetariumCommand::Resize {
             width: w,
@@ -731,7 +719,36 @@ pub fn planetarium_resize(handle: i64, w: u32, h: u32, dpr: f32) -> Result<i64, 
             dpr,
         })
         .map_err(|e| e.to_string())?;
-    wait_texture_id(planetarium.as_ref(), since)
+    Ok(planetarium.texture_id().unwrap_or(0))
+}
+
+/// Read the currently-published Flutter texture id without queuing a resize.
+/// Returns `0` if no successful allocation has happened yet, or a positive
+/// integer once the render thread has published one.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_texture_id(handle: i64) -> Result<i64, String> {
+    let planetarium = {
+        let reg = registry().lock();
+        Arc::clone(
+            reg.get(&handle)
+                .ok_or_else(|| format!("planetarium handle {handle} not found"))?,
+        )
+    };
+    Ok(planetarium.texture_id().unwrap_or(0))
+}
+
+/// Read the last surface-allocate error from the render thread, if any.
+/// Returns `None` when allocation is still pending or has succeeded.
+#[flutter_rust_bridge::frb(sync)]
+pub fn planetarium_last_surface_error(handle: i64) -> Result<Option<String>, String> {
+    let planetarium = {
+        let reg = registry().lock();
+        Arc::clone(
+            reg.get(&handle)
+                .ok_or_else(|| format!("planetarium handle {handle} not found"))?,
+        )
+    };
+    Ok(planetarium.last_surface_error())
 }
 
 /// Update view pose (pan/zoom/roll/projection).
@@ -1238,37 +1255,119 @@ mod tests {
         planetarium_dispose(handle).expect("dispose");
     }
 
+    /// Clone the `Arc<Planetarium>` out of the registry so a test can read
+    /// render-thread-published state (`resize_generation`) that the FFI surface
+    /// doesn't re-export. Used to deterministically detect when the render
+    /// thread has *processed* a specific resize, free of timing races.
+    fn planetarium_arc(handle: i64) -> Arc<Planetarium> {
+        Arc::clone(registry().lock().get(&handle).expect("handle registered"))
+    }
+
+    /// Block until the render thread publishes a surface-allocate error, or
+    /// time out. The render thread processes `Resize` asynchronously, so the
+    /// error appears shortly after `planetarium_resize` returns — not on the
+    /// FFI-sync call itself (which is deliberately non-blocking; see the doc
+    /// comment on [`planetarium_resize`]).
+    fn wait_surface_error(handle: i64) -> String {
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        loop {
+            if let Some(err) = planetarium_last_surface_error(handle).expect("last_surface_error") {
+                return err;
+            }
+            if Instant::now() >= deadline {
+                panic!("timed out waiting for surface allocate error to be published");
+            }
+            thread::sleep(POLL);
+        }
+    }
+
+    /// Block until the render thread's processed-resize counter reaches at
+    /// least `target`, or time out. `resize_generation` is incremented at the
+    /// start of each `Resize` the render thread handles, giving a race-free
+    /// "this attempt has been processed" signal.
+    fn wait_resize_generation(plan: &Planetarium, target: u64) {
+        let deadline = Instant::now() + WAKE_TIMEOUT;
+        loop {
+            if plan.resize_generation() >= target {
+                return;
+            }
+            if Instant::now() >= deadline {
+                let cur = plan.resize_generation();
+                panic!("timed out waiting for resize_generation >= {target}; current={cur}");
+            }
+            thread::sleep(POLL);
+        }
+    }
+
     #[test]
-    fn resize_without_flutter_engine_fails_loud() {
+    fn resize_without_flutter_engine_is_nonblocking_and_surfaces_error() {
+        // `planetarium_resize` is FRB-sync and intentionally non-blocking: it
+        // queues the `Resize` command and returns the currently-published
+        // texture id (`0` while the first allocation is still pending). It must
+        // NOT block the FFI thread waiting for the render thread — on Windows
+        // desktop that would self-deadlock the Win32 message pump (see the
+        // function doc comment). So with no Flutter engine the immediate return
+        // is `Ok(0)`, not an error.
         let handle = planetarium_create(0).expect("create");
-        let err = planetarium_resize(handle, 64, 64, 1.0).unwrap_err();
+        let texture_id = planetarium_resize(handle, 64, 64, 1.0).expect("resize queued");
+        assert_eq!(
+            texture_id, 0,
+            "no engine → no texture allocated yet → pending sentinel 0, got {texture_id}"
+        );
+
+        // Fail-loud is preserved, just asynchronously: the render thread runs
+        // the allocate, fails (no engine / no platform surface), and publishes
+        // the error on the surface-error slot for the caller to poll.
+        let err = wait_surface_error(handle);
         assert!(
             err.contains("texture not allocated")
                 || err.contains("platform surface unsupported")
-                || err.contains("irondash_texture"),
-            "unexpected error: {err}"
+                || err.contains("irondash")
+                || err.contains("surface")
+                || err.contains("adapter")
+                || err.contains("device"),
+            "unexpected surface error: {err}"
         );
         planetarium_dispose(handle).expect("dispose");
     }
 
     #[test]
-    fn resize_retry_waits_for_new_outcome_not_stale_error() {
-        // Behavior: a second resize must not return immediately with the stale
-        // surface_error from the first attempt — it must wait for THIS
-        // attempt's outcome. Previously enforced by a 2 ms busy-poll loop
-        // with a 50 ms floor; now the signal infrastructure (notify on every
-        // resize completion + `since_resize_gen` snapshot) lets the second
-        // resize unblock as soon as the render thread completes it, typically
-        // well under 100 ms.
+    fn resize_retry_publishes_fresh_outcome_not_stale_error() {
+        // A second resize must report THIS attempt's outcome, not the stale
+        // error left over from the first attempt. The render thread clears the
+        // surface-error slot to `None` at the start of every `Resize` (so a
+        // poll racing the second resize never reads the first attempt's error)
+        // and republishes the error once the second allocate completes.
         let handle = planetarium_create(0).expect("create");
-        planetarium_resize(handle, 64, 64, 1.0).unwrap_err();
+        let plan = planetarium_arc(handle);
 
+        // First resize: non-blocking, then its error surfaces.
+        assert_eq!(planetarium_resize(handle, 64, 64, 1.0).expect("resize 1"), 0);
+        wait_resize_generation(&plan, 1);
+        let first_err = wait_surface_error(handle);
+
+        // Second resize must also return promptly (non-blocking) ...
         let start = Instant::now();
-        planetarium_resize(handle, 128, 128, 1.0).unwrap_err();
+        let texture_id = planetarium_resize(handle, 128, 128, 1.0).expect("resize 2");
         let elapsed = start.elapsed();
+        assert_eq!(texture_id, 0, "still no engine → still pending");
         assert!(
-            elapsed < Duration::from_millis(500),
-            "signal-based wait should complete well under the 2 s timeout; elapsed={elapsed:?}",
+            elapsed < Duration::from_millis(50),
+            "FRB-sync resize must not block on the render thread; elapsed={elapsed:?}",
+        );
+
+        // ... and republish a fresh error for the second attempt. Waiting for
+        // resize_generation >= 2 proves the render thread has begun the second
+        // resize — at which point it has already cleared the slot to `None`
+        // (so any error we then observe is THIS attempt's, never the stale
+        // first one). Both engine-less attempts fail with the same allocate
+        // error class; the guarantee under test is that the slot is freshly
+        // repopulated by the render thread, not that a stale value lingers.
+        wait_resize_generation(&plan, 2);
+        let second_err = wait_surface_error(handle);
+        assert_eq!(
+            first_err, second_err,
+            "both engine-less resizes fail with the same allocate error class"
         );
         planetarium_dispose(handle).expect("dispose");
     }

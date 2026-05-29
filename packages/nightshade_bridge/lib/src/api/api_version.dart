@@ -8,10 +8,7 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            
-
-            /// Get the API version information for a connected device.
+/// Get the API version information for a connected device.
 ///
 /// This queries the device's interface version, driver version, and supported actions.
 /// For Alpaca devices, this uses the InterfaceVersion property.
@@ -20,20 +17,25 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 ///
 /// Returns cached version info if available and fresh (less than 5 minutes old),
 /// otherwise queries the device directly.
-Future<DeviceApiVersion>  apiGetDeviceApiVersion({required String deviceId }) => RustLib.instance.api.crateApiApiVersionApiGetDeviceApiVersion(deviceId: deviceId);
+Future<DeviceApiVersion> apiGetDeviceApiVersion({required String deviceId}) =>
+    RustLib.instance.api
+        .crateApiApiVersionApiGetDeviceApiVersion(deviceId: deviceId);
 
 /// Check if a device supports a specific interface version.
 ///
 /// This is useful for checking if newer API methods are available before calling them.
 /// Returns true if the device reports an interface version >= the required version,
 /// and false when version information is unavailable.
-Future<bool>  apiDeviceSupportsVersion({required String deviceId , required int requiredVersion }) => RustLib.instance.api.crateApiApiVersionApiDeviceSupportsVersion(deviceId: deviceId, requiredVersion: requiredVersion);
+Future<bool> apiDeviceSupportsVersion(
+        {required String deviceId, required int requiredVersion}) =>
+    RustLib.instance.api.crateApiApiVersionApiDeviceSupportsVersion(
+        deviceId: deviceId, requiredVersion: requiredVersion);
 
 /// Check if a device supports a specific action.
 ///
 /// For ASCOM/Alpaca devices, checks the SupportedActions list.
 /// Returns true only when the action is explicitly reported as supported.
-Future<bool>  apiDeviceSupportsAction({required String deviceId , required String action }) => RustLib.instance.api.crateApiApiVersionApiDeviceSupportsAction(deviceId: deviceId, action: action);
-
-            
-            
+Future<bool> apiDeviceSupportsAction(
+        {required String deviceId, required String action}) =>
+    RustLib.instance.api.crateApiApiVersionApiDeviceSupportsAction(
+        deviceId: deviceId, action: action);

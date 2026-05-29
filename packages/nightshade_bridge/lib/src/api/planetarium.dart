@@ -8,7 +8,7 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 part 'planetarium.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `lookup`, `next_id`, `registry`, `wait_texture_id`, `with_planetarium`
+// These functions are ignored because they are not marked as `pub`: `lookup`, `next_id`, `registry`, `with_planetarium`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`
 
 /// Create a planetarium instance bound to the Flutter engine handle.
@@ -16,7 +16,22 @@ PlatformInt64 planetariumCreate({required PlatformInt64 engineHandle}) =>
     RustLib.instance.api
         .crateApiPlanetariumPlanetariumCreate(engineHandle: engineHandle);
 
-/// Resize the render target and return the Flutter texture id once allocated.
+/// Submit a resize and return the currently-published texture id (`0` while
+/// the first allocation is still pending). **Non-blocking.**
+///
+/// We *cannot* block the FFI-sync caller waiting for the render thread to
+/// publish a new texture id, because the texture-creation closure must run
+/// on the Flutter platform thread (irondash requirement) — and on Windows
+/// Flutter desktop, the Dart UI isolate that invokes this FRB-sync function
+/// runs **on that same platform thread**. Blocking here freezes the Win32
+/// message pump, which prevents `EngineContext::perform_on_main_thread` from
+/// ever dispatching its closure → permanent self-deadlock with no texture
+/// ever produced.
+///
+/// Instead: queue the `Resize` command, return whatever id is currently in
+/// the atomic, and let the caller poll. Once this function returns, the
+/// platform thread resumes its message pump, the closure runs, the render
+/// thread publishes the new texture id, and the next poll picks it up.
 PlatformInt64 planetariumResize(
         {required PlatformInt64 handle,
         required int w,
@@ -24,6 +39,19 @@ PlatformInt64 planetariumResize(
         required double dpr}) =>
     RustLib.instance.api.crateApiPlanetariumPlanetariumResize(
         handle: handle, w: w, h: h, dpr: dpr);
+
+/// Read the currently-published Flutter texture id without queuing a resize.
+/// Returns `0` if no successful allocation has happened yet, or a positive
+/// integer once the render thread has published one.
+PlatformInt64 planetariumTextureId({required PlatformInt64 handle}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumTextureId(handle: handle);
+
+/// Read the last surface-allocate error from the render thread, if any.
+/// Returns `None` when allocation is still pending or has succeeded.
+String? planetariumLastSurfaceError({required PlatformInt64 handle}) =>
+    RustLib.instance.api
+        .crateApiPlanetariumPlanetariumLastSurfaceError(handle: handle);
 
 /// Update view pose (pan/zoom/roll/projection).
 void planetariumSetPose(

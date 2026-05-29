@@ -38,7 +38,15 @@ class Planetarium implements PlanetariumDriver {
     return Planetarium._(id);
   }
 
-  /// Resizes the render target and stores the allocated Flutter texture id.
+  /// Submits a resize to the render thread and returns the currently-published
+  /// texture id, **without blocking** for the new allocation.
+  ///
+  /// The first call after [create] usually returns `0` because the texture
+  /// allocation is queued on the Flutter platform thread (irondash
+  /// requirement) and only runs once the FFI-sync call returns and the Win32
+  /// message pump resumes — see the Rust side's `planetarium_resize` for the
+  /// deadlock this avoids. Callers must poll [pollTextureId] (or call [resize]
+  /// again) until they get a positive id back.
   @override
   int resize({
     required int width,
@@ -52,14 +60,28 @@ class Planetarium implements PlanetariumDriver {
       h: height,
       dpr: devicePixelRatio,
     );
-    if (tex <= 0) {
-      throw StateError(
-        'planetariumResize returned invalid texture id '
-        '(${width}x$height @ $devicePixelRatio dpr)',
-      );
+    if (tex > 0) {
+      _textureId = tex;
     }
-    _textureId = tex;
-    return _textureId;
+    return tex;
+  }
+
+  /// Reads the latest published Flutter texture id without queuing a resize.
+  /// Returns `0` if the render thread hasn't completed an allocation yet.
+  int pollTextureId() {
+    _ensureAlive();
+    final tex = planetariumTextureId(handle: _handle);
+    if (tex > 0) {
+      _textureId = tex;
+    }
+    return tex;
+  }
+
+  /// Returns the last surface-allocate error from the render thread, or `null`
+  /// if allocation is still pending or has succeeded.
+  String? lastSurfaceError() {
+    _ensureAlive();
+    return planetariumLastSurfaceError(handle: _handle);
   }
 
   @override

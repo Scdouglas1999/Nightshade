@@ -35,7 +35,14 @@ struct VsOut {
 
 const MIN_COSC: f32 = 0.01;
 const OFF_CLIP: vec4<f32> = vec4<f32>(0.0, 0.0, -2.0, 1.0);
-const PSF_RADIUS_MIN: f32 = 0.5;
+// Minimum on-screen radius for a star quad. 0.5 px (the previous floor)
+// produces a sub-pixel quad for any star fainter than ~mag 4 — the
+// Gaussian PSF then falls below the alpha-discard threshold for every
+// fragment, so the star renders to nothing even though it's in the
+// instance buffer. Bumping the floor to 1.4 keeps every visible star
+// at >=1 pixel of coverage, matching Stellarium's "always at least one
+// pixel" behaviour at default zoom.
+const PSF_RADIUS_MIN: f32 = 1.4;
 const PSF_RADIUS_MAX: f32 = 25.0;
 const TWINKLE_MAG_CUTOFF: f32 = 4.0;
 const TWINKLE_ALT_DEG: f32 = 30.0;
@@ -58,7 +65,15 @@ fn psf_radius_px(magnitude: f32) -> f32 {
 }
 
 fn magnitude_to_tone(magnitude: f32) -> f32 {
-    return clamp((7.0 - magnitude) / 6.0, 0.3, 1.0);
+    // Brightness curve: (7 - mag) / 6 → 1.0 at mag 1, 0.0 at mag 7.
+    // The previous 0.3 floor meant every star fainter than ~mag 5 rendered
+    // at identical brightness — and at zoom-in we upload mag 10-12 stars
+    // (from LOD boost) that all paint with that same 0.3 tone × min-PSF
+    // sprite. The result is a grey haze that crowds out the bright stars
+    // and makes the scene look DARKER as you zoom (the user's "becomes
+    // more black" report). A 0.04 floor lets faint stars actually fade
+    // out so bright ones remain visually dominant.
+    return clamp((7.0 - magnitude) / 6.0, 0.04, 1.0);
 }
 
 /// Scintillation increases toward the horizon (0 above 30° altitude).
@@ -131,17 +146,26 @@ fn bv_to_rgb(bv: f32) -> vec3<f32> {
 }
 
 fn psf_alpha(r: f32, mag: f32) -> f32 {
-    let core = exp(-r * r * 10.0);
-    // `pow(x, 2.0)` is `exp(2.0 * log(x))` and is NaN for negative `x` on some
-    // backends; for `r < 0.4` the inner expression goes negative, so multiply
-    // directly instead.
-    let ring_arg = (r - 0.4) * 6.0;
-    let ring = 0.12 * exp(-(ring_arg * ring_arg));
-    var a = core + ring;
-    if (mag < 1.0) {
-        let spike_arg = r * 18.0;
-        let spike = 0.06 * exp(-(spike_arg * spike_arg));
-        a = a + spike * (1.0 - mag);
+    // Sharp Gaussian core — the hot pixel at the star's center.
+    let core = exp(-r * r * 12.0);
+    // Soft outer halo: bright stars read as a glowy disc, not a sharp
+    // dot. Halo width scales with brightness (mag < 4) so faint stars
+    // stay pinpoint and bright stars bloom.
+    let halo_width = mix(2.0, 5.5, clamp((4.0 - mag) * 0.25, 0.0, 1.0));
+    let halo = exp(-r * r * halo_width) * 0.45;
+    // Soft glow ring at r≈0.5 — perceived softness without painting a fat blob.
+    // `pow(x, 2.0)` is NaN for x < 0 on some backends, so square directly.
+    let ring_arg = (r - 0.5) * 5.0;
+    let ring = 0.18 * exp(-(ring_arg * ring_arg));
+    var a = core + halo + ring;
+    if (mag < 1.5) {
+        // Brightest stars: add a tighter central spike approximating
+        // the inner column of a diffraction pattern (full 4-pointed
+        // spikes would need the per-corner UV which isn't currently in
+        // scope — radial approximation reads convincingly at this size).
+        let spike_arg = r * 14.0;
+        let spike = 0.22 * exp(-(spike_arg * spike_arg));
+        a = a + spike * (1.5 - mag);
     }
     return clamp(a, 0.0, 1.0);
 }

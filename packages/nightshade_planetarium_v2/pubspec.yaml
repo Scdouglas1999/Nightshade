@@ -15,6 +15,7 @@ dependencies:
     path: ../nightshade_bridge
   nightshade_core:
     path: ../nightshade_core
+  path: ^1.9.0
 
 dev_dependencies:
   flutter_test:

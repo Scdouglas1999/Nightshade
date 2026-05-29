@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -897549093;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -565498043;
 
 // Section: executor
 
@@ -5729,6 +5729,81 @@ fn wire__crate__api__storage__api_save_profile_impl(
         },
     )
 }
+fn wire__crate__api__imaging__api_save_rgba_jpeg_file_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    file_path: impl CstDecode<String>,
+    width: impl CstDecode<u32>,
+    height: impl CstDecode<u32>,
+    rgba: impl CstDecode<Vec<u8>>,
+    quality: impl CstDecode<u8>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_save_rgba_jpeg_file",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_file_path = file_path.cst_decode();
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_rgba = rgba.cst_decode();
+            let api_quality = quality.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_save_rgba_jpeg_file(
+                            api_file_path,
+                            api_width,
+                            api_height,
+                            api_rgba,
+                            api_quality,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_save_rgba_png_file_impl(
+    port_: flutter_rust_bridge::for_generated::MessagePort,
+    file_path: impl CstDecode<String>,
+    width: impl CstDecode<u32>,
+    height: impl CstDecode<u32>,
+    rgba: impl CstDecode<Vec<u8>>,
+) {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_async::<flutter_rust_bridge::for_generated::DcoCodec, _, _, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_save_rgba_png_file",
+            port: Some(port_),
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Normal,
+        },
+        move || {
+            let api_file_path = file_path.cst_decode();
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_rgba = rgba.cst_decode();
+            move |context| async move {
+                transform_result_dco::<_, _, crate::error::NightshadeError>(
+                    (move || async move {
+                        let output_ok = crate::api::imaging::api_save_rgba_png_file(
+                            api_file_path,
+                            api_width,
+                            api_height,
+                            api_rgba,
+                        )
+                        .await?;
+                        Ok(output_ok)
+                    })()
+                    .await,
+                )
+            }
+        },
+    )
+}
 fn wire__crate__api__imaging__api_save_tiff_file_impl(
     port_: flutter_rust_bridge::for_generated::MessagePort,
     file_path: impl CstDecode<String>,
@@ -9296,6 +9371,25 @@ fn wire__crate__api__planetarium__planetarium_hit_test_impl(
         },
     )
 }
+fn wire__crate__api__planetarium__planetarium_last_surface_error_impl(
+    handle: impl CstDecode<i64>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_last_surface_error",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok =
+                    crate::api::planetarium::planetarium_last_surface_error(api_handle)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
 fn wire__crate__api__planetarium__planetarium_load_pack_impl(
     handle: impl CstDecode<i64>,
     path: impl CstDecode<String>,
@@ -9570,6 +9664,24 @@ fn wire__crate__api__planetarium__planetarium_snapshot_impl(
             let api_handle = handle.cst_decode();
             transform_result_dco::<_, _, String>((move || {
                 let output_ok = crate::api::planetarium::planetarium_snapshot(api_handle)?;
+                Ok(output_ok)
+            })())
+        },
+    )
+}
+fn wire__crate__api__planetarium__planetarium_texture_id_impl(
+    handle: impl CstDecode<i64>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "planetarium_texture_id",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_handle = handle.cst_decode();
+            transform_result_dco::<_, _, String>((move || {
+                let output_ok = crate::api::planetarium::planetarium_texture_id(api_handle)?;
                 Ok(output_ok)
             })())
         },
@@ -24976,6 +25088,15 @@ mod io {
             }
         }
     }
+    impl CstDecode<Vec<u8>> for *mut wire_cst_list_prim_u_8_loose {
+        // Codec=Cst (C-struct based), see doc to use other codecs
+        fn cst_decode(self) -> Vec<u8> {
+            unsafe {
+                let wrap = flutter_rust_bridge::for_generated::box_from_leak_ptr(self);
+                flutter_rust_bridge::for_generated::vec_from_leak_ptr(wrap.ptr, wrap.len)
+            }
+        }
+    }
     impl CstDecode<Vec<u8>> for *mut wire_cst_list_prim_u_8_strict {
         // Codec=Cst (C-struct based), see doc to use other codecs
         fn cst_decode(self) -> Vec<u8> {
@@ -30632,6 +30753,33 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_jpeg_file(
+        port_: i64,
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+        width: u32,
+        height: u32,
+        rgba: *mut wire_cst_list_prim_u_8_loose,
+        quality: u8,
+    ) {
+        wire__crate__api__imaging__api_save_rgba_jpeg_file_impl(
+            port_, file_path, width, height, rgba, quality,
+        )
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_png_file(
+        port_: i64,
+        file_path: *mut wire_cst_list_prim_u_8_strict,
+        width: u32,
+        height: u32,
+        rgba: *mut wire_cst_list_prim_u_8_loose,
+    ) {
+        wire__crate__api__imaging__api_save_rgba_png_file_impl(
+            port_, file_path, width, height, rgba,
+        )
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_tiff_file(
         port_: i64,
         file_path: *mut wire_cst_list_prim_u_8_strict,
@@ -31915,6 +32063,13 @@ mod io {
     }
 
     #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_last_surface_error(
+        handle: i64,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_last_surface_error_impl(handle)
+    }
+
+    #[unsafe(no_mangle)]
     pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_load_pack(
         handle: i64,
         path: *mut wire_cst_list_prim_u_8_strict,
@@ -32018,6 +32173,13 @@ mod io {
         handle: i64,
     ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
         wire__crate__api__planetarium__planetarium_snapshot_impl(handle)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_texture_id(
+        handle: i64,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__planetarium__planetarium_texture_id_impl(handle)
     }
 
     #[unsafe(no_mangle)]
@@ -32904,6 +33066,17 @@ mod io {
         len: i32,
     ) -> *mut wire_cst_list_prim_u_32_strict {
         let ans = wire_cst_list_prim_u_32_strict {
+            ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(Default::default(), len),
+            len,
+        };
+        flutter_rust_bridge::for_generated::new_leak_box_ptr(ans)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_cst_new_list_prim_u_8_loose(
+        len: i32,
+    ) -> *mut wire_cst_list_prim_u_8_loose {
+        let ans = wire_cst_list_prim_u_8_loose {
             ptr: flutter_rust_bridge::for_generated::new_leak_vec_ptr(Default::default(), len),
             len,
         };
@@ -34224,6 +34397,12 @@ mod io {
     #[derive(Clone, Copy)]
     pub struct wire_cst_list_prim_u_32_strict {
         ptr: *mut u32,
+        len: i32,
+    }
+    #[repr(C)]
+    #[derive(Clone, Copy)]
+    pub struct wire_cst_list_prim_u_8_loose {
+        ptr: *mut u8,
         len: i32,
     }
     #[repr(C)]

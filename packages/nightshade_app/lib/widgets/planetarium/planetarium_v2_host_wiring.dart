@@ -16,8 +16,20 @@ class PlanetariumV2HostWiring extends ConsumerStatefulWidget {
 
   final Widget child;
 
-  /// When true, [planetarium_v1.skyViewStateProvider] drives
-  /// [planetarium_v2.viewPoseProvider].
+  /// When true, every change to [planetarium_v1.skyViewStateProvider] is
+  /// pushed into [planetarium_v2.viewPoseProvider] and then on to the Rust
+  /// renderer via [planetarium_v2.planetariumViewPoseSyncProvider].
+  ///
+  /// Default `false`: the v2 widget owns its own pose. The v1 widget runs
+  /// in parallel and does not normally need to drive v2 — and bidirectional
+  /// sync would currently produce a feedback loop: gestures in
+  /// `InteractiveSkyView._pushGesture` go straight to Rust (they do not
+  /// update the Dart `viewPoseProvider`), so any per-change v1 → v2 push
+  /// would re-overwrite the gesture-driven Rust pose on the very next
+  /// frame — appearing as "pan / zoom don't move the camera".
+  ///
+  /// The initial pose is still seeded from v1 in `initState`, so opening
+  /// v2 lands at whatever sky region v1 was showing.
   final bool syncViewPoseFromV1;
 
   @override
@@ -33,6 +45,12 @@ class _PlanetariumV2HostWiringState extends ConsumerState<PlanetariumV2HostWirin
       if (!mounted) {
         return;
       }
+      // Time mirror is harmless and useful (so v2 "Now" matches v1's clock
+      // when both are visible). Pose seed only when explicitly requested —
+      // v1's default `centerDec=0, fieldOfView=60` would otherwise
+      // override v2's own `decDegrees=90, fieldOfViewDegrees=90` default
+      // and aim the camera at the celestial equator at RA=0 (often
+      // partially below the horizon at mid-latitudes, often empty sky).
       _pushObservationTimeFromV1();
       if (widget.syncViewPoseFromV1) {
         _pushViewPoseFromV1();

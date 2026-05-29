@@ -2497,6 +2497,275 @@ pub async fn api_save_jpeg_file(
     Ok(())
 }
 
+/// Save an 8-bit RGBA buffer as a PNG, preserving color and alpha losslessly.
+///
+/// Unlike [`api_save_png_file`] (which takes a mono `u16` buffer and is meant
+/// for raw/linear single-channel data), this accepts an already-finalized
+/// 8-bit RGBA image — the auto-stretched result the share-card / export path
+/// produces. Routing that through the mono path would discard color, and
+/// round-tripping it through the Dart `image` package re-encodes/re-decodes the
+/// pixels unnecessarily. The alpha channel is written verbatim so transparent
+/// regions (e.g. a watermark composited with partial opacity) survive.
+///
+/// The caller guarantees `rgba.len() == width * height * 4`. A mismatch is a
+/// programming error upstream (wrong stride, truncated buffer); we surface it
+/// as [`NightshadeError::ImageError`] rather than silently truncating or
+/// padding, which would write a corrupt/garbage image that looks plausible.
+pub async fn api_save_rgba_png_file(
+    file_path: String,
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+) -> Result<(), NightshadeError> {
+    use image::RgbaImage;
+    use std::path::Path;
+
+    tracing::info!("Saving RGBA PNG file: {} ({}x{})", file_path, width, height);
+
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|px| px.checked_mul(4))
+        .ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "RGBA PNG dimensions overflow: {}x{}",
+                width, height
+            ))
+        })?;
+    if rgba.len() != expected {
+        return Err(NightshadeError::ImageError(format!(
+            "RGBA PNG buffer length mismatch: got {} bytes, expected {} for {}x{}x4",
+            rgba.len(),
+            expected,
+            width,
+            height
+        )));
+    }
+
+    let image: RgbaImage = RgbaImage::from_raw(width, height, rgba).ok_or_else(|| {
+        NightshadeError::ImageError(format!(
+            "Failed to build {}x{} RGBA image buffer",
+            width, height
+        ))
+    })?;
+
+    let path = Path::new(&file_path);
+    image
+        .save(path)
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to write RGBA PNG: {}", e)))?;
+
+    tracing::info!("RGBA PNG file saved: {}", file_path);
+    Ok(())
+}
+
+/// Save an 8-bit RGBA buffer as a JPEG, flattening alpha onto black.
+///
+/// Companion to [`api_save_rgba_png_file`] for the lossy export path. JPEG has
+/// no alpha channel, so we explicitly composite each pixel over an opaque black
+/// background (`out = src * alpha / 255`) and encode the resulting RGB. Doing
+/// the flatten here — rather than handing `Rgba8` straight to the encoder,
+/// which would treat the buffer as fully opaque RGB and ignore alpha entirely —
+/// keeps transparent regions rendering as black instead of leaking whatever
+/// stale color bytes happen to sit under a transparent pixel.
+///
+/// Length validation matches [`api_save_rgba_png_file`]: a mismatch is an
+/// upstream bug and is surfaced as [`NightshadeError::ImageError`].
+pub async fn api_save_rgba_jpeg_file(
+    file_path: String,
+    width: u32,
+    height: u32,
+    rgba: Vec<u8>,
+    quality: u8,
+) -> Result<(), NightshadeError> {
+    use image::{ImageEncoder, RgbImage};
+    use std::fs::File;
+    use std::io::BufWriter;
+    use std::path::Path;
+
+    tracing::info!(
+        "Saving RGBA JPEG file: {} ({}x{}, quality: {})",
+        file_path,
+        width,
+        height,
+        quality
+    );
+
+    let expected = (width as usize)
+        .checked_mul(height as usize)
+        .and_then(|px| px.checked_mul(4))
+        .ok_or_else(|| {
+            NightshadeError::ImageError(format!(
+                "RGBA JPEG dimensions overflow: {}x{}",
+                width, height
+            ))
+        })?;
+    if rgba.len() != expected {
+        return Err(NightshadeError::ImageError(format!(
+            "RGBA JPEG buffer length mismatch: got {} bytes, expected {} for {}x{}x4",
+            rgba.len(),
+            expected,
+            width,
+            height
+        )));
+    }
+
+    // Flatten RGBA onto an opaque black background -> packed RGB8.
+    let pixel_count = (width as usize) * (height as usize);
+    let mut rgb = Vec::with_capacity(pixel_count * 3);
+    for px in rgba.chunks_exact(4) {
+        // `px` is [r, g, b, a]; composite over black: out = src * a / 255.
+        let a = px[3] as u32;
+        rgb.push(((px[0] as u32 * a) / 255) as u8);
+        rgb.push(((px[1] as u32 * a) / 255) as u8);
+        rgb.push(((px[2] as u32 * a) / 255) as u8);
+    }
+
+    let rgb_image: RgbImage = RgbImage::from_raw(width, height, rgb).ok_or_else(|| {
+        NightshadeError::ImageError(format!(
+            "Failed to build {}x{} RGB image buffer",
+            width, height
+        ))
+    })?;
+
+    let path = Path::new(&file_path);
+    let file =
+        File::create(path).map_err(|e| NightshadeError::ImageError(format!(
+            "Failed to create JPEG file: {}",
+            e
+        )))?;
+    let writer = BufWriter::new(file);
+    let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(writer, quality);
+    encoder
+        .write_image(
+            rgb_image.as_raw(),
+            width,
+            height,
+            image::ColorType::Rgb8,
+        )
+        .map_err(|e| NightshadeError::ImageError(format!("Failed to encode RGBA JPEG: {}", e)))?;
+
+    tracing::info!("RGBA JPEG file saved: {}", file_path);
+    Ok(())
+}
+
+#[cfg(test)]
+mod rgba_save_tests {
+    use super::{api_save_rgba_jpeg_file, api_save_rgba_png_file};
+    use crate::error::NightshadeError;
+
+    /// A deterministic 2x2 RGBA image: red (opaque), green (opaque),
+    /// blue (opaque), and a half-transparent white pixel.
+    fn fixture_2x2() -> Vec<u8> {
+        vec![
+            255, 0, 0, 255, // (0,0) red
+            0, 255, 0, 255, // (1,0) green
+            0, 0, 255, 255, // (0,1) blue
+            255, 255, 255, 128, // (1,1) white @ 50% alpha
+        ]
+    }
+
+    #[tokio::test]
+    async fn writes_rgba_png_and_round_trips_color_and_alpha() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("share_card.png");
+
+        api_save_rgba_png_file(
+            path.to_string_lossy().into_owned(),
+            2,
+            2,
+            fixture_2x2(),
+        )
+        .await
+        .expect("RGBA PNG should write successfully");
+
+        // Read it back through the image crate and assert geometry + channels.
+        let decoded = image::open(&path).expect("decoded PNG should open");
+        let rgba = decoded.to_rgba8();
+        assert_eq!(rgba.width(), 2);
+        assert_eq!(rgba.height(), 2);
+        // RgbaImage is 4 channels by construction.
+        assert_eq!(rgba.as_raw().len(), 2 * 2 * 4);
+
+        // Color is preserved verbatim (PNG is lossless and keeps alpha).
+        assert_eq!(rgba.get_pixel(0, 0).0, [255, 0, 0, 255]);
+        assert_eq!(rgba.get_pixel(1, 0).0, [0, 255, 0, 255]);
+        assert_eq!(rgba.get_pixel(0, 1).0, [0, 0, 255, 255]);
+        assert_eq!(rgba.get_pixel(1, 1).0, [255, 255, 255, 128]);
+    }
+
+    #[tokio::test]
+    async fn writes_rgba_jpeg_flattening_alpha_onto_black() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("share_card.jpg");
+
+        api_save_rgba_jpeg_file(
+            path.to_string_lossy().into_owned(),
+            2,
+            2,
+            fixture_2x2(),
+            90,
+        )
+        .await
+        .expect("RGBA JPEG should write successfully");
+
+        let decoded = image::open(&path).expect("decoded JPEG should open");
+        let rgb = decoded.to_rgb8();
+        assert_eq!(rgb.width(), 2);
+        assert_eq!(rgb.height(), 2);
+        // JPEG has no alpha channel.
+        assert_eq!(rgb.as_raw().len(), 2 * 2 * 3);
+
+        // The half-transparent white pixel composited over black is ~mid-gray
+        // (255 * 128 / 255 = 128 per channel). JPEG is lossy, so allow slack.
+        let flattened = rgb.get_pixel(1, 1).0;
+        for channel in flattened {
+            assert!(
+                (channel as i32 - 128).abs() <= 24,
+                "flattened white@50% should be ~128 per channel, got {:?}",
+                flattened
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn short_png_buffer_is_rejected() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("bad.png");
+
+        // 2x2 needs 16 bytes; provide 12 (a "short" buffer).
+        let err = api_save_rgba_png_file(
+            path.to_string_lossy().into_owned(),
+            2,
+            2,
+            vec![0u8; 12],
+        )
+        .await
+        .expect_err("short RGBA buffer must be rejected, not silently truncated");
+
+        assert!(matches!(err, NightshadeError::ImageError(_)));
+        // Nothing should have been written for an invalid input.
+        assert!(!path.exists(), "no file should be created on validation failure");
+    }
+
+    #[tokio::test]
+    async fn short_jpeg_buffer_is_rejected() {
+        let dir = tempfile::tempdir().expect("create temp dir");
+        let path = dir.path().join("bad.jpg");
+
+        let err = api_save_rgba_jpeg_file(
+            path.to_string_lossy().into_owned(),
+            2,
+            2,
+            vec![0u8; 12],
+            85,
+        )
+        .await
+        .expect_err("short RGBA buffer must be rejected, not silently truncated");
+
+        assert!(matches!(err, NightshadeError::ImageError(_)));
+        assert!(!path.exists(), "no file should be created on validation failure");
+    }
+}
+
 // =============================================================================
 // FILE NAMING PATTERNS
 // =============================================================================

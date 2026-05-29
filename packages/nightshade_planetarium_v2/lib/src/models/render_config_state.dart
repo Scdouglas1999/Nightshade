@@ -22,7 +22,11 @@ class RenderConfigState {
     this.showSatellites = false,
     this.showMinorPlanets = false,
     this.showVariableStars = false,
-    this.magnitudeLimit = 6.0,
+    // Wide-field user baseline; v2 LOD pushes higher (toward the catalog
+    // ceiling at narrow FOV). 6.0 was naked-eye-only and made the sky
+    // look empty out of the box. Kept in sync with the Rust default at
+    // `native/nightshade_native/planetarium/src/types.rs::RenderConfig::default`.
+    this.magnitudeLimit = 11.0,
     this.quality = 1,
     this.bortleClass = 4,
     this.twinkle = true,

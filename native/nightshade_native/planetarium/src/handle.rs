@@ -17,9 +17,10 @@ use crate::bus::loop_thread::{FrameRenderer, RenderLoop};
 use crate::bus::PlanetariumCommand;
 use std::path::Path;
 
-use crate::catalog::{open_star_tile_pack, CatalogSet, StarPack};
+use crate::catalog::{open_star_tile_pack, CatalogSet, MappedDsoCatalog, StarPack};
 use crate::gesture::{hit_test_screen, GestureStateMachine, HitTestError};
 use crate::scene::snapshot::DEFAULT_ASTRO_TIME_JD_UTC;
+use crate::renderer::Scene;
 use crate::scene::{
     build_render_scene, load, new_snapshot_slot, publish_snapshot, BuildSceneInputs, MountPosition,
     PoseController, PoseInputs, PoseLock, SceneSnapshot, SelectedObject, SnapshotInputs,
@@ -85,6 +86,11 @@ struct PlanetariumInner {
     /// semantics don't matter, only the wakeup) to satisfy spurious-wake checks.
     texture_signal: Arc<(Mutex<u64>, Condvar)>,
     catalog: Arc<Mutex<CatalogSet>>,
+    /// OpenNGC DSO catalog, mmapped on `load_dso_pack`. `parking_lot::RwLock`
+    /// because the render thread reads it on every rebuild (`build_render_scene`)
+    /// while the FFI thread mutates it via `load_dso_pack`. Wrapped in `Arc`
+    /// so the render-thread side (`PlanetariumRenderer`) can hold a clone.
+    dso_catalog: Arc<parking_lot::RwLock<Option<MappedDsoCatalog>>>,
 }
 
 /// Renderer running on the dedicated loop thread; owns the platform surface.
@@ -101,6 +107,9 @@ struct PlanetariumRenderer {
     resize_generation: Arc<AtomicU64>,
     texture_signal: Arc<(Mutex<u64>, Condvar)>,
     catalog: Arc<Mutex<CatalogSet>>,
+    /// Render-thread mirror of [`PlanetariumInner::dso_catalog`]; read-only on
+    /// this side, written exclusively by [`Planetarium::load_dso_pack`].
+    dso_catalog: Arc<parking_lot::RwLock<Option<MappedDsoCatalog>>>,
     frame_id: u64,
     view_pose: ViewPose,
     pose_ctrl: PoseController,
@@ -112,6 +121,18 @@ struct PlanetariumRenderer {
     selected: Option<SelectedObject>,
     gestures: GestureStateMachine,
     last_anim: AnimationState,
+    /// Cached scene from the previous render. Reused on twinkle-only ticks
+    /// to avoid re-running `build_render_scene` (which iterates every
+    /// visible HEALPix tile, re-projects ~100k stars, and reallocates the
+    /// instance vector) when only `twinkle_phase` changed. Re-projecting
+    /// 100k stars at 60 Hz was the dominant CPU cost — and the dominant
+    /// source of perceived "jank" against v1's CustomPainter.
+    cached_scene: Option<Scene>,
+    /// Wall time of the previous [`Self::render_frame`] call. Used to
+    /// compute `dt` for [`GestureStateMachine::tick_momentum`] so a
+    /// release-fling coasts at consistent angular speed regardless of
+    /// render-loop pacing.
+    last_render_time: Option<std::time::Instant>,
 }
 
 impl PlanetariumRenderer {
@@ -165,6 +186,7 @@ impl Planetarium {
         let resize_generation = Arc::new(AtomicU64::new(0));
         let texture_signal = Arc::new((Mutex::new(0_u64), Condvar::new()));
         let catalog = Arc::new(Mutex::new(CatalogSet::new()));
+        let dso_catalog = Arc::new(parking_lot::RwLock::new(None));
 
         let renderer = PlanetariumRenderer {
             surface,
@@ -176,6 +198,7 @@ impl Planetarium {
             resize_generation: Arc::clone(&resize_generation),
             texture_signal: Arc::clone(&texture_signal),
             catalog: Arc::clone(&catalog),
+            dso_catalog: Arc::clone(&dso_catalog),
             frame_id: 0,
             view_pose: ViewPose::default(),
             pose_ctrl: PoseController::new(ViewPose::default()),
@@ -187,6 +210,8 @@ impl Planetarium {
             selected: None,
             gestures: GestureStateMachine::new(ViewPose::default()),
             last_anim: AnimationState::INACTIVE,
+            cached_scene: None,
+            last_render_time: None,
         };
 
         let render_loop = RenderLoop::spawn(renderer);
@@ -203,6 +228,7 @@ impl Planetarium {
                 resize_generation,
                 texture_signal,
                 catalog,
+                dso_catalog,
             }),
             render_loop,
         })
@@ -211,13 +237,68 @@ impl Planetarium {
     /// Registers a star catalog pack for rendering queries and screen hit testing.
     pub fn register_pack(&self, pack: Box<dyn StarPack>) {
         self.inner.catalog.lock().register(pack);
+        // Wake the render loop and force a scene rebuild so the freshly
+        // registered tiles show up immediately — otherwise the renderer
+        // will stay on its cached (likely empty) scene until the next
+        // gesture or time tick.
+        let _ = self.send(PlanetariumCommand::CatalogChanged);
     }
 
-    /// Load a verified star-tile pack from disk and register it on this handle.
+    /// Load a verified catalog pack from disk and register it on this handle.
+    ///
+    /// Dispatches by manifest content:
+    ///
+    /// * Manifests with `tiles/*.bin` entries → star-tile pack
+    ///   ([`open_star_tile_pack`]) → registered into the [`CatalogSet`].
+    /// * Manifests with a single `dso-*.bin` entry → OpenNGC DSO catalog
+    ///   ([`MappedDsoCatalog::open`]) → stored on the handle for the
+    ///   render thread to consume.
+    /// * Anything else → logged and skipped (future loader extension point).
+    ///
+    /// Keeping this dispatch on the Rust side means the host can iterate
+    /// every pack subdir blindly and the loader sorts them out — the
+    /// previous behaviour (hard-coded `open_star_tile_pack`) failed loud
+    /// on the bundled OpenNGC pack, which masked star-loading failures
+    /// behind a misleading error.
     pub fn load_pack(&self, pack_dir: &Path) -> Result<(), PlanetariumError> {
-        let pack = open_star_tile_pack(pack_dir)
+        let manifest = crate::catalog::PackManifest::load(pack_dir)
             .map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
-        self.register_pack(pack);
+        let has_star_tiles = manifest
+            .files
+            .keys()
+            .any(|rel| rel.starts_with("tiles/") && rel.ends_with(".bin"));
+        if has_star_tiles {
+            let pack = open_star_tile_pack(pack_dir)
+                .map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
+            self.register_pack(pack);
+            return Ok(());
+        }
+        // Look for a `dso-*.bin` entry (currently `dso-opengnc-v1.bin`).
+        let dso_blob = manifest
+            .files
+            .keys()
+            .find(|rel| rel.starts_with("dso-") && rel.ends_with(".bin"))
+            .cloned();
+        if let Some(rel) = dso_blob {
+            return self.load_dso_pack(&pack_dir.join(&rel));
+        }
+        tracing::info!(
+            pack = %manifest.id,
+            "skipping pack: no recognised content (no tiles/*.bin, no dso-*.bin)"
+        );
+        Ok(())
+    }
+
+    /// Load and store an OpenNGC DSO catalog binary. Mmapped, validated
+    /// once at load time. Subsequent `build_render_scene` calls borrow the
+    /// catalog's records read-only via [`PlanetariumInner::dso_catalog`].
+    pub fn load_dso_pack(&self, blob_path: &Path) -> Result<(), PlanetariumError> {
+        let mapped = MappedDsoCatalog::open(blob_path)
+            .map_err(|e| PlanetariumError::CatalogPack(e.to_string()))?;
+        *self.inner.dso_catalog.write() = Some(mapped);
+        // Queue a catalog-dirty notification so the next render frame
+        // includes DSOs without waiting for some other state change.
+        let _ = self.send(PlanetariumCommand::CatalogChanged);
         Ok(())
     }
 
@@ -230,7 +311,16 @@ impl Planetarium {
     pub fn hit_test(&self, x: f32, y: f32) -> Result<Option<SelectedObject>, HitTestError> {
         let pose = self.live_pose();
         let mag_limit = self.live_render_config().magnitude_limit;
-        hit_test_screen(&self.inner.catalog.lock(), x, y, pose, mag_limit)
+        let dso_guard = self.inner.dso_catalog.read();
+        let dso_parsed = dso_guard.as_ref().and_then(|c| c.parsed().ok());
+        hit_test_screen(
+            &self.inner.catalog.lock(),
+            dso_parsed.as_ref(),
+            x,
+            y,
+            pose,
+            mag_limit,
+        )
     }
 
     /// Enqueues a command for the render thread.
@@ -430,8 +520,29 @@ impl FrameRenderer for PlanetariumRenderer {
         }
     }
 
-    fn render_frame(&mut self, _dirty: DirtyFlags, anim: &AnimationState) {
+    fn needs_continuous_tick(&self) -> bool {
+        self.gestures.momentum_active()
+    }
+
+    fn render_frame(&mut self, mut dirty: DirtyFlags, anim: &AnimationState) {
         self.last_anim = *anim;
+
+        // Inertial pan: coast the gesture state machine forward and treat
+        // the result as a pose-dirty event so the scene rebuild path picks
+        // up the new view. Without this the release-fling dies the instant
+        // the user lifts their finger because the render loop blocks on
+        // `cmd_rx.recv()` (no command → no pose change → no render).
+        let now = std::time::Instant::now();
+        let dt = self
+            .last_render_time
+            .map(|prev| (now - prev).as_secs_f32().clamp(0.0, 1.0 / 15.0))
+            .unwrap_or(1.0 / 60.0);
+        self.last_render_time = Some(now);
+        if self.gestures.tick_momentum(dt) {
+            self.sync_gestures_to_pose_ctrl();
+            dirty |= DirtyFlags::POSE;
+        }
+
         self.refresh_view_pose();
 
         // Each call advances the frame counter exactly once, regardless of which
@@ -441,27 +552,59 @@ impl FrameRenderer for PlanetariumRenderer {
         // view_pose is fresh but whose texture wasn't redrawn this frame.
         self.frame_id = self.frame_id.saturating_add(1);
 
-        let build_inputs = BuildSceneInputs {
-            view_pose: self.view_pose,
-            render_config: self.render_config,
-            observer: self.observer,
-            astro_time: self.astro_time,
-        };
+        // Decide whether anything that changes the *contents* of the scene
+        // has happened since the last render. Twinkle/animation ticks alone
+        // don't reshape the star/dso vectors — only the `twinkle_phase`
+        // uniform — so on those frames we can skip the full
+        // `build_render_scene` re-projection and patch the cached scene
+        // in place. Any pose/time/observer/config/catalog/resize event
+        // forces a fresh rebuild.
+        const REBUILD_FLAGS: DirtyFlags = DirtyFlags::POSE
+            .union(DirtyFlags::TIME)
+            .union(DirtyFlags::OBSERVER)
+            .union(DirtyFlags::CONFIG)
+            .union(DirtyFlags::CATALOG)
+            .union(DirtyFlags::RESIZE)
+            .union(DirtyFlags::SELECTION);
+        let needs_rebuild = self.cached_scene.is_none() || dirty.intersects(REBUILD_FLAGS);
 
-        let catalog = self.catalog.lock();
-        match build_render_scene(&catalog, build_inputs, anim, None) {
-            Ok(scene) => {
-                if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
-                    if let Err(err) = self.surface.render(&scene) {
-                        tracing::error!("surface render failed: {err}");
-                    }
-                    if let Err(err) = self.surface.mark_frame_available() {
-                        tracing::error!("mark_frame_available failed: {err}");
-                    }
+        if needs_rebuild {
+            let build_inputs = BuildSceneInputs {
+                view_pose: self.view_pose,
+                render_config: self.render_config,
+                observer: self.observer,
+                astro_time: self.astro_time,
+            };
+            let catalog = self.catalog.lock();
+            // Re-parse the mmapped DSO blob each frame we rebuild (the
+            // `Mmap` is owned by `dso_catalog`, but `ParsedDsoCatalog`
+            // borrows from it). `parse_catalog` is a couple of struct
+            // casts — effectively free — so we don't bother caching the
+            // parsed view across rebuilds.
+            let dso_guard = self.dso_catalog.read();
+            let dso_parsed = dso_guard.as_ref().and_then(|c| c.parsed().ok());
+            match build_render_scene(&catalog, build_inputs, anim, dso_parsed.as_ref()) {
+                Ok(scene) => {
+                    self.cached_scene = Some(scene);
+                }
+                Err(err) => {
+                    tracing::error!("build_render_scene failed: {err}");
+                    self.cached_scene = None;
                 }
             }
-            Err(err) => {
-                tracing::error!("build_render_scene failed: {err}");
+        } else if let Some(scene) = self.cached_scene.as_mut() {
+            // Cheap path: just bump the animated uniform inputs.
+            scene.twinkle_phase = anim.twinkle_phase;
+        }
+
+        if let Some(scene) = self.cached_scene.as_ref() {
+            if self.texture_id.load(Ordering::Acquire) != NO_TEXTURE_ID {
+                if let Err(err) = self.surface.render(scene) {
+                    tracing::error!("surface render failed: {err}");
+                }
+                if let Err(err) = self.surface.mark_frame_available() {
+                    tracing::error!("mark_frame_available failed: {err}");
+                }
             }
         }
 
@@ -470,18 +613,27 @@ impl FrameRenderer for PlanetariumRenderer {
         // pose/time/observer so Dart overlay layers (labels, FOV ring) stay
         // consistent with whatever the GPU drew (or, on a build failure, with
         // what was attempted).
-        publish_snapshot(
-            &self.snapshot,
-            &catalog,
-            SnapshotInputs {
-                frame_id: self.frame_id,
-                view_pose: self.view_pose,
-                astro_time: self.astro_time,
-                observer: self.observer,
-                render_config: self.render_config,
-                selected: self.selected.clone(),
-            },
-        );
+        //
+        // The label query inside `publish_snapshot` is the expensive part
+        // (heap-allocates a string per visible star). Skipping it on
+        // twinkle-only ticks keeps the snapshot stable too — labels don't
+        // need to be re-laid-out 60×/second when nothing about the scene
+        // contents has actually changed.
+        if needs_rebuild {
+            let catalog = self.catalog.lock();
+            publish_snapshot(
+                &self.snapshot,
+                &catalog,
+                SnapshotInputs {
+                    frame_id: self.frame_id,
+                    view_pose: self.view_pose,
+                    astro_time: self.astro_time,
+                    observer: self.observer,
+                    render_config: self.render_config,
+                    selected: self.selected.clone(),
+                },
+            );
+        }
     }
 }
 

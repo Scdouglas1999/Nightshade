@@ -25,7 +25,7 @@ class AdaptiveInteractiveSkyView extends ConsumerWidget {
     this.listedObjectIds = const {},
     this.bortleClass = 5,
     this.horizonAltitudes,
-    this.syncViewPoseFromV1 = true,
+    this.syncViewPoseFromV1 = false,
   });
 
   final ValueChanged<planetarium_v1.CelestialObject?>? onObjectSelected;
@@ -134,6 +134,9 @@ class _V2SkyStack extends ConsumerWidget {
         Positioned.fill(child: planetarium_v2.InteractiveSkyView()),
         Positioned.fill(child: planetarium_v2.LabelLayer()),
         Positioned.fill(child: planetarium_v2.ConstellationArtLayer()),
+        // Selection ring + label — sits above other overlays so the
+        // user can always see what they clicked.
+        Positioned.fill(child: planetarium_v2.SelectionIndicatorLayer()),
       ],
     );
   }

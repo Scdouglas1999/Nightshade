@@ -82,16 +82,25 @@ pub fn fov_zoom_mag_boost(fov_rad: f32) -> f32 {
 }
 
 /// Frame-level star magnitude limit from zoom, quality tier, and user cap.
+///
+/// The user's `magnitude_limit` is treated as a **wide-field baseline** —
+/// the floor at zoom-out — not a hard absolute ceiling. Zooming in should
+/// always reveal fainter stars up to the catalog/quality ceiling, the way
+/// Stellarium and v1 behave. Treating the user value as a hard cap (the
+/// previous behaviour) made the default `magnitude_limit = 6.0` produce
+/// the same ~5k naked-eye stars at every zoom level, so even a 1° FOV
+/// looked sparse.
 #[must_use]
 pub fn frame_star_mag_limit(
     fov_rad: f32,
     quality: QualityConfig,
     mag_limit: MagLimitConfig,
 ) -> f32 {
-    let boosted = quality.base_star_magnitude_limit + fov_zoom_mag_boost(fov_rad);
-    let ceiling = STAR_MAG_CEILING
-        .min(HYG_MAG_LIMIT)
-        .min(mag_limit.star_magnitude_limit);
+    let baseline = quality
+        .base_star_magnitude_limit
+        .max(mag_limit.star_magnitude_limit);
+    let boosted = baseline + fov_zoom_mag_boost(fov_rad);
+    let ceiling = STAR_MAG_CEILING.min(HYG_MAG_LIMIT);
     boosted.clamp(STAR_MAG_FLOOR, ceiling)
 }
 

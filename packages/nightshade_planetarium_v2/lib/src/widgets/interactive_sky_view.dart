@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:nightshade_bridge/nightshade_bridge.dart';
 
 import '../bridge/gesture_events.dart';
 import '../bridge/planetarium_driver.dart';
+import '../bridge/planetarium_handle.dart';
 import '../providers/planetarium_handle_provider.dart';
 import '../providers/planetarium_quiesced_provider.dart';
 import '../providers/selection_provider.dart';
@@ -30,6 +33,11 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
   double _lastScale = 1;
   bool _pinchActive = false;
 
+  /// Polls the Rust render thread for a newly-allocated texture id while the
+  /// initial allocation is still in flight on the Flutter platform thread.
+  /// Cancelled as soon as a positive id arrives.
+  Timer? _texturePoll;
+
   @override
   void initState() {
     super.initState();
@@ -38,6 +46,8 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
 
   @override
   void dispose() {
+    _texturePoll?.cancel();
+    _texturePoll = null;
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -105,8 +115,48 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         height: layoutSize.height.round(),
         devicePixelRatio: devicePixelRatio,
       );
-      if (tex != _textureId) {
-        setState(() => _textureId = tex);
+      if (tex > 0) {
+        _texturePoll?.cancel();
+        _texturePoll = null;
+        if (tex != _textureId) {
+          setState(() => _textureId = tex);
+        }
+      } else {
+        // Allocation is queued on the render thread but the platform-thread
+        // closure that registers the Flutter texture hasn't run yet (it can't
+        // until this FFI-sync call has returned and the Win32 message pump
+        // resumes). Poll the atomic until the render thread publishes the new
+        // id; each tick is microseconds — no blocking, no UI freeze.
+        _startTexturePolling(driver);
+      }
+    });
+  }
+
+  void _startTexturePolling(PlanetariumDriver driver) {
+    if (_texturePoll != null) return;
+    _texturePoll = Timer.periodic(const Duration(milliseconds: 100), (timer) {
+      if (!mounted) {
+        timer.cancel();
+        _texturePoll = null;
+        return;
+      }
+      // Surface any concrete allocation failure (e.g. DXGI shared resource
+      // creation died) so it doesn't sit invisibly while we poll forever.
+      if (driver is Planetarium) {
+        final err = driver.lastSurfaceError();
+        if (err != null) {
+          debugPrint('planetarium v2 surface allocation failed: $err');
+        }
+      }
+      final tex = driver is Planetarium
+          ? driver.pollTextureId()
+          : driver.textureId;
+      if (tex > 0) {
+        timer.cancel();
+        _texturePoll = null;
+        if (tex != _textureId) {
+          setState(() => _textureId = tex);
+        }
       }
     });
   }
@@ -143,7 +193,15 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
         if (event is! PointerScrollEvent) {
           return;
         }
-        final factor = event.scrollDelta.dy > 0 ? 1.15 : 1 / 1.15;
+        // Convention: scrolling the wheel FORWARD (`scrollDelta.dy < 0`
+        // in Flutter's coordinate system on Windows) should ZOOM IN.
+        // Rust's `apply_zoom` divides FOV by `factor`, so `factor > 1`
+        // means FOV shrinks → zoom in. Previously the formula treated
+        // `scrollDelta.dy > 0` (wheel toward user) as zoom-in, which
+        // matches macOS/touchpad "natural" scrolling but is inverted
+        // for the wheel-up-zooms-in convention every desktop sky
+        // planetarium uses.
+        final factor = event.scrollDelta.dy < 0 ? 1.15 : 1 / 1.15;
         _pushGesture(
           driver,
           PlanetariumGestureEvents.zoomUpdate(
@@ -247,11 +305,26 @@ class _InteractiveSkyViewState extends ConsumerState<InteractiveSkyView>
             }
           }
         },
-        onScaleEnd: (_) {
+        onScaleEnd: (details) {
           if (_pinchActive) {
             _pushGesture(driver, PlanetariumGestureEvents.zoomEnd);
           } else {
-            _pushGesture(driver, PlanetariumGestureEvents.panEnd());
+            // `details.velocity.pixelsPerSecond` is the release velocity in
+            // logical px/s from Flutter's drag-tracker. Convert to the
+            // normalized screen-fraction/s the Rust gesture machine expects
+            // (matches the `dx = delta / width` convention used by
+            // panUpdate above). Without this, panEnd shipped vx=vy=0 and
+            // momentum never started — release-flings died on the spot.
+            final pixelsPerSec = details.velocity.pixelsPerSecond;
+            final w = layoutSize.width > 0 ? layoutSize.width : 1.0;
+            final h = layoutSize.height > 0 ? layoutSize.height : 1.0;
+            _pushGesture(
+              driver,
+              PlanetariumGestureEvents.panEnd(
+                vx: pixelsPerSec.dx / w,
+                vy: pixelsPerSec.dy / h,
+              ),
+            );
           }
           _lastFocalPoint = null;
           _lastScale = 1;

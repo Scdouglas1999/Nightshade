@@ -585,6 +585,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   Uint32List dco_decode_list_prim_u_32_strict(dynamic raw);
 
   @protected
+  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+  @protected
   Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
 
   @protected
@@ -1543,6 +1546,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   Uint32List sse_decode_list_prim_u_32_strict(SseDeserializer deserializer);
+
+  @protected
+  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
 
   @protected
   Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
@@ -2744,6 +2750,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       Uint32List raw) {
     // Codec=Cst (C-struct based), see doc to use other codecs
     final ans = wire.cst_new_list_prim_u_32_strict(raw.length);
+    ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
+    return ans;
+  }
+
+  @protected
+  ffi.Pointer<wire_cst_list_prim_u_8_loose> cst_encode_list_prim_u_8_loose(
+      List<int> raw) {
+    // Codec=Cst (C-struct based), see doc to use other codecs
+    final ans = wire.cst_new_list_prim_u_8_loose(raw.length);
     ans.ref.ptr.asTypedList(raw.length).setAll(0, raw);
     return ans;
   }
@@ -6887,6 +6902,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_prim_u_32_strict(
       Uint32List self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
 
   @protected
   void sse_encode_list_prim_u_8_strict(
@@ -12670,6 +12688,84 @@ class RustLibWire implements BaseWire {
             ffi.Pointer<wire_cst_equipment_profile>,
           )>();
 
+  void wire__crate__api__imaging__api_save_rgba_jpeg_file(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+    int width,
+    int height,
+    ffi.Pointer<wire_cst_list_prim_u_8_loose> rgba,
+    int quality,
+  ) {
+    return _wire__crate__api__imaging__api_save_rgba_jpeg_file(
+      port_,
+      file_path,
+      width,
+      height,
+      rgba,
+      quality,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_save_rgba_jpeg_filePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Pointer<wire_cst_list_prim_u_8_loose>,
+            ffi.Uint8,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_jpeg_file',
+  );
+  late final _wire__crate__api__imaging__api_save_rgba_jpeg_file =
+      _wire__crate__api__imaging__api_save_rgba_jpeg_filePtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_loose>,
+            int,
+          )>();
+
+  void wire__crate__api__imaging__api_save_rgba_png_file(
+    int port_,
+    ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
+    int width,
+    int height,
+    ffi.Pointer<wire_cst_list_prim_u_8_loose> rgba,
+  ) {
+    return _wire__crate__api__imaging__api_save_rgba_png_file(
+      port_,
+      file_path,
+      width,
+      height,
+      rgba,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_save_rgba_png_filePtr = _lookup<
+      ffi.NativeFunction<
+          ffi.Void Function(
+            ffi.Int64,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            ffi.Uint32,
+            ffi.Uint32,
+            ffi.Pointer<wire_cst_list_prim_u_8_loose>,
+          )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_save_rgba_png_file',
+  );
+  late final _wire__crate__api__imaging__api_save_rgba_png_file =
+      _wire__crate__api__imaging__api_save_rgba_png_filePtr.asFunction<
+          void Function(
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_strict>,
+            int,
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_8_loose>,
+          )>();
+
   void wire__crate__api__imaging__api_save_tiff_file(
     int port_,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> file_path,
@@ -15827,6 +15923,22 @@ class RustLibWire implements BaseWire {
       _wire__crate__api__planetarium__planetarium_hit_testPtr
           .asFunction<WireSyncRust2DartDco Function(int, double, double)>();
 
+  WireSyncRust2DartDco
+      wire__crate__api__planetarium__planetarium_last_surface_error(
+          int handle) {
+    return _wire__crate__api__planetarium__planetarium_last_surface_error(
+      handle,
+    );
+  }
+
+  late final _wire__crate__api__planetarium__planetarium_last_surface_errorPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_last_surface_error',
+  );
+  late final _wire__crate__api__planetarium__planetarium_last_surface_error =
+      _wire__crate__api__planetarium__planetarium_last_surface_errorPtr
+          .asFunction<WireSyncRust2DartDco Function(int)>();
+
   WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_load_pack(
     int handle,
     ffi.Pointer<wire_cst_list_prim_u_8_strict> path,
@@ -16141,6 +16253,20 @@ class RustLibWire implements BaseWire {
   );
   late final _wire__crate__api__planetarium__planetarium_snapshot =
       _wire__crate__api__planetarium__planetarium_snapshotPtr
+          .asFunction<WireSyncRust2DartDco Function(int)>();
+
+  WireSyncRust2DartDco wire__crate__api__planetarium__planetarium_texture_id(
+    int handle,
+  ) {
+    return _wire__crate__api__planetarium__planetarium_texture_id(handle);
+  }
+
+  late final _wire__crate__api__planetarium__planetarium_texture_idPtr =
+      _lookup<ffi.NativeFunction<WireSyncRust2DartDco Function(ffi.Int64)>>(
+    'frbgen_nightshade_bridge_wire__crate__api__planetarium__planetarium_texture_id',
+  );
+  late final _wire__crate__api__planetarium__planetarium_texture_id =
+      _wire__crate__api__planetarium__planetarium_texture_idPtr
           .asFunction<WireSyncRust2DartDco Function(int)>();
 
   void wire__crate__api__imaging__save_fits_file_rich(
@@ -17567,6 +17693,19 @@ class RustLibWire implements BaseWire {
   late final _cst_new_list_prim_u_32_strict = _cst_new_list_prim_u_32_strictPtr
       .asFunction<ffi.Pointer<wire_cst_list_prim_u_32_strict> Function(int)>();
 
+  ffi.Pointer<wire_cst_list_prim_u_8_loose> cst_new_list_prim_u_8_loose(
+    int len,
+  ) {
+    return _cst_new_list_prim_u_8_loose(len);
+  }
+
+  late final _cst_new_list_prim_u_8_loosePtr = _lookup<
+          ffi.NativeFunction<
+              ffi.Pointer<wire_cst_list_prim_u_8_loose> Function(ffi.Int32)>>(
+      'frbgen_nightshade_bridge_cst_new_list_prim_u_8_loose');
+  late final _cst_new_list_prim_u_8_loose = _cst_new_list_prim_u_8_loosePtr
+      .asFunction<ffi.Pointer<wire_cst_list_prim_u_8_loose> Function(int)>();
+
   ffi.Pointer<wire_cst_list_prim_u_8_strict> cst_new_list_prim_u_8_strict(
     int len,
   ) {
@@ -17963,6 +18102,13 @@ final class wire_cst_equipment_profile extends ffi.Struct {
 
   @ffi.Double()
   external double telescope_aperture;
+}
+
+final class wire_cst_list_prim_u_8_loose extends ffi.Struct {
+  external ffi.Pointer<ffi.Uint8> ptr;
+
+  @ffi.Int32()
+  external int len;
 }
 
 final class wire_cst_record_string_string extends ffi.Struct {

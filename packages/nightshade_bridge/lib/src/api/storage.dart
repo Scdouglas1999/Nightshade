@@ -9,41 +9,48 @@ import '../state.dart';
 import '../storage.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            
-
-            /// Initialize profile storage
-void  apiInitProfileStorage({required String storagePath }) => RustLib.instance.api.crateApiStorageApiInitProfileStorage(storagePath: storagePath);
+/// Initialize profile storage
+void apiInitProfileStorage({required String storagePath}) =>
+    RustLib.instance.api
+        .crateApiStorageApiInitProfileStorage(storagePath: storagePath);
 
 /// Get all equipment profiles
-List<EquipmentProfile>  apiGetProfiles() => RustLib.instance.api.crateApiStorageApiGetProfiles();
+List<EquipmentProfile> apiGetProfiles() =>
+    RustLib.instance.api.crateApiStorageApiGetProfiles();
 
 /// Save an equipment profile
-void  apiSaveProfile({required EquipmentProfile profile }) => RustLib.instance.api.crateApiStorageApiSaveProfile(profile: profile);
+void apiSaveProfile({required EquipmentProfile profile}) =>
+    RustLib.instance.api.crateApiStorageApiSaveProfile(profile: profile);
 
 /// Delete an equipment profile
-void  apiDeleteProfile({required String profileId }) => RustLib.instance.api.crateApiStorageApiDeleteProfile(profileId: profileId);
+void apiDeleteProfile({required String profileId}) =>
+    RustLib.instance.api.crateApiStorageApiDeleteProfile(profileId: profileId);
 
 /// Load a profile and set as active
-Future<void>  apiLoadProfile({required String profileId }) => RustLib.instance.api.crateApiStorageApiLoadProfile(profileId: profileId);
+Future<void> apiLoadProfile({required String profileId}) =>
+    RustLib.instance.api.crateApiStorageApiLoadProfile(profileId: profileId);
 
 /// Get the currently active profile
-Future<EquipmentProfile?>  apiGetActiveProfile() => RustLib.instance.api.crateApiStorageApiGetActiveProfile();
+Future<EquipmentProfile?> apiGetActiveProfile() =>
+    RustLib.instance.api.crateApiStorageApiGetActiveProfile();
 
 /// Initialize settings storage and load observer location into memory
-void  apiInitSettingsStorage({required String storagePath }) => RustLib.instance.api.crateApiStorageApiInitSettingsStorage(storagePath: storagePath);
+void apiInitSettingsStorage({required String storagePath}) =>
+    RustLib.instance.api
+        .crateApiStorageApiInitSettingsStorage(storagePath: storagePath);
 
 /// Get application settings
-AppSettings  apiGetSettings() => RustLib.instance.api.crateApiStorageApiGetSettings();
+AppSettings apiGetSettings() =>
+    RustLib.instance.api.crateApiStorageApiGetSettings();
 
 /// Update application settings
-void  apiUpdateSettings({required AppSettings settings }) => RustLib.instance.api.crateApiStorageApiUpdateSettings(settings: settings);
+void apiUpdateSettings({required AppSettings settings}) =>
+    RustLib.instance.api.crateApiStorageApiUpdateSettings(settings: settings);
 
 /// Get observer location
-ObserverLocation?  apiGetLocation() => RustLib.instance.api.crateApiStorageApiGetLocation();
+ObserverLocation? apiGetLocation() =>
+    RustLib.instance.api.crateApiStorageApiGetLocation();
 
 /// Set observer location
-void  apiSetLocation({ObserverLocation? location }) => RustLib.instance.api.crateApiStorageApiSetLocation(location: location);
-
-            
-            
+void apiSetLocation({ObserverLocation? location}) =>
+    RustLib.instance.api.crateApiStorageApiSetLocation(location: location);

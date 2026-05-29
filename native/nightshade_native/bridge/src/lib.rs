@@ -299,10 +299,19 @@ fn init_native_internal(log_directory: Option<String>) -> Result<(), NightshadeE
 
     // Console shows INFO+ only (keeps output clean for users).
     // File gets DEBUG+ for diagnostics.
-    // RUST_LOG env var overrides console level for developers.
+    // RUST_LOG env var overrides both for developers.
+    //
+    // Special-cased filters: `wgpu_core`/`wgpu_hal` emit a per-frame
+    // `Device::maintain: waiting for submission index N` at INFO level —
+    // thousands per second once the planetarium renderer is hot. That spam
+    // makes the console useless for diagnosing anything else, so we silence
+    // those crates at INFO (`wgpu_core::device=warn`, `wgpu_hal=warn`)
+    // unless the operator explicitly bumps them via RUST_LOG.
+    const DEFAULT_FILTER: &str =
+        "info,wgpu_core=warn,wgpu_hal=warn,wgpu=warn,naga=warn";
     let console_filter =
-        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
-    let file_filter = EnvFilter::new("debug");
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(DEFAULT_FILTER));
+    let file_filter = EnvFilter::new(format!("debug,{DEFAULT_FILTER}"));
 
     if let Some(log_dir) = log_directory {
         // Store log directory for later access

@@ -28,6 +28,18 @@ pub trait FrameRenderer: Send {
 
     /// Draw (or simulate drawing) for the given dirty subsystem flags and animation sample.
     fn render_frame(&mut self, dirty: DirtyFlags, anim: &AnimationState);
+
+    /// Whether the renderer needs the loop to keep waking even with no commands
+    /// queued and no [`AnimationSet`] animation active.
+    ///
+    /// Used for renderer-owned continuous state — most importantly, pan
+    /// **momentum** after a release-fling. The gesture state machine coasts
+    /// for ~1 s after release; without this hook the loop would block in
+    /// [`Receiver::recv`] the instant the user lifted their finger and the
+    /// view would freeze mid-fling. Default `false`.
+    fn needs_continuous_tick(&self) -> bool {
+        false
+    }
 }
 
 /// Handle to a running render-loop thread.
@@ -109,13 +121,21 @@ fn run<R: FrameRenderer>(
 ) {
     let mut dirty = DirtyFlags::empty();
 
+    // Continuous-tick wake interval (~60 Hz). Used for renderer-owned animated
+    // state like pan momentum that isn't driven by [`AnimationSet`].
+    const CONTINUOUS_TICK: Duration = Duration::from_millis(16);
+
     loop {
-        if dirty.any() || animations.needs_wake() {
-            // Dirty work renders immediately; animation-only waits use `next_wakeup`.
+        let renderer_wants_tick = renderer.needs_continuous_tick();
+        if dirty.any() || animations.needs_wake() || renderer_wants_tick {
+            // Dirty work renders immediately; animation-only waits use `next_wakeup`,
+            // or a fixed ~60 Hz tick when only the renderer needs continuous waking.
             let timeout = if dirty.any() {
                 Duration::ZERO
+            } else if animations.needs_wake() {
+                animations.next_wakeup().min(CONTINUOUS_TICK)
             } else {
-                animations.next_wakeup()
+                CONTINUOUS_TICK
             };
             match cmd_rx.recv_timeout(timeout) {
                 Ok(PlanetariumCommand::Shutdown) => return,
@@ -133,7 +153,7 @@ fn run<R: FrameRenderer>(
 
             let now = Instant::now();
             let anim_tick = animations.advance(now);
-            if dirty.any() || anim_tick {
+            if dirty.any() || anim_tick || renderer.needs_continuous_tick() {
                 let state = animations.state(now);
                 renderer.render_frame(dirty, &state);
                 dirty = DirtyFlags::empty();

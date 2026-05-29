@@ -35,15 +35,23 @@ fn fov_zoom_boost_increases_as_fov_narrows() {
 
 #[test]
 fn frame_mag_limit_scales_with_several_zoom_levels() {
+    // Low tier (quality base = 6.0), modest user baseline = 5.0.
+    // The user value is now a *floor*, not a cap, so the quality base
+    // wins at wide FOV and zoom boost pushes the result toward the
+    // catalog ceiling at deep zoom.
     let quality = QualityConfig::from_tier(0);
-    let mag = mag_user(12.0);
+    let mag = mag_user(5.0);
 
     let wide = frame_star_mag_limit(deg(120.0), quality, mag);
     let mid = frame_star_mag_limit(deg(60.0), quality, mag);
     let narrow = frame_star_mag_limit(deg(10.0), quality, mag);
     let deep = frame_star_mag_limit(deg(1.0), quality, mag);
 
-    assert!((wide - 6.0).abs() < 1e-4, "low tier base at wide FOV");
+    // At wide FOV: max(quality base 6.0, user 5.0) = 6.0, no boost.
+    assert!(
+        (wide - 6.0).abs() < 1e-4,
+        "wide FOV uses max(quality base, user floor)"
+    );
     assert!(mid > wide);
     assert!(narrow > mid);
     assert!(deep >= narrow);
@@ -52,11 +60,24 @@ fn frame_mag_limit_scales_with_several_zoom_levels() {
 }
 
 #[test]
-fn user_mag_cap_limits_frame_limit() {
-    let quality = QualityConfig::from_tier(2);
-    let tight_user = mag_user(7.0);
-    let wide = frame_star_mag_limit(deg(120.0), quality, tight_user);
-    assert!((wide - 7.0).abs() < 1e-4);
+fn user_mag_floor_raises_wide_field_limit() {
+    // User baseline (8.0) above the quality base (low=6.0) wins at wide
+    // FOV and serves as the no-zoom floor. Previously this was treated
+    // as a *cap* that prevented zoom from revealing fainter stars; the
+    // fix made it a floor instead, so zoom can still push toward the
+    // catalog ceiling.
+    let quality = QualityConfig::from_tier(0);
+    let user_floor = mag_user(8.0);
+    let wide = frame_star_mag_limit(deg(120.0), quality, user_floor);
+    assert!(
+        (wide - 8.0).abs() < 1e-4,
+        "user value raises wide-FOV baseline above quality base"
+    );
+    let narrow = frame_star_mag_limit(deg(10.0), quality, user_floor);
+    assert!(
+        narrow > wide,
+        "zoom boost still applies on top of user floor (no longer capped)"
+    );
 }
 
 #[test]

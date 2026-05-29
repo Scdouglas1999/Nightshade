@@ -25,7 +25,15 @@ fn max_channel_delta(a: &[u8], b: &[u8]) -> u8 {
 fn twinkle_off_matches_static_golden_path() {
     let off = render_three_stars_rgba();
     let mut scene = three_stars_twinkle_scene(0.0);
+    // The static golden path renders with `show_atmosphere=false` so the
+    // background is the (black) FRAME_CLEAR. The twinkle scene defaults
+    // to `show_atmosphere=true`, which after the addition of
+    // sun-altitude-driven `sky_clear_color` (see `renderer/mod.rs`) bakes
+    // a non-black clear color into pass 0. Disabling atmosphere here
+    // brings both renders back to identical pixel output so the test
+    // can still prove that "twinkle off" matches the static golden.
     scene.config.twinkle = false;
+    scene.config.show_atmosphere = false;
     let disabled = render_scene_rgba(&scene);
     assert_eq!(off.len(), disabled.len());
     assert_eq!(max_channel_delta(&off, &disabled), 0);

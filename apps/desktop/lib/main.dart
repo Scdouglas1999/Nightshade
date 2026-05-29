@@ -2,9 +2,11 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
+import 'package:irondash_engine_context/irondash_engine_context.dart';
 import 'package:nightshade_app/nightshade_app.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+import 'package:nightshade_planetarium_v2/nightshade_planetarium_v2.dart'
+    show planetariumEngineHandleProvider;
 import 'package:window_manager/window_manager.dart';
 
 import 'desktop_app_bootstrap.dart';
@@ -29,6 +31,14 @@ void main(List<String> args) async {
   await initialiseDesktopLogging();
 
   await windowManager.ensureInitialized();
+
+  // Planetarium v2 registers a Flutter Texture via irondash_texture, which
+  // needs the engine handle from the Dart side (it carries a version tag in
+  // its high bits — passing the bare 0 default produces InvalidVersion at
+  // texture-allocation time, breaking v2's first resize). Fetch it once up
+  // front and override the provider before any planetarium widget mounts.
+  final planetariumEngineHandle =
+      await EngineContext.instance.getEngineHandle();
 
   const windowOptions = WindowOptions(
     size: Size(1600, 900),
@@ -69,6 +79,12 @@ void main(List<String> args) async {
       // user could not author a sequence containing a plugin node from
       // the GUI).
       pluginNodePaletteBlueprintsOverride(),
+      // Planetarium v2 — pass the live Irondash engine handle so
+      // `Texture::new_with_provider` on the Rust side resolves a valid
+      // Flutter texture registry (handle 0 produces InvalidVersion).
+      planetariumEngineHandleProvider.overrideWithValue(
+        planetariumEngineHandle,
+      ),
     ],
   );
 
