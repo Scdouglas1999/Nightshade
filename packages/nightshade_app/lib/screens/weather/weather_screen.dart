@@ -159,7 +159,8 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                   _WeatherHeader(
                     colors: colors,
                     onRefresh: _refreshWeatherData,
-                    onSettingsTap: () => context.go('/settings'),
+                    onSettingsTap: () =>
+                        context.go('/settings?section=weather-safety'),
                     isLoading: weatherStatus.isLoading,
                   ),
 
@@ -756,10 +757,10 @@ class _NoLocationContent extends StatelessWidget {
             ),
             const SizedBox(height: 24),
             NightshadeButton(
-              label: 'Open Settings',
-              icon: LucideIcons.settings,
+              label: 'Open Weather Settings',
+              icon: LucideIcons.cloudSun,
               variant: ButtonVariant.primary,
-              onPressed: () => context.go('/settings'),
+              onPressed: () => context.go('/settings?section=weather-safety'),
             ),
           ],
         ),

@@ -352,8 +352,8 @@ class _RecommendationTabState extends ConsumerState<_RecommendationTab> {
             if (isLocationError)
               NightshadeButton(
                 label: context.l10n.text('plannerOpenSettings'),
-                icon: LucideIcons.settings,
-                onPressed: () => context.go('/settings'),
+                icon: LucideIcons.mapPin,
+                onPressed: () => context.go('/settings?section=location'),
               )
             else
               NightshadeButton(

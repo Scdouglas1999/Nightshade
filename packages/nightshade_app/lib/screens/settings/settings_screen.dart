@@ -45,8 +45,47 @@ import 'widgets/notification_routing_settings.dart';
 import 'widgets/predictive_af_settings.dart';
 import 'widgets/replay_debug_settings.dart';
 
+/// Stable deep-link keys for Settings categories, mapped to their category
+/// index in [_SettingsScreenState._categories] / `_buildContent`.
+///
+/// These keys are part of the app's navigation contract: callers deep-link a
+/// specific section with `context.go('/settings?section=location')` instead of
+/// dumping the user at the generic Settings root. Keys are STABLE strings (not
+/// raw indices) so a button never breaks if the category list is reordered —
+/// only this single map needs updating. The category list itself is already
+/// append-only (see the comment in `_categories`) to keep these stable.
+const Map<String, int> kSettingsSectionIndex = {
+  'connection': 0,
+  'general': 1,
+  'appearance': 2,
+  'location': 3,
+  'equipment-profiles': 4,
+  'catalogs': 5,
+  'imaging': 6,
+  'dark-library': 11,
+  'calibration': 12,
+  'weather-safety': 13,
+  'autofocus': 14,
+  'science': 15,
+  'sequencer': 17,
+  'plate-solving': 18,
+  'phd2-guiding': 19,
+  'notifications': 20,
+  'file-paths': 21,
+  'remote-access': 22,
+  'logs': 23,
+  'help': 27,
+  'about': 28,
+  'ai-assistant': 29,
+  'notification-routing': 30,
+};
+
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  /// Optional stable section key (see [kSettingsSectionIndex]) to open directly,
+  /// e.g. `'location'`. Unknown or null keys fall back to the first category.
+  final String? initialSection;
+
+  const SettingsScreen({super.key, this.initialSection});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
@@ -56,6 +95,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _selectedCategory = 0;
   // On mobile, null means show the category list; non-null shows the detail
   int? _mobileSelectedCategory;
+
+  @override
+  void initState() {
+    super.initState();
+    final section = widget.initialSection;
+    if (section != null) {
+      final index = kSettingsSectionIndex[section];
+      if (index != null) {
+        _selectedCategory = index;
+        // On mobile, open straight to the detail page for the deep-linked
+        // section rather than the category list.
+        _mobileSelectedCategory = index;
+      }
+    }
+  }
 
   List<(String, IconData)> _categories(BuildContext context) {
     final l10n = context.l10n;

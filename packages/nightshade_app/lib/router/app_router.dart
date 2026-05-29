@@ -211,10 +211,14 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/settings',
             name: 'settings',
-            pageBuilder: (context, state) => const CustomTransitionPage(
-              child: SettingsScreen(),
+            pageBuilder: (context, state) => CustomTransitionPage(
+              // Deep-link a specific section via `?section=<key>` (see
+              // kSettingsSectionIndex); null/unknown opens the first category.
+              child: SettingsScreen(
+                initialSection: state.uri.queryParameters['section'],
+              ),
               transitionsBuilder: PageTransitions.scaleFadeTransition,
-              transitionDuration: Duration(milliseconds: 300),
+              transitionDuration: const Duration(milliseconds: 300),
             ),
             routes: [
               // W6-SOLVER-UX §6.1 — dedicated plate-solver setup page.

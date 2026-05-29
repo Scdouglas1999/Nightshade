@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nightshade_app/screens/shell/shell_chrome.dart';
-import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'readiness_dashboard_card.dart';
@@ -32,11 +31,10 @@ class ReadinessDashboardOverlay extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Cheap top-line read: only rebuild placement when the overall level
-    // changes. When ready, the card collapses, so we skip mounting it at all to
-    // avoid an empty Align consuming a hit-test region over the command bar.
-    final overall = ref.watch(readinessOverallProvider);
-    if (overall == ReadinessLevel.ready) {
+    // When ready — or when the user has dismissed the current issue set — the
+    // card collapses, so we skip mounting it at all to avoid an empty Align
+    // consuming a hit-test region over the command bar.
+    if (!ref.watch(readinessCardVisibleProvider)) {
       return const SizedBox.shrink();
     }
 

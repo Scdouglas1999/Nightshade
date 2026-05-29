@@ -230,11 +230,12 @@ class FramingSuggestionsTab extends ConsumerWidget {
             const SizedBox(height: NightshadeTokens.spaceXl),
             if (!hasLocation)
               NightshadeButton(
-                label: 'Open Settings',
-                icon: LucideIcons.settings,
+                label: 'Set Location',
+                icon: LucideIcons.mapPin,
                 onPressed: () {
-                  // Use GoRouter to navigate
-                  GoRouter.of(context).go('/settings');
+                  // Deep-link straight to the Location section — this empty
+                  // state appears precisely because no location is set.
+                  GoRouter.of(context).go('/settings?section=location');
                 },
               )
             else

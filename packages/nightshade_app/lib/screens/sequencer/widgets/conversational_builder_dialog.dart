@@ -206,7 +206,7 @@ class _ConversationalBuilderDialogState
               label: const Text('Open AI Assistant Settings'),
               onPressed: () {
                 Navigator.of(context).pop();
-                context.push('/settings');
+                context.push('/settings?section=ai-assistant');
               },
             ),
           ],

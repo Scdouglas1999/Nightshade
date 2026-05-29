@@ -438,4 +438,71 @@ void main() {
             'setTheme("light"); state stuck on "dark" means the switch '
             'never reached its onChanged callback.');
   });
+
+  // ===========================================================================
+  // Polish #6: deep-linked Settings sections. The router passes
+  // `?section=<key>` through to SettingsScreen(initialSection:), so a "Set
+  // Location" / "Weather Settings" button opens exactly where it says instead
+  // of dumping the user at the generic root. These guard the
+  // kSettingsSectionIndex map → initState → _buildContent wiring.
+  // ===========================================================================
+
+  testWidgets(
+      'deep_link_opens_target_section: initialSection "location" renders the '
+      'Location pane directly with no sidebar tap', (tester) async {
+    _swallowKnownOverflows();
+    await pumpAppScreen(
+      tester,
+      const SettingsScreen(initialSection: 'location'),
+      size: const Size(1280, 800),
+      extraOverrides: [
+        appSettingsProvider.overrideWith(
+          () => _StubAppSettingsNotifier(const AppSettingsState()),
+        ),
+      ],
+    );
+
+    // No tap performed — the deep link alone must select category 3.
+    expect(find.byType(LocationSettingsPage), findsOneWidget,
+        reason:
+            'initialSection "location" must open the Location pane immediately '
+            'via initState → _selectedCategory, not the default Connection.');
+    expect(find.byType(ConnectionSettings), findsNothing,
+        reason: 'The default Connection pane must not render when deep-linked '
+            'to another section.');
+  });
+
+  testWidgets(
+      'deep_link_unknown_section_falls_back_to_first: an unrecognised key '
+      'opens the default Connection pane (no crash)', (tester) async {
+    _swallowKnownOverflows();
+    await pumpAppScreen(
+      tester,
+      const SettingsScreen(initialSection: 'does-not-exist'),
+      size: const Size(1280, 800),
+      extraOverrides: [
+        appSettingsProvider.overrideWith(
+          () => _StubAppSettingsNotifier(const AppSettingsState()),
+        ),
+      ],
+    );
+
+    expect(find.byType(ConnectionSettings), findsOneWidget,
+        reason:
+            'An unknown section key must fall back to the first category, not '
+            'throw or render a blank pane.');
+  });
+
+  test(
+      'kSettingsSectionIndex pins the stable keys the navigation buttons rely '
+      'on to their category indices', () {
+    // These exact (key → index) pairs are the navigation contract the
+    // deep-link buttons depend on; a reorder of the category list that forgot
+    // to update this map would silently send buttons to the wrong pane.
+    expect(kSettingsSectionIndex['location'], 3);
+    expect(kSettingsSectionIndex['equipment-profiles'], 4);
+    expect(kSettingsSectionIndex['weather-safety'], 13);
+    expect(kSettingsSectionIndex['help'], 27);
+    expect(kSettingsSectionIndex['ai-assistant'], 29);
+  });
 }

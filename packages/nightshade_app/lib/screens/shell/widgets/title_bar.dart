@@ -99,8 +99,9 @@ class TitleBar extends ConsumerWidget {
                 tooltip: 'Equipment Profiles',
                 onPressed: () {
                   try {
-                    // Equipment Profiles is in Settings (category index 4)
-                    context.go('/settings');
+                    // Deep-link to the Equipment Profiles section so this
+                    // shortcut opens where it says, not the generic root.
+                    context.go('/settings?section=equipment-profiles');
                   } catch (e) {
                     // Fallback for when router is not available
                     developer.log(

@@ -52,7 +52,8 @@ class _DiagnosticDumpScreenState extends ConsumerState<DiagnosticDumpScreen> {
                   if (context.canPop()) {
                     context.pop();
                   } else {
-                    context.go('/settings');
+                    // Tooltip says "Back to help" — land on Help & Tutorials.
+                    context.go('/settings?section=help');
                   }
                 },
               ),
