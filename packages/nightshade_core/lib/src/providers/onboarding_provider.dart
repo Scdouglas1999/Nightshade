@@ -385,8 +385,13 @@ class OnboardingNotifier extends StateNotifier<OnboardingDraft> {
       defaultBinX: draft.defaultBinX ?? 1,
       defaultBinY: draft.defaultBinY ?? 1,
       defaultCoolingTemp: draft.defaultCoolingTempC,
-      // Cool-on-connect only makes sense when a cooling set-point exists.
-      coolOnConnect: draft.defaultCoolingTempC != null,
+      // Cool-on-connect is OFF by default — it is opt-in. We still store the
+      // recommended cooling set-point (so enabling it later is a single toggle),
+      // but we never auto-run the TEC on connect just because a set-point
+      // exists: a setup done in the middle of a summer day must not pin the
+      // cooler at full power for hours. The user turns cool-on-connect on
+      // explicitly in the equipment profile when they're ready to image.
+      coolOnConnect: false,
       filterNames: draft.filterNames,
     );
 

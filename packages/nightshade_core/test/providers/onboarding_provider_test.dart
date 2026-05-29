@@ -156,8 +156,10 @@ void main() {
     expect(profile.defaultBinX, 2);
     expect(profile.defaultBinY, 2);
     expect(profile.defaultCoolingTemp, -10);
-    // A cooling set-point implies cool-on-connect.
-    expect(profile.coolOnConnect, isTrue);
+    // Cool-on-connect is OFF by default even when a cooling set-point exists —
+    // auto-cooling is opt-in so a daytime setup doesn't pin the TEC all day.
+    // The set-point is still stored so enabling it later is a single toggle.
+    expect(profile.coolOnConnect, isFalse);
     expect(profile.isActive, isTrue);
     expect(profile.isDefault, isTrue);
 
