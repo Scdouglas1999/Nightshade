@@ -1576,41 +1576,50 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           // the column currently has a NOT NULL constraint, so a fresh v30+
           // install (created via the v30 raw DDL above) doesn't pay the rebuild
           // cost on every startup.
-          final exposureNotNullInfo = await customSelect(
-            "SELECT \"notnull\" FROM pragma_table_info('guide_rms_history') "
-            "WHERE name = 'exposure_seconds'",
-          ).get();
-          if (exposureNotNullInfo.isNotEmpty &&
-              exposureNotNullInfo.first.data['notnull'] == 1) {
+          // Guard: only touch guide_rms_history if it already exists in this
+          // DB. The table is first created at the v34 step below
+          // (_createGuideRmsHistoryTable), so a database upgrading from < 30
+          // does NOT have it yet here — the unconditional CREATE INDEX below
+          // otherwise threw "no such table: guide_rms_history" and aborted the
+          // entire migration (app failed to open). Older DBs correctly skip
+          // this block and get the nullable table + index from v34.
+          if (await _tableExists('guide_rms_history')) {
+            final exposureNotNullInfo = await customSelect(
+              "SELECT \"notnull\" FROM pragma_table_info('guide_rms_history') "
+              "WHERE name = 'exposure_seconds'",
+            ).get();
+            if (exposureNotNullInfo.isNotEmpty &&
+                exposureNotNullInfo.first.data['notnull'] == 1) {
+              await customStatement(
+                'ALTER TABLE guide_rms_history RENAME TO guide_rms_history_v29',
+              );
+              await customStatement(
+                'CREATE TABLE guide_rms_history ('
+                'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+                'session_id TEXT NOT NULL, '
+                'mount_id TEXT NOT NULL, '
+                'target_id INTEGER NULL, '
+                'total_rms_arcsec REAL NOT NULL, '
+                'sample_count INTEGER NOT NULL, '
+                'exposure_seconds REAL, '
+                'recorded_at INTEGER NOT NULL'
+                ')',
+              );
+              await customStatement(
+                'INSERT INTO guide_rms_history '
+                '(id, session_id, mount_id, target_id, total_rms_arcsec, '
+                'sample_count, exposure_seconds, recorded_at) '
+                'SELECT id, session_id, mount_id, target_id, total_rms_arcsec, '
+                'sample_count, exposure_seconds, recorded_at '
+                'FROM guide_rms_history_v29',
+              );
+              await customStatement('DROP TABLE guide_rms_history_v29');
+            }
             await customStatement(
-              'ALTER TABLE guide_rms_history RENAME TO guide_rms_history_v29',
+              'CREATE INDEX IF NOT EXISTS idx_guide_rms_mount_recent '
+              'ON guide_rms_history (mount_id, recorded_at DESC)',
             );
-            await customStatement(
-              'CREATE TABLE guide_rms_history ('
-              'id INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
-              'session_id TEXT NOT NULL, '
-              'mount_id TEXT NOT NULL, '
-              'target_id INTEGER NULL, '
-              'total_rms_arcsec REAL NOT NULL, '
-              'sample_count INTEGER NOT NULL, '
-              'exposure_seconds REAL, '
-              'recorded_at INTEGER NOT NULL'
-              ')',
-            );
-            await customStatement(
-              'INSERT INTO guide_rms_history '
-              '(id, session_id, mount_id, target_id, total_rms_arcsec, '
-              'sample_count, exposure_seconds, recorded_at) '
-              'SELECT id, session_id, mount_id, target_id, total_rms_arcsec, '
-              'sample_count, exposure_seconds, recorded_at '
-              'FROM guide_rms_history_v29',
-            );
-            await customStatement('DROP TABLE guide_rms_history_v29');
           }
-          await customStatement(
-            'CREATE INDEX IF NOT EXISTS idx_guide_rms_mount_recent '
-            'ON guide_rms_history (mount_id, recorded_at DESC)',
-          );
         }
 
         // Version 31: Persisted predictive autofocus models (per-filter).
@@ -2275,6 +2284,13 @@ class NightshadeDatabase extends _$NightshadeDatabase {
       "PRAGMA table_info('$table')",
     ).get();
     return result.any((row) => row.data['name'] == column);
+  }
+
+  Future<bool> _tableExists(String table) async {
+    final result = await customSelect(
+      "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = '$table'",
+    ).get();
+    return result.isNotEmpty;
   }
 
   /// One-shot UI hook: returns a [DatabaseRecoveryMarker] iff the previous

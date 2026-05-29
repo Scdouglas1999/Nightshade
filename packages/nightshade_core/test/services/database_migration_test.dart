@@ -918,6 +918,51 @@ INSERT INTO photometry_measurements (
       }
     }
   });
+
+  test(
+      'pre-v30 database lacking guide_rms_history migrates to 38 without crashing '
+      '(regression: idx_guide_rms_mount_recent on a missing table)', () async {
+    final tempDir = await Directory.systemTemp
+        .createTemp('nightshade_guide_rms_migration_test_');
+    final dbFile = File('${tempDir.path}/nightshade.db');
+
+    // Force the DB into the exact shape that crashed on the imaging laptop:
+    // schema < 30 with NO guide_rms_history table. The v30 migration step used
+    // to create idx_guide_rms_mount_recent unconditionally, throwing
+    // "no such table: guide_rms_history" (the table is not created until the
+    // v34 step) and aborting the entire migration so the app could not open.
+    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      await setupDb.customStatement('DROP TABLE IF EXISTS guide_rms_history');
+      await setupDb.customStatement('PRAGMA user_version = 25');
+    } finally {
+      await setupDb.close();
+    }
+
+    // Re-open and force the migration ladder to run from 25. Must NOT throw.
+    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      await db.customSelect('SELECT 1').get();
+
+      final tables = await _sqliteTableNames(db);
+      expect(tables, contains('guide_rms_history'),
+          reason: 'guide_rms_history must be (re)created by the v34 step');
+
+      final indexes = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'index' "
+            "AND name = 'idx_guide_rms_mount_recent'",
+          )
+          .get();
+      expect(indexes, isNotEmpty,
+          reason: 'the mount-recent lookup index must exist after migration');
+    } finally {
+      await db.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    }
+  });
 }
 
 const _tablesIntroducedAfterSchema12 = [
