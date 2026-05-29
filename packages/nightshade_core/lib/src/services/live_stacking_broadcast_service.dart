@@ -24,13 +24,15 @@ import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:image/image.dart' as img;
 
+import '../models/imaging/stack_and_share_models.dart'
+    show ShareCardFontScale, ShareCardLayout, ShareCardSpec;
 import '../models/sequence/sequence_models.dart'
     show LiveStackingMethod, LiveStackingMode, LiveStackingNode;
 import '../providers/sequence/sequencer_defaults.dart'
     show sequencerDefaultsProvider;
 import 'logging_service.dart';
+import 'share_card_renderer.dart';
 
 /// Snapshot of the broadcast state that the run dashboard renders.
 ///
@@ -228,7 +230,15 @@ class LiveStackingBroadcastService {
   bool _killSwitch = false;
   bool get killSwitchEnabled => _killSwitch;
 
-  LiveStackingBroadcastService(this._ref);
+  /// Shared image-composition logic (stretch + watermark + stat overlay).
+  /// The broadcast and the Stack-and-Share export delegate to one renderer so
+  /// their overlays are byte-identical. Injectable for tests.
+  final ShareCardRenderer _renderer;
+
+  LiveStackingBroadcastService(
+    this._ref, {
+    ShareCardRenderer renderer = const ShareCardRenderer(),
+  }) : _renderer = renderer;
 
   LoggingService get _logger => _ref.read(loggingServiceProvider);
 
@@ -342,11 +352,19 @@ class LiveStackingBroadcastService {
     if (!_state.active) return;
     if (width <= 0 || height <= 0 || previewData.isEmpty) return;
 
-    final jpeg = _renderJpeg(
+    // Delegate the canonical stretch + watermark + encode to the shared
+    // renderer. The broadcast's historical behaviour is preserved by the spec
+    // we hand it: aspect-fit downscale to the configured thumbnail box, quality
+    // 82, watermark-only (no stat panel — the broadcast page renders its own
+    // telemetry, so the JPEG itself stays clean), the same 0.5/99.5 percentile
+    // stretch, and the large (arial48) watermark font the pre-extraction
+    // broadcast always used (see [_broadcastSpec]).
+    final jpeg = _renderer.renderJpegFromMono(
       width: width,
       height: height,
       data: previewData,
-      session: _state,
+      spec: _broadcastSpec(),
+      quality: 82,
     );
 
     _state = _state.copyWith(
@@ -385,7 +403,7 @@ class LiveStackingBroadcastService {
   String renderWatermark() {
     final template = _state.watermarkText;
     if (template == null || template.trim().isEmpty) return '';
-    return _expandWatermarkTokens(template, _state);
+    return expandWatermarkTokens(template, _watermarkTokens(_state));
   }
 
   /// Dispose all resources. Called when the provider is torn down.
@@ -394,164 +412,46 @@ class LiveStackingBroadcastService {
   }
 
   // ===========================================================================
-  // Internal: JPEG rendering + watermark
+  // Internal: share-card spec + watermark tokens
   // ===========================================================================
 
-  /// Render the current stack to a watermarked JPEG ready to serve.
-  ///
-  /// The input is a u16 single-channel array (the live-stacking engine
-  /// emits luminance) which we auto-stretch then encode. Real-world
-  /// sensor frames have a wide dynamic range so a percentile stretch
-  /// is the difference between "looks like M42" and "looks like a
-  /// black square."
-  Uint8List _renderJpeg({
-    required int width,
-    required int height,
-    required Uint16List data,
-    required BroadcastSessionState session,
-  }) {
-    final expected = width * height;
-    if (data.length < expected) {
-      // Defensive: short buffer would otherwise corrupt encode. Throw
-      // so the caller surfaces the bug rather than silently serving
-      // garbage.
-      throw StateError(
-        'Broadcast frame buffer too small: ${data.length} < $expected '
-        '(width=$width height=$height)',
-      );
-    }
-
-    // Per-frame percentile stretch: black at the 0.5% percentile,
-    // white at the 99.5%. Matches the "auto stretch" the desktop
-    // preview uses by default and looks correct for the typical
-    // long-exposure DSO target the broadcast is built for.
-    final (blackPoint, whitePoint) = _computeStretchEnds(data);
-    final range = (whitePoint - blackPoint).clamp(1, 65535).toInt();
-
-    final bytes = Uint8List(expected);
-    for (var i = 0; i < expected; i++) {
-      final value = data[i] - blackPoint;
-      final scaled = (value * 255 ~/ range).clamp(0, 255);
-      bytes[i] = scaled;
-    }
-
-    var bitmap = img.Image.fromBytes(
-      width: width,
-      height: height,
-      bytes: bytes.buffer,
-      numChannels: 1,
-      order: img.ChannelOrder.red,
-      format: img.Format.uint8,
+  /// Build the [ShareCardSpec] the shared [ShareCardRenderer] uses to render a
+  /// broadcast frame. Preserves the broadcast's historical look: aspect-fit
+  /// downscale to the configured thumbnail box, the rendered watermark text,
+  /// no stat panel (the broadcast HTML page renders telemetry separately, so
+  /// the JPEG stays a clean image), and the large watermark font.
+  ShareCardSpec _broadcastSpec() {
+    return ShareCardSpec(
+      title: '',
+      watermark: renderWatermark(),
+      targetWidth: _state.thumbnailWidth,
+      targetHeight: _state.thumbnailHeight,
+      // No stats → the renderer draws only the watermark, matching the
+      // pre-extraction broadcast output.
+      layout: ShareCardLayout.bottomBar,
+      // The pre-extraction `_drawWatermark` always used `img.arial48`. The
+      // default 720px thumbnail would otherwise resolve to arial24 under the
+      // height-based policy, halving the outreach overlay's glyph size — so we
+      // pin the large font to preserve that look exactly.
+      fontScale: ShareCardFontScale.large,
     );
-
-    // Optional downscale to the configured broadcast size. We allow
-    // the broadcast to be smaller than the sensor so the LAN payload
-    // stays phone-friendly (1080p sensor → 720p broadcast cuts the
-    // file size by ~2.25× while preserving outreach-quality detail).
-    final targetW = session.thumbnailWidth;
-    final targetH = session.thumbnailHeight;
-    if (targetW > 0 &&
-        targetH > 0 &&
-        (width != targetW || height != targetH)) {
-      // Preserve aspect ratio by fitting inside the target box.
-      final srcRatio = width / height;
-      final tgtRatio = targetW / targetH;
-      int outW;
-      int outH;
-      if (srcRatio > tgtRatio) {
-        outW = targetW;
-        outH = (targetW / srcRatio).round().clamp(1, targetH);
-      } else {
-        outH = targetH;
-        outW = (targetH * srcRatio).round().clamp(1, targetW);
-      }
-      bitmap = img.copyResize(bitmap, width: outW, height: outH);
-    }
-
-    // Promote to RGB so the watermark can render in colour. The
-    // pixel data is luminance, so RGB == grey == identical channels.
-    bitmap = bitmap.convert(numChannels: 3);
-
-    final rendered = renderWatermark();
-    if (rendered.isNotEmpty) {
-      _drawWatermark(bitmap, rendered);
-    }
-
-    return Uint8List.fromList(img.encodeJpg(bitmap, quality: 82));
   }
 
-  /// Compute the 0.5%/99.5% percentile black/white points for the
-  /// stretch. Falls back to min/max when the histogram is degenerate.
-  (int, int) _computeStretchEnds(Uint16List data) {
-    // Build a sparse histogram. Building a full 65536-bin histogram
-    // would be wasteful for small previews; we collect into a HashMap
-    // and walk the unique values sorted.
-    final counts = <int, int>{};
-    for (final v in data) {
-      counts[v] = (counts[v] ?? 0) + 1;
-    }
-    final keys = counts.keys.toList()..sort();
-    if (keys.isEmpty) return (0, 65535);
-    final total = data.length;
-    final lowTarget = (total * 0.005).floor();
-    final highTarget = (total * 0.995).ceil();
-    var acc = 0;
-    int? black;
-    int? white;
-    for (final k in keys) {
-      acc += counts[k]!;
-      if (black == null && acc >= lowTarget) {
-        black = k;
-      }
-      if (white == null && acc >= highTarget) {
-        white = k;
-      }
-      if (black != null && white != null) break;
-    }
-    black ??= keys.first;
-    white ??= keys.last;
-    // Guard against pathological zero-range data — a single-tone
-    // frame would otherwise hand the encoder a divide-by-zero range.
-    if (white <= black) {
-      return (0, 65535);
-    }
-    return (black, white);
-  }
-
-  /// Render the watermark string onto the bitmap. The text is drawn
-  /// at the bottom-left with a subtle dark stroke + white fill, the
-  /// same convention Astrobin / Cuiv's overlays use for outreach.
-  ///
-  /// The `image` package's built-in `BitmapFont` provides exactly
-  /// what we need without pulling in a font-rendering dependency.
-  void _drawWatermark(img.Image bitmap, String text) {
-    if (text.isEmpty) return;
-    // Use the largest built-in font that fits within ~5% of the
-    // bitmap height. For a 720p broadcast `arial48` at the bottom
-    // left renders cleanly.
-    final font = img.arial48;
-    // Padding from the bottom-left corner; scales with image height
-    // so small downscales still look right.
-    final pad = (bitmap.height * 0.025).clamp(8, 64).toInt();
-    final x = pad;
-    final y = bitmap.height - pad - font.lineHeight;
-    // Drop-shadow for legibility on bright nebula edges.
-    img.drawString(
-      bitmap,
-      text,
-      font: font,
-      x: x + 2,
-      y: y + 2,
-      color: img.ColorUint8.rgb(0, 0, 0),
-    );
-    img.drawString(
-      bitmap,
-      text,
-      font: font,
-      x: x,
-      y: y,
-      color: img.ColorUint8.rgb(255, 255, 255),
-    );
+  /// Map the live [session] state onto the watermark token vocabulary the
+  /// shared [expandWatermarkTokens] helper consumes. The broadcast owns this
+  /// mapping (it knows what `${integration.hms}` etc. mean for its state);
+  /// the helper owns the `${...}` string machinery.
+  Map<String, String> _watermarkTokens(BroadcastSessionState session) {
+    return {
+      'target': session.currentTarget ?? '',
+      'target.name': session.currentTarget ?? '',
+      'integration.hms': session.integrationHms,
+      'integration.secs': session.integrationSecs.toStringAsFixed(0),
+      'frames': session.framesStacked.toString(),
+      'stack': session.stackMethod.label,
+      'stack.method': session.stackMethod.label,
+      'now': DateTime.now().toLocal().toString().substring(0, 19),
+    };
   }
 
   /// Constant-time string compare to gate auth tokens.
@@ -562,60 +462,6 @@ class LiveStackingBroadcastService {
       diff |= a.codeUnitAt(i) ^ b.codeUnitAt(i);
     }
     return diff == 0;
-  }
-}
-
-/// Expand the small watermark template language. Supports the Wave 4
-/// tokens the brief calls out — `${target}`, `${filter}`,
-/// `${integration.hms}`, `${integration.secs}` — plus a literal
-/// `\${`/`\}` escape for users who actually want the brace characters
-/// rendered.
-///
-/// Unknown tokens fall through as literal text (matching the lenient
-/// behaviour the Run Dashboard's notification template uses). The Wave
-/// 4 expression engine lives in Rust; reaching across FFI for a
-/// per-frame string render would be a needless round-trip when the
-/// universe of useful tokens is small.
-String _expandWatermarkTokens(String template, BroadcastSessionState session) {
-  final buf = StringBuffer();
-  var i = 0;
-  while (i < template.length) {
-    final ch = template[i];
-    if (ch == r'$' && i + 1 < template.length && template[i + 1] == '{') {
-      final close = template.indexOf('}', i + 2);
-      if (close > 0) {
-        final token = template.substring(i + 2, close);
-        buf.write(_resolveWatermarkToken(token, session));
-        i = close + 1;
-        continue;
-      }
-    }
-    buf.write(ch);
-    i++;
-  }
-  return buf.toString();
-}
-
-String _resolveWatermarkToken(String token, BroadcastSessionState session) {
-  switch (token.trim()) {
-    case 'target':
-    case 'target.name':
-      return session.currentTarget ?? '';
-    case 'integration.hms':
-      return session.integrationHms;
-    case 'integration.secs':
-      return session.integrationSecs.toStringAsFixed(0);
-    case 'frames':
-      return session.framesStacked.toString();
-    case 'stack':
-    case 'stack.method':
-      return session.stackMethod.label;
-    case 'now':
-      return DateTime.now().toLocal().toString().substring(0, 19);
-    default:
-      // Surface unknown tokens unmodified so the user can see the
-      // typo rather than silently dropping the text.
-      return '\${$token}';
   }
 }
 

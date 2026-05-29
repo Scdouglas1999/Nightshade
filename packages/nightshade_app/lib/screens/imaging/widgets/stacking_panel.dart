@@ -8,6 +8,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// The selector provider is not re-exported through the core barrel; the
+// Stack-and-Share entry point needs it directly to pre-compute the selection
+// summary the launcher dialog (C9) renders before a run starts. (Matches the
+// established precedent in screens/framing/widgets/framing_canvas.dart.)
+// ignore: implementation_imports
+import 'package:nightshade_core/src/services/stack_light_selector.dart'
+    show stackLightSelectorProvider, NoLightsToStackException;
+import '../../stack_result/stack_and_share_dialog.dart';
 import 'panel_widgets.dart';
 
 class StackingPanel extends ConsumerStatefulWidget {
@@ -57,6 +65,73 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     await ref.read(liveStackingProvider.notifier).reset();
   }
 
+  /// True while the Stack-and-Share selection preview is being computed (between
+  /// the button press and the launcher dialog opening). Guards against a second
+  /// concurrent press while the DB query is in flight.
+  bool _isOpeningStackAndShare = false;
+
+  /// Entry point for the **Stack-and-Share Loop** (component C10).
+  ///
+  /// Resolves the selection summary for [sessionId] up front so the launcher
+  /// dialog (C9) can render the per-filter / integration preview the operator
+  /// confirms, then opens [StackAndShareDialog]. Selection runs against the
+  /// shared Drift instance via [stackLightSelectorProvider]; the dialog's own
+  /// orchestrator re-selects internally when the run starts.
+  ///
+  /// Errors are surfaced, never swallowed: a session with no qualifying lights
+  /// ([NoLightsToStackException]) or any other selection failure is shown via an
+  /// [ErrorDialog] rather than silently opening an empty launcher.
+  Future<void> _openStackAndShare(int sessionId) async {
+    if (_isOpeningStackAndShare) return;
+    setState(() => _isOpeningStackAndShare = true);
+
+    StackSelectionSummary? selection;
+    Object? selectionError;
+    try {
+      selection = await ref.read(stackLightSelectorProvider).selectForSession(
+            sessionId: sessionId,
+            config: StackAndShareConfig.defaults,
+          );
+    } catch (e) {
+      // Captured (not rethrown) so we can tear down the loading state in the
+      // `finally` before presenting; the type is discriminated below to give the
+      // "no lights" case its own actionable message.
+      selectionError = e;
+    } finally {
+      if (mounted) setState(() => _isOpeningStackAndShare = false);
+    }
+
+    if (!mounted) return;
+
+    if (selectionError is NoLightsToStackException) {
+      await ErrorDialog.show(
+        context,
+        title: 'Nothing to stack',
+        message: 'No light frames in this session qualify for stacking. '
+            'Capture some lights (and pass any quality gates) before running '
+            'Stack & Share.',
+        technicalDetails: selectionError.toString(),
+      );
+      return;
+    }
+    if (selectionError != null) {
+      await ErrorDialog.show(
+        context,
+        title: 'Could not prepare stack',
+        message: 'Selecting the light frames for this session failed.',
+        technicalDetails: selectionError.toString(),
+      );
+      return;
+    }
+
+    if (!mounted || selection == null) return;
+    await StackAndShareDialog.show(
+      context,
+      sessionId: sessionId,
+      selection: selection,
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isRemoteMode = ref.watch(isRemoteModeProvider);
@@ -66,11 +141,29 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     final stats = stackState.stats;
     final config = stackState.config;
 
+    // Resolve the current imaging session from the same authoritative state the
+    // rest of the imaging screen uses. The Stack-and-Share entry point operates
+    // on this session; with no active/selected session the button is disabled.
+    final sessionState = ref.watch(sessionStateProvider);
+    final sessionId = sessionState.dbSessionId;
+
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Stack-and-Share entry point (C10): one-button launcher for the
+          // post-capture stacking + share pipeline on the current session.
+          _StackAndShareEntry(
+            sessionId: sessionId,
+            liveStackingActive: isRunning,
+            isBusy: _isOpeningStackAndShare,
+            onPressed: sessionId == null
+                ? null
+                : () => _openStackAndShare(sessionId),
+          ),
+          const SizedBox(height: 20),
+
           // Error banner
           if (isError && stackState.errorMessage != null)
             _ErrorBanner(
@@ -436,6 +529,69 @@ const double _rejectionErrorThreshold = 0.15;
 // ---------------------------------------------------------------------------
 // Private widgets
 // ---------------------------------------------------------------------------
+
+/// The Stack-and-Share launcher button (component C10).
+///
+/// A single primary [NightshadeButton] that opens [StackAndShareDialog] for the
+/// current session. The button is disabled — with an explanatory
+/// [NightshadeTooltip] — when there is no active/selected session, or when live
+/// stacking is running (the stacking engine is a singleton, so we surface that
+/// exclusivity here rather than letting the run fail at click). While the
+/// selection preview is being computed the button shows its loading state.
+class _StackAndShareEntry extends StatelessWidget {
+  /// Current imaging session id, or null when none is active/selected.
+  final int? sessionId;
+
+  /// Whether live stacking is currently running (singleton-exclusivity gate).
+  final bool liveStackingActive;
+
+  /// Whether the selection preview is currently being computed.
+  final bool isBusy;
+
+  /// Invoked when the button is pressed; null when the action is unavailable.
+  final VoidCallback? onPressed;
+
+  const _StackAndShareEntry({
+    required this.sessionId,
+    required this.liveStackingActive,
+    required this.isBusy,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // Live stacking takes precedence in the disabled reason: even with a valid
+    // session, the singleton engine is busy.
+    final disabledReason = liveStackingActive
+        ? 'Stop live stacking to run Stack & Share'
+        : sessionId == null
+            ? 'Select a session to stack'
+            : null;
+
+    // Only enable when there is a session, live stacking is idle, and we are not
+    // mid-preview. The reason text is mutually exclusive with an active handler.
+    final enabled = disabledReason == null && !isBusy && onPressed != null;
+
+    final button = SizedBox(
+      width: double.infinity,
+      child: NightshadeButton(
+        label: 'Stack & Share',
+        icon: LucideIcons.sparkles,
+        isLoading: isBusy,
+        onPressed: enabled ? onPressed : null,
+      ),
+    );
+
+    if (disabledReason == null) {
+      return button;
+    }
+
+    return NightshadeTooltip(
+      message: disabledReason,
+      child: button,
+    );
+  }
+}
 
 class _ErrorBanner extends StatelessWidget {
   final String message;

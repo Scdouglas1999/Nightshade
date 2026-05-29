@@ -11,6 +11,7 @@ import '../screens/sequencer/sequencer_screen.dart';
 import '../screens/planetarium/planetarium_screen.dart';
 import '../screens/framing/framing_screen.dart';
 import '../screens/analytics/analytics_screen.dart';
+import '../screens/stack_result/stack_result_screen.dart';
 import '../screens/flat_wizard/flat_wizard_screen.dart';
 import '../screens/weather/weather_screen.dart';
 import '../screens/settings/settings_screen.dart';
@@ -162,6 +163,28 @@ final appRouterProvider = Provider<GoRouter>((ref) {
               final tabQuery = state.uri.queryParameters['tab'];
               return CustomTransitionPage(
                 child: AnalyticsScreen(initialTabQuery: tabQuery),
+                transitionsBuilder: PageTransitions.slideFadeTransition,
+                transitionDuration: const Duration(milliseconds: 300),
+              );
+            },
+          ),
+          // Stack-and-Share result viewer. Reached from `image_ready` /
+          // stack-complete notifications and the recent-results gallery via
+          // `/stack-result?id=<rowId>`. The `id` query param is the
+          // `StackAndShareResult` row id; we parse it defensively because the
+          // route can be deep-linked. When the param is absent or not a valid
+          // int we hand the screen a sentinel id (`-1`) that can never match an
+          // autoincrement row, so the viewer renders its EmptyState ("Result
+          // not found") instead of crashing — surfacing the bad link honestly
+          // rather than silently swallowing it.
+          GoRoute(
+            path: '/stack-result',
+            name: 'stack-result',
+            pageBuilder: (context, state) {
+              final idParam = state.uri.queryParameters['id'];
+              final resultId = int.tryParse(idParam ?? '') ?? -1;
+              return CustomTransitionPage(
+                child: StackResultScreen(resultId: resultId),
                 transitionsBuilder: PageTransitions.slideFadeTransition,
                 transitionDuration: const Duration(milliseconds: 300),
               );

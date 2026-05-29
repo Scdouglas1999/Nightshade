@@ -109,7 +109,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 37;
+  int get schemaVersion => 38;
 
   @override
   MigrationStrategy get migration {
@@ -118,6 +118,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         await m.createAll();
         await _createFrameForensicsTable();
         await _ensureCapturedImagesProducingNodeColumns();
+        await _createStackedResultsTable();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -1799,6 +1800,18 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await _ensureCapturedImagesThumbnailPathColumn();
         }
 
+        // Version 38 (Stack-and-Share Loop, C3): provenance record for every
+        // stacked master produced by the share loop. Nothing recorded stacked
+        // results before this — re-sharing or auditing an integration relied on
+        // ephemeral in-memory state that vanished on app restart. The table is
+        // managed with raw DDL (the dominant v27+ convention) so adding it does
+        // not require a Drift codegen pass; `StackedResultsDao` reads/writes it
+        // via `customSelect`/`customStatement`. The same helper runs from
+        // `onCreate` so fresh installs get the table too.
+        if (from < 38) {
+          await _createStackedResultsTable();
+        }
+
         await _ensureDefaultSettings();
         await _createCustomIndexes();
       },
@@ -1896,6 +1909,47 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_frame_forensics_image '
       'ON frame_forensics (captured_image_id)',
+    );
+  }
+
+  /// Create the v38 `stacked_results` table + its lookup indexes
+  /// (Stack-and-Share Loop, C3).
+  ///
+  /// Raw DDL with `IF NOT EXISTS` keeps this idempotent so it can be safely run
+  /// from both `onCreate` (fresh installs) and the v38 `onUpgrade` branch, and
+  /// re-run if a prior migration aborted. `StackedResultsDao` is a plain class
+  /// that reads/writes this table through `customSelect`/`customStatement`,
+  /// matching the convention used for `frame_forensics` and `notes_journal`.
+  ///
+  /// Column nullability mirrors the [StackAndShareResult] model: `session_id`,
+  /// `target_id`, `target_name`, `avg_alignment_residual`, `avg_hfr`, `filter`,
+  /// and `exported_image_path` are optional, while the integration dimensions,
+  /// frame counts, integration time, and creation timestamp are always present.
+  Future<void> _createStackedResultsTable() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS stacked_results('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'session_id INTEGER,'
+      'target_id INTEGER,'
+      'target_name TEXT,'
+      'width INTEGER NOT NULL,'
+      'height INTEGER NOT NULL,'
+      'frames_stacked INTEGER NOT NULL,'
+      'frames_attempted INTEGER NOT NULL,'
+      'integration_secs REAL NOT NULL,'
+      'avg_alignment_residual REAL,'
+      'avg_hfr REAL,'
+      'filter TEXT,'
+      'exported_image_path TEXT,'
+      'created_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_stacked_results_session '
+      'ON stacked_results(session_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_stacked_results_target '
+      'ON stacked_results(target_id)',
     );
   }
 

@@ -31,6 +31,8 @@ export 'src/database/daos/tutorial_dao.dart';
 export 'src/database/daos/polar_alignment_history_dao.dart';
 export 'src/database/daos/science_dao.dart';
 export 'src/database/daos/dark_library_dao.dart';
+// Stack-and-Share Loop (component C3): persisted stacked-result provenance.
+export 'src/database/daos/stacked_results_dao.dart';
 export 'src/database/daos/observation_logs_dao.dart';
 export 'src/database/daos/observing_lists_dao.dart';
 export 'src/database/daos/sequence_runs_dao.dart';
@@ -46,6 +48,8 @@ export 'src/models/settings/rendering_platform.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';
+// Stack-and-Share Loop (component C7): config, progress, result, export models.
+export 'src/models/imaging/stack_and_share_models.dart';
 // Wave 6E — push-based live-view streaming over WebSocket.
 export 'src/models/live_view/live_view_frame.dart';
 export 'src/models/calibration/dark_library_match_tolerances.dart';
@@ -193,6 +197,8 @@ export 'src/providers/autofocus_progress_provider.dart';
 export 'src/providers/push_notification_provider.dart';
 export 'src/providers/dark_library_provider.dart';
 export 'src/providers/live_stacking_provider.dart';
+// Stack-and-Share Loop (component C7): orchestrator state + result viewer.
+export 'src/providers/stack_and_share_provider.dart';
 export 'src/providers/project_tracking_provider.dart';
 export 'src/providers/equipment_health_provider.dart';
 export 'src/providers/device_heartbeat_health_provider.dart';
@@ -393,6 +399,9 @@ export 'src/services/dark_library_coverage_service.dart';
 export 'src/services/live_stacking_service.dart';
 // Wave 7 Agent 2: broadcast endpoint for EAA / outreach live-stack viewing.
 export 'src/services/live_stacking_broadcast_service.dart';
+// Stack-and-Share Loop (components C6/C8): orchestrator + share/export service.
+export 'src/services/stack_and_share_service.dart';
+export 'src/services/stack_share_export_service.dart';
 export 'src/services/project_tracking_service.dart';
 export 'src/services/calibration/defect_map_service.dart';
 export 'src/services/disk_space_service.dart';

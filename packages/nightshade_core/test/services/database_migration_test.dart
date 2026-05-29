@@ -662,6 +662,125 @@ CREATE TABLE captured_images (
     }
   });
 
+  test('fresh database is at schema 38 with stacked_results table (C3)',
+      () async {
+    final db = NightshadeDatabase.forTesting(NativeDatabase.memory());
+    try {
+      expect(db.schemaVersion, equals(38));
+
+      final tableRow = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='stacked_results'",
+          )
+          .getSingleOrNull();
+      expect(
+        tableRow != null,
+        isTrue,
+        reason: 'onCreate must create the stacked_results table for fresh '
+            'installs (Stack-and-Share Loop C3).',
+      );
+      expect(tableRow!.data['name'], equals('stacked_results'));
+
+      // The provenance indexes must exist so session/target lookups stay fast.
+      final indexes = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master WHERE type='index'",
+          )
+          .get();
+      final indexNames =
+          indexes.map((row) => row.data['name']?.toString() ?? '').toSet();
+      expect(indexNames, contains('idx_stacked_results_session'));
+      expect(indexNames, contains('idx_stacked_results_target'));
+    } finally {
+      await db.close();
+    }
+  });
+
+  test('pre-v38 database upgrades to add stacked_results table (C3)', () async {
+    final tempDir =
+        await Directory.systemTemp.createTemp('nightshade_v37_to_v38_');
+    final dbFile = File('${tempDir.path}/nightshade.db');
+
+    // Set up a database that looks like a real v37 install: the
+    // stacked_results table did not exist before v38, so drop it and roll the
+    // user_version back to 37.
+    final setupDb = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      await setupDb.customStatement('DROP TABLE IF EXISTS stacked_results');
+      await setupDb.customStatement('PRAGMA user_version = 37');
+    } finally {
+      await setupDb.close();
+    }
+
+    // Re-open at the current schema version — onUpgrade should run the v38
+    // branch and create stacked_results.
+    final db = NightshadeDatabase.forTesting(NativeDatabase(dbFile));
+    try {
+      final upgradedVersion =
+          await db.customSelect('PRAGMA user_version').getSingle();
+      expect(upgradedVersion.data['user_version'], equals(db.schemaVersion));
+      expect(db.schemaVersion, equals(38));
+
+      final tableRow = await db
+          .customSelect(
+            "SELECT name FROM sqlite_master "
+            "WHERE type='table' AND name='stacked_results'",
+          )
+          .getSingleOrNull();
+      expect(
+        tableRow != null,
+        isTrue,
+        reason: 'The v38 migration must create the stacked_results table for '
+            'in-place upgrades (Stack-and-Share Loop C3).',
+      );
+      expect(tableRow!.data['name'], equals('stacked_results'));
+
+      // A round-trip insert proves the migrated schema matches the DDL the
+      // DAO writes against (all NOT NULL columns present, nullables optional).
+      final rowId = await db.customInsert(
+        'INSERT INTO stacked_results('
+        'session_id, target_id, target_name, width, height, '
+        'frames_stacked, frames_attempted, integration_secs, '
+        'avg_alignment_residual, avg_hfr, filter, exported_image_path, '
+        'created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        variables: [
+          const Variable<int>(null),
+          const Variable<int>(null),
+          const Variable<String>('M31'),
+          const Variable<int>(4096),
+          const Variable<int>(2160),
+          const Variable<int>(42),
+          const Variable<int>(50),
+          const Variable<double>(2520.0),
+          const Variable<double>(0.31),
+          const Variable<double>(null),
+          const Variable<String>('L'),
+          const Variable<String>(null),
+          Variable<int>(
+            DateTime.utc(2026, 5, 28).millisecondsSinceEpoch ~/ 1000,
+          ),
+        ],
+      );
+      expect(rowId, greaterThan(0));
+
+      final stored = await db
+          .customSelect(
+            'SELECT target_name, frames_stacked FROM stacked_results '
+            'WHERE id = ?',
+            variables: [Variable<int>(rowId)],
+          )
+          .getSingle();
+      expect(stored.data['target_name'], equals('M31'));
+      expect(stored.data['frames_stacked'], equals(42));
+    } finally {
+      await db.close();
+      if (await tempDir.exists()) {
+        await tempDir.delete(recursive: true);
+      }
+    }
+  });
+
   test('schema 17 captured_images without quality_score migrates', () async {
     final tempDir =
         await Directory.systemTemp.createTemp('nightshade_schema17_no_qs_');

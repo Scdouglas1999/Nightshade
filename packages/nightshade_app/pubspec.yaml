@@ -46,6 +46,10 @@ dependencies:
   drift: ^2.15.0
   fl_chart: ^0.68.0
   share_plus: ^7.2.2
+  # Stack-and-Share Loop (component C9): native save-file picker used by the
+  # Stack Result viewer to choose an export destination for PNG/JPEG/share-card
+  # exports before handing the file to share_plus.
+  file_picker: ^8.1.2
   csv: ^6.0.0
   pdf: ^3.10.8
   flutter_map: ^6.1.0
