@@ -693,11 +693,16 @@ void main() {
   // vanilla `copyWith` with no hidden side effects, ready for the Phase 6
   // freezed migration.
   group('MeridianFlipNode', () {
-    test('node_type_and_required_devices_pin', () {
+    test('node_type_category_and_required_devices_pin', () {
       final n = MeridianFlipNode();
       expect(n.nodeType, equals('MeridianFlip'));
       expect(n.iconName, equals('refresh-cw'));
       expect(n.requiredDevices, equals({DeviceType.mount}));
+      // A meridian flip is a parallel hour-angle / pier-side watchdog, not an
+      // ordered instruction — it is classified as a trigger so every
+      // category-switch renderer paints the warning color + watchdog
+      // affordance. Execution dispatch matches by concrete type, not category.
+      expect(n.category, equals(NodeCategory.trigger));
     });
 
     test('default_use_global_defaults_is_true', () {

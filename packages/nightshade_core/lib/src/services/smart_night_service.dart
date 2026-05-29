@@ -65,6 +65,34 @@ class SmartNightService {
   /// don't over-stuff the dark window.
   static const double _transitionOverheadSecs = 20 * 60; // 20 minutes
 
+  /// Cloud/rain forecast probability above which the night plan prepends a
+  /// weather-unsafe [RecoveryNode] watchdog. Single source of truth shared
+  /// by [build] and [willInjectWeatherRecovery] so the plan preview can
+  /// never disagree with what the builder actually emits.
+  static const double weatherRecoveryCloudProbabilityThreshold = 0.4;
+
+  /// Whether [build] will inject a [MeridianFlipNode] for [planned].
+  ///
+  /// The flip is added only when the target's transit time lands strictly
+  /// inside its scheduled imaging window. This is the authoritative
+  /// predicate: both the sequence builder and the plan preview call it so
+  /// the preview never claims (or omits) a meridian-flip watchdog that the
+  /// emitted sequence wouldn't (or would) contain.
+  static bool willInjectMeridianFlip(SmartNightPlannedTarget planned) {
+    final transit = planned.suggestion.visibility.transitTime;
+    return transit != null &&
+        transit.isAfter(planned.windowStart) &&
+        transit.isBefore(planned.windowEnd);
+  }
+
+  /// Whether [build] will prepend a weather-unsafe [RecoveryNode] watchdog
+  /// for [context]. Authoritative predicate shared by the builder and the
+  /// plan preview (see [willInjectMeridianFlip]).
+  static bool willInjectWeatherRecovery(SmartNightContext context) {
+    final prob = context.rainOrCloudProbability;
+    return prob != null && prob > weatherRecoveryCloudProbabilityThreshold;
+  }
+
   const SmartNightService({
     required TargetSuggestionService suggestionService,
     required LoggingService logging,
@@ -1266,9 +1294,10 @@ class SmartNightService {
 
     // -- 7. Weather recovery (optional, prepended as a sibling under
     // the root so the executor's parallel watchdog can interrupt the
-    // imaging branch when the storm arrives).
-    if (context.rainOrCloudProbability != null &&
-        context.rainOrCloudProbability! > 0.4) {
+    // imaging branch when the storm arrives). Condition lives in
+    // [willInjectWeatherRecovery] so the plan preview shares the same
+    // threshold.
+    if (willInjectWeatherRecovery(context)) {
       addRootChild(RecoveryNode(
         id: _uuid.v4(),
         name: 'Cloud arriving — auto-park',
@@ -1366,11 +1395,9 @@ class SmartNightService {
     // crosses the meridian during its imaging window. The executor's
     // meridian-flip path is already enabled at the profile level; this
     // node makes the flip explicit on the timeline so Run Dashboard
-    // shows it.
-    final transit = planned.suggestion.visibility.transitTime;
-    if (transit != null &&
-        transit.isAfter(planned.windowStart) &&
-        transit.isBefore(planned.windowEnd)) {
+    // shows it. Condition lives in [willInjectMeridianFlip] so the plan
+    // preview shares the exact same rule.
+    if (willInjectMeridianFlip(planned)) {
       children.add(MeridianFlipNode(
         id: _uuid.v4(),
         name: 'Meridian flip',

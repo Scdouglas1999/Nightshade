@@ -216,59 +216,30 @@ class SequenceRepository {
     }
   }
 
-  /// Map every node subtype to a serialized category string.
+  /// Serialize a node's coarse category for the persisted
+  /// `sequence_nodes.node_type` column.
   ///
-  /// `SequenceNode` is sealed, so every concrete subtype must be classified
-  /// here — a new node type will produce a compile-time error rather than
-  /// silently falling through to 'instruction'.
-  String _getNodeCategory(SequenceNode node) {
-    return switch (node) {
-      TargetHeaderNode _ ||
-      InstructionSetNode _ ||
-      LoopNode _ ||
-      ParallelNode _ ||
-      ConditionalNode _ ||
-      RecoveryNode _ ||
-      // Wave 3 Agent 1: TargetScheduler — logic-category container.
-      TargetSchedulerNode _ =>
-        'logic',
-      ExposureNode _ ||
-      SlewNode _ ||
-      CenterNode _ ||
-      AutofocusNode _ ||
-      DitherNode _ ||
-      StartGuidingNode _ ||
-      StopGuidingNode _ ||
-      FilterChangeNode _ ||
-      CoolCameraNode _ ||
-      WarmCameraNode _ ||
-      RotatorNode _ ||
-      ParkNode _ ||
-      UnparkNode _ ||
-      WaitTimeNode _ ||
-      DelayNode _ ||
-      NotificationNode _ ||
-      ScriptNode _ ||
-      MeridianFlipNode _ ||
-      OpenDomeNode _ ||
-      CloseDomeNode _ ||
-      ParkDomeNode _ ||
-      PolarAlignmentNode _ ||
-      OpenCoverNode _ ||
-      CloseCoverNode _ ||
-      CalibratorOnNode _ ||
-      CalibratorOffNode _ ||
-      // Wave 3 Agent 2: SmartExposure is an instruction (leaf, no children).
-      SmartExposureNode _ ||
-      // Wave 7 Agent 2: LiveStacking is a side-effect instruction (arms
-      // the broadcast service then returns immediately, no children).
-      LiveStackingNode _ ||
-      // Wave 7 Science: SciencePhotometry — instruction leaf.
-      SciencePhotometryNode _ ||
-      // Audit §11 — plugin-contributed instruction (leaf; plugin owns
-      // any internal fan-out).
-      PluginInstructionNode _ =>
-        'instruction',
+  /// Single source of truth: delegates to the model's `node.category`
+  /// getter and maps the [NodeCategory] enum to its wire string. This
+  /// previously hand-classified every subtype here, which let the
+  /// persisted value drift from `node.category` (e.g. C6 reclassified
+  /// `MeridianFlipNode` to [NodeCategory.trigger] but this switch still
+  /// emitted 'instruction'). Deriving from the getter makes that class of
+  /// divergence structurally impossible.
+  String _getNodeCategory(SequenceNode node) => _categoryWireString(
+        node.category,
+      );
+
+  /// Map a [NodeCategory] to the string persisted in
+  /// `sequence_nodes.node_type`. Exhaustive over the enum so a future
+  /// category produces a compile-time error rather than a silent
+  /// mis-bucket.
+  static String _categoryWireString(NodeCategory category) {
+    return switch (category) {
+      NodeCategory.instruction => 'instruction',
+      NodeCategory.trigger => 'trigger',
+      NodeCategory.logic => 'logic',
+      NodeCategory.target => 'target',
     };
   }
 

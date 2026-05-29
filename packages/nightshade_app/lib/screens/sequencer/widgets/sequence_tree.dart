@@ -1599,31 +1599,52 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  widget.node.name,
-                                  style: TextStyle(
-                                    fontSize: isTargetHeader
-                                        ? titleFontSize + 1
-                                        : titleFontSize,
-                                    fontWeight: FontWeight.w600,
-                                    color: isSuccess
-                                        ? widget.colors.success
-                                        : isFailed
-                                            ? widget.colors.error
-                                            : (isSkipped || isCancelled)
-                                                ? widget.colors.textMuted
-                                                : widget.colors.textPrimary,
-                                    decoration:
-                                        isDisabled || isSkipped || isCancelled
-                                            ? TextDecoration.lineThrough
-                                            : null,
-                                    decorationColor: isSkipped || isCancelled
-                                        ? widget.colors.textMuted
-                                        : null,
-                                  ),
-                                  softWrap: false,
-                                  overflow: TextOverflow.ellipsis,
-                                  maxLines: 1,
+                                // Title row: the node name, followed inline by
+                                // the watchdog badge for trigger-category nodes
+                                // (e.g. Meridian Flip). The badge sits after the
+                                // title and before any trailing row-level status
+                                // indicator so it reads as a property of the
+                                // node, not of the run.
+                                Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        widget.node.name,
+                                        style: TextStyle(
+                                          fontSize: isTargetHeader
+                                              ? titleFontSize + 1
+                                              : titleFontSize,
+                                          fontWeight: FontWeight.w600,
+                                          color: isSuccess
+                                              ? widget.colors.success
+                                              : isFailed
+                                                  ? widget.colors.error
+                                                  : (isSkipped || isCancelled)
+                                                      ? widget.colors.textMuted
+                                                      : widget
+                                                          .colors.textPrimary,
+                                          decoration: isDisabled ||
+                                                  isSkipped ||
+                                                  isCancelled
+                                              ? TextDecoration.lineThrough
+                                              : null,
+                                          decorationColor:
+                                              isSkipped || isCancelled
+                                                  ? widget.colors.textMuted
+                                                  : null,
+                                        ),
+                                        softWrap: false,
+                                        overflow: TextOverflow.ellipsis,
+                                        maxLines: 1,
+                                      ),
+                                    ),
+                                    if (widget.node.category ==
+                                        NodeCategory.trigger) ...[
+                                      const SizedBox(
+                                          width: NightshadeTokens.spaceSm),
+                                      _WatchdogBadge(colors: widget.colors),
+                                    ],
+                                  ],
                                 ),
                                 if (subtitle.isNotEmpty)
                                   Text(
@@ -1884,6 +1905,52 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
               ) ??
               const SizedBox.shrink(),
       ],
+    );
+  }
+}
+
+/// Inline badge that marks a node as a parallel safety watchdog.
+///
+/// Trigger-category nodes (currently [MeridianFlipNode], and any future
+/// trigger node) do not execute in list order — they run in parallel and
+/// fire when their condition is met (e.g. crossing the meridian) regardless
+/// of where they sit in the sequence. The badge makes that non-obvious
+/// behavior legible right in the tree so an operator reviewing a sequence
+/// doesn't assume the flip "runs at this position".
+class _WatchdogBadge extends StatelessWidget {
+  final NightshadeColors colors;
+
+  const _WatchdogBadge({required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    return NightshadeTooltip(
+      message:
+          'Runs in parallel as a safety watchdog — fires on meridian-crossing '
+          'regardless of its position in the list',
+      child: Container(
+        padding: NightshadeTokens.paddingXs,
+        decoration: NightshadeDecorations.statusChip(
+          colors.warning,
+          borderRadius: NightshadeTokens.borderRadiusSm,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              LucideIcons.shieldAlert,
+              size: NightshadeTokens.iconXs,
+              color: colors.warning,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceXs),
+            Text(
+              'Watchdog',
+              style: NightshadeTypography.overline
+                  .copyWith(color: colors.warning),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

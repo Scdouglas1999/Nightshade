@@ -577,13 +577,31 @@ class DeviceService {
         break;
 
       case 'HeartbeatStatusChanged':
+        final hbStatus = data['status'] as String?;
         _heartbeat.onStatusChanged(
           deviceId: data['device_id'] as String?,
-          status: data['status'] as String?,
+          status: hbStatus,
           consecutiveFailures: (data['consecutive_failures'] as num?)?.toInt(),
           lastRttMs: DeviceHeartbeatRouter.coerceIntFromBigInt(
               data['last_rtt_ms']),
         );
+        // Polish #5: the heartbeat-lost path no longer emits a standalone
+        // `EquipmentEvent::Disconnected` (it was deduped away to stop a
+        // third, redundant disconnect toast). But that event was the ONLY
+        // trigger for the load-bearing disconnect side effects in
+        // `_handleDeviceDisconnected`: clearing the per-device heartbeat
+        // health dot AND honoring the user's per-type auto-reconnect
+        // preference. So the canonical `HeartbeatStatusChanged{Disconnected}`
+        // status now drives those side effects directly. This is the state
+        // transition + reconnect, NOT a toast — the user-facing notification
+        // still comes solely from the accompanying `Error` event, so the
+        // dedupe goal (one toast) is preserved.
+        if (hbStatus != null && hbStatus.toLowerCase() == 'disconnected') {
+          _handleDeviceDisconnected(
+            data['device_type'] as String?,
+            data['device_id'] as String?,
+          );
+        }
         break;
 
       case 'HeartbeatReconnecting':

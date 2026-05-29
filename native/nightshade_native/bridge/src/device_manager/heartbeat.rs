@@ -11,6 +11,68 @@ use crate::state::SharedAppState;
 use std::sync::Arc;
 use std::time::Duration;
 
+/// The user-facing event(s) a single failed heartbeat poll should emit.
+///
+/// Extracted as a value type so the stateful de-dup logic in
+/// [`heartbeat_events_for_poll`] can be unit-tested without spinning up a
+/// device manager, tokio task, or real driver. The loop translates these
+/// into concrete `EquipmentEvent`s (it owns the device id/type strings and
+/// the disconnect side-effect gate).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum HeartbeatEventKind {
+    /// `HeartbeatStatusChanged { status: Degraded }` — emitted exactly
+    /// once on the healthy->degraded transition (latched), not per poll.
+    Degraded,
+    /// The device crossed the failure threshold: emit
+    /// `HeartbeatStatusChanged { status: Disconnected }` followed by an
+    /// `Error` carrying the human-readable reason. These two travel
+    /// together and replace the old (redundant) standalone `Disconnected`
+    /// event so the disconnect surfaces exactly one user-facing toast.
+    DisconnectedAndError,
+}
+
+/// Pure decision for one failed heartbeat poll.
+///
+/// Given the previous one-shot Degraded latch (`prev_was_degraded`), the
+/// post-increment `consecutive_failures`, and the configured `threshold`,
+/// returns the events to publish for this poll and the new latch value.
+///
+/// Invariants this encodes (and that the unit tests pin):
+/// * below threshold + latch clear  -> exactly one `Degraded`, latch set;
+/// * below threshold + latch set     -> no events, latch stays set;
+/// * at/above threshold              -> exactly one `DisconnectedAndError`
+///   (never a standalone Degraded *and* a disconnect on the same poll, and
+///   never a standalone `Disconnected` event — that was the duplicate toast
+///   removed in the polish pass). The latch value is irrelevant past the
+///   threshold because the loop terminates after a disconnect.
+///
+/// Note: this function does NOT decide healthy/recovery transitions; those
+/// re-arm the latch (`was_degraded = false`) directly in the loop's `Ok(true)`
+/// arm. It is only invoked on a failing poll.
+pub(crate) fn heartbeat_events_for_poll(
+    prev_was_degraded: bool,
+    consecutive_failures: u32,
+    threshold: u32,
+) -> (Vec<HeartbeatEventKind>, bool) {
+    if consecutive_failures >= threshold {
+        // Crossing (or already past) the threshold disconnects the device.
+        // The latch is meaningless here since the loop breaks afterward, but
+        // we report it unchanged for determinism.
+        (
+            vec![HeartbeatEventKind::DisconnectedAndError],
+            prev_was_degraded,
+        )
+    } else if !prev_was_degraded {
+        // First failing poll of this degradation episode: announce Degraded
+        // once and arm the latch so subsequent sub-threshold failures stay
+        // quiet.
+        (vec![HeartbeatEventKind::Degraded], true)
+    } else {
+        // Already degraded and still below threshold: emit nothing.
+        (Vec::new(), true)
+    }
+}
+
 impl DeviceManager {
     // =========================================================================
     // Heartbeat Monitoring
@@ -285,6 +347,10 @@ impl DeviceManager {
         let mut current_interval = Duration::from_secs(config.base_interval_secs);
         let max_interval = Duration::from_secs(config.max_interval_secs);
         let mut consecutive_failures = 0u32;
+        // Tracks whether we have already published a Degraded event for the
+        // current healthy->degraded transition, so Degraded fires exactly once
+        // per episode instead of on every failing poll (avoids toast spam).
+        let mut was_degraded = false;
         loop {
             // Wait for interval
             tokio::time::sleep(current_interval).await;
@@ -316,6 +382,9 @@ impl DeviceManager {
                         );
                     }
                     consecutive_failures = 0;
+                    // Recovered: re-arm the one-shot Degraded latch so a future
+                    // degradation episode emits its own single Degraded event.
+                    was_degraded = false;
                     current_interval = Duration::from_secs(config.base_interval_secs);
 
                     // Update last successful communication time
@@ -351,77 +420,95 @@ impl DeviceManager {
                     );
                     current_interval = new_interval.min(max_interval);
 
-                    // Emit degraded status if we have failures but not yet at threshold
-                    if consecutive_failures < config.failure_threshold {
-                        app_state.publish_equipment_event(
-                            EquipmentEvent::HeartbeatStatusChanged {
-                                device_type: device_type_str.clone(),
-                                device_id: device_id_clone.clone(),
-                                status: crate::event::HeartbeatStatus::Degraded,
-                                consecutive_failures,
-                                last_rtt_ms: None,
-                            },
-                            EventSeverity::Warning,
-                        );
-                    }
+                    // Decide which events this failing poll should emit. The
+                    // stateful de-dup (Degraded-once-per-episode latch +
+                    // two-events-on-disconnect rule) lives in the pure
+                    // `heartbeat_events_for_poll` so it can be unit-tested
+                    // without a live device/task.
+                    let (event_kinds, new_was_degraded) = heartbeat_events_for_poll(
+                        was_degraded,
+                        consecutive_failures,
+                        config.failure_threshold,
+                    );
+                    was_degraded = new_was_degraded;
 
-                    // Check if we've exceeded failure threshold
-                    if consecutive_failures >= config.failure_threshold {
-                        tracing::error!(
-                            "Heartbeat failed {} times for device {} - marking disconnected",
-                            consecutive_failures,
-                            device_id_clone
-                        );
-
-                        if manager
-                            .handle_heartbeat_lost(
-                                &device_id_clone,
-                                config.auto_reconnect,
-                                consecutive_failures,
-                                &error_msg,
-                            )
-                            .await
-                            .is_some()
-                        {
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::HeartbeatStatusChanged {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                    status: crate::event::HeartbeatStatus::Disconnected,
-                                    consecutive_failures,
-                                    last_rtt_ms: None,
-                                },
-                                EventSeverity::Error,
-                            );
-
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::Disconnected {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                },
-                                EventSeverity::Warning,
-                            );
-
-                            app_state.publish_equipment_event(
-                                EquipmentEvent::Error {
-                                    device_type: device_type_str.clone(),
-                                    device_id: device_id_clone.clone(),
-                                    message: format!(
-                                        "Device unresponsive after {} heartbeat failures: {}",
-                                        consecutive_failures, error_msg
-                                    ),
-                                },
-                                EventSeverity::Error,
-                            );
-
-                            if config.auto_reconnect {
-                                tracing::info!(
-                                    "Device {} marked for reconnection via reconnection_loop (heartbeat auto_reconnect)",
-                                    device_id_clone
+                    let mut disconnected = false;
+                    for kind in event_kinds {
+                        match kind {
+                            HeartbeatEventKind::Degraded => {
+                                app_state.publish_equipment_event(
+                                    EquipmentEvent::HeartbeatStatusChanged {
+                                        device_type: device_type_str.clone(),
+                                        device_id: device_id_clone.clone(),
+                                        status: crate::event::HeartbeatStatus::Degraded,
+                                        consecutive_failures,
+                                        last_rtt_ms: None,
+                                    },
+                                    EventSeverity::Warning,
                                 );
                             }
-                        }
+                            HeartbeatEventKind::DisconnectedAndError => {
+                                disconnected = true;
+                                tracing::error!(
+                                    "Heartbeat failed {} times for device {} - marking disconnected",
+                                    consecutive_failures,
+                                    device_id_clone
+                                );
 
+                                if manager
+                                    .handle_heartbeat_lost(
+                                        &device_id_clone,
+                                        config.auto_reconnect,
+                                        consecutive_failures,
+                                        &error_msg,
+                                    )
+                                    .await
+                                    .is_some()
+                                {
+                                    // De-dupe: emit exactly two events on
+                                    // disconnect — one canonical status change
+                                    // (drives the UI/health state) plus one
+                                    // Error carrying the human message (drives
+                                    // the notification toast). The standalone
+                                    // EquipmentEvent::Disconnected was redundant
+                                    // with the HeartbeatStatusChanged{Disconnected}
+                                    // status and produced a third, duplicate
+                                    // user-facing toast.
+                                    app_state.publish_equipment_event(
+                                        EquipmentEvent::HeartbeatStatusChanged {
+                                            device_type: device_type_str.clone(),
+                                            device_id: device_id_clone.clone(),
+                                            status: crate::event::HeartbeatStatus::Disconnected,
+                                            consecutive_failures,
+                                            last_rtt_ms: None,
+                                        },
+                                        EventSeverity::Error,
+                                    );
+
+                                    app_state.publish_equipment_event(
+                                        EquipmentEvent::Error {
+                                            device_type: device_type_str.clone(),
+                                            device_id: device_id_clone.clone(),
+                                            message: format!(
+                                                "Device unresponsive after {} heartbeat failures: {}",
+                                                consecutive_failures, error_msg
+                                            ),
+                                        },
+                                        EventSeverity::Error,
+                                    );
+
+                                    if config.auto_reconnect {
+                                        tracing::info!(
+                                            "Device {} marked for reconnection via reconnection_loop (heartbeat auto_reconnect)",
+                                            device_id_clone
+                                        );
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if disconnected {
                         // Stop heartbeat monitoring; `reconnection_loop` performs real reconnects.
                         break;
                     }
@@ -572,5 +659,92 @@ impl DeviceManager {
             .get(device_id)
             .map(|d| d.heartbeat_active)
             .unwrap_or(false)
+    }
+}
+
+#[cfg(test)]
+mod heartbeat_event_tests {
+    use super::{heartbeat_events_for_poll, HeartbeatEventKind};
+
+    const THRESHOLD: u32 = 5;
+
+    /// (a) The first failing poll of an episode emits exactly one Degraded
+    /// and arms the latch.
+    #[test]
+    fn first_failure_below_threshold_emits_one_degraded() {
+        let (events, was_degraded) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        assert_eq!(events, vec![HeartbeatEventKind::Degraded]);
+        assert!(was_degraded, "latch must arm after first Degraded");
+    }
+
+    /// (b) Subsequent sub-threshold failures emit nothing while the latch
+    /// is set — this is the whole point of the de-dup (no toast spam).
+    #[test]
+    fn subsequent_failures_below_threshold_emit_nothing() {
+        for failures in 2..THRESHOLD {
+            let (events, was_degraded) = heartbeat_events_for_poll(true, failures, THRESHOLD);
+            assert!(
+                events.is_empty(),
+                "failure {failures} should emit no event while latched"
+            );
+            assert!(was_degraded, "latch stays set below threshold");
+        }
+    }
+
+    /// (c) Recovery re-arms the latch (the loop sets was_degraded=false on
+    /// Ok(true)); a later degradation episode therefore emits Degraded
+    /// again. We model that here by passing prev_was_degraded=false again.
+    #[test]
+    fn recovery_re_arms_latch_so_next_episode_emits_degraded() {
+        // Episode 1: first failure -> Degraded, latch set.
+        let (events1, latch1) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        assert_eq!(events1, vec![HeartbeatEventKind::Degraded]);
+        assert!(latch1);
+
+        // ... recovery happens in the loop: was_degraded reset to false ...
+
+        // Episode 2: first failure again -> Degraded emitted again.
+        let (events2, latch2) = heartbeat_events_for_poll(false, 1, THRESHOLD);
+        assert_eq!(events2, vec![HeartbeatEventKind::Degraded]);
+        assert!(latch2);
+    }
+
+    /// (d) Crossing the threshold emits exactly one DisconnectedAndError
+    /// (which the loop expands to StatusChanged{Disconnected}+Error — two
+    /// events, no standalone Disconnected). It never also emits a Degraded
+    /// on the same poll.
+    #[test]
+    fn crossing_threshold_emits_disconnect_and_error_only() {
+        // From an unlatched state (e.g. threshold == 1) and from a latched
+        // state (the normal case) the result is identical.
+        for prev_latched in [false, true] {
+            let (events, _) = heartbeat_events_for_poll(prev_latched, THRESHOLD, THRESHOLD);
+            assert_eq!(
+                events,
+                vec![HeartbeatEventKind::DisconnectedAndError],
+                "at threshold (prev_latched={prev_latched}) must emit exactly one disconnect kind"
+            );
+            assert!(
+                !events.contains(&HeartbeatEventKind::Degraded),
+                "must not emit a Degraded on the disconnect poll"
+            );
+        }
+    }
+
+    /// Above the threshold (defensive: the loop breaks at threshold, but
+    /// the function must remain correct if called with a higher count).
+    #[test]
+    fn above_threshold_still_emits_disconnect_only() {
+        let (events, _) = heartbeat_events_for_poll(true, THRESHOLD + 3, THRESHOLD);
+        assert_eq!(events, vec![HeartbeatEventKind::DisconnectedAndError]);
+    }
+
+    /// A threshold of 1 means the very first failure disconnects with no
+    /// preceding Degraded — verifies the at-threshold branch wins over the
+    /// first-failure branch.
+    #[test]
+    fn threshold_of_one_disconnects_on_first_failure() {
+        let (events, _) = heartbeat_events_for_poll(false, 1, 1);
+        assert_eq!(events, vec![HeartbeatEventKind::DisconnectedAndError]);
     }
 }

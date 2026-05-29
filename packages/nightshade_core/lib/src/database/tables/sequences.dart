@@ -43,7 +43,9 @@ class SequenceNodes extends Table {
   // Optional target reference for target groups
   IntColumn get targetId => integer().nullable().references(Targets, #id, onDelete: KeyAction.setNull)();
   
-  // Node type: instruction, trigger, logic
+  // Node type (coarse category): instruction, trigger, logic, target.
+  // Written from SequenceNode.category (see sequence_repository
+  // _getNodeCategory) so this stays the single source of truth.
   TextColumn get nodeType => text()();
   // Specific type: slew, expose, autofocus, loop, etc.
   TextColumn get specificType => text()();

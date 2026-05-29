@@ -2814,8 +2814,17 @@ class MeridianFlipNode extends SequenceNode {
   @override
   String get iconName => 'refresh-cw';
 
+  /// A meridian flip is a parallel hour-angle / pier-side watchdog that fires
+  /// whenever the configured trigger condition is met, regardless of where the
+  /// node sits in the tree — it is not an ordered instruction that runs once in
+  /// sequence. Classifying it as [NodeCategory.trigger] drives the warning
+  /// color and watchdog affordance in every category-switch renderer
+  /// (sequence_tree, sequence_minimap, visual_timeline, _input_primitives).
+  ///
+  /// Note: execution dispatch is unaffected — the Rust-bound executor matches
+  /// `MeridianFlipNode` by concrete type, not by [category].
   @override
-  NodeCategory get category => NodeCategory.instruction;
+  NodeCategory get category => NodeCategory.trigger;
 
   @override
   Set<DeviceType> get requiredDevices => {DeviceType.mount};

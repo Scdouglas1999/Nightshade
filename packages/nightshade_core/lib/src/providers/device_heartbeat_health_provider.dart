@@ -281,12 +281,15 @@ class DeviceHeartbeatHealthNotifier
         return (HeartbeatHealth.degraded, buf.toString());
       case 'disconnected':
         // The Rust monitor marks the device disconnected after the
-        // failure threshold is crossed; the corresponding equipment
-        // `Disconnected` event is emitted right alongside it and the
-        // device service handler clears the heartbeat entry. We still
-        // record the transient `degraded`-equivalent state here so a
-        // listener that subscribes between the two events sees a
-        // sensible value.
+        // failure threshold is crossed. The heartbeat-lost path no longer
+        // emits a standalone equipment `Disconnected` event (deduped to
+        // avoid a redundant disconnect toast); instead, DeviceService's
+        // `HeartbeatStatusChanged` handler routes the `disconnected`
+        // status through `_handleDeviceDisconnected`, which calls
+        // `clearDevice` to drop this entry back to gray "unknown". We
+        // still record the transient `degraded`-equivalent state here so
+        // a listener that observes this status event before the clear
+        // runs sees a sensible value.
         return (
           HeartbeatHealth.degraded,
           consecutiveFailures > 0

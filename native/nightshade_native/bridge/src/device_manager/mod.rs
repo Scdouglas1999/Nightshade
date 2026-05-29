@@ -141,7 +141,10 @@ impl HeartbeatConfig {
         Self {
             base_interval_secs: 15,
             max_interval_secs: 60,
-            failure_threshold: 3,
+            // Why: tolerate transient single-client USB contention (e.g. NINA
+            // briefly holding the focuser); with 2.0 backoff + 15s base, 5
+            // failures is well over a minute of genuine unresponsiveness.
+            failure_threshold: 5,
             backoff_multiplier: 2.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
@@ -154,7 +157,10 @@ impl HeartbeatConfig {
         Self {
             base_interval_secs: 20,
             max_interval_secs: 120,
-            failure_threshold: 3,
+            // Why: tolerate transient single-client USB contention (e.g. NINA
+            // briefly holding the filter wheel); with 2.0 backoff + 20s base, 5
+            // failures is well over a minute of genuine unresponsiveness.
+            failure_threshold: 5,
             backoff_multiplier: 2.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
@@ -180,7 +186,10 @@ impl HeartbeatConfig {
         Self {
             base_interval_secs: 15,
             max_interval_secs: 60,
-            failure_threshold: 3,
+            // Why: tolerate transient single-client USB contention (e.g. NINA
+            // briefly holding the rotator); with 2.0 backoff + 15s base, 5
+            // failures is well over a minute of genuine unresponsiveness.
+            failure_threshold: 5,
             backoff_multiplier: 2.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
@@ -232,7 +241,10 @@ impl HeartbeatConfig {
         Self {
             base_interval_secs: 20,
             max_interval_secs: 120,
-            failure_threshold: 3,
+            // Why: tolerate transient single-client USB contention (e.g. NINA
+            // briefly holding the switch); with 2.0 backoff + 20s base, 5
+            // failures is well over a minute of genuine unresponsiveness.
+            failure_threshold: 5,
             backoff_multiplier: 2.0,
             auto_reconnect: false,
             max_reconnect_attempts: 2,
@@ -850,11 +862,45 @@ mod tests {
 
         let switch = HeartbeatConfig::for_device_type(&DeviceType::Switch);
         assert_eq!(switch.base_interval_secs, 20);
+        // Raised to 5 to tolerate transient single-client USB contention.
+        assert_eq!(switch.failure_threshold, 5);
         assert!(!switch.auto_reconnect);
 
         let cover = HeartbeatConfig::for_device_type(&DeviceType::CoverCalibrator);
         assert_eq!(cover.base_interval_secs, 10);
         assert!(cover.auto_reconnect);
+    }
+
+    #[test]
+    fn test_heartbeat_config_non_critical_failure_thresholds_raised() {
+        // Why: non-critical accessories tolerate transient single-client USB
+        // contention (e.g. NINA briefly holding the device). Threshold raised
+        // 3 -> 5 while intervals/backoff are unchanged, so 5 failures is still
+        // well over a minute of genuine unresponsiveness before disconnect.
+        let focuser = HeartbeatConfig::for_focuser();
+        assert_eq!(focuser.failure_threshold, 5);
+        assert_eq!(focuser.base_interval_secs, 15);
+
+        let filter_wheel = HeartbeatConfig::for_filter_wheel();
+        assert_eq!(filter_wheel.failure_threshold, 5);
+        assert_eq!(filter_wheel.base_interval_secs, 20);
+
+        let rotator = HeartbeatConfig::for_rotator();
+        assert_eq!(rotator.failure_threshold, 5);
+        assert_eq!(rotator.base_interval_secs, 15);
+
+        let switch = HeartbeatConfig::for_switch();
+        assert_eq!(switch.failure_threshold, 5);
+        assert_eq!(switch.base_interval_secs, 20);
+
+        // Critical/auto-reconnecting device types are intentionally unchanged.
+        assert_eq!(HeartbeatConfig::for_camera().failure_threshold, 3);
+        assert_eq!(HeartbeatConfig::for_mount().failure_threshold, 2);
+        assert_eq!(HeartbeatConfig::for_safety_monitor().failure_threshold, 2);
+        assert_eq!(HeartbeatConfig::for_guider().failure_threshold, 2);
+        assert_eq!(HeartbeatConfig::for_dome().failure_threshold, 4);
+        assert_eq!(HeartbeatConfig::for_weather().failure_threshold, 5);
+        assert_eq!(HeartbeatConfig::for_cover_calibrator().failure_threshold, 3);
     }
 
     #[test]

@@ -3,9 +3,12 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:nightshade_core/src/backend/nightshade_backend.dart';
+import 'package:nightshade_core/src/backend/nightshade_backend.dart'
+    hide CameraState;
+import 'package:nightshade_core/src/models/equipment/equipment_models.dart';
 import 'package:nightshade_core/src/providers/backend_provider.dart';
 import 'package:nightshade_core/src/providers/device_heartbeat_health_provider.dart';
+import 'package:nightshade_core/src/providers/equipment_provider.dart';
 import 'package:nightshade_core/src/services/device_service.dart';
 
 import '../mocks/mock_backend.dart';
@@ -197,6 +200,68 @@ void main() {
           .forDevice(deviceId)
           .health,
       HeartbeatHealth.unknown,
+    );
+  });
+
+  test(
+      'HeartbeatStatusChanged(disconnected) drives the disconnect side '
+      'effects (clears health entry + flips connection state)', () async {
+    // Polish #5 regression guard. The heartbeat-lost path no longer emits a
+    // standalone `Disconnected` event (deduped to one toast), so the
+    // canonical `HeartbeatStatusChanged{Disconnected}` status must itself
+    // drive the load-bearing disconnect side effects that the removed event
+    // used to: clearing the heartbeat health dot AND transitioning the
+    // device connection state (which is what arms the auto-reconnect path).
+    const deviceId = 'native:zwo:0';
+
+    // Bring the camera "online" so the disconnect transition is observable.
+    final camNotifier = container.read(cameraStateProvider.notifier);
+    camNotifier.setConnecting(deviceId, 'Test Camera');
+    camNotifier.setConnected();
+    expect(
+      container.read(cameraStateProvider).connectionState,
+      DeviceConnectionState.connected,
+    );
+
+    // Degrade first so there is a health entry to clear.
+    events.add(makeEvent('HeartbeatStatusChanged', {
+      'device_type': 'camera',
+      'device_id': deviceId,
+      'status': 'degraded',
+      'consecutive_failures': 4,
+    }));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    expect(
+      container
+          .read(deviceHeartbeatHealthProvider.notifier)
+          .forDevice(deviceId)
+          .health,
+      HeartbeatHealth.degraded,
+    );
+
+    // Cross the threshold: Rust emits HeartbeatStatusChanged{Disconnected}
+    // (no standalone Disconnected event). This must clear the health entry
+    // and flip the camera to disconnected.
+    events.add(makeEvent('HeartbeatStatusChanged', {
+      'device_type': 'camera',
+      'device_id': deviceId,
+      'status': 'disconnected',
+      'consecutive_failures': 5,
+    }));
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+
+    expect(
+      container
+          .read(deviceHeartbeatHealthProvider.notifier)
+          .forDevice(deviceId)
+          .health,
+      HeartbeatHealth.unknown,
+      reason: 'health dot must fall back to gray "unknown" on disconnect',
+    );
+    expect(
+      container.read(cameraStateProvider).connectionState,
+      DeviceConnectionState.disconnected,
+      reason: 'connection state must transition so auto-reconnect can arm',
     );
   });
 

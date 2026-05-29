@@ -3,9 +3,17 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../backend/nightshade_backend.dart';
+import '../models/imaging/imaging_models.dart' show CoolingStatus;
 import '../providers/equipment_provider.dart';
-import '../providers/imaging_provider.dart' show temperatureHistoryProvider;
+import '../providers/imaging_provider.dart'
+    show coolingStatusProvider, temperatureHistoryProvider;
 import 'logging_service.dart';
+
+/// Maximum absolute deviation, in degrees Celsius, between the live sensor
+/// temperature and the cooling target at which the cooler is considered to
+/// have reached its setpoint. A small band absorbs normal sensor jitter so the
+/// "at target" indicator does not flicker once the camera has stabilised.
+const double _atTargetToleranceC = 1.0;
 
 /// Polls a connected camera's sensor temperature and cooler power on a
 /// fixed cadence, pushing values into [cameraStateProvider] and
@@ -108,6 +116,30 @@ class CameraTemperaturePoller {
               targetTemp: targetTemp,
               coolerPower: power,
             );
+
+        // Publish a live cooling snapshot derived from this reading. We only
+        // do this inside the `temp != null` branch: with no live sensor value
+        // we have nothing to report and must not fabricate a "cooling" state
+        // (errors-are-a-feature — a silent default would mask a stalled or
+        // disconnected cooler). The target temperature comes from the status
+        // when the driver reports one; otherwise we fall back to the
+        // user-configured setpoint held in camera state so the UI can still
+        // show what the camera is being asked to reach.
+        final effectiveTarget =
+            targetTemp ?? _ref.read(cameraStateProvider).targetTemp;
+        final coolerPower = power ?? 0.0;
+        final isCooling = power != null && power > 0.0;
+        final isAtTarget = isCooling &&
+            targetTemp != null &&
+            (temp - targetTemp).abs() <= _atTargetToleranceC;
+
+        _ref.read(coolingStatusProvider.notifier).state = CoolingStatus(
+          currentTemp: temp,
+          targetTemp: effectiveTarget,
+          coolerPower: coolerPower,
+          isCooling: isCooling,
+          isAtTarget: isAtTarget,
+        );
       }
     } catch (e) {
       if (_connectedCameraId != deviceId || _generation != generation) {

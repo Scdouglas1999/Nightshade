@@ -79,10 +79,26 @@ class DeviceDiscoveryHandlers {
           }
         }
       } else {
-        for (final dt in DeviceType.values) {
+        // Why parallel fan-out: the native sweep probes every vendor SDK once
+        // per DeviceType, so a sequential loop over all 11 types serialized
+        // ~1 minute of mostly-idle I/O wait. Each `discoverDevices` call is an
+        // independent async FFI round-trip, so we fan them out concurrently and
+        // join with `Future.wait`, cutting wall-clock time to the slowest single
+        // type. Correctness does NOT depend on completion order: every future
+        // resolves to a (DeviceType, devices) pair, and the merge below is a
+        // pure id-keyed reduction that is associative/commutative over the
+        // result list. The per-type try/catch still maps each failure to
+        // `discoveryErrors[dt.name]` with the exact same log fields, so the
+        // §2.26 "surface persistent driver failures" contract is preserved.
+        //
+        // `discoveryErrors` writes from the per-future catch blocks are safe
+        // without a lock: Dart's event loop is single-threaded, so each future's
+        // catch body runs to completion as one atomic turn — there is no
+        // interleaving that could drop or clobber a sibling's entry.
+        final futures =
+            DeviceType.values.map((dt) async {
           try {
-            final devices = await backend.discoverDevices(dt);
-            allDevices.addAll(devices);
+            return MapEntry(dt, await backend.discoverDevices(dt));
           } catch (e, stackTrace) {
             discoveryErrors[dt.name] = e.toString();
             _logWarning(
@@ -94,8 +110,24 @@ class DeviceDiscoveryHandlers {
                 'stack': stackTrace.toString(),
               },
             );
+            return MapEntry(dt, const <DeviceInfo>[]);
+          }
+        });
+
+        final results = await Future.wait(futures);
+
+        // Cross-type dedupe keyed by the globally-unique DeviceInfo.id. A single
+        // physical device can be reported under more than one DeviceType sweep
+        // (e.g. a multi-function driver enumerated as both camera and filter
+        // wheel paths), and a last-write-wins map collapses those to one entry
+        // while remaining order-independent across the concurrent results.
+        final byId = <String, DeviceInfo>{};
+        for (final entry in results) {
+          for (final device in entry.value) {
+            byId[device.id] = device;
           }
         }
+        allDevices = byId.values.toList();
       }
 
       return jsonOk({

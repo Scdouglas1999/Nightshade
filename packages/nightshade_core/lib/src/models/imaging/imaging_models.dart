@@ -325,6 +325,22 @@ class CoolingStatus extends Equatable {
     this.isCooling = false,
   });
 
+  CoolingStatus copyWith({
+    double? currentTemp,
+    double? targetTemp,
+    double? coolerPower,
+    bool? isAtTarget,
+    bool? isCooling,
+  }) {
+    return CoolingStatus(
+      currentTemp: currentTemp ?? this.currentTemp,
+      targetTemp: targetTemp ?? this.targetTemp,
+      coolerPower: coolerPower ?? this.coolerPower,
+      isAtTarget: isAtTarget ?? this.isAtTarget,
+      isCooling: isCooling ?? this.isCooling,
+    );
+  }
+
   @override
   List<Object?> get props =>
       [currentTemp, targetTemp, coolerPower, isAtTarget, isCooling];
