@@ -117,6 +117,11 @@ pub struct TriggerStateSnapshot {
     pub safety_fail_mode: SafetyFailMode,
     pub triggers_enabled: bool,
     pub filter_focus_offsets: HashMap<String, i32>,
+    /// Filter focus offset currently embodied in the focuser position so a
+    /// resumed sequence applies the next filter change as a delta rather than
+    /// re-stacking. `#[serde(default)]` keeps legacy checkpoints loadable.
+    #[serde(default)]
+    pub last_applied_filter_offset: i32,
 }
 
 impl TriggerStateSnapshot {
@@ -172,6 +177,7 @@ impl TriggerStateSnapshot {
             safety_fail_mode,
             triggers_enabled,
             filter_focus_offsets,
+            last_applied_filter_offset: state.last_applied_filter_offset,
         }
     }
 
@@ -218,6 +224,7 @@ impl TriggerStateSnapshot {
         state.dome_shutter_status = self.dome_shutter_status.clone();
         state.dome_shutter_open_expected = self.dome_shutter_open_expected;
         state.grid_dither_index = self.grid_dither_index;
+        state.last_applied_filter_offset = self.last_applied_filter_offset;
     }
 }
 
@@ -1020,6 +1027,7 @@ mod tests {
         original.last_dither_frame = 41;
         original.tracking_limit_detected_at = Some(1_700_005_000);
         original.grid_dither_index = 7;
+        original.last_applied_filter_offset = 42;
 
         let mut offsets = HashMap::new();
         offsets.insert("Ha".to_string(), 42);
@@ -1079,6 +1087,10 @@ mod tests {
         );
         assert_eq!(restored.filter_changed, original.filter_changed);
         assert_eq!(restored.current_filter, original.current_filter);
+        assert_eq!(
+            restored.last_applied_filter_offset,
+            original.last_applied_filter_offset
+        );
         assert_eq!(restored.dawn_time, original.dawn_time);
         assert_eq!(restored.observer_latitude, original.observer_latitude);
         assert_eq!(restored.observer_longitude, original.observer_longitude);

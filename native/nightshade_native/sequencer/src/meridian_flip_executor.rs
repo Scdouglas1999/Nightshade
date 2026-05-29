@@ -675,6 +675,44 @@ impl MeridianFlipExecutor {
             .mount_slew_to_coordinates(mount_id, ra_hours, dec_degrees)
             .await?;
 
+        // Wait for the mount to actually BEGIN slewing before polling for
+        // completion. Async slews (ASCOM SlewToCoordinatesAsync, Alpaca) can
+        // take tens-to-hundreds of ms to assert Slewing=true; without this
+        // guard the very first is_slewing poll below can read false (the mount
+        // has not started moving yet), break the completion loop immediately,
+        // and declare the flip slew "done" while the OTA is still on the
+        // pre-flip side — pier-side verification then fails and the flip is
+        // aborted/halted, killing the rest of the night. Mirrors the
+        // NINA/SGP "wait for Slewing==true, then wait for Slewing==false"
+        // pattern. Bounded so an instantaneous slew (already on target) or a
+        // driver that never asserts Slewing does not stall.
+        {
+            let start_deadline =
+                tokio::time::Instant::now() + std::time::Duration::from_secs(15);
+            loop {
+                if self.is_cancelled(ctx) {
+                    if let Err(e) = self.device_ops.mount_abort_slew(mount_id).await {
+                        tracing::error!(
+                            "[MERIDIAN] mount_abort_slew failed during cancellation before slew start: {}",
+                            e
+                        );
+                    }
+                    return Err("Abort requested during slew".to_string());
+                }
+                if self.device_ops.mount_is_slewing(mount_id).await? {
+                    break; // slew has begun; fall through to completion poll
+                }
+                if tokio::time::Instant::now() > start_deadline {
+                    tracing::debug!(
+                        "[MERIDIAN] mount did not assert Slewing within 15s of the slew command; \
+                         proceeding to completion/pier-side verification"
+                    );
+                    break;
+                }
+                tokio::time::sleep(std::time::Duration::from_millis(200)).await;
+            }
+        }
+
         // 10 min timeout covers worst-case meridian-flip slews on the slow
         // direct-drive mounts in our test matrix (10micron GM1000HPS with
         // belt drive ~ 6-8 min for full-sky moves); a tighter timeout would

@@ -106,7 +106,8 @@ where
     let mut poller: AdaptivePoller<bool> = AdaptivePoller::from_preset(PollerPreset::Exposure);
 
     loop {
-        if start_time.elapsed() >= timeout_after {
+        let elapsed_now = start_time.elapsed();
+        if elapsed_now >= timeout_after {
             return Err(format!(
                 "Exposure on {} did not complete within {:.1}s timeout ({:.1}s requested exposure plus safety margin)",
                 camera_id,
@@ -114,11 +115,26 @@ where
                 duration_secs
             ));
         }
+        let remaining = timeout_after - elapsed_now;
 
-        match is_complete().await {
-            Ok(true) => return Ok(()),
-            Ok(false) => {}
-            Err(e) => return Err(format!("Failed to check exposure status: {}", e)),
+        // Bound each status poll by the remaining deadline. Without this the
+        // deadline check above is only reached BETWEEN polls, so a status call
+        // that itself stalls (USB hiccup, or contention on a shared vendor SDK
+        // mutex held by a slow/wedged download) would never return control to
+        // the check and the advertised timeout could never fire. With the
+        // per-poll bound the overall deadline stays authoritative.
+        match tokio::time::timeout(remaining, is_complete()).await {
+            Ok(Ok(true)) => return Ok(()),
+            Ok(Ok(false)) => {}
+            Ok(Err(e)) => return Err(format!("Failed to check exposure status: {}", e)),
+            Err(_) => {
+                return Err(format!(
+                    "Exposure status poll on {} did not return within the {:.1}s deadline ({:.1}s requested exposure plus safety margin)",
+                    camera_id,
+                    timeout_after.as_secs_f64(),
+                    duration_secs
+                ));
+            }
         }
 
         let elapsed = start_time.elapsed();
@@ -483,14 +499,44 @@ impl DeviceOps for UnifiedDeviceOps {
             e
         })?;
 
-        // Download image
-        let native_image = mgr.camera_download_image(camera_id).await.map_err(|e| {
-            self.app_state.publish_imaging_event(
-                ImagingEvent::ExposureComplete { success: false },
-                EventSeverity::Error,
-            );
-            format!("Failed to download image: {}", e)
-        })?;
+        // Download image under a hard ceiling so a stalled download cannot
+        // hang the whole sequence indefinitely. A USB stall / hub brown-out /
+        // contention on the shared vendor SDK mutex makes the download block;
+        // bounding it turns "hang until morning" into a recoverable node
+        // failure that the disconnect/recovery path can act on.
+        //
+        // NOTE: tokio's timeout cancels at an await point. It reliably fires
+        // for stalls that yield (lock contention, the shared-mutex cascade,
+        // late-returning USB calls). A vendor FFI call that blocks the worker
+        // thread and literally never returns cannot be force-cancelled here —
+        // fully isolating that would require running the blocking SDK call on
+        // spawn_blocking inside each vendor driver, which is tracked
+        // separately as it needs on-hardware validation per SDK.
+        let native_image = match tokio::time::timeout(
+            crate::timeout_ops::Timeouts::image_download_large(),
+            mgr.camera_download_image(camera_id),
+        )
+        .await
+        {
+            Ok(inner) => inner.map_err(|e| {
+                self.app_state.publish_imaging_event(
+                    ImagingEvent::ExposureComplete { success: false },
+                    EventSeverity::Error,
+                );
+                format!("Failed to download image: {}", e)
+            })?,
+            Err(_) => {
+                self.app_state.publish_imaging_event(
+                    ImagingEvent::ExposureComplete { success: false },
+                    EventSeverity::Error,
+                );
+                return Err(format!(
+                    "Image download on {} exceeded the {}s timeout — failing the frame so recovery can run",
+                    camera_id,
+                    crate::timeout_ops::Timeouts::image_download_large().as_secs()
+                ));
+            }
+        };
 
         tracing::info!(
             "[EXPOSURE] Download complete: {}x{} ({} pixels)",

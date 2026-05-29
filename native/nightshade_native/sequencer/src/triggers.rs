@@ -874,6 +874,14 @@ pub struct TriggerState {
     pub guiding_enabled: bool,
     /// Whether the guide star has been lost (guider reports no star / lost lock)
     pub guide_star_lost: bool,
+    /// Filter focus offset (steps) currently embodied in the focuser position,
+    /// relative to the reference filter. Filter offsets are reference-relative
+    /// deltas; a filter change moves the focuser by
+    /// `(offset_new - last_applied_filter_offset)` so offsets do not stack and
+    /// walk focus off across an LRGB/SHO night. `0` means the focuser is at the
+    /// reference-filter focus (the initial state and after selecting the
+    /// reference filter).
+    pub last_applied_filter_offset: i32,
     /// Audit §1.21: configurable retention window (seconds) for
     /// `guiding_rms_history`. Set by the trigger evaluator from the
     /// `GuidingFailed` trigger configuration so a user-tuned value is
@@ -1013,6 +1021,7 @@ impl Default for TriggerState {
             guiding_rms_history: None,
             guiding_enabled: false,
             guide_star_lost: false,
+            last_applied_filter_offset: 0,
             // Audit §1.21: 300s preserves the previous hardcoded retention so
             // un-configured triggers behave exactly as before.
             guiding_rms_retention_secs: 300,
@@ -1213,6 +1222,30 @@ impl TriggerState {
             tracing::warn!("Guide star lost detected");
         }
         self.guide_star_lost = lost;
+    }
+
+    /// Arm or disarm the `GuideStarLost` trigger.
+    ///
+    /// `guiding_enabled` gates `GuideStarLost` (see `check`) so the trigger
+    /// cannot fire while the guider is idle between sequences. It MUST be set
+    /// `true` once guiding is active, otherwise the star-lost safety net is
+    /// dead and the sequence silently keeps exposing unguided after a star
+    /// loss. It is set `true` explicitly on a successful `StartGuiding` and
+    /// latched `true` in the executor poll whenever the guider reports it is
+    /// actively guiding; it is cleared on an explicit `StopGuiding` so an
+    /// intentional stop does not masquerade as a lost star.
+    pub fn set_guiding_enabled(&mut self, enabled: bool) {
+        if self.guiding_enabled != enabled {
+            tracing::debug!("Guiding-enabled (star-lost trigger arm) -> {}", enabled);
+        }
+        self.guiding_enabled = enabled;
+    }
+
+    /// Record the filter focus offset (steps, reference-relative) now embodied
+    /// in the focuser position. Set after a filter-offset move so the next
+    /// filter change applies only the delta. See `last_applied_filter_offset`.
+    pub fn set_last_applied_filter_offset(&mut self, offset: i32) {
+        self.last_applied_filter_offset = offset;
     }
 
     /// Update current humidity reading
@@ -1875,6 +1908,85 @@ mod tests {
         // 25% increase - should trigger (consecutive_frames=1, so immediate)
         state.current_hfr = Some(2.5);
         assert!(trigger.check(&state).await);
+    }
+
+    #[tokio::test]
+    async fn test_guide_star_lost_requires_arming() {
+        // Regression: `guiding_enabled` must be settable so the GuideStarLost
+        // trigger can fire. Previously it was never set true, making the
+        // trigger permanently dead and letting the sequence take unguided
+        // subs after a star loss.
+        let mut trigger = Trigger::new(
+            "guide_star_lost",
+            "Guide Star Lost",
+            TriggerType::GuideStarLost,
+            RecoveryAction::Pause,
+        );
+
+        let mut state = TriggerState::new();
+
+        // Star lost but guiding never armed -> must NOT fire (idle guider).
+        state.set_guide_star_lost(true);
+        assert!(
+            !trigger.check(&state).await,
+            "GuideStarLost must not fire before guiding is armed"
+        );
+
+        // Arm guiding (as StartGuiding success / executor latch does).
+        state.set_guiding_enabled(true);
+        assert!(
+            trigger.check(&state).await,
+            "GuideStarLost must fire once armed and the star is lost"
+        );
+
+        // Star reacquired -> no longer fires.
+        state.set_guide_star_lost(false);
+        assert!(!trigger.check(&state).await);
+
+        // Star lost again while still armed -> fires.
+        state.set_guide_star_lost(true);
+        assert!(trigger.check(&state).await);
+
+        // Explicit StopGuiding disarms -> must not fire even though the
+        // guider reports not-guiding (intentional stop, not a lost star).
+        state.set_guiding_enabled(false);
+        assert!(
+            !trigger.check(&state).await,
+            "GuideStarLost must not fire after an intentional StopGuiding"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_dawn_approaching_fires_only_within_upcoming_window() {
+        // Regression: DawnApproaching must fire when an UPCOMING dawn is within
+        // the window, and must NOT fire when dawn_time is unset (the old bug
+        // left it None forever) or already in the past (the stale-cache bug).
+        let mut trigger = Trigger::new(
+            "dawn",
+            "Dawn Approaching",
+            TriggerType::DawnApproaching {
+                minutes_before: 30.0,
+            },
+            RecoveryAction::ParkAndAbort,
+        );
+        let mut state = TriggerState::new();
+
+        // No dawn_time seeded -> cannot fire.
+        assert!(!trigger.check(&state).await);
+
+        let now = chrono::Utc::now().timestamp();
+
+        // Dawn 60 min out, 30 min window -> not yet.
+        state.dawn_time = Some(now + 60 * 60);
+        assert!(!trigger.check(&state).await);
+
+        // Dawn 15 min out -> within the 30 min window -> fire.
+        state.dawn_time = Some(now + 15 * 60);
+        assert!(trigger.check(&state).await);
+
+        // Dawn already passed -> must NOT fire (would otherwise fire all day).
+        state.dawn_time = Some(now - 60);
+        assert!(!trigger.check(&state).await);
     }
 
     #[tokio::test]

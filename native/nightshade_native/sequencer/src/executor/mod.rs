@@ -142,6 +142,15 @@ pub struct RuntimeConfig {
     /// `ExposureConfig::dither_pixels`) take precedence — this only sets the
     /// fallback.
     pub dither: crate::DitherConfig,
+    /// Autofocus configuration used by trigger-driven autofocus
+    /// (`RecoveryAction::Autofocus` fired by the HFR / temperature / focus-
+    /// drift / interval triggers). Seeded at `start()` from the sequence's
+    /// first Autofocus node so trigger-fired refocus uses the operator's real
+    /// tuning (step size, exposure, backlash, method, filter) instead of
+    /// library defaults. `None` means the sequence has no Autofocus node to
+    /// copy tuning from; the trigger path then falls back to defaults AND logs
+    /// a warning (never a silent fallback — CLAUDE.md "errors are a feature").
+    pub autofocus: Option<crate::AutofocusConfig>,
     /// Observer location (degrees). `None` means location is not configured.
     pub latitude: Option<f64>,
     pub longitude: Option<f64>,
@@ -219,6 +228,31 @@ pub struct RuntimeConfig {
     /// from the runtime config so a subsequent restart without an
     /// explicit re-seed runs without stale carry-over.
     pub pending_integration_carry_over: HashMap<String, HashMap<String, f64>>,
+}
+
+/// Walk a runtime node tree (pre-order) and return the first Autofocus node's
+/// configuration. Used to seed the trigger-driven autofocus config from the
+/// sequence's own Autofocus node so HFR / temperature / interval refocus
+/// triggers use the operator's real tuning instead of library defaults.
+fn find_first_autofocus_config(node: &dyn Node) -> Option<crate::AutofocusConfig> {
+    if let NodeType::Autofocus(config) = node.node_type() {
+        return Some(config.clone());
+    }
+    node.children()
+        .iter()
+        .find_map(|child| find_first_autofocus_config(&**child))
+}
+
+/// Whether the node tree contains a plate-solve-dependent CenterTarget node.
+/// Used to gate the plate-solver/catalog preflight at start() so a sequence
+/// that centers on a target fails fast if no solver is installed.
+fn tree_contains_centering(node: &dyn Node) -> bool {
+    if matches!(node.node_type(), NodeType::CenterTarget(_)) {
+        return true;
+    }
+    node.children()
+        .iter()
+        .any(|child| tree_contains_centering(&**child))
 }
 
 /// Commands that can be sent to the executor
@@ -1128,6 +1162,24 @@ async fn run_recovery_attempt(
                 };
             }
 
+            // Actively drive a reconnect for each device. The old behaviour only
+            // POLLED device_is_connected, which never recovers camera / focuser
+            // / filter-wheel disconnects: those devices default to
+            // auto_reconnect=false, so the background reconnection loop skips
+            // them and the recovery budget is burned reporting "still
+            // disconnected". connect_device() flips auto_reconnect on AND issues
+            // an immediate connect. A failed attempt is non-fatal — the
+            // is_connected verification below decides the outcome.
+            for device_id in device_ids {
+                if let Err(e) = device_ops.connect_device(device_id).await {
+                    tracing::warn!(
+                        "[RECOVERY] connect_device('{}') attempt failed: {} (will verify state)",
+                        device_id,
+                        e
+                    );
+                }
+            }
+
             for device_id in device_ids {
                 match device_ops.device_is_connected(device_id).await {
                     Ok(true) => {}
@@ -1395,6 +1447,43 @@ impl SequenceExecutor {
                 .to_string()
         })?;
 
+        // Plate-solve preflight. If the sequence centers on a target it needs a
+        // working solver, and ASTAP additionally needs a star catalog — ASTAP
+        // with no catalog exits 0 and never solves, so the CenterTarget node
+        // would otherwise burn all its attempts mid-night and only then fail.
+        // Surface it BEFORE slewing: hard-fail if no solver binary exists at
+        // all (unambiguous), and emit a loud operator-visible warning if no
+        // ASTAP catalog is detected (a warning rather than a hard block so a
+        // valid solve-field / non-standard catalog setup is not falsely
+        // rejected; the CenterTarget node's own fail-closed error remains the
+        // backstop).
+        if self
+            .root_node
+            .as_ref()
+            .is_some_and(|root| tree_contains_centering(&**root))
+        {
+            if !nightshade_imaging::is_solver_available() {
+                return Err(
+                    "This sequence centers on a target but no plate solver (ASTAP or \
+                     solve-field) was found on this system. Install and configure a plate \
+                     solver before running — centering would fail on every target otherwise."
+                        .to_string(),
+                );
+            }
+            if nightshade_imaging::detect_astap_catalog(None, None).is_none() {
+                tracing::warn!(
+                    "Plate-solve preflight: a solver is installed but no ASTAP star catalog was \
+                     detected. If ASTAP is your solver, centering will fail until a catalog \
+                     (e.g. the G18/H18/V17 .290 files) is installed."
+                );
+                let _ = self.event_tx.send(ExecutorEvent::Error {
+                    message: "Plate-solve preflight: no ASTAP star catalog detected. If ASTAP \
+                              is your solver, install its catalog or centering will fail mid-run."
+                        .to_string(),
+                });
+            }
+        }
+
         let custom_recovery_branches = self.prepare_sequence_recovery_triggers().await?;
 
         self.is_cancelled.store(false, Ordering::Relaxed);
@@ -1423,6 +1512,43 @@ impl SequenceExecutor {
                     {
                         *live = every_n_frames;
                     }
+                }
+            }
+        }
+
+        // Seed the trigger-driven autofocus config from the sequence's first
+        // Autofocus node. Trigger-fired refocus (HFR / temperature / focus-
+        // drift / interval) previously hardcoded `AutofocusConfig::default()`,
+        // discarding the operator's step size / exposure / backlash / method —
+        // soft frames and AF thrash all night. The Autofocus node carries the
+        // user's real tuning (the Dart layer builds it from the equipment
+        // profile), so copy it here. Only seed if not already set via a
+        // runtime command, so an explicit operator override still wins.
+        {
+            let already_set = self.runtime_config.read().autofocus.is_some();
+            if !already_set {
+                if let Some(node_af) = self
+                    .root_node
+                    .as_ref()
+                    .and_then(|root| find_first_autofocus_config(&**root))
+                {
+                    tracing::info!(
+                        "Seeded trigger autofocus config from sequence Autofocus node \
+                         (method={:?}, step_size={}, steps_out={}, exposure={}s, backlash={})",
+                        node_af.method,
+                        node_af.step_size,
+                        node_af.steps_out,
+                        node_af.exposure_duration,
+                        node_af.backlash_compensation,
+                    );
+                    self.runtime_config.write().autofocus = Some(node_af);
+                } else {
+                    tracing::warn!(
+                        "No Autofocus node in the sequence to seed trigger-autofocus tuning; \
+                         trigger-fired refocus will use library defaults. Add an Autofocus \
+                         instruction (or push a profile AF config) so triggers use your real \
+                         step size / exposure / backlash."
+                    );
                 }
             }
         }
@@ -3153,6 +3279,45 @@ impl SequenceExecutor {
                                 prog.message = Some("Recovered — resuming sequence".to_string());
                             }
                             *recovery_driver_current.write() = None;
+
+                            // Re-enable tracking if the recovery loop stopped it
+                            // (stop_tracking_during_recovery). The resume path
+                            // previously left tracking OFF for every cause except
+                            // MountTrackingLost, so the sequence resumed exposing
+                            // on a NON-tracking mount — the target drifts out of
+                            // frame and the rest of the night is trailed while the
+                            // UI reports "Recovered". Restore it here for all
+                            // causes, and surface a loud error if it cannot be
+                            // restored (never silently resume untracked).
+                            if stop_tracking {
+                                if let Some(mount_id) = &recovery_driver_mount_id {
+                                    match recovery_driver_device_ops
+                                        .mount_set_tracking(mount_id, true)
+                                        .await
+                                    {
+                                        Ok(()) => tracing::info!(
+                                            "[RECOVERY] Re-enabled tracking on '{}' after recovery",
+                                            mount_id
+                                        ),
+                                        Err(e) => {
+                                            tracing::error!(
+                                                "[RECOVERY] Failed to re-enable tracking on '{}' after recovery: {}",
+                                                mount_id,
+                                                e
+                                            );
+                                            let _ = recovery_driver_event_tx.send(
+                                                ExecutorEvent::Error {
+                                                    message: format!(
+                                                        "Recovery resumed but tracking could not be re-enabled on {}: {} — resumed frames may trail until tracking is restored.",
+                                                        mount_id, e
+                                                    ),
+                                                },
+                                            );
+                                        }
+                                    }
+                                }
+                            }
+
                             recovery_driver_is_paused.store(false, Ordering::Relaxed);
                             let _ = recovery_driver_event_tx
                                 .send(ExecutorEvent::StateChanged(ExecutorState::Running));
@@ -3421,24 +3586,55 @@ impl SequenceExecutor {
                                 None => {}
                             }
 
-                            // Dawn calculation needs lat/lon; if the executor was started
-                            // before the location was set (mobile rigs configure it after
-                            // mount connect), seed from the device_ops the first time it
-                            // becomes available so DawnApproaching can fire.
+                            // Seed observer location from device_ops the first time it
+                            // becomes available (mobile rigs configure it after mount
+                            // connect) so altitude/dawn triggers can evaluate.
                             if state.observer_latitude.is_none() {
                                 if let Some((lat, lon)) =
                                     device_ops_for_triggers.get_observer_location()
                                 {
                                     state.observer_latitude = Some(lat);
                                     state.observer_longitude = Some(lon);
-                                    // Cache dawn_time once on first set; recomputing every
-                                    // poll would burn CPU on a slowly-changing value.
-                                    state.dawn_time =
-                                        Some(crate::triggers::calculate_dawn_time(lat, lon));
                                     tracing::debug!(
-                                        "Observer location set for dawn trigger: {}, {}",
+                                        "Observer location set for dawn/altitude triggers: {}, {}",
                                         lat,
                                         lon
+                                    );
+                                }
+                            }
+
+                            // Compute (or refresh) dawn_time whenever a location is known
+                            // but there is no valid UPCOMING dawn cached. This fixes two
+                            // bugs:
+                            //   #10: dawn_time used to be computed ONLY inside the
+                            //        `observer_latitude.is_none()` branch above, which the
+                            //        UpdateLocation command bypasses (it sets
+                            //        observer_latitude directly). On a normally-configured
+                            //        rig dawn_time stayed None forever and the
+                            //        DawnApproaching trigger could never fire — the run
+                            //        would image straight through dawn with no auto-stop.
+                            //   #19: dawn_time was cached once and never refreshed, so on a
+                            //        multi-night run it pointed at night-1's now-past dawn
+                            //        and the trigger never fired again. calculate_dawn_time
+                            //        returns the NEXT dawn, so recomputing once the cached
+                            //        value has passed restores protection each night.
+                            if let (Some(lat), Some(lon)) =
+                                (state.observer_latitude, state.observer_longitude)
+                            {
+                                let now = chrono::Utc::now().timestamp();
+                                let needs_refresh = match state.dawn_time {
+                                    None => true,
+                                    Some(t) => t <= now,
+                                };
+                                if needs_refresh {
+                                    let new_dawn =
+                                        crate::triggers::calculate_dawn_time(lat, lon);
+                                    state.dawn_time = Some(new_dawn);
+                                    tracing::debug!(
+                                        "dawn_time computed for ({}, {}): {} (next astronomical twilight)",
+                                        lat,
+                                        lon,
+                                        new_dawn
                                     );
                                 }
                             }
@@ -3661,12 +3857,24 @@ impl SequenceExecutor {
                             let mut tstate = trigger_state.write().await;
                             match guide_status {
                                 Ok(status) => {
-                                    // Only count it as "lost" when the sequence has explicitly
-                                    // started guiding. Otherwise an idle guider would constantly
-                                    // trip the trigger before a Guide instruction even runs.
-                                    if tstate.guiding_enabled && !status.is_guiding {
+                                    if status.is_guiding {
+                                        // Observing the guider actively guiding ARMS the
+                                        // star-lost trigger. This latch is the authoritative
+                                        // arming path: without it `guiding_enabled` would stay
+                                        // false forever (StartGuiding sets it too, but the
+                                        // latch also covers checkpoint-resume where the
+                                        // StartGuiding node already completed and will not
+                                        // re-run). It is only cleared by an explicit
+                                        // StopGuiding.
+                                        if !tstate.guiding_enabled {
+                                            tstate.set_guiding_enabled(true);
+                                        }
+                                        tstate.set_guide_star_lost(false);
+                                    } else if tstate.guiding_enabled {
+                                        // Guiding was active and is now not -> star lost.
                                         tstate.set_guide_star_lost(true);
                                     } else {
+                                        // Idle guider before any guiding has started: not lost.
                                         tstate.set_guide_star_lost(false);
                                     }
                                 }
@@ -3933,8 +4141,28 @@ impl SequenceExecutor {
                                                 Some(event_tx_clone2.clone()),
                                             );
 
+                                            // Use the operator's real autofocus tuning
+                                            // (seeded at start() from the sequence's
+                                            // Autofocus node, or pushed via runtime
+                                            // config). Falling back to library defaults
+                                            // here would mean trigger-fired refocus
+                                            // ignores the user's step size / exposure /
+                                            // backlash — so warn loudly if that happens.
+                                            let af_config = {
+                                                match runtime_config.read().autofocus.clone() {
+                                                    Some(cfg) => cfg,
+                                                    None => {
+                                                        tracing::warn!(
+                                                            "Trigger autofocus running with LIBRARY DEFAULTS \
+                                                             (no Autofocus node / profile AF config available) — \
+                                                             focus quality may suffer on a non-default rig"
+                                                        );
+                                                        crate::AutofocusConfig::default()
+                                                    }
+                                                }
+                                            };
                                             let af_result = crate::instructions::execute_autofocus(
-                                                &crate::AutofocusConfig::default(),
+                                                &af_config,
                                                 &af_ctx,
                                                 None,
                                             )

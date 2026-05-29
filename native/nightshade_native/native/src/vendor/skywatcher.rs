@@ -573,6 +573,12 @@ impl NativeMount for SkyWatcherMount {
             .lock()
             .map_err(|_| NativeError::SdkError("Lock poisoned".into()))? = true;
 
+        // A commanded slew means the mount has left its parked position; clear
+        // the software park flag so park/unpark state tracks physical reality.
+        // Without this, a direct slew after a Park leaves is_parked() reporting
+        // true while the mount is actually pointed elsewhere.
+        *self.is_parked.lock().unwrap_or_else(|e| e.into_inner()) = false;
+
         Ok(())
     }
 
@@ -609,6 +615,10 @@ impl NativeMount for SkyWatcherMount {
         self.sync_axis_position(AXIS_RA, ra_steps)?;
         self.sync_axis_position(AXIS_DEC, dec_steps)?;
 
+        // A sync redefines the mount's coordinate frame as part of active use;
+        // clear the software park flag so it does not falsely report parked.
+        *self.is_parked.lock().unwrap_or_else(|e| e.into_inner()) = false;
+
         Ok(())
     }
 
@@ -619,6 +629,15 @@ impl NativeMount for SkyWatcherMount {
 
         tracing::info!("Parking mount");
 
+        // LIMITATION: the SynScan axis protocol exposes no dedicated hardware
+        // park/home primitive, so this parks to celestial RA=0h/Dec=0deg. For
+        // a GEM that is an arbitrary mechanical orientation that depends on
+        // local sidereal time — NOT a guaranteed counterweight-down safe stow.
+        // A correct safe-stow requires a profile-configured park position
+        // (alt/az or a home encoder step) plumbed from the equipment profile;
+        // that coordinate is not available at this driver layer and must not be
+        // guessed (a wrong hemisphere assumption could drive the OTA toward the
+        // ground). Tracked as a follow-up requiring a park-position setting.
         self.slew_to_coordinates(0.0, 0.0).await?;
 
         while self.is_slewing().await? {

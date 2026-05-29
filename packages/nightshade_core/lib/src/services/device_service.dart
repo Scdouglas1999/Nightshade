@@ -686,6 +686,17 @@ class DeviceService {
         notifier.setConnected();
         break;
     }
+
+    // Drive sequence-resume off this authoritative connected event so a
+    // reconnect from ANY source — including the Rust reconnection loop after
+    // the Dart coordinator has exhausted its own ~35s budget — resumes a
+    // paused sequence. Previously resume only fired inside the coordinator's
+    // own retry success, so a later out-of-band reconnect left the rig
+    // connected but idle until morning.
+    final lower = deviceType.toLowerCase();
+    if (lower == 'camera' || lower == 'mount') {
+      unawaited(_reconnectCoordinator.onAuthoritativeDeviceConnected(lower));
+    }
   }
 
   void _applyDeviceConnecting(String deviceType, String deviceId) {

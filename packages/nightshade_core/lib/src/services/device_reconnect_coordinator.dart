@@ -423,6 +423,30 @@ class DeviceReconnectCoordinator {
     }
   }
 
+  /// Resume a paused sequence after an AUTHORITATIVE device-connected event,
+  /// regardless of which actor reconnected the device.
+  ///
+  /// The Dart coordinator exhausts its own retry budget in ~35s, but the Rust
+  /// reconnection loop keeps retrying for minutes. Without this hook, a
+  /// reconnect driven by the Rust loop (after the Dart side already gave up)
+  /// would reconnect the device yet leave the sequence paused — the operator
+  /// wakes to a rig that is "connected but idle". Wiring this to the live
+  /// connected event closes that gap. Safe to call for any device type: only
+  /// camera/mount drive a resume, and resume only fires once ALL critical
+  /// devices are back (see [_considerSequenceResume]).
+  Future<void> onAuthoritativeDeviceConnected(String deviceType) async {
+    final lower = deviceType.toLowerCase();
+    final DeviceType type;
+    if (lower == 'camera') {
+      type = DeviceType.camera;
+    } else if (lower == 'mount') {
+      type = DeviceType.mount;
+    } else {
+      return;
+    }
+    await _considerSequenceResume(type);
+  }
+
   void _showReconnectionFailedNotification(DeviceType type, String deviceId) {
     try {
       _ref.read(uiNotificationProvider.notifier).showError(

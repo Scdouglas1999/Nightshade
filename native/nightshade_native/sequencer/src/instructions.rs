@@ -1045,6 +1045,45 @@ pub async fn execute_center(
             }
         }
 
+        // Wait for the correction slew to ACTUALLY FINISH before settling and
+        // re-imaging. The slew command above returns as soon as it is issued
+        // (ASCOM/Alpaca async slews, INDI set-coords) — it does NOT block until
+        // the mount stops. Without this poll the next plate-solve exposure
+        // fires ~2 s later while the mount is still moving (real offsets take
+        // 10-60+ s), so the frame is motion-blurred / off-target, the solve
+        // mis-corrects or fails, and the loop burns all attempts without
+        // converging. Mirrors the meridian-flip slew-completion poll.
+        {
+            let slew_deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+            loop {
+                if let Some(result) = ctx.check_cancelled() {
+                    let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
+                    return result;
+                }
+                match ctx.device_ops.mount_is_slewing(&mount_id).await {
+                    Ok(false) => break,
+                    Ok(true) => {}
+                    Err(e) => {
+                        // Do not proceed to image on an unknown slew state;
+                        // keep polling until the deadline so a persistent
+                        // failure ends the attempt rather than capturing
+                        // mid-slew.
+                        tracing::warn!(
+                            "Centering: slew-state read failed ({}); retrying",
+                            e
+                        );
+                    }
+                }
+                if tokio::time::Instant::now() > slew_deadline {
+                    let _ = ctx.device_ops.mount_abort_slew(&mount_id).await;
+                    return InstructionResult::failure(
+                        "Centering correction slew did not complete within 300s".to_string(),
+                    );
+                }
+                sleep(Duration::from_millis(500)).await;
+            }
+        }
+
         // 2 s post-slew settle absorbs mount oscillation before the next
         // plate-solve exposure; without it, the solve sees motion-blurred
         // stars and the iteration produces a noisy correction vector.
@@ -2843,11 +2882,57 @@ pub async fn execute_autofocus(
             result
         }
         Err(e) => {
+            // Curve fit failed (too many outliers, singular matrix, parabola
+            // with no minimum — all reachable under clouds/poor seeing). At
+            // this point the focuser sits at the OUTWARD sweep extreme, so
+            // leaving it there would strand focus hundreds of steps off and
+            // make any retry sweep around the wrong origin. Restore the pre-AF
+            // position before failing — mirroring the timeout / cancel /
+            // low-star / flat-variance handlers above (which all already do
+            // this). Without it the focuser is left parked at the extreme.
+            tracing::warn!(
+                "Autofocus curve fit failed ({}); returning focuser to original position {}",
+                e,
+                current_position
+            );
+            let _ = ctx.device_ops.focuser_halt(&focuser_id).await;
+            wait_for_focuser_stop_after_halt(&focuser_id, &ctx.device_ops, Duration::from_secs(10))
+                .await;
+            let _ = ctx
+                .device_ops
+                .focuser_move_to(&focuser_id, current_position)
+                .await;
+            let _ = wait_for_focuser_idle(&focuser_id, ctx, Duration::from_secs(120)).await;
             return InstructionResult::failure(format!("Autofocus curve fitting failed: {}", e));
         }
     };
 
-    let best_position = af_result.best_position;
+    // Clamp the fitted best-focus position to the swept range. The parabolic
+    // and hyperbolic fits return the analytic vertex, which for a poor-quality
+    // (low-R²) curve can land far outside the sampled bracket — an
+    // extrapolation that is by definition untrustworthy and, on a permissive
+    // driver, would drive the focuser wildly out of position. A vertex outside
+    // the bracket means true focus was not bracketed; clamping bounds the move
+    // to the sampled window (worst case: a sweep endpoint near where we
+    // started) instead of an arbitrary extrapolated step.
+    let sweep_lo = positions[0].min(positions[total_points - 1]);
+    let sweep_hi = positions[0].max(positions[total_points - 1]);
+    let best_position = {
+        let raw = af_result.best_position;
+        let clamped = raw.clamp(sweep_lo, sweep_hi);
+        if clamped != raw {
+            tracing::warn!(
+                "Autofocus best-focus vertex {} fell outside the swept range [{}, {}]; \
+                 clamping to {}. The curve minimum was an extrapolation (poor fit) — \
+                 true focus may lie outside the sweep window.",
+                raw,
+                sweep_lo,
+                sweep_hi,
+                clamped
+            );
+        }
+        clamped
+    };
     let best_hfr = af_result.best_hfr;
     let r_squared = af_result.curve_fit_quality;
 
@@ -3319,6 +3404,16 @@ pub async fn execute_start_guiding(
                 );
             }
 
+            // Arm the GuideStarLost trigger now that guiding is confirmed
+            // active. Without this the trigger's `guiding_enabled` gate stays
+            // false and a lost star is never detected — the sequence would
+            // silently take unguided subs until dawn. The executor poll also
+            // latches this from live status, but setting it here closes the
+            // window between StartGuiding completing and the next poll tick.
+            if let Some(trigger_state_lock) = &ctx.trigger_state {
+                trigger_state_lock.write().await.set_guiding_enabled(true);
+            }
+
             if let Some(cb) = progress_callback {
                 cb(100.0, "Guiding active".to_string());
             }
@@ -3386,6 +3481,14 @@ pub async fn execute_stop_guiding(
 
     match ctx.device_ops.guider_stop().await {
         Ok(_) => {
+            // Disarm the GuideStarLost trigger on an intentional stop, so the
+            // subsequent is_guiding==false does not get misread as a lost star
+            // (which would request recovery for a deliberately-stopped guider).
+            if let Some(trigger_state_lock) = &ctx.trigger_state {
+                let mut tstate = trigger_state_lock.write().await;
+                tstate.set_guiding_enabled(false);
+                tstate.set_guide_star_lost(false);
+            }
             if let Some(cb) = progress_callback {
                 cb(100.0, "Guiding stopped".to_string());
             }
@@ -3514,24 +3617,54 @@ async fn apply_filter_focus_offset(
     ctx: &InstructionContext,
     progress_callback: Option<&(dyn Fn(f64, String) + Send + Sync)>,
 ) -> Result<(), String> {
-    let offset = match ctx.filter_focus_offsets.get(filter_name) {
-        Some(&o) if o != 0 => o,
-        _ => return Ok(()),
-    };
-
     let focuser_id = match ctx.focuser_id.as_deref() {
         Some(id) if !id.is_empty() => id,
         _ => return Ok(()),
     };
 
+    // Filter focus offsets are stored RELATIVE to the reference filter
+    // (offset = optimal_focus[filter] - optimal_focus[reference]); the
+    // reference filter and any unconfigured filter have offset 0.
+    let offset_new = ctx
+        .filter_focus_offsets
+        .get(filter_name)
+        .copied()
+        .unwrap_or(0);
+
+    // The focuser already carries the offset applied for the PREVIOUS filter.
+    // Applying `offset_new` as an absolute shift from the current position
+    // would stack offsets and walk focus off across an LRGB/SHO night
+    // (e.g. L->R = +30, then R->G would land at reference+40 instead of
+    // reference+10, and re-selecting a filter would re-add its offset every
+    // time). Move by the DELTA between the new offset and the one currently
+    // embodied so the focuser always lands at reference_focus + offset_new.
+    let last_applied = match &ctx.trigger_state {
+        Some(ts) => ts.read().await.last_applied_filter_offset,
+        None => 0,
+    };
+    let delta = offset_new - last_applied;
+
+    if delta == 0 {
+        // Already at the correct offset for this filter (re-selecting the same
+        // filter, or selecting the reference filter when nothing is applied).
+        tracing::debug!(
+            "Filter \"{}\": focus offset {} already embodied; no focuser move needed",
+            filter_name,
+            offset_new
+        );
+        return Ok(());
+    }
+
     tracing::info!(
-        "Applying focus offset for filter \"{}\": {} steps",
+        "Applying focus offset for filter \"{}\": embodied {} -> {} ({:+} step delta)",
         filter_name,
-        offset
+        last_applied,
+        offset_new,
+        delta
     );
 
     if let Some(cb) = progress_callback {
-        cb(60.0, format!("Applying focus offset: {} steps", offset));
+        cb(60.0, format!("Applying focus offset: {:+} steps", delta));
     }
 
     let current_pos = match ctx.device_ops.focuser_get_position(focuser_id).await {
@@ -3541,12 +3674,13 @@ async fn apply_filter_focus_offset(
         }
     };
 
-    let target_pos = current_pos + offset;
+    let target_pos = current_pos + delta;
     tracing::info!(
-        "Focus offset: {} + {} = {} (current + offset = target)",
+        "Focus offset: {} + {} = {} (current + delta = target; filter offset {})",
         current_pos,
-        offset,
-        target_pos
+        delta,
+        target_pos,
+        offset_new
     );
 
     if let Err(e) = ctx.device_ops.focuser_move_to(focuser_id, target_pos).await {
@@ -3591,21 +3725,29 @@ async fn apply_filter_focus_offset(
         ));
     }
 
+    // Record the offset now embodied in the focuser position so the NEXT
+    // filter change moves only by the delta (and re-selecting this filter is a
+    // no-op). Without this the offsets accumulate across the night.
+    if let Some(ts) = &ctx.trigger_state {
+        ts.write().await.set_last_applied_filter_offset(offset_new);
+    }
+
     if let Some(cb) = progress_callback {
         cb(
             80.0,
             format!(
                 "Focus offset applied: {} -> {} ({:+} steps)",
-                current_pos, final_pos, offset
+                current_pos, final_pos, delta
             ),
         );
     }
 
     tracing::info!(
-        "Focus offset for filter \"{}\" applied: {} -> {}",
+        "Focus offset for filter \"{}\" applied: {} -> {} (embodied offset now {})",
         filter_name,
         current_pos,
-        final_pos
+        final_pos,
+        offset_new
     );
     Ok(())
 }
@@ -3935,9 +4077,44 @@ pub async fn execute_park(ctx: &InstructionContext) -> InstructionResult {
 
     tracing::info!("Parking mount");
 
-    match ctx.device_ops.mount_park(&mount_id).await {
-        Ok(_) => InstructionResult::success_with_message("Mount parked"),
-        Err(e) => InstructionResult::failure(format!("Park failed: {}", e)),
+    if let Err(e) = ctx.device_ops.mount_park(&mount_id).await {
+        return InstructionResult::failure(format!("Park failed: {}", e));
+    }
+
+    // mount_park only ISSUES the park on most drivers (ASCOM/Alpaca/INDI return
+    // as soon as the command is acknowledged); a park slew takes 30-90 s.
+    // Returning success immediately would let an automated end-of-night
+    // shutdown advance to the next step (close dome / cut power) while the OTA
+    // is still swinging, and would report success even for a park the driver
+    // silently rejected (e.g. CanPark=false). Wait for the mount to report
+    // PARKED — the authoritative completion signal across all driver types
+    // (mount_is_slewing is unreliable for INDI parking, which uses a separate
+    // property) — and fail closed if it never does.
+    let park_deadline = tokio::time::Instant::now() + Duration::from_secs(300);
+    loop {
+        if let Some(result) = ctx.check_cancelled() {
+            return result;
+        }
+        match ctx.device_ops.mount_is_parked(&mount_id).await {
+            Ok(true) => {
+                return InstructionResult::success_with_message("Mount parked");
+            }
+            Ok(false) => {
+                // Still parking.
+            }
+            Err(e) => {
+                tracing::warn!("Park: is_parked read failed ({}); retrying", e);
+            }
+        }
+        if tokio::time::Instant::now() > park_deadline {
+            return InstructionResult::failure(
+                "Mount did not report parked within 300s of issuing Park. The driver may not \
+                 support Park (CanPark=false), the park was rejected, or the mount is stuck \
+                 mid-slew — NOT safe to assume parked."
+                    .to_string(),
+            );
+        }
+        sleep(Duration::from_millis(500)).await;
     }
 }
 

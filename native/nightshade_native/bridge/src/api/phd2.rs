@@ -412,14 +412,23 @@ pub async fn api_phd2_get_status() -> Result<Phd2Status, NightshadeError> {
         nightshade_imaging::Phd2State::Unknown(raw) => raw,
     };
 
+    // Report the real rolling guide statistics accumulated from the PHD2
+    // GuideStep event stream. Returning hardcoded 0.0 here is a silent
+    // fallback that disables the sequencer's GuidingFailed safety trigger
+    // (it fires only when sustained RMS exceeds a threshold, and 0.0 can
+    // never exceed it) and blinds the per-exposure guiding-quality gate.
+    // The Phd2Client already computes rms_total = sqrt(rms_ra^2 + rms_dec^2)
+    // per guide frame; surface it.
+    let stats = client.get_rolling_stats();
+
     Ok(Phd2Status {
         connected: client.is_connected(),
         state: state_str,
-        rms_ra: 0.0, // Would need to track from events
-        rms_dec: 0.0,
-        rms_total: 0.0,
-        snr: 0.0,
-        star_mass: 0.0,
+        rms_ra: stats.rms_ra,
+        rms_dec: stats.rms_dec,
+        rms_total: stats.rms_total,
+        snr: stats.snr,
+        star_mass: stats.star_mass,
         pixel_scale,
     })
 }
