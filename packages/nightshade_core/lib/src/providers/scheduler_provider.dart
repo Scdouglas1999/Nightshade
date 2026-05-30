@@ -8,7 +8,10 @@ import '../models/scheduler/integration_goal.dart';
 import '../models/scheduler/scheduler_decision.dart';
 import '../models/scheduler/scheduler_status.dart';
 import '../models/scheduler/target_constraint.dart';
+import '../models/planning/project.dart';
 import '../models/sequence/sequence_models.dart';
+import '../services/planning/project_service.dart'
+    show projectTargetsProjectIndexSql, projectTargetsSchemaSql, projectsSchemaSql;
 import '../services/scheduler/horizon_profile.dart';
 import '../services/scheduler/integration_goal_service.dart';
 import '../services/scheduler/scheduler_engine.dart';
@@ -16,6 +19,13 @@ import '../services/scheduler/target_constraint_service.dart';
 import 'clock_provider.dart';
 import 'database_provider.dart';
 import 'event_provider.dart';
+// Multi-night planning (component C6): the active-project selection and the
+// live project list scope the scheduler's candidate set to one campaign and
+// re-trigger evaluation when the operator switches projects or edits
+// membership. The dependency is one-directional (planning_provider imports
+// scheduler_provider, not the reverse) — only these read-only providers are
+// pulled in here, so there is no cycle.
+import 'planning_provider.dart' show activeProjectIdProvider, projectListProvider;
 import 'profiles_provider.dart';
 import 'sequence_provider.dart';
 // Hide settings_provider's legacy 8-compass-point HorizonProfile so the
@@ -134,7 +144,23 @@ class SchedulerCandidateLoader {
 
   SchedulerCandidateLoader(this.ref);
 
-  Future<List<SchedulerCandidate>> load() async {
+  /// Assemble the candidate set.
+  ///
+  /// When [projectId] is non-null the candidate set is restricted to the
+  /// targets that belong to that planning project (component C6, multi-night
+  /// planning): the catalog query is INNER-JOINed against `project_targets`,
+  /// and each member's effective priority is the per-membership
+  /// `priority_override` when present, falling back to the target's own global
+  /// `priority`. When [projectId] is null the full catalog is loaded
+  /// verbatim — the original behavior, so existing non-project users are
+  /// unaffected.
+  ///
+  /// In both modes the goal/count/constraint/horizon assembly and the
+  /// effective-filter list are identical; completed-goal rejection and
+  /// remaining-need ranking still happen downstream in the engine's
+  /// `scoreCandidate`, so a fully-imaged member target drops out of tonight's
+  /// rotation even though it remains in the project.
+  Future<List<SchedulerCandidate>> load({int? projectId}) async {
     final db = ref.read(databaseProvider);
     final goalService = ref.read(integrationGoalServiceProvider);
 
@@ -145,11 +171,37 @@ class SchedulerCandidateLoader {
     await db.customStatement(targetConstraintsTargetIndexSql);
     await db.customStatement(horizonProfilesSchemaSql);
 
-    final targetRows = await db
-        .customSelect(
-          'SELECT id, name, ra, dec, priority, object_type, notes FROM targets ORDER BY priority DESC, name ASC',
-        )
-        .get();
+    final List<QueryRow> targetRows;
+    if (projectId != null) {
+      // Defensive: the planner tables are created by the v40 migration, but a
+      // fresh database built without migrations (or a scheduler tick that runs
+      // before the planner UI has touched ProjectService) must still find them.
+      // Re-running the DDL is a no-op on an existing schema (`IF NOT EXISTS`).
+      // These constants are the canonical project DDL, owned by ProjectService.
+      await db.customStatement(projectsSchemaSql);
+      await db.customStatement(projectTargetsSchemaSql);
+      await db.customStatement(projectTargetsProjectIndexSql);
+
+      // Restrict to the project's members. The effective priority is the
+      // membership override when set, else the target's own priority — and we
+      // order by that effective value so the engine sees project-scoped ranking.
+      targetRows = await db.customSelect(
+        'SELECT t.id, t.name, t.ra, t.dec, '
+        'COALESCE(pt.priority_override, t.priority) AS priority, '
+        't.object_type, t.notes '
+        'FROM targets t '
+        'INNER JOIN project_targets pt ON pt.target_id = t.id '
+        'WHERE pt.project_id = ? '
+        'ORDER BY priority DESC, t.name ASC',
+        variables: [Variable.withInt(projectId)],
+      ).get();
+    } else {
+      targetRows = await db
+          .customSelect(
+            'SELECT id, name, ra, dec, priority, object_type, notes FROM targets ORDER BY priority DESC, name ASC',
+          )
+          .get();
+    }
 
     // Pre-fetch all constraints + horizon profiles in two queries.
     final constraintRows = await db
@@ -288,6 +340,21 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
   final clock = ref.watch(clockProvider);
   final localOffset = DateTime.now().timeZoneOffset;
 
+  // Build a candidate loader bound to a specific active-project scope. When
+  // [activeId] is null the loader runs unfiltered (the full catalog — current
+  // behavior for non-project users); when it is set, the candidate set is
+  // restricted to that project's members. We capture [activeId] by value so a
+  // reload triggered later still queries the scope the engine was configured
+  // with, rather than re-reading a moving provider value mid-tick.
+  Future<List<SchedulerCandidate>> Function() loaderFor(int? activeId) =>
+      () => ref.read(schedulerCandidateLoaderProvider).load(projectId: activeId);
+
+  // Read (not watch) the initial scope: watching activeProjectIdProvider here
+  // would rebuild the whole engine on every project switch and lose its
+  // running state. Instead we ref.listen below and swap the loader in place,
+  // which preserves the engine (and its run/pause status) across switches.
+  final initialActiveId = ref.read(activeProjectIdProvider);
+
   final engine = SchedulerEngine(
     site: SchedulerSite(
       latitudeDegrees: lat,
@@ -295,10 +362,21 @@ final schedulerEngineProvider = Provider<SchedulerEngine>((ref) {
       localOffset: localOffset,
     ),
     sequenceSink: _ExecutorSequenceSink(ref),
-    candidateLoader: () => ref.read(schedulerCandidateLoaderProvider).load(),
+    candidateLoader: loaderFor(initialActiveId),
     triggerStream: ref.watch(schedulerTriggerStreamProvider),
     clock: clock.now,
   );
+
+  // Re-scope (and immediately re-evaluate) whenever the active project changes
+  // without tearing down the engine. The auto-reeval provider also pokes the
+  // engine on this same change, but re-setting the loader here is what makes
+  // that re-evaluation pull from the new scope — the two are complementary.
+  ref.listen<int?>(activeProjectIdProvider, (previous, next) {
+    if (previous == next) return;
+    engine.setCandidateLoader(loaderFor(next));
+    engine.requestReevaluation(reason: 'active project changed');
+  });
+
   ref.onDispose(() => engine.dispose());
   return engine;
 });
@@ -340,6 +418,34 @@ final schedulerAutoReevalProvider = Provider<void>((ref) {
       if (previous == null || !previous.hasValue) return;
       if (!next.hasValue) return;
       engine.requestReevaluation(reason: 'target constraints changed');
+    },
+  );
+
+  // Switching the active project must re-pick tonight's targets immediately so
+  // the operator sees the new campaign's rotation without waiting for the next
+  // scheduled tick. The loader was already re-scoped in schedulerEngineProvider
+  // for this same transition; the engine's internal debounce coalesces this
+  // poke with that one into a single evaluation.
+  ref.listen<int?>(
+    activeProjectIdProvider,
+    (previous, next) {
+      if (previous == next) return;
+      engine.requestReevaluation(reason: 'active project changed');
+    },
+  );
+
+  // Project membership changes (adding/removing a target, editing a priority
+  // override) change which targets — and at what priority — the active project
+  // contributes, so re-evaluate. projectListProvider re-emits on every
+  // ProjectService mutation (it bridges watchChanges → re-list), which covers
+  // membership edits as well as project CRUD. As above, only react after the
+  // initial emission so the cold-start load is not treated as a change.
+  ref.listen<AsyncValue<List<Project>>>(
+    projectListProvider,
+    (previous, next) {
+      if (previous == null || !previous.hasValue) return;
+      if (!next.hasValue) return;
+      engine.requestReevaluation(reason: 'project membership changed');
     },
   );
 });
@@ -414,10 +520,3 @@ final integrationGoalProgressProvider =
         .progressForTarget(targetId);
   },
 );
-
-// `Variable` import needed elsewhere; suppress unused-import via reference
-// in a no-op to keep the public surface clean.
-// ignore: unused_element
-void _ensureVariableImported() {
-  Variable.withInt(0);
-}

@@ -87,6 +87,20 @@ export 'src/models/flat_wizard/flat_wizard_state.dart';
 export 'src/models/polar_alignment_config.dart';
 export 'src/models/alerts/transient_alert.dart';
 export 'src/models/planning/target_suggestion.dart';
+// Multi-Night & Forecast Planning (Roadmap #5).
+//   * project.dart           - Project / ProjectTarget campaign models.
+//   * project_progress.dart  - FilterProgressLine / ProjectTargetProgress /
+//     CampaignProgress (derived accrued-vs-goal roll-ups). FilterProgressLine
+//     is deliberately named to avoid colliding with scheduler FilterProgress;
+//     the project roll-up is named `CampaignProgress` (a project IS a
+//     multi-night campaign) to avoid colliding with the unrelated, pre-existing
+//     analytics project_tracking_service.dart::ProjectProgress (also on the
+//     barrel, consumed by analytics/widgets/project_tracking_panel.dart). Both
+//     are exported under their own names — no `hide`, no inferred-only type.
+//   * night_forecast.dart    - ForecastTargetUp / NightForecast / WeekForecast.
+export 'src/models/planning/project.dart';
+export 'src/models/planning/project_progress.dart';
+export 'src/models/planning/night_forecast.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/onboarding/onboarding_state.dart';
 export 'src/models/hardware_presets/hardware_preset_models.dart';
@@ -301,6 +315,25 @@ export 'src/services/scheduler/target_constraint_service.dart';
 export 'src/services/scheduler/horizon_profile.dart';
 export 'src/services/scheduler/sky_calculations.dart';
 export 'src/providers/scheduler_provider.dart';
+// Multi-Night & Forecast Planning (Roadmap #5) — services + Riverpod wiring.
+//   * project_service.dart           - Project/membership CRUD + derived
+//     CampaignProgress roll-up over the raw projects / project_targets tables.
+//     The schema DDL constants are hidden from the barrel (mirroring the
+//     scheduler stack); scheduler_provider.dart imports them directly via the
+//     src path to ensure the planner tables exist alongside the scheduler ones.
+//   * forecast_planning_service.dart - pure, I/O-free N-night clear-dark-hours
+//     scorer fed already-fetched hourly cloud data + project target candidates.
+//   * planning_provider.dart         - active-project selection, project list /
+//     progress, and the week-ahead forecast providers (forecast fetch lives at
+//     this provider layer, per the scheduler-stack convention).
+export 'src/services/planning/project_service.dart'
+    hide
+        projectsSchemaSql,
+        projectTargetsSchemaSql,
+        projectTargetsProjectIndexSql,
+        projectTargetsTargetIndexSql;
+export 'src/services/planning/forecast_planning_service.dart';
+export 'src/providers/planning_provider.dart';
 export 'src/services/focus_model_service.dart';
 // Wave 8 — Predictive autofocus persisted per-filter learning + drift detection.
 export 'src/services/predictive_af_service.dart';

@@ -109,7 +109,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 39;
+  int get schemaVersion => 40;
 
   @override
   MigrationStrategy get migration {
@@ -119,6 +119,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
         await _createFrameForensicsTable();
         await _ensureCapturedImagesProducingNodeColumns();
         await _createStackedResultsTable();
+        await _createProjectsTables();
         await _createCustomIndexes();
         await _ensureDefaultSettings();
       },
@@ -1847,6 +1848,27 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           }
         }
 
+        // Version 40 (Multi-Night & Forecast Planning, C3): the `projects` and
+        // `project_targets` tables that let an operator group several targets
+        // into a single multi-night campaign. Both are managed with raw DDL —
+        // the dominant v27+ scheduler-stack convention (`integration_goals`,
+        // `target_constraints`, `horizon_profiles`, `stacked_results`) — so
+        // adding them does not require a Drift codegen pass;
+        // `services/planning/project_service.dart`'s `ProjectService`
+        // reads/writes them via
+        // `customSelect`/`customInsert`/`customStatement`. The same helper runs
+        // from `onCreate` so fresh installs get the tables too.
+        //
+        // DELIBERATELY NOT denormalized: the accrued progress for a target
+        // (frames/seconds actually captured) is NOT stored on these tables. It
+        // is derived on demand from `captured_images` via the
+        // `TargetProgressService` / `CampaignRollupService` stack, which is the
+        // single source of truth. Caching a tally here would silently drift out
+        // of sync whenever a frame is rejected, deleted, or re-graded.
+        if (from < 40) {
+          await _createProjectsTables();
+        }
+
         await _ensureDefaultSettings();
         await _createCustomIndexes();
       },
@@ -1994,6 +2016,53 @@ class NightshadeDatabase extends _$NightshadeDatabase {
     await customStatement(
       'CREATE INDEX IF NOT EXISTS idx_stacked_results_target '
       'ON stacked_results(target_id)',
+    );
+  }
+
+  /// Create the v40 `projects` + `project_targets` tables (and their indexes)
+  /// for the multi-night planner. Called from both `onCreate` (fresh installs)
+  /// and the `if (from < 40)` `onUpgrade` branch (in-place migrations).
+  ///
+  /// These are raw-DDL tables (the dominant v27+ scheduler-stack convention)
+  /// rather than Drift-declared tables; see
+  /// `tables/project_table.dart` for the canonical schema documentation and
+  /// `services/planning/project_service.dart`'s `ProjectService` for the
+  /// read/write service.
+  ///
+  /// Every statement is `CREATE ... IF NOT EXISTS` so the helper is idempotent
+  /// and the migration is re-runnable if a prior run aborted mid-flight. The
+  /// `ON DELETE CASCADE` foreign keys mirror `integration_goals` /
+  /// `target_constraints`; foreign-key enforcement is already enabled in
+  /// `beforeOpen` (`PRAGMA foreign_keys = ON`), so deleting a project or a
+  /// target tears down the corresponding `project_targets` rows automatically.
+  Future<void> _createProjectsTables() async {
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS projects('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'name TEXT NOT NULL,'
+      'description TEXT,'
+      'color_argb INTEGER,'
+      'created_at INTEGER NOT NULL,'
+      'updated_at INTEGER NOT NULL)',
+    );
+    await customStatement(
+      'CREATE TABLE IF NOT EXISTS project_targets('
+      'id INTEGER PRIMARY KEY AUTOINCREMENT,'
+      'project_id INTEGER NOT NULL '
+      'REFERENCES projects(id) ON DELETE CASCADE,'
+      'target_id INTEGER NOT NULL '
+      'REFERENCES targets(id) ON DELETE CASCADE,'
+      'priority_override INTEGER,'
+      'added_at INTEGER NOT NULL,'
+      'UNIQUE(project_id, target_id))',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_project_targets_project '
+      'ON project_targets (project_id)',
+    );
+    await customStatement(
+      'CREATE INDEX IF NOT EXISTS idx_project_targets_target '
+      'ON project_targets (target_id)',
     );
   }
 
@@ -2464,6 +2533,12 @@ const Map<String, String> _defaultSettings = {
   'predictive_af.low_confidence_threshold': '0.5',
   'predictive_af.drift_threshold_steps': '200',
   'predictive_af.drift_runs_before_warn': '5',
+  // v40 Multi-Night & Forecast Planning: the currently-selected planning
+  // project. Stored out-of-band in app_settings (rather than a column on
+  // `projects`) so the active selection survives even when no projects exist.
+  // Empty string = no active project; otherwise the stringified projects.id.
+  // Seeded via INSERT ... ON CONFLICT DO NOTHING by _ensureDefaultSettings().
+  'planning.active_project_id': '',
 };
 
 /// Resolve the on-disk path the desktop/mobile database lives at. Exposed

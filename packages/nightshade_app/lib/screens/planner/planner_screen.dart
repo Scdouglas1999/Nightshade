@@ -10,7 +10,9 @@ import '../framing/altitude_chart.dart';
 import '../../localization/nightshade_localizations.dart';
 import '../../utils/plan_tonight_sequencer_helper.dart';
 import 'widgets/progress_tab_content.dart';
+import 'widgets/projects_tab_content.dart';
 import 'widgets/scheduler_tab_content.dart';
+import 'widgets/week_forecast_strip.dart';
 // ---------------------------------------------------------------------------
 // File split: the rest of this library lives in `planner_screen_parts/`.
 // Each part is `part of '../planner_screen.dart';` and contains a cohesive
@@ -30,9 +32,28 @@ part 'planner_screen_parts/_search_results.dart';
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the
 /// default.
+///
+/// Order rationale — the tabs read left-to-right as a planning-to-execution
+/// funnel, grouped by intent rather than by build order:
+///   * [recommendation] — "what's best right now" (the landing page / default).
+///   * [projects] — sits next to Recommendation because both are *planning
+///     intent*: choose a campaign and set multi-night integration goals.
+///   * [scheduler] — the dynamic target queue: *execution sequencing* of the
+///     chosen work across the night.
+///   * [week] — sits next to the scheduler because both are *execution-timing
+///     intent*: the seven-night forecast answers "which upcoming nights to run
+///     the queue on".
+///   * [progress] — the retrospective roll-up, naturally last.
+///
+/// The rendered `tabs` list and the `IndexedStack` children in
+/// [_PlannerScreenState.build] are kept in lockstep with this order because the
+/// selected-tab index is [PlannerTab.index]; reordering here without matching
+/// both lists would mis-route deep-links and tab taps.
 enum PlannerTab {
   recommendation,
+  projects,
   scheduler,
+  week,
   progress,
 }
 
@@ -45,11 +66,21 @@ PlannerTab? plannerTabFromQuery(String? value) {
     case 'recommendation':
     case 'recommend':
       return PlannerTab.recommendation;
+    case 'projects':
+    case 'project':
+    case 'campaign':
+    case 'campaigns':
+      return PlannerTab.projects;
     case 'scheduler':
     case 'queue':
     case 'target-queue':
     case 'targetqueue':
       return PlannerTab.scheduler;
+    case 'week':
+    case 'forecast':
+    case 'thisweek':
+    case 'this-week':
+      return PlannerTab.week;
     case 'progress':
     case 'history':
       return PlannerTab.progress;
@@ -92,14 +123,22 @@ final _plannerVisibleCountProvider = StateProvider.autoDispose<int>(
 
 /// Full "Plan Tonight" workspace.
 ///
-/// Three sub-tabs (W8-SCHED-MERGE):
+/// Five sub-tabs (W8-SCHED-MERGE + multi-night planning, C11):
 ///   * Recommendation — the primary scoring engine: best target right now,
 ///     filterable / sortable / searchable candidate list, SIMBAD fallback,
 ///     risk factors and rationale.
+///   * Projects — the multi-night campaign layer ([ProjectsTabContent], C9):
+///     group targets into a campaign, set per-filter integration goals, and
+///     track accrued-vs-remaining progress across clear nights. Includes the
+///     C11 Smart Night handoff: "Plan in Smart Night" seeds the wizard with the
+///     active campaign's still-incomplete targets so one click plans the
+///     campaign rather than the generic "best of everything tonight" set.
 ///   * Target Queue — RoboTarget-class dynamic scheduler, formerly the
 ///     standalone `/scheduler` screen. The body is embedded via
 ///     [SchedulerTabContent] so the `/scheduler` deep-link redirect lands
 ///     on the same code path.
+///   * This Week — the seven-night forecast strip ([WeekForecastStrip], C10):
+///     ranks upcoming nights for the active campaign's incomplete targets.
 ///   * Progress — per-target imaging progress + ETA, consumes
 ///     `allTargetProgressProvider`.
 ///
@@ -140,11 +179,23 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
   Widget build(BuildContext context) {
     final colors = NightshadeColors.of(context);
 
+    // Order MUST match [PlannerTab] declaration order: the selected index is
+    // [PlannerTab.index], so a mismatch would mis-route deep-links and taps.
+    // The assert is a developer guard against future drift; the tab-structure
+    // tests assert the same invariant at runtime.
     final tabs = <(PlannerTab, String)>[
       (PlannerTab.recommendation, 'Recommendation'),
+      (PlannerTab.projects, 'Projects'),
       (PlannerTab.scheduler, 'Target Queue'),
+      (PlannerTab.week, 'This Week'),
       (PlannerTab.progress, 'Progress'),
     ];
+    assert(
+      tabs.length == PlannerTab.values.length &&
+          tabs.asMap().entries.every((e) => e.value.$1.index == e.key),
+      'Planner tab list is out of sync with PlannerTab: each entry must sit at '
+      'its enum index and the list must cover every value.',
+    );
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -176,9 +227,13 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
           Expanded(
             child: IndexedStack(
               index: _currentSubTab,
+              // Order MUST match `tabs` / [PlannerTab] — one child per enum
+              // value, at the same index.
               children: const [
                 _RecommendationTab(),
+                ProjectsTabContent(),
                 SchedulerTabContent(),
+                WeekForecastStrip(),
                 ProgressTabContent(),
               ],
             ),

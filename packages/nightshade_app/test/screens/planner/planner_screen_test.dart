@@ -41,6 +41,17 @@ List<Override> _commonOverrides() {
         .overrideWith((ref) async => <IntegrationGoal>[]),
     integrationGoalProgressProvider
         .overrideWith((ref, _) async => <IntegrationGoalProgress>[]),
+    // Projects tab (C9) + This Week tab (C10) dependencies. The planner body
+    // is an IndexedStack, which builds *every* child eagerly regardless of the
+    // selected tab, so these leaf providers must resolve without a DB / HTTP
+    // client even when the test only asserts on the Recommendation tab.
+    projectListProvider.overrideWith((ref) => Stream.value(const <Project>[])),
+    activeProjectProgressProvider.overrideWith((ref) async => null),
+    weekForecastProvider.overrideWith(
+      (ref) async => const WeekForecast.unavailable(
+        'Forecast disabled in tab-structure tests.',
+      ),
+    ),
   ];
 }
 
@@ -96,8 +107,8 @@ void main() {
   });
 
   testWidgets(
-      'renders all three sub-tabs (Recommendation, Target Queue, Progress)',
-      (tester) async {
+      'renders all five sub-tabs (Recommendation, Projects, Target Queue, '
+      'This Week, Progress)', (tester) async {
     tester.view.devicePixelRatio = 1.0;
     tester.view.physicalSize = const Size(1400, 900);
     addTearDown(() {
@@ -117,7 +128,9 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     expect(find.widgetWithText(SubTabButton, 'Recommendation'), findsOneWidget);
+    expect(find.widgetWithText(SubTabButton, 'Projects'), findsOneWidget);
     expect(find.widgetWithText(SubTabButton, 'Target Queue'), findsOneWidget);
+    expect(find.widgetWithText(SubTabButton, 'This Week'), findsOneWidget);
     expect(find.widgetWithText(SubTabButton, 'Progress'), findsOneWidget);
   });
 

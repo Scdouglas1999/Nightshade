@@ -167,15 +167,20 @@ class _RadarTimelineScrubberState
 
   /// Formats timestamp for display
   String _formatTimestamp(DateTime time) {
+    // Frames carry absolute instants whose `DateTime` zone varies by provider
+    // (RainViewer/NOAA build local-zoned instants from a Unix epoch, OpenMeteo
+    // builds UTC instants). Normalize to local before formatting so the label
+    // reads in the operator's wall-clock regardless of the source zone.
+    final local = time.toLocal();
     final now = DateTime.now();
-    final isToday = time.day == now.day &&
-        time.month == now.month &&
-        time.year == now.year;
+    final isToday = local.day == now.day &&
+        local.month == now.month &&
+        local.year == now.year;
 
     if (isToday) {
-      return DateFormat('HH:mm').format(time);
+      return DateFormat('HH:mm').format(local);
     } else {
-      return DateFormat('MMM d HH:mm').format(time);
+      return DateFormat('MMM d HH:mm').format(local);
     }
   }
 

@@ -27,7 +27,28 @@ import '../../../utils/snackbar_helper.dart';
 /// 6. Accept → the new sequence is loaded into the editor and the
 ///    dialog closes.
 class SmartNightDialog extends ConsumerStatefulWidget {
-  const SmartNightDialog({super.key});
+  const SmartNightDialog({
+    super.key,
+    this.seedTargetIds,
+    this.seedSourceLabel,
+  });
+
+  /// Optional set of target ids to pre-select on the Targets step (component
+  /// C11 — Smart Night handoff from an active project). When provided and
+  /// non-empty the wizard opens in hand-pick mode with exactly these targets
+  /// selected, so an operator can one-click feed a campaign's still-incomplete
+  /// targets into the planner instead of getting the generic "best of
+  /// everything tonight" set. A given id only takes effect if it survives
+  /// tonight's altitude/score cut-offs (the suggestion ranking is the source of
+  /// truth for whether a target is imageable tonight); ids that don't appear in
+  /// the ranking are surfaced honestly on the Targets step rather than silently
+  /// dropped.
+  final List<int>? seedTargetIds;
+
+  /// Human-readable description of where [seedTargetIds] came from (e.g. the
+  /// project name), shown as a banner on the Targets step. Null when the wizard
+  /// was opened without a seed.
+  final String? seedSourceLabel;
 
   @override
   ConsumerState<SmartNightDialog> createState() => _SmartNightDialogState();
@@ -46,6 +67,18 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
   final Set<int> _selectedTargetIds = <int>{};
   bool _autoSelect = true;
   int _autoSelectCount = 2;
+
+  @override
+  void initState() {
+    super.initState();
+    // C11 handoff: when the dialog is opened seeded from an active project,
+    // start in hand-pick mode with the project's incomplete targets selected.
+    final seed = widget.seedTargetIds;
+    if (seed != null && seed.isNotEmpty) {
+      _autoSelect = false;
+      _selectedTargetIds.addAll(seed);
+    }
+  }
 
   // ---- Step 4: strategy -------------------------------------------------
   SmartNightStrategy _strategy = SmartNightStrategy.autoLrgb;
@@ -459,6 +492,16 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
             color: colors.textPrimary,
           ),
         ),
+        if (widget.seedSourceLabel != null) ...[
+          const SizedBox(height: 8),
+          _SeedSourceBanner(
+            label: widget.seedSourceLabel!,
+            missingNames: _seededTargetsNotUpTonight(
+              suggestionsAsync.valueOrNull,
+            ),
+            colors: colors,
+          ),
+        ],
         const SizedBox(height: 8),
         Row(
           children: [
@@ -546,6 +589,29 @@ class _SmartNightDialogState extends ConsumerState<SmartNightDialog> {
         ),
       ],
     );
+  }
+
+  /// Names of seeded (project) targets that are NOT in tonight's ranked
+  /// suggestions — i.e. they fall below the altitude/score cut-offs tonight and
+  /// will not be planned. Returned for honest disclosure in the seed banner
+  /// rather than silently dropping them. Empty when every seeded target is up,
+  /// or when suggestions haven't loaded yet (`null` in) — we only warn about a
+  /// confirmed absence.
+  List<String> _seededTargetsNotUpTonight(List<TargetSuggestion>? suggestions) {
+    final seed = widget.seedTargetIds;
+    if (seed == null || seed.isEmpty || suggestions == null) {
+      return const [];
+    }
+    final upIds = suggestions.map((s) => s.targetId).toSet();
+    final missing = <String>[];
+    for (final id in seed) {
+      if (upIds.contains(id)) continue;
+      // The name isn't in tonight's ranking, so we can't read it from a
+      // suggestion. Surface the id so the operator can still identify it; the
+      // banner copy frames these as "below tonight's cut-offs".
+      missing.add('#$id');
+    }
+    return missing;
   }
 
   // ---------- Step 4: strategy -----------------------------------------
@@ -1719,6 +1785,41 @@ class _MissingProfileCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Banner shown on the Targets step when the wizard was opened seeded from a
+/// project (C11 handoff). States the source campaign and, when some of the
+/// campaign's targets are below tonight's cut-offs, names them so the operator
+/// is not surprised that they aren't in the plan.
+class _SeedSourceBanner extends StatelessWidget {
+  final String label;
+  final List<String> missingNames;
+  final NightshadeColors colors;
+
+  const _SeedSourceBanner({
+    required this.label,
+    required this.missingNames,
+    required this.colors,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    if (missingNames.isEmpty) {
+      return NightshadeInlineBanner(
+        severity: NightshadeAlertSeverity.info,
+        message: 'Pre-selected the incomplete targets from "$label". '
+            'Adjust the selection below if you like.',
+      );
+    }
+    final names = missingNames.join(', ');
+    return NightshadeInlineBanner(
+      severity: NightshadeAlertSeverity.warning,
+      message: 'Pre-selected the incomplete targets from "$label". '
+          '${missingNames.length} '
+          '($names) are below tonight\'s altitude / score cut-offs and '
+          'won\'t be planned tonight.',
     );
   }
 }
