@@ -12,6 +12,8 @@ import 'delete_node_confirmation.dart';
 import 'exposure_node_thumbnail_strip.dart';
 import 'node_duration_chip.dart';
 import 'node_progress_panels.dart';
+import 'node_summary.dart';
+import 'node_summary_line.dart';
 import 'sequence_minimap.dart';
 import 'sequence_tree_context_menu.dart';
 import 'sequence_tree_shortcuts.dart';
@@ -1446,31 +1448,27 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     }
   }
 
-  String _getSubtitle() {
-    if (widget.node is ExposureNode) {
-      final exp = widget.node as ExposureNode;
-      return '${exp.count}x ${exp.durationSecs}s${exp.filter != null ? ' (${exp.filter})' : ''}';
-    }
-    if (widget.node is TargetHeaderNode) {
-      final target = widget.node as TargetHeaderNode;
-      return target.displayName;
-    }
-    if (widget.node is LoopNode) {
-      final loop = widget.node as LoopNode;
-      return '${loop.repeatCount ?? '∞'} iterations';
-    }
-    if (widget.node is AutofocusNode) {
-      final af = widget.node as AutofocusNode;
-      return '${af.method.name} method';
-    }
-    return '';
+  /// Build the plain-text accessibility string for the at-a-glance summary by
+  /// joining each fragment's user-visible value. [EditableFragment]s expose
+  /// their current [EditableFragment.displayValue]; [StaticFragment]s expose
+  /// their text. Fragments are separated by a middle dot so screen readers
+  /// announce a single, scannable phrase (e.g. "10 · × · 120s · Ha").
+  String _summaryA11yText(List<SummaryFragment> fragments) {
+    return fragments
+        .map((f) => switch (f) {
+              StaticFragment(text: final t) => t.trim(),
+              EditableFragment(displayValue: final v) => v.trim(),
+            })
+        .where((s) => s.isNotEmpty)
+        .join(' · ');
   }
 
   @override
   Widget build(BuildContext context) {
     final categoryColor = _getCategoryColor();
     final statusColor = _getStatusColor();
-    final subtitle = _getSubtitle();
+    final summaryFragments = nodeSummary(widget.node);
+    final summaryA11yText = _summaryA11yText(summaryFragments);
     final isDisabled = !widget.node.isEnabled;
     final isRunning = widget.nodeStatus == NodeStatus.running;
     final isSuccess = widget.nodeStatus == NodeStatus.success;
@@ -1488,7 +1486,6 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
     final iconSize = isMobile ? 20.0 : 16.0;
     final borderRadius = isMobile ? 12.0 : 10.0;
     final titleFontSize = isMobile ? 14.0 : 12.0;
-    final subtitleFontSize = isMobile ? 12.0 : 10.0;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -1502,7 +1499,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
             selected: widget.isSelected,
             enabled: widget.node.isEnabled,
             label: widget.node.name,
-            value: subtitle.isNotEmpty ? subtitle : null,
+            value: summaryA11yText.isNotEmpty ? summaryA11yText : null,
             hint:
                 'Select node. More actions include reorder and wrap commands.',
             child: GestureDetector(
@@ -1646,16 +1643,19 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                     ],
                                   ],
                                 ),
-                                if (subtitle.isNotEmpty)
-                                  Text(
-                                    subtitle,
-                                    style: TextStyle(
-                                      fontSize: subtitleFontSize,
-                                      color: widget.colors.textMuted,
+                                if (summaryFragments.isNotEmpty)
+                                  Padding(
+                                    padding: const EdgeInsets.only(
+                                        top: NightshadeTokens.spaceXs / 2),
+                                    child: NodeSummaryLine(
+                                      node: widget.node,
+                                      colors: widget.colors,
+                                      isMobile: isMobile,
+                                      mutedColorOverride:
+                                          (isSkipped || isCancelled)
+                                              ? widget.colors.textMuted
+                                              : null,
                                     ),
-                                    softWrap: false,
-                                    overflow: TextOverflow.ellipsis,
-                                    maxLines: 1,
                                   ),
                                 // Show node comment as gray italic text
                                 if (widget.node.comment != null &&
@@ -1665,7 +1665,7 @@ class _NodeItemState extends ConsumerState<_NodeItem> {
                                     child: Text(
                                       widget.node.comment!,
                                       style: TextStyle(
-                                        fontSize: subtitleFontSize,
+                                        fontSize: isMobile ? 12.0 : 10.0,
                                         color: widget.colors.textMuted
                                             .withValues(alpha: 0.7),
                                         fontStyle: FontStyle.italic,

@@ -41,6 +41,7 @@ export 'src/components/focus_ring.dart';
 export 'src/components/screen_header.dart';
 export 'src/components/collapsible_sidebar.dart';
 export 'src/components/hold_to_confirm_button.dart';
+export 'src/components/nightshade_stepper.dart';
 
 // Dialogs
 export 'src/dialogs/nightshade_dialog.dart';
