@@ -103,6 +103,13 @@ export 'src/models/planning/project_progress.dart';
 export 'src/models/planning/night_forecast.dart';
 export 'src/models/optical_config.dart';
 export 'src/models/onboarding/onboarding_state.dart';
+// Quick Wins Bundle (C1/C2) — post-onboarding "next use" nudge surface.
+//   * next_use_steps.dart            - pure-Dart action-step catalog
+//     (NextUseActionId / NextUseStep / kNextUseSteps / stepFor).
+//   * next_use_prompt_provider.dart  - readiness/coach/completion/dismissal
+//     wiring + the pure selectNextUseStep decision and the
+//     nextUsePromptProvider the dashboard prompt card watches.
+export 'src/models/onboarding/next_use_steps.dart';
 export 'src/models/hardware_presets/hardware_preset_models.dart';
 export 'src/models/science/science_models.dart';
 export 'src/models/defect_map.dart';
@@ -242,6 +249,11 @@ export 'src/providers/defect_map_provider.dart';
 export 'src/providers/plate_solver_provider.dart';
 export 'src/providers/readiness_provider.dart';
 export 'src/providers/onboarding_provider.dart';
+// Quick Wins Bundle (C2) — next-use prompt selection wiring. Exposes
+// nextUsePromptProvider (the step the dashboard card surfaces), the pure
+// selectNextUseStep decision, the completed/dismissed action providers, and
+// the next_use.<id> screen-id helpers used to persist dismissals.
+export 'src/providers/next_use_prompt_provider.dart';
 export 'src/providers/disk_space_provider.dart';
 
 // Backend interface

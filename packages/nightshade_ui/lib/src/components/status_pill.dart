@@ -38,7 +38,20 @@ class _StatusPillState extends State<StatusPill>
   @override
   void initState() {
     super.initState();
-    _setupFlashAnimation();
+    // The flash controller is created exactly ONCE for the life of the State.
+    // SingleTickerProviderStateMixin allows only one ticker, so recreating the
+    // controller on every status change (the old behaviour) threw "multiple
+    // tickers were created" and left an orphaned controller ticking with a
+    // negative elapsed time. We instead reuse the single controller and only
+    // re-trigger the flash animation when the status transitions.
+    _flashController = AnimationController(
+      vsync: this,
+      duration: NightshadeTokens.durationSmooth,
+    );
+    _flashAnimation = Tween<double>(begin: 1.0, end: 1.35).animate(
+      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
+    );
+    _applyFlashForStatus();
   }
 
   @override
@@ -46,25 +59,20 @@ class _StatusPillState extends State<StatusPill>
     super.didUpdateWidget(oldWidget);
     if (oldWidget.status != widget.status) {
       _previousStatus = oldWidget.status;
-      _setupFlashAnimation();
+      _applyFlashForStatus();
     }
   }
 
-  void _setupFlashAnimation() {
-    _flashController = AnimationController(
-      vsync: this,
-      duration: NightshadeTokens.durationSmooth,
-    );
-
-    _flashAnimation = Tween<double>(begin: 1.0, end: 1.35).animate(
-      CurvedAnimation(parent: _flashController, curve: Curves.easeOut),
-    );
-
+  /// Drives the (already-created) flash controller for the current status.
+  ///
+  /// Flashes once when the pill transitions INTO the success state; otherwise
+  /// resets the controller to its rest value. Never creates a new controller.
+  void _applyFlashForStatus() {
     final shouldFlash = widget.status == StatusPillStatus.success &&
         _previousStatus != StatusPillStatus.success;
 
     if (shouldFlash) {
-      _flashController.forward().then((_) {
+      _flashController.forward(from: 0.0).then((_) {
         if (mounted) _flashController.reverse();
       });
     } else {

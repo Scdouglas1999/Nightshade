@@ -9,6 +9,7 @@ import '../../widgets/contextual_tour_prompt.dart';
 import '../../widgets/tutorial_keys/settings_keys.dart';
 import 'catalog_settings_screen.dart';
 import 'equipment_profiles_screen.dart';
+import 'integrations_settings.dart';
 import 'widgets/connection_settings.dart';
 import 'widgets/general_settings.dart';
 import 'widgets/appearance_settings.dart';
@@ -78,6 +79,7 @@ const Map<String, int> kSettingsSectionIndex = {
   'about': 28,
   'ai-assistant': 29,
   'notification-routing': 30,
+  'integrations': 33,
 };
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -149,6 +151,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       ('Notification Routing', LucideIcons.bellRing),
       ('Predictive Autofocus', LucideIcons.brainCircuit),
       ('Replay & Debug', LucideIcons.bug),
+      // Quick Wins Bundle (C8) — appended (never inserted) so existing
+      // category indices / deep-links stay stable. Surfaces the bundled
+      // integrations + notification-routing cross-link, replacing the
+      // orphaned PluginsScreen.
+      ('Integrations', LucideIcons.puzzle),
     ];
   }
 
@@ -375,6 +382,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return PredictiveAfSettingsPage(isMobile: isMobile);
       case 32:
         return ReplayDebugSettings(isMobile: isMobile);
+      // Quick Wins Bundle (C8) — matches the appended 'Integrations' entry in
+      // [_categories]; deep-linked via `kSettingsSectionIndex['integrations']`.
+      case 33:
+        return IntegrationsSettings(isMobile: isMobile);
       default:
         return const SizedBox();
     }

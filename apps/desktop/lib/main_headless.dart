@@ -118,6 +118,12 @@ void main(List<String> args) async {
         // headless API consumer) sees plugin sequence nodes in the
         // palette listing.
         pluginNodePaletteBlueprintsOverride(),
+        // C4 — honour the persisted plugin enable/disable choices at
+        // registration time. A headless host runs the same bundled plugins
+        // (Discord/Pushover/Home Assistant sequence nodes), so a plugin the
+        // operator disabled must not silently re-enable when the daemon
+        // restarts.
+        pluginEnablementStoreOverride(),
       ],
     );
     final runtimeLogger = container.read(loggingServiceProvider);

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../widgets/help/field_help_copy.dart';
 import 'settings_widgets.dart';
 
 class SequencerSettings extends ConsumerStatefulWidget {
@@ -291,6 +292,7 @@ class _SequencerSettingsState extends ConsumerState<SequencerSettings> {
           SettingRow(
             icon: LucideIcons.timer,
             title: 'Minutes past meridian',
+            helpId: FieldHelpId.meridianFlipTrigger,
             subtitle: 'Flip after target crosses meridian by this amount',
             trailing: SettingsNumberInput(
               controller: _minutesPastMeridianController,

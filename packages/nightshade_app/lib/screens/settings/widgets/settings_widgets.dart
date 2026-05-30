@@ -10,6 +10,9 @@ import 'package:lucide_icons/lucide_icons.dart';
 
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/help/field_help_copy.dart';
+import '../../../widgets/help/field_help_label.dart';
+
 /// Whether a [SettingRow] trailing control should use flexible width.
 bool settingsTrailingIsNarrow(
   BuildContext context, {
@@ -418,6 +421,12 @@ class SettingRow extends StatelessWidget {
 
   final bool stackOnMobile;
 
+  /// Optional field-level help. When supplied, a [helpAffordance] icon is
+  /// rendered to the right of the [title] showing the rich tooltip from
+  /// [helpFor]. Use only for genuinely non-obvious settings (the same bar as
+  /// the imaging-panel rows); leave null for self-evident rows.
+  final FieldHelpId? helpId;
+
   const SettingRow({
     super.key,
     required this.icon,
@@ -428,7 +437,39 @@ class SettingRow extends StatelessWidget {
     this.isLast = false,
     this.isMobile = false,
     this.stackOnMobile = false,
+    this.helpId,
   });
+
+  /// The title text plus an optional trailing help affordance. Extracted so
+  /// the row and stacked layouts share one definition of "how the title +
+  /// help icon look".
+  Widget _buildTitle(BuildContext context, NightshadeColors colors) {
+    final titleText = Text(
+      title,
+      style: (isMobile
+              ? NightshadeTypography.labelSm
+              : NightshadeTypography.label)
+          .copyWith(color: colors.textPrimary),
+    );
+    final id = helpId;
+    if (id == null) {
+      return titleText;
+    }
+    final copy = helpFor(id);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Flexible(child: titleText),
+        const SizedBox(width: NightshadeTokens.spaceXs),
+        helpAffordance(
+          context,
+          title: copy.title,
+          body: copy.body,
+        ),
+      ],
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -455,13 +496,13 @@ class SettingRow extends StatelessWidget {
               ),
       ),
       child: shouldStack
-          ? _buildStackedLayout(colors, iconSize, iconInnerSize)
-          : _buildRowLayout(colors, iconSize, iconInnerSize),
+          ? _buildStackedLayout(context, colors, iconSize, iconInnerSize)
+          : _buildRowLayout(context, colors, iconSize, iconInnerSize),
     );
   }
 
-  Widget _buildRowLayout(
-      NightshadeColors colors, double iconSize, double iconInnerSize) {
+  Widget _buildRowLayout(BuildContext context, NightshadeColors colors,
+      double iconSize, double iconInnerSize) {
     return Row(
       children: [
         Container(
@@ -479,13 +520,7 @@ class SettingRow extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                title,
-                style: (isMobile
-                        ? NightshadeTypography.labelSm
-                        : NightshadeTypography.label)
-                    .copyWith(color: colors.textPrimary),
-              ),
+              _buildTitle(context, colors),
               if (subtitle != null) ...[
                 const SizedBox(height: 2),
                 Text(
@@ -499,13 +534,18 @@ class SettingRow extends StatelessWidget {
             ],
           ),
         ),
-        trailing,
+        // Flexible (loose) bounds the trailing slot to the space the title's
+        // Expanded leaves free. Finite controls (dropdowns, switches) keep their
+        // intrinsic size; a content-sized [Wrap] trailing (e.g. the Integrations
+        // plugin row's pill + Configure + switch cluster) gets a finite width to
+        // wrap within instead of demanding unbounded width and overflowing.
+        Flexible(child: trailing),
       ],
     );
   }
 
-  Widget _buildStackedLayout(
-      NightshadeColors colors, double iconSize, double iconInnerSize) {
+  Widget _buildStackedLayout(BuildContext context, NightshadeColors colors,
+      double iconSize, double iconInnerSize) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -527,11 +567,7 @@ class SettingRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: NightshadeTypography.labelSm
-                        .copyWith(color: colors.textPrimary),
-                  ),
+                  _buildTitle(context, colors),
                   if (subtitle != null) ...[
                     const SizedBox(height: 2),
                     Text(

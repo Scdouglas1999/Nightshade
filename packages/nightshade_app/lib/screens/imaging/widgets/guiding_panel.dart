@@ -5,6 +5,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/help/field_help_copy.dart';
+import '../../../widgets/help/field_help_label.dart';
 import 'panel_widgets.dart';
 
 class GuidingPanel extends ConsumerStatefulWidget {
@@ -212,6 +214,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
               children: [
                 SliderRowInteractive(
                   label: 'Amount',
+                  helpId: FieldHelpId.ditherAmount,
                   value: ditherSettings.ditherAmount,
                   min: 1,
                   max: 20,
@@ -224,6 +227,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                 const SizedBox(height: 12),
                 SliderRowInteractive(
                   label: 'Settle Threshold',
+                  helpId: FieldHelpId.settleThreshold,
                   value: ditherSettings.settlePixels,
                   min: 0.3,
                   max: 3.0,
@@ -236,6 +240,7 @@ class _GuidingPanelState extends ConsumerState<GuidingPanel> {
                 const SizedBox(height: 12),
                 SliderRowInteractive(
                   label: 'Settle Time',
+                  helpId: FieldHelpId.settleTime,
                   value: ditherSettings.settleTime,
                   min: 5,
                   max: 30,
@@ -574,6 +579,7 @@ class _BuiltinGuiderConfigFormState
             controller: _minPulseController,
             suffix: 'ms',
             helperText: pulseRangeHint,
+            helpId: FieldHelpId.guideMinPulse,
             colors: widget.colors,
             onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -636,6 +642,11 @@ class _ConfigInputRow extends StatelessWidget {
   /// Optional helper hint rendered beneath the input (e.g. the supported
   /// pulse-guide range reported by the connected mount).
   final String? helperText;
+
+  /// Optional field-level help. When supplied, a [helpAffordance] icon hugs the
+  /// label text showing the rich tooltip from [helpFor]. Used for genuinely
+  /// non-obvious built-in-guider parameters (e.g. the millisecond min-pulse).
+  final FieldHelpId? helpId;
   final NightshadeColors colors;
   final ValueChanged<String>? onSubmitted;
   final TextInputType? keyboardType;
@@ -646,6 +657,7 @@ class _ConfigInputRow extends StatelessWidget {
     required this.controller,
     this.suffix,
     this.helperText,
+    this.helpId,
     required this.colors,
     this.onSubmitted,
     this.keyboardType,
@@ -654,6 +666,32 @@ class _ConfigInputRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final labelStyle = TextStyle(
+      fontSize: 12,
+      color: colors.textSecondary,
+    );
+    final id = helpId;
+    final Widget labelWidget = id == null
+        ? Text(label, style: labelStyle)
+        : Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Flexible(child: Text(label, style: labelStyle)),
+              const SizedBox(width: NightshadeTokens.spaceXs),
+              Builder(
+                builder: (context) {
+                  final copy = helpFor(id);
+                  return helpAffordance(
+                    context,
+                    title: copy.title,
+                    body: copy.body,
+                  );
+                },
+              ),
+            ],
+          );
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -661,13 +699,7 @@ class _ConfigInputRow extends StatelessWidget {
           flex: 2,
           child: Padding(
             padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              label,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textSecondary,
-              ),
-            ),
+            child: labelWidget,
           ),
         ),
         Expanded(

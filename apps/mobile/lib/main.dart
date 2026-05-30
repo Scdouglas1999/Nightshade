@@ -154,6 +154,11 @@ void main() async {
         // Audit §11 — surface plugin-contributed sequence nodes in the
         // sequencer palette.
         pluginNodePaletteBlueprintsOverride(),
+        // C4 — honour the user's persisted plugin enable/disable choices
+        // at registration time so a plugin disabled on the Integrations
+        // page stays disabled across launches instead of silently being
+        // re-enabled by the default all-enabled store.
+        pluginEnablementStoreOverride(),
       ],
       child: const NightshadeMobileApp(),
     ),

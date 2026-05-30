@@ -11,6 +11,7 @@ import 'widgets/command_bar.dart';
 import 'widgets/dashboard_header_actions.dart';
 import 'widgets/dashboard_tile.dart';
 import 'widgets/dashboard_widget_registry.dart';
+import 'widgets/next_use_prompt_card.dart';
 import 'widgets/readiness_dashboard_overlay.dart';
 import 'widgets/smart_night_prompt_card.dart';
 import 'widgets/widget_picker_dialog.dart';
@@ -138,7 +139,14 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
               const ReadinessDashboardOverlay()
             else
               const SizedBox.shrink(),
+            // Both prompt cards anchor bottom-centre. They are mutually
+            // exclusive by construction: NextUsePromptCard reads the same Smart
+            // Night base-eligibility signal and stands down whenever Smart
+            // Night is eligible, so at most one occupies the slot. Smart Night
+            // ("plan tonight") wins; otherwise the next-use nudge walks the
+            // user through framing, solving, focus, and first light.
             SmartNightPromptCard(colors: colors),
+            NextUsePromptCard(colors: colors),
           ],
         ),
         loading: () => const DashboardLoading(),

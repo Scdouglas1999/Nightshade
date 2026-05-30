@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/help/field_help_copy.dart';
 import 'panel_widgets.dart';
 
 class CameraPanel extends ConsumerStatefulWidget {
@@ -347,6 +348,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                           .clamp(0, readoutModes.length - 1);
                       return DropdownRow(
                         label: 'Read Mode',
+                        helpId: FieldHelpId.cameraReadoutMode,
                         value: readoutModes[selectedIndex],
                         items: readoutModes,
                         colors: widget.colors,
@@ -401,6 +403,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     InputRowEditable(
                       label:
                           'Gain${capabilities?.gainMin != null ? ' (${capabilities!.gainMin}-${capabilities.gainMax})' : ''}',
+                      helpId: FieldHelpId.cameraGain,
                       value: exposureSettings.gain.toString(),
                       colors: widget.colors,
                       onChanged: (value) {
@@ -425,6 +428,7 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                     InputRowEditable(
                       label:
                           'Offset${capabilities?.offsetMin != null ? ' (${capabilities!.offsetMin}-${capabilities.offsetMax})' : ''}',
+                      helpId: FieldHelpId.cameraOffset,
                       value: exposureSettings.offset.toString(),
                       colors: widget.colors,
                       onChanged: (value) {

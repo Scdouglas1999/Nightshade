@@ -6,6 +6,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import '../../../services/mount_command_service.dart';
 import '../../../utils/snackbar_helper.dart';
+import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
 import 'panel_widgets.dart';
 
@@ -64,6 +65,7 @@ class CapturePanel extends ConsumerWidget {
                 const SizedBox(height: 12),
                 DropdownRow(
                   label: 'Frame Type',
+                  helpId: FieldHelpId.captureFrameType,
                   value: exposureSettings.frameType.displayName,
                   items: FrameType.values.map((t) => t.displayName).toList(),
                   colors: colors,
@@ -81,6 +83,7 @@ class CapturePanel extends ConsumerWidget {
                 const SizedBox(height: 12),
                 DropdownRow(
                   label: 'Binning',
+                  helpId: FieldHelpId.captureBinning,
                   value: currentBinning,
                   items: binningOptions,
                   colors: colors,

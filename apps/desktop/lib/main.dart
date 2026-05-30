@@ -79,6 +79,15 @@ void main(List<String> args) async {
       // user could not author a sequence containing a plugin node from
       // the GUI).
       pluginNodePaletteBlueprintsOverride(),
+      // C4 — make the bundled-plugin registration honour the user's
+      // persisted enable/disable choices. Without this override C3's
+      // `pluginEnablementStoreProvider` resolves to the default
+      // `AllEnabledPluginEnablementStore`, which reports every plugin
+      // enabled, so a plugin the user disabled on the Integrations page
+      // would silently come back ENABLED on the next launch. The
+      // settings-backed store reads the persisted `plugin_enablement`
+      // map so the registration-time decision matches the saved state.
+      pluginEnablementStoreOverride(),
       // Planetarium v2 — pass the live Irondash engine handle so
       // `Texture::new_with_provider` on the Rust side resolves a valid
       // Flutter texture registry (handle 0 produces InvalidVersion).

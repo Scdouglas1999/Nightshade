@@ -5,6 +5,45 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
+import '../../../widgets/help/field_help_copy.dart';
+import '../../../widgets/help/field_help_label.dart';
+
+/// Builds an imaging-panel row label, optionally appending a [helpAffordance]
+/// when [helpId] is supplied.
+///
+/// Each of [InputRow], [InputRowEditable], [DropdownRow], and
+/// [SliderRowInteractive] renders its label through this helper so the help
+/// icon hugs the label text inside the row's label `Expanded`, leaving the
+/// existing label/control flex layout untouched. When [helpId] is null the
+/// result is identical to the bare label `Text` that shipped before, so no
+/// existing call site changes behaviour.
+Widget _panelRowLabel(
+  BuildContext context, {
+  required String label,
+  required TextStyle style,
+  required FieldHelpId? helpId,
+}) {
+  final text = Text(label, style: style);
+  if (helpId == null) {
+    return text;
+  }
+  final copy = helpFor(helpId);
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: [
+      Flexible(child: text),
+      const SizedBox(width: NightshadeTokens.spaceXs),
+      helpAffordance(
+        context,
+        title: copy.title,
+        body: copy.body,
+        position: NightshadeTooltipPosition.top,
+      ),
+    ],
+  );
+}
+
 class PanelTabs extends ConsumerWidget {
   final int selectedIndex;
   final ValueChanged<int> onSelected;
@@ -551,12 +590,18 @@ class InputRow extends StatelessWidget {
   final NightshadeColors colors;
   final Widget? trailing;
 
+  /// Optional field-level help. When non-null, a tooltipped help icon is
+  /// appended after the label text using copy from [helpFor]. Defaults to null,
+  /// preserving the bare-label render for existing call sites.
+  final FieldHelpId? helpId;
+
   const InputRow({
     super.key,
     required this.label,
     this.value,
     required this.colors,
     this.trailing,
+    this.helpId,
   });
 
   @override
@@ -565,12 +610,14 @@ class InputRow extends StatelessWidget {
       children: [
         Expanded(
           flex: NightshadeTokens.panelRowLabelFlex,
-          child: Text(
-            label,
+          child: _panelRowLabel(
+            context,
+            label: label,
             style: TextStyle(
               fontSize: NightshadeTokens.fontSizePanelLabel,
               color: colors.textSecondary,
             ),
+            helpId: helpId,
           ),
         ),
         Expanded(
@@ -613,6 +660,11 @@ class InputRowEditable extends StatelessWidget {
   final NightshadeColors colors;
   final ValueChanged<String> onChanged;
 
+  /// Optional field-level help. When non-null, a tooltipped help icon is
+  /// appended after the label text using copy from [helpFor]. Defaults to null,
+  /// preserving the bare-label render for existing call sites.
+  final FieldHelpId? helpId;
+
   const InputRowEditable({
     super.key,
     required this.label,
@@ -620,6 +672,7 @@ class InputRowEditable extends StatelessWidget {
     this.suffix,
     required this.colors,
     required this.onChanged,
+    this.helpId,
   });
 
   @override
@@ -628,12 +681,14 @@ class InputRowEditable extends StatelessWidget {
       children: [
         Expanded(
           flex: NightshadeTokens.panelRowLabelFlex,
-          child: Text(
-            label,
+          child: _panelRowLabel(
+            context,
+            label: label,
             style: TextStyle(
               fontSize: NightshadeTokens.fontSizePanelLabel,
               color: colors.textSecondary,
             ),
+            helpId: helpId,
           ),
         ),
         Expanded(
@@ -678,6 +733,11 @@ class DropdownRow extends StatelessWidget {
   final NightshadeColors colors;
   final ValueChanged<String?>? onChanged;
 
+  /// Optional field-level help. When non-null, a tooltipped help icon is
+  /// appended after the label text using copy from [helpFor]. Defaults to null,
+  /// preserving the bare-label render for existing call sites.
+  final FieldHelpId? helpId;
+
   /// Label + dropdown row for the imaging side panel.
   ///
   /// Layout mirrors [SettingRow] in `../../settings/widgets/settings_widgets.dart`:
@@ -690,6 +750,7 @@ class DropdownRow extends StatelessWidget {
     required this.items,
     required this.colors,
     this.onChanged,
+    this.helpId,
   });
 
   @override
@@ -700,12 +761,14 @@ class DropdownRow extends StatelessWidget {
       children: [
         Expanded(
           flex: NightshadeTokens.panelRowLabelFlex,
-          child: Text(
-            label,
+          child: _panelRowLabel(
+            context,
+            label: label,
             style: TextStyle(
               fontSize: NightshadeTokens.fontSizePanelLabel,
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
+            helpId: helpId,
           ),
         ),
         Expanded(
@@ -731,6 +794,11 @@ class SliderRowInteractive extends StatelessWidget {
   final NightshadeColors colors;
   final ValueChanged<double>? onChanged;
 
+  /// Optional field-level help. When non-null, a tooltipped help icon is
+  /// appended after the label text using copy from [helpFor]. Defaults to null,
+  /// preserving the bare-label render for existing call sites.
+  final FieldHelpId? helpId;
+
   const SliderRowInteractive({
     super.key,
     required this.label,
@@ -740,6 +808,7 @@ class SliderRowInteractive extends StatelessWidget {
     required this.suffix,
     required this.colors,
     this.onChanged,
+    this.helpId,
   });
 
   @override
@@ -750,12 +819,14 @@ class SliderRowInteractive extends StatelessWidget {
       children: [
         Expanded(
           flex: NightshadeTokens.panelRowLabelFlex,
-          child: Text(
-            label,
+          child: _panelRowLabel(
+            context,
+            label: label,
             style: TextStyle(
               fontSize: 11,
               color: isEnabled ? colors.textSecondary : colors.textMuted,
             ),
+            helpId: helpId,
           ),
         ),
         Expanded(

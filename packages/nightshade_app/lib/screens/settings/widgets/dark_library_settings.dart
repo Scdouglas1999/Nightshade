@@ -4,6 +4,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../../../widgets/help/field_help_copy.dart';
 import 'settings_widgets.dart';
 
 class DarkLibrarySettings extends ConsumerStatefulWidget {
@@ -64,6 +65,7 @@ class _DarkLibrarySettingsState extends ConsumerState<DarkLibrarySettings> {
             SettingRow(
               icon: LucideIcons.thermometer,
               title: 'Temperature tolerance',
+              helpId: FieldHelpId.darkLibraryMatching,
               subtitle: 'Maximum temperature difference for dark matching',
               trailing: SizedBox(
                 width: 120,

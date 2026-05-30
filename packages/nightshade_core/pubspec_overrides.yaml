@@ -1,3 +1,4 @@
+# melos_managed_dependency_overrides: nightshade_plugins,nightshade_remote_protocol
 # melos_managed_dependency_overrides: nightshade_bridge,nightshade_planetarium
 dependency_overrides:
   # Workaround for build_runner "Cannot recurse at later or equal phase" bug
@@ -7,3 +8,7 @@ dependency_overrides:
     path: ../nightshade_bridge
   nightshade_planetarium:
     path: ../nightshade_planetarium
+  nightshade_plugins:
+    path: ..\\nightshade_plugins
+  nightshade_remote_protocol:
+    path: ..\\nightshade_remote_protocol

@@ -75,6 +75,14 @@ dependencies:
   nightshade_planetarium:
     path: ../nightshade_planetarium
 
+  # Plugin host + the C3 plugin-status registry. nightshade_core implements the
+  # [PluginEnablementStore] contract (defined in nightshade_plugins) against the
+  # settings database — see providers/plugin_enablement_provider.dart. This is a
+  # one-way edge: nightshade_plugins does NOT depend on nightshade_core, so
+  # there is no cycle.
+  nightshade_plugins:
+    path: ../nightshade_plugins
+
   # Remote-protocol primitives. NetworkBackend relies on TailnetDetector as the
   # single source of truth for host reachability classification (LAN vs
   # Tailscale tailnet vs public) so the scheme/timeout tuning and the

@@ -6,6 +6,7 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:file_selector/file_selector.dart';
 
+import '../../../widgets/help/field_help_copy.dart';
 import '../../../widgets/remote_directory_picker_dialog.dart';
 import '../../../widgets/tutorial_keys/settings_keys.dart';
 import 'settings_widgets.dart';
@@ -180,6 +181,7 @@ class _PlateSolvingSettingsState extends ConsumerState<PlateSolvingSettings> {
                 SettingRow(
                   icon: LucideIcons.search,
                   title: 'Search radius',
+                  helpId: FieldHelpId.plateSolverSearchRadius,
                   subtitle: 'Area to search around expected position',
                   trailing: SettingsNumberInput(
                     controller: _radiusController,

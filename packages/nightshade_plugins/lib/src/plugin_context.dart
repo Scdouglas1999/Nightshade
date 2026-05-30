@@ -404,16 +404,28 @@ class SandboxedPluginEventBus implements PluginEventBus {
 class PluginContextFactory {
   final StreamPluginEventBus _eventBus = StreamPluginEventBus();
   final PluginSandboxPolicy _policy;
+  final PluginStorage Function(String pluginId) _storageFactory;
 
+  /// Creates a factory.
+  ///
+  /// [storageFactory] builds the [PluginStorage] for each plugin context.
+  /// Defaults to [FilePluginStorage] (the production store, persisted under the
+  /// app-support directory). Tests inject [InMemoryPluginStorage] here so the
+  /// plugin lifecycle (`onLoad`/`onEnable`, which read persisted config) does
+  /// not block on `path_provider` — a platform channel that never answers under
+  /// the widget-test binding, which would otherwise hang the test indefinitely.
   PluginContextFactory({
     PluginSandboxPolicy policy = const PluginSandboxPolicy(),
-  }) : _policy = policy;
+    PluginStorage Function(String pluginId)? storageFactory,
+  })  : _policy = policy,
+        _storageFactory =
+            storageFactory ?? ((pluginId) => FilePluginStorage(pluginId));
 
   /// Create a context for a specific plugin
   PluginContext createContext(String pluginId) {
     return PluginContext(
       logger: ConsolePluginLogger(pluginId),
-      storage: FilePluginStorage(pluginId),
+      storage: _storageFactory(pluginId),
       eventBus: SandboxedPluginEventBus(pluginId, _eventBus, policy: _policy),
     );
   }
