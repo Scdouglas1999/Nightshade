@@ -15,6 +15,7 @@ import 'widgets/camera_panel.dart';
 import 'widgets/focus_panel.dart';
 import 'widgets/guiding_panel.dart';
 import 'widgets/live_preview_area.dart';
+import 'widgets/meridian_flip_countdown_banner.dart';
 import 'widgets/panel_widgets.dart';
 import 'widgets/rotator_panel.dart';
 import 'widgets/stacking_panel.dart';
@@ -415,6 +416,12 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
                 });
               },
             ),
+
+          // Live meridian-flip countdown. Self-hides (SizedBox.shrink, zero
+          // height) whenever a flip is not armed, so it adds no chrome on idle
+          // nights and never pushes the live preview down. As a child of this
+          // top-level Column it appears on both the desktop and mobile layouts.
+          const MeridianFlipCountdownBanner(),
 
           // Main content
           Expanded(

@@ -11,10 +11,12 @@ import '../../../widgets/catalog_overlay_widget.dart';
 import '../../../widgets/tutorial_keys/imaging_keys.dart';
 import 'annotation_widgets.dart';
 import 'custom_annotation_drawing.dart';
+import 'guiding_active_chip.dart';
 import 'image_display.dart';
 import 'overlay_painters.dart';
 import 'overlay_widgets.dart';
 import 'science_hud.dart';
+import 'sub_quality_badge.dart';
 
 class LivePreviewArea extends ConsumerWidget {
   final NightshadeColors colors;
@@ -120,6 +122,14 @@ class LivePreviewArea extends ConsumerWidget {
           (tile) => tile.layerType == ScienceLayerType.clipLow.dbValue,
         )
         .toList(growable: false);
+    // Representative per-frame eccentricity for the SubQualityBadge, derived
+    // purely from the science tile metrics already watched above for
+    // `currentFrameImageId`. Each eccentricity-layer tile carries its own
+    // representative eccentricity in `value`; the median across tiles is a
+    // robust single verdict that ignores a few hot corners. No new query or
+    // analyzer is introduced — when no eccentricity tiles exist for the frame
+    // this is null and the badge honestly renders `ECC —`.
+    final frameEccentricity = _medianEccentricity(currentFrameTileMetrics);
     final sessionMovingCandidates = sessionId == null
         ? const <MovingObjectCandidateRow>[]
         : ref
@@ -896,6 +906,39 @@ class LivePreviewArea extends ConsumerWidget {
                     ),
                   ),
 
+                  // Bottom-left at-a-glance quality stack: live "Guiding"
+                  // indicator over a per-sub quality verdict badge. Sits above
+                  // the bottom-left histogram (which occupies bottom:16 + 80px
+                  // height) rather than at bottom:12 so it never overlaps it;
+                  // the detailed ImageStatsOverlay continues to own the
+                  // bottom-right corner. Both children self-gate on their own
+                  // providers (GuidingActiveChip collapses when not guiding,
+                  // SubQualityBadge collapses with no captured frame), so this
+                  // region is empty until there is something honest to show.
+                  //
+                  // Deliberately NOT wrapped in IgnorePointer: both children
+                  // expose hover tooltips (GuidingActiveChip's RMS-units note
+                  // and SubQualityBadge's reject-reason) that an IgnorePointer
+                  // would silently kill. Like the bottom-right ImageStatsOverlay
+                  // these are small, non-gesture corner widgets; they absorb the
+                  // pointer only within their own compact footprint, matching
+                  // that overlay's established pointer behaviour, and the rest
+                  // of the canvas keeps its pan/zoom gestures.
+                  if (currentImage != null)
+                    Positioned(
+                      bottom: 104,
+                      left: 12,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const GuidingActiveChip(),
+                          const SizedBox(height: NightshadeTokens.spaceXs),
+                          SubQualityBadge(eccentricity: frameEccentricity),
+                        ],
+                      ),
+                    ),
+
                   // Mini annotation object chips (top, below overlay bar)
                   if (currentImage != null)
                     Positioned(
@@ -1149,6 +1192,37 @@ class LivePreviewArea extends ConsumerWidget {
     return sessionCandidates
         .where((candidate) => candidate.capturedImageId == latestImageId)
         .toList(growable: false);
+  }
+
+  /// Median eccentricity across the current frame's eccentricity-layer tile
+  /// metrics, or `null` when no such tiles exist for the frame.
+  ///
+  /// Consumes only the per-frame [ScienceTileMetricRow]s already watched in
+  /// [build] (no extra query / analyzer). Each eccentricity tile reports its
+  /// representative eccentricity in [ScienceTileMetricRow.value] — the same
+  /// field the science overlay painters render — and the median across tiles
+  /// yields a robust single frame verdict that ignores a few hot corners. Only
+  /// finite values are considered so a malformed tile can never poison the
+  /// result; if none remain, the badge honestly shows `ECC —`.
+  double? _medianEccentricity(List<ScienceTileMetricRow> frameTileMetrics) {
+    final values = <double>[];
+    for (final tile in frameTileMetrics) {
+      if (tile.layerType != ScienceLayerType.eccentricity.dbValue) {
+        continue;
+      }
+      if (tile.value.isFinite) {
+        values.add(tile.value);
+      }
+    }
+    if (values.isEmpty) {
+      return null;
+    }
+    values.sort();
+    final mid = values.length ~/ 2;
+    if (values.length.isOdd) {
+      return values[mid];
+    }
+    return (values[mid - 1] + values[mid]) / 2.0;
   }
 
   List<ProjectedMovingTrack> _projectMovingTracks({

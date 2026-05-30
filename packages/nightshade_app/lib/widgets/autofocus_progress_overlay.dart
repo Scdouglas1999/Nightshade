@@ -11,6 +11,20 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 ///
 /// This overlay does not block interaction with the rest of the app.
 /// It can be minimized, dragged, and dismissed.
+///
+/// IA decision — single live-focus V-curve surface (do not duplicate):
+/// This widget is THE one and only live focus V-curve surface for the entire
+/// app. It is driven by [autofocusOverlayProvider], which assembles state from
+/// the `AutofocusProgress` event stream, and is mounted once in
+/// `app_shell.dart` so it floats above whatever screen is active (most
+/// commonly the imaging screen) for the duration of any autofocus run.
+///
+/// It is intentionally NOT re-implemented as an imaging-screen-embedded chart.
+/// Because it is shell-mounted, the imaging screen gets the live V-curve "for
+/// free" without owning, sizing, or lifecycle-managing a second copy. If a
+/// future need arises to show focus data inline on a screen, reuse this
+/// overlay / its provider rather than forking a parallel chart — having two
+/// V-curve surfaces would drift in behavior and double the event wiring.
 class AutofocusProgressOverlay extends ConsumerStatefulWidget {
   const AutofocusProgressOverlay({super.key});
 

@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import '../../database/database.dart' as db;
+import '../../models/imaging/imaging_models.dart' show ImageStats;
 
 /// Thresholds for automatic or bulk frame rejection.
 ///
@@ -36,6 +37,11 @@ class FrameGradeRules {
       maxEccentricity == null &&
       minStars == null &&
       maxGuidingRmsTotalArcsec == null;
+
+  /// Whether any rule is active. Convenience inverse of [isEmpty] so callers
+  /// (e.g. the live per-sub badge) can cheaply skip grading work entirely when
+  /// no thresholds are configured.
+  bool get hasActiveRules => !isEmpty;
 
   FrameGradeRules copyWith({
     double? maxHfr,
@@ -92,6 +98,51 @@ class FrameGradeRules {
         img.guidingRmsTotal! > maxGuidingRmsTotalArcsec!) {
       reasons.add(
           'Guiding ${img.guidingRmsTotal!.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"');
+    }
+    return reasons.isEmpty ? null : 'Auto-grade: ${reasons.join('; ')}';
+  }
+
+  /// Grades an in-memory [ImageStats] snapshot using the identical thresholds
+  /// and reason-string format as [gradeFrame], so the live per-sub badge and
+  /// the persisted auto-grader never disagree (there is exactly one rule
+  /// engine).
+  ///
+  /// Unlike a database row, [ImageStats] carries neither eccentricity nor
+  /// guiding RMS, so those two metrics are supplied by the caller:
+  /// [eccentricity] from the science row when one exists, [guidingRmsTotal]
+  /// from the live guiding telemetry. As in [gradeFrame], a `null` metric
+  /// means "cannot grade this dimension" and that rule is skipped — passing
+  /// `null` for either argument simply omits the corresponding check.
+  String? gradeStats(
+    ImageStats stats, {
+    double? guidingRmsTotal,
+    double? eccentricity,
+  }) {
+    final reasons = <String>[];
+    if (maxHfr != null && stats.hfr != null && stats.hfr! > maxHfr!) {
+      reasons.add(
+          'HFR ${stats.hfr!.toStringAsFixed(2)} > ${maxHfr!.toStringAsFixed(2)}');
+    }
+    if (maxFwhm != null && stats.fwhm != null && stats.fwhm! > maxFwhm!) {
+      reasons.add(
+          'FWHM ${stats.fwhm!.toStringAsFixed(2)} > ${maxFwhm!.toStringAsFixed(2)}');
+    }
+    if (maxEccentricity != null &&
+        eccentricity != null &&
+        eccentricity > maxEccentricity!) {
+      reasons.add(
+          'Eccentricity ${eccentricity.toStringAsFixed(2)} > ${maxEccentricity!.toStringAsFixed(2)}');
+    }
+    if (minStars != null &&
+        stats.starCount != null &&
+        stats.starCount! < minStars!) {
+      reasons.add('Stars ${stats.starCount} < $minStars');
+    }
+    if (maxGuidingRmsTotalArcsec != null &&
+        guidingRmsTotal != null &&
+        guidingRmsTotal > maxGuidingRmsTotalArcsec!) {
+      reasons.add(
+          'Guiding ${guidingRmsTotal.toStringAsFixed(2)}" > ${maxGuidingRmsTotalArcsec!.toStringAsFixed(2)}"');
     }
     return reasons.isEmpty ? null : 'Auto-grade: ${reasons.join('; ')}';
   }
