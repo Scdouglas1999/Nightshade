@@ -10,10 +10,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 
 import '../../localization/nightshade_localizations.dart';
+import '../onboarding/coach/first_launch_coach_launcher.dart';
 import '../../widgets/catalog_setup_dialog.dart';
 import '../../widgets/onboarding_tour_replay_launcher.dart';
 import '../../widgets/tutorial_overlay.dart';
-import '../../widgets/welcome_flow.dart';
 import '../../widgets/mobile_sequence_overlay.dart';
 import '../../widgets/notification_toast_overlay.dart';
 import '../../widgets/autofocus_progress_overlay.dart';
@@ -395,28 +395,20 @@ class _AppShellState extends ConsumerState<AppShell> {
         final useBottomNav =
             ShellChrome.useBottomNavigation(constraints.maxWidth);
 
-        // Check if we should show the welcome flow for first-time users
-        final showWelcomeFlow = ref.watch(shouldShowWelcomeFlowProvider);
-
-        // If first launch, show WelcomeFlow instead of the app
-        if (showWelcomeFlow) {
-          return Scaffold(
-            backgroundColor: colors.background,
-            body: WelcomeFlow(
-              onComplete: () {
-                // WelcomeFlow handles marking the tour as seen
-                // The widget will rebuild with showWelcomeFlow = false
-              },
-            ),
-          );
-        }
-
-        // The first-launch tour is replay-only (C13): this launcher watches
-        // firstLaunchTourStatusProvider and overlays OnboardingOverlay on top
-        // of the whole shell when the user re-runs it from Settings → Help.
+        // The rich progressive first-launch coach (C6) is the outermost shell
+        // wrapper so its floating panel sits above the tour overlay and every
+        // route. It self-gates on firstLaunchCoachStatusProvider == pending and
+        // returns its child unchanged otherwise, so it adds no chrome for
+        // returning users. The first-launch welcome role lives here now — the
+        // legacy WelcomeFlow full-screen takeover has been retired.
+        //
+        // The first-launch tour is replay-only (C13): OnboardingTourReplayLauncher
+        // watches firstLaunchTourStatusProvider and overlays OnboardingOverlay on
+        // top of the whole shell when the user re-runs it from Settings → Help.
         // Mounted at the shell level so the spotlight cutouts can target the
         // live side-navigation TutorialKeys.
-        return OnboardingTourReplayLauncher(
+        return FirstLaunchCoachLauncher(
+          child: OnboardingTourReplayLauncher(
           child: TutorialOverlay(
           child: Scaffold(
             backgroundColor: colors.background,
@@ -582,6 +574,7 @@ class _AppShellState extends ConsumerState<AppShell> {
                     },
                   )
                 : null,
+          ),
           ),
           ),
         );

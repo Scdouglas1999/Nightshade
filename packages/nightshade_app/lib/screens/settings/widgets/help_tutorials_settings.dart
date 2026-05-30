@@ -104,6 +104,31 @@ class HelpTutorialsSettings extends ConsumerWidget {
               ),
             ),
             SettingRow(
+              icon: LucideIcons.listChecks,
+              iconColor: colors.primary,
+              title: 'Open setup guide',
+              subtitle:
+                  'Reopen the progressive first-light setup coach — it tracks '
+                  'your remaining steps and links straight to each setting.',
+              trailing: NightshadeButton(
+                label: 'Open',
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                icon: LucideIcons.refreshCw,
+                // Reset the coach's persistence row (status -> pending) and
+                // invalidate the status provider. FirstLaunchCoachLauncher
+                // (mounted at the app-shell level) watches that provider and
+                // re-mounts the coach panel immediately — no restart needed.
+                // This mirrors the "Re-run onboarding tour" reactive contract.
+                onPressed: () async {
+                  await ref.read(firstLaunchCoachDaoProvider).reset();
+                  if (context.mounted) {
+                    ref.invalidate(firstLaunchCoachStatusProvider);
+                  }
+                },
+              ),
+            ),
+            SettingRow(
               icon: LucideIcons.compass,
               iconColor: colors.primary,
               title: 'Re-run onboarding tour',

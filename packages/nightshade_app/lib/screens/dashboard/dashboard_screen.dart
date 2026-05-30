@@ -125,7 +125,19 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
             ),
             // C14: floating "ready to image" overlay. Self-collapses when the
             // rig is fully ready, so it only surfaces outstanding setup work.
-            const ReadinessDashboardOverlay(),
+            //
+            // De-overlap with the first-launch coach: both surfaces anchor
+            // top-centre, so suppress the per-issue readiness nudge while the
+            // progressive coach is active (status == pending). A NEW user sees
+            // only the coach; a RETURNING user (coach completed/dismissed, or
+            // status still resolving) still gets the readiness overlay. Loading
+            // and error states fail open to showing the overlay, since the coach
+            // launcher itself fails closed to "not shown" in those states.
+            if (ref.watch(firstLaunchCoachStatusProvider).valueOrNull !=
+                FirstLaunchCoachStatus.pending)
+              const ReadinessDashboardOverlay()
+            else
+              const SizedBox.shrink(),
             SmartNightPromptCard(colors: colors),
           ],
         ),

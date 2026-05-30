@@ -176,6 +176,7 @@ export 'src/providers/annotation_settings_provider.dart';
 export 'src/providers/annotation_presets_provider.dart'
     hide AnnotationPreset, annotationPresetsProvider, AnnotationPresetsNotifier;
 export 'src/providers/tutorial_provider.dart';
+export 'src/providers/first_launch_coach_provider.dart';
 export 'src/providers/filter_offset_provider.dart';
 export 'src/providers/camera_presets_provider.dart';
 export 'src/providers/weather_providers.dart';

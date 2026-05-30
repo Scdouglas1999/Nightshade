@@ -26,13 +26,6 @@ enum SpotlightShape {
   pill,
 }
 
-/// Provider that exposes whether the welcome flow should be shown.
-/// Used by parent widgets to determine when to display WelcomeFlow.
-final shouldShowWelcomeFlowProvider = Provider<bool>((ref) {
-  final tutorialState = ref.watch(tutorialProvider);
-  return !tutorialState.hasSeenInitialTour && tutorialState.tutorialsEnabled;
-});
-
 /// Global keys for tutorial targets
 class TutorialKeys {
   // Navigation keys (used by multiple tutorials)
@@ -229,9 +222,10 @@ class _TutorialOverlayState extends ConsumerState<TutorialOverlay>
       }
     });
 
-    // Note: Initial tour prompt is now handled by WelcomeFlow widget.
-    // Parent widgets can use shouldShowWelcomeFlowProvider to determine
-    // when to display the WelcomeFlow instead of this overlay.
+    // Note: the first-launch welcome role is owned by the progressive
+    // first-launch coach (FirstLaunchCoachLauncher, mounted above the shell).
+    // This overlay only renders spotlight coach marks for an actively running
+    // tutorial; it no longer gates a separate welcome takeover.
 
     // Animate when tutorial state changes
     if (tutorialState.activeCategory != null) {
