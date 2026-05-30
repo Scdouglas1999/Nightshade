@@ -3773,6 +3773,25 @@ pub fn api_auto_stretch_image(
     Ok(crate::imaging_ops::auto_stretch_image(width, height, data))
 }
 
+/// Auto-stretch an interleaved RGB16 image for display.
+///
+/// The colour counterpart to [`api_auto_stretch_image`]: `data` is
+/// `width * height * 3` u16 samples (interleaved R,G,B) and each channel is
+/// stretched with its own PixInsight MAD-based STF ("Unlinked" mode). Returns
+/// RGBA8 (4 bytes per pixel, alpha=255). OSC live-stacking / Stack-and-Share
+/// display delegates here so the STF lives in one place (Rust) rather than being
+/// reimplemented in Dart.
+#[flutter_rust_bridge::frb(sync)]
+pub fn api_auto_stretch_color_image(
+    width: u32,
+    height: u32,
+    data: Vec<u16>,
+) -> Result<Vec<u8>, NightshadeError> {
+    Ok(crate::imaging_ops::auto_stretch_color_image(
+        width, height, data,
+    ))
+}
+
 /// Debayer image
 #[flutter_rust_bridge::frb(sync)]
 pub fn api_debayer_image(
@@ -4368,10 +4387,33 @@ pub struct ApiLiveStackingConfig {
     pub match_radius_px: f64,
     pub match_flux_tolerance: f64,
     pub min_matched_pairs: u32,
+    /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive).
+    ///
+    /// - `mono` — frames are single-channel luminance; never debayered.
+    /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
+    ///   an unresolvable pattern is a hard error (no silent mono-fallback that
+    ///   would scramble the colour mosaic).
+    /// - `auto` — debayer only when the frame actually carries Bayer geometry
+    ///   (or `bayer_pattern` is supplied); otherwise treat as mono.
+    ///
+    /// Defaults to `"mono"` so existing callers keep the historic single-channel
+    /// behaviour byte-for-byte.
+    pub sensor_mode: String,
+    /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`,
+    /// case-insensitive). When `None`, OSC/auto sessions fall back to the pattern
+    /// the reference frame declares via its FITS `BAYERPAT` geometry. An
+    /// unrecognised string is a hard error.
+    pub bayer_pattern: Option<String>,
+    /// Demosaic quality: `"bilinear"`, `"vng"`, or `"superpixel"`
+    /// (case-insensitive). Defaults to `"bilinear"`. An unrecognised value is a
+    /// hard error rather than a silent best-guess.
+    pub demosaic_quality: String,
 }
 
 impl Default for ApiLiveStackingConfig {
     fn default() -> Self {
+        // Mirror `LiveStackingConfigApi::default()` so the FRB wrapper and the
+        // underlying bridge config agree on the monochrome baseline.
         Self {
             sigma_clip_enabled: true,
             sigma_clip_threshold: 2.5,
@@ -4379,6 +4421,9 @@ impl Default for ApiLiveStackingConfig {
             match_radius_px: 50.0,
             match_flux_tolerance: 0.7,
             min_matched_pairs: 5,
+            sensor_mode: "mono".to_string(),
+            bayer_pattern: None,
+            demosaic_quality: "bilinear".to_string(),
         }
     }
 }
@@ -4397,6 +4442,10 @@ pub struct ApiLiveStackingStats {
 pub struct ApiLiveStackingResult {
     pub width: u32,
     pub height: u32,
+    /// Channel count of the stacked result: `1` for a monochrome session, `3`
+    /// for an OSC/colour session. The Dart side uses this to interpret `data` as
+    /// a single luminance plane vs interleaved RGB16.
+    pub channels: u32,
     pub data: Vec<u16>,
     pub stats: ApiLiveStackingStats,
 }
@@ -4411,6 +4460,13 @@ pub(crate) fn convert_config(
         match_radius_px: config.match_radius_px,
         match_flux_tolerance: config.match_flux_tolerance,
         min_matched_pairs: config.min_matched_pairs,
+        // OSC fields pass straight through. Validation of the string values
+        // (sensor mode / Bayer pattern / demosaic quality) happens loudly inside
+        // `LiveStackConfig::try_from`, so an invalid value surfaces as an error
+        // to the caller rather than being silently normalised here.
+        sensor_mode: config.sensor_mode,
+        bayer_pattern: config.bayer_pattern,
+        demosaic_quality: config.demosaic_quality,
     }
 }
 
@@ -4433,6 +4489,7 @@ pub(crate) fn convert_result(
     ApiLiveStackingResult {
         width: result.width,
         height: result.height,
+        channels: result.channels,
         data: result.data,
         stats: convert_stats(result.stats),
     }

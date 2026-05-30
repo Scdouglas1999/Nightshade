@@ -6,8 +6,39 @@
 //! - Running average accumulation with optional sigma-clipping rejection
 //! - Parallel pixel operations via rayon
 
-use crate::{detect_stars, DetectedStar, ImageData, PixelType, StarDetectionConfig};
+use crate::{
+    debayer_u16, detect_stars, BayerPattern, DebayerAlgorithm, DetectedStar, ImageData, PixelType,
+    StarDetectionConfig,
+};
 use rayon::prelude::*;
+
+/// Whether the incoming frames originate from a monochrome sensor or a
+/// one-shot-colour (OSC) sensor with a Bayer colour-filter array.
+///
+/// This is metadata describing the *acquisition*, not the buffer layout the
+/// stacker receives. The bridge debayers CFA frames into a 3-channel RGB
+/// `ImageData` before handing them to [`LiveStacker`]; the stacker decides how
+/// to align/accumulate purely from `ImageData::channels`. `SensorMode` is
+/// carried through so the config faithfully records the session's sensor type
+/// (useful for diagnostics / FITS provenance) without changing the runtime
+/// dispatch, which keys off the actual channel count.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SensorMode {
+    /// Monochrome sensor — single-channel luminance frames. Never debayered.
+    #[default]
+    Mono,
+    /// One-shot-colour sensor — frames carry a Bayer CFA that *must* be
+    /// debayered to 3-channel RGB upstream of the stacker. A session declared
+    /// `Osc` with no resolvable Bayer pattern is a hard error: debayering with a
+    /// guessed mosaic would scramble colour, and silently falling back to mono
+    /// would mis-render a real CFA frame.
+    Osc,
+    /// Auto-detect: debayer only when the frame actually carries a Bayer pattern
+    /// (resolved from an explicit override or the frame's FITS `BAYERPAT`
+    /// geometry); otherwise stack as mono. Unlike [`SensorMode::Osc`], a missing
+    /// pattern is *not* an error — it simply means "this frame is mono".
+    Auto,
+}
 
 /// Configuration for the live stacking engine
 #[derive(Debug, Clone)]
@@ -26,6 +57,22 @@ pub struct LiveStackConfig {
     pub min_matched_pairs: usize,
     /// Star detection config overrides
     pub star_detection: StarDetectionConfig,
+    /// Bayer pattern of the source CFA frames, when the session is OSC.
+    ///
+    /// This is provenance only — the stacker is handed already-debayered
+    /// 3-channel RGB frames (the bridge owns the CFA → RGB step via
+    /// [`debayer_cfa_to_rgb`]). It is `None` for monochrome sessions.
+    pub bayer_pattern: Option<BayerPattern>,
+    /// Whether the acquiring sensor is monochrome or one-shot-colour.
+    ///
+    /// Defaults to [`SensorMode::Mono`] so every existing caller (which never
+    /// set this field) keeps the historic monochrome behaviour byte-for-byte.
+    pub sensor_mode: SensorMode,
+    /// Demosaic algorithm used by the bridge when converting CFA frames to
+    /// RGB before they reach the stacker. Stored here so the whole stacking
+    /// session uses one consistent demosaic. Defaults to
+    /// [`DebayerAlgorithm::Bilinear`].
+    pub demosaic_algorithm: DebayerAlgorithm,
 }
 
 impl Default for LiveStackConfig {
@@ -42,7 +89,129 @@ impl Default for LiveStackConfig {
                 min_snr: 8.0,
                 ..StarDetectionConfig::default()
             },
+            bayer_pattern: None,
+            sensor_mode: SensorMode::Mono,
+            demosaic_algorithm: DebayerAlgorithm::Bilinear,
         }
+    }
+}
+
+/// Debayer a single-channel CFA (Bayer-mosaic) U16 frame into a 3-channel
+/// interleaved RGB U16 [`ImageData`].
+///
+/// This is the ingest helper the bridge calls before handing OSC frames to
+/// [`LiveStacker`]: the stacker itself is deliberately CFA-agnostic and only
+/// ever sees mono (1-channel) or RGB (3-channel) images. Keeping the demosaic
+/// here — rather than inside the stacker — means the stacker has no notion of
+/// Bayer patterns or file/path concerns.
+///
+/// Errors (never silently coerced — this project treats errors as a feature):
+/// - the input is not single-channel (a real CFA frame is one plane);
+/// - the input is not [`PixelType::U16`] (CFA data is integer ADU);
+/// - the U16 unpacking fails (corrupt/short buffer).
+pub fn debayer_cfa_to_rgb(
+    cfa: &ImageData,
+    pattern: BayerPattern,
+    algorithm: DebayerAlgorithm,
+) -> Result<ImageData, String> {
+    if cfa.channels != 1 {
+        return Err(format!(
+            "debayer_cfa_to_rgb: expected a single-channel CFA frame, got {} channels",
+            cfa.channels
+        ));
+    }
+    if cfa.pixel_type != PixelType::U16 {
+        return Err(format!(
+            "debayer_cfa_to_rgb: expected U16 CFA data, got {:?}",
+            cfa.pixel_type
+        ));
+    }
+
+    let raw = cfa.as_u16().ok_or_else(|| {
+        "debayer_cfa_to_rgb: failed to unpack CFA frame as U16 (corrupt or short buffer)"
+            .to_string()
+    })?;
+
+    let expected = (cfa.width as usize) * (cfa.height as usize);
+    if raw.len() != expected {
+        return Err(format!(
+            "debayer_cfa_to_rgb: CFA buffer has {} samples but {}x{} requires {}",
+            raw.len(),
+            cfa.width,
+            cfa.height,
+            expected
+        ));
+    }
+
+    // Build the result from the *demosaiced* geometry, not the input CFA size:
+    // SuperPixel (2x2 binning) halves resolution, so assuming the input
+    // dimensions here would declare a (w x h x 3) image backed by only
+    // (w/2)*(h/2)*3 samples — a short buffer that panics or silently corrupts
+    // downstream luminance/detection passes.
+    let rgb = debayer_u16(&raw, cfa.width, cfa.height, pattern, algorithm);
+    Ok(ImageData::from_u16(rgb.width, rgb.height, 3, &rgb.to_rgb16()))
+}
+
+/// Build a single-channel U16 luminance proxy from a 3-channel interleaved RGB
+/// [`ImageData`], using the Rec. 601 luma weights (`0.299 R + 0.587 G +
+/// 0.114 B`, rounded to nearest ADU and clamped to the U16 range).
+///
+/// The proxy exists purely so star detection / matching / transform solving
+/// run on a stable, channel-collapsed plane rather than on a single Bayer
+/// channel or on interleaved RGB (which `detect_stars` would misread as a
+/// scrambled mono buffer). The proxy is never accumulated — only the original
+/// RGB channels are stacked.
+fn luminance_proxy(rgb: &ImageData) -> ImageData {
+    debug_assert_eq!(
+        rgb.channels, 3,
+        "luminance_proxy requires a 3-channel RGB image"
+    );
+
+    let width = rgb.width;
+    let height = rgb.height;
+    let pixel_count = (width as usize) * (height as usize);
+
+    // Read interleaved RGB triples. `as_u16` returns the full interleaved
+    // buffer; we collapse each [r, g, b] triple to one luma sample.
+    let interleaved = rgb
+        .as_u16()
+        .expect("luminance_proxy requires a U16 RGB image");
+
+    let luma: Vec<u16> = (0..pixel_count)
+        .into_par_iter()
+        .map(|i| {
+            let base = i * 3;
+            let r = interleaved[base] as f64;
+            let g = interleaved[base + 1] as f64;
+            let b = interleaved[base + 2] as f64;
+            (0.299 * r + 0.587 * g + 0.114 * b)
+                .round()
+                .clamp(0.0, 65535.0) as u16
+        })
+        .collect();
+
+    ImageData::from_u16(width, height, 1, &luma)
+}
+
+/// Resolve the single-channel image that star detection / matching / transform
+/// solving should run on.
+///
+/// - Mono (1-channel): the frame is borrowed unchanged, so the historic path
+///   is byte-for-byte identical (no copy, no luma collapse).
+/// - RGB (3-channel): a freshly built luminance proxy (owned) so detection
+///   operates on a coherent mono plane.
+///
+/// The caller (`new` / `add_frame`) has already validated the channel count is
+/// 1 or 3, so any other count would be a programmer error; we surface it as a
+/// panic rather than silently producing a meaningless plane.
+fn detection_plane(frame: &ImageData) -> std::borrow::Cow<'_, ImageData> {
+    match frame.channels {
+        1 => std::borrow::Cow::Borrowed(frame),
+        3 => std::borrow::Cow::Owned(luminance_proxy(frame)),
+        other => unreachable!(
+            "detection_plane received {} channels; new()/add_frame() must reject anything but 1 or 3",
+            other
+        ),
     }
 }
 
@@ -158,12 +327,24 @@ impl LiveStacker {
             ));
         }
 
+        if !matches!(reference_frame.channels, 1 | 3) {
+            return Err(format!(
+                "Live stacking supports 1-channel (mono) or 3-channel (RGB) images only, got {} channels",
+                reference_frame.channels
+            ));
+        }
+
         let width = reference_frame.width;
         let height = reference_frame.height;
         let channels = reference_frame.channels;
 
-        // Detect stars in reference frame
-        let ref_stars = detect_stars(reference_frame, &config.star_detection);
+        // Detect stars on the alignment plane. For mono frames that is the
+        // frame itself; for already-debayered RGB frames it is the luminance
+        // proxy so star centroids come from a stable, channel-collapsed plane
+        // rather than a scrambled interleaved buffer (which `detect_stars`
+        // would otherwise misread).
+        let detection_image = detection_plane(reference_frame);
+        let ref_stars = detect_stars(&detection_image, &config.star_detection);
         if ref_stars.len() < config.min_matched_pairs {
             return Err(format!(
                 "Reference frame has only {} stars, need at least {} for alignment",
@@ -246,8 +427,10 @@ impl LiveStacker {
             ));
         }
 
-        // Step 1: Detect stars
-        let frame_stars = detect_stars(frame, &self.config.star_detection);
+        // Step 1: Detect stars on the alignment plane (luminance proxy for
+        // RGB, the frame itself for mono — see `detection_plane`).
+        let detection_image = detection_plane(frame);
+        let frame_stars = detect_stars(&detection_image, &self.config.star_detection);
         if frame_stars.len() < self.config.min_matched_pairs {
             self.stats.rejected_alignment_failures += 1;
             tracing::warn!(
@@ -350,6 +533,17 @@ impl LiveStacker {
 
     /// Accumulate aligned pixel values into the running stack.
     /// Returns the number of pixels rejected by sigma clipping.
+    ///
+    /// Channel independence (load-bearing for OSC): `accumulators` and
+    /// `aligned_pixels` are both laid out as `width * height * channels` in
+    /// interleaved order (`..., R, G, B, R, G, B, ...` for 3-channel frames).
+    /// The `zip` below pairs each accumulator slot with exactly one aligned
+    /// sample of the *same* channel, so every interleaved slot owns its own
+    /// `sum` / `sum_sq` / `count` and its own sigma-clip decision. No value
+    /// from one channel ever contributes to, or is rejected on behalf of,
+    /// another channel — colour balance is preserved and a per-channel
+    /// outlier (e.g. a hot pixel in only the R plane) is clipped from that
+    /// channel alone.
     fn accumulate_pixels(&mut self, aligned_pixels: &[f64]) -> u64 {
         let sigma_enabled = self.config.sigma_clip_enabled;
         let sigma_threshold = self.config.sigma_clip_threshold;
@@ -1073,6 +1267,73 @@ mod tests {
         ImageData::from_u16(width, height, 1, &data)
     }
 
+    /// Per-channel scale factors applied to the base star field when building
+    /// a 3-channel test image. Distinct factors per channel let tests assert
+    /// that channels are kept independent through alignment + accumulation.
+    #[derive(Clone, Copy)]
+    struct ChannelGains {
+        r: f64,
+        g: f64,
+        b: f64,
+    }
+
+    /// Build a 3-channel interleaved RGB star field that is photometrically
+    /// consistent with `make_test_image`'s mono field.
+    ///
+    /// The R, G, B planes are independent copies of the mono field scaled by
+    /// `gains.{r,g,b}`. With `gains = (1.0, 1.0, 1.0)` the luminance proxy
+    /// (0.299+0.587+0.114 = 1.0) of the result equals the mono field exactly
+    /// (modulo rounding), which is what `color_registration_parity` relies on.
+    fn make_test_image_rgb(
+        width: u32,
+        height: u32,
+        star_positions: &[(f64, f64, f64)],
+        gains: ChannelGains,
+    ) -> ImageData {
+        let mono = make_test_image(width, height, star_positions);
+        let mono_px = mono.as_u16().expect("mono test image is u16");
+        let pixel_count = mono_px.len();
+
+        let mut interleaved = vec![0u16; pixel_count * 3];
+        for (i, &m) in mono_px.iter().enumerate() {
+            let v = m as f64;
+            interleaved[i * 3] = (v * gains.r).round().clamp(0.0, 65535.0) as u16;
+            interleaved[i * 3 + 1] = (v * gains.g).round().clamp(0.0, 65535.0) as u16;
+            interleaved[i * 3 + 2] = (v * gains.b).round().clamp(0.0, 65535.0) as u16;
+        }
+
+        ImageData::from_u16(width, height, 3, &interleaved)
+    }
+
+    /// The bright, well-separated star field shared by the OSC tests.
+    fn osc_test_field() -> Vec<(f64, f64, f64)> {
+        vec![
+            (100.0, 100.0, 40000.0),
+            (200.0, 150.0, 35000.0),
+            (300.0, 200.0, 38000.0),
+            (150.0, 300.0, 30000.0),
+            (250.0, 250.0, 36000.0),
+            (350.0, 100.0, 32000.0),
+            (50.0, 350.0, 28000.0),
+        ]
+    }
+
+    /// Lenient detection config used by the OSC tests (mirrors
+    /// `test_stacker_creation`).
+    fn osc_test_config() -> LiveStackConfig {
+        LiveStackConfig {
+            min_matched_pairs: 3,
+            star_detection: StarDetectionConfig {
+                detection_sigma: 3.0,
+                min_snr: 3.0,
+                min_hfr: 0.5,
+                max_sharpness: 1.0,
+                ..StarDetectionConfig::default()
+            },
+            ..LiveStackConfig::default()
+        }
+    }
+
     #[test]
     fn test_stacker_creation() {
         // Bright stars with peak intensities well above background
@@ -1668,6 +1929,352 @@ mod tests {
             (stats.avg_alignment_residual - 0.83).abs() < 1e-9,
             "single aligned frame must report its own residual, got {}",
             stats.avg_alignment_residual
+        );
+    }
+
+    // =========================================================================
+    // OSC / colour stacking (component C1)
+    // =========================================================================
+
+    /// Translate a star field by a (whole-pixel) offset so the mono and RGB
+    /// "second frame" share an identical geometric shift.
+    fn shift_field(
+        field: &[(f64, f64, f64)],
+        dx: f64,
+        dy: f64,
+    ) -> Vec<(f64, f64, f64)> {
+        field
+            .iter()
+            .map(|&(x, y, b)| (x + dx, y + dy, b))
+            .collect()
+    }
+
+    /// (1) Regression: the mono two-frame stack is unchanged by this work.
+    ///
+    /// We build a reference + a frame shifted by a known integer offset, stack
+    /// them, and assert the result matches a captured golden vector taken at a
+    /// fixed set of probe pixels. Because the mono path is supposed to be
+    /// byte-for-byte identical to the pre-OSC engine, any drift in alignment,
+    /// accumulation, or the new `detection_plane` borrow-through would trip
+    /// this. The golden values are the engine's own output recorded once and
+    /// frozen here.
+    #[test]
+    fn mono_stacking_unchanged_regression() {
+        let field = osc_test_field();
+        let reference = make_test_image(512, 512, &field);
+        // Integer shift keeps bilinear resampling exact at the probe pixels.
+        let shifted = make_test_image(512, 512, &shift_field(&field, 3.0, 2.0));
+
+        let mut stacker =
+            LiveStacker::new(&reference, osc_test_config()).expect("mono reference accepted");
+        let result = stacker.add_frame(&shifted).expect("mono frame stacked");
+
+        assert_eq!(result.channels, 1, "mono stack must stay single-channel");
+        assert_eq!(result.pixel_type, PixelType::U16);
+        assert_eq!(stacker.frame_count(), 2);
+
+        let px = result.as_u16().expect("u16 result");
+        // Probe pixels: the centres of the first three stars (in reference
+        // coords) plus a background sample. These are the captured golden
+        // values for the 3,2-shift two-frame mean stack.
+        // Captured golden vector for the integer-(3,2)-shift two-frame mean
+        // stack. The shifted frame is registered back onto the reference, so
+        // both frames contribute the star peak at the reference centroids;
+        // the background sample at (10,10) is the two-frame mean of the
+        // deterministic-noise background.
+        let probes: [(usize, usize, u16); 4] = [
+            (100, 100, 40999),
+            (200, 150, 36006),
+            (300, 200, 39012),
+            (10, 10, 1009),
+        ];
+        for (x, y, expected) in probes {
+            let got = px[y * 512 + x];
+            assert_eq!(
+                got, expected,
+                "mono golden mismatch at ({x},{y}): expected {expected}, got {got}"
+            );
+        }
+    }
+
+    /// (2) Parity: an RGB field shifted by a known sub-pixel offset must solve
+    /// to the *same* affine transform (within 0.05 px) as the equivalent mono
+    /// luminance field shifted identically.
+    ///
+    /// Because `make_test_image_rgb` with unit gains has a luminance proxy
+    /// equal to the mono field, both pipelines feed `detect_stars` the same
+    /// pixels — so the recovered transform must agree to floating-point noise.
+    #[test]
+    fn color_registration_parity() {
+        let field = osc_test_field();
+        let dx = 4.3;
+        let dy = -2.7;
+        let shifted_field = shift_field(&field, dx, dy);
+
+        let config = osc_test_config();
+
+        // --- mono pipeline transform ---
+        let mono_ref = make_test_image(512, 512, &field);
+        let mono_frame = make_test_image(512, 512, &shifted_field);
+        let mono_ref_stars = detect_stars(&mono_ref, &config.star_detection);
+        let mono_frame_stars = detect_stars(&mono_frame, &config.star_detection);
+        let mono_matches = match_stars(
+            &mono_ref_stars,
+            &mono_frame_stars,
+            config.max_match_stars,
+            config.match_radius_px,
+            config.match_flux_tolerance,
+        );
+        assert!(
+            mono_matches.len() >= config.min_matched_pairs,
+            "mono field should match enough stars, got {}",
+            mono_matches.len()
+        );
+        let mono_tf = compute_affine_transform(&mono_matches, (0.0, 0.0));
+
+        // --- color pipeline transform (via luminance proxy) ---
+        let gains = ChannelGains {
+            r: 1.0,
+            g: 1.0,
+            b: 1.0,
+        };
+        let rgb_ref = make_test_image_rgb(512, 512, &field, gains);
+        let rgb_frame = make_test_image_rgb(512, 512, &shifted_field, gains);
+        let rgb_ref_plane = detection_plane(&rgb_ref);
+        let rgb_frame_plane = detection_plane(&rgb_frame);
+        assert_eq!(rgb_ref_plane.channels, 1, "proxy must be single-channel");
+        let rgb_ref_stars = detect_stars(&rgb_ref_plane, &config.star_detection);
+        let rgb_frame_stars = detect_stars(&rgb_frame_plane, &config.star_detection);
+        let rgb_matches = match_stars(
+            &rgb_ref_stars,
+            &rgb_frame_stars,
+            config.max_match_stars,
+            config.match_radius_px,
+            config.match_flux_tolerance,
+        );
+        assert!(
+            rgb_matches.len() >= config.min_matched_pairs,
+            "rgb proxy field should match enough stars, got {}",
+            rgb_matches.len()
+        );
+        let rgb_tf = compute_affine_transform(&rgb_matches, (0.0, 0.0));
+
+        // Transforms must agree to well under 0.05 px in translation and be
+        // rotation-free in both cases.
+        assert!(
+            (mono_tf.tx - rgb_tf.tx).abs() < 0.05,
+            "tx parity: mono {} vs rgb {}",
+            mono_tf.tx,
+            rgb_tf.tx
+        );
+        assert!(
+            (mono_tf.ty - rgb_tf.ty).abs() < 0.05,
+            "ty parity: mono {} vs rgb {}",
+            mono_tf.ty,
+            rgb_tf.ty
+        );
+        // Sanity: the recovered shift inverts the applied star shift. The test
+        // field renders star peaks at integer-rounded centres
+        // (`make_test_image` uses `sx as i32`), so the geometric offset both
+        // pipelines actually see is the rounded shift; the centroid solve then
+        // recovers it to sub-pixel precision. We therefore compare against the
+        // rounded offset. The load-bearing assertion is the <0.05px mono/RGB
+        // parity above — this only confirms we measured a real, non-trivial
+        // displacement.
+        let expected_tx = -dx.round();
+        let expected_ty = -dy.round();
+        assert!(
+            (rgb_tf.tx - expected_tx).abs() < 0.1 && (rgb_tf.ty - expected_ty).abs() < 0.1,
+            "recovered transform should invert the applied (rounded) shift: tx={} ty={}",
+            rgb_tf.tx,
+            rgb_tf.ty
+        );
+    }
+
+    /// (3) Per-channel rejection isolation: inject a sigma-clip outlier into
+    /// the R channel of one accumulated sample only. The R accumulator's count
+    /// must drop by one (the outlier rejected) while G and B keep every
+    /// sample. This directly exercises the interleaved-slot independence
+    /// documented on `accumulate_pixels`.
+    #[test]
+    fn per_channel_rejection_isolation() {
+        // Two pixels, three channels, interleaved: [R G B | R G B].
+        let width = 2u32;
+        let height = 1u32;
+        let channels = 3usize;
+        let slots = (width as usize) * (height as usize) * channels;
+
+        // Seed accumulators with a tight cluster so the sigma threshold is
+        // small and a single outlier is clearly rejected. count >= 3 is
+        // required before sigma clipping engages.
+        let mut stacker = LiveStacker {
+            width,
+            height,
+            channels: channels as u32,
+            reference_stars: Vec::new(),
+            accumulators: vec![PixelAccumulator::default(); slots],
+            config: LiveStackConfig {
+                sigma_clip_enabled: true,
+                sigma_clip_threshold: 2.5,
+                ..LiveStackConfig::default()
+            },
+            stats: StackingStats::default(),
+            ref_centroid: (0.0, 0.0),
+        };
+
+        // Three clean frames (counts → 3 per slot) of value 1000 with tiny
+        // jitter so std_dev is small but non-zero.
+        let clean: [[f64; 6]; 3] = [
+            [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0],
+            [1002.0, 1002.0, 1002.0, 1002.0, 1002.0, 1002.0],
+            [998.0, 998.0, 998.0, 998.0, 998.0, 998.0],
+        ];
+        for frame in &clean {
+            let rejected = stacker.accumulate_pixels(frame);
+            assert_eq!(rejected, 0, "clean frames should not be rejected");
+        }
+        for acc in &stacker.accumulators {
+            assert_eq!(acc.count, 3, "all slots should have 3 clean samples");
+        }
+
+        // Fourth frame: a large outlier in the R slot of pixel 0 only
+        // (index 0). Everything else is in-family.
+        let mut outlier = [1000.0; 6];
+        outlier[0] = 60000.0; // pixel 0, R channel
+        let rejected = stacker.accumulate_pixels(&outlier);
+        assert_eq!(rejected, 1, "exactly one pixel (R of px0) should be rejected");
+
+        // R slot of pixel 0 (index 0) stayed at count 3 (outlier clipped);
+        // every other slot advanced to count 4.
+        assert_eq!(
+            stacker.accumulators[0].count, 3,
+            "R channel of px0 must reject the outlier (count stays 3)"
+        );
+        assert_eq!(
+            stacker.accumulators[1].count, 4,
+            "G channel of px0 must be untouched (count 4)"
+        );
+        assert_eq!(
+            stacker.accumulators[2].count, 4,
+            "B channel of px0 must be untouched (count 4)"
+        );
+        // The other pixel's channels are all clean too.
+        for slot in 3..slots {
+            assert_eq!(
+                stacker.accumulators[slot].count, 4,
+                "slot {slot} must accept all four samples"
+            );
+        }
+    }
+
+    /// (4) Luminance proxy weights: a single known RGB pixel must collapse to
+    /// exactly `round(0.299 R + 0.587 G + 0.114 B)`.
+    #[test]
+    fn luminance_proxy_weights() {
+        // One pixel, RGB = (10000, 20000, 30000).
+        let rgb = ImageData::from_u16(1, 1, 3, &[10000, 20000, 30000]);
+        let proxy = luminance_proxy(&rgb);
+
+        assert_eq!(proxy.channels, 1);
+        assert_eq!(proxy.width, 1);
+        assert_eq!(proxy.height, 1);
+
+        let px = proxy.as_u16().expect("proxy is u16");
+        assert_eq!(px.len(), 1);
+
+        let expected =
+            (0.299 * 10000.0 + 0.587 * 20000.0 + 0.114 * 30000.0_f64).round() as u16;
+        // 2990 + 11740 + 3420 = 18150
+        assert_eq!(expected, 18150, "hand-computed luma weight");
+        assert_eq!(
+            px[0], expected,
+            "luminance proxy must apply exact Rec.601 weights"
+        );
+
+        // A second pixel to confirm per-pixel independence and rounding.
+        let rgb2 = ImageData::from_u16(2, 1, 3, &[255, 255, 255, 0, 100, 0]);
+        let proxy2 = luminance_proxy(&rgb2);
+        let px2 = proxy2.as_u16().unwrap();
+        assert_eq!(px2[0], 255, "equal RGB collapses to that value (weights sum to 1)");
+        let expected2 = (0.587 * 100.0_f64).round() as u16; // 59
+        assert_eq!(px2[1], expected2, "pure-green pixel uses the green weight");
+    }
+
+    /// `debayer_cfa_to_rgb` must fail loud on the wrong channel count and the
+    /// wrong pixel type, and must produce a 3-channel U16 image of the same
+    /// dimensions on the happy path.
+    #[test]
+    fn debayer_cfa_to_rgb_validates_and_expands() {
+        // Wrong channel count.
+        let rgb_in = ImageData::from_u16(2, 2, 3, &[0u16; 12]);
+        assert!(debayer_cfa_to_rgb(&rgb_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear)
+            .is_err());
+
+        // Wrong pixel type.
+        let f32_in = ImageData::from_f32(2, 2, 1, &[0.0f32; 4]);
+        assert!(debayer_cfa_to_rgb(&f32_in, BayerPattern::RGGB, DebayerAlgorithm::Bilinear)
+            .is_err());
+
+        // Happy path: a 4x4 CFA expands to 4x4x3 under full-resolution Bilinear.
+        let cfa = ImageData::from_u16(4, 4, 1, &[1234u16; 16]);
+        let rgb = debayer_cfa_to_rgb(&cfa, BayerPattern::RGGB, DebayerAlgorithm::Bilinear)
+            .expect("valid CFA debayers");
+        assert_eq!(rgb.channels, 3);
+        assert_eq!(rgb.width, 4);
+        assert_eq!(rgb.height, 4);
+        assert_eq!(rgb.pixel_type, PixelType::U16);
+        assert_eq!(rgb.as_u16().unwrap().len(), 4 * 4 * 3);
+
+        // SuperPixel halves resolution (2x2 binning): the result must declare
+        // the HALVED geometry and back it with a matching buffer. The output
+        // dimensions are derived from the demosaiced RgbImage, not assumed from
+        // the input CFA size — otherwise the declared (4x4x3) image would be
+        // backed by only (2x2x3) samples and panic/corrupt downstream.
+        let sp = debayer_cfa_to_rgb(&cfa, BayerPattern::RGGB, DebayerAlgorithm::SuperPixel)
+            .expect("valid CFA superpixel-debayers");
+        assert_eq!(sp.channels, 3);
+        assert_eq!(sp.width, 2, "superpixel halves width");
+        assert_eq!(sp.height, 2, "superpixel halves height");
+        assert_eq!(
+            sp.as_u16().unwrap().len(),
+            2 * 2 * 3,
+            "buffer length matches the halved, declared dimensions"
+        );
+    }
+
+    /// An OSC end-to-end stack: a 3-channel reference + a shifted 3-channel
+    /// frame must register and produce a 3-channel result, with each channel
+    /// independently accumulated. This is the integration counterpart to the
+    /// transform-parity test.
+    #[test]
+    fn color_two_frame_stack_produces_rgb_result() {
+        let field = osc_test_field();
+        // Distinct per-channel gains so a channel mix-up would be visible.
+        let gains = ChannelGains {
+            r: 0.8,
+            g: 1.0,
+            b: 0.6,
+        };
+        let reference = make_test_image_rgb(512, 512, &field, gains);
+        let shifted = make_test_image_rgb(512, 512, &shift_field(&field, 3.0, 2.0), gains);
+
+        let mut stacker =
+            LiveStacker::new(&reference, osc_test_config()).expect("rgb reference accepted");
+        let result = stacker.add_frame(&shifted).expect("rgb frame stacked");
+
+        assert_eq!(result.channels, 3, "color stack must stay 3-channel");
+        assert_eq!(result.pixel_type, PixelType::U16);
+        assert_eq!(stacker.frame_count(), 2);
+
+        // At a star centre, R should be brighter than B given the gains
+        // (0.8 vs 0.6), confirming channels were not transposed.
+        let px = result.as_u16().expect("u16 rgb result");
+        let base = (100 * 512 + 100) * 3;
+        let r = px[base];
+        let b = px[base + 2];
+        assert!(
+            r > b,
+            "R ({r}) should exceed B ({b}) under gains r=0.8 b=0.6 — channels preserved"
         );
     }
 }

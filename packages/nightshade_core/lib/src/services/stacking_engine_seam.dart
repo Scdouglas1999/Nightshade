@@ -21,10 +21,23 @@ class LinearFrameData {
   /// have already been applied by the FITS reader.
   final List<double> linearData;
 
+  /// The Bayer pattern declared by the frame's FITS `BAYERPAT` geometry
+  /// (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`), or `null` when the frame carries no
+  /// CFA geometry (i.e. a monochrome frame, or a frame already debayered).
+  ///
+  /// This is the canonical per-frame OSC signal the orchestrator branches on:
+  /// a non-null pattern means the linear samples are a raw Bayer mosaic that
+  /// must be debayered before (or instead of) being treated as luminance. The
+  /// orchestrator never infers colour from anything else — there is no silent
+  /// "assume RGGB" fallback, because debayering with the wrong pattern would
+  /// scramble the colour mosaic without surfacing an error.
+  final String? bayerPattern;
+
   const LinearFrameData({
     required this.width,
     required this.height,
     required this.linearData,
+    this.bayerPattern,
   });
 }
 
@@ -77,14 +90,37 @@ abstract class StackingEngineSeam {
 
   /// Read a frame's unstretched linear pixels (science read path) so the
   /// integration works on genuine sensor values rather than display bytes.
+  ///
+  /// The returned [LinearFrameData.bayerPattern] carries the frame's CFA
+  /// geometry (or `null` for mono), which the orchestrator uses to decide
+  /// whether the samples must be debayered for an OSC stack.
   Future<LinearFrameData> readLinearFrame(String filePath);
 
-  /// Auto-stretch an integrated u16 buffer into an 8-bit RGBA display buffer
-  /// via the engine's screen-transfer (STF) path.
+  /// Auto-stretch an integrated buffer into an 8-bit RGBA display buffer via a
+  /// MAD-based PixInsight Screen-Transfer-Function (STF) stretch.
+  ///
+  /// [channels] selects the layout of [data]:
+  ///
+  /// - `1` (default) — `data` is a single luminance plane (`width * height`
+  ///   u16 samples). Forwarded to the native grayscale STF
+  ///   (`apiAutoStretchImage`), which renders the stretched luminance into all
+  ///   three RGB bytes of each output pixel.
+  /// - `3` — `data` is interleaved RGB16 (`width * height * 3` u16 samples, the
+  ///   layout the OSC live stacker emits). Forwarded to the native colour STF
+  ///   (`apiAutoStretchColorImage`), which stretches each channel independently
+  ///   with its own STF (PixInsight's default "Unlinked" mode), maximising
+  ///   per-channel contrast. The STF math lives in one place (Rust
+  ///   `imaging/src/stretch.rs`) so the colour render matches every other
+  ///   native colour-capture path bit-for-bit.
+  ///
+  /// Any other channel count is a hard error: there is no display layout for it
+  /// and silently picking one would render a wrong image (this project treats
+  /// errors as a feature rather than guessing).
   Uint8List autoStretch({
     required int width,
     required int height,
     required List<int> data,
+    int channels = 1,
   });
 
   /// Stop the stacker and release the singleton.
@@ -138,6 +174,7 @@ class BridgeStackingEngineSeam implements StackingEngineSeam {
       width: read.width,
       height: read.height,
       linearData: read.linearData,
+      bayerPattern: read.bayerPattern,
     );
   }
 
@@ -146,8 +183,29 @@ class BridgeStackingEngineSeam implements StackingEngineSeam {
     required int width,
     required int height,
     required List<int> data,
+    int channels = 1,
   }) {
-    return bridge.apiAutoStretchImage(width: width, height: height, data: data);
+    switch (channels) {
+      case 1:
+        return bridge.apiAutoStretchImage(
+          width: width,
+          height: height,
+          data: data,
+        );
+      case 3:
+        return bridge.apiAutoStretchColorImage(
+          width: width,
+          height: height,
+          data: data,
+        );
+      default:
+        throw ArgumentError.value(
+          channels,
+          'channels',
+          'auto-stretch supports 1 (luminance) or 3 (interleaved RGB16) '
+              'channels only',
+        );
+    }
   }
 
   @override
@@ -161,6 +219,9 @@ class BridgeStackingEngineSeam implements StackingEngineSeam {
       matchRadiusPx: config.matchRadiusPx,
       matchFluxTolerance: config.matchFluxTolerance,
       minMatchedPairs: config.minMatchedPairs,
+      sensorMode: config.sensorMode,
+      bayerPattern: config.bayerPattern,
+      demosaicQuality: config.demosaicQuality,
     );
   }
 
@@ -174,4 +235,5 @@ class BridgeStackingEngineSeam implements StackingEngineSeam {
       totalSigmaRejectedPixels: s.totalSigmaRejectedPixels.toInt(),
     );
   }
+
 }

@@ -33,6 +33,8 @@ void main() {
     double avgAlignmentResidual = 0.42,
     double? avgHfr = 2.31,
     String? filter = 'L',
+    bool isColor = false,
+    int channels = 1,
     String? exportedImagePath,
     DateTime? when,
   }) {
@@ -48,6 +50,8 @@ void main() {
       avgAlignmentResidual: avgAlignmentResidual,
       avgHfr: avgHfr,
       filter: filter,
+      isColor: isColor,
+      channels: channels,
       exportedImagePath: exportedImagePath,
       createdAt: when ?? createdAt,
       stats: LiveStackingStats(
@@ -89,6 +93,9 @@ void main() {
       expect(read.avgAlignmentResidual, closeTo(0.42, 1e-9));
       expect(read.avgHfr, closeTo(2.31, 1e-9));
       expect(read.filter, 'L');
+      // A default (mono) sample round-trips with is_color=false / channels=1.
+      expect(read.isColor, isFalse);
+      expect(read.channels, 1);
       expect(read.exportedImagePath, isNull);
       // Stored as epoch seconds (UTC); the model round-trips to a UTC instant.
       expect(read.createdAt.toUtc(), createdAt);
@@ -117,6 +124,58 @@ void main() {
       expect(read.filter, isNull);
       // avg_alignment_residual is non-null here; verify it survives the trip.
       expect(read.avgAlignmentResidual, closeTo(0.42, 1e-9));
+    });
+
+    test('round-trips a colour (OSC) stack via getResultById', () async {
+      // An OSC integration: isColor=true with a 3-channel interleaved-RGB
+      // result. Both flags must survive insert -> read-by-id unchanged.
+      final id = await dao.insertResult(sample(
+        targetName: 'NGC 7000 (OSC)',
+        filter: null,
+        isColor: true,
+        channels: 3,
+      ));
+
+      final read = await dao.getResultById(id);
+      expect(read, isNotNull);
+      expect(read!.id, id);
+      expect(read.isColor, isTrue);
+      expect(read.channels, 3);
+      expect(read.targetName, 'NGC 7000 (OSC)');
+
+      // Verify the on-disk encoding directly: is_color is stored as the
+      // SQLite integer 1, not a truthy-but-wrong value.
+      final stored = await db.customSelect(
+        'SELECT is_color, channels FROM stacked_results WHERE id = ?',
+        variables: [Variable<int>(id)],
+      ).getSingle();
+      expect(stored.read<int>('is_color'), 1);
+      expect(stored.read<int>('channels'), 3);
+    });
+
+    test('getResultById returns null for a missing id', () async {
+      await dao.insertResult(sample());
+      expect(await dao.getResultById(987654), isNull);
+    });
+
+    test('fresh database exposes the v39 colour-provenance columns', () async {
+      // onCreate runs _createStackedResultsTable(), which must declare both
+      // v39 columns so fresh installs match the upgrade path exactly.
+      final info = await db
+          .customSelect("PRAGMA table_info('stacked_results')")
+          .get();
+      final names = info.map((r) => r.data['name']).toSet();
+      expect(names, containsAll(<String>['is_color', 'channels']));
+
+      final isColorCol =
+          info.firstWhere((r) => r.data['name'] == 'is_color').data;
+      final channelsCol =
+          info.firstWhere((r) => r.data['name'] == 'channels').data;
+      // Both are NOT NULL with the mono defaults baked into the DDL.
+      expect(isColorCol['notnull'], 1);
+      expect(isColorCol['dflt_value'].toString(), '0');
+      expect(channelsCol['notnull'], 1);
+      expect(channelsCol['dflt_value'].toString(), '1');
     });
 
     test('getResultsForSession scopes to the session and orders newest-first',

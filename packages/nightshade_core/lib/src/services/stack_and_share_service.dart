@@ -3,9 +3,12 @@ import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../models/backend/device_capabilities.dart';
 import '../models/calibration/dark_library_match_tolerances.dart';
 import 'stacking_engine_seam.dart';
 import '../models/imaging/stack_and_share_models.dart';
+import '../providers/auto_stretch_provider.dart';
+import '../providers/capability_provider.dart';
 import '../providers/dark_library_provider.dart';
 import '../database/daos/images_dao.dart';
 import '../database/daos/sessions_dao.dart';
@@ -55,16 +58,29 @@ class LiveStackBusyException implements Exception {
 ///     ([StackAndSharePhase.stacking]). When calibration is off, the engine's
 ///     own native file loader is used (`apiStackingStart` /
 ///     `apiStackingAddFrame`) so no lossy float→u16 round-trip occurs.
-///  4. **Result** — `apiStackingGetResult` yields the integrated u16 buffer,
-///     dimensions, and final [LiveStackingStats].
+///  4. **Result** — `apiStackingGetResult` yields the integrated buffer, its
+///     dimensions, the channel layout (`1` mono, `3` interleaved RGB16 for an
+///     OSC stack the engine debayered), and the final [LiveStackingStats].
 ///  5. **Stretch** ([StackAndSharePhase.stretching]) — when
 ///     [StackAndShareConfig.autoStretch] is set, the integrated image is run
-///     through the reusable STF path (`apiAutoStretchImage`) to produce an
-///     RGBA display buffer; otherwise the mono u16 result is kept as-is.
+///     through the STF path with the result's channel count, so a colour stack
+///     takes the per-channel (unlinked) stretch and a mono stack the grayscale
+///     stretch; otherwise the raw result is kept as-is.
 ///  6. **Persist** — a [StackAndShareResult] is built (integration seconds from
-///     the selection, alignment residual from the engine stats, single filter
-///     when the selection is mono) and written via [StackedResultsDao.insertResult]
-///     (C3); the returned row id is stamped onto the result.
+///     the selection, alignment residual from the engine stats, colour flag +
+///     channel count from the integrated result, filter `'OSC'` for a colour
+///     stack / the single filter when the selection is mono) and written via
+///     [StackedResultsDao.insertResult] (C3); the returned row id is stamped
+///     onto the result.
+///
+/// **OSC / colour resolution.** Before stacking, the run resolves the sensor
+/// mode ([StackAndShareConfig.sensorMode]) into a concrete engine config: for
+/// `osc`/`auto` with no explicit Bayer override it discovers the pattern from
+/// the connected camera's [CameraCapabilities] (live) or the reference frame's
+/// FITS `BAYERPAT` geometry (file). `osc` with no resolvable pattern is a hard
+/// [StateError] — never a silent mono fallback that would scramble the mosaic.
+/// The calibrated/raw CFA mono plane is fed to the engine **unchanged**; the
+/// native stacker debayers post-calibration (Dart never debayers).
 ///  7. **Release** — `apiStackingStop` is **always** called in a `finally` so
 ///     the singleton is genuinely freed even if a step throws. `stop` (not
 ///     `reset`) is required: `reset` only clears the accumulated buffer but
@@ -180,6 +196,16 @@ class StackAndShareService {
         calibration = await _buildCalibrationContext();
       }
 
+      // Resolve the OSC / colour intent ONCE for the whole run, off the
+      // reference frame, before any engine work. The live stacker fixes the
+      // sensor mode + Bayer pattern at `start`; every follower inherits it, so
+      // resolving once here keeps the whole integration on a single consistent
+      // colour path (a mid-stack mode flip would mix mono and RGB buffers).
+      final stackingConfig = await _resolveStackingConfig(
+        config: config,
+        reference: reference,
+      );
+
       // (3)+(4) Feed the reference, then every follower, into the engine.
       var framesProcessed = 0;
       var framesRejected = 0;
@@ -187,7 +213,7 @@ class StackAndShareService {
       // Start the stack from the reference frame.
       await _startStack(
         frame: reference,
-        config: config,
+        stackingConfig: stackingConfig,
         calibration: calibration,
         emitCalibrating: (file) {
           emit(progress.copyWith(
@@ -247,13 +273,40 @@ class StackAndShareService {
       final stats = stacked.stats;
       final rawU16 = Uint16List.fromList(stacked.data);
 
+      // The engine reports the integrated channel layout directly: `1` for a
+      // mono integration, `3` for an OSC integration it debayered to
+      // interleaved RGB16. Anything else has no display/persist layout and is a
+      // genuine engine-contract violation rather than something to paper over.
+      final channels = stacked.channels;
+      if (channels != 1 && channels != 3) {
+        throw StateError(
+          'Stacking engine returned an integrated result with $channels '
+          'channels; only 1 (mono) or 3 (interleaved RGB16) are supported.',
+        );
+      }
+      final isColor = channels == 3;
+
+      // Guard the buffer length against the reported layout so a mismatch
+      // surfaces here instead of corrupting the stretch / persisted record.
+      final expectedSamples = stacked.width * stacked.height * channels;
+      if (rawU16.length != expectedSamples) {
+        throw StateError(
+          'Stacking engine returned ${rawU16.length} samples for a '
+          '${stacked.width}x${stacked.height} $channels-channel result '
+          '(expected $expectedSamples).',
+        );
+      }
+
       _lastRawResult = StackedRawResult(
         width: stacked.width,
         height: stacked.height,
+        channels: channels,
         data: rawU16,
       );
 
-      // (6) Optional auto-stretch to an RGBA display buffer.
+      // (6) Optional auto-stretch to an RGBA display buffer. The channel count
+      // is forwarded so a colour stack takes the per-channel (unlinked) STF
+      // route rather than being treated as a single luminance plane.
       if (config.autoStretch) {
         progress = progress
             .copyWith(phase: StackAndSharePhase.stretching)
@@ -264,6 +317,7 @@ class StackAndShareService {
           width: stacked.width,
           height: stacked.height,
           data: stacked.data,
+          channels: channels,
         );
         _lastRgbaResult = StackedRgbaResult(
           width: stacked.width,
@@ -287,7 +341,9 @@ class StackAndShareService {
         // rather than fabricated from the reference frame's quality score
         // (different metric); a later analysis pass may populate it.
         avgHfr: null,
-        filter: _singleFilter(selection),
+        filter: _singleFilter(selection, isColor: isColor),
+        isColor: isColor,
+        channels: channels,
         createdAt: DateTime.now(),
         stats: stats,
       );
@@ -351,16 +407,23 @@ class StackAndShareService {
 
   /// Start the stack from [frame], either via the in-memory calibrated data
   /// path (when [calibration] is provided) or the engine's native file loader.
+  ///
+  /// [stackingConfig] is the OSC-resolved engine config from
+  /// [_resolveStackingConfig] — it carries the concrete sensor mode + Bayer
+  /// pattern + demosaic quality the engine debayers with. For the calibrated
+  /// data path the calibrated CFA mono plane is fed **unchanged**: the native
+  /// stacker (component C3) debayers post-calibration, so debayering here would
+  /// double-process the mosaic.
   Future<void> _startStack({
     required StackedFrameSelection frame,
-    required StackAndShareConfig config,
+    required LiveStackingConfig stackingConfig,
     required _CalibrationContext? calibration,
     required void Function(String file) emitCalibrating,
   }) async {
     if (calibration == null) {
       await _engine.startFromFile(
         referenceImagePath: frame.filePath,
-        config: config.stackingConfig,
+        config: stackingConfig,
       );
       return;
     }
@@ -371,7 +434,7 @@ class StackAndShareService {
       width: calibrated.width,
       height: calibrated.height,
       data: calibrated.data,
-      config: config.stackingConfig,
+      config: stackingConfig,
     );
   }
 
@@ -536,10 +599,100 @@ class StackAndShareService {
     return _RawFrame(width: linear.width, height: linear.height, data: data);
   }
 
+  /// Resolve the OSC / colour intent for the run into a concrete engine config.
+  ///
+  /// The Stack-and-Share config carries a *sensor mode* (`auto` / `mono` /
+  /// `osc`) and optional Bayer/demosaic knobs; the live stacker needs a single
+  /// resolved [LiveStackingConfig] it can fix for the whole integration. This
+  /// folds the share-loop OSC knobs into the wrapped stacking config (via
+  /// [StackAndShareConfig.resolvedStackingConfig]) and then, for the OSC and
+  /// auto modes, pins the concrete Bayer pattern:
+  ///
+  ///  * an explicit [StackAndShareConfig.bayerPatternOverride] always wins;
+  ///  * otherwise the pattern is discovered from the connected camera's
+  ///    [CameraCapabilities] (the live path) or, failing that, from the
+  ///    reference frame's FITS `BAYERPAT` geometry exposed on
+  ///    [LinearFrameData.bayerPattern] (the file path).
+  ///
+  /// For `sensorMode == 'osc'` an unresolvable pattern is a hard [StateError]:
+  /// debayering with a guessed pattern would scramble the colour mosaic, so the
+  /// run refuses rather than silently producing a wrong-colour stack ("errors
+  /// are a feature"). For `auto`, leaving the pattern null is fine — the native
+  /// engine only debayers when the frame actually carries Bayer geometry and
+  /// otherwise treats the frame as mono. For `mono`, no resolution is needed.
+  Future<LiveStackingConfig> _resolveStackingConfig({
+    required StackAndShareConfig config,
+    required StackedFrameSelection reference,
+  }) async {
+    final resolved = config.resolvedStackingConfig;
+    final mode = config.sensorMode.trim().toLowerCase();
+
+    // Mono never debayers; an explicit override already pins the pattern.
+    if (mode == 'mono' || resolved.bayerPattern != null) {
+      return resolved;
+    }
+
+    // auto / osc with no explicit override: discover the pattern, preferring
+    // the live camera's declared CFA, then the reference frame's FITS geometry.
+    final pattern = await _discoverBayerPattern(reference);
+
+    if (pattern == null) {
+      if (mode == 'osc') {
+        throw StateError(
+          'Stack-and-Share is configured for OSC (colour) stacking but no '
+          'Bayer pattern could be resolved for reference frame '
+          '"${reference.filePath}": the connected camera reports no CFA '
+          'pattern and the frame carries no FITS BAYERPAT geometry. Set an '
+          'explicit Bayer pattern or use auto/mono mode.',
+        );
+      }
+      // auto with no pattern → treat as mono (engine will not debayer).
+      return resolved;
+    }
+
+    return resolved.copyWith(bayerPattern: pattern);
+  }
+
+  /// Discover the reference frame's Bayer pattern, preferring the connected
+  /// camera's [CameraCapabilities] (the live path) and falling back to the
+  /// reference frame's FITS `BAYERPAT` geometry (the file path). Returns null
+  /// when neither source declares a CFA pattern (i.e. a mono sensor / frame).
+  Future<String?> _discoverBayerPattern(StackedFrameSelection reference) async {
+    // Live path: the connected camera's capabilities. An OSC camera advertises
+    // `isColor` plus its `bayerPattern`; a mono camera advertises neither.
+    final cameraId = _ref.read(connectedCameraIdProvider);
+    if (cameraId != null && cameraId.isNotEmpty) {
+      final caps =
+          await _ref.read(cameraCapabilitiesProvider(cameraId).future);
+      final pattern = caps?.bayerPattern?.trim();
+      if (caps != null && caps.isColor && pattern != null && pattern.isNotEmpty) {
+        return pattern;
+      }
+    }
+
+    // File path: the reference frame's FITS BAYERPAT geometry (null for mono).
+    final linear = await _engine.readLinearFrame(reference.filePath);
+    final framePattern = linear.bayerPattern?.trim();
+    if (framePattern != null && framePattern.isNotEmpty) {
+      return framePattern;
+    }
+    return null;
+  }
+
   /// The single filter of the stack, or null when the selection spans multiple
-  /// filters (or none were recorded). A pure-luminance / mono stack reports its
-  /// one filter; an LRGB selection reports null so the result is not mislabelled.
-  String? _singleFilter(StackSelectionSummary selection) {
+  /// filters (or none were recorded).
+  ///
+  /// An OSC (colour) stack is labelled `'OSC'` — a one-shot-colour integration
+  /// has no single named filter (it captures R, G and B through the CFA at
+  /// once), so reporting the (often `noFilterBucket`) capture filter would be
+  /// misleading; `'OSC'` is the conventional AstroBin/acquisition label. A mono
+  /// stack reports its one filter; a multi-filter selection reports null so the
+  /// result is not mislabelled.
+  String? _singleFilter(
+    StackSelectionSummary selection, {
+    required bool isColor,
+  }) {
+    if (isColor) return 'OSC';
     final named = selection.perFilterCounts.keys
         .where((f) => f != StackLightSelector.noFilterBucket)
         .toList(growable: false);
@@ -555,13 +708,26 @@ class StackAndShareService {
 class StackedRawResult {
   final int width;
   final int height;
+
+  /// Channel layout of [data]: `1` for a single mono luminance plane
+  /// (`width * height` samples), `3` for an OSC integration stored as
+  /// interleaved RGB16 (`width * height * 3` samples). Defaults to `1` so
+  /// existing mono consumers are unaffected.
+  final int channels;
+
+  /// Integrated samples. For a mono result this is one luminance plane; for a
+  /// colour result it is interleaved RGB16 (R,G,B per pixel).
   final Uint16List data;
 
   const StackedRawResult({
     required this.width,
     required this.height,
+    this.channels = 1,
     required this.data,
   });
+
+  /// Whether this is a colour (3-channel interleaved RGB16) result.
+  bool get isColor => channels == 3;
 }
 
 /// Auto-stretched RGBA display buffer of a completed Stack-and-Share run.

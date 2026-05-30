@@ -160,6 +160,10 @@ void main() {
       expect(state.resultHeight, 2);
       expect(state.resultMono, equals(raw.data));
       expect(state.resultRgba, equals(rgba.rgba));
+      // A mono integration (StackedRawResult default channels == 1) must leave
+      // the state's channel layout at mono.
+      expect(state.resultChannels, 1);
+      expect(state.isColorResult, isFalse);
 
       // The observed transitions go through selecting and stacking before
       // completing (the leading idle is the pre-run baseline).
@@ -177,6 +181,62 @@ void main() {
             phases.lastIndexOf(StackAndSharePhase.complete),
         isTrue,
       );
+    });
+
+    test('color run carries channels==3 (interleaved RGB16) into state',
+        () async {
+      // A 2x2 OSC integration: interleaved RGB16 has width*height*3 samples.
+      const width = 2;
+      const height = 2;
+      final raw = StackedRawResult(
+        width: width,
+        height: height,
+        channels: 3,
+        data: Uint16List.fromList(
+          List<int>.generate(width * height * 3, (i) => i * 1000),
+        ),
+      );
+      final rgba = StackedRgbaResult(
+        width: width,
+        height: height,
+        rgba: Uint8List.fromList(
+          List<int>.generate(width * height * 4, (i) => i),
+        ),
+      );
+      final fake = _FakeStackAndShareService(
+        progressScript: const [
+          StackAndShareProgress(phase: StackAndSharePhase.stacking),
+        ],
+        result: _result(),
+        raw: raw,
+        rgba: rgba,
+      );
+
+      final container = ProviderContainer(overrides: [
+        stackAndShareServiceProvider.overrideWithValue(fake),
+      ]);
+      addTearDown(container.dispose);
+      final sub = container.listen(stackAndShareProvider, (_, __) {});
+      addTearDown(sub.close);
+
+      await container.read(stackAndShareProvider.notifier).runForSession(7);
+
+      final state = container.read(stackAndShareProvider);
+      expect(state.isComplete, isTrue);
+      expect(state.resultChannels, 3);
+      expect(state.isColorResult, isTrue);
+      expect(state.resultWidth, width);
+      expect(state.resultHeight, height);
+      // The interleaved RGB16 buffer is carried through verbatim (no flatten to
+      // a mono plane), so its length is width*height*3.
+      expect(state.resultMono, equals(raw.data));
+      expect(state.resultMono, hasLength(width * height * 3));
+
+      // reset() must drop the colour layout back to the mono default.
+      container.read(stackAndShareProvider.notifier).reset();
+      final afterReset = container.read(stackAndShareProvider);
+      expect(afterReset.resultChannels, 1);
+      expect(afterReset.isColorResult, isFalse);
     });
 
     test('error path sets errorMessage and terminal error phase', () async {

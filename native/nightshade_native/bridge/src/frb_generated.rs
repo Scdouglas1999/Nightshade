@@ -40,7 +40,7 @@ flutter_rust_bridge::frb_generated_boilerplate!(
     default_rust_auto_opaque = RustAutoOpaqueNom,
 );
 pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_VERSION: &str = "2.11.1";
-pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = -565498043;
+pub(crate) const FLUTTER_RUST_BRIDGE_CODEGEN_CONTENT_HASH: i32 = 733872514;
 
 // Section: executor
 
@@ -73,6 +73,30 @@ fn wire__crate__api__imaging__api_apply_stretch_impl(
                     .await,
                 )
             }
+        },
+    )
+}
+fn wire__crate__api__imaging__api_auto_stretch_color_image_impl(
+    width: impl CstDecode<u32>,
+    height: impl CstDecode<u32>,
+    data: impl CstDecode<Vec<u16>>,
+) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+    FLUTTER_RUST_BRIDGE_HANDLER.wrap_sync::<flutter_rust_bridge::for_generated::DcoCodec, _>(
+        flutter_rust_bridge::for_generated::TaskInfo {
+            debug_name: "api_auto_stretch_color_image",
+            port: None,
+            mode: flutter_rust_bridge::for_generated::FfiCallMode::Sync,
+        },
+        move || {
+            let api_width = width.cst_decode();
+            let api_height = height.cst_decode();
+            let api_data = data.cst_decode();
+            transform_result_dco::<_, _, crate::error::NightshadeError>((move || {
+                let output_ok = crate::api::imaging::api_auto_stretch_color_image(
+                    api_width, api_height, api_data,
+                )?;
+                Ok(output_ok)
+            })())
         },
     )
 }
@@ -10535,6 +10559,9 @@ impl SseDecode for crate::api::imaging::ApiLiveStackingConfig {
         let mut var_matchRadiusPx = <f64>::sse_decode(deserializer);
         let mut var_matchFluxTolerance = <f64>::sse_decode(deserializer);
         let mut var_minMatchedPairs = <u32>::sse_decode(deserializer);
+        let mut var_sensorMode = <String>::sse_decode(deserializer);
+        let mut var_bayerPattern = <Option<String>>::sse_decode(deserializer);
+        let mut var_demosaicQuality = <String>::sse_decode(deserializer);
         return crate::api::imaging::ApiLiveStackingConfig {
             sigma_clip_enabled: var_sigmaClipEnabled,
             sigma_clip_threshold: var_sigmaClipThreshold,
@@ -10542,6 +10569,9 @@ impl SseDecode for crate::api::imaging::ApiLiveStackingConfig {
             match_radius_px: var_matchRadiusPx,
             match_flux_tolerance: var_matchFluxTolerance,
             min_matched_pairs: var_minMatchedPairs,
+            sensor_mode: var_sensorMode,
+            bayer_pattern: var_bayerPattern,
+            demosaic_quality: var_demosaicQuality,
         };
     }
 }
@@ -10551,11 +10581,13 @@ impl SseDecode for crate::api::imaging::ApiLiveStackingResult {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_width = <u32>::sse_decode(deserializer);
         let mut var_height = <u32>::sse_decode(deserializer);
+        let mut var_channels = <u32>::sse_decode(deserializer);
         let mut var_data = <Vec<u16>>::sse_decode(deserializer);
         let mut var_stats = <crate::api::imaging::ApiLiveStackingStats>::sse_decode(deserializer);
         return crate::api::imaging::ApiLiveStackingResult {
             width: var_width,
             height: var_height,
+            channels: var_channels,
             data: var_data,
             stats: var_stats,
         };
@@ -15332,6 +15364,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::ApiLiveStackingConfi
             self.match_radius_px.into_into_dart().into_dart(),
             self.match_flux_tolerance.into_into_dart().into_dart(),
             self.min_matched_pairs.into_into_dart().into_dart(),
+            self.sensor_mode.into_into_dart().into_dart(),
+            self.bayer_pattern.into_into_dart().into_dart(),
+            self.demosaic_quality.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -15353,6 +15388,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::imaging::ApiLiveStackingResul
         [
             self.width.into_into_dart().into_dart(),
             self.height.into_into_dart().into_dart(),
+            self.channels.into_into_dart().into_dart(),
             self.data.into_into_dart().into_dart(),
             self.stats.into_into_dart().into_dart(),
         ]
@@ -19526,6 +19562,9 @@ impl SseEncode for crate::api::imaging::ApiLiveStackingConfig {
         <f64>::sse_encode(self.match_radius_px, serializer);
         <f64>::sse_encode(self.match_flux_tolerance, serializer);
         <u32>::sse_encode(self.min_matched_pairs, serializer);
+        <String>::sse_encode(self.sensor_mode, serializer);
+        <Option<String>>::sse_encode(self.bayer_pattern, serializer);
+        <String>::sse_encode(self.demosaic_quality, serializer);
     }
 }
 
@@ -19534,6 +19573,7 @@ impl SseEncode for crate::api::imaging::ApiLiveStackingResult {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <u32>::sse_encode(self.width, serializer);
         <u32>::sse_encode(self.height, serializer);
+        <u32>::sse_encode(self.channels, serializer);
         <Vec<u16>>::sse_encode(self.data, serializer);
         <crate::api::imaging::ApiLiveStackingStats>::sse_encode(self.stats, serializer);
     }
@@ -23330,6 +23370,9 @@ mod io {
                 match_radius_px: self.match_radius_px.cst_decode(),
                 match_flux_tolerance: self.match_flux_tolerance.cst_decode(),
                 min_matched_pairs: self.min_matched_pairs.cst_decode(),
+                sensor_mode: self.sensor_mode.cst_decode(),
+                bayer_pattern: self.bayer_pattern.cst_decode(),
+                demosaic_quality: self.demosaic_quality.cst_decode(),
             }
         }
     }
@@ -23339,6 +23382,7 @@ mod io {
             crate::api::imaging::ApiLiveStackingResult {
                 width: self.width.cst_decode(),
                 height: self.height.cst_decode(),
+                channels: self.channels.cst_decode(),
                 data: self.data.cst_decode(),
                 stats: self.stats.cst_decode(),
             }
@@ -26588,6 +26632,9 @@ mod io {
                 match_radius_px: Default::default(),
                 match_flux_tolerance: Default::default(),
                 min_matched_pairs: Default::default(),
+                sensor_mode: core::ptr::null_mut(),
+                bayer_pattern: core::ptr::null_mut(),
+                demosaic_quality: core::ptr::null_mut(),
             }
         }
     }
@@ -26601,6 +26648,7 @@ mod io {
             Self {
                 width: Default::default(),
                 height: Default::default(),
+                channels: Default::default(),
                 data: core::ptr::null_mut(),
                 stats: Default::default(),
             }
@@ -28590,6 +28638,15 @@ mod io {
         params: *mut wire_cst_stretch_params_api,
     ) {
         wire__crate__api__imaging__api_apply_stretch_impl(port_, file_path, params)
+    }
+
+    #[unsafe(no_mangle)]
+    pub extern "C" fn frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_color_image(
+        width: u32,
+        height: u32,
+        data: *mut wire_cst_list_prim_u_16_loose,
+    ) -> flutter_rust_bridge::for_generated::WireSyncRust2DartDco {
+        wire__crate__api__imaging__api_auto_stretch_color_image_impl(width, height, data)
     }
 
     #[unsafe(no_mangle)]
@@ -33273,12 +33330,16 @@ mod io {
         match_radius_px: f64,
         match_flux_tolerance: f64,
         min_matched_pairs: u32,
+        sensor_mode: *mut wire_cst_list_prim_u_8_strict,
+        bayer_pattern: *mut wire_cst_list_prim_u_8_strict,
+        demosaic_quality: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
     pub struct wire_cst_api_live_stacking_result {
         width: u32,
         height: u32,
+        channels: u32,
         data: *mut wire_cst_list_prim_u_16_strict,
         stats: wire_cst_api_live_stacking_stats,
     }

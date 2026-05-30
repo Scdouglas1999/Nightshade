@@ -30,7 +30,8 @@ class StackedResultsDao {
   static const String _columns =
       'id, session_id, target_id, target_name, width, height, '
       'frames_stacked, frames_attempted, integration_secs, '
-      'avg_alignment_residual, avg_hfr, filter, exported_image_path, created_at';
+      'avg_alignment_residual, avg_hfr, filter, is_color, channels, '
+      'exported_image_path, created_at';
 
   /// Persists a completed [StackAndShareResult] and returns its new row id.
   ///
@@ -43,8 +44,9 @@ class StackedResultsDao {
       'INSERT INTO stacked_results('
       'session_id, target_id, target_name, width, height, '
       'frames_stacked, frames_attempted, integration_secs, '
-      'avg_alignment_residual, avg_hfr, filter, exported_image_path, created_at'
-      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+      'avg_alignment_residual, avg_hfr, filter, is_color, channels, '
+      'exported_image_path, created_at'
+      ') VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
       variables: [
         Variable<int>(result.sessionId),
         Variable<int>(result.targetId),
@@ -57,6 +59,8 @@ class StackedResultsDao {
         Variable<double>(result.avgAlignmentResidual),
         Variable<double>(result.avgHfr),
         Variable<String>(result.filter),
+        Variable<int>(result.isColor ? 1 : 0),
+        Variable<int>(result.channels),
         Variable<String>(result.exportedImagePath),
         Variable<int>(_toEpochSeconds(result.createdAt)),
       ],
@@ -153,6 +157,8 @@ class StackedResultsDao {
       avgAlignmentResidual: avgAlignmentResidual,
       avgHfr: row.readNullable<double>('avg_hfr'),
       filter: row.readNullable<String>('filter'),
+      isColor: row.read<int>('is_color') != 0,
+      channels: row.read<int>('channels'),
       createdAt: _fromEpochSeconds(row.read<int>('created_at')),
       exportedImagePath: row.readNullable<String>('exported_image_path'),
       stats: LiveStackingStats(

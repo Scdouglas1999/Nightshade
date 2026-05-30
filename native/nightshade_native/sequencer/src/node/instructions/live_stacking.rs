@@ -37,6 +37,17 @@ use async_trait::async_trait;
 
 pub struct LiveStackingInstruction;
 
+// NOTE (OSC scope): this arm-only instruction intentionally carries no
+// OSC / colour descriptor. The unattended broadcast path does not yet debayer —
+// the Dart executor's `FrameAccepted` handler does not feed accepted frames
+// into `LiveStackingBroadcastService.publishFrame`, so the broadcast renders
+// mono regardless. The manual OSC / colour-stacking feature lives entirely in
+// the bridge stacker (`stacking_api.rs`) and its Stack-and-Share / live-panel
+// Dart surfaces. An earlier `color_descriptor` helper here logged CFA fields
+// while claiming a Dart consumer read them back from the session; that consumer
+// does not exist, so both the helper and the inert config fields were removed
+// rather than advertise wiring that is not there.
+
 #[async_trait]
 impl InstructionNode for LiveStackingInstruction {
     fn type_name(&self) -> &'static str {
@@ -96,7 +107,7 @@ impl InstructionNode for LiveStackingInstruction {
         let message = format!(
             "Broadcast armed on port {} ({})",
             config.broadcast_port,
-            config.mode.as_str()
+            config.mode.as_str(),
         );
         context.send_progress(ProgressUpdate::lifecycle(
             node_id.to_string(),
@@ -181,4 +192,5 @@ mod tests {
             .await;
         assert_eq!(status, NodeStatus::Failure);
     }
+
 }

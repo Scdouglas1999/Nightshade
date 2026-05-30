@@ -597,6 +597,16 @@ pub struct ImageReadResult {
     pub image: ImageData,
     pub format: ImageFormat,
     pub header: std::collections::HashMap<String, String>,
+    /// Parsed Bayer/CFA geometry for the frame, when the source format records it.
+    ///
+    /// Why: the `header` HashMap flattens every keyword through `format!("{:?}")`,
+    /// which quotes string values (e.g. `BAYERPAT` becomes `"\"RGGB\""`) and loses
+    /// the offset composition — making it unreliable as the OSC-detection signal.
+    /// This field carries the geometry parsed by [`read_bayer_geometry`] directly
+    /// from the typed FITS header, with `XBAYROFF`/`YBAYROFF` already composed into
+    /// `effective`. `None` means the frame is mono / not a CFA frame, or the format
+    /// (XISF, RAW) does not surface a Bayer pattern through this reader path.
+    pub bayer: Option<BayerGeometry>,
 }
 
 // ============================================================================
@@ -890,6 +900,12 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
         ImageFormat::Fits => {
             let (image, fits_header) = read_fits(path).map_err(|e| e.to_string())?;
 
+            // Why: read the typed Bayer geometry BEFORE `fits_header.keywords` is
+            // consumed into the flattened HashMap below. The HashMap stringifies
+            // values via `format!("{:?}")` (quoting BAYERPAT), so the only reliable
+            // parse must happen against the typed header while it is still intact.
+            let bayer = read_bayer_geometry(&fits_header);
+
             let header: std::collections::HashMap<String, String> = fits_header
                 .keywords
                 .into_iter()
@@ -900,6 +916,7 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
                 image,
                 format,
                 header,
+                bayer,
             })
         }
         ImageFormat::Xisf => {
@@ -914,6 +931,12 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
                 image,
                 format,
                 header,
+                // Why: the XISF reader exposes CFA metadata only as flattened FITS
+                // keywords/properties (already in `header`); there is no typed
+                // geometry parse on this path, so we report `None` rather than
+                // guess from the stringified values. OSC detection for XISF is
+                // handled separately at the metadata layer.
+                bayer: None,
             })
         }
         // Handle all RAW formats
@@ -957,6 +980,10 @@ pub fn read_image(path: &std::path::Path) -> Result<ImageReadResult, String> {
                 image,
                 format,
                 header,
+                // Why: LibRaw decodes RAW frames into the demosaiced RGB image
+                // already (the returned `image` is not a CFA mosaic), so there is
+                // no Bayer geometry to apply downstream — `None` is correct here.
+                bayer: None,
             })
         }
         _ => Err(format!(
@@ -1069,6 +1096,88 @@ mod tests {
         assert_eq!(
             image.to_rgba().unwrap_err(),
             ImageDisplayError::UnsupportedChannelLayout { channels: 0 }
+        );
+    }
+
+    /// RAII guard so the temp FITS fixture is removed even if an assertion panics.
+    struct TempFitsFixture {
+        path: std::path::PathBuf,
+    }
+
+    impl Drop for TempFitsFixture {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_file(&self.path);
+        }
+    }
+
+    /// Write a 2x2 mono u16 FITS frame to a unique temp path, optionally tagging
+    /// it with a `BAYERPAT`/offset CFA header. Returns an RAII fixture whose
+    /// `path` feeds `read_image`.
+    fn write_temp_fits(suffix: &str, bayerpat: Option<(&str, i64, i64)>) -> TempFitsFixture {
+        let image = ImageData::from_u16(2, 2, 1, &[0, 16384, 32768, 65535]);
+        let mut header = fits::FitsHeader::new();
+        if let Some((pat, x_off, y_off)) = bayerpat {
+            header.set_string("BAYERPAT", pat);
+            header.set_int("XBAYROFF", x_off);
+            header.set_int("YBAYROFF", y_off);
+        }
+        let path = std::env::temp_dir().join(format!(
+            "nightshade_read_image_bayer_{}_{}.fits",
+            std::process::id(),
+            suffix
+        ));
+        write_fits(&path, &image, &header).expect("write_fits should succeed");
+        TempFitsFixture { path }
+    }
+
+    #[test]
+    fn read_image_exposes_bayer_geometry_for_cfa_fits() {
+        // A FITS frame tagged BAYERPAT='RGGB' (no offsets) must surface a
+        // populated, typed geometry on the read result — not a quoted/unreliable
+        // string buried in the flattened `header` HashMap.
+        let fixture = write_temp_fits("rggb", Some(("RGGB", 0, 0)));
+
+        let result = read_image(&fixture.path).expect("read_image should succeed for CFA FITS");
+
+        assert_eq!(result.format, ImageFormat::Fits);
+        let geo = result
+            .bayer
+            .expect("CFA FITS with BAYERPAT must yield a parsed BayerGeometry");
+        assert_eq!(geo.effective, BayerPattern::RGGB);
+        assert_eq!(geo.source, BayerPattern::RGGB);
+        assert_eq!(geo.x_offset, 0);
+        assert_eq!(geo.y_offset, 0);
+    }
+
+    #[test]
+    fn read_image_composes_bayer_offsets_for_cfa_fits() {
+        // Odd X offset shifts RGGB to GRBG at the in-memory origin; the read
+        // result's `effective` must reflect the composition, while `source`
+        // preserves the on-disk BAYERPAT (audit §6.6 regression guard).
+        let fixture = write_temp_fits("rggb_xoff", Some(("RGGB", 1, 0)));
+
+        let result = read_image(&fixture.path).expect("read_image should succeed");
+        let geo = result.bayer.expect("CFA FITS must yield geometry");
+
+        assert_eq!(geo.source, BayerPattern::RGGB);
+        assert_eq!(geo.effective, BayerPattern::GRBG);
+        assert_eq!(geo.x_offset, 1);
+        assert_eq!(geo.y_offset, 0);
+    }
+
+    #[test]
+    fn read_image_yields_none_bayer_for_mono_fits() {
+        // A mono FITS frame (no BAYERPAT) must report `bayer == None` so the OSC
+        // path is never falsely triggered for a monochrome capture.
+        let fixture = write_temp_fits("mono", None);
+
+        let result = read_image(&fixture.path).expect("read_image should succeed for mono FITS");
+
+        assert_eq!(result.format, ImageFormat::Fits);
+        assert!(
+            result.bayer.is_none(),
+            "mono FITS (no BAYERPAT) must yield bayer == None, got {:?}",
+            result.bayer
         );
     }
 }

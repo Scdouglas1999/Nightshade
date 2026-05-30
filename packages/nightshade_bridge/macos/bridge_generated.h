@@ -243,6 +243,9 @@ typedef struct wire_cst_api_live_stacking_config {
   double match_radius_px;
   double match_flux_tolerance;
   uint32_t min_matched_pairs;
+  struct wire_cst_list_prim_u_8_strict *sensor_mode;
+  struct wire_cst_list_prim_u_8_strict *bayer_pattern;
+  struct wire_cst_list_prim_u_8_strict *demosaic_quality;
 } wire_cst_api_live_stacking_config;
 
 typedef struct wire_cst_fits_keyword_update {
@@ -1419,6 +1422,7 @@ typedef struct wire_cst_api_live_stacking_stats {
 typedef struct wire_cst_api_live_stacking_result {
   uint32_t width;
   uint32_t height;
+  uint32_t channels;
   struct wire_cst_list_prim_u_16_strict *data;
   struct wire_cst_api_live_stacking_stats stats;
 } wire_cst_api_live_stacking_result;
@@ -2157,6 +2161,10 @@ typedef struct wire_cst_xisf_read_result {
 void frbgen_nightshade_bridge_wire__crate__api__imaging__api_apply_stretch(int64_t port_,
                                                                            struct wire_cst_list_prim_u_8_strict *file_path,
                                                                            struct wire_cst_stretch_params_api *params);
+
+WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_color_image(uint32_t width,
+                                                                                                      uint32_t height,
+                                                                                                      struct wire_cst_list_prim_u_16_loose *data);
 
 WireSyncRust2DartDco frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_image(uint32_t width,
                                                                                                 uint32_t height,
@@ -3995,6 +4003,7 @@ static int64_t dummy_method_to_enforce_bundling(void) {
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__heartbeat__api_stop_device_heartbeat);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__hotplug__api_rescan_devices);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_apply_stretch);
+    dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_color_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_image);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_calculate_auto_stretch);
     dummy_var ^= ((int64_t) (void*) frbgen_nightshade_bridge_wire__crate__api__imaging__api_calculate_hfr);

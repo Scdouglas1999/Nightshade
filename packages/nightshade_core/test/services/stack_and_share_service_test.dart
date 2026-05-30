@@ -34,7 +34,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_core/src/database/database.dart';
 import 'package:nightshade_core/src/database/daos/sessions_dao.dart';
 import 'package:nightshade_core/src/database/daos/stacked_results_dao.dart';
+import 'package:nightshade_core/src/models/backend/device_capabilities.dart';
 import 'package:nightshade_core/src/models/imaging/stack_and_share_models.dart';
+import 'package:nightshade_core/src/providers/auto_stretch_provider.dart';
+import 'package:nightshade_core/src/providers/capability_provider.dart';
 import 'package:nightshade_core/src/providers/database_provider.dart';
 import 'package:nightshade_core/src/services/live_stacking_service.dart';
 import 'package:nightshade_core/src/services/stack_and_share_service.dart';
@@ -45,14 +48,22 @@ import 'package:nightshade_core/src/services/stacking_engine_seam.dart';
 /// order, so tests can assert the path taken (file vs data) and that stop was
 /// invoked.
 class _FakeStackingEngine implements StackingEngineSeam {
-  _FakeStackingEngine({this.active = false});
+  _FakeStackingEngine({this.active = false, this.framePattern});
 
   /// What [isActive] returns (the busy guard reads this).
   bool active;
 
+  /// Bayer pattern reported by [readLinearFrame] for the reference frame (the
+  /// file-path OSC signal). `null` keeps the frame mono (no CFA geometry).
+  final String? framePattern;
+
   /// Ordered log of seam interactions: `startFile:PATH`, `startData:WxH`,
   /// `read:PATH`, `stretch`, `stop`.
   final List<String> calls = <String>[];
+
+  /// The engine config captured from the most recent start call, so tests can
+  /// assert the resolved OSC sensor mode + Bayer pattern reached the engine.
+  LiveStackingConfig? lastStartConfig;
 
   int stopCount = 0;
 
@@ -65,6 +76,7 @@ class _FakeStackingEngine implements StackingEngineSeam {
     required LiveStackingConfig config,
   }) async {
     calls.add('startFile:$referenceImagePath');
+    lastStartConfig = config;
     return const LiveStackingStats(stackedFrameCount: 1);
   }
 
@@ -76,17 +88,137 @@ class _FakeStackingEngine implements StackingEngineSeam {
     required LiveStackingConfig config,
   }) async {
     calls.add('startData:${width}x$height');
+    lastStartConfig = config;
     return const LiveStackingStats(stackedFrameCount: 1);
   }
 
   @override
   Future<LinearFrameData> readLinearFrame(String filePath) async {
     calls.add('read:$filePath');
-    // A tiny 2x2 frame of mid-range linear samples.
-    return const LinearFrameData(
+    // A tiny 2x2 frame of mid-range linear samples; [framePattern] decides
+    // whether it advertises CFA geometry (the file-path OSC signal).
+    return LinearFrameData(
       width: 2,
       height: 2,
-      linearData: [100.0, 200.0, 300.0, 400.0],
+      linearData: const [100.0, 200.0, 300.0, 400.0],
+      bayerPattern: framePattern,
+    );
+  }
+
+  /// Channel count passed to the most recent [autoStretch] call (`1` for a
+  /// mono stretch, `3` for an OSC/colour stretch), or `null` if never called.
+  int? lastStretchChannels;
+
+  @override
+  Uint8List autoStretch({
+    required int width,
+    required int height,
+    required List<int> data,
+    int channels = 1,
+  }) {
+    calls.add('stretch');
+    lastStretchChannels = channels;
+    return Uint8List(width * height * 4);
+  }
+
+  @override
+  Future<void> stop() async {
+    stopCount++;
+    calls.add('stop');
+  }
+}
+
+/// A [StackingEngineSeam] that faithfully mirrors the native bridge's
+/// sensor-mode contract (`parse_sensor_mode` + the OSC-without-pattern hard
+/// error in `stacking_api.rs`), so a test can prove the *resolved*
+/// [LiveStackingConfig] the orchestrator hands to a start call is one the real
+/// native path actually accepts.
+///
+/// The plain [_FakeStackingEngine] ignores `sensorMode` entirely, which would
+/// mask a Dart/native mismatch (e.g. the default `auto` mono run). This fake
+/// replicates the three native states:
+///
+///   * `mono` — never debayers; always starts.
+///   * `osc`  — requires a resolvable Bayer pattern; without one, the start
+///     throws exactly as the native `stacking_start*` functions return
+///     `Err("OSC declared but no Bayer pattern resolvable…")`.
+///   * `auto` — debayers only when a pattern resolves; a missing pattern is
+///     mono, never an error.
+///
+/// [filePattern] is the Bayer geometry the native FITS reader would expose for
+/// the reference frame (the file-path detection source); `null` = mono frame.
+class _NativeContractStackingEngine implements StackingEngineSeam {
+  _NativeContractStackingEngine({this.filePattern});
+
+  /// Bayer pattern the (file-path) native reader would report, or null for a
+  /// mono frame / raw in-memory buffer (which carries no BAYERPAT).
+  final String? filePattern;
+
+  LiveStackingConfig? lastStartConfig;
+  bool startedColor = false;
+  int stopCount = 0;
+
+  @override
+  bool isActive() => false;
+
+  @override
+  Future<LiveStackingStats> startFromFile({
+    required String referenceImagePath,
+    required LiveStackingConfig config,
+  }) async {
+    // The file path can resolve a pattern from the frame's BAYERPAT geometry.
+    _enforceContract(config, framePattern: filePattern);
+    return const LiveStackingStats(stackedFrameCount: 1);
+  }
+
+  @override
+  Future<LiveStackingStats> startFromData({
+    required int width,
+    required int height,
+    required List<int> data,
+    required LiveStackingConfig config,
+  }) async {
+    // In-memory frames carry no BAYERPAT: only the config override can resolve
+    // a pattern (mirrors `stacking_start_from_data`).
+    _enforceContract(config, framePattern: null);
+    return const LiveStackingStats(stackedFrameCount: 1);
+  }
+
+  void _enforceContract(
+    LiveStackingConfig config, {
+    required String? framePattern,
+  }) {
+    lastStartConfig = config;
+    final mode = config.sensorMode.trim().toLowerCase();
+    final resolved = config.bayerPattern ?? framePattern;
+    switch (mode) {
+      case 'mono':
+        startedColor = false;
+        return;
+      case 'osc':
+        if (resolved == null) {
+          // Exactly the native error surface for OSC without a pattern.
+          throw StateError(
+            'OSC declared but no Bayer pattern resolvable',
+          );
+        }
+        startedColor = true;
+        return;
+      case 'auto':
+        startedColor = resolved != null;
+        return;
+      default:
+        throw StateError("Unknown sensor mode '$mode'");
+    }
+  }
+
+  @override
+  Future<LinearFrameData> readLinearFrame(String filePath) async {
+    return LinearFrameData(
+      width: 2,
+      height: 2,
+      linearData: const [100.0, 200.0, 300.0, 400.0],
+      bayerPattern: filePattern,
     );
   }
 
@@ -95,15 +227,13 @@ class _FakeStackingEngine implements StackingEngineSeam {
     required int width,
     required int height,
     required List<int> data,
-  }) {
-    calls.add('stretch');
-    return Uint8List(width * height * 4);
-  }
+    int channels = 1,
+  }) =>
+      Uint8List(width * height * 4);
 
   @override
   Future<void> stop() async {
     stopCount++;
-    calls.add('stop');
   }
 }
 
@@ -212,10 +342,21 @@ StackSelectionSummary _selection({
   );
 }
 
-LiveStackingResult _integrated({int stackedFrameCount = 3}) => LiveStackingResult(
+/// Build an integrated result of the requested channel layout. A mono result
+/// is one 2x2 luminance plane (4 samples); a colour result is interleaved
+/// RGB16 (2x2x3 = 12 samples). The buffer length must match the channel count
+/// or the orchestrator's layout guard rejects it.
+LiveStackingResult _integrated({
+  int stackedFrameCount = 3,
+  int channels = 1,
+}) =>
+    LiveStackingResult(
       width: 2,
       height: 2,
-      data: const [10, 20, 30, 40],
+      channels: channels,
+      data: channels == 3
+          ? const [10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120]
+          : const [10, 20, 30, 40],
       stats: LiveStackingStats(
         stackedFrameCount: stackedFrameCount,
         avgAlignmentResidual: 0.37,
@@ -311,10 +452,13 @@ void main() {
         onProgress: progress.add,
       );
 
-      // (b) The reference (frame 1) starts the stack via the FILE path, then
-      // the two followers (frames 2, 3) are added via the file path in order,
-      // then the engine is stopped.
+      // (b) The default config uses sensorMode 'auto', so the reference is
+      // first read once for OSC discovery (it declares no Bayer pattern here, so
+      // the run stays mono), then the reference (frame 1) starts the stack via
+      // the FILE path, the two followers (frames 2, 3) are added via the file
+      // path in order, the result is stretched, and the engine is stopped.
       expect(engine.calls, [
+        'read:/lights/1.fits',
         'startFile:/lights/1.fits',
         'stretch',
         'stop',
@@ -534,6 +678,340 @@ void main() {
       expect(live.addCalls, contains('addData:2x2'));
       expect(live.addCalls.any((c) => c.startsWith('addFile')), isFalse);
       expect(engine.stopCount, 1);
+    });
+  });
+
+  group('OSC / colour orchestration (C12)', () {
+    test('mono regression: a mono result persists channels==1, isColor==false, '
+        'and the single filter, with a grayscale stretch', () async {
+      // The default fake engine reports no frame Bayer pattern and the fake
+      // live result defaults to channels==1, so the historic mono path must be
+      // byte-for-byte unchanged: filter 'L', mono raw result, grayscale stretch.
+      final engine = _FakeStackingEngine();
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2), // channels: 1
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: true,
+          sensorMode: 'mono',
+        ),
+      );
+
+      expect(result.channels, 1);
+      expect(result.isColor, isFalse);
+      expect(result.filter, 'L');
+      expect(service.lastRawResult!.channels, 1);
+      expect(service.lastRawResult!.isColor, isFalse);
+      expect(service.lastRawResult!.data,
+          Uint16List.fromList([10, 20, 30, 40]));
+      // Grayscale stretch route (channels == 1).
+      expect(engine.lastStretchChannels, 1);
+      // A mono run never reads the reference for a Bayer pattern (no discovery).
+      expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
+    });
+
+    test('OSC via FITS BAYERPAT: a 3-channel result persists channels==3, '
+        'isColor==true, filter OSC, and takes the per-channel stretch',
+        () async {
+      // auto mode + the reference frame declares a Bayer pattern → the resolved
+      // engine config pins it, and the engine returns a 3-channel integration.
+      final engine = _FakeStackingEngine(framePattern: 'RGGB');
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: true,
+          sensorMode: 'auto',
+        ),
+      );
+
+      // (c) colour result assembly.
+      expect(result.channels, 3);
+      expect(result.isColor, isTrue);
+      // (e) OSC stacks are labelled 'OSC', not the capture filter.
+      expect(result.filter, 'OSC');
+      expect(service.lastRawResult!.channels, 3);
+      expect(service.lastRawResult!.isColor, isTrue);
+      expect(service.lastRawResult!.data.length, 2 * 2 * 3);
+      // (d) per-channel (unlinked) stretch route.
+      expect(engine.lastStretchChannels, 3);
+
+      // (a) the resolved Bayer pattern from the FITS geometry reached the
+      // engine config at start.
+      expect(engine.lastStartConfig, isNotNull);
+      expect(engine.lastStartConfig!.sensorMode, 'auto');
+      expect(engine.lastStartConfig!.bayerPattern, 'RGGB');
+
+      // The persisted row carries the colour provenance.
+      final stored =
+          await c.read(stackedResultsDaoProvider).getResultById(result.id!);
+      expect(stored!.channels, 3);
+      expect(stored.isColor, isTrue);
+    });
+
+    test('OSC via live camera capabilities: the connected colour camera\'s '
+        'declared Bayer pattern wins over the frame geometry', () async {
+      // The live camera advertises an OSC sensor (isColor + BGGR). Even though
+      // the reference frame here declares RGGB, the camera caps take precedence
+      // (the live path is preferred), and an explicit override is absent.
+      final engine = _FakeStackingEngine(framePattern: 'RGGB');
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      const cameraId = 'native:zwo:0';
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+        extra: [
+          connectedCameraIdProvider.overrideWithValue(cameraId),
+          cameraCapabilitiesProvider(cameraId).overrideWith(
+            (ref) async => const CameraCapabilities(
+              maxWidth: 100,
+              maxHeight: 100,
+              bitDepth: 16,
+              isColor: true,
+              bayerPattern: 'BGGR',
+            ),
+          ),
+        ],
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+          sensorMode: 'auto',
+        ),
+      );
+
+      expect(result.isColor, isTrue);
+      expect(result.filter, 'OSC');
+      // The camera's BGGR (live path) won over the frame's RGGB; the engine was
+      // never asked to read the frame for a pattern.
+      expect(engine.lastStartConfig!.bayerPattern, 'BGGR');
+      expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
+    });
+
+    test('explicit Bayer override wins over both camera caps and frame geometry',
+        () async {
+      final engine = _FakeStackingEngine(framePattern: 'RGGB');
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+          sensorMode: 'osc',
+          bayerPatternOverride: 'GRBG',
+        ),
+      );
+
+      // The override pinned GRBG and short-circuited discovery (no frame read).
+      expect(engine.lastStartConfig!.bayerPattern, 'GRBG');
+      expect(engine.calls.any((c) => c.startsWith('read:')), isFalse);
+    });
+
+    test('osc mode without any resolvable pattern throws a clear StateError '
+        'and still releases the engine', () async {
+      // sensorMode == osc, no override, no camera caps, and the frame declares
+      // no Bayer geometry → debayering would scramble the mosaic, so the run
+      // must refuse loudly rather than silently fall back to mono.
+      final engine = _FakeStackingEngine(); // framePattern: null
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      await expectLater(
+        service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: false,
+            autoStretch: false,
+            sensorMode: 'osc',
+          ),
+        ),
+        throwsA(isA<StateError>()),
+      );
+      // The resolution failure happens before the stack starts, but the
+      // always-release finally must still leave the singleton free.
+      expect(engine.stopCount, 1);
+      expect(engine.calls.last, 'stop');
+    });
+
+    test('auto mode without any resolvable pattern falls back to mono (no throw)',
+        () async {
+      // auto + no pattern anywhere → treat as mono: the engine simply will not
+      // debayer. The result here reports channels==1, so it persists as mono.
+      final engine = _FakeStackingEngine(); // framePattern: null
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2), // channels: 1
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+          sensorMode: 'auto',
+        ),
+      );
+
+      expect(result.isColor, isFalse);
+      expect(result.channels, 1);
+      // No explicit pattern was pinned (left null → engine decides per-frame).
+      expect(engine.lastStartConfig!.bayerPattern, isNull);
+      expect(engine.lastStartConfig!.sensorMode, 'auto');
+    });
+  });
+
+  group('resolved config is accepted by the native sensor-mode contract', () {
+    // These tests drive a seam that faithfully mirrors the native
+    // `parse_sensor_mode` + OSC-without-pattern hard error, so the default
+    // `auto` mono run (and its calibration-on twin) is proven to produce a
+    // config the *real* backend accepts — not just one the lenient default fake
+    // ignores. This is the regression guard for the auto/osc collapse that used
+    // to brick every default mono Stack-and-Share run against FfiBackend.
+    test('default config (auto) on a mono frame starts as mono, not an error '
+        '(calibration off → file path)', () async {
+      final engine = _NativeContractStackingEngine(); // filePattern: null (mono)
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2), // channels: 1
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      // The literal default config — auto + calibration on — but with
+      // calibration forced off so this exercises the native file-start path.
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+        ),
+      );
+
+      expect(result.isColor, isFalse);
+      expect(engine.startedColor, isFalse,
+          reason: 'auto + mono frame must NOT debayer');
+      expect(engine.lastStartConfig!.sensorMode, 'auto');
+    });
+
+    test('auto on a frame that declares a Bayer pattern starts in colour '
+        '(file path)', () async {
+      // The complement to the mono case: when the reference frame's FITS
+      // BAYERPAT geometry resolves a pattern, auto debayers — proving the
+      // faithful seam is not simply forcing mono.
+      final engine = _NativeContractStackingEngine(filePattern: 'RGGB');
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      final result = await service.run(
+        sessionId: sessionId,
+        config: const StackAndShareConfig(
+          applyCalibration: false,
+          autoStretch: false,
+        ),
+      );
+
+      expect(result.isColor, isTrue);
+      expect(engine.startedColor, isTrue,
+          reason: 'auto + CFA frame must debayer');
+      expect(engine.lastStartConfig!.sensorMode, 'auto');
+    });
+
+    test('osc without a resolvable pattern is rejected by the contract seam',
+        () async {
+      // Cross-check: the same faithful seam *does* reject osc-without-pattern,
+      // proving the auto-passes result above is not because the seam is lax.
+      // (The service also guards this Dart-side, so the surfaced error is a
+      // StateError either way.)
+      final engine = _NativeContractStackingEngine(); // filePattern: null
+      final live = _FakeLiveStacking(
+        followerCounts: const [2],
+        finalResult: _integrated(stackedFrameCount: 2, channels: 3),
+      );
+      final c = container(
+        selection: _selection(followerCount: 1),
+        liveStacking: live,
+      );
+      addTearDown(c.dispose);
+      final service = StackAndShareService(c.read(_refProvider), engine: engine);
+
+      await expectLater(
+        service.run(
+          sessionId: sessionId,
+          config: const StackAndShareConfig(
+            applyCalibration: false,
+            autoStretch: false,
+            sensorMode: 'osc',
+          ),
+        ),
+        throwsA(isA<StateError>()),
+      );
+      expect(engine.stopCount, 1, reason: 'engine released on failure');
     });
   });
 }

@@ -714,6 +714,18 @@ pub struct LiveStackingConfig {
     pub thumbnail_width: u32,
     #[serde(default = "default_thumbnail_height")]
     pub thumbnail_height: u32,
+    // NOTE (OSC scope): the manual OSC / colour-stacking path lives entirely in
+    // the bridge stacker (`stacking_api.rs`: sensor_mode / bayer_pattern /
+    // demosaic_quality on `LiveStackingConfigApi`) and its Dart surfaces
+    // (Stack-and-Share + the live-stacking panel). The unattended sequencer
+    // broadcast path does NOT yet feed frames into a colour debayer — the
+    // executor's `FrameAccepted` handler does not call
+    // `LiveStackingBroadcastService.publishFrame`, and the broadcast renders
+    // mono JPEGs. Carrying inert OSC fields on this config (with comments
+    // describing a Dart consumer that reads them back) advertised wiring that
+    // does not exist, so the fields were removed rather than left dead. When the
+    // broadcast frame-feed is implemented, reintroduce them alongside the actual
+    // consumer.
 }
 
 fn default_broadcast_enabled() -> bool {
@@ -2629,4 +2641,48 @@ pub enum RecoveryAction {
     ///      action falls back to `PauseAndWaitForClear` rather than
     ///      silently no-oping — CLAUDE.md forbids silent fallbacks.
     SwitchTargetOrFilter,
+}
+
+#[cfg(test)]
+mod live_stacking_config_tests {
+    use super::LiveStackingConfig;
+
+    /// A legacy persisted blob must still deserialize via serde defaults. This
+    /// includes blobs from the brief window when an OSC-capable editor wrote
+    /// `sensor_mode` / `bayer_pattern` / `demosaic_quality` keys: now that the
+    /// unattended broadcast path does not consume them, those keys are unknown
+    /// and must be tolerated (serde ignores unknown fields by default) rather
+    /// than failing the load of an existing sequence.
+    #[test]
+    fn legacy_json_with_unknown_osc_keys_still_deserializes() {
+        let json = r#"{
+            "mode": "record_and_broadcast",
+            "stack_method": "average",
+            "max_frames_to_stack": 0,
+            "broadcast_enabled": true,
+            "broadcast_port": 8081,
+            "broadcast_path": "/broadcast",
+            "auth_token": null,
+            "watermark_text": null,
+            "thumbnail_width": 1280,
+            "thumbnail_height": 720,
+            "sensor_mode": "osc",
+            "bayer_pattern": "RGGB",
+            "demosaic_quality": "vng"
+        }"#;
+
+        let config: LiveStackingConfig = serde_json::from_str(json)
+            .expect("legacy config with now-removed OSC keys must still deserialize");
+        // The broadcast-relevant fields still load.
+        assert_eq!(config.broadcast_port, 8081);
+        assert_eq!(config.broadcast_path, "/broadcast");
+    }
+
+    /// An empty persisted blob must load entirely via serde defaults.
+    #[test]
+    fn empty_json_object_deserializes_to_defaults() {
+        let config: LiveStackingConfig =
+            serde_json::from_str("{}").expect("empty object must deserialize via serde defaults");
+        assert_eq!(config, LiveStackingConfig::default());
+    }
 }

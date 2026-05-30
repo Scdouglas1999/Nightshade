@@ -23,6 +23,31 @@ class LiveStackingConfig {
   /// Minimum number of matched star pairs required for alignment.
   final int minMatchedPairs;
 
+  /// Sensor acquisition mode: `"mono"`, `"osc"`, or `"auto"` (case-insensitive
+  /// on the native side).
+  ///
+  /// - `mono` — frames are single-channel luminance; never debayered.
+  /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
+  ///   an unresolvable pattern is a hard error native-side (no silent
+  ///   mono-fallback that would scramble the colour mosaic).
+  /// - `auto` — debayer only when the frame actually carries Bayer geometry
+  ///   (or [bayerPattern] is supplied); otherwise treat as mono.
+  ///
+  /// Defaults to `"mono"` so existing callers keep the historic single-channel
+  /// behaviour byte-for-byte.
+  final String sensorMode;
+
+  /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`).
+  /// When `null`, OSC/auto sessions fall back to the pattern the reference
+  /// frame declares via its FITS `BAYERPAT` geometry. An unrecognised string
+  /// is a hard error native-side.
+  final String? bayerPattern;
+
+  /// Demosaic quality: `"bilinear"`, `"vng"`, or `"superpixel"`. Defaults to
+  /// `"bilinear"`. An unrecognised value is a hard error native-side rather
+  /// than a silent best-guess.
+  final String demosaicQuality;
+
   const LiveStackingConfig({
     this.sigmaClipEnabled = true,
     this.sigmaClipThreshold = 2.5,
@@ -30,6 +55,9 @@ class LiveStackingConfig {
     this.matchRadiusPx = 50.0,
     this.matchFluxTolerance = 0.7,
     this.minMatchedPairs = 5,
+    this.sensorMode = 'mono',
+    this.bayerPattern,
+    this.demosaicQuality = 'bilinear',
   });
 
   LiveStackingConfig copyWith({
@@ -39,6 +67,9 @@ class LiveStackingConfig {
     double? matchRadiusPx,
     double? matchFluxTolerance,
     int? minMatchedPairs,
+    String? sensorMode,
+    String? bayerPattern,
+    String? demosaicQuality,
   }) {
     return LiveStackingConfig(
       sigmaClipEnabled: sigmaClipEnabled ?? this.sigmaClipEnabled,
@@ -47,8 +78,39 @@ class LiveStackingConfig {
       matchRadiusPx: matchRadiusPx ?? this.matchRadiusPx,
       matchFluxTolerance: matchFluxTolerance ?? this.matchFluxTolerance,
       minMatchedPairs: minMatchedPairs ?? this.minMatchedPairs,
+      sensorMode: sensorMode ?? this.sensorMode,
+      bayerPattern: bayerPattern ?? this.bayerPattern,
+      demosaicQuality: demosaicQuality ?? this.demosaicQuality,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LiveStackingConfig &&
+          runtimeType == other.runtimeType &&
+          sigmaClipEnabled == other.sigmaClipEnabled &&
+          sigmaClipThreshold == other.sigmaClipThreshold &&
+          maxMatchStars == other.maxMatchStars &&
+          matchRadiusPx == other.matchRadiusPx &&
+          matchFluxTolerance == other.matchFluxTolerance &&
+          minMatchedPairs == other.minMatchedPairs &&
+          sensorMode == other.sensorMode &&
+          bayerPattern == other.bayerPattern &&
+          demosaicQuality == other.demosaicQuality;
+
+  @override
+  int get hashCode => Object.hash(
+        sigmaClipEnabled,
+        sigmaClipThreshold,
+        maxMatchStars,
+        matchRadiusPx,
+        matchFluxTolerance,
+        minMatchedPairs,
+        sensorMode,
+        bayerPattern,
+        demosaicQuality,
+      );
 }
 
 /// Statistics about the current stacking session.
@@ -74,12 +136,18 @@ class LiveStackingStats {
 class LiveStackingResult {
   final int width;
   final int height;
+
+  /// Channel count of the stacked result: `1` for a monochrome session, `3`
+  /// for an OSC/colour session. Callers use this to interpret [data] as a
+  /// single luminance plane vs interleaved RGB16.
+  final int channels;
   final List<int> data;
   final LiveStackingStats stats;
 
   const LiveStackingResult({
     required this.width,
     required this.height,
+    this.channels = 1,
     required this.data,
     required this.stats,
   });
@@ -114,6 +182,9 @@ class LiveStackingService {
       matchRadiusPx: config.matchRadiusPx,
       matchFluxTolerance: config.matchFluxTolerance,
       minMatchedPairs: config.minMatchedPairs,
+      sensorMode: config.sensorMode,
+      bayerPattern: config.bayerPattern,
+      demosaicQuality: config.demosaicQuality,
     );
 
     final result = await bridge.apiStackingStart(
@@ -143,6 +214,9 @@ class LiveStackingService {
       matchRadiusPx: config.matchRadiusPx,
       matchFluxTolerance: config.matchFluxTolerance,
       minMatchedPairs: config.minMatchedPairs,
+      sensorMode: config.sensorMode,
+      bayerPattern: config.bayerPattern,
+      demosaicQuality: config.demosaicQuality,
     );
 
     final result = await bridge.apiStackingStartFromData(
@@ -225,6 +299,7 @@ class LiveStackingService {
     return LiveStackingResult(
       width: bridgeResult.width,
       height: bridgeResult.height,
+      channels: bridgeResult.channels,
       data: bridgeResult.data,
       stats: _convertStats(bridgeResult.stats),
     );

@@ -3165,6 +3165,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.match_radius_px = cst_encode_f_64(apiObj.matchRadiusPx);
     wireObj.match_flux_tolerance = cst_encode_f_64(apiObj.matchFluxTolerance);
     wireObj.min_matched_pairs = cst_encode_u_32(apiObj.minMatchedPairs);
+    wireObj.sensor_mode = cst_encode_String(apiObj.sensorMode);
+    wireObj.bayer_pattern = cst_encode_opt_String(apiObj.bayerPattern);
+    wireObj.demosaic_quality = cst_encode_String(apiObj.demosaicQuality);
   }
 
   @protected
@@ -3172,6 +3175,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
       ApiLiveStackingResult apiObj, wire_cst_api_live_stacking_result wireObj) {
     wireObj.width = cst_encode_u_32(apiObj.width);
     wireObj.height = cst_encode_u_32(apiObj.height);
+    wireObj.channels = cst_encode_u_32(apiObj.channels);
     wireObj.data = cst_encode_list_prim_u_16_strict(apiObj.data);
     cst_api_fill_to_wire_api_live_stacking_stats(apiObj.stats, wireObj.stats);
   }
@@ -7410,6 +7414,36 @@ class RustLibWire implements BaseWire {
             int,
             ffi.Pointer<wire_cst_list_prim_u_8_strict>,
             ffi.Pointer<wire_cst_stretch_params_api>,
+          )>();
+
+  WireSyncRust2DartDco wire__crate__api__imaging__api_auto_stretch_color_image(
+    int width,
+    int height,
+    ffi.Pointer<wire_cst_list_prim_u_16_loose> data,
+  ) {
+    return _wire__crate__api__imaging__api_auto_stretch_color_image(
+      width,
+      height,
+      data,
+    );
+  }
+
+  late final _wire__crate__api__imaging__api_auto_stretch_color_imagePtr =
+      _lookup<
+          ffi.NativeFunction<
+              WireSyncRust2DartDco Function(
+                ffi.Uint32,
+                ffi.Uint32,
+                ffi.Pointer<wire_cst_list_prim_u_16_loose>,
+              )>>(
+    'frbgen_nightshade_bridge_wire__crate__api__imaging__api_auto_stretch_color_image',
+  );
+  late final _wire__crate__api__imaging__api_auto_stretch_color_image =
+      _wire__crate__api__imaging__api_auto_stretch_color_imagePtr.asFunction<
+          WireSyncRust2DartDco Function(
+            int,
+            int,
+            ffi.Pointer<wire_cst_list_prim_u_16_loose>,
           )>();
 
   WireSyncRust2DartDco wire__crate__api__imaging__api_auto_stretch_image(
@@ -18260,6 +18294,12 @@ final class wire_cst_api_live_stacking_config extends ffi.Struct {
 
   @ffi.Uint32()
   external int min_matched_pairs;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> sensor_mode;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> bayer_pattern;
+
+  external ffi.Pointer<wire_cst_list_prim_u_8_strict> demosaic_quality;
 }
 
 final class wire_cst_fits_keyword_update extends ffi.Struct {
@@ -20370,6 +20410,9 @@ final class wire_cst_api_live_stacking_result extends ffi.Struct {
 
   @ffi.Uint32()
   external int height;
+
+  @ffi.Uint32()
+  external int channels;
 
   external ffi.Pointer<wire_cst_list_prim_u_16_strict> data;
 

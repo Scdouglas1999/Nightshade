@@ -38,10 +38,24 @@ class StackAndShareState {
   /// Height of [resultRgba] / [resultMono] in pixels (0 when no result).
   final int resultHeight;
 
-  /// The integrated, calibrated raw u16 mono buffer of the most recent
-  /// successful run, or null when no run has completed. Length is
-  /// `resultWidth * resultHeight` when present.
+  /// The integrated, calibrated raw u16 buffer of the most recent successful
+  /// run, or null when no run has completed.
+  ///
+  /// The buffer's layout is described by [resultChannels]: when
+  /// `resultChannels == 1` this is a single mono luminance plane of length
+  /// `resultWidth * resultHeight`; when `resultChannels == 3` this same buffer
+  /// holds an OSC integration stored as **interleaved RGB16** (R,G,B per pixel)
+  /// of length `resultWidth * resultHeight * 3`. The field name is kept (rather
+  /// than introducing a parallel `resultColor` field) so the colour path does
+  /// not leave a dead duplicate buffer — the viewer interprets the bytes via
+  /// [resultChannels].
   final Uint16List? resultMono;
+
+  /// Channel layout of [resultMono]: `1` for a single mono luminance plane,
+  /// `3` for an interleaved RGB16 (OSC) integration. Sourced from
+  /// [StackedRawResult.channels] on the most recent successful run; `1` when no
+  /// run has completed so existing mono consumers are unaffected.
+  final int resultChannels;
 
   /// Human-readable failure message when the last run ended in
   /// [StackAndSharePhase.error], else null.
@@ -54,8 +68,13 @@ class StackAndShareState {
     this.resultWidth = 0,
     this.resultHeight = 0,
     this.resultMono,
+    this.resultChannels = 1,
     this.errorMessage,
   });
+
+  /// Whether [resultMono] holds an interleaved RGB16 (OSC) integration rather
+  /// than a single mono plane.
+  bool get isColorResult => resultChannels == 3;
 
   /// Whether a run is currently in flight (past idle, not yet terminal).
   bool get isRunning =>
@@ -77,6 +96,7 @@ class StackAndShareState {
     int? resultWidth,
     int? resultHeight,
     Uint16List? resultMono,
+    int? resultChannels,
     String? errorMessage,
   }) {
     return StackAndShareState(
@@ -86,6 +106,7 @@ class StackAndShareState {
       resultWidth: resultWidth ?? this.resultWidth,
       resultHeight: resultHeight ?? this.resultHeight,
       resultMono: resultMono ?? this.resultMono,
+      resultChannels: resultChannels ?? this.resultChannels,
       errorMessage: errorMessage ?? this.errorMessage,
     );
   }
@@ -160,6 +181,11 @@ class StackAndShareNotifier extends StateNotifier<StackAndShareState> {
         resultWidth: raw?.width ?? result.width,
         resultHeight: raw?.height ?? result.height,
         resultMono: raw?.data,
+        // Carry the integration's channel layout (1=mono, 3=interleaved RGB16)
+        // so the viewer renders an OSC result as colour rather than
+        // misinterpreting interleaved bytes as a mono plane. Mono runs (and the
+        // missing-buffer fallback) keep the default of 1.
+        resultChannels: raw?.channels ?? 1,
         resultRgba: rgba?.rgba,
       );
     } catch (e, st) {

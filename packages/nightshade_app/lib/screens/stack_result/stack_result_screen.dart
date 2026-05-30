@@ -6,6 +6,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_bridge/nightshade_bridge.dart' as bridge;
 import 'package:nightshade_core/nightshade_core.dart';
+// The stacking-engine seam owns the colour STF stretch (the native bridge only
+// exposes the single-channel `apiAutoStretchImage`; its companion
+// `_autoStretchColor` is the per-channel PixInsight STF that matches the
+// native colour-capture path). The seam is not re-exported through the core
+// barrel, so the result viewer reaches it directly to render an OSC result with
+// the exact same curve a live colour capture would produce. (Matches the
+// established `// ignore: implementation_imports` precedent in
+// screens/imaging/widgets/stacking_panel.dart.)
+// ignore: implementation_imports
+import 'package:nightshade_core/src/services/stacking_engine_seam.dart'
+    show BridgeStackingEngineSeam, StackingEngineSeam;
 import 'package:nightshade_ui/nightshade_ui.dart';
 import 'package:path/path.dart' as p;
 import 'package:share_plus/share_plus.dart';
@@ -58,20 +69,35 @@ final stackResultSavePickerProvider =
 final stackResultShareProvider =
     Provider<StackResultShare>((ref) => _defaultShare);
 
-/// The display stretch applied to the integrated mono buffer in the viewer.
+/// The stacking-engine seam used to auto-stretch the in-memory integrated
+/// buffer for display.
 ///
-/// The native in-memory stacker exposes exactly one auto-stretch
-/// ([bridge.apiAutoStretchImage], a fixed STF), so the viewer offers the two
-/// renderings it can produce *honestly* from the retained u16 mono buffer:
-/// the STF auto-stretch, and a linear (unstretched) mapping. We deliberately do
-/// not advertise stretch methods the in-memory engine cannot apply — surfacing
-/// a control that silently produced identical output would violate the project's
-/// "no silent fallback" rule.
+/// Production uses [BridgeStackingEngineSeam]: a 1-channel (mono) buffer goes
+/// through the native STF (`apiAutoStretchImage`), while a 3-channel
+/// interleaved-RGB16 buffer goes through the seam's per-channel colour STF.
+/// Exposed as a provider so widget tests can stub the auto-stretch without
+/// loading the native dynamic library.
+final stackResultStretchEngineProvider =
+    Provider<StackingEngineSeam>((ref) => const BridgeStackingEngineSeam());
+
+/// The display stretch applied to the integrated buffer in the viewer.
+///
+/// The viewer offers the two renderings it can produce *honestly* from the
+/// retained u16 buffer: a MAD-based PixInsight Screen-Transfer-Function (STF)
+/// auto-stretch, and a linear (unstretched) min/max mapping. Both honour the
+/// buffer's channel layout — a mono plane renders to grayscale, an interleaved
+/// RGB16 (OSC) integration renders in colour with a per-channel stretch. We
+/// deliberately do not advertise stretch methods the in-memory engine cannot
+/// apply — surfacing a control that silently produced identical output would
+/// violate the project's "no silent fallback" rule.
 enum StackViewerStretch {
-  /// Native STF auto-stretch via [bridge.apiAutoStretchImage].
+  /// STF auto-stretch: the native single-channel STF
+  /// ([bridge.apiAutoStretchImage]) for a mono buffer, or the stacking-engine
+  /// seam's per-channel colour STF for an interleaved-RGB16 buffer.
   autoStf,
 
-  /// Linear normalisation of the u16 mono buffer to grayscale RGBA.
+  /// Linear min/max normalisation: grayscale for a mono buffer, per-channel
+  /// colour for an interleaved-RGB16 buffer.
   linear,
 }
 
@@ -147,11 +173,15 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     StackAndShareResult result,
     StackAndShareState liveState,
   ) {
-    // The in-memory mono buffer is only available when this screen is showing
-    // the run that just completed (the live orchestrator retains it). Match by
-    // id so a stale buffer from a different run is never used.
-    final mono = (liveState.result?.id == result.id) ? liveState.resultMono : null;
-    final rgba = _resolveDisplayRgba(result, liveState, mono);
+    // The in-memory integrated buffer is only available when this screen is
+    // showing the run that just completed (the live orchestrator retains it).
+    // Match by id so a stale buffer from a different run is never used. The
+    // buffer is a single mono plane for a mono stack and interleaved RGB16 for
+    // an OSC stack — [channels] selects how the stretch interprets it.
+    final isOwnRun = liveState.result?.id == result.id;
+    final mono = isOwnRun ? liveState.resultMono : null;
+    final channels = isOwnRun ? liveState.resultChannels : result.channels;
+    final rgba = _resolveDisplayRgba(result, liveState, mono, channels);
 
     final subtitle = '${result.framesStacked} frame'
         '${result.framesStacked == 1 ? '' : 's'} · '
@@ -414,45 +444,72 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
     );
   }
 
-  /// Resolve the RGBA to show: recompute from the in-memory mono buffer for the
-  /// current stretch when available, else fall back to the orchestrator's
-  /// already-stretched RGBA (matched by id).
+  /// Resolve the RGBA to show: recompute from the in-memory integrated buffer
+  /// for the current stretch when available, else fall back to the
+  /// orchestrator's already-stretched RGBA (matched by id).
+  ///
+  /// [channels] describes [buffer]'s layout (`1` = mono plane, `3` = interleaved
+  /// RGB16) so the stretch renders an OSC integration in colour rather than
+  /// misreading interleaved samples as a mono plane.
   Uint8List? _resolveDisplayRgba(
     StackAndShareResult result,
     StackAndShareState liveState,
-    Uint16List? mono,
+    Uint16List? buffer,
+    int channels,
   ) {
-    if (mono != null) {
+    if (buffer != null) {
       // Recompute only when the source buffer or selected stretch changed.
-      if (!identical(_renderedFrom, mono) || _displayRgba == null) {
-        _displayRgba = _renderStretch(result, mono);
-        _renderedFrom = mono;
+      if (!identical(_renderedFrom, buffer) || _displayRgba == null) {
+        _displayRgba = _renderStretch(result, buffer, channels);
+        _renderedFrom = buffer;
       }
       return _displayRgba;
     }
-    // No mono buffer: use the orchestrator's stretched RGBA if it belongs to
-    // this result, otherwise nothing is renderable in-app.
+    // No in-memory buffer: use the orchestrator's stretched RGBA if it belongs
+    // to this result, otherwise nothing is renderable in-app.
     if (liveState.result?.id == result.id && liveState.resultRgba != null) {
       return liveState.resultRgba;
     }
     return null;
   }
 
-  /// Render [mono] to display RGBA under the current [_stretch].
+  /// Render [buffer] to display RGBA under the current [_stretch].
   ///
-  /// [StackViewerStretch.autoStf] delegates to the native STF auto-stretch;
-  /// [StackViewerStretch.linear] performs a min/max linear normalisation to
-  /// grayscale. Both are genuine, distinct renderings — neither is a no-op.
-  Uint8List _renderStretch(StackAndShareResult result, Uint16List mono) {
+  /// Branches on [channels]:
+  ///   * `1` (mono) — [StackViewerStretch.autoStf] delegates to the native
+  ///     single-channel STF; [StackViewerStretch.linear] does a min/max linear
+  ///     map to grayscale.
+  ///   * `3` (interleaved RGB16, OSC) — [StackViewerStretch.autoStf] delegates
+  ///     to the stacking-engine seam's per-channel colour STF (the same curve
+  ///     the native colour-capture path produces); [StackViewerStretch.linear]
+  ///     does a per-channel min/max linear map preserving colour balance.
+  ///
+  /// Both stretches are genuine, distinct renderings — neither is a no-op nor a
+  /// grayscale fallback for colour data.
+  Uint8List _renderStretch(
+    StackAndShareResult result,
+    Uint16List buffer,
+    int channels,
+  ) {
     switch (_stretch) {
       case StackViewerStretch.autoStf:
+        if (channels == 3) {
+          return ref.read(stackResultStretchEngineProvider).autoStretch(
+                width: result.width,
+                height: result.height,
+                data: buffer,
+                channels: 3,
+              );
+        }
         return bridge.apiAutoStretchImage(
           width: result.width,
           height: result.height,
-          data: mono,
+          data: buffer,
         );
       case StackViewerStretch.linear:
-        return _linearGray(mono);
+        return channels == 3
+            ? _linearColor(buffer, result.width * result.height)
+            : _linearGray(buffer);
     }
   }
 
@@ -472,6 +529,39 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
       out[o] = g;
       out[o + 1] = g;
       out[o + 2] = g;
+      out[o + 3] = 255;
+    }
+    return out;
+  }
+
+  /// Per-channel linear min/max normalisation of an interleaved RGB16 buffer to
+  /// RGBA. Each channel is stretched against its own extent so the colour
+  /// balance is preserved rather than dominated by the brightest channel.
+  Uint8List _linearColor(Uint16List rgb, int pixelCount) {
+    var rMin = 65535, gMin = 65535, bMin = 65535;
+    var rMax = 0, gMax = 0, bMax = 0;
+    for (var i = 0; i < pixelCount; i++) {
+      final base = i * 3;
+      final r = rgb[base];
+      final g = rgb[base + 1];
+      final b = rgb[base + 2];
+      if (r < rMin) rMin = r;
+      if (r > rMax) rMax = r;
+      if (g < gMin) gMin = g;
+      if (g > gMax) gMax = g;
+      if (b < bMin) bMin = b;
+      if (b > bMax) bMax = b;
+    }
+    final rSpan = rMax - rMin;
+    final gSpan = gMax - gMin;
+    final bSpan = bMax - bMin;
+    final out = Uint8List(pixelCount * 4);
+    for (var i = 0; i < pixelCount; i++) {
+      final base = i * 3;
+      final o = i * 4;
+      out[o] = rSpan <= 0 ? 0 : (((rgb[base] - rMin) * 255) ~/ rSpan);
+      out[o + 1] = gSpan <= 0 ? 0 : (((rgb[base + 1] - gMin) * 255) ~/ gSpan);
+      out[o + 2] = bSpan <= 0 ? 0 : (((rgb[base + 2] - bMin) * 255) ~/ bSpan);
       out[o + 3] = 255;
     }
     return out;
@@ -555,6 +645,11 @@ class _StackResultScreenState extends ConsumerState<StackResultScreen> {
   }
 
   /// Build the annotated share-card spec from the run's stats.
+  ///
+  /// The card carries whatever colour the export's RGBA buffer holds — for an
+  /// OSC result that buffer is the per-channel-stretched colour rendering, so
+  /// the PNG / JPEG / share-card output is colour automatically; this spec only
+  /// supplies the overlay geometry + stat text and is colour-agnostic.
   ShareCardSpec _buildShareCardSpec(StackAndShareResult result) {
     return ShareCardSpec(
       title: result.targetName ?? 'Stacked result',

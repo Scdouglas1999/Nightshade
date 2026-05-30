@@ -17,7 +17,66 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nightshade_app/screens/stack_result/stack_and_share_dialog.dart';
 import 'package:nightshade_app/screens/stack_result/stack_result_screen.dart';
 import 'package:nightshade_core/nightshade_core.dart';
+// The stretch-engine seam type is needed to stub the colour STF in the result
+// viewer without loading the native dynamic library. (Matches the screen's own
+// implementation-import precedent.)
+// ignore: implementation_imports
+import 'package:nightshade_core/src/services/stacking_engine_seam.dart'
+    show LinearFrameData, StackingEngineSeam;
 import 'package:nightshade_ui/nightshade_ui.dart';
+
+/// A stretch-engine seam that records the channel count it was asked to
+/// auto-stretch and returns a constant RGBA buffer, so the colour vs mono branch
+/// is observable without touching native code.
+class _RecordingStretchSeam implements StackingEngineSeam {
+  int? lastChannels;
+
+  @override
+  Uint8List autoStretch({
+    required int width,
+    required int height,
+    required List<int> data,
+    int channels = 1,
+  }) {
+    lastChannels = channels;
+    final out = Uint8List(width * height * 4);
+    for (var i = 3; i < out.length; i += 4) {
+      out[i] = 255;
+    }
+    return out;
+  }
+
+  @override
+  bool isActive() => false;
+
+  @override
+  Future<LiveStackingStats> startFromFile({
+    required String referenceImagePath,
+    required LiveStackingConfig config,
+  }) async =>
+      const LiveStackingStats();
+
+  @override
+  Future<LiveStackingStats> startFromData({
+    required int width,
+    required int height,
+    required List<int> data,
+    required LiveStackingConfig config,
+  }) async =>
+      const LiveStackingStats();
+
+  @override
+  Future<LinearFrameData> readLinearFrame(String filePath) async =>
+      const LinearFrameData(
+        width: 0,
+        height: 0,
+        linearData: <double>[],
+        bayerPattern: null,
+      );
+
+  @override
+  Future<void> stop() async {}
+}
 
 /// A fake orchestrator notifier that starts in a caller-supplied state and
 /// records every [runForSession] call instead of driving the real pipeline.
@@ -126,6 +185,10 @@ Future<_FakeStackAndShareNotifier> _pumpDialog(
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
+        // No connected camera in these tests, so the dialog shows the manual
+        // OSC controls directly (no auto-detected colour summary). Overriding
+        // keeps the pump hermetic — no backend / native query.
+        connectedCameraIdProvider.overrideWithValue(null),
         stackAndShareProvider.overrideWith((ref) {
           notifier = _FakeStackAndShareNotifier(
             ref,
@@ -206,6 +269,55 @@ void main() {
       expect(find.text('Auto (STF)'), findsOneWidget);
     });
 
+    testWidgets('colour result (channels==3) auto-stretches via the colour STF '
+        'branch', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(1400, 1000);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final result = _cannedResult(id: 11).copyWith(isColor: true, channels: 3);
+      // 2x2 interleaved RGB16 buffer (width*height*3 = 12 samples).
+      final colorBuffer = Uint16List.fromList(
+        List<int>.generate(2 * 2 * 3, (i) => i * 1000),
+      );
+      final liveState = StackAndShareState(
+        progress:
+            const StackAndShareProgress(phase: StackAndSharePhase.complete),
+        result: result,
+        resultMono: colorBuffer,
+        resultChannels: 3,
+        resultWidth: 2,
+        resultHeight: 2,
+      );
+      final seam = _RecordingStretchSeam();
+
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            stackResultViewerProvider(result.id!)
+                .overrideWith((ref) async => result),
+            stackAndShareProvider.overrideWith(
+              (ref) => _FakeStackAndShareNotifier(ref, liveState),
+            ),
+            stackResultStretchEngineProvider.overrideWithValue(seam),
+          ],
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: StackResultScreen(resultId: result.id!),
+          ),
+        ),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+
+      // The colour buffer was routed through the 3-channel STF branch, not the
+      // mono `apiAutoStretchImage` path.
+      expect(seam.lastChannels, 3);
+    });
+
     testWidgets('shows EmptyState when the result is missing', (tester) async {
       tester.view.devicePixelRatio = 1.0;
       tester.view.physicalSize = const Size(1400, 1000);
@@ -256,21 +368,29 @@ void main() {
       expect(find.text('Stack & Share'), findsOneWidget);
       expect(find.text('NGC 7000'), findsOneWidget);
 
-      // Two switch rows.
+      // Three switch rows: calibration, auto-stretch, and OSC / Color.
       expect(find.text('Apply calibration'), findsOneWidget);
       expect(find.text('Auto-stretch'), findsOneWidget);
-      expect(find.byType(NightshadeSwitchRow), findsNWidgets(2));
+      expect(find.text('OSC / Color'), findsOneWidget);
+      expect(find.byType(NightshadeSwitchRow), findsNWidgets(3));
 
       // Quality-gate field.
       expect(find.text('Quality threshold'), findsOneWidget);
       expect(find.byType(NightshadeTextField), findsOneWidget);
+
+      // OSC defaults to 'auto' (non-mono), so the Bayer-pattern and
+      // demosaic-quality dropdowns are revealed (no live colour camera, so the
+      // manual controls are shown directly rather than behind the auto-detected
+      // override expander).
+      expect(find.text('Bayer pattern'), findsOneWidget);
+      expect(find.text('Demosaic quality'), findsOneWidget);
+      expect(find.byType(NightshadeDropdown), findsNWidgets(2));
 
       // There is deliberately no stretch-*method* dropdown: the run stretches
       // the in-memory u16 result via the engine's STF path only, so a method
       // knob would be a silent fallback (every method yielding the same STF
       // output) — which project policy forbids. See StackAndShareConfig.
       expect(find.text('Stretch method'), findsNothing);
-      expect(find.byType(NightshadeDropdown), findsNothing);
 
       // Start action present.
       expect(find.widgetWithText(NightshadeButton, 'Start'), findsOneWidget);
@@ -289,6 +409,11 @@ void main() {
       expect(notifier.lastConfig, isNotNull);
       expect(notifier.lastConfig!.applyCalibration, isTrue);
       expect(notifier.lastConfig!.autoStretch, isTrue);
+      // OSC defaults: auto sensor mode, no Bayer override (engine resolves from
+      // the frame geometry), VNG demosaic.
+      expect(notifier.lastConfig!.sensorMode, 'auto');
+      expect(notifier.lastConfig!.bayerPatternOverride, isNull);
+      expect(notifier.lastConfig!.demosaicQuality, 'vng');
     });
 
     testWidgets('surfaces a LiveStackBusy error as an alert', (tester) async {

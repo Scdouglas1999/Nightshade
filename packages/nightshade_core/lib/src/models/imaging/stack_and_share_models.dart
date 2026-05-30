@@ -49,16 +49,66 @@ class StackAndShareConfig {
   /// be rejected from the stack.
   final bool rejectUnaccepted;
 
+  /// Sensor acquisition mode for the run: `"auto"`, `"mono"`, or `"osc"`.
+  ///
+  /// This is the Stack-and-Share-level OSC knob; it is folded into the
+  /// underlying [LiveStackingConfig.sensorMode] by [resolvedStackingConfig].
+  /// Unlike the live engine (which defaults to `"mono"` to preserve historic
+  /// single-channel behaviour byte-for-byte), the Stack-and-Share path defaults
+  /// to `"auto"` so a colour camera's frames are debayered when they actually
+  /// carry Bayer geometry without the user having to opt in.
+  ///
+  /// - `auto` — debayer only when the frame carries Bayer geometry (or
+  ///   [bayerPatternOverride] is supplied); otherwise treat as mono.
+  /// - `mono` — frames are single-channel luminance; never debayered.
+  /// - `osc` — frames are a Bayer CFA mosaic that *must* be debayered to RGB;
+  ///   an unresolvable pattern is a hard error native-side (no silent
+  ///   mono-fallback that would scramble the colour mosaic).
+  final String sensorMode;
+
+  /// Explicit Bayer pattern override (`"RGGB"`/`"BGGR"`/`"GRBG"`/`"GBRG"`), or
+  /// `null` to let an OSC/auto run fall back to the pattern the reference frame
+  /// declares via its FITS `BAYERPAT` geometry. Folded into
+  /// [LiveStackingConfig.bayerPattern]. An unrecognised string is a hard error
+  /// native-side rather than a silent best-guess.
+  final String? bayerPatternOverride;
+
+  /// Demosaic quality for the OSC path: `"bilinear"`, `"vng"`, or
+  /// `"superpixel"`. Folded into [LiveStackingConfig.demosaicQuality].
+  ///
+  /// Defaults to `"vng"` here — the Stack-and-Share path is the
+  /// quality-oriented, post-capture integration, so it favours the
+  /// higher-fidelity VNG demosaic over the live engine's `"bilinear"` default
+  /// (which trades quality for the throughput a real-time EAA preview needs).
+  /// An unrecognised value is a hard error native-side rather than a silent
+  /// best-guess.
+  final String demosaicQuality;
+
   const StackAndShareConfig({
     this.stackingConfig = const LiveStackingConfig(),
     this.applyCalibration = true,
     this.autoStretch = true,
     this.minQualityScore = 0,
     this.rejectUnaccepted = true,
+    this.sensorMode = 'auto',
+    this.bayerPatternOverride,
+    this.demosaicQuality = 'vng',
   });
 
   /// Default configuration for a typical Stack-and-Share run.
   static const defaults = StackAndShareConfig();
+
+  /// The [stackingConfig] with this config's OSC knobs ([sensorMode],
+  /// [bayerPatternOverride], [demosaicQuality]) folded in.
+  ///
+  /// This is the config the orchestrator hands to the live-stacking engine: it
+  /// guarantees the Stack-and-Share-level colour intent always reaches the
+  /// engine, regardless of what defaults the wrapped [stackingConfig] carried.
+  LiveStackingConfig get resolvedStackingConfig => stackingConfig.copyWith(
+        sensorMode: sensorMode,
+        bayerPattern: bayerPatternOverride,
+        demosaicQuality: demosaicQuality,
+      );
 
   StackAndShareConfig copyWith({
     LiveStackingConfig? stackingConfig,
@@ -66,6 +116,9 @@ class StackAndShareConfig {
     bool? autoStretch,
     double? minQualityScore,
     bool? rejectUnaccepted,
+    String? sensorMode,
+    String? bayerPatternOverride,
+    String? demosaicQuality,
   }) {
     return StackAndShareConfig(
       stackingConfig: stackingConfig ?? this.stackingConfig,
@@ -73,6 +126,9 @@ class StackAndShareConfig {
       autoStretch: autoStretch ?? this.autoStretch,
       minQualityScore: minQualityScore ?? this.minQualityScore,
       rejectUnaccepted: rejectUnaccepted ?? this.rejectUnaccepted,
+      sensorMode: sensorMode ?? this.sensorMode,
+      bayerPatternOverride: bayerPatternOverride ?? this.bayerPatternOverride,
+      demosaicQuality: demosaicQuality ?? this.demosaicQuality,
     );
   }
 
@@ -85,7 +141,10 @@ class StackAndShareConfig {
           applyCalibration == other.applyCalibration &&
           autoStretch == other.autoStretch &&
           minQualityScore == other.minQualityScore &&
-          rejectUnaccepted == other.rejectUnaccepted;
+          rejectUnaccepted == other.rejectUnaccepted &&
+          sensorMode == other.sensorMode &&
+          bayerPatternOverride == other.bayerPatternOverride &&
+          demosaicQuality == other.demosaicQuality;
 
   @override
   int get hashCode => Object.hash(
@@ -94,6 +153,9 @@ class StackAndShareConfig {
         autoStretch,
         minQualityScore,
         rejectUnaccepted,
+        sensorMode,
+        bayerPatternOverride,
+        demosaicQuality,
       );
 }
 
@@ -391,6 +453,17 @@ class StackAndShareResult {
   /// Filter of the stack, if mono / single-filter.
   final String? filter;
 
+  /// Whether the integrated result is a colour (OSC/RGB) stack rather than a
+  /// single-channel monochrome stack. Defaults to `false` (mono) so existing
+  /// persisted results round-trip unchanged.
+  final bool isColor;
+
+  /// Channel count of the integrated result: `1` for a monochrome stack, `3`
+  /// for an interleaved-RGB OSC stack. Defaults to `1`. Kept distinct from
+  /// [isColor] so a future multi-channel layout (e.g. RGBA) is representable
+  /// without overloading the boolean.
+  final int channels;
+
   /// When the stack was produced.
   final DateTime createdAt;
 
@@ -413,6 +486,8 @@ class StackAndShareResult {
     required this.avgAlignmentResidual,
     this.avgHfr,
     this.filter,
+    this.isColor = false,
+    this.channels = 1,
     required this.createdAt,
     this.exportedImagePath,
     this.stats = const LiveStackingStats(),
@@ -435,6 +510,8 @@ class StackAndShareResult {
     double? avgAlignmentResidual,
     double? avgHfr,
     String? filter,
+    bool? isColor,
+    int? channels,
     DateTime? createdAt,
     String? exportedImagePath,
     LiveStackingStats? stats,
@@ -452,6 +529,8 @@ class StackAndShareResult {
       avgAlignmentResidual: avgAlignmentResidual ?? this.avgAlignmentResidual,
       avgHfr: avgHfr ?? this.avgHfr,
       filter: filter ?? this.filter,
+      isColor: isColor ?? this.isColor,
+      channels: channels ?? this.channels,
       createdAt: createdAt ?? this.createdAt,
       exportedImagePath: exportedImagePath ?? this.exportedImagePath,
       stats: stats ?? this.stats,
@@ -475,6 +554,8 @@ class StackAndShareResult {
           avgAlignmentResidual == other.avgAlignmentResidual &&
           avgHfr == other.avgHfr &&
           filter == other.filter &&
+          isColor == other.isColor &&
+          channels == other.channels &&
           createdAt == other.createdAt &&
           exportedImagePath == other.exportedImagePath &&
           stats == other.stats;
@@ -493,6 +574,8 @@ class StackAndShareResult {
         avgAlignmentResidual,
         avgHfr,
         filter,
+        isColor,
+        channels,
         createdAt,
         exportedImagePath,
         stats,

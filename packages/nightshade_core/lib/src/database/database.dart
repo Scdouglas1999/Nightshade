@@ -109,7 +109,7 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   NightshadeDatabase.forTesting(super.e);
 
   @override
-  int get schemaVersion => 38;
+  int get schemaVersion => 39;
 
   @override
   MigrationStrategy get migration {
@@ -1821,6 +1821,32 @@ class NightshadeDatabase extends _$NightshadeDatabase {
           await _createStackedResultsTable();
         }
 
+        // Version 39 (OSC / Color Stacking, C11): record colour provenance on
+        // every stacked master. Before this the share loop was mono-only, so
+        // `stacked_results` could not distinguish a single-channel monochrome
+        // integration from an interleaved-RGB OSC stack. Two columns are added:
+        // `is_color` (0/1 boolean) and `channels` (1 for mono, 3 for RGB). The
+        // `_createStackedResultsTable()` helper already declares both for fresh
+        // installs, but `CREATE TABLE IF NOT EXISTS` will not retrofit columns
+        // onto a pre-v39 table — so we ALTER in place here, guarded by
+        // `_columnExists` so the migration is re-runnable. `NOT NULL DEFAULT`
+        // backfills existing rows to mono (is_color=0, channels=1), matching the
+        // [StackAndShareResult] model defaults.
+        if (from < 39) {
+          if (!await _columnExists('stacked_results', 'is_color')) {
+            await customStatement(
+              'ALTER TABLE stacked_results '
+              'ADD COLUMN is_color INTEGER NOT NULL DEFAULT 0',
+            );
+          }
+          if (!await _columnExists('stacked_results', 'channels')) {
+            await customStatement(
+              'ALTER TABLE stacked_results '
+              'ADD COLUMN channels INTEGER NOT NULL DEFAULT 1',
+            );
+          }
+        }
+
         await _ensureDefaultSettings();
         await _createCustomIndexes();
       },
@@ -1934,6 +1960,9 @@ class NightshadeDatabase extends _$NightshadeDatabase {
   /// `target_id`, `target_name`, `avg_alignment_residual`, `avg_hfr`, `filter`,
   /// and `exported_image_path` are optional, while the integration dimensions,
   /// frame counts, integration time, and creation timestamp are always present.
+  /// The v39 colour-provenance columns (`is_color`, `channels`) are NOT NULL
+  /// with mono defaults; see the v39 `onUpgrade` branch for the in-place ALTER
+  /// that retrofits them onto pre-v39 databases.
   Future<void> _createStackedResultsTable() async {
     await customStatement(
       'CREATE TABLE IF NOT EXISTS stacked_results('
@@ -1949,6 +1978,12 @@ class NightshadeDatabase extends _$NightshadeDatabase {
       'avg_alignment_residual REAL,'
       'avg_hfr REAL,'
       'filter TEXT,'
+      // v39 (OSC / Color Stacking): colour provenance. `is_color` is a 0/1
+      // boolean and `channels` is 1 (mono) or 3 (interleaved RGB). Both carry
+      // NOT NULL DEFAULTs matching the [StackAndShareResult] model so the
+      // upgrade ALTER and this fresh-install path stay in lock-step.
+      'is_color INTEGER NOT NULL DEFAULT 0,'
+      'channels INTEGER NOT NULL DEFAULT 1,'
       'exported_image_path TEXT,'
       'created_at INTEGER NOT NULL)',
     );

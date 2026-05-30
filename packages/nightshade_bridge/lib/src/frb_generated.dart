@@ -101,7 +101,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.11.1';
 
   @override
-  int get rustContentHash => -565498043;
+  int get rustContentHash => 733872514;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -114,6 +114,9 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 abstract class RustLibApi extends BaseApi {
   Future<Uint8List> crateApiImagingApiApplyStretch(
       {required String filePath, required StretchParamsApi params});
+
+  Uint8List crateApiImagingApiAutoStretchColorImage(
+      {required int width, required int height, required List<int> data});
 
   Uint8List crateApiImagingApiAutoStretchImage(
       {required int width, required int height, required List<int> data});
@@ -1484,6 +1487,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "api_apply_stretch",
         argNames: ["filePath", "params"],
+      );
+
+  @override
+  Uint8List crateApiImagingApiAutoStretchColorImage(
+      {required int width, required int height, required List<int> data}) {
+    return handler.executeSync(SyncTask(
+      callFfi: () {
+        var arg0 = cst_encode_u_32(width);
+        var arg1 = cst_encode_u_32(height);
+        var arg2 = cst_encode_list_prim_u_16_loose(data);
+        return wire.wire__crate__api__imaging__api_auto_stretch_color_image(
+            arg0, arg1, arg2);
+      },
+      codec: DcoCodec(
+        decodeSuccessData: dco_decode_list_prim_u_8_strict,
+        decodeErrorData: dco_decode_nightshade_error,
+      ),
+      constMeta: kCrateApiImagingApiAutoStretchColorImageConstMeta,
+      argValues: [width, height, data],
+      apiImpl: this,
+    ));
+  }
+
+  TaskConstMeta get kCrateApiImagingApiAutoStretchColorImageConstMeta =>
+      const TaskConstMeta(
+        debugName: "api_auto_stretch_color_image",
+        argNames: ["width", "height", "data"],
       );
 
   @override
@@ -12020,8 +12050,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ApiLiveStackingConfig dco_decode_api_live_stacking_config(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 9)
+      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
     return ApiLiveStackingConfig(
       sigmaClipEnabled: dco_decode_bool(arr[0]),
       sigmaClipThreshold: dco_decode_f_64(arr[1]),
@@ -12029,6 +12059,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       matchRadiusPx: dco_decode_f_64(arr[3]),
       matchFluxTolerance: dco_decode_f_64(arr[4]),
       minMatchedPairs: dco_decode_u_32(arr[5]),
+      sensorMode: dco_decode_String(arr[6]),
+      bayerPattern: dco_decode_opt_String(arr[7]),
+      demosaicQuality: dco_decode_String(arr[8]),
     );
   }
 
@@ -12036,13 +12069,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ApiLiveStackingResult dco_decode_api_live_stacking_result(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return ApiLiveStackingResult(
       width: dco_decode_u_32(arr[0]),
       height: dco_decode_u_32(arr[1]),
-      data: dco_decode_list_prim_u_16_strict(arr[2]),
-      stats: dco_decode_api_live_stacking_stats(arr[3]),
+      channels: dco_decode_u_32(arr[2]),
+      data: dco_decode_list_prim_u_16_strict(arr[3]),
+      stats: dco_decode_api_live_stacking_stats(arr[4]),
     );
   }
 
@@ -15775,13 +15809,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_matchRadiusPx = sse_decode_f_64(deserializer);
     var var_matchFluxTolerance = sse_decode_f_64(deserializer);
     var var_minMatchedPairs = sse_decode_u_32(deserializer);
+    var var_sensorMode = sse_decode_String(deserializer);
+    var var_bayerPattern = sse_decode_opt_String(deserializer);
+    var var_demosaicQuality = sse_decode_String(deserializer);
     return ApiLiveStackingConfig(
         sigmaClipEnabled: var_sigmaClipEnabled,
         sigmaClipThreshold: var_sigmaClipThreshold,
         maxMatchStars: var_maxMatchStars,
         matchRadiusPx: var_matchRadiusPx,
         matchFluxTolerance: var_matchFluxTolerance,
-        minMatchedPairs: var_minMatchedPairs);
+        minMatchedPairs: var_minMatchedPairs,
+        sensorMode: var_sensorMode,
+        bayerPattern: var_bayerPattern,
+        demosaicQuality: var_demosaicQuality);
   }
 
   @protected
@@ -15790,10 +15830,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_width = sse_decode_u_32(deserializer);
     var var_height = sse_decode_u_32(deserializer);
+    var var_channels = sse_decode_u_32(deserializer);
     var var_data = sse_decode_list_prim_u_16_strict(deserializer);
     var var_stats = sse_decode_api_live_stacking_stats(deserializer);
     return ApiLiveStackingResult(
-        width: var_width, height: var_height, data: var_data, stats: var_stats);
+        width: var_width,
+        height: var_height,
+        channels: var_channels,
+        data: var_data,
+        stats: var_stats);
   }
 
   @protected
@@ -20576,6 +20621,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_f_64(self.matchRadiusPx, serializer);
     sse_encode_f_64(self.matchFluxTolerance, serializer);
     sse_encode_u_32(self.minMatchedPairs, serializer);
+    sse_encode_String(self.sensorMode, serializer);
+    sse_encode_opt_String(self.bayerPattern, serializer);
+    sse_encode_String(self.demosaicQuality, serializer);
   }
 
   @protected
@@ -20584,6 +20632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_32(self.width, serializer);
     sse_encode_u_32(self.height, serializer);
+    sse_encode_u_32(self.channels, serializer);
     sse_encode_list_prim_u_16_strict(self.data, serializer);
     sse_encode_api_live_stacking_stats(self.stats, serializer);
   }

@@ -16,6 +16,7 @@ import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_core/src/services/stack_light_selector.dart'
     show stackLightSelectorProvider, NoLightsToStackException;
 import '../../stack_result/stack_and_share_dialog.dart';
+import 'osc_stacking_controls.dart';
 import 'panel_widgets.dart';
 
 class StackingPanel extends ConsumerStatefulWidget {
@@ -30,6 +31,64 @@ class StackingPanel extends ConsumerStatefulWidget {
 class _StackingPanelState extends ConsumerState<StackingPanel> {
   bool _isStarting = false;
   bool _isStopping = false;
+
+  /// Whether the OSC config has already been seeded from the connected camera's
+  /// capabilities. Guards the one-time camera-aware defaulting so a user who
+  /// turns the colour switch back OFF is not overridden on the next rebuild.
+  bool _oscDefaultsSeeded = false;
+
+  /// Seed the OSC config once from a connected colour camera.
+  ///
+  /// When the camera reports a Bayer CFA and the colour config is still at its
+  /// pristine mono default (the user has not touched it), default the colour
+  /// mode to `auto` and preselect the camera's detected pattern. Runs at most
+  /// once per panel lifetime and only while live stacking is idle (so it never
+  /// rewrites the config of a session already in flight). The state mutation is
+  /// deferred out of the build phase via a post-frame callback.
+  void _maybeSeedOscDefaultsFromCamera(LiveStackingConfig config) {
+    if (_oscDefaultsSeeded) return;
+
+    // Only seed a pristine config: respect any explicit user choice.
+    final isPristine =
+        config.sensorMode.toLowerCase() == 'mono' && config.bayerPattern == null;
+    if (!isPristine) {
+      _oscDefaultsSeeded = true;
+      return;
+    }
+
+    if (ref.read(liveStackingProvider).status == LiveStackingStatus.running) {
+      return; // Defer until the in-flight session ends.
+    }
+
+    final caps = _connectedCameraCapabilities();
+    if (caps == null) return; // No camera-derived hint yet; try again next build.
+    if (!caps.isColor) {
+      // A mono camera is a definitive "no colour default" signal — stop trying.
+      _oscDefaultsSeeded = true;
+      return;
+    }
+
+    // Enable the colour path in `auto` mode and leave the Bayer override unset:
+    // `auto` honours the pattern the reference frame declares via its FITS
+    // BAYERPAT geometry (which the camera's reported pattern should agree with),
+    // and the Bayer dropdown's Auto entry surfaces the detected pattern in its
+    // label. Pinning an explicit override here would silently override the
+    // frame's own geometry — the operator can still do so manually.
+    _oscDefaultsSeeded = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // Re-check the live config: if the user toggled something between the
+      // build and this callback, do not clobber their choice.
+      final current = ref.read(liveStackingProvider).config;
+      if (current.sensorMode.toLowerCase() != 'mono' ||
+          current.bayerPattern != null) {
+        return;
+      }
+      ref.read(liveStackingProvider.notifier).updateConfig(
+            current.copyWith(sensorMode: 'auto'),
+          );
+    });
+  }
 
   Future<void> _startStacking() async {
     // Let user pick a reference image file
@@ -140,6 +199,13 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
     final isError = stackState.status == LiveStackingStatus.error;
     final stats = stackState.stats;
     final config = stackState.config;
+
+    // Seed the OSC defaults from a connected colour camera: when the camera
+    // reports a Bayer mosaic and the user has not yet touched the colour config,
+    // default the colour mode ON and preselect the detected pattern. Wired here
+    // (not in the OSC section's build) so the seeding never mutates state during
+    // a descendant's build.
+    _maybeSeedOscDefaultsFromCamera(config);
 
     // Resolve the current imaging session from the same authoritative state the
     // rest of the imaging screen uses. The Stack-and-Share entry point operates
@@ -375,6 +441,7 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 previewData: stackState.previewData!,
                 width: stackState.previewWidth,
                 height: stackState.previewHeight,
+                channels: _previewChannels(stackState),
                 colors: widget.colors,
               ),
             ),
@@ -424,6 +491,18 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
                 ),
               ],
             ),
+          ),
+          const SizedBox(height: 20),
+
+          // Color (OSC) config — debayer Bayer CFA frames to RGB before
+          // integrating. Defaults are camera-aware: a connected colour camera
+          // pre-selects the switch ON and the detected Bayer pattern.
+          _OscStackingSection(
+            config: config,
+            colors: widget.colors,
+            cameraCapabilities: _connectedCameraCapabilities(),
+            onConfigChanged: (next) =>
+                ref.read(liveStackingProvider.notifier).updateConfig(next),
           ),
           const SizedBox(height: 20),
 
@@ -493,6 +572,41 @@ class _StackingPanelState extends ConsumerState<StackingPanel> {
           ),
         ],
       ),
+    );
+  }
+
+  /// Channel layout of the current stacked preview, derived from the buffer
+  /// length relative to the pixel count.
+  ///
+  /// The live stacker emits a single luminance plane (`width * height` u16
+  /// samples) for a mono session and an interleaved RGB16 buffer
+  /// (`width * height * 3`) for an OSC session. `LiveStackingState` does not
+  /// carry the channel count separately, so we recover it from the geometry the
+  /// same way the Stack-and-Share orchestrator validates it. Any length that is
+  /// neither 1- nor 3-channel returns `1` so the grayscale path renders the
+  /// luminance the engine actually produced rather than misreading bytes as RGB.
+  int _previewChannels(LiveStackingState state) {
+    final pixelCount = state.previewWidth * state.previewHeight;
+    if (pixelCount <= 0) return 1;
+    final data = state.previewData;
+    if (data != null && data.length == pixelCount * 3) return 3;
+    return 1;
+  }
+
+  /// Capabilities of the currently connected camera, or null when none is
+  /// connected / the query is still in flight / the driver did not report.
+  ///
+  /// Used by the OSC section to default the colour switch ON for a colour
+  /// camera and to pre-select its detected Bayer pattern. A null result simply
+  /// means "no camera-derived default" — the controls fall back to the config's
+  /// own (mono) defaults, never a guessed colour layout.
+  CameraCapabilities? _connectedCameraCapabilities() {
+    final deviceId = ref.watch(connectedCameraIdProvider);
+    if (deviceId == null || deviceId.isEmpty) return null;
+    final caps = ref.watch(equipmentCameraCapabilitiesProvider(deviceId));
+    return caps.maybeWhen(
+      data: (value) => value,
+      orElse: () => null,
     );
   }
 
@@ -804,16 +918,27 @@ class _AlignmentQualityBar extends StatelessWidget {
 
 /// Displays the u16 stacked preview image, converting it to an 8-bit
 /// displayable format on the fly.
+///
+/// [channels] selects how [previewData] is interpreted:
+///   * `1` — a single luminance plane (`width * height` samples); rendered with
+///     a min/max linear stretch into grayscale RGBA (the historic mono path,
+///     byte-for-byte unchanged).
+///   * `3` — an interleaved RGB16 buffer (`width * height * 3` samples, the
+///     layout an OSC session produces); each channel is linearly stretched with
+///     its own min/max so a colour stack previews in colour rather than as a
+///     scrambled mono plane.
 class _StackedPreview extends StatefulWidget {
   final Uint16List previewData;
   final int width;
   final int height;
+  final int channels;
   final NightshadeColors colors;
 
   const _StackedPreview({
     required this.previewData,
     required this.width,
     required this.height,
+    required this.channels,
     required this.colors,
   });
 
@@ -837,7 +962,8 @@ class _StackedPreviewState extends State<_StackedPreview> {
     // Only rebuild when the data actually changes (identity check is fast)
     if (!identical(widget.previewData, oldWidget.previewData) ||
         widget.width != oldWidget.width ||
-        widget.height != oldWidget.height) {
+        widget.height != oldWidget.height ||
+        widget.channels != oldWidget.channels) {
       _buildDisplayImage();
     }
   }
@@ -857,32 +983,26 @@ class _StackedPreviewState extends State<_StackedPreview> {
     final h = widget.height;
     final pixelCount = w * h;
 
-    // Sanity check
-    if (data.length < pixelCount) {
+    if (pixelCount <= 0) {
       _isDecoding = false;
       return;
     }
 
-    // Find min/max for auto-stretch
-    int minVal = 65535;
-    int maxVal = 0;
-    for (int i = 0; i < pixelCount; i++) {
-      final v = data[i];
-      if (v < minVal) minVal = v;
-      if (v > maxVal) maxVal = v;
-    }
-
-    final range = (maxVal - minVal).clamp(1, 65535);
-
-    // Convert u16 mono to RGBA bytes with simple linear stretch
-    final rgba = Uint8List(pixelCount * 4);
-    for (int i = 0; i < pixelCount; i++) {
-      final normalized = ((data[i] - minVal) * 255 ~/ range).clamp(0, 255);
-      final offset = i * 4;
-      rgba[offset] = normalized;
-      rgba[offset + 1] = normalized;
-      rgba[offset + 2] = normalized;
-      rgba[offset + 3] = 255;
+    final Uint8List rgba;
+    if (widget.channels == 3) {
+      // Sanity check: an interleaved RGB16 buffer must carry 3 samples/pixel.
+      if (data.length < pixelCount * 3) {
+        _isDecoding = false;
+        return;
+      }
+      rgba = stackedPreviewColorRgba(data, pixelCount);
+    } else {
+      // Sanity check.
+      if (data.length < pixelCount) {
+        _isDecoding = false;
+        return;
+      }
+      rgba = stackedPreviewGrayRgba(data, pixelCount);
     }
 
     try {
@@ -956,6 +1076,195 @@ class _StackedPreviewState extends State<_StackedPreview> {
           fit: BoxFit.contain,
           filterQuality: FilterQuality.medium,
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Preview pixel conversion (channel-aware)
+// ---------------------------------------------------------------------------
+
+/// Linear min/max stretch of a single u16 luminance plane to grayscale RGBA.
+/// Byte-for-byte identical to the historic mono preview path.
+///
+/// Exposed for testing the channel-branching contract of the stacked preview.
+@visibleForTesting
+Uint8List stackedPreviewGrayRgba(Uint16List data, int pixelCount) {
+  int minVal = 65535;
+  int maxVal = 0;
+  for (int i = 0; i < pixelCount; i++) {
+    final v = data[i];
+    if (v < minVal) minVal = v;
+    if (v > maxVal) maxVal = v;
+  }
+  final range = (maxVal - minVal).clamp(1, 65535);
+
+  final rgba = Uint8List(pixelCount * 4);
+  for (int i = 0; i < pixelCount; i++) {
+    final normalized = ((data[i] - minVal) * 255 ~/ range).clamp(0, 255);
+    final offset = i * 4;
+    rgba[offset] = normalized;
+    rgba[offset + 1] = normalized;
+    rgba[offset + 2] = normalized;
+    rgba[offset + 3] = 255;
+  }
+  return rgba;
+}
+
+/// Per-channel linear min/max stretch of an interleaved RGB16 buffer
+/// (`R0,G0,B0,R1,...`) to RGBA.
+///
+/// Each channel is stretched against its own min/max so the colour balance is
+/// preserved rather than being dominated by whichever channel happens to be
+/// brightest. This is a genuine colour rendering (the live EAA preview is a
+/// fast linear map; the quality-oriented STF colour stretch lives in the
+/// Stack-and-Share result viewer), never a grayscale fallback.
+///
+/// Exposed for testing the channel-branching contract of the stacked preview.
+@visibleForTesting
+Uint8List stackedPreviewColorRgba(Uint16List data, int pixelCount) {
+  var rMin = 65535, gMin = 65535, bMin = 65535;
+  var rMax = 0, gMax = 0, bMax = 0;
+  for (int i = 0; i < pixelCount; i++) {
+    final base = i * 3;
+    final r = data[base];
+    final g = data[base + 1];
+    final b = data[base + 2];
+    if (r < rMin) rMin = r;
+    if (r > rMax) rMax = r;
+    if (g < gMin) gMin = g;
+    if (g > gMax) gMax = g;
+    if (b < bMin) bMin = b;
+    if (b > bMax) bMax = b;
+  }
+  final rRange = (rMax - rMin).clamp(1, 65535);
+  final gRange = (gMax - gMin).clamp(1, 65535);
+  final bRange = (bMax - bMin).clamp(1, 65535);
+
+  final rgba = Uint8List(pixelCount * 4);
+  for (int i = 0; i < pixelCount; i++) {
+    final base = i * 3;
+    final offset = i * 4;
+    rgba[offset] = ((data[base] - rMin) * 255 ~/ rRange).clamp(0, 255);
+    rgba[offset + 1] = ((data[base + 1] - gMin) * 255 ~/ gRange).clamp(0, 255);
+    rgba[offset + 2] = ((data[base + 2] - bMin) * 255 ~/ bRange).clamp(0, 255);
+    rgba[offset + 3] = 255;
+  }
+  return rgba;
+}
+
+// ---------------------------------------------------------------------------
+// OSC / Color stacking controls
+// ---------------------------------------------------------------------------
+//
+// The OSC dropdown vocabulary (Bayer / demosaic values + labels) and the
+// labelled dropdown widget are shared with the Stack-and-Share dialog via
+// `osc_stacking_controls.dart` so the two surfaces never drift.
+
+/// The 'Color (OSC)' section of the live-stacking panel.
+///
+/// Toggling the switch flips [LiveStackingConfig.sensorMode] between `mono` and
+/// a colour mode; when ON it reveals the Bayer-pattern and demosaic-quality
+/// dropdowns. Defaults are camera-aware: when a colour camera is connected, the
+/// switch defaults ON, the colour mode resolves to `auto` (honour the frame's
+/// declared geometry), and the Bayer dropdown's Auto entry is labelled with the
+/// camera's detected pattern.
+class _OscStackingSection extends StatelessWidget {
+  final LiveStackingConfig config;
+  final NightshadeColors colors;
+  final CameraCapabilities? cameraCapabilities;
+  final ValueChanged<LiveStackingConfig> onConfigChanged;
+
+  const _OscStackingSection({
+    required this.config,
+    required this.colors,
+    required this.cameraCapabilities,
+    required this.onConfigChanged,
+  });
+
+  /// Whether OSC/colour stacking is enabled (any non-mono sensor mode).
+  bool get _enabled => config.sensorMode.toLowerCase() != 'mono';
+
+  /// The camera's detected Bayer pattern (upper-cased) when it reports one,
+  /// else null.
+  String? get _detectedPattern {
+    final caps = cameraCapabilities;
+    if (caps == null || !caps.isColor) return null;
+    final raw = caps.bayerPattern?.trim().toUpperCase();
+    if (raw == null || raw.isEmpty) return null;
+    return oscBayerPatternValues.contains(raw) ? raw : null;
+  }
+
+  void _setEnabled(bool value) {
+    if (!value) {
+      onConfigChanged(config.copyWith(sensorMode: 'mono'));
+      return;
+    }
+    // Turning colour ON: prefer `auto` so a frame that declares its own Bayer
+    // geometry (or a colour camera that reports one) is honoured without
+    // pinning a pattern the user did not choose. With no camera-derived hint we
+    // still use `auto` — the engine debayers only when the frame actually
+    // carries CFA geometry, never guessing.
+    onConfigChanged(config.copyWith(sensorMode: 'auto'));
+  }
+
+  void _setBayerPattern(String? value) {
+    if (value == null) return;
+    onConfigChanged(
+      value == oscBayerAutoValue
+          ? config.copyWith(bayerPattern: null)
+          : config.copyWith(bayerPattern: value),
+    );
+  }
+
+  void _setDemosaicQuality(String? value) {
+    if (value == null) return;
+    onConfigChanged(config.copyWith(demosaicQuality: value));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // The current Bayer selection: an explicit override pins the dropdown, else
+    // the Auto sentinel (which still resolves the detected pattern at runtime).
+    final bayerValue = config.bayerPattern?.toUpperCase() ?? oscBayerAutoValue;
+    final demosaicValue = config.demosaicQuality.toLowerCase();
+
+    return PanelSection(
+      title: 'Color (OSC)',
+      colors: colors,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          NightshadeSwitchRow(
+            label: 'OSC / Color',
+            subtitle: 'Demosaic Bayer frames to RGB',
+            value: _enabled,
+            onChanged: _setEnabled,
+          ),
+          if (_enabled) ...[
+            const SizedBox(height: NightshadeTokens.spaceLg),
+            OscDropdownField(
+              label: 'Bayer pattern',
+              value: bayerValue,
+              items: oscBayerPatternValues,
+              itemLabels: oscBayerPatternValues
+                  .map((v) => oscBayerPatternLabel(v, _detectedPattern))
+                  .toList(growable: false),
+              onChanged: _setBayerPattern,
+            ),
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            OscDropdownField(
+              label: 'Demosaic quality',
+              value: demosaicValue,
+              items: oscDemosaicQualityValues,
+              itemLabels: oscDemosaicQualityValues
+                  .map((v) => oscDemosaicQualityLabels[v] ?? v)
+                  .toList(growable: false),
+              onChanged: _setDemosaicQuality,
+            ),
+          ],
+        ],
       ),
     );
   }

@@ -18,6 +18,11 @@ void main() {
       expect(config.minQualityScore, 0);
       expect(config.rejectUnaccepted, isTrue);
       expect(config.stackingConfig, const LiveStackingConfig());
+      // Quality-oriented OSC defaults: auto-detect colour, no pattern override,
+      // VNG demosaic (distinct from the live engine's bilinear default).
+      expect(config.sensorMode, 'auto');
+      expect(config.bayerPatternOverride, isNull);
+      expect(config.demosaicQuality, 'vng');
       expect(StackAndShareConfig.defaults, config);
     });
 
@@ -29,6 +34,9 @@ void main() {
         autoStretch: false,
         minQualityScore: 0.75,
         rejectUnaccepted: false,
+        sensorMode: 'osc',
+        bayerPatternOverride: 'RGGB',
+        demosaicQuality: 'superpixel',
       );
 
       expect(updated.stackingConfig.maxMatchStars, 250);
@@ -36,6 +44,9 @@ void main() {
       expect(updated.autoStretch, isFalse);
       expect(updated.minQualityScore, 0.75);
       expect(updated.rejectUnaccepted, isFalse);
+      expect(updated.sensorMode, 'osc');
+      expect(updated.bayerPatternOverride, 'RGGB');
+      expect(updated.demosaicQuality, 'superpixel');
 
       // A no-op copyWith returns an equal value.
       expect(original.copyWith(), original);
@@ -50,6 +61,66 @@ void main() {
       expect(a, b);
       expect(a.hashCode, b.hashCode);
       expect(a, isNot(c));
+    });
+
+    test('value equality is sensitive to the colour fields', () {
+      const base = StackAndShareConfig();
+      expect(base, const StackAndShareConfig());
+
+      const oscMode = StackAndShareConfig(sensorMode: 'osc');
+      const monoMode = StackAndShareConfig(sensorMode: 'mono');
+      expect(oscMode, isNot(base));
+      expect(oscMode, isNot(monoMode));
+      expect(oscMode.hashCode, isNot(base.hashCode));
+
+      const withPattern = StackAndShareConfig(bayerPatternOverride: 'BGGR');
+      expect(withPattern, isNot(base));
+      expect(
+        withPattern,
+        const StackAndShareConfig(bayerPatternOverride: 'BGGR'),
+      );
+
+      const bilinear = StackAndShareConfig(demosaicQuality: 'bilinear');
+      expect(bilinear, isNot(base));
+      expect(bilinear.hashCode, isNot(base.hashCode));
+    });
+
+    test('resolvedStackingConfig folds the OSC knobs into the engine config',
+        () {
+      const config = StackAndShareConfig(
+        stackingConfig: LiveStackingConfig(maxMatchStars: 250),
+        sensorMode: 'osc',
+        bayerPatternOverride: 'GRBG',
+        demosaicQuality: 'superpixel',
+      );
+      final resolved = config.resolvedStackingConfig;
+
+      // OSC knobs propagate to the engine config...
+      expect(resolved.sensorMode, 'osc');
+      expect(resolved.bayerPattern, 'GRBG');
+      expect(resolved.demosaicQuality, 'superpixel');
+      // ...while the wrapped engine parameters are preserved.
+      expect(resolved.maxMatchStars, 250);
+    });
+
+    test(
+        'resolvedStackingConfig overrides whatever the wrapped engine config '
+        'declared, so Stack-and-Share intent always wins', () {
+      // The wrapped engine config carries the historic mono/bilinear defaults;
+      // the Stack-and-Share-level knobs must override them.
+      const config = StackAndShareConfig(
+        stackingConfig: LiveStackingConfig(
+          sensorMode: 'mono',
+          demosaicQuality: 'bilinear',
+        ),
+        sensorMode: 'auto',
+        demosaicQuality: 'vng',
+      );
+      final resolved = config.resolvedStackingConfig;
+      expect(resolved.sensorMode, 'auto');
+      expect(resolved.demosaicQuality, 'vng');
+      // No override supplied -> null (engine falls back to FITS BAYERPAT).
+      expect(resolved.bayerPattern, isNull);
     });
   });
 
@@ -231,6 +302,12 @@ void main() {
       expect(build().framesRejected, 2);
     });
 
+    test('defaults to a monochrome single-channel result', () {
+      final result = build();
+      expect(result.isColor, isFalse);
+      expect(result.channels, 1);
+    });
+
     test('copyWith round-trips every field', () {
       final original = build();
       final updated = original.copyWith(
@@ -238,11 +315,15 @@ void main() {
         framesStacked: 59,
         integrationSecs: 7080,
         exportedImagePath: '/exports/ngc7000.jpg',
+        isColor: true,
+        channels: 3,
       );
       expect(updated.id, 43);
       expect(updated.framesStacked, 59);
       expect(updated.integrationSecs, 7080);
       expect(updated.exportedImagePath, '/exports/ngc7000.jpg');
+      expect(updated.isColor, isTrue);
+      expect(updated.channels, 3);
       // Untouched fields preserved.
       expect(updated.targetName, 'NGC 7000');
       expect(updated.createdAt, createdAt);
@@ -250,10 +331,53 @@ void main() {
       expect(updated, isNot(original));
     });
 
+    test('isColor round-trips through copyWith and copyWith preserves channels',
+        () {
+      // A colour result built directly.
+      final colour = StackAndShareResult(
+        width: 6248,
+        height: 4176,
+        framesStacked: 40,
+        framesAttempted: 42,
+        integrationSecs: 4800,
+        avgAlignmentResidual: 0.5,
+        isColor: true,
+        channels: 3,
+        createdAt: createdAt,
+      );
+      expect(colour.isColor, isTrue);
+      expect(colour.channels, 3);
+
+      // A copyWith that does not touch the colour fields preserves them.
+      final reExported =
+          colour.copyWith(exportedImagePath: '/exports/colour.png');
+      expect(reExported.isColor, isTrue);
+      expect(reExported.channels, 3);
+      expect(reExported.exportedImagePath, '/exports/colour.png');
+
+      // Flipping a mono result to colour and back round-trips cleanly.
+      final mono = build();
+      expect(mono.isColor, isFalse);
+      expect(mono.channels, 1);
+      final toColour = mono.copyWith(isColor: true, channels: 3);
+      expect(toColour.isColor, isTrue);
+      expect(toColour.channels, 3);
+      final backToMono = toColour.copyWith(isColor: false, channels: 1);
+      expect(backToMono.isColor, isFalse);
+      expect(backToMono.channels, 1);
+    });
+
     test('value equality and hashCode', () {
       expect(build(), build());
       expect(build().hashCode, build().hashCode);
       expect(build(), isNot(build().copyWith(width: 100)));
+      // The colour fields participate in equality.
+      expect(build(), isNot(build().copyWith(isColor: true)));
+      expect(build(), isNot(build().copyWith(channels: 3)));
+      expect(
+        build().copyWith(isColor: true).hashCode,
+        isNot(build().hashCode),
+      );
     });
   });
 

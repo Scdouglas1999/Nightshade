@@ -6,6 +6,8 @@ import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
+import '../imaging/widgets/osc_stacking_controls.dart';
+
 /// Launcher dialog for the **Stack-and-Share Loop** (component C9).
 ///
 /// Summarises the lights selected for [sessionId] (target, per-filter frame
@@ -62,6 +64,22 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
   late bool _autoStretch;
   late final TextEditingController _qualityController;
 
+  /// Sensor acquisition mode for the run: `'auto'`, `'mono'`, or `'osc'`.
+  /// Folded into [StackAndShareConfig.sensorMode] by [_buildConfig].
+  late String _sensorMode;
+
+  /// Bayer-pattern override dropdown value ([oscBayerAutoValue] → no override),
+  /// folded into [StackAndShareConfig.bayerPatternOverride].
+  late String _bayerPattern;
+
+  /// Demosaic-quality dropdown value, folded into
+  /// [StackAndShareConfig.demosaicQuality].
+  late String _demosaicQuality;
+
+  /// Whether the manual OSC override controls are expanded. Only relevant when
+  /// a colour camera is auto-detected (otherwise the controls are always shown).
+  bool _oscOverrideExpanded = false;
+
   /// Parse error for the quality field, surfaced inline. Null when the field
   /// holds a valid (or empty → "no gate") value.
   String? _qualityError;
@@ -76,6 +94,9 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
     const defaults = StackAndShareConfig.defaults;
     _applyCalibration = defaults.applyCalibration;
     _autoStretch = defaults.autoStretch;
+    _sensorMode = defaults.sensorMode;
+    _bayerPattern = defaults.bayerPatternOverride?.toUpperCase() ?? oscBayerAutoValue;
+    _demosaicQuality = defaults.demosaicQuality.toLowerCase();
     _qualityController = TextEditingController(
       text: defaults.minQualityScore > 0
           ? _trimNum(defaults.minQualityScore)
@@ -111,11 +132,43 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
   }
 
   StackAndShareConfig _buildConfig(double quality) {
-    return const StackAndShareConfig().copyWith(
+    // The Auto sentinel means "no override" — let the engine resolve the
+    // pattern from the reference frame's FITS BAYERPAT geometry. Because the
+    // model's copyWith treats a null `bayerPatternOverride` as "leave unchanged"
+    // (not "clear"), the Auto case is expressed by constructing directly with
+    // null rather than copying.
+    final override =
+        _bayerPattern == oscBayerAutoValue ? null : _bayerPattern;
+    return StackAndShareConfig(
       applyCalibration: _applyCalibration,
       autoStretch: _autoStretch,
       minQualityScore: quality,
+      sensorMode: _sensorMode,
+      bayerPatternOverride: override,
+      demosaicQuality: _demosaicQuality,
     );
+  }
+
+  /// The detected Bayer pattern of the currently connected colour camera
+  /// (upper-cased, e.g. `'RGGB'`), or null when no colour camera is connected /
+  /// the query is in flight / the driver reported no pattern.
+  ///
+  /// Drives the auto-detected read-only summary in the OSC options. A null
+  /// result means "no live OSC hint" — the manual controls are shown directly
+  /// rather than a guessed pattern (errors/uncertainty surface, never a
+  /// silent colour assumption).
+  String? _detectedOscPattern() {
+    final deviceId = ref.watch(connectedCameraIdProvider);
+    if (deviceId == null || deviceId.isEmpty) return null;
+    final caps = ref.watch(equipmentCameraCapabilitiesProvider(deviceId));
+    final value = caps.maybeWhen(
+      data: (c) => c,
+      orElse: () => null,
+    );
+    if (value == null || !value.isColor) return null;
+    final raw = value.bayerPattern?.trim().toUpperCase();
+    if (raw == null || raw.isEmpty) return null;
+    return oscBayerPatternValues.contains(raw) ? raw : null;
   }
 
   Future<void> _start() async {
@@ -273,9 +326,97 @@ class _StackAndShareDialogState extends ConsumerState<StackAndShareDialog> {
                 running ? null : (v) => setState(() => _autoStretch = v),
           ),
           const SizedBox(height: NightshadeTokens.spaceLg),
+          _buildOscOptions(running),
+          const SizedBox(height: NightshadeTokens.spaceLg),
           _buildQualityField(running),
         ],
       ),
+    );
+  }
+
+  /// The OSC / colour options.
+  ///
+  /// When a live colour camera is detected, the section leads with a read-only
+  /// "Auto-detected" summary (so the common case needs no interaction) and
+  /// tucks the manual override controls behind an expansion. With no live
+  /// colour hint the controls are shown directly.
+  Widget _buildOscOptions(bool running) {
+    final colors = context.nightshadeColors;
+    final detected = _detectedOscPattern();
+    final oscEnabled = _sensorMode.toLowerCase() != 'mono';
+
+    final toggle = NightshadeSwitchRow(
+      label: 'OSC / Color',
+      subtitle: 'Demosaic Bayer frames to RGB',
+      value: oscEnabled,
+      onChanged: running
+          ? null
+          : (v) => setState(() => _sensorMode = v ? 'auto' : 'mono'),
+    );
+
+    if (!oscEnabled) {
+      return toggle;
+    }
+
+    final manualControls = <Widget>[
+      OscDropdownField(
+        label: 'Bayer pattern',
+        value: _bayerPattern,
+        items: oscBayerPatternValues,
+        itemLabels: oscBayerPatternValues
+            .map((v) => oscBayerPatternLabel(v, detected))
+            .toList(growable: false),
+        enabled: !running,
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() => _bayerPattern = v);
+        },
+      ),
+      const SizedBox(height: NightshadeTokens.spaceMd),
+      OscDropdownField(
+        label: 'Demosaic quality',
+        value: _demosaicQuality,
+        items: oscDemosaicQualityValues,
+        itemLabels: oscDemosaicQualityValues
+            .map((v) => oscDemosaicQualityLabels[v] ?? v)
+            .toList(growable: false),
+        enabled: !running,
+        onChanged: (v) {
+          if (v == null) return;
+          setState(() => _demosaicQuality = v);
+        },
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        toggle,
+        const SizedBox(height: NightshadeTokens.spaceMd),
+        if (detected != null) ...[
+          // Live colour camera detected: surface the auto-detection read-only,
+          // with the manual override behind an expander.
+          NightshadeInlineBanner(
+            severity: NightshadeAlertSeverity.info,
+            message: 'Auto-detected: OSC $detected',
+          ),
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          _OverrideDisclosure(
+            expanded: _oscOverrideExpanded,
+            colors: colors,
+            onToggle: running
+                ? null
+                : () => setState(
+                    () => _oscOverrideExpanded = !_oscOverrideExpanded),
+          ),
+          if (_oscOverrideExpanded) ...[
+            const SizedBox(height: NightshadeTokens.spaceMd),
+            ...manualControls,
+          ],
+        ] else
+          ...manualControls,
+      ],
     );
   }
 
@@ -471,4 +612,48 @@ String _trimNum(double value) {
     return value.round().toString();
   }
   return value.toStringAsFixed(1);
+}
+
+/// The "Override auto-detection" disclosure row that expands the manual OSC
+/// controls when a colour camera was auto-detected.
+class _OverrideDisclosure extends StatelessWidget {
+  final bool expanded;
+  final NightshadeColors colors;
+  final VoidCallback? onToggle;
+
+  const _OverrideDisclosure({
+    required this.expanded,
+    required this.colors,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onToggle != null;
+    final tint = enabled ? colors.primary : colors.textMuted;
+    return InkWell(
+      onTap: onToggle,
+      borderRadius: NightshadeTokens.borderRadiusSm,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: NightshadeTokens.spaceXs,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              expanded ? LucideIcons.chevronDown : LucideIcons.chevronRight,
+              size: NightshadeTokens.iconSm,
+              color: tint,
+            ),
+            const SizedBox(width: NightshadeTokens.spaceXs),
+            Text(
+              'Override auto-detection',
+              style: NightshadeTypography.label.copyWith(color: tint),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

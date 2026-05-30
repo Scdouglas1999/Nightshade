@@ -148,8 +148,36 @@ pub fn debayer(
     }
 }
 
-/// Debayer a raw u16 image directly to interleaved RGB16
-/// Convenience function for use in api.rs
+/// Debayer a raw u16 image directly to the [`RgbImage`] struct, preserving the
+/// demosaiced output geometry.
+///
+/// This is the geometry-preserving primitive: callers that need to know the
+/// output dimensions (e.g. [`SuperPixel`](DebayerAlgorithm::SuperPixel) halves
+/// resolution) must build their result from [`RgbImage::width`] /
+/// [`RgbImage::height`] rather than assuming the input CFA size.
+pub fn debayer_u16(
+    raw_data: &[u16],
+    width: u32,
+    height: u32,
+    pattern: BayerPattern,
+    algorithm: DebayerAlgorithm,
+) -> RgbImage {
+    match algorithm {
+        DebayerAlgorithm::Bilinear => debayer_bilinear(raw_data, width, height, pattern),
+        DebayerAlgorithm::VNG => debayer_vng(raw_data, width, height, pattern),
+        DebayerAlgorithm::SuperPixel => debayer_superpixel(raw_data, width, height, pattern),
+    }
+}
+
+/// Debayer a raw u16 image directly to interleaved RGB16.
+///
+/// Convenience for callers that only need the interleaved samples and already
+/// know the output geometry (e.g. full-resolution Bilinear/VNG). For algorithms
+/// that change the output dimensions — notably
+/// [`SuperPixel`](DebayerAlgorithm::SuperPixel), which halves resolution — use
+/// [`debayer_u16`] and read the resulting [`RgbImage::width`] /
+/// [`RgbImage::height`] so the buffer length and the declared dimensions stay
+/// consistent.
 pub fn debayer_to_rgb16(
     raw_data: &[u16],
     width: u32,
@@ -157,12 +185,7 @@ pub fn debayer_to_rgb16(
     pattern: BayerPattern,
     algorithm: DebayerAlgorithm,
 ) -> Vec<u16> {
-    let rgb = match algorithm {
-        DebayerAlgorithm::Bilinear => debayer_bilinear(raw_data, width, height, pattern),
-        DebayerAlgorithm::VNG => debayer_vng(raw_data, width, height, pattern),
-        DebayerAlgorithm::SuperPixel => debayer_superpixel(raw_data, width, height, pattern),
-    };
-    rgb.to_rgb16()
+    debayer_u16(raw_data, width, height, pattern, algorithm).to_rgb16()
 }
 
 /// Bilinear interpolation debayering
