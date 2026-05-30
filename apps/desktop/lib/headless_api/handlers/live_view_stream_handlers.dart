@@ -275,8 +275,9 @@ class LiveViewStreamHub {
           'type': 'stopped',
           'reason': 'server_shutdown',
         });
-      } catch (_) {
-        // socket might already be dead; ignore â€” we're tearing down.
+      } catch (_, __) {
+        // Why: socket may already be dead; we're tearing down the stream, so
+        // a failed final write has nothing left to surface.
       }
       final adapter = _sinkAdapters[socket];
       if (adapter != null) {
@@ -489,7 +490,9 @@ class LiveViewStreamHub {
             'type': 'error',
             'code': 'capture_failed',
             'deviceId': deviceId,
-            'message': e.toString(),
+            // Sanitized: the machine-readable `code` conveys the failure; the
+            // raw exception is not leaked to live-view subscribers.
+            'message': 'Capture failed on the device.',
           });
         }
         continue;

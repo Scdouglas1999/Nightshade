@@ -631,7 +631,8 @@ class SessionHandlers {
       );
       return jsonInternalServerError({
         'error': 'Failed to read sidecar metadata',
-        'detail': e.toString(),
+        // Sanitized: full cause is logged above; not leaked to the caller.
+        'detail': 'See server logs for diagnostics.',
       });
     }
 
@@ -922,8 +923,11 @@ class SessionHandlers {
         'Failed to stat $imageId: $e',
         source: 'SessionHandlers',
       );
-      return jsonInternalServerError(
-          {'error': 'Failed to read file metadata', 'detail': e.toString()});
+      return jsonInternalServerError(const {
+        'error': 'Failed to read file metadata',
+        // Sanitized: full cause is logged above; not leaked to the caller.
+        'detail': 'See server logs for diagnostics.',
+      });
     }
 
     // Determine content type based on file extension

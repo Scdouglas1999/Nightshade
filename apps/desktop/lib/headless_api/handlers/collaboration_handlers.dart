@@ -16,6 +16,7 @@
 library;
 
 import 'dart:convert';
+import 'dart:developer' as developer;
 
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
@@ -85,8 +86,20 @@ class CollaborationHandlers {
       }
       manager.upsertViewer(effectiveViewerId, name);
       return jsonOk(manager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 
@@ -109,8 +122,20 @@ class CollaborationHandlers {
       }
       manager.removeViewer(viewerId);
       return jsonOk(manager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 
@@ -126,8 +151,20 @@ class CollaborationHandlers {
       }
       manager.updatePreview(preview as Map<String, dynamic>?);
       return jsonOk(manager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 
@@ -151,8 +188,20 @@ class CollaborationHandlers {
         message: message,
       );
       return jsonOk(manager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 
@@ -182,8 +231,20 @@ class CollaborationHandlers {
         payload: annotationPayload,
       );
       return jsonOk(manager.state.toJson());
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 
@@ -208,8 +269,20 @@ class CollaborationHandlers {
       manager.setSessionHandoff(handoff as Map<String, dynamic>?);
       return jsonOk(
           {'sessionHandoff': manager.state.sessionHandoff});
-    } catch (e) {
-      return jsonInternalServerError({'error': e.toString()});
+    } catch (e, st) {
+      // Fail-closed: surface a stable 500 with a sanitized message; the real
+      // cause/stack is logged server-side, never serialized to the caller.
+      developer.log(
+        '[API] collaboration handler failed',
+        name: 'collaboration_handlers',
+        error: e,
+        stackTrace: st,
+        level: 1000,
+      );
+      return jsonInternalServerError(const {
+        'error': 'collaboration_request_failed',
+        'message': 'The collaboration request could not be completed.',
+      });
     }
   }
 

@@ -413,7 +413,8 @@ class WebRtcLiveViewHandlers {
           write('event: ${ev.eventName}\ndata: ${jsonEncode(ev.payload)}\n\n');
         },
         onError: (Object e, _) {
-          write('event: error\ndata: ${jsonEncode({"message": e.toString()})}\n\n');
+          // Sanitized SSE error: don't leak the raw exception to the client.
+          write('event: error\ndata: ${jsonEncode({"message": "stream_error"})}\n\n');
         },
         onDone: () {
           if (!controller.isClosed) controller.close();
@@ -797,20 +798,20 @@ class _WebRtcLiveViewSession {
     if (inbound != null && !inbound.isClosed) {
       try {
         await inbound.close();
-      } catch (_) {
-        // ignore — hub side may have already closed
+      } catch (_, __) {
+        // Why: best-effort teardown — the hub side may have already closed.
       }
     }
     try {
       await _dataChannel?.close();
-    } catch (_) {
-      // already closing
+    } catch (_, __) {
+      // Why: best-effort teardown — the connection is already closing.
     }
     _dataChannel = null;
     try {
       await peerConnection.close();
-    } catch (_) {
-      // already closing
+    } catch (_, __) {
+      // Why: best-effort teardown — the connection is already closing.
     }
     if (!_iceController.isClosed) {
       await _iceController.close();

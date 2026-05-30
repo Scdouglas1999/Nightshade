@@ -66,14 +66,15 @@ class DeviceDiscoveryHandlers {
           try {
             allDevices = await backend.discoverDevices(deviceType);
           } catch (e, stackTrace) {
-            discoveryErrors[deviceType.name] = e.toString();
+            // Sanitized for the wire; full cause/stack is logged below.
+            discoveryErrors[deviceType.name] = 'Discovery failed';
             _logWarning(
               '[API][$requestId] Discovery failed for ${deviceType.name}: $e',
               fields: {
                 'requestId': requestId,
                 'deviceType': deviceType.name,
-                'error': e.toString(),
-                'stack': stackTrace.toString(),
+                'error': '$e',
+                'stack': '$stackTrace',
               },
             );
           }
@@ -100,14 +101,15 @@ class DeviceDiscoveryHandlers {
           try {
             return MapEntry(dt, await backend.discoverDevices(dt));
           } catch (e, stackTrace) {
-            discoveryErrors[dt.name] = e.toString();
+            // Sanitized for the wire; full cause/stack is logged below.
+            discoveryErrors[dt.name] = 'Discovery failed';
             _logWarning(
               '[API][$requestId] Discovery failed for ${dt.name}: $e',
               fields: {
                 'requestId': requestId,
                 'deviceType': dt.name,
-                'error': e.toString(),
-                'stack': stackTrace.toString(),
+                'error': '$e',
+                'stack': '$stackTrace',
               },
             );
             return MapEntry(dt, const <DeviceInfo>[]);

@@ -309,7 +309,10 @@ class DeviceHandlers {
       // into a structured 404 so remote clients can distinguish
       // "you asked for a device that does not exist" from
       // "the driver failed to open the device".
-      final message = e.toString();
+      // Internal use only: the curated "<Kind> not found: <id>" service
+      // message is matched here and re-thrown as a structured 404 below —
+      // the raw exception object itself is never serialized.
+      final message = '$e';
       if (message.contains('not found:')) {
         throw _DeviceNotFoundFailure(message.replaceFirst('Exception: ', ''));
       }

@@ -272,7 +272,9 @@ class UpdateHandlers {
       final sep = Platform.pathSeparator;
       final idx = exe.lastIndexOf(sep);
       return idx >= 0 ? exe.substring(0, idx) : exe;
-    } catch (_) {
+    } catch (_, __) {
+      // Why: best-effort install-dir resolution; fall back to the OS name
+      // rather than failing the request if the executable path can't be parsed.
       return Platform.operatingSystem;
     }
   }

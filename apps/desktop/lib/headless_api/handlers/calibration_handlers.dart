@@ -338,7 +338,10 @@ class CalibrationHandlers {
         if (await destination.exists()) {
           await destination.delete();
         }
-      } catch (_) {}
+      } catch (_, __) {
+        // Why: best-effort cleanup of a partially-written destination; the
+        // BadRequestError thrown immediately below is the surfaced outcome.
+      }
       throw BadRequestError(
         field: 'body',
         expected: 'FITS payload',

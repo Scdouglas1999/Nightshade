@@ -785,7 +785,9 @@ class SystemHandlers {
       return {
         'name': 'driftDatabase',
         'status': 'error',
-        'message': e.toString(),
+        // Sanitized: the failing check is identified by name+status; the raw
+        // exception is not surfaced on the health endpoint.
+        'message': 'Database provider check failed.',
       };
     }
   }
@@ -829,7 +831,9 @@ class SystemHandlers {
           'path': null,
           'exists': false,
           'writable': false,
-          'message': e.toString(),
+          // Sanitized: the check is identified by name+status; the raw
+          // exception is not surfaced on the health endpoint.
+          'message': 'Directory check failed.',
         });
       }
     }
@@ -904,7 +908,9 @@ class SystemHandlers {
         'path': directory.path,
         'exists': true,
         'writable': false,
-        'message': '${e.toString()}${cleanupNote ?? ''}',
+        // Sanitized: report the writability failure without leaking the raw
+        // exception; the optional cleanup note (a path hint) is retained.
+        'message': 'Directory is not writable.${cleanupNote ?? ''}',
       };
     }
   }
