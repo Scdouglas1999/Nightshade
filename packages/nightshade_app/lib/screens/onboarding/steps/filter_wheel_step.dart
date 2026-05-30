@@ -1,3 +1,5 @@
+import 'dart:developer' as developer;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -9,10 +11,30 @@ import 'device_picker_step.dart';
 /// Filter wheel selection + filter-name editing.
 ///
 /// Optional — many imagers run mono-OSC setups without a filter wheel.
-/// When a wheel is picked we render an inline editor for filter names
-/// keyed by slot index so a 7-position EFW shows seven editable rows.
-/// The slot count comes from the driver's discovery data when available,
-/// otherwise we default to 5 (the most common amateur-rig count).
+/// When a wheel is picked we connect it and read its ACTUAL slot count +
+/// driver-reported filter names, so an 8-position ZWO EFW shows eight editable
+/// rows (not a hardcoded default). Names the user already typed are preserved
+/// for the slots they cover. If the wheel can't be connected we fall back to
+/// the existing draft/last-resort editor rather than fabricating a count.
+/// Merge the driver's actual filter-slot names with names the user already
+/// typed in the onboarding draft. The result ALWAYS has exactly
+/// [driverNames.length] entries (the wheel's real slot count), and keeps a
+/// user-entered name for any slot they already filled in — otherwise it uses
+/// the driver-reported name for that slot. Pure + [visibleForTesting] so the
+/// "use the device count, preserve user names" rule is unit-tested directly.
+@visibleForTesting
+List<String> mergeFilterSlotNames(
+  List<String> driverNames,
+  List<String> draftNames,
+) {
+  return List<String>.generate(
+    driverNames.length,
+    (i) => i < draftNames.length && draftNames[i].trim().isNotEmpty
+        ? draftNames[i]
+        : driverNames[i],
+  );
+}
+
 class OnboardingFilterWheelStep extends ConsumerStatefulWidget {
   const OnboardingFilterWheelStep({super.key});
 
@@ -23,14 +45,25 @@ class OnboardingFilterWheelStep extends ConsumerStatefulWidget {
 
 class _OnboardingFilterWheelStepState
     extends ConsumerState<OnboardingFilterWheelStep> {
-  static const int _defaultSlots = 5;
+  // Last-resort fallback ONLY when a wheel's real slot count can't be read
+  // (connect failed AND the draft carries no prior names). The happy path
+  // reads the actual slot count + names from the connected driver.
+  static const int _fallbackSlots = 5;
 
   List<TextEditingController> _controllers = [];
+
+  /// True while we connect the just-picked wheel to read its real slot count
+  /// and driver-reported filter names.
+  bool _loadingSlots = false;
 
   @override
   void initState() {
     super.initState();
-    _rebuildControllers(ref.read(onboardingDraftProvider).filterNames);
+    final draftNames = ref.read(onboardingDraftProvider).filterNames;
+    _rebuildControllers(
+      count: draftNames.isNotEmpty ? draftNames.length : _fallbackSlots,
+      names: draftNames,
+    );
   }
 
   @override
@@ -41,17 +74,57 @@ class _OnboardingFilterWheelStepState
     super.dispose();
   }
 
-  void _rebuildControllers(List<String> names) {
+  void _rebuildControllers(
+      {required int count, required List<String> names}) {
     for (final c in _controllers) {
       c.dispose();
     }
-    final count = names.isNotEmpty ? names.length : _defaultSlots;
     _controllers = List.generate(
       count,
       (i) => TextEditingController(
-        text: i < names.length ? names[i] : 'Filter ${i + 1}',
+        text: i < names.length && names[i].trim().isNotEmpty
+            ? names[i]
+            : 'Filter ${i + 1}',
       ),
     );
+  }
+
+  /// Connect the picked filter wheel and seed the slot editor from the driver's
+  /// ACTUAL slot count + reported names (e.g. an 8-position ZWO EFW shows eight
+  /// slots, not the fallback). Names the user already entered in the draft are
+  /// preserved for the slots they cover. Best-effort: a failed connect leaves
+  /// the current editor intact — the real count is re-read when the wheel
+  /// connects later in the normal equipment flow.
+  Future<void> _seedSlotsFromDevice(String deviceId) async {
+    setState(() => _loadingSlots = true);
+    try {
+      await ref
+          .read(filterWheelStateProvider.notifier)
+          .connect(deviceId, maxRetries: 1);
+      if (!mounted) return;
+      final fw = ref.read(filterWheelStateProvider);
+      final driverNames = fw.filterNames;
+      if (fw.connectionState == DeviceConnectionState.connected &&
+          driverNames.isNotEmpty) {
+        final draftNames = ref.read(onboardingDraftProvider).filterNames;
+        final seeded = mergeFilterSlotNames(driverNames, draftNames);
+        if (!mounted) return;
+        setState(() => _rebuildControllers(
+              count: seeded.length,
+              names: seeded,
+            ));
+        _commitFilters();
+      }
+    } catch (e) {
+      // Surface for diagnostics but don't block onboarding on a flaky connect.
+      developer.log(
+        'Filter wheel slot read failed for $deviceId: $e',
+        name: 'OnboardingFilterWheelStep',
+        level: 900,
+      );
+    } finally {
+      if (mounted) setState(() => _loadingSlots = false);
+    }
   }
 
   void _commitFilters() {
@@ -123,12 +196,11 @@ class _OnboardingFilterWheelStepState
                 id: device.activeDeviceId,
                 name: device.displayName,
               );
-              // After picking a wheel, build local controllers if they
-              // haven't been seeded yet so the editor renders immediately.
-              if (_controllers.isEmpty) {
-                _rebuildControllers(const []);
-              }
               setState(() {});
+              // Connect the wheel and read its real slot count + filter names
+              // so the editor reflects the hardware (e.g. 8 slots), not a
+              // hardcoded default.
+              _seedSlotsFromDevice(device.activeDeviceId);
             },
             onCleared: () {
               notifier.setFilterWheel(id: '');
@@ -148,13 +220,31 @@ class _OnboardingFilterWheelStepState
                 ),
               ),
               const Spacer(),
+              if (_loadingSlots) ...[
+                SizedBox(
+                  width: 14,
+                  height: 14,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: colors.primary,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Reading wheel…',
+                  style: theme.textTheme.bodySmall
+                      ?.copyWith(color: colors.textMuted),
+                ),
+                const SizedBox(width: 8),
+              ],
               NightshadeButton(
                 icon: LucideIcons.plus,
                 label: 'Add slot',
                 variant: ButtonVariant.outline,
                 size: ButtonSize.small,
-                onPressed:
-                    _controllers.length < 12 ? _addSlot : null,
+                onPressed: (_loadingSlots || _controllers.length >= 12)
+                    ? null
+                    : _addSlot,
               ),
             ],
           ),
