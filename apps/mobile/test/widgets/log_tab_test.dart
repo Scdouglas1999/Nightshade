@@ -47,6 +47,13 @@ class _StubBackend implements NightshadeBackend {
 
   void emit(NightshadeEvent event) => _events.add(event);
 
+  // Part of the NightshadeBackend contract (DiagnosticsBackend.dispose).
+  // BackendNotifier calls state.dispose() on provider teardown and
+  // oldBackend.dispose() on a backend swap, so a faithful double must
+  // implement it. Tests drive the actual stream teardown via close().
+  @override
+  void dispose() {}
+
   Future<void> close() async {
     await _events.close();
     await _polar.close();
@@ -98,6 +105,10 @@ class _OverrideBackendNotifier extends BackendNotifier {
   _OverrideBackendNotifier(super.ref, NightshadeBackend backend) {
     state = backend;
   }
+
+  /// Simulate a backend swap by publishing a new state, exactly as a real
+  /// reconnect would. Watchers (LogTab) see the new identity and re-subscribe.
+  void swapTo(NightshadeBackend backend) => state = backend;
 }
 
 void main() {
@@ -108,44 +119,40 @@ void main() {
     final backendA = _StubBackend('A');
     final backendB = _StubBackend('B');
 
-    // Start with backend A and emit one event so the buffer is non-empty.
-    final providerScopeKey = GlobalKey();
-    final activeBackend = ValueNotifier<NightshadeBackend>(backendA);
-
+    // Start with backend A. Capture the notifier so the test can publish a
+    // backend swap through its state (a stable-key ProviderScope does NOT
+    // re-apply a changed override closure, so mutating state is the faithful
+    // way to simulate a reconnect to a different host).
+    late _OverrideBackendNotifier notifier;
     await tester.pumpWidget(
-      ValueListenableBuilder<NightshadeBackend>(
-        valueListenable: activeBackend,
-        builder: (context, backend, _) {
-          return ProviderScope(
-            key: providerScopeKey,
-            overrides: [
-              backendProvider.overrideWith(
-                (ref) => _OverrideBackendNotifier(ref, backend),
-              ),
-            ],
-            child: MaterialApp(
-              theme: ThemeData(
-                extensions: const [NightshadeColors.dark],
-              ),
-              home: const Scaffold(body: LogTab()),
-            ),
-          );
-        },
+      ProviderScope(
+        overrides: [
+          backendProvider.overrideWith((ref) {
+            notifier = _OverrideBackendNotifier(ref, backendA);
+            return notifier;
+          }),
+        ],
+        child: MaterialApp(
+          theme: ThemeData(
+            extensions: const [NightshadeColors.dark],
+          ),
+          home: const Scaffold(body: LogTab()),
+        ),
       ),
     );
     await tester.pump();
 
     // Emit an event from backend A; the LogTab subscription should land it.
     backendA.emit(_makeEvent('event-from-A'));
-    await tester.pump();
+    await tester.pump(); // flush the broadcast-stream microtask
+    await tester.pump(); // rebuild with the delivered event
 
     expect(find.text('event-from-A'), findsOneWidget,
         reason: 'Backend A event must be visible while A is active.');
 
-    // Swap to backend B by mutating the ValueNotifier. Each rebuild creates
-    // a fresh ProviderScope-bound backend instance, so LogTab sees a
-    // different backend identity and must flush its buffer.
-    activeBackend.value = backendB;
+    // Swap to backend B by publishing a new backend identity; LogTab must
+    // flush its buffer when the watched backend changes.
+    notifier.swapTo(backendB);
     await tester.pump();
     await tester.pump(); // let _ensureSubscription run on the next frame
 
@@ -158,7 +165,8 @@ void main() {
 
     // Verify the new backend's events land normally.
     backendB.emit(_makeEvent('event-from-B'));
-    await tester.pump();
+    await tester.pump(); // flush the broadcast-stream microtask
+    await tester.pump(); // rebuild with the delivered event
     expect(find.text('event-from-B'), findsOneWidget);
 
     await backendA.close();
@@ -171,7 +179,8 @@ void main() {
     await _pumpLogTab(tester, backend: backend);
 
     backend.emit(_makeEvent('keep-me'));
-    await tester.pump();
+    await tester.pump(); // flush the broadcast-stream microtask
+    await tester.pump(); // rebuild with the delivered event
     expect(find.text('keep-me'), findsOneWidget);
 
     // Rebuild the tree with the SAME backend instance — the buffer must

@@ -45,7 +45,7 @@ void main() {
 
       expect(result.isCompatible, isTrue);
       expect(result.code, 'compatible');
-      expect(result.serverVersion, '2.5.0');
+      expect(result.serverVersion, '2.6.0');
       expect(result.clientVersion, '2.4.0');
     });
 
@@ -64,7 +64,7 @@ void main() {
       expect(result.isCompatible, isFalse);
       expect(result.code, 'server_too_old');
       expect(result.message, contains('too old for this client'));
-      expect(result.serverVersion, '2.5.0');
+      expect(result.serverVersion, '2.6.0');
     });
 
     test('rejects missing or malformed client versions', () {
