@@ -46,6 +46,20 @@ class MountControlCard extends ConsumerWidget {
     final l10n = context.l10n;
     final mountState = ref.watch(mountStateProvider);
     final isConnected = mountState.connectionState == DeviceConnectionState.connected;
+    // Offer only the tracking rates the mount actually supports (fall back to
+    // all rates when capabilities are unknown). The current rate is always kept
+    // selectable so the dropdown value stays valid.
+    final supportedRates = ref
+            .watch(mountCapabilitiesProvider(mountState.deviceId ?? ''))
+            .valueOrNull
+            ?.supportedTrackingRates ??
+        const <TrackingRate>[];
+    final trackingRateOptions =
+        (supportedRates.isNotEmpty ? supportedRates : TrackingRate.values)
+            .toList();
+    if (!trackingRateOptions.contains(mountState.trackingRate)) {
+      trackingRateOptions.insert(0, mountState.trackingRate);
+    }
 
     final raText = mountState.ra != null ? _formatRa(mountState.ra!) : '---';
     final decText = mountState.dec != null ? _formatDec(mountState.dec!) : '---';
@@ -180,7 +194,7 @@ class MountControlCard extends ConsumerWidget {
                             style: TextStyle(fontSize: 11, color: colors.textPrimary),
                             dropdownColor: colors.surface,
                             icon: Icon(LucideIcons.chevronDown, size: 12, color: colors.textMuted),
-                            items: TrackingRate.values.map((rate) => DropdownMenuItem(
+                            items: trackingRateOptions.map((rate) => DropdownMenuItem(
                               value: rate,
                               child: Text(_trackingRateLabel(rate)),
                             )).toList(),

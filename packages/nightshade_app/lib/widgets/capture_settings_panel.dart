@@ -33,6 +33,11 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
     final exposureSettings = ref.watch(exposureSettingsProvider);
     final exposureProgress = ref.watch(exposureProgressProvider);
     final cameraState = ref.watch(cameraStateProvider);
+    // Binning options reflect the connected camera's real maxBinX/Y (+ async
+    // bin support) instead of a fixed list; falls back to defaults when no
+    // camera/capabilities are available.
+    final binningOptions =
+        ref.watch(cameraBinningOptionsProvider(cameraState.deviceId ?? ''));
 
     final isConnected =
         cameraState.connectionState == DeviceConnectionState.connected;
@@ -150,8 +155,12 @@ class _CaptureSettingsPanelState extends ConsumerState<CaptureSettingsPanel> {
           label: 'Binning',
           compact: widget.compact,
           child: NightshadeDropdown(
-            value: exposureSettings.binning,
-            items: const ['1x1', '2x2', '3x3', '4x4'],
+            // Guard against a stored binning the connected camera doesn't
+            // support (e.g. profile says 4x4 but the wheel maxes at 2x2).
+            value: binningOptions.contains(exposureSettings.binning)
+                ? exposureSettings.binning
+                : (binningOptions.isNotEmpty ? binningOptions.first : '1x1'),
+            items: binningOptions,
             onChanged: (value) {
               if (value != null) {
                 final parts = value.split('x');
