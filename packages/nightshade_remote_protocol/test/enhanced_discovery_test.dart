@@ -195,4 +195,107 @@ void main() {
           'http://100.64.0.5:8443');
     });
   });
+
+  group('QrConnectionData scheme field', () {
+    test('defaults to http and round-trips through JSON', () {
+      final data = QrConnectionData(
+        host: '192.168.1.10',
+        webPort: 8080,
+        version: '2.5.0',
+        fingerprint: 'abcdef1234567890',
+      );
+      expect(data.scheme, 'http');
+      expect(data.isTls, isFalse);
+      expect(data.toJson()['scheme'], 'http');
+
+      final parsed = QrConnectionData.parseStrict(data.toQrString());
+      expect(parsed.scheme, 'http');
+    });
+
+    test('https survives encode → decode and flows into DiscoveredServer', () {
+      final data = QrConnectionData(
+        host: '100.64.0.5',
+        webPort: 8443,
+        version: '2.6.0',
+        fingerprint: 'fingerprint-https-0001',
+        scheme: 'https',
+      );
+      expect(data.isTls, isTrue);
+      expect(data.toJson()['scheme'], 'https');
+
+      final parsed = QrConnectionData.parseStrict(data.toQrString());
+      expect(parsed.scheme, 'https');
+      expect(parsed.toDiscoveredServer().scheme, 'https');
+      expect(parsed.toDiscoveredServer().isTls, isTrue);
+    });
+
+    test('parseStrict lower-cases an upper-case scheme', () {
+      const payload =
+          '{"service":"nightshade","host":"100.96.0.7","port":8443,'
+          '"version":"2.6.0","fingerprint":"abcdef1234567890",'
+          '"scheme":"HTTPS"}';
+      expect(QrConnectionData.parseStrict(payload).scheme, 'https');
+    });
+
+    test('parseStrict treats a missing scheme as http (back-compat)', () {
+      const payload =
+          '{"service":"nightshade","host":"192.168.1.10","port":8080,'
+          '"version":"2.5.0","fingerprint":"abcdef1234567890"}';
+      expect(QrConnectionData.parseStrict(payload).scheme, 'http');
+    });
+
+    test('parseStrict rejects a bogus scheme with invalidScheme', () {
+      const payload =
+          '{"service":"nightshade","host":"192.168.1.10","port":8080,'
+          '"version":"2.5.0","fingerprint":"abcdef1234567890",'
+          '"scheme":"ftp"}';
+      expect(
+        () => QrConnectionData.parseStrict(payload),
+        throwsA(
+          isA<QrValidationException>().having(
+            (e) => e.reason,
+            'reason',
+            QrRejectionReason.invalidScheme,
+          ),
+        ),
+      );
+    });
+
+    test('generateQrData embeds and lower-cases the scheme', () {
+      final qr = EnhancedNightshadeDiscovery.generateQrData(
+        host: '100.64.0.5',
+        webPort: 8443,
+        version: '2.6.0',
+        fingerprint: 'abcdef1234567890',
+        scheme: 'HTTPS',
+      );
+      expect(QrConnectionData.parseStrict(qr).scheme, 'https');
+    });
+
+    test('generateQrData rejects an invalid scheme', () {
+      expect(
+        () => EnhancedNightshadeDiscovery.generateQrData(
+          host: '100.64.0.5',
+          webPort: 8443,
+          version: '2.6.0',
+          fingerprint: 'abcdef1234567890',
+          scheme: 'gopher',
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
+
+  group('testServerConnection scheme validation', () {
+    test('rejects an invalid scheme before any network call', () {
+      expect(
+        () => EnhancedNightshadeDiscovery.testServerConnection(
+          '192.168.1.10',
+          8080,
+          scheme: 'ftp',
+        ),
+        throwsArgumentError,
+      );
+    });
+  });
 }

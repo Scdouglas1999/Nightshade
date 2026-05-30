@@ -33,14 +33,25 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
     String host,
     int port, {
     String? authToken,
+    String scheme = 'http',
+    String? pinnedFingerprint,
     String? collaborationViewerId,
     String? collaborationDeviceName,
     String? collaborationDisplayName,
   }) async {
+    // [scheme] is `'http'` for LAN and `'https'` for a TLS-fronted tailnet /
+    // Internet endpoint; NetworkBackend derives `ws`/`wss` from it. The
+    // backend itself classifies [host] as LAN vs tailnet (via TailnetDetector)
+    // and tunes its request/heartbeat/connection timeouts accordingly — LAN
+    // behaviour is unchanged, remote sessions get longer ceilings to ride out
+    // DERP-relay latency. [pinnedFingerprint], when supplied (paired rig),
+    // makes the `/api/info` handshake fail closed on identity mismatch.
     final backend = NetworkBackend(
       serverHost: host,
       serverPort: port,
       webSocketPort: port,
+      scheme: scheme,
+      pinnedFingerprint: pinnedFingerprint,
       authToken: authToken,
       autoConnectWebSocket: false,
     );
@@ -55,8 +66,10 @@ class BackendNotifier extends StateNotifier<NightshadeBackend> {
     try {
       await backend.connect();
       developer.log(
-        '[BackendNotifier] NetworkBackend connected to $host:$port '
-        '(auth=${authToken != null && authToken.isNotEmpty})',
+        '[BackendNotifier] NetworkBackend connected to $scheme://$host:$port '
+        '(auth=${authToken != null && authToken.isNotEmpty}, '
+        'remote=${backend.isRemoteHost}, '
+        'pinned=${pinnedFingerprint != null && pinnedFingerprint.isNotEmpty})',
         name: 'BackendNotifier',
         level: 800,
       );

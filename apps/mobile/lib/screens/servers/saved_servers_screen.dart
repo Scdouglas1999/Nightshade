@@ -28,6 +28,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
+import 'package:nightshade_app/localization/nightshade_localizations.dart';
 import 'package:nightshade_core/nightshade_core.dart';
 import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
@@ -98,6 +99,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final l10n = context.l10n;
     final asyncList = ref.watch(_savedServersListProvider);
     final reachability = ref.watch(_reachabilityProvider);
 
@@ -107,7 +109,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
         backgroundColor: colors.surface,
         elevation: 0,
         title: Text(
-          'Saved servers',
+          l10n.text('savedServersTitle'),
           style: TextStyle(
             color: colors.textPrimary,
             fontWeight: FontWeight.w600,
@@ -121,7 +123,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
           child: Padding(
             padding: const EdgeInsets.all(24),
             child: Text(
-              'Failed to load saved servers: $e',
+              l10n.text('savedServersLoadError', params: {'error': '$e'}),
               style: TextStyle(color: colors.error),
               textAlign: TextAlign.center,
             ),
@@ -159,7 +161,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
         backgroundColor: colors.primary,
         foregroundColor: colors.onPrimary,
         icon: const Icon(LucideIcons.plus, size: 18),
-        label: const Text('Add server'),
+        label: Text(l10n.text('savedServersAdd')),
         onPressed: _busy ? null : _handleAddServer,
       ),
     );
@@ -196,6 +198,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
         s.host,
         s.port,
         authToken: token,
+        scheme: s.scheme,
       );
       if (!mounted) return;
       notifier.setStatus(s.id, ok);
@@ -205,22 +208,35 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     }
   }
 
-  Future<void> _activateServer(SavedServer server) async {
+  /// Open a saved server.
+  ///
+  /// [hostOverride] forces a specific host — used by the "Connect over
+  /// Tailscale" action to dial the rig's tailnet address rather than its
+  /// (possibly off-LAN-unreachable) primary host. When null the primary
+  /// [SavedServer.host] is used. The transport [SavedServer.scheme] is
+  /// honoured throughout so a TLS-fronted tailnet host is probed and
+  /// dialled over https, not plain http.
+  Future<void> _activateServer(SavedServer server, {String? hostOverride}) async {
     if (_busy) return;
     setState(() => _busy = true);
+    final host = hostOverride ?? server.host;
+    final scheme = server.scheme;
     try {
       final service = ref.read(savedServersServiceProvider);
       final token = await service.tokenFor(server.id);
       // Sanity-check reachability before swapping backends — a fail-
       // fast here keeps the dashboard from booting into a hung WS.
       final ok = await EnhancedNightshadeDiscovery.testServerConnection(
-        server.host,
+        host,
         server.port,
         authToken: token,
+        scheme: scheme,
       );
       if (!ok) {
         if (!mounted) return;
-        _showSnack('Could not reach ${server.displayName}',
+        _showSnack(
+            context.l10n.text('savedServersUnreachable',
+                params: {'name': server.displayName, 'host': host}),
             isError: true);
         ref
             .read(_reachabilityProvider.notifier)
@@ -231,9 +247,11 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
           ? computeServerFingerprint(token)
           : server.id;
       await ref.read(backendProvider.notifier).connect(
-            server.host,
+            host,
             server.port,
             authToken: token,
+            scheme: scheme,
+            pinnedFingerprint: server.pinnedFingerprint,
             collaborationViewerId: viewerId,
             collaborationDeviceName: server.id,
             collaborationDisplayName: server.displayName,
@@ -243,11 +261,12 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       // own lastConnectedAt + reachability cache.
       final discovered = DiscoveredServer(
         name: server.displayName,
-        host: server.host,
+        host: host,
         webPort: server.port,
         signalingPort: 45678,
         version: '2.0.0',
         mode: 'headless',
+        scheme: scheme,
         authToken: token,
         authRequired: token != null,
         pairingSupported: true,
@@ -265,7 +284,10 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      _showSnack('Failed to open ${server.displayName}: $e', isError: true);
+      _showSnack(
+          context.l10n.text('savedServersOpenError',
+              params: {'name': server.displayName, 'error': '$e'}),
+          isError: true);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -274,7 +296,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   Future<void> _handleAddServer() async {
     if (widget.onAddServer == null) {
       _showSnack(
-        'Adding new servers from this screen is not enabled in this build.',
+        context.l10n.text('savedServersAddDisabled'),
         isError: true,
       );
       return;
@@ -285,7 +307,8 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
       if (!mounted) return;
       if (added != null) {
         ref.invalidate(_savedServersListProvider);
-        _showSnack('Added ${added.displayName}');
+        _showSnack(context.l10n
+            .text('savedServersAdded', params: {'name': added.displayName}));
       }
     } finally {
       if (mounted) setState(() => _busy = false);
@@ -294,17 +317,36 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
 
   Future<void> _showRowMenu(SavedServer server) async {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
+    final l10n = context.l10n;
     final action = await showModalBottomSheet<_RowMenuAction>(
       context: context,
       backgroundColor: colors.surface,
       builder: (sheetContext) {
+        // Offer a one-tap "connect over Tailscale" only when the rig has a
+        // distinct tailnet path (a dual-homed rig whose primary host is the
+        // LAN address). When the primary host is already the tailnet host
+        // the normal row tap already does the right thing, so we omit it.
+        final remoteHost = server.preferredRemoteHost;
+        final showConnectTailscale =
+            remoteHost != null && remoteHost != server.host;
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              if (showConnectTailscale)
+                ListTile(
+                  leading:
+                      Icon(LucideIcons.radioTower, color: colors.primary),
+                  title: Text(l10n.text('tailscaleConnect'),
+                      style: TextStyle(color: colors.textPrimary)),
+                  subtitle: Text(remoteHost,
+                      style: TextStyle(color: colors.textSecondary)),
+                  onTap: () => Navigator.of(sheetContext)
+                      .pop(_RowMenuAction.connectTailscale),
+                ),
               ListTile(
                 leading: Icon(LucideIcons.edit, color: colors.textPrimary),
-                title: Text('Rename',
+                title: Text(l10n.text('savedServersRename'),
                     style: TextStyle(color: colors.textPrimary)),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.rename),
@@ -312,14 +354,30 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
               ListTile(
                 leading:
                     Icon(LucideIcons.fileText, color: colors.textPrimary),
-                title: Text('Edit notes',
+                title: Text(l10n.text('savedServersEditNotes'),
                     style: TextStyle(color: colors.textPrimary)),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.notes),
               ),
               ListTile(
+                leading:
+                    Icon(LucideIcons.radioTower, color: colors.textPrimary),
+                title: Text(
+                    server.hasTailscaleHost
+                        ? l10n.text('savedServersEditTailscale')
+                        : l10n.text('savedServersAddTailscale'),
+                    style: TextStyle(color: colors.textPrimary)),
+                subtitle: Text(
+                    server.hasTailscaleHost
+                        ? server.tailscaleHost!
+                        : l10n.text('savedServersTailscaleSubtitle'),
+                    style: TextStyle(color: colors.textSecondary)),
+                onTap: () => Navigator.of(sheetContext)
+                    .pop(_RowMenuAction.tailscaleHost),
+              ),
+              ListTile(
                 leading: Icon(LucideIcons.trash, color: colors.error),
-                title: Text('Remove',
+                title: Text(l10n.text('savedServersRemove'),
                     style: TextStyle(color: colors.error)),
                 onTap: () =>
                     Navigator.of(sheetContext).pop(_RowMenuAction.remove),
@@ -331,11 +389,18 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     );
     if (!mounted || action == null) return;
     switch (action) {
+      case _RowMenuAction.connectTailscale:
+        await _activateServer(server,
+            hostOverride: server.preferredRemoteHost);
+        break;
       case _RowMenuAction.rename:
         await _renameServer(server);
         break;
       case _RowMenuAction.notes:
         await _editNotes(server);
+        break;
+      case _RowMenuAction.tailscaleHost:
+        await _editTailscaleHost(server);
         break;
       case _RowMenuAction.remove:
         await _confirmAndRemove(server);
@@ -343,27 +408,85 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
     }
   }
 
+  Future<void> _editTailscaleHost(SavedServer server) async {
+    final l10n = context.l10n;
+    final controller =
+        TextEditingController(text: server.tailscaleHost ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(l10n.text('savedServersTailscaleDialogTitle')),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(l10n.text('savedServersTailscaleDialogBody')),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                autocorrect: false,
+                decoration: InputDecoration(
+                  labelText: l10n.text('savedServersTailscaleHostLabel'),
+                  hintText: 'my-rig.tailnet.ts.net',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text(l10n.text('savedServersCancel')),
+            ),
+            TextButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text(l10n.text('savedServersSave')),
+            ),
+          ],
+        );
+      },
+    );
+    if (result == null) return;
+    try {
+      await ref
+          .read(savedServersServiceProvider)
+          .setTailscaleHost(server.id, result);
+      ref.invalidate(_savedServersListProvider);
+    } on ArgumentError {
+      if (!mounted) return;
+      _showSnack(
+        l10n.text('savedServersTailscaleInvalid'),
+        isError: true,
+      );
+    }
+  }
+
   Future<void> _renameServer(SavedServer server) async {
+    final l10n = context.l10n;
     final controller = TextEditingController(text: server.displayName);
     final newName = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Rename server'),
+          title: Text(l10n.text('savedServersRenameTitle')),
           content: TextField(
             controller: controller,
             autofocus: true,
-            decoration: const InputDecoration(labelText: 'Display name'),
+            decoration: InputDecoration(
+              labelText: l10n.text('savedServersDisplayNameLabel'),
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
+              child: Text(l10n.text('savedServersCancel')),
             ),
             TextButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(controller.text.trim()),
-              child: const Text('Save'),
+              child: Text(l10n.text('savedServersSave')),
             ),
           ],
         );
@@ -379,31 +502,32 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   }
 
   Future<void> _editNotes(SavedServer server) async {
+    final l10n = context.l10n;
     final controller = TextEditingController(text: server.notes);
     final updated = await showDialog<String>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: const Text('Notes'),
+          title: Text(l10n.text('savedServersNotesTitle')),
           content: TextField(
             controller: controller,
             autofocus: true,
             maxLines: 4,
             maxLength: 280,
-            decoration: const InputDecoration(
-              labelText: 'Notes',
-              helperText: 'Up to 280 characters',
+            decoration: InputDecoration(
+              labelText: l10n.text('savedServersNotesLabel'),
+              helperText: l10n.text('savedServersNotesHelper'),
             ),
           ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cancel'),
+              child: Text(l10n.text('savedServersCancel')),
             ),
             TextButton(
               onPressed: () =>
                   Navigator.of(dialogContext).pop(controller.text),
-              child: const Text('Save'),
+              child: Text(l10n.text('savedServersSave')),
             ),
           ],
         );
@@ -417,23 +541,22 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   }
 
   Future<void> _confirmAndRemove(SavedServer server) async {
+    final l10n = context.l10n;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) {
         return AlertDialog(
-          title: Text('Remove ${server.displayName}?'),
-          content: const Text(
-            'The bearer token and stored fingerprint will be wiped. '
-            'Re-pair if you want to use this server again.',
-          ),
+          title: Text(l10n.text('savedServersRemoveTitle',
+              params: {'name': server.displayName})),
+          content: Text(l10n.text('savedServersRemoveBody')),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cancel'),
+              child: Text(l10n.text('savedServersCancel')),
             ),
             TextButton(
               onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Remove'),
+              child: Text(l10n.text('savedServersRemove')),
             ),
           ],
         );
@@ -456,7 +579,7 @@ class _SavedServersScreenState extends ConsumerState<SavedServersScreen> {
   }
 }
 
-enum _RowMenuAction { rename, notes, remove }
+enum _RowMenuAction { connectTailscale, rename, notes, tailscaleHost, remove }
 
 class _EmptyState extends StatelessWidget {
   final NightshadeColors colors;
@@ -464,6 +587,7 @@ class _EmptyState extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final l10n = context.l10n;
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
@@ -473,7 +597,7 @@ class _EmptyState extends StatelessWidget {
             Icon(LucideIcons.server, size: 36, color: colors.textSecondary),
             const SizedBox(height: 12),
             Text(
-              'No saved servers yet',
+              l10n.text('savedServersEmptyTitle'),
               style: TextStyle(
                 color: colors.textPrimary,
                 fontWeight: FontWeight.w600,
@@ -482,8 +606,7 @@ class _EmptyState extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Pair with a Nightshade host using the "Add server" button '
-              'to start the roaming list.',
+              l10n.text('savedServersEmptyBody'),
               textAlign: TextAlign.center,
               style: TextStyle(color: colors.textSecondary),
             ),
@@ -516,9 +639,12 @@ class _SavedServerRow extends StatelessWidget {
     final dotColor = reachable == null
         ? colors.textSecondary.withValues(alpha: 0.4)
         : (reachable! ? colors.success : colors.error);
+    final l10n = context.l10n;
     final dotLabel = reachable == null
-        ? 'Reachability unknown'
-        : (reachable! ? 'Reachable' : 'Unreachable');
+        ? l10n.text('savedServersReachabilityUnknown')
+        : (reachable!
+            ? l10n.text('savedServersReachable')
+            : l10n.text('savedServersUnreachableShort'));
     final secondary = _secondaryLine();
     return InkWell(
       onTap: busy ? null : onTap,
@@ -541,15 +667,23 @@ class _SavedServerRow extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    server.displayName,
-                    style: TextStyle(
-                      color: colors.textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 15,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Flexible(
+                        child: Text(
+                          server.displayName,
+                          style: TextStyle(
+                            color: colors.textPrimary,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 15,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _ReachBadge(server: server, colors: colors),
+                    ],
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -603,5 +737,64 @@ class _SavedServerRow extends StatelessWidget {
     if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
     if (diff.inDays < 365) return '${(diff.inDays / 30).floor()}mo ago';
     return '${(diff.inDays / 365).floor()}y ago';
+  }
+}
+
+/// Small reachability-tier chip rendered next to a saved-server's name.
+///
+/// Tells the operator at a glance whether the rig is on the LAN (on-site
+/// only) or has a Tailscale path (reachable from anywhere). A LAN rig that
+/// *also* has a tailnet host on file shows "LAN + TS" so the operator knows
+/// the off-site option exists without opening the menu.
+class _ReachBadge extends StatelessWidget {
+  final SavedServer server;
+  final NightshadeColors colors;
+
+  const _ReachBadge({required this.server, required this.colors});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color, icon) = _descriptor();
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: NightshadeDecorations.statusChip(
+        color,
+        borderRadius: BorderRadius.circular(NightshadeTokens.radiusSm),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: NightshadeTypography.overline.copyWith(color: color),
+          ),
+        ],
+      ),
+    );
+  }
+
+  (String, Color, IconData) _descriptor() {
+    if (server.isPrimaryTailscale) {
+      return ('TAILSCALE', colors.info, LucideIcons.radioTower);
+    }
+    if (server.hasTailscaleHost) {
+      // Dual-homed: paired over LAN but a tailnet path is available.
+      return ('LAN + TS', colors.accent, LucideIcons.radioTower);
+    }
+    switch (server.hostTier) {
+      case HostReachabilityTier.lan:
+        return ('LAN', colors.textSecondary, LucideIcons.wifi);
+      case HostReachabilityTier.loopback:
+        return ('LOCAL', colors.textSecondary, LucideIcons.monitor);
+      case HostReachabilityTier.tailscale:
+        return ('TAILSCALE', colors.info, LucideIcons.radioTower);
+      case HostReachabilityTier.public:
+      case HostReachabilityTier.invalid:
+        // A saved host that no longer classifies as private (e.g. a
+        // hand-edited blob) — surface it rather than hide it.
+        return ('?', colors.warning, LucideIcons.helpCircle);
+    }
   }
 }

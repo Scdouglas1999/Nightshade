@@ -2,6 +2,12 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+// TailnetDetector is the single source of truth for recognising a Tailscale
+// tailnet interface address (100.64.0.0/10 or fd7a:115c::/32), shared with the
+// QR/pairing validator and the NetworkBackend timeout tuning so the three
+// never drift.
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
+    show TailnetDetector;
 
 /// Holds runtime state for the embedded web server.
 ///
@@ -21,6 +27,27 @@ class WebServerState {
   final String lastError;
   final String serverFingerprint;
 
+  /// The server's Tailscale tailnet IPv4/IPv6 address (`100.x.y.z` /
+  /// `fd7a:115c::…`), or `''` if no tailnet interface is present.
+  ///
+  /// Fail-closed: defaults to empty and is only populated when an interface
+  /// address positively classifies as a Tailscale address via
+  /// [TailnetDetector.isTailscaleInterfaceAddress]. We never guess — if no
+  /// tailnet interface is up, this stays empty and [tailscaleReachable] stays
+  /// false, so the UI shows "not reachable over Tailscale" rather than
+  /// advertising a stale/guessed address the phone can't actually reach.
+  final String tailscaleIp;
+
+  /// Whether the server currently believes it is reachable over a Tailscale
+  /// tailnet — i.e. a tailnet interface address was detected AND the server is
+  /// not bound loopback-only (a loopback-only bind isn't reachable from any
+  /// other device regardless of the interface).
+  ///
+  /// Fail-closed: defaults to false. This is the value the operator UI should
+  /// gate a "generate Tailscale QR" action on; it must be a positive,
+  /// evidence-backed signal, never an optimistic default.
+  final bool tailscaleReachable;
+
   const WebServerState({
     this.isRunning = false,
     this.configuredPort = 8080,
@@ -32,6 +59,8 @@ class WebServerState {
     this.dashboardAvailable = false,
     this.lastError = '',
     this.serverFingerprint = '',
+    this.tailscaleIp = '',
+    this.tailscaleReachable = false,
   });
 
   /// The URL for accessing the web dashboard from the local machine.
@@ -40,6 +69,21 @@ class WebServerState {
   /// The URL for accessing the web dashboard from other devices on the network.
   String get networkUrl =>
       !bindLocalOnly && localIp.isNotEmpty ? 'http://$localIp:$actualPort' : '';
+
+  /// The URL for accessing the web dashboard over the Tailscale tailnet, or
+  /// `''` when not reachable that way. An IPv6 tailnet literal is bracketed so
+  /// the resulting URL is well-formed (`http://[fd7a:115c::1]:8080`).
+  ///
+  /// Fail-closed: empty unless [tailscaleReachable] is true and a tailnet
+  /// address is known — mirrors [networkUrl]'s "only when actually reachable"
+  /// contract so the UI never renders a link to an unreachable host.
+  String get tailscaleUrl {
+    if (!tailscaleReachable || tailscaleIp.isEmpty) {
+      return '';
+    }
+    final hostPart = tailscaleIp.contains(':') ? '[$tailscaleIp]' : tailscaleIp;
+    return 'http://$hostPart:$actualPort';
+  }
 
   WebServerState copyWith({
     bool? isRunning,
@@ -52,6 +96,8 @@ class WebServerState {
     bool? dashboardAvailable,
     String? lastError,
     String? serverFingerprint,
+    String? tailscaleIp,
+    bool? tailscaleReachable,
   }) {
     return WebServerState(
       isRunning: isRunning ?? this.isRunning,
@@ -65,6 +111,8 @@ class WebServerState {
       dashboardAvailable: dashboardAvailable ?? this.dashboardAvailable,
       lastError: lastError ?? this.lastError,
       serverFingerprint: serverFingerprint ?? this.serverFingerprint,
+      tailscaleIp: tailscaleIp ?? this.tailscaleIp,
+      tailscaleReachable: tailscaleReachable ?? this.tailscaleReachable,
     );
   }
 }
@@ -133,22 +181,70 @@ class WebServerStateNotifier extends StateNotifier<WebServerState> {
     state = state.copyWith(configuredPort: port);
   }
 
+  /// Enumerate interface addresses and resolve, in one pass:
+  ///   * [WebServerState.localIp] — the first non-loopback **non-tailnet**
+  ///     IPv4 address (the LAN NIC). Previously this grabbed the *first*
+  ///     non-loopback IPv4, which on a Tailscale-enabled host is
+  ///     non-deterministic between the LAN NIC and the `100.x` tailnet address
+  ///     — surfacing a `100.x` as the "LAN" address that phones on the LAN
+  ///     can't necessarily reach. We now skip tailnet addresses for `localIp`.
+  ///   * [WebServerState.tailscaleIp] — the tailnet address (IPv4 CGNAT
+  ///     preferred over IPv6 ULA for QR brevity), classified by
+  ///     [TailnetDetector.isTailscaleInterfaceAddress].
+  ///   * [WebServerState.tailscaleReachable] — true iff a tailnet address was
+  ///     found AND the server isn't bound loopback-only.
+  ///
+  /// Fail-closed: if enumeration throws or finds no tailnet interface, the
+  /// tailnet fields collapse to `('', false)` rather than retaining a stale
+  /// value, so the UI can never advertise a tailnet host that is no longer up.
   Future<void> _resolveLocalIp() async {
     try {
       final interfaces = await NetworkInterface.list(
-        type: InternetAddressType.IPv4,
         includeLoopback: false,
       );
+
+      String? lanIp;
+      String? tailscaleV4;
+      String? tailscaleV6;
+
       for (final interface in interfaces) {
         for (final addr in interface.addresses) {
-          if (!addr.isLoopback) {
-            state = state.copyWith(localIp: addr.address);
-            return;
+          if (addr.isLoopback) {
+            continue;
+          }
+          final isTailnet = TailnetDetector.isTailscaleInterfaceAddress(addr);
+          if (isTailnet) {
+            if (addr.type == InternetAddressType.IPv4) {
+              tailscaleV4 ??= addr.address;
+            } else if (addr.type == InternetAddressType.IPv6) {
+              tailscaleV6 ??= addr.address;
+            }
+            continue;
+          }
+          // First non-loopback, non-tailnet IPv4 is the LAN address. IPv6 LAN
+          // addresses are not used for `localIp` (the legacy networkUrl getter
+          // assumes a bare IPv4 host) — only the tailnet IPv6 ULA is surfaced,
+          // and tailscaleUrl brackets it.
+          if (addr.type == InternetAddressType.IPv4) {
+            lanIp ??= addr.address;
           }
         }
       }
+
+      final tailscaleIp = tailscaleV4 ?? tailscaleV6 ?? '';
+      final tailscaleReachable =
+          tailscaleIp.isNotEmpty && !state.bindLocalOnly;
+
+      state = state.copyWith(
+        localIp: lanIp ?? '',
+        tailscaleIp: tailscaleIp,
+        tailscaleReachable: tailscaleReachable,
+      );
     } catch (_) {
-      // Network interface enumeration is best-effort
+      // Network interface enumeration is best-effort. Fail closed on the
+      // tailnet signal so a transient enumeration error never leaves a stale
+      // "reachable over Tailscale" claim standing.
+      state = state.copyWith(tailscaleIp: '', tailscaleReachable: false);
     }
   }
 }

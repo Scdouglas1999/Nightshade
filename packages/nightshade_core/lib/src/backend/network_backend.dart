@@ -8,6 +8,11 @@ import 'dart:typed_data';
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 import 'package:http/http.dart' as http;
 import 'package:nightshade_core/nightshade_core.dart';
+// TailnetDetector is the single source of truth for host reachability
+// classification (LAN vs Tailscale tailnet vs public). Reused here so the
+// scheme/timeout tuning matches the QR/pairing validator exactly.
+import 'package:nightshade_remote_protocol/nightshade_remote_protocol.dart'
+    show TailnetDetector;
 import 'package:path/path.dart' as p;
 import '../models/settings/app_settings.dart' as models;
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -161,10 +166,54 @@ class NetworkBackend implements NightshadeBackend {
   final String serverHost;
   final int serverPort;
   final int webSocketPort;
+
+  /// URL scheme for the REST/SSE transport: `'http'` (plaintext, the LAN
+  /// default) or `'https'` (TLS, used when the server is exposed over a
+  /// tailnet / the wider Internet and presents a certificate). The WebSocket
+  /// scheme is derived from this: `https` ⇒ `wss`, `http` ⇒ `ws` (see
+  /// [_wsScheme]). Normalised to lower-case in the constructor and validated
+  /// to be exactly one of the two accepted values — an unrecognised scheme is
+  /// a programmer error and throws rather than silently defaulting (CLAUDE.md:
+  /// errors are a feature, no silent fallbacks).
+  final String scheme;
+
+  /// Optional server-identity fingerprint pinned by the client (typically the
+  /// `shortServerFingerprint` carried in the pairing QR / saved-server
+  /// record). When non-null and non-empty, the `/api/info` handshake verifies
+  /// the server's advertised `fingerprint` matches before the WebSocket is
+  /// opened; a mismatch is a fail-closed terminal error (the connection is
+  /// refused and the state goes to [BackendConnectionState.error]) so a
+  /// man-in-the-middle on a hostile network cannot impersonate the rig the
+  /// operator paired with. Null disables pinning (LAN / first-pair flows where
+  /// the fingerprint is not yet known).
+  final String? pinnedFingerprint;
+
   String? authToken;
   final Future<String?> Function()? refreshAuthToken;
   final Duration webSocketHeartbeatInterval;
   final Duration webSocketHeartbeatTimeout;
+
+  /// Per-request timeout applied to the JSON HTTP helpers' transient-retry
+  /// wrapper ([_retryableRequest]). Defaults are tuned in the constructor:
+  /// LAN connections keep the historical 30 s ceiling, while remote
+  /// (tailnet / Internet) connections — which traverse a relay or DERP hop and
+  /// have materially higher and more variable latency — get a longer ceiling
+  /// so a slow-but-alive link is not torn down mid-request.
+  final Duration requestTimeout;
+
+  /// `true` iff [serverHost] is a Tailscale *endpoint* — a tailnet IP literal
+  /// (`100.64.0.0/10` or `fd7a:115c::/32`) OR a MagicDNS `*.ts.net` hostname
+  /// (see [TailnetDetector.isTailscaleEndpoint]). Drives the remote-tuned
+  /// timeout defaults and lets callers/telemetry distinguish a LAN session
+  /// from one riding the tailnet. LAN, loopback, mDNS `.local`, and public
+  /// hosts are all `false`.
+  ///
+  /// MagicDNS names are included deliberately: the guided Tailscale setup
+  /// recommends entering a `*.ts.net` name, and such a session traverses the
+  /// same DERP-relayed path as a `100.x` literal, so it must get the relaxed
+  /// remote timeouts and the "via Tailscale" classification rather than being
+  /// under-tuned as LAN.
+  final bool isRemoteHost;
 
   WebSocketChannel? _wsChannel;
   StreamSubscription? _wsSubscription;
@@ -258,28 +307,124 @@ class NetworkBackend implements NightshadeBackend {
   String? _serverInstanceId;
   String? _previousServerInstanceId;
 
+  /// Heartbeat-timeout default for LAN sessions. The watchdog tears the
+  /// socket down if no frame (including the server's pong) arrives within this
+  /// window. 45 s tolerates a few missed 15 s heartbeats on a flaky LAN.
+  static const Duration _lanHeartbeatTimeout = Duration(seconds: 45);
+
+  /// Heartbeat-timeout default for remote (tailnet / Internet) sessions. A
+  /// DERP-relayed tailnet hop can stall for several seconds during a network
+  /// transition (Wi-Fi→cellular handoff, NAT rebind) without the session
+  /// actually being dead; a 90 s window rides those out instead of forcing a
+  /// full reconnect cycle the operator would see as a dropout.
+  static const Duration _remoteHeartbeatTimeout = Duration(seconds: 90);
+
+  /// TCP connection-establishment timeout for the binary-streaming
+  /// [HttpClient]. LAN: 10 s. Remote: 20 s (a cold tailnet path may need a
+  /// DERP handshake before the first byte).
+  static const Duration _lanConnectionTimeout = Duration(seconds: 10);
+  static const Duration _remoteConnectionTimeout = Duration(seconds: 20);
+
+  /// Per-request ceiling for the JSON helper retry wrapper. LAN: 30 s
+  /// (unchanged). Remote: 60 s.
+  static const Duration _lanRequestTimeout = Duration(seconds: 30);
+  static const Duration _remoteRequestTimeout = Duration(seconds: 60);
+
   NetworkBackend({
     required this.serverHost,
     this.serverPort = 8080,
     this.webSocketPort = 8080, // WebSocket is on same port as HTTP
+    String scheme = 'http',
+    this.pinnedFingerprint,
     this.authToken,
     this.refreshAuthToken,
-    this.webSocketHeartbeatInterval = const Duration(seconds: 15),
-    this.webSocketHeartbeatTimeout = const Duration(seconds: 45),
+    Duration? webSocketHeartbeatInterval,
+    Duration? webSocketHeartbeatTimeout,
+    Duration? requestTimeout,
+    Duration? connectionTimeout,
     http.Client? httpClient,
     bool autoConnectWebSocket = true,
-  })  : _http = httpClient ?? http.Client(),
+  })  : scheme = _normalizeScheme(scheme),
+        isRemoteHost = TailnetDetector.isTailscaleEndpoint(serverHost),
+        webSocketHeartbeatInterval =
+            webSocketHeartbeatInterval ?? const Duration(seconds: 15),
+        // Remote/LAN-aware timeout defaults. When the caller passes an explicit
+        // value it always wins (tests, advanced config); otherwise we pick the
+        // ceiling appropriate to the host's reachability tier. LAN behaviour is
+        // byte-for-byte unchanged from before this feature.
+        webSocketHeartbeatTimeout = webSocketHeartbeatTimeout ??
+            (TailnetDetector.isTailscaleEndpoint(serverHost)
+                ? _remoteHeartbeatTimeout
+                : _lanHeartbeatTimeout),
+        requestTimeout = requestTimeout ??
+            (TailnetDetector.isTailscaleEndpoint(serverHost)
+                ? _remoteRequestTimeout
+                : _lanRequestTimeout),
+        _http = httpClient ?? http.Client(),
         _ownsHttpClient = httpClient == null {
     // Initialize persistent HTTP client with connection pooling
     _httpClient = HttpClient()
       ..idleTimeout = const Duration(seconds: 30)
-      ..connectionTimeout = const Duration(seconds: 10);
+      ..connectionTimeout = connectionTimeout ??
+          (isRemoteHost ? _remoteConnectionTimeout : _lanConnectionTimeout);
     // Connect WebSocket immediately. Tests that only exercise the HTTP
     // request/response path can disable this to avoid background timers
     // and reconnect storms.
     if (autoConnectWebSocket) {
       connect();
     }
+  }
+
+  /// Validate + lower-case the URL scheme. Only `http` and `https` are
+  /// transports this backend speaks; anything else is a caller bug and throws
+  /// (no silent coercion to a default that would mask the mistake).
+  static String _normalizeScheme(String scheme) {
+    final lowered = scheme.trim().toLowerCase();
+    if (lowered == 'http' || lowered == 'https') {
+      return lowered;
+    }
+    throw ArgumentError.value(
+      scheme,
+      'scheme',
+      "NetworkBackend scheme must be 'http' or 'https'",
+    );
+  }
+
+  /// WebSocket scheme derived from [scheme]: `https` ⇒ `wss`, `http` ⇒ `ws`.
+  String get _wsScheme => scheme == 'https' ? 'wss' : 'ws';
+
+  /// Build a REST API URI for [endpoint] (the path segment after `/api/`),
+  /// honouring the configured [scheme]. The [endpoint] may itself carry an
+  /// inline query string (e.g. `'calibration/darks/7?deleteFile=true'`); any
+  /// inline params are preserved and the optional [queryParameters] are merged
+  /// on top (explicit params win on key collision). Centralising URI
+  /// construction here is what makes the `http`→`https` switch a one-line
+  /// change instead of a 20-site hunt, and matches the previous
+  /// `Uri.parse('http://host:port/api/<endpoint>')` semantics exactly.
+  Uri _apiUri(String endpoint, [Map<String, String>? queryParameters]) {
+    final base = Uri.parse('$scheme://$serverHost:$serverPort/api/$endpoint');
+    if (queryParameters == null || queryParameters.isEmpty) {
+      return base;
+    }
+    return base.replace(queryParameters: {
+      ...base.queryParameters,
+      ...queryParameters,
+    });
+  }
+
+  /// Build a WebSocket URI for [path] (e.g. `/events`, `/ws/live-view`),
+  /// honouring the derived [_wsScheme]. [queryParameters] are merged on.
+  Uri _wsUri(String path, [Map<String, String>? queryParameters]) {
+    return Uri(
+      scheme: _wsScheme,
+      host: serverHost,
+      port: webSocketPort,
+      path: path,
+      queryParameters:
+          (queryParameters == null || queryParameters.isEmpty)
+              ? null
+              : queryParameters,
+    );
   }
 
   @override
@@ -394,15 +539,22 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   Future<RemoteApiCompatibilityResult> _checkServerCompatibility() async {
-    final uri = Uri.parse('http://$serverHost:$serverPort/api/info');
+    final uri = _apiUri('info');
     final headers = <String, String>{
       RemoteApiCompatibility.apiVersionHeader:
           RemoteApiCompatibility.clientApiVersion.format(),
       _requestIdHeader: _nextRequestId('compat'),
     };
-    final response = await _http
-        .get(uri, headers: headers)
-        .timeout(const Duration(seconds: 3));
+    // The handshake probe gets a fixed short ceiling regardless of the
+    // request-timeout tuning: it runs before we commit to the connection, so a
+    // server that can't answer /api/info promptly should surface as
+    // unreachable rather than hang the connect UI. Remote tailnet paths get a
+    // little more slack than the LAN 3 s since a cold DERP route can add a
+    // round-trip or two before the first byte.
+    final probeTimeout =
+        isRemoteHost ? const Duration(seconds: 6) : const Duration(seconds: 3);
+    final response =
+        await _http.get(uri, headers: headers).timeout(probeTimeout);
     if (response.statusCode != 200) {
       throw HttpException(
         'GET /api/info failed with HTTP ${response.statusCode}',
@@ -411,6 +563,14 @@ class NetworkBackend implements NightshadeBackend {
     }
 
     final info = jsonDecode(response.body) as Map<String, dynamic>;
+    // Fail-closed fingerprint pinning. When the caller pinned a fingerprint
+    // (paired rig), the server MUST advertise the same one or we refuse the
+    // connection outright — a mismatch means we're talking to a different
+    // server than the one the operator paired with (MITM, stale QR, or a
+    // re-keyed host). Throwing here propagates to [connect], which surfaces it
+    // as a terminal [BackendConnectionState.error] rather than spinning on
+    // reconnect.
+    _verifyPinnedFingerprint(info['fingerprint']);
     // P1-1: surface the server instance UUID so the WS connect can decide
     // whether the seq cursor we cached on the previous attachment is still
     // valid against the server we're about to talk to. If the field is
@@ -420,6 +580,49 @@ class NetworkBackend implements NightshadeBackend {
       _reconcileInstanceFromInfo(advertisedInstance);
     }
     return RemoteApiCompatibility.check(info['version'] as String?);
+  }
+
+  /// Enforce the pinned-fingerprint contract against the value the server
+  /// advertised in its `/api/info` envelope. No-op when [pinnedFingerprint] is
+  /// null/empty (pinning disabled). Throws a typed connection error on
+  /// mismatch — including when the client pinned a fingerprint but the server
+  /// advertised none (a downgrade an attacker could otherwise exploit).
+  void _verifyPinnedFingerprint(Object? advertised) {
+    final pinned = pinnedFingerprint;
+    if (pinned == null || pinned.isEmpty) {
+      return;
+    }
+    final serverFp = advertised is String ? advertised.trim() : '';
+    if (serverFp.isEmpty) {
+      throw dart_error.ServerIdentityMismatchError(
+        expectedFingerprint: pinned,
+        actualFingerprint: null,
+        message:
+            'Server identity could not be verified: this rig advertises no '
+            'fingerprint but the saved connection is pinned to '
+            '"$pinned". Refusing to connect.',
+        userMessage:
+            'This server could not prove its identity. Refusing to connect — '
+            're-pair if you intentionally changed servers.',
+      );
+    }
+    // Fingerprints are compared case-insensitively because the QR / mDNS / info
+    // representations are all hex and may differ in case across producers; the
+    // value itself is the same digest.
+    if (serverFp.toLowerCase() != pinned.toLowerCase()) {
+      throw dart_error.ServerIdentityMismatchError(
+        expectedFingerprint: pinned,
+        actualFingerprint: serverFp,
+        message:
+            'Server identity mismatch: expected fingerprint "$pinned" but the '
+            'host at $serverHost advertised "$serverFp". Refusing to connect — '
+            're-pair if you intentionally changed servers.',
+        userMessage:
+            'This server\'s identity does not match the one you paired with. '
+            'Refusing to connect — re-pair if you intentionally changed '
+            'servers.',
+      );
+    }
   }
 
   /// P1-1: compare the instance UUID advertised by `/api/info` against the
@@ -506,13 +709,7 @@ class NetworkBackend implements NightshadeBackend {
         queryParameters['since'] = _lastSeenEventSeq!.toString();
         queryParameters['instance'] = _serverInstanceId!;
       }
-      final wsUri = Uri(
-        scheme: 'ws',
-        host: serverHost,
-        port: webSocketPort,
-        path: '/events',
-        queryParameters: queryParameters.isEmpty ? null : queryParameters,
-      );
+      final wsUri = _wsUri('/events', queryParameters);
       _wsChannel = IOWebSocketChannel.connect(wsUri);
       _lastWebSocketMessageAt = DateTime.now();
 
@@ -656,6 +853,25 @@ class NetworkBackend implements NightshadeBackend {
           data: const {'message': 'WebSocket reconnected'},
         ));
       }
+    } on dart_error.ServerIdentityMismatchError catch (e) {
+      // Fail-closed terminal error: the host advertised a fingerprint that does
+      // not match the one we pinned (or advertised none). Do NOT schedule a
+      // reconnect — spinning on a host whose identity we cannot verify is
+      // exactly the man-in-the-middle window the pin exists to close. Surface
+      // an unrecoverable `error` state (mirroring the version-incompatibility
+      // branch above) so the operator sees a clear identity mismatch instead
+      // of a perpetual "reconnecting…".
+      developer.log(
+        '[NetworkBackend] Server identity mismatch; refusing to connect: '
+        '${e.message}',
+        name: 'NetworkBackend',
+        level: 1000,
+        error: e,
+      );
+      _reconnectTimer?.cancel();
+      _reconnectTimer = null;
+      _updateConnectionState(BackendConnectionState.error);
+      return;
     } catch (e) {
       developer.log('Failed to connect WebSocket: $e',
           name: 'NetworkBackend', level: 1000, error: e);
@@ -1235,14 +1451,18 @@ class NetworkBackend implements NightshadeBackend {
   Future<T> _retryableRequest<T>(
     Future<T> Function() request, {
     int maxAttempts = 3,
-    Duration timeout = const Duration(seconds: 30),
+    Duration? timeout,
   }) async {
+    // Null `timeout` defers to the host-tuned [requestTimeout] (30 s on LAN,
+    // 60 s on a tailnet). Callers that pass an explicit value override the
+    // tuning.
+    final effectiveTimeout = timeout ?? requestTimeout;
     int attempt = 0;
     Exception? lastException;
 
     while (attempt < maxAttempts) {
       try {
-        return await request().timeout(timeout);
+        return await request().timeout(effectiveTimeout);
       } catch (e) {
         lastException = e as Exception;
         attempt++;
@@ -1285,13 +1505,10 @@ class NetworkBackend implements NightshadeBackend {
   Future<Map<String, dynamic>> _get(String endpoint,
       [Map<String, dynamic>? queryParams]) async {
     return _retryableRequest(() async {
-      final baseUri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final uri = queryParams == null
-          ? baseUri
-          : baseUri.replace(queryParameters: {
-              ...baseUri.queryParameters,
-              ...queryParams.map((k, v) => MapEntry(k, v.toString())),
-            });
+      final uri = _apiUri(
+        endpoint,
+        queryParams?.map((k, v) => MapEntry(k, v.toString())),
+      );
 
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
@@ -1310,7 +1527,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<Map<String, dynamic>> _post(String endpoint,
       [Map<String, dynamic>? body, Map<String, String>? extraHeaders]) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final uri = _apiUri(endpoint);
 
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
@@ -1334,7 +1551,7 @@ class NetworkBackend implements NightshadeBackend {
 
   Future<void> _delete(String endpoint) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final uri = _apiUri(endpoint);
 
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
@@ -1351,7 +1568,7 @@ class NetworkBackend implements NightshadeBackend {
   Future<Map<String, dynamic>> _put(String endpoint,
       [Map<String, dynamic>? body]) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final uri = _apiUri(endpoint);
 
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
@@ -1386,13 +1603,10 @@ class NetworkBackend implements NightshadeBackend {
     Map<String, dynamic>? queryParams,
   ]) async {
     return _retryableRequest(() async {
-      final baseUri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
-      final uri = queryParams == null
-          ? baseUri
-          : baseUri.replace(queryParameters: {
-              ...baseUri.queryParameters,
-              ...queryParams.map((k, v) => MapEntry(k, v.toString())),
-            });
+      final uri = _apiUri(
+        endpoint,
+        queryParams?.map((k, v) => MapEntry(k, v.toString())),
+      );
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
         send: (headers) => _http.get(uri, headers: headers),
@@ -1425,10 +1639,9 @@ class NetworkBackend implements NightshadeBackend {
     String contentType = 'application/octet-stream',
   }) async {
     return _retryableRequest(() async {
-      final uri =
-          Uri.parse('http://$serverHost:$serverPort/api/$endpoint').replace(
-        queryParameters:
-            queryParams.map((key, value) => MapEntry(key, value.toString())),
+      final uri = _apiUri(
+        endpoint,
+        queryParams.map((key, value) => MapEntry(key, value.toString())),
       );
 
       final response = await _sendWithAuthRefresh(
@@ -1451,7 +1664,7 @@ class NetworkBackend implements NightshadeBackend {
     Map<String, dynamic> body,
   ) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse('http://$serverHost:$serverPort/api/$endpoint');
+      final uri = _apiUri(endpoint);
 
       final response = await _sendWithAuthRefresh(
         endpoint: endpoint,
@@ -3420,8 +3633,7 @@ class NetworkBackend implements NightshadeBackend {
 
   @override
   Future<Uint8List> getImageThumbnail(int imageId) async {
-    final uri = Uri.parse(
-        'http://$serverHost:$serverPort/api/images/$imageId/thumbnail');
+    final uri = _apiUri('images/$imageId/thumbnail');
 
     final request = await _httpClient.getUrl(uri);
     final response = await request.close();
@@ -3437,8 +3649,7 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<void> downloadImage(int imageId, String localPath,
       {void Function(double)? onProgress}) async {
-    final uri = Uri.parse(
-        'http://$serverHost:$serverPort/api/images/$imageId/download');
+    final uri = _apiUri('images/$imageId/download');
 
     // P0-5 — opportunistic resume. If a partial file already exists at
     // [localPath] from a prior aborted attempt, send `Range: bytes=N-`
@@ -3623,8 +3834,7 @@ class NetworkBackend implements NightshadeBackend {
   @override
   Future<List<int>> getLastRawImageData(String deviceId) async {
     return _retryableRequest(() async {
-      final uri = Uri.parse(
-          'http://$serverHost:$serverPort/api/imaging/raw-data?deviceId=${Uri.encodeComponent(deviceId)}');
+      final uri = _apiUri('imaging/raw-data', {'deviceId': deviceId});
 
       final request = await _httpClient.getUrl(uri);
 
@@ -3673,8 +3883,7 @@ class NetworkBackend implements NightshadeBackend {
     // Use the optimized endpoint that saves from server-side stored image
     // No raw pixel data needs to be transferred
     return _retryableRequest(() async {
-      final uri = Uri.parse(
-          'http://$serverHost:$serverPort/api/imaging/save-fits-from-capture');
+      final uri = _apiUri('imaging/save-fits-from-capture');
 
       final request = await _httpClient.postUrl(uri);
       request.headers.contentType = ContentType.json;
@@ -5263,7 +5472,7 @@ class NetworkBackend implements NightshadeBackend {
   /// POST /api/session/claim — returns true on success, false when the
   /// slot is already taken.
   Future<bool> claimSession({String? clientName, String? clientId}) async {
-    final uri = Uri.parse('http://$serverHost:$serverPort/api/session/claim');
+    final uri = _apiUri('session/claim');
     final headers = _addAuthHeaders({}, endpoint: 'session/claim');
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
     final response = await _http.post(
@@ -6151,13 +6360,7 @@ class NetworkBackend implements NightshadeBackend {
       if (severityMin != null && severityMin.isNotEmpty) {
         query['severity'] = severityMin;
       }
-      final uri = Uri(
-        scheme: 'http',
-        host: serverHost,
-        port: serverPort,
-        path: '/api/logs/tail',
-        queryParameters: query.isEmpty ? null : query,
-      );
+      final uri = _apiUri('logs/tail', query);
       try {
         client = HttpClient();
         final req = await client!.getUrl(uri);
@@ -6354,13 +6557,7 @@ class NetworkBackend implements NightshadeBackend {
       if (authToken != null && authToken!.isNotEmpty) {
         query['token'] = authToken!;
       }
-      final uri = Uri(
-        scheme: 'ws',
-        host: serverHost,
-        port: webSocketPort,
-        path: '/ws/live-view',
-        queryParameters: query.isEmpty ? null : query,
-      );
+      final uri = _wsUri('/ws/live-view', query);
       try {
         channel = IOWebSocketChannel.connect(uri);
         // Send the initial subscribe immediately. The server replies
@@ -6736,10 +6933,7 @@ class _WebRtcLiveViewSubscription {
     await pc.setLocalDescription(offer);
 
     // POST the offer to the server.
-    final offerUri = Uri.parse(
-      'http://${backend.serverHost}:${backend.serverPort}'
-      '/api/webrtc/live-view/offer',
-    );
+    final offerUri = backend._apiUri('webrtc/live-view/offer');
     final headers = backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/offer');
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
     final body = <String, Object?>{
@@ -6892,10 +7086,7 @@ class _WebRtcLiveViewSubscription {
 
   Future<void> _onLocalIceCandidate(RTCIceCandidate candidate) async {
     if (_disposed) return;
-    final uri = Uri.parse(
-      'http://${backend.serverHost}:${backend.serverPort}'
-      '/api/webrtc/live-view/ice/$sessionId',
-    );
+    final uri = backend._apiUri('webrtc/live-view/ice/$sessionId');
     final headers =
         backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice');
     headers[HttpHeaders.contentTypeHeader] = 'application/json';
@@ -6929,10 +7120,7 @@ class _WebRtcLiveViewSubscription {
   Future<void> _consumeServerIce() async {
     if (_disposed) return;
     try {
-      final uri = Uri.parse(
-        'http://${backend.serverHost}:${backend.serverPort}'
-        '/api/webrtc/live-view/ice/$sessionId/events',
-      );
+      final uri = backend._apiUri('webrtc/live-view/ice/$sessionId/events');
       final request = await _sseClient.getUrl(uri);
       backend
           ._addAuthHeaders({}, endpoint: 'webrtc/live-view/ice/events')
@@ -7120,10 +7308,7 @@ class _WebRtcLiveViewSubscription {
     // Best-effort DELETE so the server reaps the session immediately
     // rather than waiting for the 30 s startup timer.
     try {
-      final uri = Uri.parse(
-        'http://${backend.serverHost}:${backend.serverPort}'
-        '/api/webrtc/live-view/$sessionId',
-      );
+      final uri = backend._apiUri('webrtc/live-view/$sessionId');
       final headers =
           backend._addAuthHeaders({}, endpoint: 'webrtc/live-view/delete');
       await backend._http.delete(uri, headers: headers);

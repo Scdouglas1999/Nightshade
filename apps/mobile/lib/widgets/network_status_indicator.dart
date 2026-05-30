@@ -8,6 +8,23 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import '../services/network_service.dart';
 
+/// How the active session reaches the headless server. Drives the LAN-vs-
+/// Tailscale badge + icon on the indicator so the operator can tell at a
+/// glance whether they're on the fast on-site LAN path or the
+/// reachable-from-anywhere tailnet path.
+enum _TransportTier {
+  /// Server host is an RFC1918 / link-local / `.local` LAN address —
+  /// only reachable on-site.
+  lan,
+
+  /// Server host is a Tailscale tailnet address (`100.64.0.0/10` /
+  /// `fd7a:115c::/32`) — reachable from anywhere on the tailnet.
+  tailscale,
+
+  /// No NetworkBackend / not connected, so transport is irrelevant.
+  none,
+}
+
 /// Combined connection-state model for [NetworkStatusIndicator].
 ///
 /// The mobile UX cares about two layered signals:
@@ -195,17 +212,25 @@ class _NetworkStatusIndicatorState
     }
   }
 
+  /// Classify how the active backend reaches the server (LAN vs tailnet).
+  /// Returns [_TransportTier.none] when there is no NetworkBackend.
+  static _TransportTier _transportTier(NetworkBackend? backend) {
+    if (backend == null) return _TransportTier.none;
+    return backend.isRemoteHost ? _TransportTier.tailscale : _TransportTier.lan;
+  }
+
   Widget _renderIndicator(
     BuildContext context,
     _CombinedConnectionStatus status,
     NetworkServiceState osState, {
     required NetworkBackend? backend,
   }) {
+    final transport = _transportTier(backend);
     return GestureDetector(
       onTap: () => _showConnectionDetails(context, status, osState, backend),
       child: widget.compact
-          ? _buildCompactIndicator(context, status)
-          : _buildFullIndicator(context, status, osState, backend),
+          ? _buildCompactIndicator(context, status, transport)
+          : _buildFullIndicator(context, status, osState, backend, transport),
     );
   }
 
@@ -213,9 +238,10 @@ class _NetworkStatusIndicatorState
   Widget _buildCompactIndicator(
     BuildContext context,
     _CombinedConnectionStatus status,
+    _TransportTier transport,
   ) {
     final color = _statusColor(context, status);
-    final icon = _statusIcon(status);
+    final icon = _statusIcon(status, transport);
 
     return Container(
       padding: const EdgeInsets.all(8),
@@ -238,9 +264,10 @@ class _NetworkStatusIndicatorState
     _CombinedConnectionStatus status,
     NetworkServiceState osState,
     NetworkBackend? backend,
+    _TransportTier transport,
   ) {
     final color = _statusColor(context, status);
-    final icon = _statusIcon(status);
+    final icon = _statusIcon(status, transport);
     final theme = Theme.of(context);
 
     return Container(
@@ -259,7 +286,7 @@ class _NetworkStatusIndicatorState
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                _statusText(status),
+                _statusText(status, transport),
                 style: theme.textTheme.bodyMedium?.copyWith(
                   color: color,
                   fontWeight: FontWeight.w600,
@@ -330,10 +357,18 @@ class _NetworkStatusIndicatorState
     }
   }
 
-  IconData _statusIcon(_CombinedConnectionStatus status) {
+  IconData _statusIcon(
+    _CombinedConnectionStatus status,
+    _TransportTier transport,
+  ) {
     switch (status) {
       case _CombinedConnectionStatus.connected:
-        return LucideIcons.wifi;
+        // Lucide icon sweep: a live tailnet session reads as
+        // "reachable from anywhere" (radio tower), a LAN session as the
+        // familiar on-site WiFi glyph.
+        return transport == _TransportTier.tailscale
+            ? LucideIcons.radioTower
+            : LucideIcons.wifi;
       case _CombinedConnectionStatus.connecting:
       case _CombinedConnectionStatus.reconnecting:
         return LucideIcons.refreshCw;
@@ -348,10 +383,22 @@ class _NetworkStatusIndicatorState
     }
   }
 
-  String _statusText(_CombinedConnectionStatus status) {
+  String _statusText(
+    _CombinedConnectionStatus status,
+    _TransportTier transport,
+  ) {
     switch (status) {
       case _CombinedConnectionStatus.connected:
-        return 'Live';
+        // Distinguish the reachability path so the operator knows whether
+        // they're on the fast on-site LAN or the roam-anywhere tailnet.
+        switch (transport) {
+          case _TransportTier.tailscale:
+            return 'Live · Tailscale';
+          case _TransportTier.lan:
+            return 'Live · LAN';
+          case _TransportTier.none:
+            return 'Live';
+        }
       case _CombinedConnectionStatus.connecting:
         return 'Connecting';
       case _CombinedConnectionStatus.reconnecting:
@@ -542,6 +589,17 @@ class _ConnectionDetailsSheetState
             label: 'Network Type',
             value: _getNetworkType(osState.connectivityResults),
           ),
+
+          // Transport path — only meaningful for a live NetworkBackend. Tells
+          // the operator whether the session is on the on-site LAN or the
+          // reachable-from-anywhere Tailscale tailnet.
+          if (widget.backend != null)
+            _DetailRow(
+              label: 'Reachable via',
+              value: widget.backend!.isRemoteHost
+                  ? 'Tailscale (${widget.backend!.serverHost})'
+                  : 'LAN (${widget.backend!.serverHost})',
+            ),
 
           if (widget.latency != null &&
               status == _CombinedConnectionStatus.connected)

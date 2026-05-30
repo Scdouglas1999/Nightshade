@@ -27,6 +27,7 @@ import 'services/network_service.dart';
 import 'services/notification_service.dart';
 import 'utils/error_snackbar.dart';
 import 'widgets/checkpoint_resume_dialog.dart';
+import 'widgets/tailscale_setup_sheet.dart';
 
 void main() async {
   developer.log('Starting Nightshade...', name: 'Main', level: 800);
@@ -442,7 +443,14 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
           _isDiscovering = false;
           _statusMessage = '';
           _error =
-              'No Nightshade server found.\n\nTry:\n- Scanning a QR code from desktop\n- Entering the host address manually\n- Checking that UDP 45679 and HTTP 8080 are allowed through the firewall';
+              'No Nightshade server found on this network.\n\n'
+              'If you are away from the observatory, use "Connect over '
+              'Tailscale" to reach it by its MagicDNS name — local discovery '
+              'only works on the same WiFi.\n\n'
+              'On the same network, try:\n'
+              '- Scanning the QR code from the desktop\n'
+              '- Entering the host address manually\n'
+              '- Allowing UDP 45679 and HTTP 8080 through the firewall';
         });
       }
     } catch (e, stackTrace) {
@@ -460,6 +468,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
   Future<String?> _pairWithServer({
     required String host,
     required int port,
+    String scheme = 'http',
+    String? pinnedFingerprint,
     String? initialCode,
   }) async {
     final codeController = TextEditingController(text: initialCode ?? '');
@@ -552,11 +562,37 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
       _statusMessage = 'Pairing with $host:$port...';
     });
 
-    final pairing = MobilePairingService(host: host, port: port);
-    final result = await pairing.pairWithCode(
-      code: pairingInput.code,
-      requestAdminScope: pairingInput.admin,
+    final pairing = MobilePairingService(
+      host: host,
+      port: port,
+      // A TLS-fronted tailnet rig answers pairing only on https; speaking the
+      // wrong scheme returns 400. Carry the scheme learned from the saved
+      // server / discovery record.
+      scheme: scheme,
+      // When the server identity is already known (saved server, prior
+      // /api/info), enforce it BEFORE the pairing code is transmitted so a
+      // MITM cannot harvest the code. Null on a genuine first-pair where the
+      // fingerprint is not yet known (LAN trust establishes it out-of-band).
+      pinnedFingerprint: pinnedFingerprint,
     );
+
+    final RemotePairingVerifyResult result;
+    try {
+      result = await pairing.pairWithCode(
+        code: pairingInput.code,
+        requestAdminScope: pairingInput.admin,
+      );
+    } on RemotePairingFingerprintMismatch catch (e) {
+      // Fail-closed: the pre-flight identity check refused to send the code.
+      // Surface it loudly rather than letting it read as a generic failure.
+      if (!mounted) return null;
+      setState(() {
+        _isDiscovering = false;
+        _statusMessage = '';
+        _error = e.message;
+      });
+      return null;
+    }
 
     if (!mounted) return null;
 
@@ -605,6 +641,11 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
         final pairedToken = await _pairWithServer(
           host: enrichedServer.host,
           port: enrichedServer.webPort,
+          scheme: enrichedServer.scheme,
+          // Pin the server identity (when known from /api/info) so the pairing
+          // pre-flight verifies it before the code is sent — the MITM defense
+          // matters most on the Tailscale / Internet-reachable path.
+          pinnedFingerprint: enrichedServer.fingerprint,
         );
         if (pairedToken == null) {
           return;
@@ -661,6 +702,15 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
               enrichedServer.host,
               enrichedServer.webPort,
               authToken: enrichedServer.authToken,
+              // Carry the transport scheme so a TLS-fronted tailnet host is
+              // dialled over wss, not plain ws. NetworkBackend classifies the
+              // host (LAN vs tailnet) itself for timeout tuning.
+              scheme: enrichedServer.scheme,
+              // Pin the server identity (when /api/info advertised one) so the
+              // handshake verifies it before opening the socket — a mismatch
+              // becomes a terminal identity error rather than a connect. This
+              // is the MITM defense on the tailnet / Internet-reachable path.
+              pinnedFingerprint: enrichedServer.fingerprint,
               collaborationViewerId: collabIdentity.viewerId,
               collaborationDeviceName: collabIdentity.deviceName,
               collaborationDisplayName: collabIdentity.displayName,
@@ -741,8 +791,32 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
     if ((authToken == null || authToken.isEmpty) &&
         data.pairingCode != null &&
         data.pairingCode!.isNotEmpty) {
-      final pairing = MobilePairingService(host: data.host, port: data.webPort);
-      final result = await pairing.pairWithCode(code: data.pairingCode!);
+      final pairing = MobilePairingService(
+        host: data.host,
+        port: data.webPort,
+        // Speak the scheme the QR advertised (https for a TLS-fronted tailnet
+        // rig, which answers pairing only over https).
+        scheme: data.scheme,
+        // Verify the server's identity BEFORE the pairing code leaves the
+        // device. This runs the /api/info pre-flight inside the pairing
+        // client; a hostile node presenting its own pairing endpoint cannot
+        // harvest the code because the pin won't match. This replaces the old
+        // post-hoc fingerprint compare, which only fired after the code had
+        // already been transmitted.
+        pinnedFingerprint: data.fingerprint,
+      );
+      final RemotePairingVerifyResult result;
+      try {
+        result = await pairing.pairWithCode(code: data.pairingCode!);
+      } on RemotePairingFingerprintMismatch catch (e) {
+        if (!mounted) return;
+        setState(() {
+          _isDiscovering = false;
+          _statusMessage = '';
+          _error = e.message;
+        });
+        return;
+      }
       if (!mounted) return;
       if (!result.success || result.token == null) {
         setState(() {
@@ -756,18 +830,67 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
     }
 
     final server = data.toDiscoveredServer().copyWith(authToken: authToken);
+    // Defense-in-depth: even when no pairing happened (the QR already carried a
+    // token, so the pre-flight pin check above did not run), re-verify the live
+    // server identity against the fingerprint baked into the QR before we hand
+    // the connection to _connectToServer. _connectToServer's NetworkBackend
+    // also pins via /api/info, but checking here keeps the failure local to the
+    // QR flow with a QR-specific message.
     final fetched = await EnhancedNightshadeDiscovery.fetchServerInfo(server);
+    if (!mounted) return;
     if (fetched?.fingerprint != null &&
         fetched!.fingerprint != data.fingerprint) {
       setState(() {
         _isDiscovering = false;
         _statusMessage = '';
         _error =
-            'Server fingerprint does not match the QR code. Refuse to connect.';
+            'Server fingerprint does not match the QR code. Refusing to connect.';
       });
       return;
     }
 
+    await _connectToServer(server);
+  }
+
+  /// Off-site onboarding: collect a Tailscale endpoint via the guided
+  /// setup sheet, then run it through the canonical [_connectToServer]
+  /// path (which handles /api/info enrichment, pairing, compatibility, and
+  /// persistence). This is the primary path when the phone is NOT on the
+  /// observatory LAN — discovery finds nothing because Tailscale has no
+  /// broadcast domain, so the operator reaches the rig by its MagicDNS
+  /// name / 100.x address.
+  Future<void> _connectViaTailscale() async {
+    final uiContext = _connectionUiContext;
+    if (uiContext == null || !uiContext.mounted) {
+      setState(() {
+        _error = 'Connection UI is not ready yet. Try again in a moment.';
+      });
+      return;
+    }
+    final result = await TailscaleSetupSheet.show(uiContext);
+    if (result == null || !mounted) return;
+
+    setState(() {
+      _isDiscovering = true;
+      _error = null;
+      _statusMessage = 'Connecting to ${result.host}:${result.port}...';
+    });
+
+    // Build a DiscoveredServer carrying the operator's scheme + token so
+    // fetchServerInfo probes the right protocol and the pairing branch in
+    // _connectToServer only fires when no token was supplied.
+    final server = DiscoveredServer(
+      name: result.host,
+      host: result.host,
+      webPort: result.port,
+      signalingPort: 45678,
+      version: '2.0.0',
+      mode: 'headless',
+      scheme: result.scheme,
+      authToken: result.authToken,
+      authRequired: result.authToken == null,
+      pairingSupported: true,
+    );
     await _connectToServer(server);
   }
 
@@ -818,7 +941,15 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
       if ((authToken == null || authToken.isEmpty) &&
           server.authRequired &&
           server.pairingSupported) {
-        final paired = await _pairWithServer(host: host, port: port);
+        final paired = await _pairWithServer(
+          host: host,
+          port: port,
+          // Use the scheme + identity the enriched /api/info reported so a
+          // TLS-fronted host pairs over https and the pre-flight pins the
+          // server before the code is sent.
+          scheme: server.scheme,
+          pinnedFingerprint: server.fingerprint,
+        );
         if (paired == null) {
           return;
         }
@@ -1207,8 +1338,8 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
 
                 const SizedBox(height: 16),
 
-                // Connection options (Manual IP and QR scan)
-                if (!_isDiscovering && !_showManualEntry)
+                // Connection options (Manual IP, QR scan, Tailscale)
+                if (!_isDiscovering && !_showManualEntry) ...[
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -1234,6 +1365,20 @@ class _NightshadeMobileAppState extends ConsumerState<NightshadeMobileApp>
                       ),
                     ],
                   ),
+                  const SizedBox(height: 8),
+                  // Off-site path: reach a remote rig over the tailnet. Kept
+                  // distinct from QR/manual because it carries its own guided
+                  // setup (install Tailscale, find the MagicDNS name, etc.).
+                  Center(
+                    child: NightshadeButton(
+                      onPressed: _connectViaTailscale,
+                      icon: LucideIcons.radioTower,
+                      label: l10n.text('tailscaleConnect'),
+                      variant: ButtonVariant.ghost,
+                      size: ButtonSize.small,
+                    ),
+                  ),
+                ],
 
                 // Manual IP entry field
                 if (_showManualEntry) ...[

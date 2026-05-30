@@ -77,18 +77,53 @@ class RemotePairingVerifyResult {
 /// Pairing codes are entered by the operator on the desktop (or embedded in a
 /// QR payload). The six-digit dashboard flow and the `WORD-WORD-NNNN` GUI flow
 /// share the same Drift-backed session table via [TokenManager].
+///
+/// ## Scheme
+///
+/// [scheme] selects `http` (default) or `https`. The Tailscale remote-
+/// observatory topology normally runs TLS, in which case the server answers
+/// pairing requests only on `https` — speaking plain `http` to it returns a
+/// `400 Bad Request`. The scheme the phone learned from the QR payload
+/// ([QrConnectionData.scheme]) or mDNS TXT record flows through here.
+///
+/// ## Fingerprint pinning
+///
+/// When [pinnedFingerprint] is supplied, [verify] first fetches
+/// `GET /api/info` and refuses to send the pairing code unless the server's
+/// reported `fingerprint` matches the pin. This closes a MITM window that
+/// matters specifically on the Tailscale / Internet-reachable path, where the
+/// phone is no longer protected by being on the same trusted LAN segment as
+/// the rig: a hostile node that intercepts the connection could otherwise
+/// present its own pairing UI, harvest the code the operator reads off the
+/// real desktop, and mint itself a scoped token. The pin is the fingerprint
+/// the operator already verified out-of-band (it travels in the QR and is
+/// shown on the desktop remote-access screen), so checking it before handing
+/// over the code makes impersonation detectable.
 class RemotePairingClient {
   final String host;
   final int port;
+  final String scheme;
   final Duration timeout;
 
-  const RemotePairingClient({
+  /// SHA-256 server fingerprint the caller trusts. When non-null, [verify]
+  /// performs a pre-flight `/api/info` check and throws
+  /// [RemotePairingFingerprintMismatch] if the live server reports a different
+  /// fingerprint. Null disables pinning (LAN flows that established trust by
+  /// other means).
+  final String? pinnedFingerprint;
+
+  RemotePairingClient({
     required this.host,
     required this.port,
+    this.scheme = 'http',
+    this.pinnedFingerprint,
     this.timeout = const Duration(seconds: 15),
-  });
+  }) : assert(
+          scheme == 'http' || scheme == 'https',
+          'scheme must be "http" or "https"',
+        );
 
-  Uri _uri(String path) => Uri.parse('http://$host:$port$path');
+  Uri _uri(String path) => Uri.parse('$scheme://$host:$port$path');
 
   Map<String, String> get _headers => {
         'Content-Type': 'application/json',
@@ -115,10 +150,71 @@ class RemotePairingClient {
     return RemotePairingStartResult.fromJson(decoded);
   }
 
+  /// Fetches the server's advertised SHA-256 fingerprint from `/api/info`.
+  ///
+  /// Returns null when the server does not report one (older servers, or a
+  /// reachability blip). Throws [RemotePairingException] on a non-200 / non
+  /// JSON response so a genuinely broken endpoint is not mistaken for "no
+  /// fingerprint".
+  Future<String?> fetchFingerprint() async {
+    final response =
+        await http.get(_uri('/api/info'), headers: _headers).timeout(timeout);
+    if (response.statusCode != 200) {
+      throw RemotePairingException(
+        'Fingerprint pre-flight failed (${response.statusCode}): '
+        '${response.body}',
+      );
+    }
+    final dynamic decoded = response.body.isNotEmpty
+        ? jsonDecode(response.body)
+        : <String, dynamic>{};
+    if (decoded is! Map<String, dynamic>) {
+      throw const RemotePairingException(
+        'Fingerprint pre-flight returned a non-object body.',
+      );
+    }
+    final fingerprint = decoded['fingerprint'];
+    if (fingerprint is String && fingerprint.isNotEmpty) {
+      return fingerprint;
+    }
+    return null;
+  }
+
+  /// Runs the pinning pre-flight when [pinnedFingerprint] is set.
+  ///
+  /// Throws [RemotePairingFingerprintMismatch] if the server's live
+  /// fingerprint differs from the pin, or if pinning is requested but the
+  /// server reports no fingerprint at all — fail closed: we will not hand a
+  /// pairing code to a host we cannot positively identify.
+  Future<void> _enforcePinning() async {
+    final pin = pinnedFingerprint;
+    if (pin == null || pin.isEmpty) return;
+    final live = await fetchFingerprint();
+    if (live == null) {
+      throw RemotePairingFingerprintMismatch(
+        expected: pin,
+        actual: null,
+      );
+    }
+    // Constant-time-ish comparison is unnecessary here (the fingerprint is not
+    // secret — it travels in the QR), but a case-insensitive exact match keeps
+    // hex-casing differences from causing false mismatches.
+    if (live.toLowerCase() != pin.toLowerCase()) {
+      throw RemotePairingFingerprintMismatch(
+        expected: pin,
+        actual: live,
+      );
+    }
+  }
+
   /// Claims a pairing code and returns a scoped bearer token.
   ///
   /// [requestedScope] defaults to `control`. Pass `admin` only when the
   /// operator explicitly opts in on the mobile/tablet UI.
+  ///
+  /// When [pinnedFingerprint] is set, the server identity is verified before
+  /// the code is transmitted (see class docs). A mismatch throws
+  /// [RemotePairingFingerprintMismatch] and the code is never sent.
   Future<RemotePairingVerifyResult> verify({
     required String code,
     required String deviceId,
@@ -126,6 +222,8 @@ class RemotePairingClient {
     String deviceType = 'mobile',
     String requestedScope = 'control',
   }) async {
+    await _enforcePinning();
+
     final response = await http
         .post(
           _uri('/api/pairing/verify'),
@@ -163,4 +261,26 @@ class RemotePairingException implements Exception {
 
   @override
   String toString() => 'RemotePairingException: $message';
+}
+
+/// Thrown by [RemotePairingClient.verify] when the server's live fingerprint
+/// does not match the pinned value. [actual] is null when the server reported
+/// no fingerprint at all (also a fail-closed rejection).
+class RemotePairingFingerprintMismatch extends RemotePairingException {
+  final String expected;
+  final String? actual;
+
+  RemotePairingFingerprintMismatch({
+    required this.expected,
+    required this.actual,
+  }) : super(
+          actual == null
+              ? 'Server reported no fingerprint; expected '
+                  '${_short(expected)}. Refusing to pair.'
+              : 'Server fingerprint ${_short(actual)} does not match the '
+                  'pinned ${_short(expected)}. Refusing to pair.',
+        );
+
+  static String _short(String fp) =>
+      fp.length <= 16 ? fp : fp.substring(0, 16);
 }

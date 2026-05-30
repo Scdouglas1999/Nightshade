@@ -15,6 +15,7 @@ library;
 // is shared by both GUI and headless modes.
 export 'src/discovery.dart';
 export 'src/enhanced_discovery.dart';
+export 'src/tailnet_detector.dart';
 export 'src/server_compatibility.dart';
 export 'src/server_identity.dart';
 export 'src/remote_pairing_client.dart';

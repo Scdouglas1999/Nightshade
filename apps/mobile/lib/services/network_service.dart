@@ -131,10 +131,39 @@ class NetworkService {
     _isInitialized = true;
     developer.log('Initialized', name: 'NetworkService', level: 800);
 
-    // Try to reconnect to last server if we have WiFi
-    if (_state.hasWifi && _lastKnownServer != null) {
+    // Try to reconnect to the last server on ANY usable link, not just
+    // WiFi. A Tailscale tailnet host (100.x / fd7a:115c::) is reachable
+    // over cellular, so gating reconnect on WiFi alone stranded off-site
+    // operators on a remote-observatory topology — the exact case this
+    // feature exists to support. LAN hosts simply fail the reachability
+    // probe over cellular and fall through to the retry loop, which is
+    // the correct behaviour (nothing to reconnect to off-LAN).
+    if (_canAttemptReconnect() && _lastKnownServer != null) {
       await _attemptReconnect();
     }
+  }
+
+  /// Whether the current OS link is good enough to *try* reconnecting.
+  ///
+  /// A LAN-only server will fail the subsequent reachability probe over
+  /// cellular and back off; a Tailscale host will succeed. We deliberately
+  /// do not pre-filter on WiFi-vs-cellular here — the host's reachability
+  /// tier, not the radio, decides whether the probe lands, and the probe
+  /// is the authoritative check.
+  bool _canAttemptReconnect() => _state.hasConnection;
+
+  /// `true` when the tracked server is reachable over a Tailscale tailnet —
+  /// either a tailnet IP literal (`100.64.0.0/10` / `fd7a:115c::/32`) or a
+  /// MagicDNS `*.ts.net` hostname (see
+  /// [TailnetDetector.isTailscaleEndpoint]). Used to decide whether a
+  /// cellular-only link is worth a reconnect attempt. MagicDNS names must be
+  /// included here or the cellular auto-reconnect — the feature's headline
+  /// "reachable over cellular" behaviour — never fires for the guided
+  /// `*.ts.net` path.
+  bool get lastServerIsTailscale {
+    final server = _lastKnownServer;
+    if (server == null) return false;
+    return TailnetDetector.isTailscaleEndpoint(server.host);
   }
 
   /// Dispose of the network service
@@ -156,7 +185,9 @@ class NetworkService {
       level: 800,
     );
 
-    final hadWifi = _state.hasWifi;
+    final hadConnection = _state.hasConnection;
+    final hasConnection = results.isNotEmpty &&
+        !results.every((r) => r == ConnectivityResult.none);
     final hasWifi = results.contains(ConnectivityResult.wifi);
 
     _updateState(_state.copyWith(
@@ -164,37 +195,55 @@ class NetworkService {
       statusMessage: _getConnectivityMessage(results),
     ));
 
-    // If we gained WiFi connection, try to reconnect
-    if (!hadWifi && hasWifi) {
+    // If we gained *any* usable link (was offline, now online), try to
+    // reconnect. This covers WiFi-on as before, but also cellular-on for a
+    // Tailscale host that's reachable over the tailnet from anywhere — the
+    // gate this feature exists to relax. The reachability probe inside
+    // _attemptReconnect is the real arbiter; a LAN host on cellular simply
+    // fails it and backs off.
+    if (!hadConnection && hasConnection) {
       developer.log(
-        'WiFi connected, attempting to reconnect...',
+        'Network link regained ($results), attempting to reconnect...',
         name: 'NetworkService',
         level: 800,
       );
       _attemptReconnect();
     }
 
-    // If we lost WiFi, mark as disconnected
-    if (hadWifi && !hasWifi) {
-      // Lost transport — degraded UX, surface as warning.
-      developer.log('WiFi lost', name: 'NetworkService', level: 900);
+    // Only declare the session lost when ALL connectivity is gone. Losing
+    // WiFi while cellular remains used to drop a perfectly-good Tailscale
+    // session; now we keep it and let the heartbeat / probe decide. When
+    // WiFi drops to cellular for a tailnet host, re-probe so the session
+    // can ride the transition.
+    if (hadConnection && !hasConnection) {
+      // Lost all transport — degraded UX, surface as warning.
+      developer.log('All network lost', name: 'NetworkService', level: 900);
       _updateState(_state.copyWith(
         status: NetworkStatus.disconnected,
-        statusMessage: 'WiFi connection lost',
+        statusMessage: 'No network connection',
         clearServer: true,
       ));
-    }
-
-    // Warn if using mobile data
-    if (!hasWifi && results.contains(ConnectivityResult.mobile)) {
+    } else if (!hasWifi &&
+        results.contains(ConnectivityResult.mobile) &&
+        _lastKnownServer != null) {
+      // On cellular only. Surface the data-usage hint, and for a tailnet
+      // host kick a reconnect probe — it may have just dropped off WiFi
+      // mid-session and the tailnet path is still live over cellular.
       developer.log(
         'Using mobile data',
         name: 'NetworkService',
         level: 900,
       );
       _updateState(_state.copyWith(
-        statusMessage: 'Connected via mobile data (may use data)',
+        statusMessage: lastServerIsTailscale
+            ? 'On mobile data — reachable over Tailscale (may use data)'
+            : 'Connected via mobile data (may use data)',
       ));
+      if (lastServerIsTailscale &&
+          _state.status != NetworkStatus.connected &&
+          _state.status != NetworkStatus.reconnecting) {
+        _attemptReconnect();
+      }
     }
   }
 
@@ -236,11 +285,17 @@ class NetworkService {
     ));
 
     try {
-      // Test if server is reachable
+      // Test if server is reachable. A tailnet host fronted by TLS answers
+      // only on https, so probe with the server's recorded scheme; a longer
+      // timeout for a tailnet host rides out DERP-relay latency on cellular.
       final isReachable = await EnhancedNightshadeDiscovery.testServerConnection(
         _lastKnownServer!.host,
         _lastKnownServer!.webPort,
-        timeout: const Duration(seconds: 3),
+        authToken: _lastKnownServer!.authToken,
+        scheme: _lastKnownServer!.scheme,
+        timeout: lastServerIsTailscale
+            ? const Duration(seconds: 6)
+            : const Duration(seconds: 3),
       );
 
       if (isReachable) {
@@ -293,7 +348,9 @@ class NetworkService {
   void _scheduleReconnect() {
     _reconnectTimer?.cancel();
     _reconnectTimer = Timer(const Duration(seconds: 10), () {
-      if (_state.hasWifi && _lastKnownServer != null) {
+      // Retry on any usable link (not just WiFi) so a tailnet host on
+      // cellular keeps trying. The probe is the authoritative gate.
+      if (_canAttemptReconnect() && _lastKnownServer != null) {
         _attemptReconnect();
       }
     });

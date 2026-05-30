@@ -7,6 +7,17 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 /// Persists a stable device identity and performs REST pairing against the
 /// desktop headless API.
+///
+/// [scheme] selects the transport (`http` default, `https` for a TLS-fronted
+/// tailnet rig). A TLS rig answers pairing only on `https`, so a wrong scheme
+/// here breaks pairing-over-Tailscale outright — callers must pass the scheme
+/// they learned from the QR payload / saved-server record.
+///
+/// [pinnedFingerprint], when set, makes [RemotePairingClient] run a pre-flight
+/// `/api/info` identity check and refuse to transmit the pairing code unless
+/// the live server's fingerprint matches. This closes the MITM window on the
+/// Tailscale / Internet-reachable path where the phone is no longer protected
+/// by sharing a trusted LAN segment with the rig.
 class MobilePairingService {
   static const _deviceIdKey = 'nightshade_mobile_device_id';
 
@@ -15,7 +26,14 @@ class MobilePairingService {
   MobilePairingService({
     required String host,
     required int port,
-  }) : _client = RemotePairingClient(host: host, port: port);
+    String scheme = 'http',
+    String? pinnedFingerprint,
+  }) : _client = RemotePairingClient(
+          host: host,
+          port: port,
+          scheme: scheme,
+          pinnedFingerprint: pinnedFingerprint,
+        );
 
   static Future<String> deviceId() async {
     final prefs = await SharedPreferences.getInstance();

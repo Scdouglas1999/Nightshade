@@ -338,3 +338,38 @@ class NightshadeError implements Exception {
   @override
   String toString() => message;
 }
+
+/// A fail-closed, terminal server-identity error: the host we connected to
+/// advertised a fingerprint that does not match the one the client pinned
+/// (or advertised none while a pin was required).
+///
+/// This is deliberately a distinct type so the network backend can treat it
+/// as *terminal* — unlike an ordinary [BackendErrorCategory.connection]
+/// failure, a mismatched identity must NOT trigger the exponential-backoff
+/// reconnect loop (that would keep re-contacting a host whose identity we
+/// cannot verify — a potential man-in-the-middle). The connection is refused
+/// and surfaced to the operator as an unrecoverable identity error so they can
+/// re-pair if they intentionally changed servers. See the `pinnedFingerprint`
+/// contract on `NetworkBackend`.
+class ServerIdentityMismatchError extends NightshadeError {
+  /// The fingerprint the client pinned (the one the operator paired with).
+  final String expectedFingerprint;
+
+  /// The fingerprint the live server advertised, or `null` when the server
+  /// advertised none at all (also a fail-closed rejection — an attacker could
+  /// otherwise downgrade by simply omitting the field).
+  final String? actualFingerprint;
+
+  const ServerIdentityMismatchError({
+    required super.message,
+    required this.expectedFingerprint,
+    required this.actualFingerprint,
+    super.userMessage,
+  }) : super(
+          category: BackendErrorCategory.connection,
+          // Identity mismatch is terminal: never auto-retry/reconnect to a host
+          // we cannot positively identify.
+          isRecoverable: false,
+          shouldReconnect: false,
+        );
+}

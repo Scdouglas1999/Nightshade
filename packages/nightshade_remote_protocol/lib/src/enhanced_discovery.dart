@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
-import 'dart:io';
 
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 import 'package:http/http.dart' as http;
@@ -10,6 +9,7 @@ import 'package:nsd/nsd.dart';
 
 import 'discovery.dart';
 import 'server_compatibility.dart';
+import 'tailnet_detector.dart';
 
 /// SharedPreferences keys for server persistence.
 ///
@@ -98,6 +98,7 @@ enum QrRejectionReason {
   invalidVersion,
   missingFingerprint,
   invalidFingerprint,
+  invalidScheme,
 }
 
 class QrValidationException implements Exception {
@@ -131,6 +132,17 @@ class QrConnectionData {
   /// Optional pairing code embedded in QR for one-scan enrollment.
   final String? pairingCode;
 
+  /// Transport scheme the server speaks — `http` (plain) or `https` (TLS).
+  ///
+  /// Why this is in the QR payload: a server with TLS enabled rejects plain
+  /// HTTP on its HTTPS socket with a `400 Bad Request`, so the first
+  /// `GET /api/info` the phone makes after a scan must already target the
+  /// right scheme. mDNS carries this in a TXT record, but QR pairing — the
+  /// primary Tailscale onboarding path, where the phone is never on the LAN —
+  /// has no other channel to learn it. Defaults to `http` for backward
+  /// compatibility with pre-2.6 QR payloads that omit the field.
+  final String scheme;
+
   QrConnectionData({
     this.service = kQrServiceMarker,
     required this.host,
@@ -145,7 +157,11 @@ class QrConnectionData {
     this.pairingSupported = false,
     this.authToken,
     this.pairingCode,
+    this.scheme = 'http',
   });
+
+  /// `true` when the QR advertised a TLS endpoint.
+  bool get isTls => scheme == 'https';
 
   /// Short hash for confirmation UI (first 16 chars of the fingerprint).
   String get shortFingerprint =>
@@ -158,6 +174,7 @@ class QrConnectionData {
         'signalingPort': signalingPort,
         'version': version,
         'fingerprint': fingerprint,
+        'scheme': scheme,
         if (serverName != null) 'name': serverName,
         'mode': mode,
         'authRequired': authRequired,
@@ -281,6 +298,25 @@ class QrConnectionData {
       );
     }
 
+    // Scheme is optional for backward compatibility with pre-2.6 payloads, but
+    // when present it MUST be `http` or `https` — a bogus scheme would route
+    // the first /api/info request to a protocol the server cannot answer, so
+    // we surface it as a hard rejection rather than silently defaulting.
+    final rawScheme = decoded['scheme'];
+    final String parsedScheme;
+    if (rawScheme == null) {
+      parsedScheme = 'http';
+    } else if (rawScheme is String &&
+        (rawScheme.toLowerCase() == 'http' ||
+            rawScheme.toLowerCase() == 'https')) {
+      parsedScheme = rawScheme.toLowerCase();
+    } else {
+      throw const QrValidationException(
+        QrRejectionReason.invalidScheme,
+        'QR payload "scheme" is not "http" or "https".',
+      );
+    }
+
     return QrConnectionData(
       service: service,
       host: host,
@@ -288,6 +324,7 @@ class QrConnectionData {
       signalingPort: parsedSignalingPort,
       version: version,
       fingerprint: fingerprint,
+      scheme: parsedScheme,
       serverName: decoded['name'] is String ? decoded['name'] as String : null,
       mode: decoded['mode'] is String ? decoded['mode'] as String : 'desktop',
       authRequired: decoded['authRequired'] is bool
@@ -319,6 +356,7 @@ class QrConnectionData {
         pairingSupported: pairingSupported,
         authToken: authToken,
         fingerprint: fingerprint,
+        scheme: scheme,
       );
 }
 
@@ -334,70 +372,7 @@ class QrConnectionData {
 /// accepted. We do NOT accept 100.0.0.0/8 wholesale — that would let an
 /// attacker craft a QR pointing at any of 16M public hosts in the leading /10
 /// before the CGNAT block starts.
-bool isLocalNetworkHost(String host) {
-  if (host.isEmpty) return false;
-  final lower = host.toLowerCase();
-
-  // mDNS / Bonjour names. `localhost` covered by the IPv4 path below too.
-  if (lower == 'localhost' || lower.endsWith('.local')) return true;
-
-  // IPv6: strip optional brackets and zone-id suffix (e.g. `fe80::1%eth0`).
-  var candidate = lower;
-  if (candidate.startsWith('[') && candidate.endsWith(']')) {
-    candidate = candidate.substring(1, candidate.length - 1);
-  }
-  final zoneIdx = candidate.indexOf('%');
-  if (zoneIdx >= 0) {
-    candidate = candidate.substring(0, zoneIdx);
-  }
-
-  final ipv4 = _parseIpv4(candidate);
-  if (ipv4 != null) {
-    final a = ipv4[0];
-    final b = ipv4[1];
-    // 10.0.0.0/8
-    if (a == 10) return true;
-    // 172.16.0.0/12
-    if (a == 172 && b >= 16 && b <= 31) return true;
-    // 192.168.0.0/16
-    if (a == 192 && b == 168) return true;
-    // 127.0.0.0/8 (loopback)
-    if (a == 127) return true;
-    // 169.254.0.0/16 (link-local)
-    if (a == 169 && b == 254) return true;
-    // 100.64.0.0/10 — RFC 6598 carrier-grade NAT. Tailscale issues node
-    // addresses from this block (the default `100.x.y.z` magic-DNS range), so
-    // refusing it makes QR pairing impossible on the most common remote-
-    // observatory topology. The /10 boundary is precise: the first 10 bits
-    // must match `01100100 01xxxxxx`, which means `a == 100` AND
-    // `b` in [64, 127]. Do NOT widen to `a == 100` alone — that leaks 16M
-    // public IPs in 100.0/8.
-    if (a == 100 && b >= 64 && b <= 127) return true;
-    return false;
-  }
-
-  // IPv6 loopback `::1`, link-local `fe80::/10`, and unique-local `fc00::/7`.
-  // We don't fully parse arbitrary IPv6 forms here — InternetAddress.tryParse
-  // is the cheap canon.
-  final parsed = InternetAddress.tryParse(candidate);
-  if (parsed != null && parsed.type == InternetAddressType.IPv6) {
-    if (parsed.isLoopback) return true;
-    final raw = parsed.rawAddress;
-    if (raw.length >= 2) {
-      // fe80::/10 → first byte 0xFE, top two bits of second byte 0b10xxxxxx.
-      if (raw[0] == 0xFE && (raw[1] & 0xC0) == 0x80) return true;
-      // fc00::/7 — Unique Local Addresses (RFC 4193). The /7 means the
-      // first seven bits match `1111110x`, so the first byte is either 0xFC
-      // or 0xFD. Tailscale issues each tailnet a /48 inside `fd7a:115c::/32`,
-      // which falls in this range, so accepting it covers both vanilla IPv6
-      // ULA setups and Tailscale-over-IPv6.
-      if (raw[0] == 0xFC || raw[0] == 0xFD) return true;
-    }
-    return false;
-  }
-
-  return false;
-}
+bool isLocalNetworkHost(String host) => TailnetDetector.isAccepted(host);
 
 /// Decode a TXT-record value into a UTF-8 string.
 ///
@@ -422,19 +397,6 @@ String? _decodeTxtValue(Object? raw) {
   }
   final asString = raw.toString();
   return asString.isEmpty ? null : asString;
-}
-
-List<int>? _parseIpv4(String value) {
-  final parts = value.split('.');
-  if (parts.length != 4) return null;
-  final out = <int>[];
-  for (final part in parts) {
-    if (part.isEmpty) return null;
-    final n = int.tryParse(part);
-    if (n == null || n < 0 || n > 255) return null;
-    out.add(n);
-  }
-  return out;
 }
 
 /// Discovery status callback type
@@ -603,17 +565,35 @@ class EnhancedNightshadeDiscovery {
     }
   }
 
-  /// Test if a server is reachable via HTTP
+  /// Test if a server is reachable.
+  ///
+  /// [scheme] selects the transport — `http` (default) or `https`. A
+  /// TLS-enabled server (the typical Tailscale remote-observatory setup)
+  /// answers only on `https`; probing it over plain `http` returns a
+  /// `400 Bad Request` and the host wrongly reads as unreachable. Callers that
+  /// learned the scheme from a QR payload or mDNS TXT record pass it through
+  /// here so the probe lands on the right protocol. Invalid scheme values are
+  /// rejected rather than silently coerced — an unexpected scheme is a caller
+  /// bug, not something to paper over.
   static Future<bool> testServerConnection(
     String host,
     int port, {
     String? authToken,
+    String scheme = 'http',
     Duration timeout = const Duration(seconds: 5),
   }) async {
+    final lowered = scheme.toLowerCase();
+    if (lowered != 'http' && lowered != 'https') {
+      throw ArgumentError.value(
+        scheme,
+        'scheme',
+        'must be "http" or "https"',
+      );
+    }
     try {
       final infoResponse = await http
           .get(
-            Uri.parse('http://$host:$port/api/info'),
+            Uri.parse('$lowered://$host:$port/api/info'),
             headers: _authHeaders(authToken),
           )
           .timeout(timeout);
@@ -648,7 +628,7 @@ class EnhancedNightshadeDiscovery {
 
       final statusResponse = await http
           .get(
-            Uri.parse('http://$host:$port/api/status'),
+            Uri.parse('$lowered://$host:$port/api/status'),
             headers: _authHeaders(authToken),
           )
           .timeout(timeout);
@@ -711,6 +691,7 @@ class EnhancedNightshadeDiscovery {
       server.host,
       server.webPort,
       authToken: server.authToken,
+      scheme: server.scheme,
       timeout: timeout,
     );
 
@@ -954,7 +935,16 @@ class EnhancedNightshadeDiscovery {
     bool pairingSupported = false,
     String? authToken,
     String? pairingCode,
+    String scheme = 'http',
   }) {
+    final lowered = scheme.toLowerCase();
+    if (lowered != 'http' && lowered != 'https') {
+      throw ArgumentError.value(
+        scheme,
+        'scheme',
+        'must be "http" or "https"',
+      );
+    }
     final data = QrConnectionData(
       host: host,
       webPort: webPort,
@@ -968,6 +958,7 @@ class EnhancedNightshadeDiscovery {
       pairingSupported: pairingSupported,
       authToken: authToken,
       pairingCode: pairingCode,
+      scheme: lowered,
     );
     return data.toQrString();
   }

@@ -71,6 +71,71 @@ class NightshadeLocalizations {
       'mobileSearchingForServer': 'Searching for server...',
       'mobileServerIpAddress': 'Server IP Address',
       'mobileSkipConnection': 'Skip Connection (View UI Only)',
+      // Tailscale connect (setup sheet + connection-screen button).
+      'tailscaleConnect': 'Connect over Tailscale',
+      'tailscaleConnectSubtitle':
+          'Reach this rig from anywhere — no port forwarding.',
+      'tailscaleClose': 'Close',
+      'tailscaleStep1Title': 'Install Tailscale on this phone',
+      'tailscaleStep1Body':
+          'Get it from the App Store / Play Store and sign in with the same account as your observatory PC.',
+      'tailscaleStep2Title': 'Find the rig’s Tailscale address',
+      'tailscaleStep2Body':
+          'On the PC, open Settings → Remote Access. Copy the Tailscale MagicDNS name (ends in .ts.net) or the 100.x address shown there.',
+      'tailscaleStep3Title': 'Enter it below',
+      'tailscaleStep3Body':
+          'Paste the address, confirm the port, and connect. Pair with the on-screen code if prompted.',
+      'tailscaleAddressLabel': 'Tailscale address',
+      'tailscaleAddressHint':
+          'my-rig.tailnet-name.ts.net  or  100.101.102.103',
+      'tailscalePortLabel': 'Port',
+      'tailscaleTransportLabel': 'Transport',
+      'tailscaleTokenLabel': 'Access token (optional)',
+      'tailscaleTokenHint': 'Leave blank to pair with a code',
+      'tailscaleHideToken': 'Hide token',
+      'tailscaleShowToken': 'Show token',
+      'tailscaleConnectAction': 'Connect',
+      'tailscaleHostEmptyError': 'Enter the rig’s Tailscale name or IP',
+      'tailscaleHostInvalidError':
+          'Not a Tailscale address. Use a 100.x.y.z IP or a *.ts.net MagicDNS name.',
+      'tailscalePortRangeError': 'Port must be 1–65535',
+      // Saved-servers screen.
+      'savedServersTitle': 'Saved servers',
+      'savedServersLoadError': 'Failed to load saved servers: {error}',
+      'savedServersAdd': 'Add server',
+      'savedServersUnreachable': 'Could not reach {name} at {host}',
+      'savedServersOpenError': 'Failed to open {name}: {error}',
+      'savedServersAddDisabled':
+          'Adding new servers from this screen is not enabled in this build.',
+      'savedServersAdded': 'Added {name}',
+      'savedServersRename': 'Rename',
+      'savedServersEditNotes': 'Edit notes',
+      'savedServersEditTailscale': 'Edit Tailscale address',
+      'savedServersAddTailscale': 'Add Tailscale address',
+      'savedServersTailscaleSubtitle': 'Reach this rig from anywhere',
+      'savedServersRemove': 'Remove',
+      'savedServersTailscaleDialogTitle': 'Tailscale address',
+      'savedServersTailscaleDialogBody':
+          'A 100.x.y.z tailnet IP or a *.ts.net MagicDNS name for this rig. Leave blank to remove.',
+      'savedServersTailscaleHostLabel': 'Tailscale host',
+      'savedServersTailscaleInvalid':
+          'Not a Tailscale address. Use a 100.x.y.z IP or a *.ts.net name.',
+      'savedServersRenameTitle': 'Rename server',
+      'savedServersDisplayNameLabel': 'Display name',
+      'savedServersNotesTitle': 'Notes',
+      'savedServersNotesLabel': 'Notes',
+      'savedServersNotesHelper': 'Up to 280 characters',
+      'savedServersRemoveTitle': 'Remove {name}?',
+      'savedServersRemoveBody':
+          'The bearer token and stored fingerprint will be wiped. Re-pair if you want to use this server again.',
+      'savedServersSave': 'Save',
+      'savedServersCancel': 'Cancel',
+      'savedServersEmptyTitle': 'No saved servers yet',
+      'savedServersEmptyBody':
+          'Pair with a Nightshade host using the "Add server" button to start the roaming list.',
+      'savedServersReachabilityUnknown': 'Reachability unknown',
+      'savedServersReachable': 'Reachable',
+      'savedServersUnreachableShort': 'Unreachable',
       'navAnalytics': 'Analytics',
       'navAnalyticsDesc': 'Session stats',
       'navDashboard': 'Dashboard',
@@ -480,6 +545,71 @@ class NightshadeLocalizations {
       'mobileSearchingForServer': 'Buscando servidor...',
       'mobileServerIpAddress': 'Direcci\u00F3n IP del servidor',
       'mobileSkipConnection': 'Omitir conexi\u00F3n (solo ver la interfaz)',
+      // Conexi\u00F3n por Tailscale.
+      'tailscaleConnect': 'Conectar por Tailscale',
+      'tailscaleConnectSubtitle':
+          'Accede a este equipo desde cualquier lugar, sin redirecci\u00F3n de puertos.',
+      'tailscaleClose': 'Cerrar',
+      'tailscaleStep1Title': 'Instala Tailscale en este tel\u00E9fono',
+      'tailscaleStep1Body':
+          'Desc\u00E1rgalo de la App Store / Play Store e inicia sesi\u00F3n con la misma cuenta que tu PC del observatorio.',
+      'tailscaleStep2Title': 'Encuentra la direcci\u00F3n Tailscale del equipo',
+      'tailscaleStep2Body':
+          'En la PC, abre Ajustes \u2192 Acceso remoto. Copia el nombre MagicDNS de Tailscale (termina en .ts.net) o la direcci\u00F3n 100.x que aparece all\u00ED.',
+      'tailscaleStep3Title': 'Introd\u00FAcela abajo',
+      'tailscaleStep3Body':
+          'Pega la direcci\u00F3n, confirma el puerto y conecta. Empareja con el c\u00F3digo en pantalla si se te solicita.',
+      'tailscaleAddressLabel': 'Direcci\u00F3n Tailscale',
+      'tailscaleAddressHint':
+          'mi-equipo.tailnet.ts.net  o  100.101.102.103',
+      'tailscalePortLabel': 'Puerto',
+      'tailscaleTransportLabel': 'Transporte',
+      'tailscaleTokenLabel': 'Token de acceso (opcional)',
+      'tailscaleTokenHint': 'D\u00E9jalo en blanco para emparejar con un c\u00F3digo',
+      'tailscaleHideToken': 'Ocultar token',
+      'tailscaleShowToken': 'Mostrar token',
+      'tailscaleConnectAction': 'Conectar',
+      'tailscaleHostEmptyError': 'Introduce el nombre o la IP de Tailscale del equipo',
+      'tailscaleHostInvalidError':
+          'No es una direcci\u00F3n Tailscale. Usa una IP 100.x.y.z o un nombre MagicDNS *.ts.net.',
+      'tailscalePortRangeError': 'El puerto debe estar entre 1 y 65535',
+      // Pantalla de servidores guardados.
+      'savedServersTitle': 'Servidores guardados',
+      'savedServersLoadError': 'No se pudieron cargar los servidores guardados: {error}',
+      'savedServersAdd': 'Agregar servidor',
+      'savedServersUnreachable': 'No se pudo acceder a {name} en {host}',
+      'savedServersOpenError': 'No se pudo abrir {name}: {error}',
+      'savedServersAddDisabled':
+          'Agregar servidores desde esta pantalla no est\u00E1 habilitado en esta versi\u00F3n.',
+      'savedServersAdded': '{name} agregado',
+      'savedServersRename': 'Renombrar',
+      'savedServersEditNotes': 'Editar notas',
+      'savedServersEditTailscale': 'Editar direcci\u00F3n Tailscale',
+      'savedServersAddTailscale': 'Agregar direcci\u00F3n Tailscale',
+      'savedServersTailscaleSubtitle': 'Accede a este equipo desde cualquier lugar',
+      'savedServersRemove': 'Eliminar',
+      'savedServersTailscaleDialogTitle': 'Direcci\u00F3n Tailscale',
+      'savedServersTailscaleDialogBody':
+          'Una IP de tailnet 100.x.y.z o un nombre MagicDNS *.ts.net para este equipo. D\u00E9jalo en blanco para quitarlo.',
+      'savedServersTailscaleHostLabel': 'Host de Tailscale',
+      'savedServersTailscaleInvalid':
+          'No es una direcci\u00F3n Tailscale. Usa una IP 100.x.y.z o un nombre *.ts.net.',
+      'savedServersRenameTitle': 'Renombrar servidor',
+      'savedServersDisplayNameLabel': 'Nombre para mostrar',
+      'savedServersNotesTitle': 'Notas',
+      'savedServersNotesLabel': 'Notas',
+      'savedServersNotesHelper': 'Hasta 280 caracteres',
+      'savedServersRemoveTitle': '\u00BFEliminar {name}?',
+      'savedServersRemoveBody':
+          'Se borrar\u00E1n el token y la huella almacenada. Vuelve a emparejar si quieres usar este servidor de nuevo.',
+      'savedServersSave': 'Guardar',
+      'savedServersCancel': 'Cancelar',
+      'savedServersEmptyTitle': 'A\u00FAn no hay servidores guardados',
+      'savedServersEmptyBody':
+          'Empareja con un host de Nightshade con el bot\u00F3n "Agregar servidor" para empezar la lista de itinerancia.',
+      'savedServersReachabilityUnknown': 'Accesibilidad desconocida',
+      'savedServersReachable': 'Accesible',
+      'savedServersUnreachableShort': 'Inaccesible',
       'navAnalytics': 'Anal\u00EDtica',
       'navAnalyticsDesc': 'Estad\u00EDsticas',
       'navDashboard': 'Panel',

@@ -35,6 +35,92 @@ plus static dashboard paths documented in `docs/api/web-server-api.md`.
 `/api/pairing/start` does **not** return the pairing code in the HTTP body (it is shown on
 the desktop UI / embedded in QR only) so passive observers cannot harvest codes from logs.
 
+## Reaching the rig over Tailscale (internet reachability, no relay)
+
+Tailscale gives a paired phone a route to the imaging machine **from anywhere**
+— including cellular — without port-forwarding, dynamic-DNS, or exposing the
+API to the public internet. Nightshade does **not** run, proxy, or depend on any
+Nightshade-operated relay server: the phone talks **directly** to your rig over
+the tailnet. The only third party in the path is your own Tailscale tailnet
+(WireGuard mesh / DERP). If you are not signed into Tailscale, nothing about the
+remote-access feature changes — it stays LAN/loopback only.
+
+### How a tailnet address is detected and advertised
+
+When **Remote access** is enabled and bound beyond loopback, the desktop
+enumerates its network interfaces and classifies each address with the
+fail-closed `TailnetDetector`
+(`packages/nightshade_remote_protocol/lib/src/tailnet_detector.dart`):
+
+| Tier | Ranges | Used as |
+|------|--------|---------|
+| `tailscale` | IPv4 CGNAT `100.64.0.0/10` (MagicDNS `100.x.y.z`), IPv6 `fd7a:115c::/32` | `WebServerState.tailscaleIp` / Tailscale QR |
+| `lan` | RFC1918, `169.254/16`, generic ULA `fc00::/7`, mDNS `.local` | `WebServerState.localIp` / LAN QR |
+| `loopback` | `127.0.0.0/8`, `::1`, `localhost` | never advertised in any QR |
+| `public` / `invalid` | anything else | **refused** — never embedded in a QR |
+
+The tailnet address is surfaced as a **separate** field from the LAN address, so
+the two never get confused. `Settings → Remote access` then shows a dedicated
+**"Reach this rig over Tailscale"** panel:
+
+- **Reachable** (a `100.x` / `fd7a:…` interface is up *and* the server is not
+  bound loopback-only): the panel shows the tailnet host, its
+  bracket-correct URL (`http://100.96.0.7:8080`, or `http://[fd7a:115c::1]:8080`
+  for IPv6), and — once you press **Start pairing** — a QR that embeds the
+  **tailnet** host. It never embeds the LAN address.
+- **Not detected**: the panel shows an informational alert with a **Re-check**
+  button (re-scans interfaces without restarting the server, so a tailnet that
+  came up after launch is picked up) and a **manual host** field. The manual
+  host is validated against `TailnetDetector.isTailscaleHost` before a QR is
+  built — a LAN/public/garbage value is rejected with a clear message rather
+  than silently embedded.
+
+### Bring Tailscale up on the rig
+
+1. Install Tailscale on the imaging machine (`https://tailscale.com/download`).
+2. `tailscale up` and sign in to your tailnet.
+3. Confirm an address exists: `tailscale ip -4` prints the `100.x.y.z` MagicDNS
+   address. (`tailscale status` shows the full peer list.)
+4. In Nightshade, enable **Remote access**, then open the Tailscale panel and
+   press **Re-check** if the address is not already shown.
+5. On the phone: install Tailscale, sign in to the **same** tailnet, then scan
+   the Tailscale QR (or enter the `100.x` host + pairing code manually).
+
+### Why the QR carries the `100.x` host, not a hostname
+
+The pairing QR is validated by the strict parser (`QrConnectionData.parseStrict`
+→ `isLocalNetworkHost` → `TailnetDetector.isAccepted`), which accepts loopback,
+LAN, and tailnet **literals** but does **not** perform DNS resolution (a hostile
+resolver could otherwise steer a scan to an attacker host). MagicDNS *names*
+(`my-rig.tail1234.ts.net`) therefore are not embedded in the QR; the stable
+`100.x` tailnet IP is. The phone reconstructs the URL from the bare host and
+brackets an IPv6 literal itself.
+
+### No relay — what this means operationally
+
+- **No Nightshade cloud.** There is no Nightshade-hosted account, broker, or
+  TURN/relay. Pairing, tokens, and the WebSocket all terminate on your rig.
+- **Direct WireGuard.** Tailscale negotiates a direct encrypted tunnel between
+  phone and rig; it only falls back to Tailscale's DERP relays for NAT
+  traversal of the *encrypted* WireGuard packets — it can never read your
+  traffic, and that path is between your two devices, not a Nightshade service.
+- **Pairing is transport-agnostic.** The fingerprint/scope/token model
+  (see *Pairing model* above and `SECURITY.md`) is identical over LAN and
+  Tailscale. A tailnet does not weaken or bypass pairing — a device still needs
+  a valid bearer token minted by `POST /api/pairing/verify`.
+- **Auto-reconnect on cellular.** The phone's connectivity monitor treats a
+  tailnet host as reachable over cellular (not Wi-Fi-only), so a backgrounded
+  session resumes when the phone regains any network, not just Wi-Fi.
+
+### Troubleshooting
+
+| Symptom | Cause / fix |
+|---------|-------------|
+| Panel says "No Tailscale address detected" | `tailscale up` not run, or the address came up after the server started — press **Re-check**. |
+| QR refuses a manually-entered host | The value is not in `100.64.0.0/10` or `fd7a:115c::/32`. Use the address from `tailscale ip -4`. |
+| Phone scans QR but cannot connect | Phone is on a *different* tailnet, or the rig's OS firewall blocks inbound TCP on the API port (default `8080`) on the tailnet interface. See [troubleshooting/firewall.md](troubleshooting/firewall.md). |
+| Reachable URL is shown but `bindLocalOnly` is on | The server is bound to loopback; the tailnet address is not actually reachable. Disable local-only bind in **Remote access**. |
+
 ## TLS with nginx (recommended for WAN or untrusted LAN)
 
 Terminating TLS at nginx keeps certificate rotation out of the Flutter/Shelf stack.

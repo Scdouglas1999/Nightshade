@@ -101,6 +101,31 @@ class SavedServer {
   /// layer so it cannot bloat the JSON blob.
   final String notes;
 
+  /// Transport scheme the host speaks — `'http'` (plain) or `'https'`
+  /// (TLS). A TLS-fronted host (the typical Tailscale remote-observatory
+  /// topology) answers only on `https`; probing it over plain `http`
+  /// reads as unreachable, so we persist the scheme learned at pairing
+  /// time and pass it through to `testServerConnection` /
+  /// `BackendNotifier.connect`. Defaults to `'http'` for entries written
+  /// by pre-2.6 builds that didn't carry a scheme.
+  final String scheme;
+
+  /// Optional alternate Tailscale ("tailnet") host for a dual-homed rig.
+  ///
+  /// A permanent observatory often advertises BOTH a LAN address
+  /// (`192.168.x` — fast, only reachable on-site) and a Tailscale
+  /// `100.x.y.z` / `fd7a:115c::…` address (reachable from anywhere the
+  /// phone is logged into the same tailnet). [host] holds whichever the
+  /// operator paired over; this field holds the *other* address so the
+  /// screen can offer a one-tap "connect over Tailscale" when the LAN
+  /// host is unreachable (off-site), or fall back to the fast LAN host
+  /// when both are reachable. `null` for single-homed rigs.
+  ///
+  /// Both [host] and [tailscaleHost] are validated through
+  /// [TailnetDetector.isAccepted] before being stored — a public address
+  /// here is refused, so this can never become an exfiltration vector.
+  final String? tailscaleHost;
+
   const SavedServer({
     required this.id,
     required this.displayName,
@@ -110,7 +135,51 @@ class SavedServer {
     this.pinnedFingerprint,
     this.lastConnectedAt,
     this.notes = '',
+    this.scheme = 'http',
+    this.tailscaleHost,
   });
+
+  /// The reachability tier of the primary [host] — drives the LAN /
+  /// Remote badge on the saved-servers screen.
+  HostReachabilityTier get hostTier => TailnetDetector.classify(host);
+
+  /// Suffix of a Tailscale MagicDNS fully-qualified name
+  /// (`my-rig.tailnet-name.ts.net`). MagicDNS names resolve to a tailnet
+  /// `100.x` / `fd7a:115c::` address but are *hostnames*, not IP literals,
+  /// so [TailnetDetector.classify] (which never resolves DNS) cannot see
+  /// them as tailnet. We accept the `.ts.net` suffix explicitly: it is
+  /// owned by Tailscale and only ever resolves on a tailnet the device is
+  /// logged into, so it is as safe as a `100.x` literal for the
+  /// fail-closed acceptance gate. Aliases the canonical value in
+  /// [TailnetDetector.magicDnsSuffix] so the suffix is defined in one place.
+  static const tailscaleMagicDnsSuffix = TailnetDetector.magicDnsSuffix;
+
+  /// `true` when [host] is a usable Tailscale endpoint: either a tailnet
+  /// IP literal (`100.64.0.0/10` / `fd7a:115c::/32`) or a MagicDNS
+  /// `*.ts.net` hostname. Delegates to the single shared predicate in
+  /// [TailnetDetector.isTailscaleEndpoint] so the setup sheet, persistence
+  /// validator, network backend, status indicator, and reconnect gate never
+  /// drift apart on what counts as a tailnet endpoint.
+  static bool isTailscaleEndpoint(String host) =>
+      TailnetDetector.isTailscaleEndpoint(host);
+
+  /// `true` when this rig has a distinct Tailscale host on file in
+  /// addition to (or instead of) its LAN host.
+  bool get hasTailscaleHost =>
+      tailscaleHost != null && tailscaleHost!.isNotEmpty;
+
+  /// `true` when the primary host is itself a Tailscale endpoint (tailnet
+  /// IP literal or `*.ts.net` MagicDNS name).
+  bool get isPrimaryTailscale => isTailscaleEndpoint(host);
+
+  /// The host the operator should prefer when off-site: the explicit
+  /// [tailscaleHost] when present, else the primary [host] if it is
+  /// already a tailnet address, else `null` (no remote path known).
+  String? get preferredRemoteHost {
+    if (hasTailscaleHost) return tailscaleHost;
+    if (isPrimaryTailscale) return host;
+    return null;
+  }
 
   SavedServer copyWith({
     String? displayName,
@@ -123,6 +192,9 @@ class SavedServer {
     DateTime? lastConnectedAt,
     bool clearLastConnectedAt = false,
     String? notes,
+    String? scheme,
+    String? tailscaleHost,
+    bool clearTailscaleHost = false,
   }) {
     return SavedServer(
       id: id,
@@ -137,6 +209,10 @@ class SavedServer {
           ? null
           : (lastConnectedAt ?? this.lastConnectedAt),
       notes: notes ?? this.notes,
+      scheme: scheme ?? this.scheme,
+      tailscaleHost: clearTailscaleHost
+          ? null
+          : (tailscaleHost ?? this.tailscaleHost),
     );
   }
 
@@ -152,6 +228,12 @@ class SavedServer {
         if (lastConnectedAt != null)
           'lastConnectedAt': lastConnectedAt!.toIso8601String(),
         if (notes.isNotEmpty) 'notes': notes,
+        // Persist the scheme only when it diverges from the legacy default
+        // so old readers (which assume http) and the JSON blob both stay
+        // compact for the common LAN case.
+        if (scheme != 'http') 'scheme': scheme,
+        if (tailscaleHost != null && tailscaleHost!.isNotEmpty)
+          'tailscaleHost': tailscaleHost,
       };
 
   /// Inverse of [toJsonNonSecret]. The auth token is *not* populated;
@@ -177,6 +259,35 @@ class SavedServer {
     final fp = json['pinnedFingerprint'];
     final lastIso = json['lastConnectedAt'];
     final notes = json['notes'];
+    // Scheme is optional; when present it MUST be http/https — a bogus
+    // value would route the activation probe at a protocol the server
+    // cannot answer, so we reject rather than silently coerce (CLAUDE.md
+    // no silent fallbacks). Absent → legacy http default.
+    final rawScheme = json['scheme'];
+    final String parsedScheme;
+    if (rawScheme == null) {
+      parsedScheme = 'http';
+    } else if (rawScheme is String &&
+        (rawScheme.toLowerCase() == 'http' ||
+            rawScheme.toLowerCase() == 'https')) {
+      parsedScheme = rawScheme.toLowerCase();
+    } else {
+      throw const FormatException(
+          'SavedServer: scheme is not "http" or "https"');
+    }
+    // Tailscale host is optional, but if present it must pass the same
+    // fail-closed acceptance gate as the primary host — a public address
+    // smuggled in here would let a tampered blob point a one-tap connect
+    // at an arbitrary internet host.
+    final rawTs = json['tailscaleHost'];
+    String? parsedTailscaleHost;
+    if (rawTs is String && rawTs.isNotEmpty) {
+      if (!isTailscaleEndpoint(rawTs)) {
+        throw const FormatException(
+            'SavedServer: tailscaleHost is not a tailnet IP or *.ts.net name');
+      }
+      parsedTailscaleHost = rawTs;
+    }
     return SavedServer(
       id: id,
       displayName: displayName,
@@ -187,6 +298,8 @@ class SavedServer {
           ? DateTime.tryParse(lastIso)
           : null,
       notes: notes is String ? notes : '',
+      scheme: parsedScheme,
+      tailscaleHost: parsedTailscaleHost,
     );
   }
 
@@ -201,15 +314,18 @@ class SavedServer {
           other.authToken == authToken &&
           other.pinnedFingerprint == pinnedFingerprint &&
           other.lastConnectedAt == lastConnectedAt &&
-          other.notes == notes);
+          other.notes == notes &&
+          other.scheme == scheme &&
+          other.tailscaleHost == tailscaleHost);
 
   @override
   int get hashCode => Object.hash(id, displayName, host, port, authToken,
-      pinnedFingerprint, lastConnectedAt, notes);
+      pinnedFingerprint, lastConnectedAt, notes, scheme, tailscaleHost);
 
   @override
   String toString() =>
-      'SavedServer($id, $displayName, $host:$port, '
+      'SavedServer($id, $displayName, $scheme://$host:$port, '
+      'tailscale=${tailscaleHost ?? '-'}, '
       'pinned=${pinnedFingerprint != null}, '
       'lastConnected=$lastConnectedAt)';
 }
@@ -221,8 +337,14 @@ class SavedServersStorageKeys {
   SavedServersStorageKeys._();
 
   /// SharedPreferences key for the JSON-encoded list of non-secret
-  /// fields. Versioned so a future schema migration can detect old
-  /// blobs.
+  /// fields. Versioned so a schema migration can detect old blobs.
+  ///
+  /// v2 (2.6 / Tailscale work) added the optional `scheme` and
+  /// `tailscaleHost` fields. The change is forward/backward compatible at
+  /// the row level — both fields are omitted when at their defaults — so
+  /// we read and write under the same key; the bump in the constant is a
+  /// documentation marker, not a separate storage slot, and a v1 blob
+  /// deserialises cleanly because the new fields are optional.
   static const list = 'nightshade.saved_servers.v1';
 
   /// One-shot migration latch. Set after we've folded the legacy
@@ -371,6 +493,8 @@ class SavedServersService {
     String? pinnedFingerprint,
     DateTime? lastConnectedAt,
     String notes = '',
+    String scheme = 'http',
+    String? tailscaleHost,
   }) async {
     final id = _generateId();
     final entry = SavedServer(
@@ -382,6 +506,8 @@ class SavedServersService {
       pinnedFingerprint: pinnedFingerprint,
       lastConnectedAt: lastConnectedAt,
       notes: notes,
+      scheme: scheme,
+      tailscaleHost: tailscaleHost,
     );
     await _writeRow(entry, authToken: authToken);
     return entry;
@@ -406,6 +532,8 @@ class SavedServersService {
     String? pinnedFingerprint,
     DateTime? lastConnectedAt,
     String? notes,
+    String? scheme,
+    String? tailscaleHost,
   }) async {
     final all = await loadAll();
     SavedServer? existing;
@@ -434,6 +562,8 @@ class SavedServersService {
         pinnedFingerprint: pinnedFingerprint,
         lastConnectedAt: lastConnectedAt,
         notes: notes ?? '',
+        scheme: scheme ?? 'http',
+        tailscaleHost: tailscaleHost,
       );
     }
     final updated = existing.copyWith(
@@ -444,6 +574,8 @@ class SavedServersService {
       pinnedFingerprint: pinnedFingerprint,
       lastConnectedAt: lastConnectedAt,
       notes: notes,
+      scheme: scheme,
+      tailscaleHost: tailscaleHost,
     );
     await _writeRow(updated, authToken: authToken);
     return updated;
@@ -541,11 +673,42 @@ class SavedServersService {
       signalingPort: 45678,
       version: '2.0.0',
       mode: 'headless',
+      scheme: row.scheme,
       authToken: token,
       pairingSupported: true,
       authRequired: token != null,
       fingerprint: row.pinnedFingerprint,
     );
+  }
+
+  /// Set or clear the alternate Tailscale host for [id]. Passing an empty
+  /// / null [tailscaleHost] clears it. A non-empty value is validated
+  /// through [TailnetDetector.isAccepted] (fail-closed) before being
+  /// stored — a public address is refused with an [ArgumentError] so the
+  /// caller surfaces the rejection rather than persisting a bad host.
+  /// Same lookup semantics as [rename] (throws [StateError] when no row
+  /// matches).
+  Future<SavedServer> setTailscaleHost(String id, String? tailscaleHost) async {
+    final trimmed = tailscaleHost?.trim();
+    final clearing = trimmed == null || trimmed.isEmpty;
+    if (!clearing && !SavedServer.isTailscaleEndpoint(trimmed)) {
+      throw ArgumentError.value(
+        tailscaleHost,
+        'tailscaleHost',
+        'must be a tailnet IP (100.x / fd7a:115c::) or *.ts.net MagicDNS name',
+      );
+    }
+    final all = await loadAll();
+    for (var i = 0; i < all.length; i++) {
+      if (all[i].id == id) {
+        final updated = clearing
+            ? all[i].copyWith(clearTailscaleHost: true)
+            : all[i].copyWith(tailscaleHost: trimmed);
+        await _persistList(_replaceAt(all, i, updated));
+        return updated;
+      }
+    }
+    throw StateError('SavedServersService.setTailscaleHost: no row with id $id');
   }
 
   // ------------------------------------------------------------------
@@ -688,6 +851,10 @@ class SavedServersService {
       // most recently used — stamp `now` so it sorts to the top.
       lastConnectedAt: DateTime.now(),
       notes: '',
+      // Carry the transport scheme the legacy record was paired over so a
+      // TLS-fronted tailnet host doesn't get probed over plain http after
+      // the migration.
+      scheme: legacy.scheme,
     );
     existingList.add(imported);
     final encoded = jsonEncode(

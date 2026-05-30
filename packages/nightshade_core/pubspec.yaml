@@ -74,6 +74,14 @@ dependencies:
   # Planetarium (for catalog access)
   nightshade_planetarium:
     path: ../nightshade_planetarium
+
+  # Remote-protocol primitives. NetworkBackend relies on TailnetDetector as the
+  # single source of truth for host reachability classification (LAN vs
+  # Tailscale tailnet vs public) so the scheme/timeout tuning and the
+  # QR/pairing validator never drift apart. No cycle: nightshade_remote_protocol
+  # does not depend on nightshade_core.
+  nightshade_remote_protocol:
+    path: ../nightshade_remote_protocol
   logging: ^1.3.0
 
 dev_dependencies:
