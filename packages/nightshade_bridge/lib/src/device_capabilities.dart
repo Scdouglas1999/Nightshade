@@ -110,6 +110,18 @@ class CameraCapabilities {
   /// Whether cooler is currently on
   final bool? coolerOn;
 
+  /// Minimum achievable cooler setpoint in Celsius, if the driver publishes
+  /// the regulated-cooling range. `None` means the achievable range is
+  /// unknown (ASCOM/Alpaca ICameraV3 has no SetCCDTemperature min/max; only
+  /// INDI's `CCD_TEMPERATURE` number limits and some native vendor SDKs
+  /// expose it).
+  final double? coolerMinTempC;
+
+  /// Maximum achievable cooler setpoint in Celsius, if the driver publishes
+  /// the regulated-cooling range. `None` means the achievable range is
+  /// unknown.
+  final double? coolerMaxTempC;
+
   const CameraCapabilities({
     required this.maxWidth,
     required this.maxHeight,
@@ -144,6 +156,8 @@ class CameraCapabilities {
     this.setCcdTemperature,
     this.coolerPower,
     this.coolerOn,
+    this.coolerMinTempC,
+    this.coolerMaxTempC,
   });
 
   @override
@@ -180,7 +194,9 @@ class CameraCapabilities {
       ccdTemperature.hashCode ^
       setCcdTemperature.hashCode ^
       coolerPower.hashCode ^
-      coolerOn.hashCode;
+      coolerOn.hashCode ^
+      coolerMinTempC.hashCode ^
+      coolerMaxTempC.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -219,7 +235,9 @@ class CameraCapabilities {
           ccdTemperature == other.ccdTemperature &&
           setCcdTemperature == other.setCcdTemperature &&
           coolerPower == other.coolerPower &&
-          coolerOn == other.coolerOn;
+          coolerOn == other.coolerOn &&
+          coolerMinTempC == other.coolerMinTempC &&
+          coolerMaxTempC == other.coolerMaxTempC;
 }
 
 /// Manufacturer-recommended camera gain/offset values reported by the vendor SDK.
@@ -251,6 +269,13 @@ class CameraRecommendedSettings {
   /// Manufacturer-recommended default offset/bias, if the SDK exposes it.
   final int? defaultOffset;
 
+  /// Manufacturer-recommended cooling setpoint in Celsius, if the SDK exposes
+  /// it. Currently always `None` — no vendor SDK we bind publishes a
+  /// recommended setpoint (see the native struct's doc comment). The field
+  /// gives the profile layer an honest, typed slot for the value the instant
+  /// a vendor SDK starts reporting it.
+  final double? recommendedCoolingSetpointC;
+
   /// Human-readable explanation of where the values above came from.
   /// Empty when nothing was queryable.
   final String notes;
@@ -259,6 +284,7 @@ class CameraRecommendedSettings {
     this.unityGain,
     this.hcgGain,
     this.defaultOffset,
+    this.recommendedCoolingSetpointC,
     required this.notes,
   });
 
@@ -267,6 +293,7 @@ class CameraRecommendedSettings {
       unityGain.hashCode ^
       hcgGain.hashCode ^
       defaultOffset.hashCode ^
+      recommendedCoolingSetpointC.hashCode ^
       notes.hashCode;
 
   @override
@@ -277,6 +304,7 @@ class CameraRecommendedSettings {
           unityGain == other.unityGain &&
           hcgGain == other.hcgGain &&
           defaultOffset == other.defaultOffset &&
+          recommendedCoolingSetpointC == other.recommendedCoolingSetpointC &&
           notes == other.notes;
 }
 
@@ -672,6 +700,17 @@ class MountCapabilities {
   /// Number of axes the mount supports (typically 2 for RA/Dec or Az/Alt)
   final int axisCount;
 
+  /// Minimum supported pulse-guide duration in milliseconds, if the driver
+  /// publishes a guide-rate range. `None` means the driver does not report a
+  /// lower bound (ASCOM/Alpaca have no such property; only INDI's
+  /// `TELESCOPE_TIMED_GUIDE_*` number limits expose it).
+  final double? minPulseGuideMs;
+
+  /// Maximum supported pulse-guide duration in milliseconds, if the driver
+  /// publishes a guide-rate range. `None` means the driver does not report an
+  /// upper bound.
+  final double? maxPulseGuideMs;
+
   const MountCapabilities({
     required this.canSlew,
     required this.canSlewAsync,
@@ -695,6 +734,8 @@ class MountCapabilities {
     this.maxSlewRate,
     required this.canMoveAxis,
     required this.axisCount,
+    this.minPulseGuideMs,
+    this.maxPulseGuideMs,
   });
 
   @override
@@ -720,7 +761,9 @@ class MountCapabilities {
       canAbortSlew.hashCode ^
       maxSlewRate.hashCode ^
       canMoveAxis.hashCode ^
-      axisCount.hashCode;
+      axisCount.hashCode ^
+      minPulseGuideMs.hashCode ^
+      maxPulseGuideMs.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -748,7 +791,9 @@ class MountCapabilities {
           canAbortSlew == other.canAbortSlew &&
           maxSlewRate == other.maxSlewRate &&
           canMoveAxis == other.canMoveAxis &&
-          axisCount == other.axisCount;
+          axisCount == other.axisCount &&
+          minPulseGuideMs == other.minPulseGuideMs &&
+          maxPulseGuideMs == other.maxPulseGuideMs;
 }
 
 /// Capabilities of a rotator device
@@ -780,6 +825,16 @@ class RotatorCapabilities {
   /// Whether the rotator can sync to a position
   final bool canSync;
 
+  /// Minimum mechanical angle in degrees, if the driver publishes the angle
+  /// range. `None` means the range is implicit/unknown (ASCOM/Alpaca IRotator
+  /// has no min/max property — the mechanical range is unbounded 0–360 by
+  /// contract; only INDI's `ABS_ROTATOR_ANGLE` number limits expose it).
+  final double? minAngleDeg;
+
+  /// Maximum mechanical angle in degrees, if the driver publishes the angle
+  /// range. `None` means the range is implicit/unknown.
+  final double? maxAngleDeg;
+
   const RotatorCapabilities({
     required this.canReverse,
     required this.reverse,
@@ -790,6 +845,8 @@ class RotatorCapabilities {
     required this.canMoveAbsolute,
     required this.canHalt,
     required this.canSync,
+    this.minAngleDeg,
+    this.maxAngleDeg,
   });
 
   @override
@@ -802,7 +859,9 @@ class RotatorCapabilities {
       position.hashCode ^
       canMoveAbsolute.hashCode ^
       canHalt.hashCode ^
-      canSync.hashCode;
+      canSync.hashCode ^
+      minAngleDeg.hashCode ^
+      maxAngleDeg.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -817,7 +876,9 @@ class RotatorCapabilities {
           position == other.position &&
           canMoveAbsolute == other.canMoveAbsolute &&
           canHalt == other.canHalt &&
-          canSync == other.canSync;
+          canSync == other.canSync &&
+          minAngleDeg == other.minAngleDeg &&
+          maxAngleDeg == other.maxAngleDeg;
 }
 
 /// Capabilities of a safety monitor device

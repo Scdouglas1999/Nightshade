@@ -1128,6 +1128,15 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
         ];
 
       case ConnectedDeviceType.rotator:
+        // Keep the rotator's capability future warm so the "Rotate To Angle"
+        // dialog observes the resolved min/maxAngleDeg window (it reads them
+        // synchronously on open). capabilityRefreshOnConnectProvider only
+        // invalidates on the connect edge; without an active watcher the
+        // FutureProvider would be cold and the dialog would fall back to a
+        // full 0..360 turn even on a bounded rotator.
+        ref.watch(equipmentRotatorCapabilitiesProvider(
+          ref.watch(rotatorStateProvider).deviceId ?? '',
+        ));
         return [
           _ActionButton(
             label: 'Rotate to...',
@@ -1951,6 +1960,21 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
       text: rotatorState.position?.toStringAsFixed(1) ?? '0.0',
     );
 
+    // Resolve the rotator's valid absolute-angle range from its reported
+    // capabilities (mirrors rotator_panel.dart). Fall back to a full 0..360
+    // turn when the driver does not advertise bounds, and treat an inverted
+    // or degenerate range (min >= max) as missing data — also 0..360.
+    final caps = ref
+        .read(equipmentRotatorCapabilitiesProvider(
+          rotatorState.deviceId ?? '',
+        ))
+        .valueOrNull;
+    final rawMin = caps?.minAngleDeg ?? 0.0;
+    final rawMax = caps?.maxAngleDeg ?? 360.0;
+    final hasValidRange = rawMin < rawMax;
+    final minAngle = hasValidRange ? rawMin : 0.0;
+    final maxAngle = hasValidRange ? rawMax : 360.0;
+
     final result = await showDialog<double>(
       context: context,
       builder: (context) => NightshadeDialog(
@@ -1967,7 +1991,7 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           NightshadeButton(
             onPressed: () {
               final angle = double.tryParse(controller.text);
-              if (angle != null && angle >= 0 && angle <= 360) {
+              if (angle != null && angle >= minAngle && angle <= maxAngle) {
                 Navigator.pop(context, angle);
               }
             },
@@ -1981,7 +2005,8 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Enter target angle (0 - 360 degrees):',
+              'Enter target angle (${minAngle.toStringAsFixed(0)} - '
+              '${maxAngle.toStringAsFixed(0)} degrees):',
               style: TextStyle(color: colors.textSecondary, fontSize: 13),
             ),
             const SizedBox(height: 12),

@@ -1526,6 +1526,48 @@ impl NativeCamera for ZwoCamera {
         out.notes = notes.join("; ");
         Ok(out)
     }
+
+    /// Report the achievable cooler setpoint range from the ZWO SDK.
+    ///
+    /// Source: the `ASI_TARGET_TEMP` control's min/max caps published via
+    /// `ASIGetControlCaps`. Unlike `ASI_TEMPERATURE` (which returns
+    /// `10 * degreesC`), `ASI_TARGET_TEMP` is expressed in **direct degrees
+    /// Celsius** — see the `ASIControlType` definition comment — so the raw
+    /// `(min, max)` values map straight to `(f64, f64)` with no scaling.
+    ///
+    /// Behavior:
+    /// - Disconnected: `Err(NotConnected)` (we cannot query the SDK).
+    /// - Camera exposes no `ASI_TARGET_TEMP` control (no regulated cooler):
+    ///   `Ok(None)` — an honest "unknown", not an error.
+    /// - Any other SDK failure: we `warn!` and return `Ok(None)` so a transient
+    ///   query failure never blocks the broader capability probe (mirrors the
+    ///   error handling in `get_recommended_settings`).
+    ///
+    /// Note on other vendors: QHY/PlayerOne/SVBony intentionally do NOT override
+    /// this method. Their SDKs do not uniformly expose the cooler-target control
+    /// caps, so the trait default (`Ok(None)`) is the honest answer there rather
+    /// than a fabricated range.
+    async fn get_cooler_temp_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
+        if !self.connected {
+            return Err(NativeError::NotConnected);
+        }
+
+        match self
+            .get_control_caps_async(ASIControlType::ASI_TARGET_TEMP)
+            .await
+        {
+            // ASI_TARGET_TEMP is direct degrees C (NOT multiplied by 10), so the
+            // raw caps map straight to the achievable setpoint range.
+            Ok((min, max, _default)) => Ok(Some((min as f64, max as f64))),
+            // No regulated cooler / no target-temp control: honest unknown.
+            Err(NativeError::NotSupported) => Ok(None),
+            // Transient SDK failure: don't block the capability probe.
+            Err(e) => {
+                tracing::warn!("ZWO: failed to query ASI_TARGET_TEMP caps: {:?}", e);
+                Ok(None)
+            }
+        }
+    }
 }
 
 // =============================================================================
@@ -2839,6 +2881,20 @@ mod tests {
         assert!(matches!(
             validate_zwo_eaf_target(101, 100),
             Err(NativeError::InvalidParameter(_))
+        ));
+    }
+
+    /// The disconnected guard must short-circuit before any SDK call. We can
+    /// only assert the guard here — the live SDK path (`get_control_caps_async`)
+    /// requires real ASI hardware/driver, mirroring how `get_recommended_settings`
+    /// is unit-tested. This is the real-probe path's verifiable contract.
+    #[tokio::test]
+    async fn zwo_cooler_temp_range_requires_connection() {
+        let camera = ZwoCamera::new(0);
+        // Freshly constructed camera is disconnected.
+        assert!(matches!(
+            camera.get_cooler_temp_range().await,
+            Err(NativeError::NotConnected)
         ));
     }
 }

@@ -3260,22 +3260,8 @@ class NetworkBackend implements NightshadeBackend {
   }
 
   // NOTE: The old _parseXxxCapabilities helpers have been removed.
-  // Pure Dart types now have fromJson() factory constructors.
-
-  // Legacy helper for rotator - kept for reference but no longer used
-  RotatorCapabilities _parseRotatorCapabilities(Map<String, dynamic> json) {
-    return RotatorCapabilities(
-      canReverse: json['canReverse'] ?? false,
-      reverse: json['reverse'] ?? false,
-      stepSize: json['stepSize']?.toDouble(),
-      isMoving: json['isMoving'] ?? false,
-      mechanicalPosition: json['mechanicalPosition']?.toDouble(),
-      position: json['position']?.toDouble(),
-      canMoveAbsolute: json['canMoveAbsolute'] ?? false,
-      canHalt: json['canHalt'] ?? false,
-      canSync: json['canSync'] ?? false,
-    );
-  }
+  // Pure Dart types now have fromJson() factory constructors, which keep the
+  // remote/network path in sync with new capability fields automatically.
 
   // =========================================================================
   // Type Conversion Helpers

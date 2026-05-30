@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui' show FontFeature;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lucide_icons/lucide_icons.dart';
@@ -34,6 +33,22 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
       _rotatorState.connectionState == DeviceConnectionState.connected;
   bool get _isMoving => _rotatorState.isMoving;
 
+  /// Resolves the rotator's valid absolute-angle range from its reported
+  /// capabilities, falling back to a full 0..360 turn when the driver does
+  /// not advertise bounds. An inverted or degenerate range (min >= max) is
+  /// treated as missing data and also falls back to 0..360.
+  ({double min, double max}) _angleRange() {
+    final caps = ref
+        .read(equipmentRotatorCapabilitiesProvider(
+          _rotatorState.deviceId ?? '',
+        ))
+        .valueOrNull;
+    final min = caps?.minAngleDeg ?? 0.0;
+    final max = caps?.maxAngleDeg ?? 360.0;
+    if (min >= max) return (min: 0.0, max: 360.0);
+    return (min: min, max: max);
+  }
+
   Future<void> _moveRelative(double delta) async {
     if (_isMoving) return;
     try {
@@ -44,14 +59,21 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
   }
 
   Future<void> _goToAngle() async {
+    final range = _angleRange();
     final text = _angleController.text.trim();
     final angle = double.tryParse(text);
     if (angle == null) {
-      context.showErrorSnackBar('Enter a valid angle (0-360)');
+      context.showErrorSnackBar(
+        'Enter a valid angle '
+        '(${range.min.toStringAsFixed(0)}-${range.max.toStringAsFixed(0)})',
+      );
       return;
     }
-    if (angle < 0 || angle > 360) {
-      context.showErrorSnackBar('Angle must be between 0 and 360');
+    if (angle < range.min || angle > range.max) {
+      context.showErrorSnackBar(
+        'Angle must be between '
+        '${range.min.toStringAsFixed(0)} and ${range.max.toStringAsFixed(0)}',
+      );
       return;
     }
 
@@ -94,6 +116,16 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
       loadingDefault: true,
     );
 
+    // Valid absolute-angle range for the Go-To input hint. Mirrors the
+    // validation in _goToAngle: use the driver's reported bounds, falling
+    // back to a full turn (0..360) when they are absent or degenerate.
+    final caps = rotatorCapsAsync.valueOrNull;
+    final rawMin = caps?.minAngleDeg ?? 0.0;
+    final rawMax = caps?.maxAngleDeg ?? 360.0;
+    final hasValidRange = rawMin < rawMax;
+    final minAngle = hasValidRange ? rawMin : 0.0;
+    final maxAngle = hasValidRange ? rawMax : 360.0;
+
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
@@ -108,7 +140,7 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
           PanelSection(
             title: 'Go To Angle',
             colors: colors,
-            child: _buildGoToSection(colors),
+            child: _buildGoToSection(colors, minAngle, maxAngle),
           ),
           const SizedBox(height: 16),
         ],
@@ -223,7 +255,11 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
     );
   }
 
-  Widget _buildGoToSection(NightshadeColors colors) {
+  Widget _buildGoToSection(
+    NightshadeColors colors,
+    double minAngle,
+    double maxAngle,
+  ) {
     final canGoTo = _isConnected && !_isMoving && !_isGoingTo;
 
     return Row(
@@ -247,7 +283,8 @@ class _RotatorPanelState extends ConsumerState<RotatorPanel> {
                     const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 border: InputBorder.none,
                 isDense: true,
-                hintText: '0.0 - 360.0',
+                hintText:
+                    '${minAngle.toStringAsFixed(1)} - ${maxAngle.toStringAsFixed(1)}',
                 hintStyle: TextStyle(
                   fontSize: 12,
                   color: colors.textMuted,

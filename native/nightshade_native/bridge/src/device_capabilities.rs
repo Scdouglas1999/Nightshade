@@ -108,6 +108,15 @@ pub struct MountCapabilities {
     pub can_move_axis: bool,
     /// Number of axes the mount supports (typically 2 for RA/Dec or Az/Alt)
     pub axis_count: u32,
+    /// Minimum supported pulse-guide duration in milliseconds, if the driver
+    /// publishes a guide-rate range. `None` means the driver does not report a
+    /// lower bound (ASCOM/Alpaca have no such property; only INDI's
+    /// `TELESCOPE_TIMED_GUIDE_*` number limits expose it).
+    pub min_pulse_guide_ms: Option<f64>,
+    /// Maximum supported pulse-guide duration in milliseconds, if the driver
+    /// publishes a guide-rate range. `None` means the driver does not report an
+    /// upper bound.
+    pub max_pulse_guide_ms: Option<f64>,
 }
 
 // TrackingRate is imported from crate::device
@@ -185,6 +194,16 @@ pub struct CameraCapabilities {
     pub cooler_power: Option<f64>,
     /// Whether cooler is currently on
     pub cooler_on: Option<bool>,
+    /// Minimum achievable cooler setpoint in Celsius, if the driver publishes
+    /// the regulated-cooling range. `None` means the achievable range is
+    /// unknown (ASCOM/Alpaca ICameraV3 has no SetCCDTemperature min/max; only
+    /// INDI's `CCD_TEMPERATURE` number limits and some native vendor SDKs
+    /// expose it).
+    pub cooler_min_temp_c: Option<f64>,
+    /// Maximum achievable cooler setpoint in Celsius, if the driver publishes
+    /// the regulated-cooling range. `None` means the achievable range is
+    /// unknown.
+    pub cooler_max_temp_c: Option<f64>,
 }
 
 /// Manufacturer-recommended camera gain/offset values reported by the vendor SDK.
@@ -214,6 +233,12 @@ pub struct CameraRecommendedSettings {
     pub hcg_gain: Option<i32>,
     /// Manufacturer-recommended default offset/bias, if the SDK exposes it.
     pub default_offset: Option<i32>,
+    /// Manufacturer-recommended cooling setpoint in Celsius, if the SDK exposes
+    /// it. Currently always `None` — no vendor SDK we bind publishes a
+    /// recommended setpoint (see the native struct's doc comment). The field
+    /// gives the profile layer an honest, typed slot for the value the instant
+    /// a vendor SDK starts reporting it.
+    pub recommended_cooling_setpoint_c: Option<f64>,
     /// Human-readable explanation of where the values above came from.
     /// Empty when nothing was queryable.
     pub notes: String,
@@ -225,6 +250,7 @@ impl From<nightshade_native::camera::CameraRecommendedSettings> for CameraRecomm
             unity_gain: src.unity_gain,
             hcg_gain: src.hcg_gain,
             default_offset: src.default_offset,
+            recommended_cooling_setpoint_c: src.recommended_cooling_setpoint_c,
             notes: src.notes,
         }
     }
@@ -311,6 +337,14 @@ pub struct RotatorCapabilities {
     pub can_halt: bool,
     /// Whether the rotator can sync to a position
     pub can_sync: bool,
+    /// Minimum mechanical angle in degrees, if the driver publishes the angle
+    /// range. `None` means the range is implicit/unknown (ASCOM/Alpaca IRotator
+    /// has no min/max property — the mechanical range is unbounded 0–360 by
+    /// contract; only INDI's `ABS_ROTATOR_ANGLE` number limits expose it).
+    pub min_angle_deg: Option<f64>,
+    /// Maximum mechanical angle in degrees, if the driver publishes the angle
+    /// range. `None` means the range is implicit/unknown.
+    pub max_angle_deg: Option<f64>,
 }
 
 // =========================================================================
@@ -777,6 +811,12 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 tracking: telescope.tracking().await.ok(),
                 can_abort_slew: true, // Most mounts support abort
                 axis_count: 2,        // Alpaca lacks axis_count method, default to 2
+                // Why: ASCOM/Alpaca ITelescopeV3 has NO pulse-guide duration-range
+                // property — PulseGuide(direction, duration) accepts any non-negative
+                // duration and the spec defines no min/max. None = "range unknown",
+                // so the UI imposes no artificial clamp on guide-pulse length.
+                min_pulse_guide_ms: None,
+                max_pulse_guide_ms: None,
                 ..Default::default()
             };
 
@@ -846,6 +886,12 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 is_color: camera.sensor_type().await.map(|t| t > 0).unwrap_or(false),
                 exposure_min: None, // Alpaca lacks exposure_min method
                 exposure_max: None, // Alpaca lacks exposure_max method
+                // Why: ASCOM/Alpaca ICameraV3 exposes SetCCDTemperature (the
+                // setpoint) but NO min/max bounds for it — the spec defines no
+                // achievable-range property. None = "range unknown"; the UI shows
+                // the setpoint field without inventing clamps.
+                cooler_min_temp_c: None,
+                cooler_max_temp_c: None,
                 ..Default::default()
             };
 
@@ -943,6 +989,11 @@ async fn get_alpaca_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 can_move_absolute: true, // Alpaca rotators support absolute positioning
                 can_halt: true,          // All rotators support halt
                 can_sync: true,          // Most rotators support sync
+                // Why: ASCOM/Alpaca IRotatorV3 has NO min/max angle property — the
+                // mechanical range is implicit (positions wrap within 0–360 per the
+                // spec). None = "range unknown / unbounded by contract".
+                min_angle_deg: None,
+                max_angle_deg: None,
             };
 
             if !was_connected {
@@ -1251,6 +1302,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             bayer_pattern: ascom_caps.bayer_pattern,
             sensor_type: ascom_caps.sensor_name,
             readout_modes: ascom_caps.readout_modes,
+            // Why: ASCOM ICameraV3 exposes SetCCDTemperature (the setpoint) but no
+            // property bounding the achievable range, so the wrapper cannot report
+            // one. None = "range unknown"; the UI shows the setpoint field unclamped.
+            cooler_min_temp_c: None,
+            cooler_max_temp_c: None,
             ..Default::default()
         }))
     } else if device_type == AscomCapabilityDeviceType::Mount {
@@ -1287,6 +1343,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             } else {
                 1
             },
+            // Why: ASCOM ITelescopeV3.PulseGuide accepts any non-negative duration
+            // and the spec defines no min/max guide-pulse property, so the wrapper
+            // cannot report a range. None = "range unknown" (no artificial clamp).
+            min_pulse_guide_ms: None,
+            max_pulse_guide_ms: None,
             ..Default::default()
         }))
     } else if device_type == AscomCapabilityDeviceType::Focuser {
@@ -1388,6 +1449,11 @@ async fn get_ascom_capabilities(device_id: &str) -> Result<DeviceCapabilities, N
             // Why: Same interface-version contract as can_reverse above —
             // assume V1 (no Sync) when InterfaceVersion is unreadable.
             can_sync: rotator.interface_version().unwrap_or(0) >= 3,
+            // Why: ASCOM IRotatorV3 has NO min/max angle property — the mechanical
+            // range is implicit (positions wrap within 0–360 per spec). None =
+            // "range unknown / unbounded by contract".
+            min_angle_deg: None,
+            max_angle_deg: None,
         };
 
         if should_disconnect {
@@ -1736,6 +1802,11 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
     let has_filter_props = properties
         .iter()
         .any(|p| p.name.starts_with("FILTER_") || p.name == "FILTER_SLOT");
+    // Mirrors the rotator detection in indi/src/discovery.rs (ABS_ROTATOR_ANGLE
+    // is the absolute-position rotator; ROTATOR_ANGLE is the legacy/raw form).
+    let has_rotator_props = properties
+        .iter()
+        .any(|p| p.name == "ABS_ROTATOR_ANGLE" || p.name == "ROTATOR_ANGLE");
 
     // Build capabilities based on discovered properties
     if has_ccd_props {
@@ -1771,6 +1842,21 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
         let readout_mode_names: Vec<String> =
             readout_modes.iter().map(indi_readout_mode_label).collect();
 
+        // Why: INDI exposes the achievable regulated-cooling range via the
+        // CCD_TEMPERATURE number property's min/max limits (the same source the
+        // driver clamps the setpoint to). Absent property/limits → None ("range
+        // unknown"), never a fabricated clamp.
+        let (cooler_min_temp_c, cooler_max_temp_c) = {
+            let locked_client = client.read().await;
+            let limits = locked_client
+                .get_number_limits(&device_name, "CCD_TEMPERATURE", "CCD_TEMPERATURE_VALUE")
+                .await;
+            (
+                limits.as_ref().and_then(|l| l.min),
+                limits.as_ref().and_then(|l| l.max),
+            )
+        };
+
         Ok(DeviceCapabilities::Camera(CameraCapabilities {
             can_abort_exposure: can_abort,
             can_set_ccd_temperature: has_cooler,
@@ -1802,6 +1888,8 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
             sensor_type,
             has_fast_readout: readout_mode_names.len() > 1,
             readout_modes: readout_mode_names,
+            cooler_min_temp_c,
+            cooler_max_temp_c,
             ..Default::default()
         }))
     } else if has_telescope_props {
@@ -1846,6 +1934,41 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
                 None
             };
 
+        // Why: INDI publishes the achievable pulse-guide duration range as the
+        // min/max number limits of the TELESCOPE_TIMED_GUIDE_NS (TIMED_GUIDE_N/S)
+        // and TELESCOPE_TIMED_GUIDE_WE (TIMED_GUIDE_W/E) properties. We take the
+        // smallest reported min and largest reported max across all four elements
+        // — the union of both axes — so the UI never offers a pulse outside what
+        // any axis accepts. Absent properties/limits → None ("range unknown"),
+        // never a fabricated clamp. Mirrors the max_slew_rate element-scan above.
+        let (min_pulse_guide_ms, max_pulse_guide_ms) = {
+            const TIMED_GUIDE_PROPS: [&str; 2] =
+                ["TELESCOPE_TIMED_GUIDE_NS", "TELESCOPE_TIMED_GUIDE_WE"];
+            let mut min_pulse: Option<f64> = None;
+            let mut max_pulse: Option<f64> = None;
+            let locked_client = client.read().await;
+            for prop_name in TIMED_GUIDE_PROPS {
+                let Some(prop) = properties.iter().find(|p| p.name == prop_name) else {
+                    continue;
+                };
+                for element in &prop.elements {
+                    let Some(limits) = locked_client
+                        .get_number_limits(&device_name, prop_name, element)
+                        .await
+                    else {
+                        continue;
+                    };
+                    if let Some(min) = limits.min {
+                        min_pulse = Some(min_pulse.map_or(min, |current| current.min(min)));
+                    }
+                    if let Some(max) = limits.max {
+                        max_pulse = Some(max_pulse.map_or(max, |current| current.max(max)));
+                    }
+                }
+            }
+            (min_pulse, max_pulse)
+        };
+
         Ok(DeviceCapabilities::Mount(MountCapabilities {
             can_slew: has_equatorial || supports_alt_az,
             can_slew_async: has_equatorial || supports_alt_az,
@@ -1867,6 +1990,8 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
             max_slew_rate,
             can_move_axis: can_move_ns || can_move_we,
             axis_count: u32::from(can_move_ns) + u32::from(can_move_we),
+            min_pulse_guide_ms,
+            max_pulse_guide_ms,
             ..Default::default()
         }))
     } else if has_focuser_props {
@@ -1932,6 +2057,70 @@ async fn get_indi_capabilities(device_id: &str) -> Result<DeviceCapabilities, Ni
             can_set_filter_names,
             can_set_focus_offsets: false,
         }))
+    } else if has_rotator_props {
+        // INDI rotator. Capabilities are derived from which standard properties
+        // the driver published (see indi/src/rotator.rs + protocol.rs for the
+        // property/element names). `has_*` flags below are presence checks, so a
+        // missing property honestly maps to "capability absent" (false) — no
+        // fabricated capability.
+        let has_abs_angle = properties.iter().any(|p| p.name == "ABS_ROTATOR_ANGLE");
+        let can_reverse = properties.iter().any(|p| p.name == "ROTATOR_REVERSE");
+        let can_halt = properties.iter().any(|p| p.name == "ROTATOR_ABORT_MOTION");
+        let can_sync = properties.iter().any(|p| p.name == "SYNC_ROTATOR_ANGLE");
+
+        // The absolute rotator exposes its angle under ABS_ROTATOR_ANGLE/ANGLE;
+        // legacy drivers use ROTATOR_ANGLE/ANGLE. Read whichever the driver
+        // actually published so the position and its limits come from the same
+        // property.
+        let angle_property = if has_abs_angle {
+            "ABS_ROTATOR_ANGLE"
+        } else {
+            "ROTATOR_ANGLE"
+        };
+
+        let (position, min_angle_deg, max_angle_deg) = {
+            let locked_client = client.read().await;
+            let position = locked_client
+                .get_number(&device_name, angle_property, "ANGLE")
+                .await;
+            // Why: INDI publishes the mechanical angle range as the ANGLE
+            // element's min/max number limits. Absent property/limits → None
+            // ("range unknown"), never a fabricated 0–360 clamp.
+            let limits = locked_client
+                .get_number_limits(&device_name, angle_property, "ANGLE")
+                .await;
+            (
+                position,
+                limits.as_ref().and_then(|l| l.min),
+                limits.as_ref().and_then(|l| l.max),
+            )
+        };
+
+        let caps = RotatorCapabilities {
+            can_reverse,
+            // Why: INDI does not report the current reverse state via a
+            // capability snapshot here; the rotator state provider polls
+            // ROTATOR_REVERSE live. `false` is the safe display default.
+            reverse: false,
+            // Why: INDI rotators expose absolute angle in degrees but no
+            // per-step resolution property; None = "step size unknown".
+            step_size: None,
+            // Why: motion state is transient and re-polled by the rotator state
+            // provider; a capability snapshot defaults to "stationary".
+            is_moving: false,
+            // INDI reports a single angle; mechanical and sky position coincide
+            // until a SYNC_ROTATOR_ANGLE offset is applied (tracked live by the
+            // state provider, not in this static snapshot).
+            mechanical_position: position,
+            position,
+            can_move_absolute: has_abs_angle,
+            can_halt,
+            can_sync,
+            min_angle_deg,
+            max_angle_deg,
+        };
+
+        Ok(DeviceCapabilities::Rotator(caps))
     } else {
         // Unknown device type - return minimal capabilities
         Err(NightshadeError::not_supported(
@@ -1983,6 +2172,19 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                 let readout_modes = camera.get_readout_modes().await.unwrap_or_default();
                 let status = camera.get_status().await.ok();
                 let cooler_power = status.as_ref().and_then(|s| s.cooler_power);
+                // Why: the NativeCamera trait's get_cooler_temp_range default
+                // returns Ok(None); only drivers that publish the achievable
+                // regulated-cooling range (currently ZWO, via C2) override it.
+                // `.ok().flatten()` collapses a transient SDK error to None
+                // ("range unknown") — the equipment view re-probes on a timer,
+                // and an unknown range simply leaves the setpoint field unclamped
+                // rather than fabricating limits.
+                let (cooler_min_temp_c, cooler_max_temp_c) = camera
+                    .get_cooler_temp_range()
+                    .await
+                    .ok()
+                    .flatten()
+                    .map_or((None, None), |(min, max)| (Some(min), Some(max)));
 
                 Ok(DeviceCapabilities::Camera(CameraCapabilities {
                     max_width: sensor_info.width,
@@ -2012,6 +2214,8 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     set_ccd_temperature: status.as_ref().and_then(|s| s.target_temp),
                     cooler_power,
                     cooler_on: status.as_ref().map(|s| s.cooler_on),
+                    cooler_min_temp_c,
+                    cooler_max_temp_c,
                     ..Default::default()
                 }))
             } else {
@@ -2126,6 +2330,12 @@ async fn get_native_capabilities(device_id: &str) -> Result<DeviceCapabilities, 
                     can_move_absolute: true,
                     can_halt,
                     can_sync: true,
+                    // Why: the NativeRotator trait exposes no angle-range accessor
+                    // (vendor rotator SDKs do not publish mechanical min/max), so
+                    // the range is genuinely unknown here. None = "unbounded by
+                    // contract", never a fabricated 0–360 clamp.
+                    min_angle_deg: None,
+                    max_angle_deg: None,
                 }))
             } else {
                 Err(NightshadeError::hardware_error(
@@ -2368,6 +2578,10 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             is_color: false,
             exposure_min: Some(0.001),
             exposure_max: Some(3600.0),
+            // Simulator advertises a representative regulated-cooling range so
+            // the setpoint UI and its clamping path are exercised end-to-end.
+            cooler_min_temp_c: Some(-40.0),
+            cooler_max_temp_c: Some(40.0),
             ..Default::default()
         })
     } else if device_id_lower.contains("mount") || device_id_lower.contains("telescope") {
@@ -2383,6 +2597,11 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_find_home: true,
             can_abort_slew: true,
             axis_count: 2,
+            // Simulator advertises a representative pulse-guide duration range
+            // (1 ms minimum tick to 8 s, the common INDI TIMED_GUIDE ceiling) so
+            // the guide-pulse UI and its range validation are exercised.
+            min_pulse_guide_ms: Some(1.0),
+            max_pulse_guide_ms: Some(8000.0),
             ..Default::default()
         })
     } else if device_id_lower.contains("focuser") {
@@ -2424,6 +2643,10 @@ fn get_simulator_capabilities(device_id: &str) -> DeviceCapabilities {
             can_move_absolute: true,
             can_halt: true,
             can_sync: true,
+            // Simulator advertises the full mechanical sweep so the angle-range
+            // UI and its clamping are exercised end-to-end.
+            min_angle_deg: Some(0.0),
+            max_angle_deg: Some(360.0),
         })
     } else if device_id_lower.contains("dome") {
         DeviceCapabilities::Dome(DomeCapabilities {
@@ -2950,6 +3173,10 @@ mod tests {
                 assert!(caps.can_move_absolute);
                 assert!(caps.can_halt);
                 assert!(caps.can_sync);
+                // The NativeRotator trait exposes no angle-range accessor, so the
+                // probe must surface an honest "unknown" rather than a clamp.
+                assert_eq!(caps.min_angle_deg, None);
+                assert_eq!(caps.max_angle_deg, None);
             }
             other => panic!("expected rotator capabilities, got {other:?}"),
         }
@@ -3115,5 +3342,356 @@ mod tests {
         invalidate_capability_cache_for_device(rotator_id).await;
         invalidate_capability_cache_for_device(switch_id).await;
         invalidate_capability_cache_for_device(cover_id).await;
+    }
+
+    // ---------------------------------------------------------------------
+    // C1: cooler-range / pulse-guide-range / angle-range capability fields
+    // ---------------------------------------------------------------------
+
+    /// Minimal native camera whose SDK exposes a regulated-cooling range but no
+    /// recommended setpoint — mirrors the ZWO shape that C2 will wire through
+    /// the real driver. Only the methods `get_native_capabilities` touches need
+    /// realistic values; the rest return benign defaults.
+    #[derive(Debug)]
+    struct FakeRangedCamera;
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeDevice for FakeRangedCamera {
+        fn id(&self) -> &str {
+            "native:zwo:900021"
+        }
+        fn name(&self) -> &str {
+            "Fake Ranged Camera"
+        }
+        fn vendor(&self) -> nightshade_native::NativeVendor {
+            nightshade_native::NativeVendor::Other("Test".to_string())
+        }
+        fn is_connected(&self) -> bool {
+            true
+        }
+        async fn connect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn disconnect(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+    }
+
+    #[async_trait::async_trait]
+    impl nightshade_native::traits::NativeCamera for FakeRangedCamera {
+        fn capabilities(&self) -> nightshade_native::camera::CameraCapabilities {
+            nightshade_native::camera::CameraCapabilities {
+                can_cool: true,
+                ..Default::default()
+            }
+        }
+
+        async fn get_status(
+            &self,
+        ) -> Result<nightshade_native::camera::CameraStatus, nightshade_native::traits::NativeError>
+        {
+            Ok(nightshade_native::camera::CameraStatus {
+                state: nightshade_native::camera::CameraState::Idle,
+                sensor_temp: Some(-5.0),
+                cooler_power: Some(40.0),
+                target_temp: Some(-10.0),
+                cooler_on: true,
+                gain: 100,
+                offset: 30,
+                bin_x: 1,
+                bin_y: 1,
+                exposure_remaining: None,
+            })
+        }
+
+        async fn start_exposure(
+            &mut self,
+            _params: nightshade_native::camera::ExposureParams,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn abort_exposure(&mut self) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn is_exposure_complete(
+            &self,
+        ) -> Result<bool, nightshade_native::traits::NativeError> {
+            Ok(true)
+        }
+        async fn download_image(
+            &mut self,
+        ) -> Result<nightshade_native::camera::ImageData, nightshade_native::traits::NativeError>
+        {
+            Err(nightshade_native::traits::NativeError::NotSupported)
+        }
+        async fn set_cooler(
+            &mut self,
+            _enabled: bool,
+            _target_temp: f64,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_temperature(&self) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(-5.0)
+        }
+        async fn get_cooler_power(&self) -> Result<f64, nightshade_native::traits::NativeError> {
+            Ok(40.0)
+        }
+        async fn set_gain(
+            &mut self,
+            _gain: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_gain(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(100)
+        }
+        async fn set_offset(
+            &mut self,
+            _offset: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_offset(&self) -> Result<i32, nightshade_native::traits::NativeError> {
+            Ok(30)
+        }
+        async fn set_binning(
+            &mut self,
+            _bin_x: i32,
+            _bin_y: i32,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_binning(&self) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((1, 1))
+        }
+        async fn set_subframe(
+            &mut self,
+            _subframe: Option<nightshade_native::camera::SubFrame>,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        fn get_sensor_info(&self) -> nightshade_native::camera::SensorInfo {
+            nightshade_native::camera::SensorInfo {
+                width: 6248,
+                height: 4176,
+                pixel_size_x: 3.76,
+                pixel_size_y: 3.76,
+                max_adu: 65535,
+                bit_depth: 16,
+                color: false,
+                bayer_pattern: None,
+            }
+        }
+        async fn get_readout_modes(
+            &self,
+        ) -> Result<
+            Vec<nightshade_native::camera::ReadoutMode>,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(Vec::new())
+        }
+        async fn set_readout_mode(
+            &mut self,
+            _mode: &nightshade_native::camera::ReadoutMode,
+        ) -> Result<(), nightshade_native::traits::NativeError> {
+            Ok(())
+        }
+        async fn get_vendor_features(
+            &self,
+        ) -> Result<
+            nightshade_native::camera::VendorFeatures,
+            nightshade_native::traits::NativeError,
+        > {
+            Ok(nightshade_native::camera::VendorFeatures::default())
+        }
+        async fn get_gain_range(
+            &self,
+        ) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((0, 600))
+        }
+        async fn get_offset_range(
+            &self,
+        ) -> Result<(i32, i32), nightshade_native::traits::NativeError> {
+            Ok((0, 255))
+        }
+
+        // The seam C1 adds and C2 will override for real ZWO hardware: report a
+        // concrete achievable cooling range.
+        async fn get_cooler_temp_range(
+            &self,
+        ) -> Result<Option<(f64, f64)>, nightshade_native::traits::NativeError> {
+            Ok(Some((-45.0, 35.0)))
+        }
+    }
+
+    #[tokio::test]
+    async fn native_camera_capabilities_map_cooler_temp_range_from_trait() {
+        let device_id = "native:zwo:900021";
+        register_native_test_device(device_id, crate::device::DeviceType::Camera).await;
+        crate::api::get_device_manager()
+            .native_cameras
+            .write()
+            .await
+            .insert(device_id.to_string(), Box::new(FakeRangedCamera));
+
+        let caps = get_device_capabilities(device_id)
+            .await
+            .expect("native camera capabilities should resolve");
+
+        match caps {
+            DeviceCapabilities::Camera(caps) => {
+                // The trait override flows through get_native_capabilities into
+                // the bridge struct.
+                assert_eq!(caps.cooler_min_temp_c, Some(-45.0));
+                assert_eq!(caps.cooler_max_temp_c, Some(35.0));
+                assert!(caps.can_set_ccd_temperature);
+            }
+            other => panic!("expected camera capabilities, got {other:?}"),
+        }
+
+        crate::api::get_device_manager()
+            .native_cameras
+            .write()
+            .await
+            .remove(device_id);
+        crate::api::get_device_manager()
+            .devices
+            .write()
+            .await
+            .remove(device_id);
+        invalidate_capability_cache_for_device(device_id).await;
+    }
+
+    #[test]
+    fn camera_capabilities_roundtrip_preserves_cooler_range() {
+        let caps = CameraCapabilities {
+            can_set_ccd_temperature: true,
+            cooler_min_temp_c: Some(-40.0),
+            cooler_max_temp_c: Some(40.0),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&caps).expect("serialize");
+        let back: CameraCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.cooler_min_temp_c, Some(-40.0));
+        assert_eq!(back.cooler_max_temp_c, Some(40.0));
+        assert!(back.can_set_ccd_temperature);
+    }
+
+    #[test]
+    fn mount_capabilities_roundtrip_preserves_pulse_guide_range() {
+        let caps = MountCapabilities {
+            can_pulse_guide: true,
+            min_pulse_guide_ms: Some(1.0),
+            max_pulse_guide_ms: Some(8000.0),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&caps).expect("serialize");
+        let back: MountCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.min_pulse_guide_ms, Some(1.0));
+        assert_eq!(back.max_pulse_guide_ms, Some(8000.0));
+        assert!(back.can_pulse_guide);
+    }
+
+    #[test]
+    fn rotator_capabilities_roundtrip_preserves_angle_range() {
+        let caps = RotatorCapabilities {
+            can_move_absolute: true,
+            min_angle_deg: Some(0.0),
+            max_angle_deg: Some(360.0),
+            ..Default::default()
+        };
+        let json = serde_json::to_string(&caps).expect("serialize");
+        let back: RotatorCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(back.min_angle_deg, Some(0.0));
+        assert_eq!(back.max_angle_deg, Some(360.0));
+        assert!(back.can_move_absolute);
+    }
+
+    /// Serialize `value`, strip the named keys to simulate a JSON document
+    /// persisted before those keys existed, and return the re-encoded string.
+    /// This proves the back-compat contract without hard-coding the (large,
+    /// evolving) set of pre-existing mandatory fields into each test.
+    fn json_without_keys<T: Serialize>(value: &T, keys: &[&str]) -> String {
+        let mut obj = match serde_json::to_value(value).expect("serialize to value") {
+            serde_json::Value::Object(map) => map,
+            other => panic!("expected a JSON object, got {other:?}"),
+        };
+        for key in keys {
+            assert!(
+                obj.remove(*key).is_some(),
+                "expected new field {key} to be present before stripping"
+            );
+        }
+        serde_json::to_string(&obj).expect("re-serialize")
+    }
+
+    #[test]
+    fn camera_capabilities_backcompat_missing_cooler_range_is_none() {
+        // A persisted JSON object from before these fields existed must
+        // deserialize cleanly with the new fields as None (back-compat).
+        let json = json_without_keys(
+            &CameraCapabilities {
+                max_width: 4096,
+                cooler_min_temp_c: Some(-40.0),
+                cooler_max_temp_c: Some(40.0),
+                ..Default::default()
+            },
+            &["cooler_min_temp_c", "cooler_max_temp_c"],
+        );
+        let caps: CameraCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(caps.cooler_min_temp_c, None);
+        assert_eq!(caps.cooler_max_temp_c, None);
+        assert_eq!(caps.max_width, 4096);
+    }
+
+    #[test]
+    fn mount_capabilities_backcompat_missing_pulse_range_is_none() {
+        let json = json_without_keys(
+            &MountCapabilities {
+                can_pulse_guide: true,
+                min_pulse_guide_ms: Some(1.0),
+                max_pulse_guide_ms: Some(8000.0),
+                ..Default::default()
+            },
+            &["min_pulse_guide_ms", "max_pulse_guide_ms"],
+        );
+        let caps: MountCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(caps.min_pulse_guide_ms, None);
+        assert_eq!(caps.max_pulse_guide_ms, None);
+        assert!(caps.can_pulse_guide);
+    }
+
+    #[test]
+    fn rotator_capabilities_backcompat_missing_angle_range_is_none() {
+        let json = json_without_keys(
+            &RotatorCapabilities {
+                can_move_absolute: true,
+                min_angle_deg: Some(0.0),
+                max_angle_deg: Some(360.0),
+                ..Default::default()
+            },
+            &["min_angle_deg", "max_angle_deg"],
+        );
+        let caps: RotatorCapabilities = serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(caps.min_angle_deg, None);
+        assert_eq!(caps.max_angle_deg, None);
+        assert!(caps.can_move_absolute);
+    }
+
+    #[test]
+    fn recommended_settings_from_native_maps_cooling_setpoint() {
+        let native = nightshade_native::camera::CameraRecommendedSettings {
+            unity_gain: Some(100),
+            hcg_gain: None,
+            default_offset: Some(30),
+            recommended_cooling_setpoint_c: Some(-10.0),
+            notes: "test".to_string(),
+        };
+        let bridge: CameraRecommendedSettings = native.into();
+        assert_eq!(bridge.unity_gain, Some(100));
+        assert_eq!(bridge.default_offset, Some(30));
+        assert_eq!(bridge.recommended_cooling_setpoint_c, Some(-10.0));
+        assert_eq!(bridge.notes, "test");
     }
 }

@@ -47,6 +47,8 @@ class CameraCapabilities {
   final double? setCcdTemperature;
   final double? coolerPower;
   final bool? coolerOn;
+  final double? coolerMinTempC;
+  final double? coolerMaxTempC;
 
   const CameraCapabilities({
     required this.maxWidth,
@@ -82,6 +84,8 @@ class CameraCapabilities {
     this.setCcdTemperature,
     this.coolerPower,
     this.coolerOn,
+    this.coolerMinTempC,
+    this.coolerMaxTempC,
   });
 
   factory CameraCapabilities.fromJson(Map<String, dynamic> json) {
@@ -151,6 +155,10 @@ class CameraCapabilities {
       coolerPower: (json['coolerPower'] as num?)?.toDouble() ??
           (json['cooler_power'] as num?)?.toDouble(),
       coolerOn: json['coolerOn'] as bool? ?? json['cooler_on'] as bool?,
+      coolerMinTempC: (json['coolerMinTempC'] as num?)?.toDouble() ??
+          (json['cooler_min_temp_c'] as num?)?.toDouble(),
+      coolerMaxTempC: (json['coolerMaxTempC'] as num?)?.toDouble() ??
+          (json['cooler_max_temp_c'] as num?)?.toDouble(),
     );
   }
 
@@ -188,6 +196,8 @@ class CameraCapabilities {
         'setCcdTemperature': setCcdTemperature,
         'coolerPower': coolerPower,
         'coolerOn': coolerOn,
+        'coolerMinTempC': coolerMinTempC,
+        'coolerMaxTempC': coolerMaxTempC,
       };
 }
 
@@ -215,6 +225,8 @@ class MountCapabilities {
   final double? maxSlewRate;
   final bool canMoveAxis;
   final int axisCount;
+  final double? minPulseGuideMs;
+  final double? maxPulseGuideMs;
 
   const MountCapabilities({
     this.canSlew = false,
@@ -239,6 +251,8 @@ class MountCapabilities {
     this.maxSlewRate,
     this.canMoveAxis = false,
     this.axisCount = 2,
+    this.minPulseGuideMs,
+    this.maxPulseGuideMs,
   });
 
   factory MountCapabilities.fromJson(Map<String, dynamic> json) {
@@ -294,6 +308,10 @@ class MountCapabilities {
           json['can_move_axis'] as bool? ??
           false,
       axisCount: json['axisCount'] as int? ?? json['axis_count'] as int? ?? 2,
+      minPulseGuideMs: (json['minPulseGuideMs'] as num?)?.toDouble() ??
+          (json['min_pulse_guide_ms'] as num?)?.toDouble(),
+      maxPulseGuideMs: (json['maxPulseGuideMs'] as num?)?.toDouble() ??
+          (json['max_pulse_guide_ms'] as num?)?.toDouble(),
     );
   }
 
@@ -341,6 +359,8 @@ class MountCapabilities {
         'maxSlewRate': maxSlewRate,
         'canMoveAxis': canMoveAxis,
         'axisCount': axisCount,
+        'minPulseGuideMs': minPulseGuideMs,
+        'maxPulseGuideMs': maxPulseGuideMs,
       };
 }
 
@@ -481,6 +501,8 @@ class RotatorCapabilities {
   final bool canMoveAbsolute;
   final bool canHalt;
   final bool canSync;
+  final double? minAngleDeg;
+  final double? maxAngleDeg;
 
   const RotatorCapabilities({
     this.canReverse = false,
@@ -492,6 +514,8 @@ class RotatorCapabilities {
     this.canMoveAbsolute = false,
     this.canHalt = false,
     this.canSync = false,
+    this.minAngleDeg,
+    this.maxAngleDeg,
   });
 
   factory RotatorCapabilities.fromJson(Map<String, dynamic> json) {
@@ -511,6 +535,10 @@ class RotatorCapabilities {
           false,
       canHalt: json['canHalt'] as bool? ?? json['can_halt'] as bool? ?? false,
       canSync: json['canSync'] as bool? ?? json['can_sync'] as bool? ?? false,
+      minAngleDeg: (json['minAngleDeg'] as num?)?.toDouble() ??
+          (json['min_angle_deg'] as num?)?.toDouble(),
+      maxAngleDeg: (json['maxAngleDeg'] as num?)?.toDouble() ??
+          (json['max_angle_deg'] as num?)?.toDouble(),
     );
   }
 
@@ -524,6 +552,8 @@ class RotatorCapabilities {
         'canMoveAbsolute': canMoveAbsolute,
         'canHalt': canHalt,
         'canSync': canSync,
+        'minAngleDeg': minAngleDeg,
+        'maxAngleDeg': maxAngleDeg,
       };
 }
 

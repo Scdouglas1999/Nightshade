@@ -463,6 +463,8 @@ typedef struct wire_cst_camera_capabilities {
   double *set_ccd_temperature;
   double *cooler_power;
   bool *cooler_on;
+  double *cooler_min_temp_c;
+  double *cooler_max_temp_c;
 } wire_cst_camera_capabilities;
 
 typedef struct wire_cst_checkpoint_info_api {
@@ -828,6 +830,8 @@ typedef struct wire_cst_mount_capabilities {
   double *max_slew_rate;
   bool can_move_axis;
   uint32_t axis_count;
+  double *min_pulse_guide_ms;
+  double *max_pulse_guide_ms;
 } wire_cst_mount_capabilities;
 
 typedef struct wire_cst_polar_alignment_event {
@@ -866,6 +870,8 @@ typedef struct wire_cst_rotator_capabilities {
   bool can_move_absolute;
   bool can_halt;
   bool can_sync;
+  double *min_angle_deg;
+  double *max_angle_deg;
 } wire_cst_rotator_capabilities;
 
 typedef struct wire_cst_SafetyEvent_WeatherUnsafe {
@@ -1466,6 +1472,7 @@ typedef struct wire_cst_camera_recommended_settings {
   int32_t *unity_gain;
   int32_t *hcg_gain;
   int32_t *default_offset;
+  double *recommended_cooling_setpoint_c;
   struct wire_cst_list_prim_u_8_strict *notes;
 } wire_cst_camera_recommended_settings;
 

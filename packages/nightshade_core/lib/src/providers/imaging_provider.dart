@@ -20,6 +20,18 @@ final exposureSettingsProvider = StateProvider<ExposureSettings>((ref) {
   );
 });
 
+/// Set true the moment the user manually edits exposure/gain/offset; gates all
+/// auto-seeding.
+///
+/// Once the user touches an exposure control, neither the active equipment
+/// profile's gain/offset defaults nor the Smart Night recommended exposure may
+/// overwrite their values. The flag is flipped to `true` by the camera capture
+/// panel (C11) and the camera-preset selector (C8); this provider only declares
+/// the state and is read here to gate seeding. It deliberately replaces the old
+/// `exposureTime == 120` heuristic, which silently re-seeded whenever a user
+/// genuinely wanted a 120 s light frame.
+final exposureSettingsUserDirtyProvider = StateProvider<bool>((ref) => false);
+
 /// Tracks the profile ID whose defaults were last applied to exposure settings.
 /// This prevents re-applying defaults when navigating back to the imaging screen
 /// while still allowing a profile switch to re-initialize the controls.
@@ -47,9 +59,13 @@ final syncExposureFromProfileProvider = Provider<void>((ref) {
   Future<void>.microtask(() {
     if (disposed) return;
 
+    // Once the user has manually edited any exposure control, no auto-seeding
+    // (profile defaults or Smart Night) may overwrite their values.
+    final userDirty = ref.read(exposureSettingsUserDirtyProvider);
+
     final profileId = profile.id;
     final lastApplied = ref.read(_lastAppliedProfileIdProvider);
-    if (lastApplied != profileId) {
+    if (!userDirty && lastApplied != profileId) {
       ref.read(_lastAppliedProfileIdProvider.notifier).state = profileId;
 
       final current = ref.read(exposureSettingsProvider);
@@ -62,14 +78,13 @@ final syncExposureFromProfileProvider = Provider<void>((ref) {
     }
 
     if (exposureContext == null) return;
+    if (userDirty) return;
 
     final lastSmart = ref.read(_lastAppliedSmartExposureProfileIdProvider);
     if (lastSmart == profileId) return;
 
     final current = ref.read(exposureSettingsProvider);
-    final isDefaultLightExposure =
-        current.frameType == FrameType.light && current.exposureTime == 120;
-    if (!isDefaultLightExposure) return;
+    if (current.frameType != FrameType.light) return;
 
     ref.read(_lastAppliedSmartExposureProfileIdProvider.notifier).state =
         profileId;

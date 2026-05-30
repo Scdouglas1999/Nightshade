@@ -3604,6 +3604,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
         cst_encode_opt_box_autoadd_f_64(apiObj.setCcdTemperature);
     wireObj.cooler_power = cst_encode_opt_box_autoadd_f_64(apiObj.coolerPower);
     wireObj.cooler_on = cst_encode_opt_box_autoadd_bool(apiObj.coolerOn);
+    wireObj.cooler_min_temp_c =
+        cst_encode_opt_box_autoadd_f_64(apiObj.coolerMinTempC);
+    wireObj.cooler_max_temp_c =
+        cst_encode_opt_box_autoadd_f_64(apiObj.coolerMaxTempC);
   }
 
   @protected
@@ -3614,6 +3618,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.hcg_gain = cst_encode_opt_box_autoadd_i_32(apiObj.hcgGain);
     wireObj.default_offset =
         cst_encode_opt_box_autoadd_i_32(apiObj.defaultOffset);
+    wireObj.recommended_cooling_setpoint_c =
+        cst_encode_opt_box_autoadd_f_64(apiObj.recommendedCoolingSetpointC);
     wireObj.notes = cst_encode_String(apiObj.notes);
   }
 
@@ -4755,6 +4761,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.max_slew_rate = cst_encode_opt_box_autoadd_f_64(apiObj.maxSlewRate);
     wireObj.can_move_axis = cst_encode_bool(apiObj.canMoveAxis);
     wireObj.axis_count = cst_encode_u_32(apiObj.axisCount);
+    wireObj.min_pulse_guide_ms =
+        cst_encode_opt_box_autoadd_f_64(apiObj.minPulseGuideMs);
+    wireObj.max_pulse_guide_ms =
+        cst_encode_opt_box_autoadd_f_64(apiObj.maxPulseGuideMs);
   }
 
   @protected
@@ -5431,6 +5441,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     wireObj.can_move_absolute = cst_encode_bool(apiObj.canMoveAbsolute);
     wireObj.can_halt = cst_encode_bool(apiObj.canHalt);
     wireObj.can_sync = cst_encode_bool(apiObj.canSync);
+    wireObj.min_angle_deg = cst_encode_opt_box_autoadd_f_64(apiObj.minAngleDeg);
+    wireObj.max_angle_deg = cst_encode_opt_box_autoadd_f_64(apiObj.maxAngleDeg);
   }
 
   @protected
@@ -18750,6 +18762,10 @@ final class wire_cst_camera_capabilities extends ffi.Struct {
   external ffi.Pointer<ffi.Double> cooler_power;
 
   external ffi.Pointer<ffi.Bool> cooler_on;
+
+  external ffi.Pointer<ffi.Double> cooler_min_temp_c;
+
+  external ffi.Pointer<ffi.Double> cooler_max_temp_c;
 }
 
 final class wire_cst_checkpoint_info_api extends ffi.Struct {
@@ -19380,6 +19396,10 @@ final class wire_cst_mount_capabilities extends ffi.Struct {
 
   @ffi.Uint32()
   external int axis_count;
+
+  external ffi.Pointer<ffi.Double> min_pulse_guide_ms;
+
+  external ffi.Pointer<ffi.Double> max_pulse_guide_ms;
 }
 
 final class wire_cst_polar_alignment_event extends ffi.Struct {
@@ -19457,6 +19477,10 @@ final class wire_cst_rotator_capabilities extends ffi.Struct {
 
   @ffi.Bool()
   external bool can_sync;
+
+  external ffi.Pointer<ffi.Double> min_angle_deg;
+
+  external ffi.Pointer<ffi.Double> max_angle_deg;
 }
 
 final class wire_cst_SafetyEvent_WeatherUnsafe extends ffi.Struct {
@@ -20502,6 +20526,8 @@ final class wire_cst_camera_recommended_settings extends ffi.Struct {
   external ffi.Pointer<ffi.Int32> hcg_gain;
 
   external ffi.Pointer<ffi.Int32> default_offset;
+
+  external ffi.Pointer<ffi.Double> recommended_cooling_setpoint_c;
 
   external ffi.Pointer<wire_cst_list_prim_u_8_strict> notes;
 }

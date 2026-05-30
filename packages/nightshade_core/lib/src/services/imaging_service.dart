@@ -12,6 +12,7 @@ import '../models/equipment/equipment_models.dart';
 import '../models/imaging/imaging_models.dart';
 import '../providers/clock_provider.dart';
 import '../providers/equipment_provider.dart';
+import '../providers/equipment/device_capability_provider.dart';
 import '../providers/imaging_provider.dart';
 import '../providers/backend_provider.dart';
 import '../providers/settings_provider.dart';
@@ -85,16 +86,31 @@ class ImagingService {
         throw Exception('Camera device ID not available');
       }
 
-      // Apply readout mode before starting exposure
-      // fastReadout: false = mode 0 (High Quality), true = mode 1 (Fast)
-      final readoutModeIndex = settings.fastReadout ? 1 : 0;
-      try {
-        await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
-      } catch (e) {
-        // Log but don't fail - not all cameras support readout mode switching
-        _logger.warning(
-            'Failed to set readout mode (index=$readoutModeIndex): $e',
-            source: 'ImagingService');
+      // Apply readout mode before starting exposure.
+      //
+      // C6/C9: honour the user's explicit `readoutModeIndex` choice from the
+      // camera panel. The index is resolved against the camera's *actual*
+      // reported readout-mode count so a middle mode on a >2-mode sensor
+      // (e.g. index 2 of 4) is sent verbatim rather than being collapsed to
+      // the legacy 0/1 binary. `resolveReadoutModeIndex` returns the explicit
+      // index when set, otherwise maps the legacy `fastReadout` flag (slow ->
+      // first mode, fast -> last mode) using the same mode count.
+      //
+      // When the camera reports no readout modes (unknown to the driver, or a
+      // protocol that doesn't expose them) we fall back to the legacy
+      // `fastReadout ? 1 : 0` mapping — the same behaviour the panel uses when
+      // it hides the read-mode dropdown — rather than forcing index 0.
+      final int? readoutModeIndex =
+          await _resolveReadoutModeIndex(deviceId, settings);
+      if (readoutModeIndex != null) {
+        try {
+          await backend.cameraSetReadoutMode(deviceId, readoutModeIndex);
+        } catch (e) {
+          // Log but don't fail - not all cameras support readout mode switching
+          _logger.warning(
+              'Failed to set readout mode (index=$readoutModeIndex): $e',
+              source: 'ImagingService');
+        }
       }
 
       // Update state to exposing
@@ -508,6 +524,56 @@ class ImagingService {
       cameraNotifier.setExposing(false);
       progressNotifier.reset();
       _logger.debug('captureImage complete!', source: 'ImagingService');
+    }
+  }
+
+  /// Resolve the concrete readout-mode index to send to the camera for
+  /// [settings], using the camera's actual reported readout-mode count.
+  ///
+  /// Returns `null` when the camera exposes no readout modes (the driver
+  /// doesn't report any, or the capability query failed). A null result means
+  /// "don't issue a `cameraSetReadoutMode` call at all" — there's nothing to
+  /// select against, and forcing index 0 could pick a different mode than the
+  /// driver's own default. This mirrors the camera panel, which hides the
+  /// read-mode dropdown entirely when `readoutModes` is empty.
+  ///
+  /// When the mode count is known, [ExposureSettings.resolveReadoutModeIndex]
+  /// maps the user's explicit choice (or the legacy `fastReadout` flag) to a
+  /// real index, clamped into `[0, modeCount - 1]` to defend against a stale
+  /// persisted index pointing past a now-shorter list.
+  Future<int?> _resolveReadoutModeIndex(
+    String deviceId,
+    ExposureSettings settings,
+  ) async {
+    final int modeCount = await _readoutModeCount(deviceId);
+    if (modeCount <= 0) {
+      return null;
+    }
+    return settings.resolveReadoutModeIndex(modeCount).clamp(0, modeCount - 1);
+  }
+
+  /// The number of readout modes the camera [deviceId] reports, or 0 when
+  /// unknown. Reads the cached/awaited [equipmentCameraCapabilitiesProvider]
+  /// for the device.
+  ///
+  /// A failed or null capability query yields 0 (treated as "unknown" by the
+  /// caller) — never a fabricated count. Errors surface in the log rather than
+  /// silently masquerading as a two-mode camera.
+  Future<int> _readoutModeCount(String deviceId) async {
+    if (deviceId.isEmpty) {
+      return 0;
+    }
+    try {
+      final caps =
+          await _ref.read(equipmentCameraCapabilitiesProvider(deviceId).future);
+      return caps?.readoutModes.length ?? 0;
+    } catch (e) {
+      _logger.warning(
+        'Failed to read camera capabilities for readout-mode resolution '
+        '($deviceId): $e — skipping explicit readout-mode set',
+        source: 'ImagingService',
+      );
+      return 0;
     }
   }
 

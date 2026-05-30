@@ -10831,6 +10831,8 @@ impl SseDecode for crate::device_capabilities::CameraCapabilities {
         let mut var_setCcdTemperature = <Option<f64>>::sse_decode(deserializer);
         let mut var_coolerPower = <Option<f64>>::sse_decode(deserializer);
         let mut var_coolerOn = <Option<bool>>::sse_decode(deserializer);
+        let mut var_coolerMinTempC = <Option<f64>>::sse_decode(deserializer);
+        let mut var_coolerMaxTempC = <Option<f64>>::sse_decode(deserializer);
         return crate::device_capabilities::CameraCapabilities {
             max_width: var_maxWidth,
             max_height: var_maxHeight,
@@ -10865,6 +10867,8 @@ impl SseDecode for crate::device_capabilities::CameraCapabilities {
             set_ccd_temperature: var_setCcdTemperature,
             cooler_power: var_coolerPower,
             cooler_on: var_coolerOn,
+            cooler_min_temp_c: var_coolerMinTempC,
+            cooler_max_temp_c: var_coolerMaxTempC,
         };
     }
 }
@@ -10875,11 +10879,13 @@ impl SseDecode for crate::device_capabilities::CameraRecommendedSettings {
         let mut var_unityGain = <Option<i32>>::sse_decode(deserializer);
         let mut var_hcgGain = <Option<i32>>::sse_decode(deserializer);
         let mut var_defaultOffset = <Option<i32>>::sse_decode(deserializer);
+        let mut var_recommendedCoolingSetpointC = <Option<f64>>::sse_decode(deserializer);
         let mut var_notes = <String>::sse_decode(deserializer);
         return crate::device_capabilities::CameraRecommendedSettings {
             unity_gain: var_unityGain,
             hcg_gain: var_hcgGain,
             default_offset: var_defaultOffset,
+            recommended_cooling_setpoint_c: var_recommendedCoolingSetpointC,
             notes: var_notes,
         };
     }
@@ -12967,6 +12973,8 @@ impl SseDecode for crate::device_capabilities::MountCapabilities {
         let mut var_maxSlewRate = <Option<f64>>::sse_decode(deserializer);
         let mut var_canMoveAxis = <bool>::sse_decode(deserializer);
         let mut var_axisCount = <u32>::sse_decode(deserializer);
+        let mut var_minPulseGuideMs = <Option<f64>>::sse_decode(deserializer);
+        let mut var_maxPulseGuideMs = <Option<f64>>::sse_decode(deserializer);
         return crate::device_capabilities::MountCapabilities {
             can_slew: var_canSlew,
             can_slew_async: var_canSlewAsync,
@@ -12990,6 +12998,8 @@ impl SseDecode for crate::device_capabilities::MountCapabilities {
             max_slew_rate: var_maxSlewRate,
             can_move_axis: var_canMoveAxis,
             axis_count: var_axisCount,
+            min_pulse_guide_ms: var_minPulseGuideMs,
+            max_pulse_guide_ms: var_maxPulseGuideMs,
         };
     }
 }
@@ -14222,6 +14232,8 @@ impl SseDecode for crate::device_capabilities::RotatorCapabilities {
         let mut var_canMoveAbsolute = <bool>::sse_decode(deserializer);
         let mut var_canHalt = <bool>::sse_decode(deserializer);
         let mut var_canSync = <bool>::sse_decode(deserializer);
+        let mut var_minAngleDeg = <Option<f64>>::sse_decode(deserializer);
+        let mut var_maxAngleDeg = <Option<f64>>::sse_decode(deserializer);
         return crate::device_capabilities::RotatorCapabilities {
             can_reverse: var_canReverse,
             reverse: var_reverse,
@@ -14232,6 +14244,8 @@ impl SseDecode for crate::device_capabilities::RotatorCapabilities {
             can_move_absolute: var_canMoveAbsolute,
             can_halt: var_canHalt,
             can_sync: var_canSync,
+            min_angle_deg: var_minAngleDeg,
+            max_angle_deg: var_maxAngleDeg,
         };
     }
 }
@@ -15697,6 +15711,8 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraCapabil
             self.set_ccd_temperature.into_into_dart().into_dart(),
             self.cooler_power.into_into_dart().into_dart(),
             self.cooler_on.into_into_dart().into_dart(),
+            self.cooler_min_temp_c.into_into_dart().into_dart(),
+            self.cooler_max_temp_c.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -15719,6 +15735,9 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::CameraRecomme
             self.unity_gain.into_into_dart().into_dart(),
             self.hcg_gain.into_into_dart().into_dart(),
             self.default_offset.into_into_dart().into_dart(),
+            self.recommended_cooling_setpoint_c
+                .into_into_dart()
+                .into_dart(),
             self.notes.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -17406,6 +17425,8 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::MountCapabili
             self.max_slew_rate.into_into_dart().into_dart(),
             self.can_move_axis.into_into_dart().into_dart(),
             self.axis_count.into_into_dart().into_dart(),
+            self.min_pulse_guide_ms.into_into_dart().into_dart(),
+            self.max_pulse_guide_ms.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -18311,6 +18332,8 @@ impl flutter_rust_bridge::IntoDart for crate::device_capabilities::RotatorCapabi
             self.can_move_absolute.into_into_dart().into_dart(),
             self.can_halt.into_into_dart().into_dart(),
             self.can_sync.into_into_dart().into_dart(),
+            self.min_angle_deg.into_into_dart().into_dart(),
+            self.max_angle_deg.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -19769,6 +19792,8 @@ impl SseEncode for crate::device_capabilities::CameraCapabilities {
         <Option<f64>>::sse_encode(self.set_ccd_temperature, serializer);
         <Option<f64>>::sse_encode(self.cooler_power, serializer);
         <Option<bool>>::sse_encode(self.cooler_on, serializer);
+        <Option<f64>>::sse_encode(self.cooler_min_temp_c, serializer);
+        <Option<f64>>::sse_encode(self.cooler_max_temp_c, serializer);
     }
 }
 
@@ -19778,6 +19803,7 @@ impl SseEncode for crate::device_capabilities::CameraRecommendedSettings {
         <Option<i32>>::sse_encode(self.unity_gain, serializer);
         <Option<i32>>::sse_encode(self.hcg_gain, serializer);
         <Option<i32>>::sse_encode(self.default_offset, serializer);
+        <Option<f64>>::sse_encode(self.recommended_cooling_setpoint_c, serializer);
         <String>::sse_encode(self.notes, serializer);
     }
 }
@@ -21393,6 +21419,8 @@ impl SseEncode for crate::device_capabilities::MountCapabilities {
         <Option<f64>>::sse_encode(self.max_slew_rate, serializer);
         <bool>::sse_encode(self.can_move_axis, serializer);
         <u32>::sse_encode(self.axis_count, serializer);
+        <Option<f64>>::sse_encode(self.min_pulse_guide_ms, serializer);
+        <Option<f64>>::sse_encode(self.max_pulse_guide_ms, serializer);
     }
 }
 
@@ -22337,6 +22365,8 @@ impl SseEncode for crate::device_capabilities::RotatorCapabilities {
         <bool>::sse_encode(self.can_move_absolute, serializer);
         <bool>::sse_encode(self.can_halt, serializer);
         <bool>::sse_encode(self.can_sync, serializer);
+        <Option<f64>>::sse_encode(self.min_angle_deg, serializer);
+        <Option<f64>>::sse_encode(self.max_angle_deg, serializer);
     }
 }
 
@@ -23966,6 +23996,8 @@ mod io {
                 set_ccd_temperature: self.set_ccd_temperature.cst_decode(),
                 cooler_power: self.cooler_power.cst_decode(),
                 cooler_on: self.cooler_on.cst_decode(),
+                cooler_min_temp_c: self.cooler_min_temp_c.cst_decode(),
+                cooler_max_temp_c: self.cooler_max_temp_c.cst_decode(),
             }
         }
     }
@@ -23978,6 +24010,7 @@ mod io {
                 unity_gain: self.unity_gain.cst_decode(),
                 hcg_gain: self.hcg_gain.cst_decode(),
                 default_offset: self.default_offset.cst_decode(),
+                recommended_cooling_setpoint_c: self.recommended_cooling_setpoint_c.cst_decode(),
                 notes: self.notes.cst_decode(),
             }
         }
@@ -25327,6 +25360,8 @@ mod io {
                 max_slew_rate: self.max_slew_rate.cst_decode(),
                 can_move_axis: self.can_move_axis.cst_decode(),
                 axis_count: self.axis_count.cst_decode(),
+                min_pulse_guide_ms: self.min_pulse_guide_ms.cst_decode(),
+                max_pulse_guide_ms: self.max_pulse_guide_ms.cst_decode(),
             }
         }
     }
@@ -25969,6 +26004,8 @@ mod io {
                 can_move_absolute: self.can_move_absolute.cst_decode(),
                 can_halt: self.can_halt.cst_decode(),
                 can_sync: self.can_sync.cst_decode(),
+                min_angle_deg: self.min_angle_deg.cst_decode(),
+                max_angle_deg: self.max_angle_deg.cst_decode(),
             }
         }
     }
@@ -26816,6 +26853,8 @@ mod io {
                 set_ccd_temperature: core::ptr::null_mut(),
                 cooler_power: core::ptr::null_mut(),
                 cooler_on: core::ptr::null_mut(),
+                cooler_min_temp_c: core::ptr::null_mut(),
+                cooler_max_temp_c: core::ptr::null_mut(),
             }
         }
     }
@@ -26830,6 +26869,7 @@ mod io {
                 unity_gain: core::ptr::null_mut(),
                 hcg_gain: core::ptr::null_mut(),
                 default_offset: core::ptr::null_mut(),
+                recommended_cooling_setpoint_c: core::ptr::null_mut(),
                 notes: core::ptr::null_mut(),
             }
         }
@@ -27608,6 +27648,8 @@ mod io {
                 max_slew_rate: core::ptr::null_mut(),
                 can_move_axis: Default::default(),
                 axis_count: Default::default(),
+                min_pulse_guide_ms: core::ptr::null_mut(),
+                max_pulse_guide_ms: core::ptr::null_mut(),
             }
         }
     }
@@ -28208,6 +28250,8 @@ mod io {
                 can_move_absolute: Default::default(),
                 can_halt: Default::default(),
                 can_sync: Default::default(),
+                min_angle_deg: core::ptr::null_mut(),
+                max_angle_deg: core::ptr::null_mut(),
             }
         }
     }
@@ -33451,6 +33495,8 @@ mod io {
         set_ccd_temperature: *mut f64,
         cooler_power: *mut f64,
         cooler_on: *mut bool,
+        cooler_min_temp_c: *mut f64,
+        cooler_max_temp_c: *mut f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -33458,6 +33504,7 @@ mod io {
         unity_gain: *mut i32,
         hcg_gain: *mut i32,
         default_offset: *mut i32,
+        recommended_cooling_setpoint_c: *mut f64,
         notes: *mut wire_cst_list_prim_u_8_strict,
     }
     #[repr(C)]
@@ -34588,6 +34635,8 @@ mod io {
         max_slew_rate: *mut f64,
         can_move_axis: bool,
         axis_count: u32,
+        min_pulse_guide_ms: *mut f64,
+        max_pulse_guide_ms: *mut f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]
@@ -35177,6 +35226,8 @@ mod io {
         can_move_absolute: bool,
         can_halt: bool,
         can_sync: bool,
+        min_angle_deg: *mut f64,
+        max_angle_deg: *mut f64,
     }
     #[repr(C)]
     #[derive(Clone, Copy)]

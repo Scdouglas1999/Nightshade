@@ -12602,8 +12602,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   CameraCapabilities dco_decode_camera_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 33)
-      throw Exception('unexpected arr length: expect 33 but see ${arr.length}');
+    if (arr.length != 35)
+      throw Exception('unexpected arr length: expect 35 but see ${arr.length}');
     return CameraCapabilities(
       maxWidth: dco_decode_u_32(arr[0]),
       maxHeight: dco_decode_u_32(arr[1]),
@@ -12638,6 +12638,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       setCcdTemperature: dco_decode_opt_box_autoadd_f_64(arr[30]),
       coolerPower: dco_decode_opt_box_autoadd_f_64(arr[31]),
       coolerOn: dco_decode_opt_box_autoadd_bool(arr[32]),
+      coolerMinTempC: dco_decode_opt_box_autoadd_f_64(arr[33]),
+      coolerMaxTempC: dco_decode_opt_box_autoadd_f_64(arr[34]),
     );
   }
 
@@ -12646,13 +12648,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 4)
-      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
+    if (arr.length != 5)
+      throw Exception('unexpected arr length: expect 5 but see ${arr.length}');
     return CameraRecommendedSettings(
       unityGain: dco_decode_opt_box_autoadd_i_32(arr[0]),
       hcgGain: dco_decode_opt_box_autoadd_i_32(arr[1]),
       defaultOffset: dco_decode_opt_box_autoadd_i_32(arr[2]),
-      notes: dco_decode_String(arr[3]),
+      recommendedCoolingSetpointC: dco_decode_opt_box_autoadd_f_64(arr[3]),
+      notes: dco_decode_String(arr[4]),
     );
   }
 
@@ -13990,8 +13993,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MountCapabilities dco_decode_mount_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 22)
-      throw Exception('unexpected arr length: expect 22 but see ${arr.length}');
+    if (arr.length != 24)
+      throw Exception('unexpected arr length: expect 24 but see ${arr.length}');
     return MountCapabilities(
       canSlew: dco_decode_bool(arr[0]),
       canSlewAsync: dco_decode_bool(arr[1]),
@@ -14015,6 +14018,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       maxSlewRate: dco_decode_opt_box_autoadd_f_64(arr[19]),
       canMoveAxis: dco_decode_bool(arr[20]),
       axisCount: dco_decode_u_32(arr[21]),
+      minPulseGuideMs: dco_decode_opt_box_autoadd_f_64(arr[22]),
+      maxPulseGuideMs: dco_decode_opt_box_autoadd_f_64(arr[23]),
     );
   }
 
@@ -14947,8 +14952,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   RotatorCapabilities dco_decode_rotator_capabilities(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 11)
+      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
     return RotatorCapabilities(
       canReverse: dco_decode_bool(arr[0]),
       reverse: dco_decode_bool(arr[1]),
@@ -14959,6 +14964,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       canMoveAbsolute: dco_decode_bool(arr[6]),
       canHalt: dco_decode_bool(arr[7]),
       canSync: dco_decode_bool(arr[8]),
+      minAngleDeg: dco_decode_opt_box_autoadd_f_64(arr[9]),
+      maxAngleDeg: dco_decode_opt_box_autoadd_f_64(arr[10]),
     );
   }
 
@@ -16454,6 +16461,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_setCcdTemperature = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_coolerPower = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_coolerOn = sse_decode_opt_box_autoadd_bool(deserializer);
+    var var_coolerMinTempC = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_coolerMaxTempC = sse_decode_opt_box_autoadd_f_64(deserializer);
     return CameraCapabilities(
         maxWidth: var_maxWidth,
         maxHeight: var_maxHeight,
@@ -16487,7 +16496,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ccdTemperature: var_ccdTemperature,
         setCcdTemperature: var_setCcdTemperature,
         coolerPower: var_coolerPower,
-        coolerOn: var_coolerOn);
+        coolerOn: var_coolerOn,
+        coolerMinTempC: var_coolerMinTempC,
+        coolerMaxTempC: var_coolerMaxTempC);
   }
 
   @protected
@@ -16497,11 +16508,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_unityGain = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_hcgGain = sse_decode_opt_box_autoadd_i_32(deserializer);
     var var_defaultOffset = sse_decode_opt_box_autoadd_i_32(deserializer);
+    var var_recommendedCoolingSetpointC =
+        sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_notes = sse_decode_String(deserializer);
     return CameraRecommendedSettings(
         unityGain: var_unityGain,
         hcgGain: var_hcgGain,
         defaultOffset: var_defaultOffset,
+        recommendedCoolingSetpointC: var_recommendedCoolingSetpointC,
         notes: var_notes);
   }
 
@@ -18276,6 +18290,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_maxSlewRate = sse_decode_opt_box_autoadd_f_64(deserializer);
     var var_canMoveAxis = sse_decode_bool(deserializer);
     var var_axisCount = sse_decode_u_32(deserializer);
+    var var_minPulseGuideMs = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_maxPulseGuideMs = sse_decode_opt_box_autoadd_f_64(deserializer);
     return MountCapabilities(
         canSlew: var_canSlew,
         canSlewAsync: var_canSlewAsync,
@@ -18298,7 +18314,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         canAbortSlew: var_canAbortSlew,
         maxSlewRate: var_maxSlewRate,
         canMoveAxis: var_canMoveAxis,
-        axisCount: var_axisCount);
+        axisCount: var_axisCount,
+        minPulseGuideMs: var_minPulseGuideMs,
+        maxPulseGuideMs: var_maxPulseGuideMs);
   }
 
   @protected
@@ -19399,6 +19417,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_canMoveAbsolute = sse_decode_bool(deserializer);
     var var_canHalt = sse_decode_bool(deserializer);
     var var_canSync = sse_decode_bool(deserializer);
+    var var_minAngleDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
+    var var_maxAngleDeg = sse_decode_opt_box_autoadd_f_64(deserializer);
     return RotatorCapabilities(
         canReverse: var_canReverse,
         reverse: var_reverse,
@@ -19408,7 +19428,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         position: var_position,
         canMoveAbsolute: var_canMoveAbsolute,
         canHalt: var_canHalt,
-        canSync: var_canSync);
+        canSync: var_canSync,
+        minAngleDeg: var_minAngleDeg,
+        maxAngleDeg: var_maxAngleDeg);
   }
 
   @protected
@@ -21201,6 +21223,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_f_64(self.setCcdTemperature, serializer);
     sse_encode_opt_box_autoadd_f_64(self.coolerPower, serializer);
     sse_encode_opt_box_autoadd_bool(self.coolerOn, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.coolerMinTempC, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.coolerMaxTempC, serializer);
   }
 
   @protected
@@ -21210,6 +21234,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_i_32(self.unityGain, serializer);
     sse_encode_opt_box_autoadd_i_32(self.hcgGain, serializer);
     sse_encode_opt_box_autoadd_i_32(self.defaultOffset, serializer);
+    sse_encode_opt_box_autoadd_f_64(
+        self.recommendedCoolingSetpointC, serializer);
     sse_encode_String(self.notes, serializer);
   }
 
@@ -22556,6 +22582,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_opt_box_autoadd_f_64(self.maxSlewRate, serializer);
     sse_encode_bool(self.canMoveAxis, serializer);
     sse_encode_u_32(self.axisCount, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.minPulseGuideMs, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.maxPulseGuideMs, serializer);
   }
 
   @protected
@@ -23484,6 +23512,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.canMoveAbsolute, serializer);
     sse_encode_bool(self.canHalt, serializer);
     sse_encode_bool(self.canSync, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.minAngleDeg, serializer);
+    sse_encode_opt_box_autoadd_f_64(self.maxAngleDeg, serializer);
   }
 
   @protected

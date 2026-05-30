@@ -96,6 +96,17 @@ Future<void> _runBackgroundServices(
     // UI sees fresh capability data after the next device reconnect. Must
     // attach before the first connect transition or we miss the edge.
     container.read(capabilityRefreshOnConnectProvider);
+
+    // C8: install the camera-preset seed-on-connect listener so the factory
+    // unity_gain preset is seeded from the camera's CameraRecommendedSettings
+    // the first time a camera connects. Like the capability-refresh listener
+    // above, this Provider<void> only attaches its ref.listen side effect when
+    // something reads it — so it MUST be eager-initialised here, before the
+    // first connect transition, or the seeding never fires. Camera connection
+    // is a host-side (FfiBackend) concern; the mobile companion mirrors host
+    // state over NetworkBackend and never connects a camera locally, so this
+    // wiring lives only in the desktop bootstrap.
+    container.read(cameraPresetsSeedOnConnectProvider);
   } catch (e) {
     logger.error(
       'Background services failed to initialise',

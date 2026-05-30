@@ -12,6 +12,37 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 
 import 'adaptive_chart_container.dart';
 
+/// Last-resort pixel scale (arcsec/pixel) used only when the rig geometry
+/// cannot supply one. 1.5"/px is a reasonable mid-range value for typical
+/// amateur deep-sky rigs; it is applied solely when both the sensor pitch and
+/// the focal length are unavailable.
+@visibleForTesting
+const double kDefaultFallbackPixelScale = 1.5;
+
+/// Compute image scale in arcsec/pixel from sensor pitch and focal length.
+///
+/// Standard small-angle formula: `206.265 * pixelSizeUm / focalLengthMm`
+/// (206.265 = arcsec per radian / 1000, folding the µm→mm unit conversion).
+/// Returns [kDefaultFallbackPixelScale] when either input is missing or
+/// non-positive — we never invent a scale from a single known dimension.
+///
+/// Pure + [visibleForTesting] so the "compute from geometry, fall back only
+/// when both inputs are missing" rule is unit-tested directly. Example: a
+/// 3.76 µm sensor at 530 mm yields ~1.464"/px.
+@visibleForTesting
+double fallbackPixelScaleArcsecPerPixel({
+  double? pixelSizeUm,
+  double? focalLengthMm,
+}) {
+  if (pixelSizeUm == null ||
+      pixelSizeUm <= 0 ||
+      focalLengthMm == null ||
+      focalLengthMm <= 0) {
+    return kDefaultFallbackPixelScale;
+  }
+  return 206.265 * pixelSizeUm / focalLengthMm;
+}
+
 /// Multi-step calibration wizard dialog for computing photometric
 /// transformation coefficients from standard star fields.
 class PhotometricCalibrationWizard extends ConsumerStatefulWidget {
@@ -529,10 +560,19 @@ class _PhotometricCalibrationWizardState
       // Query the HYG star catalog for real B-V color indices.
       // The CatalogManager provides HygStarData with colorIndex (B-V)
       // and spectralType fields from the HYG database.
+      //
+      // When the stored solve carries no pixel scale (older frames, or a
+      // solver that didn't report one) we recover it from the rig geometry —
+      // the active profile's optical focal length and the camera's sensor
+      // pixel pitch — rather than guessing a fixed 1.5"/px. The hard-coded
+      // value only applies when BOTH the pixel size and focal length are
+      // unavailable.
+      final pixelScale =
+          image.solvedPixelScale ?? await _resolveFallbackPixelScale();
       final wcs = WcsSolution(
         raHours: image.solvedRa!,
         decDegrees: image.solvedDec!,
-        pixelScaleArcsecPerPixel: image.solvedPixelScale ?? 1.5,
+        pixelScaleArcsecPerPixel: pixelScale,
         rotationDegrees: image.solvedRotation ?? 0.0,
         fieldWidthDegrees: 1.0,
         fieldHeightDegrees: 1.0,
@@ -683,6 +723,46 @@ class _PhotometricCalibrationWizardState
             source: 'PhotometricCalibrationWizard',
           );
     }
+  }
+
+  /// Resolve the pixel scale to use when a frame has no stored
+  /// `solvedPixelScale`, from the active rig geometry.
+  ///
+  /// Reads the active equipment profile for the optical focal length and the
+  /// profile camera's [CameraCapabilities.pixelSizeX] for the sensor pitch,
+  /// then computes arcsec/pixel via [_fallbackPixelScale]. A missing profile,
+  /// camera, or capability query leaves the corresponding input null, and the
+  /// helper only collapses to the fixed default when BOTH are unavailable.
+  Future<double> _resolveFallbackPixelScale() async {
+    final profile = ref.read(activeEquipmentProfileProvider);
+
+    // Effective focal length already folds in any reducer/barlow (the profile
+    // stores the optical-train focal length, not the bare OTA value). Treat a
+    // non-positive value as "unknown" so it can't divide-by-zero.
+    final focalLengthMm = (profile != null && profile.focalLength > 0)
+        ? profile.focalLength
+        : null;
+
+    double? pixelSizeUm;
+    final cameraId = profile?.cameraId;
+    if (cameraId != null && cameraId.isNotEmpty) {
+      try {
+        final caps =
+            await ref.read(cameraCapabilitiesProvider(cameraId).future);
+        final px = caps?.pixelSizeX;
+        if (px != null && px > 0) {
+          pixelSizeUm = px;
+        }
+      } catch (_) {
+        // Camera offline / driver exposes no capabilities: leave the pixel
+        // size unknown and let the helper fall back accordingly.
+      }
+    }
+
+    return fallbackPixelScaleArcsecPerPixel(
+      pixelSizeUm: pixelSizeUm,
+      focalLengthMm: focalLengthMm,
+    );
   }
 
   double _gaussianRandom(math.Random rng) {

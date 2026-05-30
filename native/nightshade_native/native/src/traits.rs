@@ -262,6 +262,30 @@ pub trait NativeCamera: NativeDevice {
         Ok(crate::camera::CameraRecommendedSettings::default())
     }
 
+    /// Query the regulated-cooling temperature range the sensor's TEC can
+    /// achieve, as `(min_temp_c, max_temp_c)`.
+    ///
+    /// Returns `Ok(Some((min, max)))` only when the vendor SDK actually
+    /// publishes the achievable setpoint range (e.g. ZWO exposes the
+    /// `ASI_TARGET_TEMP` control's min/max caps). Returns `Ok(None)` — the
+    /// honest "unknown" answer — for the many cameras whose SDK reports cooling
+    /// support but never publishes the achievable range; the UI then shows the
+    /// setpoint field without artificial clamps rather than inventing limits.
+    ///
+    /// The default implementation returns `Ok(None)`; drivers that CAN report
+    /// the range (currently ZWO) override this. Never fabricate a range here —
+    /// a guessed clamp is a silent fallback that would hide real hardware
+    /// limits from the operator.
+    ///
+    /// # Errors
+    ///
+    /// Returns `Err` only when the SDK call genuinely failed (e.g. the camera
+    /// disconnected mid-query). A camera that simply does not publish the range
+    /// returns `Ok(None)`.
+    async fn get_cooler_temp_range(&self) -> Result<Option<(f64, f64)>, NativeError> {
+        Ok(None)
+    }
+
     /// Capture a live-view / preview frame as JPEG bytes when the driver supports it.
     async fn capture_preview(&self) -> Result<Vec<u8>, NativeError> {
         Err(NativeError::NotSupported)

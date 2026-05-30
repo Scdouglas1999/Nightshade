@@ -227,7 +227,17 @@ class ExposureSettings extends Equatable {
   final int binningY;
   final String? filter;
   final FrameType frameType;
+
+  /// Legacy boolean readout-speed flag. Kept verbatim for persistence
+  /// back-compat: profiles/sequences saved before [readoutModeIndex] existed
+  /// only stored this boolean. New code should prefer [readoutModeIndex] and
+  /// use [resolveReadoutModeIndex] / [readoutIsFast] to bridge the two.
   final bool fastReadout;
+
+  /// Index into the camera's reported readout-mode list. `null` means the user
+  /// has not picked an explicit mode, in which case [fastReadout] is the
+  /// authoritative source (mapped via [resolveReadoutModeIndex]).
+  final int? readoutModeIndex;
 
   const ExposureSettings({
     required this.exposureTime,
@@ -238,9 +248,29 @@ class ExposureSettings extends Equatable {
     this.filter,
     this.frameType = FrameType.light,
     this.fastReadout = false,
+    this.readoutModeIndex,
   });
 
   String get binning => '${binningX}x$binningY';
+
+  /// Resolves the concrete readout-mode index to send to the camera given the
+  /// camera's [modeCount].
+  ///
+  /// When [readoutModeIndex] is set it wins outright. Otherwise we fall back to
+  /// the legacy [fastReadout] flag: by vendor convention the fast mode is the
+  /// last entry in the readout-mode list and the slow mode is the first.
+  int resolveReadoutModeIndex(int modeCount) =>
+      readoutModeIndex ?? (fastReadout ? modeCount - 1 : 0);
+
+  /// Whether the resolved readout mode is the camera's fast mode given
+  /// [modeCount].
+  ///
+  /// When [readoutModeIndex] is set, "fast" means it points at the last mode;
+  /// otherwise the legacy [fastReadout] flag is authoritative. The UI uses this
+  /// to keep [fastReadout] in sync when an explicit mode is chosen.
+  bool readoutIsFast(int modeCount) => readoutModeIndex != null
+      ? readoutModeIndex == modeCount - 1
+      : fastReadout;
 
   ExposureSettings copyWith({
     double? exposureTime,
@@ -251,6 +281,7 @@ class ExposureSettings extends Equatable {
     String? filter,
     FrameType? frameType,
     bool? fastReadout,
+    int? readoutModeIndex,
   }) {
     return ExposureSettings(
       exposureTime: exposureTime ?? this.exposureTime,
@@ -261,6 +292,7 @@ class ExposureSettings extends Equatable {
       filter: filter ?? this.filter,
       frameType: frameType ?? this.frameType,
       fastReadout: fastReadout ?? this.fastReadout,
+      readoutModeIndex: readoutModeIndex ?? this.readoutModeIndex,
     );
   }
 
@@ -273,7 +305,8 @@ class ExposureSettings extends Equatable {
         binningY,
         filter,
         frameType,
-        fastReadout
+        fastReadout,
+        readoutModeIndex,
       ];
 }
 

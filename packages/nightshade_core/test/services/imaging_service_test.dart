@@ -340,6 +340,13 @@ void main() {
           .thenAnswer((_) => eventStreamController.stream);
       when(() => mockBackend.polarAlignmentEvents)
           .thenAnswer((_) => const Stream.empty());
+      // Default: camera reports no readout modes, so the capture path skips
+      // the explicit readout-mode set. Individual tests override this when
+      // they need to assert readout-mode selection.
+      when(() => mockBackend.getCameraCapabilities(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
+          .thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
@@ -853,6 +860,262 @@ void main() {
     });
   });
 
+  // C6/C9: the capture path must honour ExposureSettings.readoutModeIndex
+  // resolved against the camera's *actual* reported readout-mode count — not
+  // collapse it to the legacy fastReadout ? 1 : 0 binary. These tests drive
+  // the real captureImage() pipeline (not the model helper in isolation) and
+  // assert the exact index handed to cameraSetReadoutMode.
+  group('ImagingService readout-mode resolution', () {
+    late ProviderContainer container;
+    late MockBackend mockBackend;
+    late StreamController<NightshadeEvent> eventStreamController;
+
+    /// Stub a successful single-frame capture so captureImage() reaches the
+    /// readout-mode set call and completes. [readoutModes] controls what the
+    /// capability query reports.
+    void stubCapture({required List<String> readoutModes}) {
+      when(() => mockBackend.getCameraCapabilities(any())).thenAnswer(
+        (_) async => CameraCapabilities(
+          maxWidth: 1000,
+          maxHeight: 1000,
+          bitDepth: 16,
+          readoutModes: readoutModes,
+        ),
+      );
+      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
+          .thenAnswer((_) async {});
+      when(() => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          )).thenAnswer((_) async {
+        eventStreamController.add(NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureComplete',
+          data: {},
+        ));
+      });
+      when(() => mockBackend.cameraGetLastImage(any()))
+          .thenAnswer((_) async => makeCapturedImageResult());
+      when(() => mockBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          )).thenAnswer((_) async {});
+    }
+
+    setUp(() {
+      mockBackend = MockBackend();
+      eventStreamController = StreamController<NightshadeEvent>.broadcast();
+
+      when(() => mockBackend.eventStream)
+          .thenAnswer((_) => eventStreamController.stream);
+      when(() => mockBackend.polarAlignmentEvents)
+          .thenAnswer((_) => const Stream.empty());
+
+      container = ProviderContainer(
+        overrides: [
+          backendProvider.overrideWith(
+            (ref) => TestBackendNotifier(ref, mockBackend),
+          ),
+          cameraStateProvider.overrideWith((ref) {
+            final notifier = CameraStateNotifier(ref);
+            notifier.setConnecting('test-camera-1', 'Test Camera');
+            notifier.setConnected();
+            return notifier;
+          }),
+        ],
+      );
+    });
+
+    tearDown(() {
+      eventStreamController.close();
+      container.dispose();
+    });
+
+    test(
+        'explicit readoutModeIndex=2 on a 4-mode camera applies index 2 '
+        '(not collapsed to 0/1)', () async {
+      stubCapture(readoutModes: const ['Mode0', 'Mode1', 'Mode2', 'Mode3']);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        // The user picked a middle mode. fastReadout is false because index 2
+        // is not the last (3) entry — the pre-fix code would have sent 0.
+        readoutModeIndex: 2,
+        fastReadout: false,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
+          .called(1);
+    });
+
+    test('explicit readoutModeIndex=1 on a 3-mode camera applies index 1',
+        () async {
+      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        readoutModeIndex: 1,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 1))
+          .called(1);
+    });
+
+    test('legacy fastReadout=true maps to the LAST mode on a 3-mode camera',
+        () async {
+      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        // No explicit index: the legacy boolean is authoritative. Fast should
+        // map to the last mode (index 2), NOT the hardcoded 1.
+        fastReadout: true,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
+          .called(1);
+    });
+
+    test('legacy fastReadout=false maps to the first mode', () async {
+      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        fastReadout: false,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 0))
+          .called(1);
+    });
+
+    test('a stale index past the mode list is clamped to the last mode',
+        () async {
+      // A profile saved against a 5-mode camera, now used with a 3-mode
+      // camera, must not request a non-existent index 4.
+      stubCapture(readoutModes: const ['Slow', 'Medium', 'Fast']);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        readoutModeIndex: 4,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verify(() => mockBackend.cameraSetReadoutMode('test-camera-1', 2))
+          .called(1);
+    });
+
+    test('camera reporting no readout modes skips the explicit set entirely',
+        () async {
+      // Honest no-op: nothing to select against. The pre-fix code forced
+      // index 0, which could differ from the driver's own default.
+      stubCapture(readoutModes: const []);
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        readoutModeIndex: 1,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
+    });
+
+    test('a failed capability query skips the explicit set rather than '
+        'forcing an index', () async {
+      // The capability query throwing must be treated as "unknown", not as a
+      // two-mode camera — no silent fallback to index 0/1.
+      when(() => mockBackend.getCameraCapabilities(any()))
+          .thenThrow(Exception('bridge crash'));
+      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
+          .thenAnswer((_) async {});
+      when(() => mockBackend.cameraStartExposure(
+            deviceId: any(named: 'deviceId'),
+            exposureTime: any(named: 'exposureTime'),
+            frameType: any(named: 'frameType'),
+            gain: any(named: 'gain'),
+            offset: any(named: 'offset'),
+            binX: any(named: 'binX'),
+            binY: any(named: 'binY'),
+          )).thenAnswer((_) async {
+        eventStreamController.add(NightshadeEvent(
+          timestamp: DateTime.now().millisecondsSinceEpoch,
+          severity: EventSeverity.info,
+          category: EventCategory.imaging,
+          eventType: 'ExposureComplete',
+          data: {},
+        ));
+      });
+      when(() => mockBackend.cameraGetLastImage(any()))
+          .thenAnswer((_) async => makeCapturedImageResult());
+      when(() => mockBackend.saveFitsFromLastCapture(
+            deviceId: any(named: 'deviceId'),
+            filePath: any(named: 'filePath'),
+            headerData: any(named: 'headerData'),
+          )).thenAnswer((_) async {});
+
+      const settings = ExposureSettings(
+        exposureTime: 5.0,
+        gain: 100,
+        offset: 50,
+        frameType: FrameType.light,
+        readoutModeIndex: 1,
+      );
+
+      await container.read(imagingServiceProvider).captureImage(
+            settings: settings,
+          );
+
+      verifyNever(() => mockBackend.cameraSetReadoutMode(any(), any()));
+    });
+  });
+
   group('ImagingService Cancel Exposure', () {
     late ProviderContainer container;
     late MockBackend mockBackend;
@@ -866,6 +1129,10 @@ void main() {
           .thenAnswer((_) => eventStreamController.stream);
       when(() => mockBackend.polarAlignmentEvents)
           .thenAnswer((_) => const Stream.empty());
+      when(() => mockBackend.getCameraCapabilities(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
+          .thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [
@@ -967,6 +1234,10 @@ void main() {
           .thenAnswer((_) => eventStreamController.stream);
       when(() => mockBackend.polarAlignmentEvents)
           .thenAnswer((_) => const Stream.empty());
+      when(() => mockBackend.getCameraCapabilities(any()))
+          .thenAnswer((_) async => null);
+      when(() => mockBackend.cameraSetReadoutMode(any(), any()))
+          .thenAnswer((_) async {});
 
       container = ProviderContainer(
         overrides: [

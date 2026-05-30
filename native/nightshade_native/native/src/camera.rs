@@ -125,6 +125,14 @@ pub struct CameraRecommendedSettings {
     pub hcg_gain: Option<i32>,
     /// Manufacturer-recommended default offset/bias, if the SDK exposes it.
     pub default_offset: Option<i32>,
+    /// Manufacturer-recommended cooling setpoint in Celsius, if the SDK exposes
+    /// it. This is currently always `None`: no vendor SDK we bind exposes a
+    /// recommended cooling setpoint (vendors document a "sweet spot" in the
+    /// manual rather than via a control ID). The field exists so the
+    /// Dart/profile layer has an honest, typed slot for the value the moment a
+    /// vendor SDK starts reporting it — fabricating a setpoint here would be a
+    /// silent fallback, so we leave it `None` until a real source exists.
+    pub recommended_cooling_setpoint_c: Option<f64>,
     /// Human-readable explanation of how the values above were derived.
     /// Empty string when nothing was queryable.
     pub notes: String,
@@ -194,6 +202,7 @@ mod recommended_settings_tests {
         assert!(s.unity_gain.is_none());
         assert!(s.hcg_gain.is_none());
         assert!(s.default_offset.is_none());
+        assert!(s.recommended_cooling_setpoint_c.is_none());
         assert!(s.notes.is_empty());
     }
 
@@ -205,6 +214,7 @@ mod recommended_settings_tests {
             unity_gain: Some(100),
             hcg_gain: None,
             default_offset: Some(30),
+            recommended_cooling_setpoint_c: None,
             notes: "ZWO SDK reports default gain = 100".to_string(),
         };
         let json = serde_json::to_string(&s).expect("serialize");
@@ -212,6 +222,7 @@ mod recommended_settings_tests {
         assert_eq!(back.unity_gain, Some(100));
         assert_eq!(back.hcg_gain, None);
         assert_eq!(back.default_offset, Some(30));
+        assert_eq!(back.recommended_cooling_setpoint_c, None);
         assert_eq!(back.notes, "ZWO SDK reports default gain = 100");
     }
 }

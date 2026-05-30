@@ -30,6 +30,13 @@ class OnboardingCameraDefaultsStep extends ConsumerStatefulWidget {
 
 class _OnboardingCameraDefaultsStepState
     extends ConsumerState<OnboardingCameraDefaultsStep> {
+  /// Single home for the all-season cooled-CMOS default set-point. Routing the
+  /// literal through one named constant (rather than scattering `-10.0`) means
+  /// the forward-compat seam in [_resolveCoolingSeed] — which prefers the
+  /// camera's [CameraRecommendedSettings.recommendedCoolingSetpointC] when a
+  /// vendor SDK starts reporting it — has exactly one fallback to fall back to.
+  static const double _kDefaultCoolingSetpointC = -10.0;
+
   late final TextEditingController _gainController;
   late final TextEditingController _offsetController;
   late final TextEditingController _binXController;
@@ -117,10 +124,13 @@ class _OnboardingCameraDefaultsStepState
   Future<void> _toggleCooling(bool enabled) async {
     final notifier = ref.read(onboardingDraftProvider.notifier);
     if (enabled) {
-      // Seed a sensible -10 °C set-point when the user turns cooling on and
-      // nothing is entered yet, matching the built-in cooled-CMOS defaults.
+      // Seed a sensible set-point when the user turns cooling on and nothing is
+      // entered yet. Prefer whatever is already typed; otherwise ask the
+      // selected camera for its recommended set-point, falling back to the
+      // built-in cooled-CMOS default.
       final existing = double.tryParse(_coolingController.text.trim());
-      final seed = existing ?? -10.0;
+      final seed = existing ?? await _resolveCoolingSeed();
+      if (!mounted) return;
       _coolingController.text = seed.toStringAsFixed(0);
       setState(() => _coolingError = null);
       await notifier.setCameraDefaults(coolingTempC: seed);
@@ -128,6 +138,37 @@ class _OnboardingCameraDefaultsStepState
       _coolingController.clear();
       setState(() => _coolingError = null);
       await notifier.setCameraDefaults(clearCoolingTempC: true);
+    }
+  }
+
+  /// Resolve the cooling set-point to seed when the user enables regulated
+  /// cooling with no value yet entered.
+  ///
+  /// Forward-compat seam: when the draft has a selected camera we ask its
+  /// vendor SDK (via the same recommended-settings path the equipment editor
+  /// uses) for [CameraRecommendedSettings.recommendedCoolingSetpointC]. That
+  /// field is `None` across every backend we currently bind, so today this is
+  /// equivalent to [_kDefaultCoolingSetpointC] — but the literal lives in one
+  /// place, and the instant a vendor SDK starts reporting a recommended
+  /// set-point the onboarding seed picks it up with no further wiring.
+  ///
+  /// A query failure (camera not connected — common during setup — or an SDK
+  /// that exposes no recommendation) is not an error here: it simply means
+  /// "no recommendation", so we fall back to the built-in default.
+  Future<double> _resolveCoolingSeed() async {
+    final deviceId = ref.read(onboardingDraftProvider).cameraId;
+    if (deviceId == null || deviceId.isEmpty) {
+      return _kDefaultCoolingSetpointC;
+    }
+    try {
+      final rec = await ref
+          .read(deviceServiceProvider)
+          .queryRecommendedCameraSettings(deviceId);
+      return rec.recommendedCoolingSetpointC ?? _kDefaultCoolingSetpointC;
+    } catch (_) {
+      // No recommendation available (camera offline / SDK silent). Honest
+      // fallback to the published default — never fabricated, never thrown.
+      return _kDefaultCoolingSetpointC;
     }
   }
 

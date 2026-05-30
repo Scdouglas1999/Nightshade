@@ -3168,6 +3168,8 @@ class FfiBackend implements NightshadeBackend {
       setCcdTemperature: c.setCcdTemperature,
       coolerPower: c.coolerPower,
       coolerOn: c.coolerOn,
+      coolerMinTempC: c.coolerMinTempC,
+      coolerMaxTempC: c.coolerMaxTempC,
     );
   }
 
@@ -3201,6 +3203,8 @@ class FfiBackend implements NightshadeBackend {
       maxSlewRate: m.maxSlewRate,
       canMoveAxis: m.canMoveAxis,
       axisCount: m.axisCount,
+      minPulseGuideMs: m.minPulseGuideMs,
+      maxPulseGuideMs: m.maxPulseGuideMs,
     );
   }
 
@@ -3250,6 +3254,8 @@ class FfiBackend implements NightshadeBackend {
       canMoveAbsolute: r.canMoveAbsolute,
       canHalt: r.canHalt,
       canSync: r.canSync,
+      minAngleDeg: r.minAngleDeg,
+      maxAngleDeg: r.maxAngleDeg,
     );
   }
 

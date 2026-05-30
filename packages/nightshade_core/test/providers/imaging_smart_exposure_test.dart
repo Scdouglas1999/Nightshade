@@ -84,8 +84,12 @@ void main() {
     );
     addTearDown(container.dispose);
 
+    // A manual exposure edit flips the user-dirty flag (the UI does this in
+    // camera_panel / camera_presets); that flag — not a value heuristic — is
+    // what now gates Smart Night re-seeding.
     container.read(exposureSettingsProvider.notifier).state =
         container.read(exposureSettingsProvider).copyWith(exposureTime: 45);
+    container.read(exposureSettingsUserDirtyProvider.notifier).state = true;
     await container.read(smartNightExposureContextProvider.future);
     container.read(syncExposureFromProfileProvider);
     await Future<void>.delayed(Duration.zero);

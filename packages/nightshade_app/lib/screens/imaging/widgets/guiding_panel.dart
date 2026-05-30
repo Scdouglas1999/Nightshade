@@ -426,7 +426,28 @@ class _BuiltinGuiderConfigFormState
     super.dispose();
   }
 
-  void _applyConfig() {
+  /// Default pulse-guide bounds used when the connected mount does not report
+  /// a min/max pulse-guide capability (or when no mount is connected).
+  ///
+  /// These mirror the conservative defaults the built-in guider assumes when a
+  /// mount cannot describe its own pulse-guide envelope.
+  static const double _defaultPulseMinMs = 75.0;
+  static const double _defaultPulseMaxMs = 1200.0;
+
+  /// Resolves the active mount's pulse-guide bounds from its reported
+  /// capabilities, falling back to [_defaultPulseMinMs]/[_defaultPulseMaxMs]
+  /// when the mount is absent or does not advertise the range.
+  ///
+  /// These bounds constrain ONLY the editor inputs — they never mutate the
+  /// [BuiltinGuiderConfig], which carries the guider's real operating clamps
+  /// from Rust.
+  ({double min, double max}) _pulseBounds(MountCapabilities? caps) {
+    final pulseMin = caps?.minPulseGuideMs ?? _defaultPulseMinMs;
+    final pulseMax = caps?.maxPulseGuideMs ?? _defaultPulseMaxMs;
+    return (min: pulseMin, max: pulseMax);
+  }
+
+  void _applyConfig(MountCapabilities? mountCaps) {
     final exposure = double.tryParse(_exposureController.text);
     final gain = int.tryParse(_gainController.text);
     final calibrationMs = int.tryParse(_calibrationMsController.text);
@@ -441,6 +462,32 @@ class _BuiltinGuiderConfigFormState
         maxPulse == null ||
         settleSleep == null) {
       context.showErrorSnackBar('Invalid config value');
+      return;
+    }
+
+    // Bound the entered pulse range to the connected mount's reported
+    // pulse-guide envelope. Errors are a feature: surface and block the save
+    // rather than silently clamping a value the mount cannot honor.
+    final bounds = _pulseBounds(mountCaps);
+    if (minPulse < bounds.min) {
+      context.showErrorSnackBar(
+        'Min pulse ${minPulse.toStringAsFixed(0)} ms is below the mount '
+        'minimum of ${bounds.min.toStringAsFixed(0)} ms',
+      );
+      return;
+    }
+    if (maxPulse > bounds.max) {
+      context.showErrorSnackBar(
+        'Max pulse ${maxPulse.toStringAsFixed(0)} ms exceeds the mount '
+        'maximum of ${bounds.max.toStringAsFixed(0)} ms',
+      );
+      return;
+    }
+    if (minPulse > maxPulse) {
+      context.showErrorSnackBar(
+        'Min pulse ${minPulse.toStringAsFixed(0)} ms cannot exceed max pulse '
+        '${maxPulse.toStringAsFixed(0)} ms',
+      );
       return;
     }
 
@@ -462,6 +509,28 @@ class _BuiltinGuiderConfigFormState
 
   @override
   Widget build(BuildContext context) {
+    // Resolve the connected mount's pulse-guide capability envelope. When no
+    // mount is connected (or it reports no device id), capabilities resolve to
+    // null and the conservative built-in defaults apply.
+    final mountState = ref.watch(mountStateProvider);
+    final mountDeviceId =
+        mountState.connectionState == DeviceConnectionState.connected
+            ? mountState.deviceId
+            : null;
+    final MountCapabilities? mountCaps = (mountDeviceId != null &&
+            mountDeviceId.isNotEmpty)
+        ? ref.watch(mountCapabilitiesProvider(mountDeviceId)).valueOrNull
+        : null;
+    final pulseBounds = _pulseBounds(mountCaps);
+
+    // Helper hint shown on the pulse fields only when the mount actually
+    // reports a range (honest-None: don't fabricate a range from defaults).
+    final String? pulseRangeHint = mountCaps?.minPulseGuideMs != null &&
+            mountCaps?.maxPulseGuideMs != null
+        ? 'Mount supports ${pulseBounds.min.toStringAsFixed(0)}-'
+            '${pulseBounds.max.toStringAsFixed(0)} ms'
+        : null;
+
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
@@ -477,7 +546,7 @@ class _BuiltinGuiderConfigFormState
             controller: _exposureController,
             suffix: 's',
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 10),
@@ -485,7 +554,7 @@ class _BuiltinGuiderConfigFormState
             label: 'Gain',
             controller: _gainController,
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
@@ -495,7 +564,7 @@ class _BuiltinGuiderConfigFormState
             controller: _calibrationMsController,
             suffix: 'ms',
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
@@ -504,8 +573,9 @@ class _BuiltinGuiderConfigFormState
             label: 'Min Pulse',
             controller: _minPulseController,
             suffix: 'ms',
+            helperText: pulseRangeHint,
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 10),
@@ -513,8 +583,9 @@ class _BuiltinGuiderConfigFormState
             label: 'Max Pulse',
             controller: _maxPulseController,
             suffix: 'ms',
+            helperText: pulseRangeHint,
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: const TextInputType.numberWithOptions(decimal: true),
           ),
           const SizedBox(height: 10),
@@ -523,7 +594,7 @@ class _BuiltinGuiderConfigFormState
             controller: _settleSleepController,
             suffix: 'ms',
             colors: widget.colors,
-            onSubmitted: (_) => _applyConfig(),
+            onSubmitted: (_) => _applyConfig(mountCaps),
             keyboardType: TextInputType.number,
             inputFormatters: [FilteringTextInputFormatter.digitsOnly],
           ),
@@ -535,7 +606,7 @@ class _BuiltinGuiderConfigFormState
                   label: 'Apply',
                   icon: LucideIcons.check,
                   colors: widget.colors,
-                  onTap: _applyConfig,
+                  onTap: () => _applyConfig(mountCaps),
                 ),
               ),
               const SizedBox(width: 8),
@@ -561,6 +632,10 @@ class _ConfigInputRow extends StatelessWidget {
   final String label;
   final TextEditingController controller;
   final String? suffix;
+
+  /// Optional helper hint rendered beneath the input (e.g. the supported
+  /// pulse-guide range reported by the connected mount).
+  final String? helperText;
   final NightshadeColors colors;
   final ValueChanged<String>? onSubmitted;
   final TextInputType? keyboardType;
@@ -570,6 +645,7 @@ class _ConfigInputRow extends StatelessWidget {
     required this.label,
     required this.controller,
     this.suffix,
+    this.helperText,
     required this.colors,
     this.onSubmitted,
     this.keyboardType,
@@ -579,46 +655,65 @@ class _ConfigInputRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Expanded(
           flex: 2,
-          child: Text(
-            label,
-            style: TextStyle(
-              fontSize: 12,
-              color: colors.textSecondary,
+          child: Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: colors.textSecondary,
+              ),
             ),
           ),
         ),
         Expanded(
           flex: 3,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.background,
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(color: colors.border),
-            ),
-            child: TextField(
-              controller: controller,
-              style: TextStyle(
-                fontSize: 12,
-                color: colors.textPrimary,
-              ),
-              decoration: InputDecoration(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                border: InputBorder.none,
-                isDense: true,
-                suffixText: suffix,
-                suffixStyle: TextStyle(
-                  fontSize: 10,
-                  color: colors.textMuted,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.background,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: colors.border),
+                ),
+                child: TextField(
+                  controller: controller,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textPrimary,
+                  ),
+                  decoration: InputDecoration(
+                    contentPadding:
+                        const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    border: InputBorder.none,
+                    isDense: true,
+                    suffixText: suffix,
+                    suffixStyle: TextStyle(
+                      fontSize: 10,
+                      color: colors.textMuted,
+                    ),
+                  ),
+                  keyboardType: keyboardType,
+                  inputFormatters: inputFormatters,
+                  onSubmitted: onSubmitted,
                 ),
               ),
-              keyboardType: keyboardType,
-              inputFormatters: inputFormatters,
-              onSubmitted: onSubmitted,
-            ),
+              if (helperText != null) ...[
+                const SizedBox(height: 4),
+                Text(
+                  helperText!,
+                  style: TextStyle(
+                    fontSize: 10,
+                    color: colors.textMuted,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
       ],

@@ -44,6 +44,25 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
         (capabilitiesLoading ||
             (capabilities?.canSetCcdTemperature == true) ||
             hasCoolingTelemetry);
+    // Cooler target-temperature slider range. Prefer the camera's reported
+    // operating range; fall back to a conservative -30..20°C window when caps
+    // are unknown or when a driver reports a nonsensical range (min >= max).
+    const double kDefaultCoolerMinTempC = -30;
+    const double kDefaultCoolerMaxTempC = 20;
+    final double? capCoolerMin = capabilities?.coolerMinTempC;
+    final double? capCoolerMax = capabilities?.coolerMaxTempC;
+    // Only honor the reported range when both bounds are present AND sane
+    // (min < max). A nonsensical range from buggy driver data falls back to
+    // the conservative default window rather than feeding the slider an
+    // inverted range.
+    final bool hasValidCoolerRange = capCoolerMin != null &&
+        capCoolerMax != null &&
+        capCoolerMin < capCoolerMax;
+    final double coolerMinTempC =
+        hasValidCoolerRange ? capCoolerMin : kDefaultCoolerMinTempC;
+    final double coolerMaxTempC =
+        hasValidCoolerRange ? capCoolerMax : kDefaultCoolerMaxTempC;
+
     // If capabilities are unavailable, infer controls from live camera telemetry
     // to avoid blocking devices that omit explicit capability reporting.
     final canSetGain = capabilities?.canSetGain ?? (cameraState.gain != null);
@@ -179,9 +198,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                   // Target temperature slider
                   SliderRowInteractive(
                     label: 'Target Temperature',
-                    value: targetTemp,
-                    min: -30,
-                    max: 20,
+                    value: targetTemp.clamp(coolerMinTempC, coolerMaxTempC),
+                    min: coolerMinTempC,
+                    max: coolerMaxTempC,
                     suffix: '°C',
                     colors: widget.colors,
                     onChanged: isConnected
@@ -307,24 +326,64 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               binningX: int.parse(parts[0]),
                               binningY: int.parse(parts[1]),
                             );
+                            ref
+                                .read(exposureSettingsUserDirtyProvider.notifier)
+                                .state = true;
                           }
                         }
                       : null,
                 ),
-                const SizedBox(height: 12),
-                DropdownRow(
-                  label: 'Read Mode',
-                  value: exposureSettings.fastReadout ? 'Fast' : 'High Quality',
-                  items: const ['High Quality', 'Fast'],
-                  colors: widget.colors,
-                  onChanged: isConnected
-                      ? (value) {
-                          ref.read(exposureSettingsProvider.notifier).state =
-                              exposureSettings.copyWith(
-                                  fastReadout: value == 'Fast');
-                        }
-                      : null,
-                ),
+                // Read Mode is driver-reported. Hide the row entirely when the
+                // camera exposes no readout modes (matches the hide-when-
+                // unsupported pattern used for unsupported device features);
+                // there is intentionally no synthetic binary fallback.
+                if ((capabilities?.readoutModes ?? const []).isNotEmpty) ...[
+                  const SizedBox(height: 12),
+                  Builder(
+                    builder: (context) {
+                      final readoutModes = capabilities!.readoutModes;
+                      final selectedIndex = exposureSettings
+                          .resolveReadoutModeIndex(readoutModes.length)
+                          .clamp(0, readoutModes.length - 1);
+                      return DropdownRow(
+                        label: 'Read Mode',
+                        value: readoutModes[selectedIndex],
+                        items: readoutModes,
+                        colors: widget.colors,
+                        onChanged: isConnected
+                            ? (value) async {
+                                if (value == null) return;
+                                final idx = readoutModes.indexOf(value);
+                                if (idx < 0) return;
+                                ref
+                                    .read(exposureSettingsProvider.notifier)
+                                    .state = exposureSettings.copyWith(
+                                  readoutModeIndex: idx,
+                                  fastReadout: idx == readoutModes.length - 1,
+                                );
+                                ref
+                                    .read(exposureSettingsUserDirtyProvider
+                                        .notifier)
+                                    .state = true;
+                                final deviceId = cameraState.deviceId;
+                                if (deviceId == null) return;
+                                // Errors are a feature: surface a failed driver
+                                // call rather than silently dropping it.
+                                try {
+                                  await ref
+                                      .read(deviceBackendProvider)
+                                      .cameraSetReadoutMode(deviceId, idx);
+                                } catch (e) {
+                                  if (!context.mounted) return;
+                                  context.showErrorSnackBar(
+                                      'Failed to set read mode: $e');
+                                }
+                              }
+                            : null,
+                      );
+                    },
+                  ),
+                ],
               ],
             ),
           ),
@@ -354,6 +413,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               : parsed;
                           ref.read(exposureSettingsProvider.notifier).state =
                               exposureSettings.copyWith(gain: clamped);
+                          ref
+                              .read(exposureSettingsUserDirtyProvider.notifier)
+                              .state = true;
                         }
                       },
                     ),
@@ -375,6 +437,9 @@ class _CameraPanelState extends ConsumerState<CameraPanel> {
                               : parsed;
                           ref.read(exposureSettingsProvider.notifier).state =
                               exposureSettings.copyWith(offset: clamped);
+                          ref
+                              .read(exposureSettingsUserDirtyProvider.notifier)
+                              .state = true;
                         }
                       },
                     ),
