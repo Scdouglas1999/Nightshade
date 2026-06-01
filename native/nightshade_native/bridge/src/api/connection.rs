@@ -592,3 +592,66 @@ pub mod ascom_connections {
             .map_err(|e| NightshadeError::OperationFailed(e))
     }
 }
+
+// =============================================================================
+// REAL ASCOM DEVICE CONNECTION — non-Windows
+// =============================================================================
+//
+// ASCOM is a Windows-only standard built on COM; the `nightshade_ascom` crate
+// only defines the `AscomCamera`/`AscomMount`/`AscomFocuser` types on Windows.
+// The flutter_rust_bridge bindings (`frb_generated.rs`) reference these eight
+// entry points unconditionally on every platform, so Linux/macOS need a real,
+// honest implementation: there is no ASCOM here, so every call returns a clear
+// "not supported on this platform" error. This is the same convention the
+// `nightshade_ascom` crate already uses for its `#[cfg(not(windows))]`
+// `discover_devices` shim — not a placeholder, but the correct terminal
+// behavior for a platform where COM/ASCOM cannot exist.
+#[cfg(not(windows))]
+pub mod ascom_connections {
+    use super::*;
+
+    fn unavailable(op: &str) -> NightshadeError {
+        NightshadeError::OperationFailed(format!(
+            "ASCOM is only available on Windows; cannot {op} on this platform"
+        ))
+    }
+
+    pub async fn connect_ascom_camera(_prog_id: &str) -> Result<(), NightshadeError> {
+        Err(unavailable("connect ASCOM camera"))
+    }
+
+    pub async fn connect_ascom_mount(_prog_id: &str) -> Result<(), NightshadeError> {
+        Err(unavailable("connect ASCOM mount"))
+    }
+
+    pub async fn connect_ascom_focuser(_prog_id: &str) -> Result<(), NightshadeError> {
+        Err(unavailable("connect ASCOM focuser"))
+    }
+
+    pub async fn get_ascom_camera_temp(_prog_id: &str) -> Result<f64, NightshadeError> {
+        Err(unavailable("read ASCOM camera temperature"))
+    }
+
+    pub async fn get_ascom_mount_coords(_prog_id: &str) -> Result<(f64, f64), NightshadeError> {
+        Err(unavailable("read ASCOM mount coordinates"))
+    }
+
+    pub async fn slew_ascom_mount(
+        _prog_id: &str,
+        _ra: f64,
+        _dec: f64,
+    ) -> Result<(), NightshadeError> {
+        Err(unavailable("slew ASCOM mount"))
+    }
+
+    pub async fn get_ascom_focuser_position(_prog_id: &str) -> Result<i32, NightshadeError> {
+        Err(unavailable("read ASCOM focuser position"))
+    }
+
+    pub async fn move_ascom_focuser(
+        _prog_id: &str,
+        _position: i32,
+    ) -> Result<(), NightshadeError> {
+        Err(unavailable("move ASCOM focuser"))
+    }
+}

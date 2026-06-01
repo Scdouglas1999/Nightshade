@@ -1026,8 +1026,9 @@ impl NativeCamera for PlayerOneCamera {
             target_temp,
             cooler_on,
             cooler_power,
-            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0),
-            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0),
+            // get_control_int returns c_long (i64 on Linux); CameraStatus stores i32.
+            gain: self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32,
+            offset: self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32,
             bin_x: self.current_bin,
             bin_y: self.current_bin,
             exposure_remaining: None, // Not directly available from POA SDK
@@ -1167,8 +1168,10 @@ impl NativeCamera for PlayerOneCamera {
         );
 
         // Get metadata while still holding the mutex
-        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0);
-        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0);
+        // get_control_int returns c_long (i64 on Linux); gain/offset fit in i32,
+        // which is what ImageMetadata stores.
+        let gain = self.get_control_int(POAConfig::POA_GAIN).unwrap_or(0) as i32;
+        let offset = self.get_control_int(POAConfig::POA_OFFSET).unwrap_or(0) as i32;
         let temperature = self.get_control_float(POAConfig::POA_TEMPERATURE).ok();
         let usb_bandwidth = self
             .get_control_int(POAConfig::POA_USB_BANDWIDTH_LIMIT)
@@ -1314,10 +1317,11 @@ impl NativeCamera for PlayerOneCamera {
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        // Uses async version with mutex
+        // Uses async version with mutex. get_control_int_async returns c_long
+        // (i64 on Linux LP64); gain fits in i32.
         self.get_control_int_async(POAConfig::POA_GAIN)
             .await
-            .map(|v| v)
+            .map(|v| v as i32)
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
@@ -1327,10 +1331,11 @@ impl NativeCamera for PlayerOneCamera {
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        // Uses async version with mutex
+        // Uses async version with mutex. get_control_int_async returns c_long
+        // (i64 on Linux LP64); offset fits in i32.
         self.get_control_int_async(POAConfig::POA_OFFSET)
             .await
-            .map(|v| v)
+            .map(|v| v as i32)
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {

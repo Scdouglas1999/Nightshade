@@ -10,8 +10,8 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y clang cmake ninja-build pkg-config \
   libgtk-3-dev libsecret-1-dev libjsoncpp-dev libssl-dev \
-  libudev-dev libusb-1.0-0-dev \
-  curl git tar ca-certificates rsync
+  libudev-dev libusb-1.0-0-dev libraw-dev \
+  curl git tar ca-certificates rsync xvfb
 
 echo "== [2/7] rust toolchain =="
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal
@@ -24,10 +24,19 @@ echo "== [3/7] source snapshot from the working tree (includes local edits) =="
 # built) while excluding the .git dir and the heavy, platform-specific build
 # caches that don't belong in a fresh Linux build.
 rm -rf /work && mkdir -p /work
+# NOTE: rsync include/exclude patterns without a leading slash match a dir of
+# that name at ANY depth. A bare `--exclude=target/` therefore wrongly drops
+# source dirs like `packages/nightshade_core/lib/src/models/target/`. We anchor
+# the Rust `target/` cache to its real location and only exclude `build/` /
+# `.dart_tool/` directories that are direct children of a package/app dir (the
+# generated Flutter/Dart caches), never deeper source folders.
 rsync -a \
-  --exclude='.git' \
-  --exclude='dist-linux' --exclude='dist-release' \
-  --exclude='build/' --exclude='.dart_tool/' --exclude='target/' \
+  --exclude='.git/' \
+  --exclude='/dist-linux/' --exclude='/dist-release/' \
+  --exclude='/native/nightshade_native/target/' \
+  --exclude='/packages/*/build/' --exclude='/packages/*/.dart_tool/' \
+  --exclude='/apps/*/build/' --exclude='/apps/*/.dart_tool/' \
+  --exclude='/build/' --exclude='/.dart_tool/' \
   /host/ /work/
 cd /work
 
@@ -37,6 +46,12 @@ cd /work
 # dependency graph (mobile is a leaf app — nothing the desktop build needs
 # depends on it).
 rm -rf /work/apps/mobile
+
+# Melos-managed pubspec_overrides.yaml files are auto-generated and can carry
+# host-OS-specific path separators (a Windows bootstrap writes backslash paths
+# like `..\\..\\packages\\foo`, which Dart on Linux cannot resolve). Delete them
+# so `melos bootstrap` below regenerates clean POSIX-path overrides for Linux.
+find /work -name pubspec_overrides.yaml -delete
 
 echo "== [4/7] flutter linux desktop =="
 flutter config --enable-linux-desktop >/dev/null
@@ -65,6 +80,33 @@ if [ -n "${SO:-}" ] && [ ! -f "$BUNDLE/lib/$(basename "$SO")" ]; then
   mkdir -p "$BUNDLE/lib"
   cp "$SO" "$BUNDLE/lib/"
 fi
+
+echo "== headless smoke test =="
+# Confirm the built binary links (no missing symbols / unresolved .so deps) and
+# starts in headless mode without crashing. The bridge .so is loaded at runtime
+# via the Flutter bundle's lib/ rpath, so a clean headless boot proves the
+# Dart<->Rust FFI library resolves on Linux. We run under xvfb because the GTK
+# embedder still initialises a display even in headless app mode.
+EXE="$BUNDLE/nightshade_desktop"
+if [ ! -x "$EXE" ]; then
+  # Fall back to whatever single executable the bundle produced.
+  EXE=$(find "$BUNDLE" -maxdepth 1 -type f -executable | head -1)
+fi
+echo "Smoke-testing: $EXE"
+# ldd should resolve every dependency (the bridge .so lives in lib/).
+LD_LIBRARY_PATH="$PWD/$BUNDLE/lib" ldd "$EXE" || true
+set +e
+LD_LIBRARY_PATH="$PWD/$BUNDLE/lib" NIGHTSHADE_HEADLESS=1 \
+  timeout 45s xvfb-run -a "$EXE" --headless
+SMOKE_RC=$?
+set -e
+# timeout returns 124 when it kills a still-running (healthy, long-lived) app;
+# treat that as success. A non-zero, non-124 exit means it crashed on boot.
+if [ "$SMOKE_RC" != "0" ] && [ "$SMOKE_RC" != "124" ]; then
+  echo "HEADLESS SMOKE FAILED (exit $SMOKE_RC)"
+  exit 1
+fi
+echo "Headless smoke OK (exit $SMOKE_RC)"
 
 mkdir -p /out
 cd "$BUNDLE"

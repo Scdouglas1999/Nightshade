@@ -422,8 +422,10 @@ impl ZwoCamera {
         let result = unsafe { (sdk.get_camera_property)(&mut info, self.camera_id) };
         check_asi_error(result)?;
 
-        self.current_width = info.max_width;
-        self.current_height = info.max_height;
+        // max_width/max_height are c_long in the SDK (i64 on Linux LP64, i32 on
+        // Windows LLP64). Our own fields are i32; sensor dimensions always fit.
+        self.current_width = info.max_width as i32;
+        self.current_height = info.max_height as i32;
         self.camera_info = Some(info);
         Ok(())
     }
@@ -604,7 +606,9 @@ impl ZwoCamera {
                 // Check if this is the control we're looking for
                 // The control_type field tells us which control this is
                 if caps.control_type as c_int == target_control as c_int {
-                    return Ok((caps.min_value, caps.max_value));
+                    // min/max_value are c_long (i64 on Linux); gain/offset ranges
+                    // fit in i32, which is what our public API exposes.
+                    return Ok((caps.min_value as i32, caps.max_value as i32));
                 }
             }
         }
@@ -800,11 +804,13 @@ impl NativeDevice for ZwoCamera {
         // Get current gain and offset (use synchronous versions since we already hold the mutex)
         tracing::debug!("Reading current gain and offset");
         if let Ok(val) = self.get_control(ASIControlType::ASI_GAIN) {
-            self.current_gain = val;
+            // get_control returns c_long (i64 on Linux); gain fits in i32.
+            self.current_gain = val as i32;
             tracing::debug!("Current gain: {}", self.current_gain);
         }
         if let Ok(val) = self.get_control(ASIControlType::ASI_OFFSET) {
-            self.current_offset = val;
+            // get_control returns c_long (i64 on Linux); offset fits in i32.
+            self.current_offset = val as i32;
             tracing::debug!("Current offset: {}", self.current_offset);
         }
 
@@ -1261,11 +1267,9 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn get_gain(&self) -> Result<i32, NativeError> {
-        let val = self
-            .get_control_async(ASIControlType::ASI_GAIN)
-            .await
-            .map(|v| v)?;
-        Ok(val)
+        // get_control_async returns c_long (i64 on Linux); gain fits in i32.
+        let val = self.get_control_async(ASIControlType::ASI_GAIN).await?;
+        Ok(val as i32)
     }
 
     async fn set_offset(&mut self, offset: i32) -> Result<(), NativeError> {
@@ -1276,11 +1280,9 @@ impl NativeCamera for ZwoCamera {
     }
 
     async fn get_offset(&self) -> Result<i32, NativeError> {
-        let val = self
-            .get_control_async(ASIControlType::ASI_OFFSET)
-            .await
-            .map(|v| v)?;
-        Ok(val)
+        // get_control_async returns c_long (i64 on Linux); offset fits in i32.
+        let val = self.get_control_async(ASIControlType::ASI_OFFSET).await?;
+        Ok(val as i32)
     }
 
     async fn set_binning(&mut self, bin_x: i32, bin_y: i32) -> Result<(), NativeError> {
@@ -1293,10 +1295,12 @@ impl NativeCamera for ZwoCamera {
         // ZWO only supports symmetric binning
         let bin = bin_x.max(bin_y);
 
-        // Calculate new dimensions
+        // Calculate new dimensions. max_width/max_height are c_long (i64 on
+        // Linux); sensor dimensions fit in i32, so do the arithmetic in i32 to
+        // match our own width/height fields and the SDK's int ROI parameters.
         let info = self.camera_info.as_ref().ok_or(NativeError::NotConnected)?;
-        let new_width = info.max_width / bin;
-        let new_height = info.max_height / bin;
+        let new_width = info.max_width as i32 / bin;
+        let new_height = info.max_height as i32 / bin;
 
         // Acquire mutex for SDK operation
         let _lock = zwo_camera_mutex().lock().await;

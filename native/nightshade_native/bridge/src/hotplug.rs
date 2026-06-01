@@ -590,7 +590,10 @@ fn usb_hotplug_thread() {
         }
     };
 
-    let _registration = match HotplugBuilder::new()
+    // `UsbHotplugHandler` implements `Hotplug<T>` for every `T: UsbContext`, so
+    // the `U` type parameter of `register` is otherwise ambiguous. Pin it to the
+    // concrete `Context` we created above.
+    let _registration: rusb::Registration<Context> = match HotplugBuilder::new()
         .enumerate(false)
         .register(&context, Box::new(UsbHotplugHandler))
     {
