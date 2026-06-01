@@ -312,16 +312,20 @@ void main() {
             'degree from the shared scale at the same canvas size.');
 
     // --- Layout guard: the canvas region excludes the sidebar. -------------
-    // FramingScreen places the 320px ResizablePanel sidebar to the right of
-    // the Expanded canvas. Confirm C6's LayoutBuilder is fed the bounded,
-    // sidebar-excluded box rather than the full window width.
+    // FramingScreen now places the controls in an AdaptivePanelLayout. On a
+    // desktop surface (1280px) that renders a resizable split: the Expanded
+    // canvas, a 10px drag handle, then the 320px secondary panel. Confirm C6's
+    // LayoutBuilder is fed the bounded, sidebar-excluded box rather than the
+    // full window width.
     expect(extracted.canvasSize.width, lessThan(_surfaceSize.width),
         reason: 'Canvas must be narrower than the full surface; the framing '
-            'sidebar occupies the rest. If the canvas spanned the whole '
+            'controls panel occupies the rest. If the canvas spanned the whole '
             'window the plate-scale math would be off by the sidebar width.');
-    expect(extracted.canvasSize.width, closeTo(_surfaceSize.width - 320, 1.0),
-        reason: 'Canvas width must equal surface width minus the sidebar '
-            '(initialWidth 320). This pins the bounded LayoutBuilder region.');
+    expect(
+        extracted.canvasSize.width, closeTo(_surfaceSize.width - 320 - 10, 1.0),
+        reason: 'Canvas width must equal surface width minus the controls panel '
+            '(initialPanelWidth 320) and the 10px resize handle. This pins the '
+            'bounded LayoutBuilder region.');
   });
 
   testWidgets(

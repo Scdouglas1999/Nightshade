@@ -91,12 +91,29 @@ Widget _harness({PlannerTab? initialTab, String? initialTabQuery}) {
   );
 }
 
-Finder _selectedTab(String label) => find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == label &&
-          widget.isSelected,
-    );
+/// Index of the planner tab matching [label], per the rendered tab order.
+int _tabIndex(String label) {
+  const order = <String>[
+    'Recommendation',
+    'Projects',
+    'Target Queue',
+    'This Week',
+    'Progress',
+  ];
+  final i = order.indexOf(label);
+  if (i < 0) throw ArgumentError('Unknown planner tab label: $label');
+  return i;
+}
+
+/// The live [AdaptiveTabBar.selectedIndex] — the single source of truth for
+/// which planner tab is active.
+int _selectedTabIndex(WidgetTester tester) =>
+    tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar)).selectedIndex;
+
+/// Asserts that the tab labelled [label] is the selected one.
+void _expectSelected(WidgetTester tester, String label) {
+  expect(_selectedTabIndex(tester), _tabIndex(label));
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -171,11 +188,13 @@ void main() {
       await tester.pumpWidget(_harness());
       await tester.pump(const Duration(milliseconds: 200));
 
-      // One SubTabButton per enum value.
+      // One AdaptiveTab per enum value in the single tab bar.
+      expect(find.byType(AdaptiveTabBar), findsOneWidget);
+      final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
       expect(
-        find.byType(SubTabButton),
-        findsNWidgets(PlannerTab.values.length),
-        reason: 'The rendered tab strip must have exactly one button per '
+        bar.tabs.length,
+        PlannerTab.values.length,
+        reason: 'The rendered tab strip must have exactly one tab per '
             'PlannerTab value; a mismatch means the tabs list drifted from '
             'the enum.',
       );
@@ -231,8 +250,7 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'projects'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('Projects'), findsOneWidget);
-      expect(_selectedTab('Recommendation'), findsNothing);
+      _expectSelected(tester, 'Projects');
     });
 
     testWidgets('?tab=campaigns alias selects the Projects tab',
@@ -241,7 +259,7 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'campaigns'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('Projects'), findsOneWidget);
+      _expectSelected(tester, 'Projects');
     });
 
     testWidgets('?tab=week selects the This Week tab on initial render',
@@ -250,8 +268,7 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'week'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('This Week'), findsOneWidget);
-      expect(_selectedTab('Recommendation'), findsNothing);
+      _expectSelected(tester, 'This Week');
     });
 
     testWidgets('?tab=forecast alias selects the This Week tab',
@@ -260,7 +277,7 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'forecast'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('This Week'), findsOneWidget);
+      _expectSelected(tester, 'This Week');
     });
 
     testWidgets('junk ?tab= falls back to the default Recommendation tab',
@@ -269,26 +286,25 @@ void main() {
       await tester.pumpWidget(_harness(initialTabQuery: 'not-a-tab'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('Recommendation'), findsOneWidget);
+      _expectSelected(tester, 'Recommendation');
     });
 
     testWidgets('tapping the This Week tab switches the selection',
         (tester) async {
-      // Covers the user-gesture path (SubTabButton.onTap -> setState) for the
+      // Covers the user-gesture path (onSelected -> setState) for the
       // newly-inserted tab specifically: a regression that wired the label but
-      // dropped the new entry's onTap would still pass the deep-link tests.
+      // dropped the new entry's onSelected would still pass the deep-link
+      // tests.
       sizeDesktop(tester);
       await tester.pumpWidget(_harness());
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('Recommendation'), findsOneWidget,
-          reason: 'Sanity: Recommendation is the default selection.');
+      _expectSelected(tester, 'Recommendation');
 
       await tester.tap(find.text('This Week'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('This Week'), findsOneWidget);
-      expect(_selectedTab('Recommendation'), findsNothing);
+      _expectSelected(tester, 'This Week');
     });
 
     testWidgets('tapping the Projects tab switches the selection',
@@ -300,8 +316,64 @@ void main() {
       await tester.tap(find.text('Projects'));
       await tester.pump(const Duration(milliseconds: 200));
 
-      expect(_selectedTab('Projects'), findsOneWidget);
-      expect(_selectedTab('Recommendation'), findsNothing);
+      _expectSelected(tester, 'Projects');
+    });
+  });
+
+  // ===========================================================================
+  // Phone responsiveness: the five-tab bar must not overflow on a phone in
+  // either orientation, and every tab must remain reachable (the bar scrolls).
+  // ===========================================================================
+  group('Planner phone responsiveness (AdaptiveTabBar)', () {
+    const phoneSizes = <Size>[
+      Size(360, 640),
+      Size(390, 844),
+      Size(430, 932),
+      Size(640, 360),
+      Size(844, 390),
+      Size(932, 430),
+    ];
+
+    for (final size in phoneSizes) {
+      testWidgets(
+          'no overflow + five-tab bar present at ${size.width}x${size.height}',
+          (tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = size;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        await tester.pumpWidget(_harness());
+        await tester.pump(const Duration(milliseconds: 200));
+
+        expect(find.byType(AdaptiveTabBar), findsOneWidget);
+        final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+        expect(bar.tabs.length, PlannerTab.values.length);
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets(
+        'right-most Progress tab is reachable at 360px (bar scrolls it into '
+        'view)', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(360, 640);
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(_harness());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+      bar.onSelected(PlannerTab.progress.index);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      _expectSelected(tester, 'Progress');
+      expect(tester.takeException(), isNull);
     });
   });
 }

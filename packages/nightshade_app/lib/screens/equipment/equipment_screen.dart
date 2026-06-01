@@ -573,6 +573,35 @@ class _EquipmentScreenState extends ConsumerState<EquipmentScreen> {
   // ============================================================================
 
   void _showSettings(BuildContext context) {
+    // On a phone this becomes a full-screen route (settings is content-heavy);
+    // on tablet/desktop it stays the familiar 700×500 dialog. The body manages
+    // its own per-section scrolling, so the scaffold must not double-wrap it.
+    if (Responsive.isPhone(context)) {
+      showAdaptiveModal<void>(
+        context: context,
+        designWidth: 700,
+        designHeight: 500,
+        phoneMode: PhoneModalMode.fullScreen,
+        builder: (modalContext) {
+          final colors = NightshadeColors.of(modalContext);
+          return Scaffold(
+            backgroundColor: colors.background,
+            appBar: AppBar(
+              backgroundColor: colors.surface,
+              title: const Text('Equipment Settings'),
+              leading: IconButton(
+                icon: const Icon(LucideIcons.x),
+                tooltip: 'Close',
+                onPressed: () => Navigator.of(modalContext).pop(),
+              ),
+            ),
+            body: const SafeArea(child: EquipmentSettingsTab()),
+          );
+        },
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => const NightshadeDialog(

@@ -159,12 +159,16 @@ class _AltitudeChartState extends ConsumerState<AltitudeChart> {
           children: [
             Icon(LucideIcons.trendingUp, size: 14, color: colors.textMuted),
             const SizedBox(width: 8),
-            Text(
-              'Altitude',
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-                color: colors.textPrimary,
+            Flexible(
+              child: Text(
+                'Altitude',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
               ),
             ),
             const Spacer(),

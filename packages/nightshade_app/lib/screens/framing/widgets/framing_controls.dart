@@ -610,6 +610,7 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Icon(
                 widget.icon,
@@ -619,15 +620,22 @@ class _FramingOptionButtonState extends State<FramingOptionButton> {
                     : widget.colors.textSecondary,
               ),
               const SizedBox(width: 6),
-              Text(
-                widget.label,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight:
-                      widget.isSelected ? FontWeight.w600 : FontWeight.normal,
-                  color: widget.isSelected
-                      ? widget.colors.primary
-                      : widget.colors.textSecondary,
+              // Flexible + ellipsis so the label never overflows a narrow
+              // Expanded cell (e.g. the mosaic Serpentine/Numbers pair in a
+              // ~270px phone-landscape controls panel).
+              Flexible(
+                child: Text(
+                  widget.label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight:
+                        widget.isSelected ? FontWeight.w600 : FontWeight.normal,
+                    color: widget.isSelected
+                        ? widget.colors.primary
+                        : widget.colors.textSecondary,
+                  ),
                 ),
               ),
             ],

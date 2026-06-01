@@ -148,15 +148,22 @@ class _FirstTimeOnboarding extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Container(
-        constraints: const BoxConstraints(maxWidth: 480),
-        padding: const EdgeInsets.all(48),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(
-              LucideIcons.moon,
+    // Tighter padding on a phone, and the whole panel scrolls so the welcome
+    // steps + both CTAs never overflow a short phone viewport (e.g. 360x640 or
+    // a phone in landscape, where the content is taller than the screen).
+    final isPhone = Responsive.isPhone(context);
+    final pad = isPhone ? 24.0 : 48.0;
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          child: Container(
+            constraints: const BoxConstraints(maxWidth: 480),
+            padding: EdgeInsets.all(pad),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  LucideIcons.moon,
               size: NightshadeTokens.iconXl,
               color: colors.primary,
             ),
@@ -238,7 +245,9 @@ class _FirstTimeOnboarding extends StatelessWidget {
                 size: ButtonSize.medium,
               ),
             ),
-          ],
+              ],
+            ),
+          ),
         ),
       ),
     );

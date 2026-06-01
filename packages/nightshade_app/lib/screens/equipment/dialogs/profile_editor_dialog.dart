@@ -26,10 +26,22 @@ class ProfileEditorDialog extends ConsumerStatefulWidget {
 
   const ProfileEditorDialog({super.key, this.profile});
 
-  /// Show the profile editor dialog.
+  /// Show the profile editor.
+  ///
+  /// On a phone (`width < 600`) this is a full-screen route — the editor is a
+  /// long, multi-section form, so a centered dialog would be cramped. On
+  /// tablet/desktop it stays the centered, viewport-capped dialog.
   /// Returns true if a profile was created/updated, false/null if cancelled.
   static Future<bool?> show(BuildContext context,
       {EquipmentProfileModel? profile}) {
+    if (Responsive.isPhone(context)) {
+      return Navigator.of(context, rootNavigator: true).push<bool>(
+        MaterialPageRoute<bool>(
+          fullscreenDialog: true,
+          builder: (_) => ProfileEditorDialog(profile: profile),
+        ),
+      );
+    }
     return showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -249,7 +261,55 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
     final colors = NightshadeColors.of(context);
     final theme = Theme.of(context);
     final isEditing = widget.profile != null;
+    final isPhone = Responsive.isPhone(context);
 
+    final content = Column(
+      mainAxisSize: isPhone ? MainAxisSize.max : MainAxisSize.min,
+      children: [
+        // Header
+        _buildHeader(colors, theme, isEditing),
+
+        // Scrollable content
+        Flexible(
+          child: Form(
+            key: _formKey,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  _buildIdentitySection(colors, theme),
+                  const SizedBox(height: 16),
+                  _buildOpticalTrainSection(colors, theme),
+                  const SizedBox(height: 16),
+                  _buildDevicesSection(colors, theme),
+                  if (_filterWheelId != null) ...[
+                    const SizedBox(height: 16),
+                    _buildFiltersSection(colors, theme),
+                  ],
+                  const SizedBox(height: 16),
+                  _buildCameraDefaultsSection(colors, theme),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // Footer
+        _buildFooter(colors),
+      ],
+    );
+
+    // Phone: the editor is presented as a full-screen route (see [show]). Fill
+    // the screen with a Scaffold + SafeArea instead of a small centered card.
+    if (isPhone) {
+      return Scaffold(
+        backgroundColor: colors.background,
+        body: SafeArea(child: content),
+      );
+    }
+
+    // Tablet/desktop: a centered, viewport-capped dialog card.
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
@@ -269,42 +329,7 @@ class _ProfileEditorDialogState extends ConsumerState<ProfileEditorDialog> {
             ),
           ],
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header
-            _buildHeader(colors, theme, isEditing),
-
-            // Scrollable content
-            Flexible(
-              child: Form(
-                key: _formKey,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildIdentitySection(colors, theme),
-                      const SizedBox(height: 16),
-                      _buildOpticalTrainSection(colors, theme),
-                      const SizedBox(height: 16),
-                      _buildDevicesSection(colors, theme),
-                      if (_filterWheelId != null) ...[
-                        const SizedBox(height: 16),
-                        _buildFiltersSection(colors, theme),
-                      ],
-                      const SizedBox(height: 16),
-                      _buildCameraDefaultsSection(colors, theme),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-
-            // Footer
-            _buildFooter(colors),
-          ],
-        ),
+        child: content,
       ),
     );
   }

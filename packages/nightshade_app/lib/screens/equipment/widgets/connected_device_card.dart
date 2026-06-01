@@ -246,11 +246,16 @@ class _ConnectedDeviceCardState extends ConsumerState<ConnectedDeviceCard>
     final borderColor = _getBorderColor(connectionState, colors);
     final accentColor = widget.type.accentColor(colors);
 
-    // Fixed tile width keeps the Wrap layout in equipment_screen tidy
-    // (audit §4.21). 320 px fits the longest action labels (e.g. "Stop
-    // Tracking") without wrap and keeps two columns at 720+ px.
+    // On desktop/tablet a fixed tile width keeps the Wrap layout tidy
+    // (audit §4.21): 320 px fits the longest action labels (e.g. "Stop
+    // Tracking") without wrap and keeps two columns at 720+ px. On a phone
+    // (`width < 600`) the dashboard lays cards out one-per-row full-width, so
+    // the card stretches to the column instead of pinning to 320 and
+    // overflowing a 360 px viewport.
+    final cardWidth = Responsive.isPhone(context) ? double.infinity : 320.0;
+
     return SizedBox(
-      width: 320,
+      width: cardWidth,
       child: GestureDetector(
         onTap: _toggleExpanded,
         child: AnimatedContainer(

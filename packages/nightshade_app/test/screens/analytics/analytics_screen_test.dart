@@ -18,8 +18,7 @@ import 'package:nightshade_ui/nightshade_ui.dart';
 /// `Future.delayed`. Without this override the test framework reports a
 /// pending timer at teardown because the prompt is still waiting to fade in.
 class _TutorialsDisabledNotifier extends TutorialNotifier {
-  _TutorialsDisabledNotifier()
-      : super(_NoopTutorialProgressDao()) {
+  _TutorialsDisabledNotifier() : super(_NoopTutorialProgressDao()) {
     // ignore: invalid_use_of_protected_member
     state = const TutorialProgress(tutorialsEnabled: false);
   }
@@ -108,15 +107,27 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    expect(find.widgetWithText(SubTabButton, 'Session'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'History'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'Projects'), findsOneWidget);
+    // The tab strip is now an AdaptiveTabBar; each tab still renders its label
+    // as Text (labels only collapse to icons below 480px width, and this is a
+    // 1400px desktop viewport).
+    // Labels can also appear inside the (offstage) tab bodies, so assert each
+    // is present at least once. The structural one-per-enum guarantee is
+    // covered separately by the AdaptiveTabBar.tabs length assertions.
+    final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
     expect(
-      find.widgetWithText(SubTabButton, 'Equipment Stats'),
-      findsOneWidget,
+      bar.tabs.map((t) => t.label).toList(),
+      const [
+        'Session',
+        'History',
+        'Projects',
+        'Equipment Stats',
+        'Science',
+        'Diagnostics',
+      ],
     );
-    expect(find.widgetWithText(SubTabButton, 'Science'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'Diagnostics'), findsOneWidget);
+    expect(find.text('Session'), findsWidgets);
+    expect(find.text('History'), findsWidgets);
+    expect(find.text('Diagnostics'), findsWidgets);
   });
 
   testWidgets('?tab=diagnostics selects the Diagnostics tab on initial render',
@@ -141,23 +152,11 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    final selectedDiagnostics = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Diagnostics' &&
-          widget.isSelected,
+    expect(
+      _selectedAdaptiveTabIndex(tester),
+      AnalyticsTab.diagnostics.index,
+      reason: '?tab=diagnostics must select the right-most Diagnostics tab.',
     );
-    expect(selectedDiagnostics, findsOneWidget);
-
-    // Session is the default tab; it must not be selected when the query
-    // explicitly asks for Diagnostics.
-    final selectedSession = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Session' &&
-          widget.isSelected,
-    );
-    expect(selectedSession, findsNothing);
   });
 
   testWidgets('defaults to Session when no query param is supplied',
@@ -180,12 +179,87 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 100));
 
-    final selectedSession = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Session' &&
-          widget.isSelected,
-    );
-    expect(selectedSession, findsOneWidget);
+    expect(_selectedAdaptiveTabIndex(tester), AnalyticsTab.session.index);
   });
+
+  // ===========================================================================
+  // Phone responsiveness: the six-tab bar must not overflow on a phone in
+  // either orientation, and every tab must remain reachable (the bar scrolls).
+  // ===========================================================================
+  group('Analytics phone responsiveness (AdaptiveTabBar)', () {
+    Future<void> pumpAt(WidgetTester tester, Size size) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = size;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: _commonOverrides(),
+          child: MaterialApp(
+            theme: NightshadeTheme.dark,
+            home: const Scaffold(body: AnalyticsScreen()),
+          ),
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    const phoneSizes = <Size>[
+      Size(360, 640),
+      Size(390, 844),
+      Size(430, 932),
+      // Rotated (landscape).
+      Size(640, 360),
+      Size(844, 390),
+      Size(932, 430),
+    ];
+
+    for (final size in phoneSizes) {
+      testWidgets(
+          'no overflow + tab bar present at ${size.width}x${size.height}',
+          (tester) async {
+        await pumpAt(tester, size);
+
+        // The AdaptiveTabBar exists and renders all six tabs (collapsed to
+        // icons below 480px, so we assert on the widget's tab list, not text).
+        expect(find.byType(AdaptiveTabBar), findsOneWidget);
+        final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+        expect(bar.tabs.length, AnalyticsTab.values.length);
+
+        // No RenderFlex overflow anywhere on the screen.
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    testWidgets(
+        'tabs are reachable on a 360px phone — selecting a non-default tab '
+        'switches the active body without overflowing the bar', (tester) async {
+      await pumpAt(tester, const Size(360, 640));
+
+      // The bar is a horizontally scrolling list; the selected tab can be
+      // changed programmatically via onSelected and the bar keeps it visible.
+      // We switch to History (a tab whose body this screen owns and which is
+      // overflow-clean on a phone) to prove the phone tab-switch path works.
+      final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+      bar.onSelected(AnalyticsTab.history.index);
+      await tester.pump(const Duration(milliseconds: 300));
+
+      expect(
+        _selectedAdaptiveTabIndex(tester),
+        AnalyticsTab.history.index,
+        reason: 'Selecting a tab on a 360px phone must update the selection; '
+            'the AdaptiveTabBar scrolls it into view instead of overflowing.',
+      );
+      expect(tester.takeException(), isNull);
+    });
+  });
+}
+
+/// Reads the live [AdaptiveTabBar.selectedIndex] from the pumped tree. The tab
+/// bar is the single source of truth for which Analytics tab is active.
+int _selectedAdaptiveTabIndex(WidgetTester tester) {
+  final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+  return bar.selectedIndex;
 }

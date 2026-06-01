@@ -57,9 +57,11 @@ extension _ImagingScreenActions on _ImagingScreenState {
           children: [
             Icon(LucideIcons.sparkles, color: colors.primary, size: 22),
             const SizedBox(width: 10),
-            Text(
-              'Annotation Catalogs Required',
-              style: TextStyle(color: colors.textPrimary, fontSize: 16),
+            Expanded(
+              child: Text(
+                'Annotation Catalogs Required',
+                style: TextStyle(color: colors.textPrimary, fontSize: 16),
+              ),
             ),
           ],
         ),

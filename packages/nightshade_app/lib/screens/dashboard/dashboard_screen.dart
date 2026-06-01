@@ -186,10 +186,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen>
   }
 
   void _showWidgetPicker() {
-    showDialog(
-      context: context,
-      builder: (context) => const WidgetPickerDialog(),
-    );
+    showWidgetPickerModal(context);
   }
 }
 
@@ -242,10 +239,21 @@ class _ZoneBasedDashboard extends StatelessWidget {
       builder: (context, constraints) {
         final screenWidth = constraints.maxWidth;
 
+        // A phone held in landscape can be wider than the tablet breakpoint
+        // (e.g. 932x430) yet is still a phone. Route it to the compact layout
+        // — which itself reflows into two tile columns when wide enough — so a
+        // phone never falls into the tablet/desktop multi-column splits that
+        // assume a tall viewport. Genuine tablets (>= 600 in their shorter
+        // dimension) keep the stacked/full layouts unchanged.
+        final isPhoneViewport = Responsive.isPhone(context) ||
+            MediaQuery.sizeOf(context).shortestSide <
+                BreakpointTokens.breakpointPhone;
+
         // Responsive layout selection based on breakpoints. The 1280 cutoff
         // covers most laptops where the full three-column split would crush
         // the secondary column under its 280 px clamp.
-        if (screenWidth < NightshadeTokens.breakpointTablet) {
+        if (isPhoneViewport ||
+            screenWidth < NightshadeTokens.breakpointTablet) {
           return _buildCompactLayout(context);
         } else if (screenWidth < NightshadeTokens.breakpointDesktop) {
           return _buildStackedLayout(context);
@@ -740,100 +748,157 @@ class _ZoneBasedDashboard extends StatelessWidget {
           Expanded(
             child: DashboardScrollView(
               padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // 1. Weather - full width at top (important for field use)
-                  if (weatherTile != null) ...[
-                    _buildTile(
-                      context: context,
-                      tile: weatherTile,
-                      registry: registry,
-                      cardVariant: CardVariant.standard,
-                      isHero: false,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  // Full-width banners that lead the column in every mode:
+                  // weather (field-critical) then the live-preview hero.
+                  final fullWidth = <Widget>[
+                    if (weatherTile != null)
+                      _buildTile(
+                        context: context,
+                        tile: weatherTile,
+                        registry: registry,
+                        cardVariant: CardVariant.standard,
+                        isHero: false,
+                      ),
+                    if (livePreviewTile != null)
+                      _buildTile(
+                        context: context,
+                        tile: livePreviewTile,
+                        registry: registry,
+                        cardVariant: CardVariant.elevated,
+                        isHero: true,
+                      ),
+                  ];
 
-                  // 2. Live Preview - full width hero
-                  if (livePreviewTile != null) ...[
-                    _buildTile(
-                      context: context,
-                      tile: livePreviewTile,
-                      registry: registry,
-                      cardVariant: CardVariant.elevated,
-                      isHero: true,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  // The remaining sections, in curated order. On a wide
+                  // (landscape) phone these flow into two balanced columns;
+                  // on a narrow portrait phone they stack full width.
+                  final flow = <Widget>[
+                    if (captureSettingsTile != null)
+                      _buildTile(
+                        context: context,
+                        tile: captureSettingsTile,
+                        registry: registry,
+                        cardVariant: CardVariant.standard,
+                        isHero: false,
+                      ),
+                    if (quickActionsTile != null)
+                      _buildTile(
+                        context: context,
+                        tile: quickActionsTile,
+                        registry: registry,
+                        cardVariant: CardVariant.standard,
+                        isHero: false,
+                      ),
+                    if (sessionTile != null)
+                      _buildTile(
+                        context: context,
+                        tile: sessionTile,
+                        registry: registry,
+                        cardVariant: CardVariant.standard,
+                        isHero: false,
+                      ),
+                    if (equipmentTiles.isNotEmpty)
+                      MobileEquipmentSection(
+                        tiles: equipmentTiles,
+                        registry: registry,
+                        colors: colors,
+                        pulseController: pulseController,
+                        isEditing: isEditing,
+                        onReorder: onReorder,
+                        onResize: onResize,
+                        onToggleEnabled: onToggleEnabled,
+                      ),
+                    for (final tile in otherTiles)
+                      _buildTile(
+                        context: context,
+                        tile: tile,
+                        registry: registry,
+                        cardVariant: CardVariant.standard,
+                        isHero: false,
+                      ),
+                  ];
 
-                  // 3. Capture Settings - full width
-                  if (captureSettingsTile != null) ...[
-                    _buildTile(
-                      context: context,
-                      tile: captureSettingsTile,
-                      registry: registry,
-                      cardVariant: CardVariant.standard,
-                      isHero: false,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
+                  // Two columns once there's room for two comfortable tile
+                  // columns (~560 px) — i.e. phone landscape and small
+                  // tablets — otherwise a single reflowed column.
+                  const twoColumnMinWidth = 560.0;
+                  final useTwoColumns =
+                      constraints.maxWidth >= twoColumnMinWidth;
 
-                  // 4. Quick Actions - full width (responsive wrap inside)
-                  if (quickActionsTile != null) ...[
-                    _buildTile(
-                      context: context,
-                      tile: quickActionsTile,
-                      registry: registry,
-                      cardVariant: CardVariant.standard,
-                      isHero: false,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // 5. Session Status - full width
-                  if (sessionTile != null) ...[
-                    _buildTile(
-                      context: context,
-                      tile: sessionTile,
-                      registry: registry,
-                      cardVariant: CardVariant.standard,
-                      isHero: false,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // 6. Equipment tiles in responsive wrap layout
-                  if (equipmentTiles.isNotEmpty) ...[
-                    MobileEquipmentSection(
-                      tiles: equipmentTiles,
-                      registry: registry,
-                      colors: colors,
-                      pulseController: pulseController,
-                      isEditing: isEditing,
-                      onReorder: onReorder,
-                      onResize: onResize,
-                      onToggleEnabled: onToggleEnabled,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-
-                  // 7. Other tiles stacked vertically
-                  for (final tile in otherTiles) ...[
-                    _buildTile(
-                      context: context,
-                      tile: tile,
-                      registry: registry,
-                      cardVariant: CardVariant.standard,
-                      isHero: false,
-                    ),
-                    const SizedBox(height: 12),
-                  ],
-                ],
+                  return _buildCompactBody(
+                    fullWidth: fullWidth,
+                    flow: flow,
+                    useTwoColumns: useTwoColumns,
+                  );
+                },
               ),
             ),
           ),
       ],
+    );
+  }
+
+  /// Assembles the compact scroll body: the [fullWidth] banners stacked on
+  /// top, then the [flow] sections either in a single column (phone portrait)
+  /// or split across two balanced columns (phone landscape / small tablet).
+  ///
+  /// Two-column distribution alternates sections left/right so the curated
+  /// order reads top-to-bottom-ish across the columns and neither column ends
+  /// up empty.
+  Widget _buildCompactBody({
+    required List<Widget> fullWidth,
+    required List<Widget> flow,
+    required bool useTwoColumns,
+  }) {
+    const gap = 12.0;
+
+    Widget spaced(List<Widget> items) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (var i = 0; i < items.length; i++) ...[
+            if (i > 0) const SizedBox(height: gap),
+            items[i],
+          ],
+        ],
+      );
+    }
+
+    final children = <Widget>[];
+    if (fullWidth.isNotEmpty) {
+      children.add(spaced(fullWidth));
+    }
+
+    if (flow.isNotEmpty) {
+      if (children.isNotEmpty) children.add(const SizedBox(height: gap));
+      if (useTwoColumns) {
+        final left = <Widget>[];
+        final right = <Widget>[];
+        for (var i = 0; i < flow.length; i++) {
+          (i.isEven ? left : right).add(flow[i]);
+        }
+        children.add(
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: spaced(left)),
+              const SizedBox(width: gap),
+              Expanded(
+                child: right.isEmpty ? const SizedBox.shrink() : spaced(right),
+              ),
+            ],
+          ),
+        );
+      } else {
+        children.add(spaced(flow));
+      }
+    }
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: children,
     );
   }
 

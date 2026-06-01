@@ -66,19 +66,27 @@ class _GuidingScreenState extends ConsumerState<GuidingScreen>
       alignment: Alignment.bottomRight,
       child: Scaffold(
         backgroundColor: colors.background,
-        body: Column(
-          children: [
-            // Status bar - adapts for mobile
-            _buildStatusBar(colors, isConnected, phd2State, guideStats),
-            // Main content - responsive layout
-            Expanded(
-              child: Responsive.isMobile(context)
-                  ? _buildMobileLayout(
-                      colors, isConnected, phd2State, guideStats)
-                  : _buildDesktopLayout(
-                      colors, isConnected, phd2State, guideStats),
-            ),
-          ],
+        body: SafeArea(
+          bottom: false,
+          child: Column(
+            children: [
+              // Status bar - adapts for phone
+              _buildStatusBar(colors, isConnected, phd2State, guideStats),
+              // Main content. A phone is a phone in either orientation — a
+              // large phone held in landscape is ~932 px wide yet must NOT get
+              // the desktop split (its narrow side panels overflow). Branch on
+              // the shortest side so portrait AND landscape phones both take
+              // the reflowed mobile layout; genuine tablets/desktops keep the
+              // split, which scales fractionally.
+              Expanded(
+                child: _isPhoneViewport(context)
+                    ? _buildMobileLayout(
+                        colors, isConnected, phd2State, guideStats)
+                    : _buildDesktopLayout(
+                        colors, isConnected, phd2State, guideStats),
+              ),
+            ],
+          ),
         ),
       ),
     );

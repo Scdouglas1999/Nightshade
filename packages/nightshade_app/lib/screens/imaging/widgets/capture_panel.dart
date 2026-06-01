@@ -183,12 +183,16 @@ class CapturePanel extends ConsumerWidget {
                     Text('Captured',
                         style: TextStyle(
                             fontSize: 12, color: colors.textSecondary)),
-                    Text(
-                      '${sessionImages.length} frames',
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textPrimary),
+                    Flexible(
+                      child: Text(
+                        '${sessionImages.length} frames',
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textPrimary),
+                      ),
                     ),
                   ],
                 ),
@@ -199,12 +203,16 @@ class CapturePanel extends ConsumerWidget {
                     Text('Integration',
                         style: TextStyle(
                             fontSize: 12, color: colors.textSecondary)),
-                    Text(
-                      _formatDuration(sessionState.totalIntegrationSecs),
-                      style: TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w500,
-                          color: colors.textPrimary),
+                    Flexible(
+                      child: Text(
+                        _formatDuration(sessionState.totalIntegrationSecs),
+                        textAlign: TextAlign.end,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: colors.textPrimary),
+                      ),
                     ),
                   ],
                 ),

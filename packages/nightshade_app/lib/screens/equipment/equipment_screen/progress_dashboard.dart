@@ -376,7 +376,7 @@ class _DeviceDashboard extends ConsumerWidget {
 
     // No profile selected state
     if (profile == null) {
-      return Center(
+      return _EquipmentEmptyState(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -415,7 +415,7 @@ class _DeviceDashboard extends ConsumerWidget {
       // when the sidebar is collapsed.
       if (hasDevicesAssigned) {
         // Profile has devices but none connected
-        return Center(
+        return _EquipmentEmptyState(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -449,7 +449,7 @@ class _DeviceDashboard extends ConsumerWidget {
         );
       } else {
         // Profile has no devices assigned
-        return Center(
+        return _EquipmentEmptyState(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -484,7 +484,24 @@ class _DeviceDashboard extends ConsumerWidget {
       }
     }
 
-    // Show connected device cards in a responsive grid
+    // Phone: a single full-width column so the cards never get pinched and
+    // each card's action rows have the whole viewport to lay out in.
+    if (Responsive.isPhone(context)) {
+      return SingleChildScrollView(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            for (var i = 0; i < connectedCards.length; i++) ...[
+              if (i > 0) const SizedBox(height: 12),
+              connectedCards[i],
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Desktop/tablet: a responsive grid of fixed-width tiles.
     return SingleChildScrollView(
       padding: const EdgeInsets.all(20),
       child: Wrap(
@@ -492,6 +509,36 @@ class _DeviceDashboard extends ConsumerWidget {
         runSpacing: 16,
         children: connectedCards,
       ),
+    );
+  }
+}
+
+/// A centered empty-state that scrolls when the dashboard region is shorter
+/// than its content. On a phone the device dashboard sits in an `Expanded`
+/// beneath the health + readiness bars, so on a short viewport the icon +
+/// copy + CTA can be taller than the available height; the scroll view keeps
+/// it from overflowing while staying vertically centered when there is room.
+class _EquipmentEmptyState extends StatelessWidget {
+  final Widget child;
+
+  const _EquipmentEmptyState({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight: constraints.hasBoundedHeight
+                  ? constraints.maxHeight - 48
+                  : 0,
+            ),
+            child: Center(child: child),
+          ),
+        );
+      },
     );
   }
 }

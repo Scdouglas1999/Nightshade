@@ -103,35 +103,47 @@ void _swallowKnownOverflows() {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('mobile_layout_renders: width < 768 picks the stacked column',
+  testWidgets(
+      'phone_layout_renders: width < 600 keeps the preview + a persistent '
+      'capture bar, with controls collapsed into AdaptivePanelLayout',
       (tester) async {
     _swallowKnownOverflows();
-    // Mobile breakpoint per Responsive.isMobile: width < 768. 400x800
-    // sits comfortably below the threshold and matches a typical phone
-    // in portrait.
+    // Phone tier per the mobile-responsive standard: width < 600. 390x844
+    // is a modern phone in portrait. The screen now drives all tiers
+    // through AdaptivePanelLayout (no bespoke mobile column), so we assert
+    // the preview is present and the snapshot button — the primary capture
+    // action — is reachable without opening the controls sheet.
     await pumpAppScreen(
       tester,
       const ImagingScreen(),
-      size: const Size(400, 800),
+      size: const Size(390, 844),
       settle: false,
     );
     await _drainAsyncFrames(tester);
 
-    // Mobile layout renders the LivePreviewArea + a PanelTabs strip
-    // below it. The desktop layout wraps the right pane in a
-    // ResizablePanel; its absence proves we took the mobile branch.
     expect(find.byType(LivePreviewArea), findsOneWidget);
-    expect(find.byType(PanelTabs), findsOneWidget);
+    expect(find.byType(AdaptivePanelLayout), findsOneWidget,
+        reason: 'All tiers route through AdaptivePanelLayout now.');
+    // The desktop-only ResizablePanel must be gone entirely.
     expect(find.byType(ResizablePanel), findsNothing,
         reason:
-            'Mobile layout must not contain the desktop-only ResizablePanel.');
+            'AdaptivePanelLayout replaced the desktop-only ResizablePanel.');
+    // The primary capture action lives in the persistent bar under the
+    // preview, reachable without opening the controls sheet.
+    expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
+        reason:
+            'On phones the Snapshot button must be visible under the preview '
+            'without opening the controls sheet (standard rule 5).');
   });
 
-  testWidgets('desktop_layout_renders: width >= 768 picks the Row + side pane',
-      (tester) async {
+  testWidgets(
+      'desktop_layout_renders: width >= 768 picks the resizable split via '
+      'AdaptivePanelLayout', (tester) async {
     _swallowKnownOverflows();
-    // 1600x900 is a representative laptop/desktop size and well above
-    // the 768px tablet breakpoint, so Responsive.isMobile returns false.
+    // 1600x900 is a representative laptop/desktop size. The desktop split
+    // is now provided by AdaptivePanelLayout (resizable divider) rather
+    // than the removed ResizablePanel; both the preview and the tab strip
+    // remain present side-by-side.
     await pumpAppScreen(
       tester,
       const ImagingScreen(),
@@ -140,15 +152,19 @@ void main() {
     );
     await _drainAsyncFrames(tester);
 
-    // Desktop layout: LivePreviewArea on the left, ResizablePanel
-    // housing the tabs on the right. The presence of ResizablePanel is
-    // the load-bearing signal that we took the desktop branch.
     expect(find.byType(LivePreviewArea), findsOneWidget);
     expect(find.byType(PanelTabs), findsOneWidget);
-    expect(find.byType(ResizablePanel), findsOneWidget,
+    expect(find.byType(AdaptivePanelLayout), findsOneWidget,
         reason:
-            'Desktop layout wraps the side pane in a ResizablePanel; it must '
-            'be present at desktop widths.');
+            'Desktop layout is provided by AdaptivePanelLayout (resizable '
+            'split) now that ResizablePanel has been removed.');
+    expect(find.byType(ResizablePanel), findsNothing);
+    // Desktop keeps the bottom control panel (QuickStatsPanel only renders
+    // there), proving we took the non-phone primary branch.
+    expect(find.byType(QuickStatsPanel), findsOneWidget,
+        reason:
+            'The desktop primary column keeps the capped bottom control '
+            'panel with its Stats section.');
   });
 
   testWidgets('renders_without_throwing: default MockBackend pump is exception-free',
@@ -511,4 +527,95 @@ void main() {
             'so would lie to the operator about a frame that never went '
             'through dark/flat/bias subtraction.');
   });
+
+  // ===========================================================================
+  // MOBILE-RESPONSIVE STANDARD: no overflow + primary capture reachable at the
+  // three reference phone sizes, in BOTH orientations.
+  //
+  // These intentionally do NOT swallow overflow exceptions — the whole point is
+  // to catch RenderFlex overflow at phone widths/heights. We connect the camera
+  // so the snapshot button is enabled (its enabled state is part of "primary
+  // capture reachable") and pump a real captured frame so the preview chrome
+  // and toolbar (resolution/zoom readouts) render at their full width.
+  // ===========================================================================
+
+  /// The reference phone sizes from the standard (portrait), each also exercised
+  /// rotated to landscape below.
+  const phonePortraitSizes = <(String, Size)>[
+    ('small_phone_360x640', Size(360, 640)),
+    ('modern_phone_390x844', Size(390, 844)),
+    ('large_phone_430x932', Size(430, 932)),
+  ];
+
+  CapturedImageData buildFrame() => CapturedImageData(
+        width: 64,
+        height: 48,
+        displayData: Uint8List(64 * 48 * 4),
+        histogram: List<int>.filled(256, 0),
+        stats: const ImageStats(mean: 0, stdDev: 0),
+        capturedAt: DateTime.utc(2026, 6, 1, 21, 0, 0),
+        settings: const ExposureSettings(
+          exposureTime: 1.0,
+          gain: 100,
+          offset: 10,
+        ),
+        filePath: '/tmp/light_phone.fits',
+      );
+
+  for (final (label, portrait) in phonePortraitSizes) {
+    final landscape = Size(portrait.height, portrait.width);
+    for (final (orientation, size) in <(String, Size)>[
+      ('portrait', portrait),
+      ('landscape', landscape),
+    ]) {
+      testWidgets(
+          'phone_no_overflow_${label}_$orientation: imaging screen has no '
+          'RenderFlex overflow and the Snapshot control is present',
+          (tester) async {
+        // No overflow-swallowing here: any RenderFlex overflow at this
+        // size/orientation must fail the test.
+        final handle = await pumpAppScreen(
+          tester,
+          const ImagingScreen(),
+          size: size,
+          settle: false,
+          extraOverrides: [
+            cameraStateProvider.overrideWith((ref) {
+              final notifier = CameraStateNotifier(ref);
+              notifier
+                ..setConnecting('phone-cam', 'Phone Camera')
+                ..setConnected();
+              return notifier;
+            }),
+          ],
+        );
+        await _drainAsyncFrames(tester);
+        // Publish a frame so the preview + toolbar render their full chrome.
+        handle.container.read(currentImageProvider.notifier).state =
+            buildFrame();
+        await _drainAsyncFrames(tester);
+
+        // No uncaught exception (which would include any RenderFlex overflow).
+        expect(tester.takeException(), isNull,
+            reason:
+                'ImagingScreen at $size ($orientation) must not overflow.');
+
+        // Primary capture action present and reachable without opening the
+        // controls sheet.
+        expect(find.byKey(ImagingTutorialKeys.snapshotBtn), findsOneWidget,
+            reason:
+                'The Snapshot button must be present at $size ($orientation).');
+        final snapshotBtn = tester.widget<BigActionButton>(
+          find.byKey(ImagingTutorialKeys.snapshotBtn),
+        );
+        expect(snapshotBtn.isEnabled, isTrue,
+            reason:
+                'With a connected camera the Snapshot button must be enabled '
+                'at $size ($orientation).');
+
+        // The live preview keeps the dominant region.
+        expect(find.byType(LivePreviewArea), findsOneWidget);
+      });
+    }
+  }
 }

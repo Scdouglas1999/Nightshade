@@ -46,18 +46,90 @@ class _SessionTab extends ConsumerWidget {
       headerSubtitle = l10n.text('analyticsNoSessionInProgress');
     }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          // Session summary bar
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    final summaryStats = [
+      ResponsiveStat(
+        label: l10n.text('analyticsDuration'),
+        value: duration,
+      ),
+      ResponsiveStat(
+        label: l10n.text('analyticsExposures'),
+        value: sessionState.isActive
+            ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
+            : '---',
+      ),
+      ResponsiveStat(
+        label: l10n.text('analyticsIntegration'),
+        value: sessionState.isActive
+            ? '${(sessionState.totalIntegrationSecs / 60).toStringAsFixed(1)}m'
+            : '---',
+      ),
+      ResponsiveStat(
+        label: l10n.text('analyticsAvgHfr'),
+        value: sessionState.avgHfr != null
+            ? sessionState.avgHfr!.toStringAsFixed(2)
+            : '---',
+      ),
+    ];
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
+        final outerPadding = EdgeInsets.all(isPhone ? 16.0 : 24.0);
+
+        Widget chartGrid(List<DbCapturedImage> images) {
+          final hfr =
+              HfrChart(key: AnalyticsTutorialKeys.hfrChart, images: images);
+          final guiding = GuidingRmsChart(
+              key: AnalyticsTutorialKeys.guidingChart, images: images);
+          final focuser = FocuserPositionChart(images: images);
+          final temperature = TemperatureChart(images: images);
+
+          // Phone: a single column of full-width charts so each reads at the
+          // viewport width. Tablet/desktop keep the 2-up grid.
+          if (isPhone) {
+            return Column(
+              children: [
+                hfr,
+                const SizedBox(height: 16),
+                guiding,
+                const SizedBox(height: 16),
+                focuser,
+                const SizedBox(height: 16),
+                temperature,
+              ],
+            );
+          }
+          return Column(
+            children: [
+              Row(
                 children: [
-                  Column(
+                  Expanded(child: hfr),
+                  const SizedBox(width: 16),
+                  Expanded(child: guiding),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(child: focuser),
+                  const SizedBox(width: 16),
+                  Expanded(child: temperature),
+                ],
+              ),
+            ],
+          );
+        }
+
+        return SingleChildScrollView(
+          padding: outerPadding,
+          child: Column(
+            children: [
+              // Session summary bar — header stacks above a reflowing stat
+              // strip so the four metrics never overflow a phone column.
+              NightshadeCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
@@ -72,143 +144,95 @@ class _SessionTab extends ConsumerWidget {
                       Text(
                         headerSubtitle,
                         style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary),
+                          fontSize: 12,
+                          color: colors.textSecondary,
+                        ),
                       ),
+                      const SizedBox(height: 16),
+                      ResponsiveStatStrip(stats: summaryStats),
                     ],
                   ),
-                  Row(
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Graph grid
+              imagesAsyncValue.when(
+                data: chartGrid,
+                loading: () => _AnalyticsAsyncState(
+                  colors: colors,
+                  icon: LucideIcons.lineChart,
+                  message: 'Loading analytics charts...',
+                ),
+                error: (err, stack) => _AnalyticsAsyncState(
+                  colors: colors,
+                  icon: LucideIcons.alertTriangle,
+                  message: 'Failed to load analytics charts',
+                  detail: err.toString(),
+                  onRetry: retryImages,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Captured images strip
+              NightshadeCard(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      _SummaryItem(
-                        label: l10n.text('analyticsDuration'),
-                        value: duration,
+                      Text(
+                        l10n.text('analyticsCapturedImages'),
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: colors.textPrimary,
+                        ),
                       ),
-                      const SizedBox(width: 32),
-                      _SummaryItem(
-                        label: l10n.text('analyticsExposures'),
-                        value: sessionState.isActive
-                            ? '${sessionState.completedExposures}/${sessionState.totalExposures}'
-                            : '---',
+                      const SizedBox(height: 4),
+                      Text(
+                        l10n.text('analyticsQualityAdvisory'),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textMuted,
+                        ),
                       ),
-                      const SizedBox(width: 32),
-                      _SummaryItem(
-                        label: l10n.text('analyticsIntegration'),
-                        value: sessionState.isActive
-                            ? '${(sessionState.totalIntegrationSecs / 60).toStringAsFixed(1)}m'
-                            : '---',
-                      ),
-                      const SizedBox(width: 32),
-                      _SummaryItem(
-                        label: l10n.text('analyticsAvgHfr'),
-                        value: sessionState.avgHfr != null
-                            ? sessionState.avgHfr!.toStringAsFixed(2)
-                            : '---',
+                      const SizedBox(height: 16),
+                      imagesAsyncValue.when(
+                        data: (images) => ImageThumbnailStrip(
+                            key: AnalyticsTutorialKeys.thumbnails,
+                            images: images),
+                        loading: () => SizedBox(
+                          height: kAnalyticsThumbnailRailHeight,
+                          child: _AnalyticsAsyncState(
+                            colors: colors,
+                            icon: LucideIcons.image,
+                            message: 'Loading images...',
+                            compact: true,
+                          ),
+                        ),
+                        error: (err, stack) => SizedBox(
+                          height: kAnalyticsThumbnailRailHeight,
+                          child: _AnalyticsAsyncState(
+                            colors: colors,
+                            icon: LucideIcons.alertTriangle,
+                            message: 'Failed to load images',
+                            detail: err.toString(),
+                            compact: true,
+                            onRetry: retryImages,
+                          ),
+                        ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Graph grid
-          imagesAsyncValue.when(
-            data: (images) => Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                        child: HfrChart(
-                            key: AnalyticsTutorialKeys.hfrChart,
-                            images: images)),
-                    const SizedBox(width: 16),
-                    Expanded(
-                        child: GuidingRmsChart(
-                            key: AnalyticsTutorialKeys.guidingChart,
-                            images: images)),
-                  ],
                 ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(child: FocuserPositionChart(images: images)),
-                    const SizedBox(width: 16),
-                    Expanded(child: TemperatureChart(images: images)),
-                  ],
-                ),
-              ],
-            ),
-            loading: () => _AnalyticsAsyncState(
-              colors: colors,
-              icon: LucideIcons.lineChart,
-              message: 'Loading analytics charts...',
-            ),
-            error: (err, stack) => _AnalyticsAsyncState(
-              colors: colors,
-              icon: LucideIcons.alertTriangle,
-              message: 'Failed to load analytics charts',
-              detail: err.toString(),
-              onRetry: retryImages,
-            ),
-          ),
-
-          const SizedBox(height: 24),
-
-          // Captured images strip
-          NightshadeCard(
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    l10n.text('analyticsCapturedImages'),
-                    style: TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    l10n.text('analyticsQualityAdvisory'),
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  imagesAsyncValue.when(
-                    data: (images) => ImageThumbnailStrip(
-                        key: AnalyticsTutorialKeys.thumbnails, images: images),
-                    loading: () => SizedBox(
-                      height: kAnalyticsThumbnailRailHeight,
-                      child: _AnalyticsAsyncState(
-                        colors: colors,
-                        icon: LucideIcons.image,
-                        message: 'Loading images...',
-                        compact: true,
-                      ),
-                    ),
-                    error: (err, stack) => SizedBox(
-                      height: kAnalyticsThumbnailRailHeight,
-                      child: _AnalyticsAsyncState(
-                        colors: colors,
-                        icon: LucideIcons.alertTriangle,
-                        message: 'Failed to load images',
-                        detail: err.toString(),
-                        compact: true,
-                        onRetry: retryImages,
-                      ),
-                    ),
-                  ),
-                ],
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }

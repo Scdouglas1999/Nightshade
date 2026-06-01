@@ -4,13 +4,9 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
   Widget _buildActionsRow(NightshadeColors colors) {
     final settingsAction = _resolveSettingsAction();
 
-    return Row(
+    final trailingButtons = Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        // Device-specific quick actions
-        ..._buildDeviceActions(colors),
-
-        const Spacer(),
-
         // Settings button — only shown for device types that have real
         // settings reachable from this card (or when an external onSettings
         // callback has been injected by the parent). Device types without
@@ -35,6 +31,31 @@ extension _ConnectedDeviceActionsAndTelemetry on _ConnectedDeviceCardState {
             foregroundColor: colors.textMuted,
           ),
         ),
+      ],
+    );
+
+    // Wrap so the quick-action chips and the trailing settings/disconnect
+    // controls flow to a second line on a narrow phone card (or a narrow
+    // landscape sheet panel) instead of overflowing the row. The trailing
+    // buttons are pushed to the line's end via [Spacer] only when there is
+    // room on the same line.
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        // Device-specific quick actions, grouped so they wrap as a unit.
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: _buildDeviceActions(colors)
+              // Drop the inter-button SizedBox spacers; [Wrap] handles spacing.
+              .where((w) => w is! SizedBox)
+              .toList(),
+        ),
+        trailingButtons,
       ],
     );
   }

@@ -69,6 +69,11 @@ class _StubAppSettingsNotifier extends AppSettingsNotifier {
   }
 }
 
+/// The live [AdaptiveTabBar.selectedIndex] — the single source of truth for
+/// which planner tab is active.
+int _selectedTabIndex(WidgetTester tester) =>
+    tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar)).selectedIndex;
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -127,11 +132,20 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    expect(find.widgetWithText(SubTabButton, 'Recommendation'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'Projects'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'Target Queue'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'This Week'), findsOneWidget);
-    expect(find.widgetWithText(SubTabButton, 'Progress'), findsOneWidget);
+    // The tab strip is now an AdaptiveTabBar; on this 1400px desktop viewport
+    // labels render as Text (icons-only collapse only happens below 480px).
+    expect(find.byType(AdaptiveTabBar), findsOneWidget);
+    final bar = tester.widget<AdaptiveTabBar>(find.byType(AdaptiveTabBar));
+    expect(
+      bar.tabs.map((t) => t.label).toList(),
+      const [
+        'Recommendation',
+        'Projects',
+        'Target Queue',
+        'This Week',
+        'Progress',
+      ],
+    );
   });
 
   testWidgets('defaults to Recommendation when no query param is supplied',
@@ -154,13 +168,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    final selectedRec = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Recommendation' &&
-          widget.isSelected,
-    );
-    expect(selectedRec, findsOneWidget);
+    expect(_selectedTabIndex(tester), PlannerTab.recommendation.index);
   });
 
   testWidgets('?tab=scheduler selects the Target Queue tab on initial render',
@@ -185,21 +193,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    final selectedQueue = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Target Queue' &&
-          widget.isSelected,
-    );
-    expect(selectedQueue, findsOneWidget);
-
-    final selectedRec = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Recommendation' &&
-          widget.isSelected,
-    );
-    expect(selectedRec, findsNothing);
+    expect(_selectedTabIndex(tester), PlannerTab.scheduler.index);
   });
 
   testWidgets('?tab=progress selects the Progress tab on initial render',
@@ -224,13 +218,7 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    final selectedProgress = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Progress' &&
-          widget.isSelected,
-    );
-    expect(selectedProgress, findsOneWidget);
+    expect(_selectedTabIndex(tester), PlannerTab.progress.index);
   });
 
   // ===========================================================================
@@ -267,43 +255,18 @@ void main() {
     await tester.pump(const Duration(milliseconds: 200));
 
     // Pre-condition: Recommendation selected by default.
-    final selectedRec = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Recommendation' &&
-          widget.isSelected,
-    );
-    expect(selectedRec, findsOneWidget,
+    expect(_selectedTabIndex(tester), PlannerTab.recommendation.index,
         reason: 'Sanity: Recommendation must be selected by default.');
 
-    // Tap Target Queue. find.text matches the SubTabButton label text.
+    // Tap Target Queue. find.text matches the tab's label text.
     await tester.tap(find.text('Target Queue'));
-    // 200 ms covers the setState rebuild and any selection-state animation
-    // on the SubTabButton; the strip itself does not run a long animation.
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Post-condition: Target Queue is selected; Recommendation is not.
-    final selectedQueue = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Target Queue' &&
-          widget.isSelected,
-    );
-    expect(selectedQueue, findsOneWidget,
+    // Post-condition: Target Queue is selected (single-selection model).
+    expect(_selectedTabIndex(tester), PlannerTab.scheduler.index,
         reason: 'Tapping the Target Queue tab must mark it as selected; if the '
-            'tap callback or setState pathway is broken the strip would '
+            'onSelected callback or setState pathway is broken the strip would '
             'continue to show Recommendation as selected.');
-
-    final selectedRecAfterTap = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Recommendation' &&
-          widget.isSelected,
-    );
-    expect(selectedRecAfterTap, findsNothing,
-        reason: 'Only one tab may be selected at a time; if Recommendation is '
-            'still selected after the tap, the tab strip lost its mutual '
-            'exclusion guard.');
   });
 
   testWidgets(
@@ -332,20 +295,14 @@ void main() {
     );
     await tester.pump(const Duration(milliseconds: 200));
 
-    // Tap Progress (the third tab).
+    // Tap Progress (the right-most tab).
     await tester.tap(find.text('Progress'));
     await tester.pump(const Duration(milliseconds: 200));
 
-    final selectedProgress = find.byWidgetPredicate(
-      (widget) =>
-          widget is SubTabButton &&
-          widget.label == 'Progress' &&
-          widget.isSelected,
-    );
-    expect(selectedProgress, findsOneWidget,
-        reason: 'Tapping Progress must mark it as selected; if the third entry '
-            'in the tabs loop lost its onTap, the user gets stuck on '
-            'Recommendation.');
+    expect(_selectedTabIndex(tester), PlannerTab.progress.index,
+        reason: 'Tapping Progress must mark it as selected; if the right-most '
+            'entry in the tabs loop lost its onSelected, the user gets stuck '
+            'on Recommendation.');
   });
 
   testWidgets('primary recommendation exposes Send to Framing action',

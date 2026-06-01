@@ -8,97 +8,116 @@ mixin _GuidingMobileSections
         ConsumerState<GuidingScreen>,
         _GuidingStateFields,
         _GuidingDesktopSections {
+  /// Minimum height the live guide graph is given on a phone so it never
+  /// collapses to an unreadable sliver — especially in landscape where the
+  /// viewport height is small. The graph stays mounted (so it keeps streaming)
+  /// in both orientations because the same [_buildCenterPanel] instance is the
+  /// `start`/top pane in either branch.
+  static const double _phoneGraphMinHeight = 200.0;
+
   Widget _buildMobileLayout(
     NightshadeColors colors,
     bool isConnected,
     Phd2State phd2State,
     Phd2GuideStats guideStats,
   ) {
+    // The graph is the dominant, always-mounted element. The tabbed controls
+    // are the secondary region. In phone landscape we place them side-by-side
+    // (graph left, controls right) via TwoPane; in portrait they stack with the
+    // graph pinned to a sensible min height and the tabs filling the rest.
+    final graph = Padding(
+      padding: const EdgeInsets.all(12),
+      child: _buildCenterPanel(colors, guideStats),
+    );
+    final tabs = _buildMobileTabSection(
+      colors,
+      isConnected,
+      phd2State,
+      guideStats,
+    );
+
+    return SafeArea(
+      top: false,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final isLandscape = constraints.maxWidth > constraints.maxHeight;
+
+          // Landscape with enough width: graph beside controls. TwoPane keeps
+          // both panes mounted so the graph keeps streaming.
+          if (isLandscape && constraints.maxWidth >= 560) {
+            return TwoPane(
+              start: graph,
+              end: tabs,
+              startFlex: 3,
+              endFlex: 2,
+            );
+          }
+
+          // Portrait / narrow landscape: stack. Give the graph a fixed,
+          // legible height (clamped to leave room for the tab section) and let
+          // the tabbed controls take the remainder.
+          final graphHeight = (constraints.maxHeight * 0.42)
+              .clamp(_phoneGraphMinHeight, constraints.maxHeight * 0.6);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              SizedBox(height: graphHeight, child: graph),
+              Expanded(child: tabs),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// The Star / Controls / Settings tab section used in both phone
+  /// orientations. Uses [AdaptiveTabBar] so the tab row never overflows at
+  /// 360 px (it collapses to icons / scrolls), and a hand-driven body switch
+  /// (instead of TabBarView) so it composes inside [TwoPane] without needing a
+  /// bounded width from a Material TabBar.
+  Widget _buildMobileTabSection(
+    NightshadeColors colors,
+    bool isConnected,
+    Phd2State phd2State,
+    Phd2GuideStats guideStats,
+  ) {
+    final Widget body;
+    switch (_tabController.index) {
+      case 1:
+        body = _buildMobileControlsTab(colors, isConnected, phd2State);
+        break;
+      case 2:
+        body = _buildMobileSettingsTab(colors);
+        break;
+      case 0:
+      default:
+        body = _buildMobileStarViewTab(colors, isConnected, guideStats);
+        break;
+    }
+
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        // Guide graph — shares vertical space like desktop (Expanded, not fixed 220).
-        Expanded(
-          flex: 2,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
-            child: _buildCenterPanel(colors, guideStats),
-          ),
-        ),
-        // Tab bar
         Container(
           decoration: BoxDecoration(
             color: colors.surface,
-            border: Border(
-              bottom: BorderSide(color: colors.border),
-            ),
+            border: Border(bottom: BorderSide(color: colors.border)),
           ),
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Use smaller text and icon-only tabs on very narrow screens
-              final isVeryNarrow = constraints.maxWidth < 340;
-              final isNarrow = constraints.maxWidth < 400;
-              return TabBar(
-                controller: _tabController,
-                labelColor: colors.primary,
-                unselectedLabelColor: colors.textSecondary,
-                indicatorColor: colors.primary,
-                indicatorWeight: 2,
-                // Make tabs scrollable on very narrow screens to prevent overflow
-                isScrollable: isVeryNarrow,
-                tabAlignment: isVeryNarrow ? TabAlignment.start : null,
-                labelPadding: isVeryNarrow
-                    ? const EdgeInsets.symmetric(horizontal: 12)
-                    : null,
-                labelStyle: TextStyle(
-                  fontSize: isNarrow ? 11 : 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontSize: isNarrow ? 11 : 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                tabs: [
-                  Tab(
-                    icon: Icon(LucideIcons.star, size: isNarrow ? 16 : 18),
-                    text: isVeryNarrow ? null : 'Star View',
-                    iconMargin: isVeryNarrow
-                        ? EdgeInsets.zero
-                        : const EdgeInsets.only(bottom: 4),
-                  ),
-                  Tab(
-                    icon: Icon(LucideIcons.sliders, size: isNarrow ? 16 : 18),
-                    text: isVeryNarrow ? null : 'Controls',
-                    iconMargin: isVeryNarrow
-                        ? EdgeInsets.zero
-                        : const EdgeInsets.only(bottom: 4),
-                  ),
-                  Tab(
-                    icon: Icon(LucideIcons.settings, size: isNarrow ? 16 : 18),
-                    text: isVeryNarrow ? null : 'Settings',
-                    iconMargin: isVeryNarrow
-                        ? EdgeInsets.zero
-                        : const EdgeInsets.only(bottom: 4),
-                  ),
-                ],
-              );
+          child: AdaptiveTabBar(
+            horizontalPadding: 8,
+            selectedIndex: _tabController.index,
+            onSelected: (i) {
+              _tabController.index = i;
+              setState(() {});
             },
-          ),
-        ),
-        // Tab content
-        Expanded(
-          flex: 3,
-          child: TabBarView(
-            controller: _tabController,
-            children: [
-              // Star View tab - Guide Star, Target Display, Star Statistics
-              _buildMobileStarViewTab(colors, isConnected, guideStats),
-              // Controls tab - Guiding controls and calibration
-              _buildMobileControlsTab(colors, isConnected, phd2State),
-              // Settings tab - Brain settings
-              _buildMobileSettingsTab(colors),
+            tabs: const [
+              AdaptiveTab(label: 'Star View', icon: LucideIcons.star),
+              AdaptiveTab(label: 'Controls', icon: LucideIcons.sliders),
+              AdaptiveTab(label: 'Settings', icon: LucideIcons.settings),
             ],
           ),
         ),
+        Expanded(child: body),
       ],
     );
   }

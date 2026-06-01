@@ -71,7 +71,9 @@ mixin _GuidingDesktopSections
     Phd2GuideStats guideStats,
   ) {
     final stateColor = _getStateColor(phd2State);
-    final isMobile = Responsive.isMobile(context);
+    // Track the same phone-viewport check as the layout swap in
+    // guiding_screen.dart so a phone in landscape gets the compact status bar.
+    final isMobile = _isPhoneViewport(context);
 
     return Container(
       key: GuidingTutorialKeys.statusBar,
@@ -103,37 +105,44 @@ mixin _GuidingDesktopSections
               ),
             ),
           SizedBox(width: isMobile ? 8 : 20),
-          // State indicator pill
-          Container(
-            padding: EdgeInsets.symmetric(
-              horizontal: isMobile ? 8 : 12,
-              vertical: 5,
-            ),
-            decoration: NightshadeDecorations.statusChip(
-              stateColor,
-              borderRadius: BorderRadius.circular(6),
-            ),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: stateColor,
+          // State indicator pill — flexible so a long label (e.g.
+          // "Calibrating") ellipsizes instead of overflowing on a narrow phone.
+          Flexible(
+            child: Container(
+              padding: EdgeInsets.symmetric(
+                horizontal: isMobile ? 8 : 12,
+                vertical: 5,
+              ),
+              decoration: NightshadeDecorations.statusChip(
+                stateColor,
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: stateColor,
+                    ),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  _getStateLabel(phd2State),
-                  style: TextStyle(
-                    color: stateColor,
-                    fontWeight: FontWeight.w600,
-                    fontSize: isMobile ? 11 : 12,
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      _getStateLabel(phd2State),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: stateColor,
+                        fontWeight: FontWeight.w600,
+                        fontSize: isMobile ? 11 : 12,
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
           const Spacer(),
@@ -364,8 +373,8 @@ mixin _GuidingDesktopSections
     required Widget child,
     Widget? trailing,
   }) {
-    // Use responsive padding - more compact on smaller screens
-    final isMobile = Responsive.isMobile(context);
+    // Use responsive padding - more compact on phone-tier screens
+    final isMobile = _isPhoneViewport(context);
     final headerPadding = isMobile
         ? const EdgeInsets.symmetric(horizontal: 10, vertical: 8)
         : const EdgeInsets.symmetric(horizontal: 16, vertical: 10);
@@ -434,7 +443,7 @@ mixin _GuidingDesktopSections
 
   Widget _buildCenterPanel(NightshadeColors colors, Phd2GuideStats stats) {
     final graphData = ref.watch(guideGraphProvider);
-    final isMobile = Responsive.isMobile(context);
+    final isMobile = _isPhoneViewport(context);
     final iconSize = isMobile ? 12.0 : 14.0;
     final iconPadding = isMobile ? 4.0 : 6.0;
     final titleFontSize = isMobile ? 12.0 : 13.0;

@@ -277,46 +277,64 @@ class FramingEquipmentSection extends StatelessWidget {
                 color: colors.textPrimary,
               ),
             ),
-            equipmentAsync.when(
-              data: (result) {
-                if (result.isReady) {
+            // Flexible so a long profile name ellipsizes instead of pushing
+            // the status badge off a narrow phone-landscape controls panel.
+            Flexible(
+              child: equipmentAsync.when(
+                data: (result) {
+                  if (result.isReady) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(LucideIcons.checkCircle,
+                            size: 12, color: colors.success),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            result.profileName ?? 'Ready',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style:
+                                TextStyle(fontSize: 10, color: colors.success),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
                   return Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Icon(LucideIcons.checkCircle,
-                          size: 12, color: colors.success),
+                      Icon(LucideIcons.alertCircle,
+                          size: 12, color: colors.warning),
                       const SizedBox(width: 4),
-                      Text(
-                        result.profileName ?? 'Ready',
-                        style: TextStyle(fontSize: 10, color: colors.success),
+                      Flexible(
+                        child: Text(
+                          'Not Configured',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(fontSize: 10, color: colors.warning),
+                        ),
                       ),
                     ],
                   );
-                }
-                return Row(
+                },
+                loading: () => const SizedBox(),
+                error: (error, _) => Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Icon(LucideIcons.alertCircle,
-                        size: 12, color: colors.warning),
+                        size: 12, color: colors.error),
                     const SizedBox(width: 4),
-                    Text(
-                      'Not Configured',
-                      style: TextStyle(fontSize: 10, color: colors.warning),
+                    Flexible(
+                      child: Text(
+                        'Error',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 10, color: colors.error),
+                      ),
                     ),
                   ],
-                );
-              },
-              loading: () => const SizedBox(),
-              error: (error, _) => Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(LucideIcons.alertCircle, size: 12, color: colors.error),
-                  const SizedBox(width: 4),
-                  Text(
-                    'Error',
-                    style: TextStyle(fontSize: 10, color: colors.error),
-                  ),
-                ],
+                ),
               ),
             ),
           ],

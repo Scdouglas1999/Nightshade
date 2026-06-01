@@ -160,233 +160,333 @@ class _ImagingScreenState extends ConsumerState<ImagingScreen>
           // top-level Column it appears on both the desktop and mobile layouts.
           const MeridianFlipCountdownBanner(),
 
-          // Main content
+          // Main content. A single AdaptivePanelLayout replaces the former
+          // desktop `ResizablePanel` split AND the bespoke mobile column:
+          //
+          //   * Desktop (w >= 768): resizable split — preview column on the
+          //     left, the tab panel on the right with a draggable divider,
+          //     reproducing the old `ResizablePanel(320/250/500, side left)`.
+          //   * Tablet (600..768): fixed-ratio side-by-side split.
+          //   * Phone portrait (w < 600): the tab panel collapses into a bottom
+          //     sheet so the live preview keeps the whole screen; a persistent
+          //     compact capture bar under the preview keeps Snapshot / Loop /
+          //     duration reachable WITHOUT opening the sheet.
+          //   * Phone landscape (enough width): automatic side-by-side split
+          //     (preview left, controls right).
+          //
+          // We compute the phone tier on the screen's OWN constraints (not the
+          // raw window) so an embedded/remote layout still reflows correctly.
+          //
+          // On phone the persistent capture bar is a SIBLING below the
+          // AdaptivePanelLayout (not inside its primary): the bottom-sheet
+          // strategy floats a "Controls" handle at the bottom edge of its
+          // primary region, so anchoring the capture bar below the panel keeps
+          // that handle from overlapping the Snapshot/Loop buttons.
           Expanded(
-            child: Responsive.isMobile(context)
-                ? _buildMobileLayout(colors, selectedPanel, viewerState)
-                : _buildDesktopLayout(colors, selectedPanel, viewerState),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isPhone =
+                    constraints.maxWidth < BreakpointTokens.breakpointPhone;
+                // A phone held in landscape reports a tablet-ish WIDTH (e.g.
+                // 640) but a very SHORT height (~360). Stacking the desktop
+                // bottom control panel under the preview there squeezes the
+                // image and overflows, so we treat a short viewport the same as
+                // a phone: the live preview keeps the column, the tabs sit
+                // beside it (AdaptivePanelLayout's landscape/tablet split), and
+                // the persistent capture bar carries Snapshot/Loop below.
+                final isShort = constraints.maxHeight.isFinite &&
+                    constraints.maxHeight < 500;
+                final compact = isPhone || isShort;
+                final panel = AdaptivePanelLayout(
+                  phoneStrategy: PhonePanelStrategy.bottomSheet,
+                  panelSide: PanelSide.end,
+                  initialPanelWidth: 320,
+                  minPanelWidth: 250,
+                  maxPanelWidth: 500,
+                  primarySegmentLabel: 'Image',
+                  primarySegmentIcon: LucideIcons.image,
+                  primary: _buildPreviewColumn(
+                    colors,
+                    viewerState,
+                    phone: compact,
+                  ),
+                  secondary: [
+                    AdaptivePanel(
+                      title: 'Controls',
+                      icon: LucideIcons.sliders,
+                      child: _buildTabsPanel(
+                        colors,
+                        selectedPanel,
+                        phone: compact,
+                      ),
+                    ),
+                  ],
+                );
+                if (!compact) return panel;
+                return Column(
+                  children: [
+                    Expanded(child: panel),
+                    _buildPhoneCaptureBar(colors),
+                  ],
+                );
+              },
+            ),
           ),
         ],
       ),
     );
   }
 
-  /// Mobile layout: Tabs at bottom, full-width content
-  Widget _buildMobileLayout(
+  /// The dominant region handed to [AdaptivePanelLayout] as `primary`: the
+  /// off-canvas toolbar, the live preview (which absorbs all free height), and
+  /// — on desktop / tablet — the capped bottom control panel beneath it.
+  ///
+  /// On phone the bottom control panel is NOT included here; the persistent
+  /// capture bar is composed as a sibling of the whole panel (see [build]) so
+  /// the live preview keeps the full primary region.
+  Widget _buildPreviewColumn(
     NightshadeColors colors,
-    int selectedPanel,
-    ImagingViewerState viewerState,
-  ) {
-    return Column(
-      children: [
-        // Slim off-canvas toolbar above the preview — status readouts,
-        // Overlays menu, annotate toggle and view controls live here so the
-        // image canvas itself stays unobstructed.
-        ImagingPreviewToolbar(
-          colors: colors,
-          zoomLevel: viewerState.zoomLevel,
-          showCrosshair: viewerState.showCrosshair,
-          showStarOverlay: viewerState.showStarOverlay,
-          onZoomIn: _zoomIn,
-          onZoomOut: _zoomOut,
-          onFitToWindow: _fitToWindow,
-          onZoom1to1: _zoom1to1,
-          onAbortCapture: _abortCapture,
-          onToggleCrosshair: _viewer.toggleCrosshair,
-          onToggleStarOverlay: _viewer.toggleStarOverlay,
-        ),
-        // Live preview area (compact on mobile)
-        Expanded(
-          flex: 4,
-          child: LivePreviewArea(
-            key: ImagingTutorialKeys.previewArea,
-            colors: colors,
-            zoomLevel: viewerState.zoomLevel,
-            panOffset: viewerState.panOffset,
-            showCrosshair: viewerState.showCrosshair,
-            showStarOverlay: viewerState.showStarOverlay,
-            onZoomIn: _zoomIn,
-            onZoomOut: _zoomOut,
-            onPanUpdate: _panPreview,
-          ),
-        ),
-
-        // Tab content area (scrollable)
-        Expanded(
-          flex: 5,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(
-                top: BorderSide(color: colors.border),
+    ImagingViewerState viewerState, {
+    required bool phone,
+  }) {
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Cap the desktop bottom control panel at ~45% of the available column
+        // height so the fully-expanded panel can never squeeze the live preview
+        // to nothing. The panel sizes to its content (NOT an Expanded), so as
+        // its sections collapse the preview's Expanded above absorbs the freed
+        // height. If the expanded controls exceed the cap they scroll
+        // internally.
+        final maxPanelHeight = constraints.maxHeight.isFinite
+            ? constraints.maxHeight * 0.45
+            : double.infinity;
+        return Column(
+          children: [
+            // Slim off-canvas toolbar above the preview — status readouts,
+            // Overlays menu, annotate toggle and view controls live here so the
+            // image canvas itself stays unobstructed.
+            ImagingPreviewToolbar(
+              colors: colors,
+              zoomLevel: viewerState.zoomLevel,
+              showCrosshair: viewerState.showCrosshair,
+              showStarOverlay: viewerState.showStarOverlay,
+              onZoomIn: _zoomIn,
+              onZoomOut: _zoomOut,
+              onFitToWindow: _fitToWindow,
+              onZoom1to1: _zoom1to1,
+              onAbortCapture: _abortCapture,
+              onToggleCrosshair: _viewer.toggleCrosshair,
+              onToggleStarOverlay: _viewer.toggleStarOverlay,
+            ),
+            // Live preview area — dominant, absorbs all free height.
+            Expanded(
+              child: LivePreviewArea(
+                key: ImagingTutorialKeys.previewArea,
+                colors: colors,
+                zoomLevel: viewerState.zoomLevel,
+                panOffset: viewerState.panOffset,
+                showCrosshair: viewerState.showCrosshair,
+                showStarOverlay: viewerState.showStarOverlay,
+                onZoomIn: _zoomIn,
+                onZoomOut: _zoomOut,
+                onPanUpdate: _panPreview,
               ),
             ),
-            child: Column(
-              children: [
-                // Panel tabs (full width on mobile)
-                PanelTabs(
-                  key: ImagingTutorialKeys.tabBar,
-                  selectedIndex: selectedPanel,
-                  onSelected: _selectPanel,
-                  colors: colors,
-                ),
-
-                // Panel content
-                Expanded(
+            // Desktop / tablet bottom control panel — content-sized, capped
+            // and scrollable. On phone this is omitted: the live preview keeps
+            // the whole primary region and the persistent capture bar (composed
+            // as a sibling in [build]) carries Duration + Snapshot + Loop.
+            if (!phone)
+              ConstrainedBox(
+                constraints: BoxConstraints(maxHeight: maxPanelHeight),
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: colors.surface,
+                    border: Border(
+                      top: BorderSide(color: colors.border),
+                    ),
+                  ),
                   child: FadeTransition(
                     opacity: _fadeController,
-                    child: IndexedStack(
-                      index: selectedPanel,
-                      children: [
-                        CapturePanel(colors: colors),
-                        _CameraTabContent(colors: colors),
-                        FocusPanel(
-                            key: ImagingTutorialKeys.focusTab, colors: colors),
-                        GuidingPanel(colors: colors),
-                        MountTab(key: ImagingTutorialKeys.mountTab),
-                        RotatorPanel(colors: colors),
-                        StackingPanel(colors: colors),
-                        AnnotationTabPanel(colors: colors),
-                      ],
+                    child: SingleChildScrollView(
+                      child: _buildControlPanel(colors),
                     ),
                   ),
                 ),
-              ],
-            ),
-          ),
-        ),
-      ],
+              ),
+          ],
+        );
+      },
     );
   }
 
-  /// Desktop layout: Side panel with tabs, image viewer takes most space
-  Widget _buildDesktopLayout(
+  /// The tab strip + IndexedStack panel handed to [AdaptivePanelLayout] as the
+  /// secondary panel.
+  ///
+  /// On desktop/tablet (`phone == false`) it fills the side column, so the
+  /// IndexedStack lives in an [Expanded] and each tab's own scroll view handles
+  /// overflow. On phone (`phone == true`) it is hosted inside the bottom sheet,
+  /// whose body is itself a [SingleChildScrollView] — an [Expanded] there would
+  /// be unbounded and throw — so we give the IndexedStack a bounded height
+  /// (capped to the sheet's working area) and let each tab scroll internally.
+  Widget _buildTabsPanel(
     NightshadeColors colors,
-    int selectedPanel,
-    ImagingViewerState viewerState,
-  ) {
-    return Row(
-      children: [
-        // Main content area (image + controls)
-        Expanded(
-          flex: 7,
-          child: LayoutBuilder(
-            builder: (context, constraints) {
-              // Cap the bottom control panel at ~45% of the available column
-              // height so the fully-expanded panel can never squeeze the live
-              // preview to nothing. The panel itself sizes to its content
-              // (it is NOT an Expanded), so as its sections collapse it shrinks
-              // and the preview's Expanded above absorbs the reclaimed height —
-              // which is the whole point of the collapsible layout. If the
-              // expanded controls exceed the cap they scroll internally.
-              final maxPanelHeight = constraints.maxHeight.isFinite
-                  ? constraints.maxHeight * 0.45
-                  : double.infinity;
+    int selectedPanel, {
+    required bool phone,
+  }) {
+    final stack = FadeTransition(
+      opacity: _fadeController,
+      child: IndexedStack(
+        index: selectedPanel,
+        children: [
+          CapturePanel(colors: colors),
+          _CameraTabContent(colors: colors),
+          FocusPanel(key: ImagingTutorialKeys.focusTab, colors: colors),
+          GuidingPanel(colors: colors),
+          MountTab(key: ImagingTutorialKeys.mountTab),
+          RotatorPanel(colors: colors),
+          StackingPanel(colors: colors),
+          AnnotationTabPanel(colors: colors),
+        ],
+      ),
+    );
+
+    if (phone) {
+      // The phone/compact variant is hosted in two different containers:
+      //   * the bottom SHEET, whose body is a SingleChildScrollView (unbounded
+      //     height) — there an Expanded would throw, so we size the body to a
+      //     fraction of the screen and let each tab scroll internally; and
+      //   * the landscape/tablet side-by-side SPLIT, where the panel sits in a
+      //     bounded Expanded column.
+      //
+      // A LayoutBuilder distinguishes the two: when the incoming height is
+      // bounded (the split) we let the IndexedStack fill it via Expanded; when
+      // it is unbounded (the sheet) we fall back to the screen-fraction
+      // SizedBox. This avoids any fixed height ever exceeding a bounded parent
+      // by a sub-pixel during fade frames.
+      return Container(
+        decoration: BoxDecoration(color: colors.surface),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final tabs = PanelTabs(
+              key: ImagingTutorialKeys.tabBar,
+              selectedIndex: selectedPanel,
+              onSelected: _selectPanel,
+              colors: colors,
+            );
+            if (constraints.maxHeight.isFinite) {
               return Column(
-                children: [
-                  // Slim off-canvas toolbar above the preview — status
-                  // readouts, Overlays menu, annotate toggle and view controls
-                  // live here so the image canvas itself stays unobstructed.
-                  ImagingPreviewToolbar(
-                    colors: colors,
-                    zoomLevel: viewerState.zoomLevel,
-                    showCrosshair: viewerState.showCrosshair,
-                    showStarOverlay: viewerState.showStarOverlay,
-                    onZoomIn: _zoomIn,
-                    onZoomOut: _zoomOut,
-                    onFitToWindow: _fitToWindow,
-                    onZoom1to1: _zoom1to1,
-                    onAbortCapture: _abortCapture,
-                    onToggleCrosshair: _viewer.toggleCrosshair,
-                    onToggleStarOverlay: _viewer.toggleStarOverlay,
-                  ),
-                  // Live preview area
-                  Expanded(
-                    child: LivePreviewArea(
-                      key: ImagingTutorialKeys.previewArea,
-                      colors: colors,
-                      zoomLevel: viewerState.zoomLevel,
-                      panOffset: viewerState.panOffset,
-                      showCrosshair: viewerState.showCrosshair,
-                      showStarOverlay: viewerState.showStarOverlay,
-                      onZoomIn: _zoomIn,
-                      onZoomOut: _zoomOut,
-                      onPanUpdate: _panPreview,
-                    ),
-                  ),
-
-                  // Bottom control panel — content-sized, capped + scrollable.
-                  ConstrainedBox(
-                    constraints: BoxConstraints(maxHeight: maxPanelHeight),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: colors.surface,
-                        border: Border(
-                          top: BorderSide(color: colors.border),
-                        ),
-                      ),
-                      child: FadeTransition(
-                        opacity: _fadeController,
-                        child: SingleChildScrollView(
-                          child: _buildControlPanel(colors),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                children: [tabs, Expanded(child: stack)],
               );
-            },
-          ),
+            }
+            final bodyHeight = MediaQuery.sizeOf(context).height * 0.52;
+            return Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [tabs, SizedBox(height: bodyHeight, child: stack)],
+            );
+          },
         ),
+      );
+    }
 
-        // Right panel with tabs
-        ResizablePanel(
-          initialWidth: 320,
-          minWidth: 250,
-          maxWidth: 500,
-          side: ResizeSide.left,
-          child: Container(
-            decoration: BoxDecoration(
-              color: colors.surface,
-              border: Border(
-                left: BorderSide(color: colors.border),
-              ),
-            ),
-            child: Column(
-              children: [
-                // Panel tabs
-                PanelTabs(
-                  key: ImagingTutorialKeys.tabBar,
-                  selectedIndex: selectedPanel,
-                  onSelected: _selectPanel,
+    return Container(
+      decoration: BoxDecoration(color: colors.surface),
+      child: Column(
+        children: [
+          PanelTabs(
+            key: ImagingTutorialKeys.tabBar,
+            selectedIndex: selectedPanel,
+            onSelected: _selectPanel,
+            colors: colors,
+          ),
+          Expanded(child: stack),
+        ],
+      ),
+    );
+  }
+
+  /// Persistent compact capture bar shown under the live preview on phones.
+  ///
+  /// Keeps the primary capture action reachable WITHOUT scrolling or opening
+  /// the controls sheet (mobile-responsive standard rule 5). It reflows via a
+  /// [Wrap] so the Duration field + Snapshot + Loop never overflow at the
+  /// narrowest supported width (360 px), and exposes the same snapshot/loop
+  /// handlers and `isEnabled` gating as the desktop control panel.
+  Widget _buildPhoneCaptureBar(NightshadeColors colors) {
+    final exposureSettings = ref.watch(exposureSettingsProvider);
+    final cameraState = ref.watch(cameraStateProvider);
+    final isConnected =
+        cameraState.connectionState == DeviceConnectionState.connected;
+    final isCapturing = _isSingleCapture || _isLooping;
+    final isRemoteMode = ref.watch(isRemoteModeProvider);
+    final hostSuffix = isRemoteMode ? ' (host)' : '';
+
+    return Container(
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(top: BorderSide(color: colors.border)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              // Duration field.
+              SizedBox(
+                width: 110,
+                child: EditableCompactInput(
+                  key: ImagingTutorialKeys.exposureSlider,
+                  label: 'Duration$hostSuffix',
+                  value: exposureSettings.exposureTime.toStringAsFixed(0),
+                  suffix: 's',
                   colors: colors,
+                  isMobile: true,
+                  onChanged: (value) {
+                    final parsed = double.tryParse(value);
+                    if (parsed != null && parsed > 0) {
+                      ref.read(exposureSettingsProvider.notifier).state =
+                          exposureSettings.copyWith(exposureTime: parsed);
+                    }
+                  },
                 ),
-
-                // Panel content
-                Expanded(
-                  child: FadeTransition(
-                    opacity: _fadeController,
-                    child: IndexedStack(
-                      index: selectedPanel,
-                      children: [
-                        CapturePanel(colors: colors),
-                        _CameraTabContent(colors: colors),
-                        FocusPanel(
-                            key: ImagingTutorialKeys.focusTab, colors: colors),
-                        GuidingPanel(colors: colors),
-                        MountTab(key: ImagingTutorialKeys.mountTab),
-                        RotatorPanel(colors: colors),
-                        StackingPanel(colors: colors),
-                        AnnotationTabPanel(colors: colors),
-                      ],
-                    ),
-                  ),
+              ),
+              // Snapshot — the primary capture action.
+              SizedBox(
+                width: 150,
+                child: BigActionButton(
+                  key: ImagingTutorialKeys.snapshotBtn,
+                  icon: _isSingleCapture
+                      ? LucideIcons.loader2
+                      : LucideIcons.camera,
+                  label: _isSingleCapture ? 'Taking...' : 'Snapshot$hostSuffix',
+                  color: colors.primary,
+                  isLoading: _isSingleCapture,
+                  isEnabled: isConnected && !isCapturing,
+                  onPressed: _takeSnapshot,
+                  isMobile: true,
                 ),
-              ],
-            ),
+              ),
+              // Loop / Stop.
+              SizedBox(
+                width: 120,
+                child: BigActionButton(
+                  key: ImagingTutorialKeys.loopBtn,
+                  icon: _isLooping ? LucideIcons.square : LucideIcons.video,
+                  label: _isLooping ? 'Stop' : 'Loop',
+                  color: _isLooping ? colors.error : colors.accent,
+                  isEnabled: isConnected && !_isSingleCapture,
+                  onPressed: _toggleLoop,
+                  isMobile: true,
+                ),
+              ),
+            ],
           ),
         ),
-      ],
+      ),
     );
   }
 

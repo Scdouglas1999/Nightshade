@@ -97,15 +97,39 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
     _currentSubTab = resolved.index;
   }
 
-  List<String> _tabs(BuildContext context) {
+  /// The Analytics sub-tabs, in [AnalyticsTab] enum order. Each carries an icon
+  /// so [AdaptiveTabBar] can collapse to icon-only on a compact phone instead
+  /// of overflowing, and a [AdaptiveTab.buttonKey] for the tutorial spotlight.
+  List<AdaptiveTab> _tabs(BuildContext context) {
     final l10n = context.l10n;
     return [
-      l10n.text('analyticsSession'),
-      l10n.text('analyticsHistory'),
-      l10n.text('analyticsProjects'),
-      l10n.text('analyticsEquipmentStats'),
-      l10n.text('analyticsScience'),
-      l10n.text('analyticsDiagnostics'),
+      AdaptiveTab(
+        label: l10n.text('analyticsSession'),
+        icon: LucideIcons.activity,
+        buttonKey: AnalyticsTutorialKeys.sessionTab,
+      ),
+      AdaptiveTab(
+        label: l10n.text('analyticsHistory'),
+        icon: LucideIcons.history,
+        buttonKey: AnalyticsTutorialKeys.historyTab,
+      ),
+      AdaptiveTab(
+        label: l10n.text('analyticsProjects'),
+        icon: LucideIcons.folderKanban,
+      ),
+      AdaptiveTab(
+        label: l10n.text('analyticsEquipmentStats'),
+        icon: LucideIcons.wrench,
+        buttonKey: AnalyticsTutorialKeys.equipmentTab,
+      ),
+      AdaptiveTab(
+        label: l10n.text('analyticsScience'),
+        icon: LucideIcons.flaskConical,
+      ),
+      AdaptiveTab(
+        label: l10n.text('analyticsDiagnostics'),
+        icon: LucideIcons.stethoscope,
+      ),
     ];
   }
 
@@ -124,77 +148,63 @@ class _AnalyticsScreenState extends ConsumerState<AnalyticsScreen> {
       alignment: Alignment.bottomRight,
       child: FocusTraversalGroup(
         policy: ReadingOrderTraversalPolicy(),
-        child: Column(
-          children: [
-            // Sub-tabs
-            Container(
-              height: 40,
-              decoration: BoxDecoration(
-                color: colors.surfaceAlt,
-                border: Border(bottom: BorderSide(color: colors.border)),
-              ),
-              child: Row(
-                children: [
-                  const SizedBox(width: 16),
-                  ...tabs.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final label = entry.value;
-                    // Attach tutorial keys to the tab buttons, not content
-                    final Key? key = switch (index) {
-                      0 => AnalyticsTutorialKeys.sessionTab,
-                      1 => AnalyticsTutorialKeys.historyTab,
-                      3 => AnalyticsTutorialKeys.equipmentTab,
-                      _ => null,
-                    };
-                    return SubTabButton(
-                      key: key,
-                      label: label,
-                      isSelected: index == _currentSubTab,
-                      onTap: () => setState(() => _currentSubTab = index),
-                    );
-                  }),
-                  const Spacer(),
-                  if (_currentSubTab == AnalyticsTab.science.index) ...[
-                    Tooltip(
-                      message: 'Export science data',
-                      child: IconButton(
-                        icon: Icon(
-                          LucideIcons.database,
-                          size: 16,
-                          color: colors.textSecondary,
-                        ),
-                        onPressed: () => showDialog(
-                          context: context,
-                          builder: (_) => const ScienceExportHub(),
-                        ),
-                        padding: const EdgeInsets.all(4),
-                        constraints: const BoxConstraints(
-                          minWidth: 28,
-                          minHeight: 28,
+        child: SafeArea(
+          top: false,
+          bottom: false,
+          child: Column(
+            children: [
+              // Sub-tabs. AdaptiveTabBar scrolls horizontally (and collapses to
+              // icons on a compact phone) instead of overflowing the six tabs.
+              Container(
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  border: Border(bottom: BorderSide(color: colors.border)),
+                ),
+                child: AdaptiveTabBar(
+                  tabs: tabs,
+                  selectedIndex: _currentSubTab,
+                  onSelected: (index) => setState(() => _currentSubTab = index),
+                  trailing: [
+                    if (_currentSubTab == AnalyticsTab.science.index)
+                      Tooltip(
+                        message: 'Export science data',
+                        child: IconButton(
+                          icon: Icon(
+                            LucideIcons.database,
+                            size: 18,
+                            color: colors.textSecondary,
+                          ),
+                          onPressed: () => showDialog<void>(
+                            context: context,
+                            builder: (_) => const ScienceExportHub(),
+                          ),
+                          padding: const EdgeInsets.all(12),
+                          constraints: const BoxConstraints(
+                            minWidth: 48,
+                            minHeight: 48,
+                          ),
                         ),
                       ),
-                    ),
-                    const SizedBox(width: 8),
                   ],
-                ],
+                ),
               ),
-            ),
 
-            // Content. Order must match the AnalyticsTab enum.
-            Expanded(
-              child: IndexedStack(
-                index: _currentSubTab,
-                children: const [
-                  _SessionTab(),
-                  _HistoryTab(),
-                  _ProjectsTab(),
-                  _EquipmentStatsTab(),
-                  ScienceAnalyticsTab(),
-                  DiagnosticsTabContent(),
-                ],
+              // Content. Order must match the AnalyticsTab enum.
+              Expanded(
+                child: IndexedStack(
+                  index: _currentSubTab,
+                  children: const [
+                    _SessionTab(),
+                    _HistoryTab(),
+                    _ProjectsTab(),
+                    _EquipmentStatsTab(),
+                    ScienceAnalyticsTab(),
+                    DiagnosticsTabContent(),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );

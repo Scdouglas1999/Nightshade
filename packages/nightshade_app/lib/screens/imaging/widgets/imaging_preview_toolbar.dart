@@ -103,6 +103,18 @@ class ImagingPreviewToolbar extends ConsumerWidget {
       showAbort: exposureProgress.percent > 0 && exposureProgress.percent < 1.0,
     );
 
+    final trailing = <Widget>[
+      overlays,
+      const SizedBox(width: NightshadeTokens.spaceXs),
+      // Annotate toggle: opens/closes the docked drawing palette. Only
+      // meaningful with a frame on the canvas to draw over.
+      if (currentImage != null) ...[
+        _DrawModeButton(colors: colors),
+        const SizedBox(width: NightshadeTokens.spaceXs),
+      ],
+      viewControls,
+    ];
+
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
@@ -112,27 +124,41 @@ class ImagingPreviewToolbar extends ConsumerWidget {
         horizontal: NightshadeTokens.spaceMd,
         vertical: NightshadeTokens.spaceXs,
       ),
-      child: Row(
-        children: [
-          // Status cluster scrolls horizontally on narrow widths so it can
-          // never shove the overlays menu or view controls off the bar.
-          Expanded(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: status,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // The status readouts + Overlays menu + view controls do not all fit
+          // on a phone-width bar (~360px). Rather than clip, the whole bar
+          // becomes one horizontally-scrolling row on narrow widths so every
+          // control stays reachable. On wider widths the status cluster takes
+          // the slack (Expanded) and the trailing controls stay pinned right —
+          // unchanged desktop behaviour.
+          const wideEnough = 520.0;
+          if (constraints.maxWidth >= wideEnough) {
+            return Row(
+              children: [
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: status,
+                  ),
+                ),
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                ...trailing,
+              ],
+            );
+          }
+          return SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                status,
+                const SizedBox(width: NightshadeTokens.spaceSm),
+                ...trailing,
+              ],
             ),
-          ),
-          const SizedBox(width: NightshadeTokens.spaceSm),
-          overlays,
-          const SizedBox(width: NightshadeTokens.spaceXs),
-          // Annotate toggle: opens/closes the docked drawing palette. Only
-          // meaningful with a frame on the canvas to draw over.
-          if (currentImage != null) ...[
-            _DrawModeButton(colors: colors),
-            const SizedBox(width: NightshadeTokens.spaceXs),
-          ],
-          viewControls,
-        ],
+          );
+        },
       ),
     );
   }

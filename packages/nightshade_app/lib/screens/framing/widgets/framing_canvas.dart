@@ -540,56 +540,54 @@ class _CanvasControls extends StatelessWidget {
   Widget build(BuildContext context) {
     return Consumer(
       builder: (context, ref, child) {
-        return Row(
-          children: [
-            // Survey-source selector: a real NightshadeDropdown wired to the
-            // framing notifier so changing the source refetches the imagery for
-            // the new survey. No dead handler — selection drives setSurveySource.
-            _SurveySourceSelector(
-              colors: colors,
-              source: framingState.surveySource,
-              onChanged: (source) =>
-                  ref.read(framingProvider.notifier).setSurveySource(source),
-            ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
+        // The survey-source picker plus toggle chips. On a narrow phone canvas
+        // there is not enough width to keep all of these on one line, so they
+        // live in a [Wrap] that flows to a second line instead of overflowing.
+        final chips = <Widget>[
+          // Survey-source selector: a real NightshadeDropdown wired to the
+          // framing notifier so changing the source refetches the imagery for
+          // the new survey. No dead handler — selection drives setSurveySource.
+          _SurveySourceSelector(
+            colors: colors,
+            source: framingState.surveySource,
+            onChanged: (source) =>
+                ref.read(framingProvider.notifier).setSurveySource(source),
+          ),
+          _ControlChip(
+            icon: LucideIcons.grid,
+            label: 'Grid',
+            isActive: framingState.showGrid,
+            colors: colors,
+            onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
+          ),
+          _ControlChip(
+            icon: LucideIcons.tag,
+            label: 'Labels',
+            isActive: framingState.showLabels,
+            colors: colors,
+            onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
+          ),
+          // HiPS deep-survey tiles toggle. Only shown for surveys that have a
+          // verified HiPS pyramid (the toggle would be inert otherwise — the
+          // capability gate, hipsSurveyIsTileCapable, would keep tiles off);
+          // for those surveys it flips hipsFramingEnabledProvider, the same
+          // user preference hipsFramingActiveProvider combines with the
+          // capability gate to mount/unmount the streamed tile mosaic.
+          if (hipsSurveyIsTileCapable(framingState.surveySource))
             _ControlChip(
-              icon: LucideIcons.grid,
-              label: 'Grid',
-              isActive: framingState.showGrid,
+              icon: LucideIcons.sparkles,
+              label: 'HiPS Tiles',
+              isActive: ref.watch(hipsFramingEnabledProvider),
               colors: colors,
-              onTap: () => ref.read(framingProvider.notifier).toggleGrid(),
+              onTap: () {
+                final notifier = ref.read(hipsFramingEnabledProvider.notifier);
+                notifier.state = !notifier.state;
+              },
             ),
-            const SizedBox(width: NightshadeTokens.spaceSm),
-            _ControlChip(
-              icon: LucideIcons.tag,
-              label: 'Labels',
-              isActive: framingState.showLabels,
-              colors: colors,
-              onTap: () => ref.read(framingProvider.notifier).toggleLabels(),
-            ),
-            // HiPS deep-survey tiles toggle. Only shown for surveys that have a
-            // verified HiPS pyramid (the toggle would be inert otherwise — the
-            // capability gate, hipsSurveyIsTileCapable, would keep tiles off);
-            // for those surveys it flips hipsFramingEnabledProvider, the same
-            // user preference hipsFramingActiveProvider combines with the
-            // capability gate to mount/unmount the streamed tile mosaic.
-            if (hipsSurveyIsTileCapable(framingState.surveySource)) ...[
-              const SizedBox(width: NightshadeTokens.spaceSm),
-              _ControlChip(
-                icon: LucideIcons.sparkles,
-                label: 'HiPS Tiles',
-                isActive: ref.watch(hipsFramingEnabledProvider),
-                colors: colors,
-                onTap: () {
-                  final notifier =
-                      ref.read(hipsFramingEnabledProvider.notifier);
-                  notifier.state = !notifier.state;
-                },
-              ),
-            ],
-            const Spacer(),
-            if (framingState.isLoadingImage)
-              Container(
+        ];
+
+        final loading = framingState.isLoadingImage
+            ? Container(
                 padding: const EdgeInsets.symmetric(
                     horizontal: NightshadeTokens.spaceMd,
                     vertical: NightshadeTokens.spaceSm),
@@ -617,7 +615,28 @@ class _CanvasControls extends StatelessWidget {
                     ),
                   ],
                 ),
+              )
+            : null;
+
+        // Chips take the available width (wrapping when needed); the loading
+        // pill sits at the trailing edge on the first line. Using a Row with an
+        // Expanded(Wrap) keeps the loading indicator right-aligned without a
+        // Spacer (which would force everything onto one unbreakable line).
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: Wrap(
+                spacing: NightshadeTokens.spaceSm,
+                runSpacing: NightshadeTokens.spaceSm,
+                crossAxisAlignment: WrapCrossAlignment.center,
+                children: chips,
               ),
+            ),
+            if (loading != null) ...[
+              const SizedBox(width: NightshadeTokens.spaceSm),
+              loading,
+            ],
           ],
         );
       },

@@ -278,46 +278,61 @@ class _LivePreviewAreaState extends ConsumerState<LivePreviewArea> {
                                 painter: StarFieldPainter(colors: colors),
                               ),
                             ),
-                            Center(
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    padding: const EdgeInsets.all(24),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          colors.surface.withValues(alpha: 0.8),
-                                      shape: BoxShape.circle,
-                                      border: Border.all(color: colors.border),
-                                    ),
-                                    child: Icon(
-                                      LucideIcons.camera,
-                                      size: 48,
-                                      color: colors.textMuted,
+                            // Centered when there's room; on very short preview
+                            // heights (e.g. a phone held in landscape) the
+                            // message scrolls instead of overflowing the canvas.
+                            SingleChildScrollView(
+                              child: ConstrainedBox(
+                                constraints: BoxConstraints(
+                                  minHeight: constraints.maxHeight,
+                                ),
+                                child: Center(
+                                  child: Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Container(
+                                          padding: const EdgeInsets.all(24),
+                                          decoration: BoxDecoration(
+                                            color: colors.surface
+                                                .withValues(alpha: 0.8),
+                                            shape: BoxShape.circle,
+                                            border: Border.all(
+                                                color: colors.border),
+                                          ),
+                                          child: Icon(
+                                            LucideIcons.camera,
+                                            size: 48,
+                                            color: colors.textMuted,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        Text(
+                                          isConnected
+                                              ? 'No Image'
+                                              : 'No Camera Connected',
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color: colors.textSecondary,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 8),
+                                        Text(
+                                          isConnected
+                                              ? 'Take a snapshot or start a capture loop'
+                                              : 'Connect a camera in Equipment settings',
+                                          textAlign: TextAlign.center,
+                                          style: TextStyle(
+                                            fontSize: 13,
+                                            color: colors.textMuted,
+                                          ),
+                                        ),
+                                      ],
                                     ),
                                   ),
-                                  const SizedBox(height: 20),
-                                  Text(
-                                    isConnected
-                                        ? 'No Image'
-                                        : 'No Camera Connected',
-                                    style: TextStyle(
-                                      fontSize: 18,
-                                      fontWeight: FontWeight.w600,
-                                      color: colors.textSecondary,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    isConnected
-                                        ? 'Take a snapshot or start a capture loop'
-                                        : 'Connect a camera in Equipment settings',
-                                    style: TextStyle(
-                                      fontSize: 13,
-                                      color: colors.textMuted,
-                                    ),
-                                  ),
-                                ],
+                                ),
                               ),
                             ),
                           ],

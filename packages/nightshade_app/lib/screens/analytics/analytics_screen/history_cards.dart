@@ -28,6 +28,70 @@ class _SessionHistoryCard extends ConsumerWidget {
         ? session.endTime!.difference(session.startTime)
         : DateTime.now().difference(session.startTime);
 
+    final titleRow = Row(
+      children: [
+        Flexible(
+          child: Text(
+            session.name ?? context.l10n.text('analyticsUnnamedSession'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: colors.textPrimary,
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: _getStatusColor(session.status, colors),
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            session.status.toUpperCase(),
+            style: TextStyle(
+              fontSize: 9,
+              fontWeight: FontWeight.w600,
+              color: colors.background,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final dateText = Text(
+      DateFormat('MMM d, yyyy HH:mm').format(session.startTime),
+      style: TextStyle(fontSize: 12, color: colors.textSecondary),
+    );
+
+    // Stats reflow as a Wrap so a narrow phone column never overflows; on wide
+    // layouts the chips sit on a single line beside the session info.
+    final statChips = <Widget>[
+      _StatChip(
+        icon: LucideIcons.clock,
+        label: _formatDuration(duration),
+        colors: colors,
+      ),
+      _StatChip(
+        icon: LucideIcons.image,
+        label: '${session.successfulExposures}',
+        colors: colors,
+      ),
+      _StatChip(
+        icon: LucideIcons.timer,
+        label: '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
+        colors: colors,
+      ),
+      if (session.avgHfr != null)
+        _StatChip(
+          icon: LucideIcons.focus,
+          label: session.avgHfr!.toStringAsFixed(2),
+          colors: colors,
+        ),
+    ];
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 12.0),
       child: NightshadeCard(
@@ -36,92 +100,60 @@ class _SessionHistoryCard extends ConsumerWidget {
           borderRadius: BorderRadius.circular(8),
           child: Padding(
             padding: const EdgeInsets.all(16),
-            child: Row(
-              children: [
-                // Session info
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isPhone =
+                    constraints.maxWidth < BreakpointTokens.breakpointPhone;
+
+                if (isPhone) {
+                  return Row(
                     children: [
-                      Row(
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            titleRow,
+                            const SizedBox(height: 4),
+                            dateText,
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 8,
+                              runSpacing: 8,
+                              children: statChips,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Icon(LucideIcons.chevronRight,
+                          size: 20, color: colors.textMuted),
+                    ],
+                  );
+                }
+
+                return Row(
+                  children: [
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            session.name ??
-                                context.l10n.text('analyticsUnnamedSession'),
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 6,
-                              vertical: 2,
-                            ),
-                            decoration: BoxDecoration(
-                              color: _getStatusColor(session.status, colors),
-                              borderRadius: BorderRadius.circular(4),
-                            ),
-                            child: Text(
-                              session.status.toUpperCase(),
-                              style: TextStyle(
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
-                                color: colors.background,
-                              ),
-                            ),
-                          ),
+                          titleRow,
+                          const SizedBox(height: 4),
+                          dateText,
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        DateFormat('MMM d, yyyy HH:mm')
-                            .format(session.startTime),
-                        style: TextStyle(
-                            fontSize: 12, color: colors.textSecondary),
-                      ),
-                    ],
-                  ),
-                ),
-
-                // Statistics
-                Row(
-                  children: [
-                    _StatChip(
-                      icon: LucideIcons.clock,
-                      label: _formatDuration(duration),
-                      colors: colors,
+                    ),
+                    Wrap(
+                      spacing: 12,
+                      runSpacing: 8,
+                      children: statChips,
                     ),
                     const SizedBox(width: 12),
-                    _StatChip(
-                      icon: LucideIcons.image,
-                      label: '${session.successfulExposures}',
-                      colors: colors,
-                    ),
-                    const SizedBox(width: 12),
-                    _StatChip(
-                      icon: LucideIcons.timer,
-                      label:
-                          '${(session.totalIntegrationSecs / 3600).toStringAsFixed(1)}h',
-                      colors: colors,
-                    ),
-                    if (session.avgHfr != null) ...[
-                      const SizedBox(width: 12),
-                      _StatChip(
-                        icon: LucideIcons.focus,
-                        label: session.avgHfr!.toStringAsFixed(2),
-                        colors: colors,
-                      ),
-                    ],
+                    Icon(LucideIcons.chevronRight,
+                        size: 20, color: colors.textMuted),
                   ],
-                ),
-
-                const SizedBox(width: 12),
-                Icon(LucideIcons.chevronRight,
-                    size: 20, color: colors.textMuted),
-              ],
+                );
+              },
             ),
           ),
         ),

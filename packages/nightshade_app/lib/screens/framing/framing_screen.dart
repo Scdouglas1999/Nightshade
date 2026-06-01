@@ -157,6 +157,23 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
     AsyncValue<FramingEquipmentResult> equipmentResult,
     (double, double)? currentAltAz,
   ) {
+    // Canvas (dominant) + survey-overlay chrome. This is the [primary] region
+    // for the adaptive split: full-screen on desktop minus the controls panel,
+    // and the dominant region on a phone (controls collapse to a sheet /
+    // side-by-side split per AdaptivePanelLayout).
+    final canvas = _buildCanvas(colors, framingState, equipmentResult);
+
+    // The controls / target sidebar content. Identical on every tier — only its
+    // container changes (a fixed side column on desktop/tablet, a bottom sheet
+    // or landscape side panel on a phone).
+    final controls = _buildControlsColumn(
+      colors,
+      framingState,
+      searchState,
+      equipmentResult,
+      currentAltAz,
+    );
+
     return ContextualTourPrompt(
       screenId: 'framing',
       tourCategory: TutorialCategory.framingTour,
@@ -165,168 +182,229 @@ class _FramingScreenState extends ConsumerState<FramingScreen> {
           'Learn how to frame and compose your astrophotography targets.',
       durationMinutes: 3,
       alignment: Alignment.bottomRight,
-      child: Row(
-        children: [
-          // Main framing canvas with optical config overlay
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: FramingCanvas(
-                    key: FramingTutorialKeys.canvas,
-                    colors: colors,
-                    framingState: framingState,
-                    equipmentResult: equipmentResult.valueOrNull,
-                    onPan: (dx, dy, canvasSize) {
-                      ref
-                          .read(framingProvider.notifier)
-                          .pan(dx, dy, canvasSize: canvasSize);
-                    },
-                    onRotate: (angle) {
-                      ref.read(framingProvider.notifier).setRotation(angle);
-                    },
-                    onCanvasResized: (canvasSize) {
-                      ref
-                          .read(framingProvider.notifier)
-                          .onCanvasResized(canvasSize);
-                    },
+      child: SafeArea(
+        child: AdaptivePanelLayout(
+          primary: canvas,
+          panelSide: PanelSide.end,
+          // Desktop/tablet keep the familiar right-hand sidebar; the previous
+          // ResizablePanel(initialWidth: 320, min 250, max 500) maps onto these.
+          initialPanelWidth: 320,
+          minPanelWidth: 250,
+          maxPanelWidth: 500,
+          // Phone portrait: the sidebar collapses to a bottom sheet so the
+          // canvas keeps the full screen. Phone landscape: a side-by-side split
+          // (canvas left, controls right) once there is room.
+          phoneStrategy: PhonePanelStrategy.bottomSheet,
+          secondary: [
+            AdaptivePanel(
+              title: 'Framing Controls',
+              icon: LucideIcons.sliders,
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: colors.surface,
+                  border: Border(left: BorderSide(color: colors.border)),
+                ),
+                child: controls,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// The dominant survey/HiPS canvas plus its overlay chrome (optical-config
+  /// panel toggle and survey attribution badge).
+  Widget _buildCanvas(
+    NightshadeColors colors,
+    FramingState framingState,
+    AsyncValue<FramingEquipmentResult> equipmentResult,
+  ) {
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: FramingCanvas(
+            key: FramingTutorialKeys.canvas,
+            colors: colors,
+            framingState: framingState,
+            equipmentResult: equipmentResult.valueOrNull,
+            onPan: (dx, dy, canvasSize) {
+              ref
+                  .read(framingProvider.notifier)
+                  .pan(dx, dy, canvasSize: canvasSize);
+            },
+            onRotate: (angle) {
+              ref.read(framingProvider.notifier).setRotation(angle);
+            },
+            onCanvasResized: (canvasSize) {
+              ref.read(framingProvider.notifier).onCanvasResized(canvasSize);
+            },
+          ),
+        ),
+        // GPU HiPS framing attribution chrome (C8). The streamed tile
+        // mosaic itself is composed INSIDE FramingCanvas's Stack — above
+        // the single-cutout survey snapshot and UNDER the grid / FOV /
+        // equipment overlays — so the imagery never hides the FOV
+        // reticle. This wiring only adds the survey attribution credit
+        // badge as top chrome (a licence requirement), self-positioning
+        // in the canvas's bottom band and gated internally by
+        // hipsFramingActiveProvider, so it contributes nothing when the
+        // feature is off or the survey has no verified HiPS pyramid.
+        const Positioned.fill(child: FramingHipsLayerWiring()),
+        if (framingState.showOpticalConfigPanel)
+          const Positioned(
+            top: 16,
+            left: 16,
+            child: OpticalConfigPanel(),
+          )
+        else
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Tooltip(
+              message: 'Show optical config panel',
+              child: Material(
+                color: colors.surface,
+                borderRadius: BorderRadius.circular(8),
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(8),
+                  onTap: () {
+                    ref
+                        .read(framingProvider.notifier)
+                        .setOpticalConfigPanelVisible(true);
+                  },
+                  child: Container(
+                    // ≥48px touch target so the show-config affordance is
+                    // tappable on a phone (the inner icon stays 16px).
+                    constraints: const BoxConstraints(
+                      minWidth: NightshadeTokens.minTouchTarget,
+                      minHeight: NightshadeTokens.minTouchTarget,
+                    ),
+                    alignment: Alignment.center,
+                    decoration: BoxDecoration(
+                      border: Border.all(color: colors.border),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(
+                      LucideIcons.aperture,
+                      size: 16,
+                      color: colors.textMuted,
+                    ),
                   ),
                 ),
-                // GPU HiPS framing attribution chrome (C8). The streamed tile
-                // mosaic itself is composed INSIDE FramingCanvas's Stack — above
-                // the single-cutout survey snapshot and UNDER the grid / FOV /
-                // equipment overlays — so the imagery never hides the FOV
-                // reticle. This wiring only adds the survey attribution credit
-                // badge as top chrome (a licence requirement), self-positioning
-                // in the canvas's bottom band and gated internally by
-                // hipsFramingActiveProvider, so it contributes nothing when the
-                // feature is off or the survey has no verified HiPS pyramid.
-                const Positioned.fill(child: FramingHipsLayerWiring()),
-                if (framingState.showOpticalConfigPanel)
-                  const Positioned(
-                    top: 16,
-                    left: 16,
-                    child: OpticalConfigPanel(),
-                  )
-                else
-                  Positioned(
-                    top: 16,
-                    left: 16,
-                    child: Tooltip(
-                      message: 'Show optical config panel',
-                      child: Material(
-                        color: colors.surface,
-                        borderRadius: BorderRadius.circular(8),
-                        child: InkWell(
-                          borderRadius: BorderRadius.circular(8),
-                          onTap: () {
-                            ref
-                                .read(framingProvider.notifier)
-                                .setOpticalConfigPanelVisible(true);
-                          },
-                          child: Container(
-                            padding: const EdgeInsets.all(8),
-                            decoration: BoxDecoration(
-                              border: Border.all(color: colors.border),
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                            child: Icon(
-                              LucideIcons.aperture,
-                              size: 16,
-                              color: colors.textMuted,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
+              ),
             ),
           ),
+      ],
+    );
+  }
 
-          // Right sidebar
-          ResizablePanel(
-            initialWidth: 320,
-            minWidth: 250,
-            maxWidth: 500,
-            side: ResizeSide.left,
-            child: Container(
-              decoration: BoxDecoration(
-                color: colors.surface,
-                border: Border(left: BorderSide(color: colors.border)),
+  /// The full controls/target column. The search header is pinned and the
+  /// remaining panels scroll, so the column fits any phone height without
+  /// clipping.
+  ///
+  /// Reused verbatim by the desktop sidebar, the phone-landscape side panel
+  /// (both bounded height → search pinned, body scrolls) and the phone bottom
+  /// sheet (unbounded height → the whole column shrink-wraps, the surrounding
+  /// sheet owns the scroll). [LayoutBuilder] picks the right mode so an
+  /// `Expanded` is never placed in an unbounded parent.
+  Widget _buildControlsColumn(
+    NightshadeColors colors,
+    FramingState framingState,
+    TargetSearchState searchState,
+    AsyncValue<FramingEquipmentResult> equipmentResult,
+    (double, double)? currentAltAz,
+  ) {
+    final search = FramingTargetSearch(
+      colors: colors,
+      searchState: searchState,
+      searchController: _searchController,
+      searchFocusNode: _searchFocusNode,
+      raController: _raController,
+      decController: _decController,
+      onTargetSelected: _selectTarget,
+      onResolveByName: _resolveAndSelectTarget,
+      onGoToManualCoordinates: _goToManualCoordinates,
+    );
+
+    final panels = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FramingEquipmentSection(
+          colors: colors,
+          equipmentAsync: equipmentResult,
+        ),
+        const SizedBox(height: 20),
+        FramingControlsSection(
+          colors: colors,
+          framingState: framingState,
+          equipmentAsync: equipmentResult,
+        ),
+        const SizedBox(height: 20),
+        FramingCoordinatesPanel(
+          colors: colors,
+          framingState: framingState,
+          currentAltAz: currentAltAz,
+        ),
+        const SizedBox(height: 20),
+        FramingAltitudePanel(
+          colors: colors,
+          framingState: framingState,
+        ),
+        const SizedBox(height: 20),
+        FramingMosaicSection(
+          colors: colors,
+          framingState: framingState,
+          equipmentAsync: equipmentResult,
+        ),
+        const SizedBox(height: 20),
+        FramingActionsPanel(
+          colors: colors,
+          framingState: framingState,
+          onAddToSequence: () => _addToSequence(
+            framingState.target!,
+            framingState.rotation,
+          ),
+          onAddToExistingSequence: () => _addToExistingSequence(
+            framingState.target!,
+            framingState.rotation,
+          ),
+          onSaveTarget: _saveTarget,
+          onCacheImage: _cacheImage,
+        ),
+      ],
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Unbounded height (inside the phone bottom sheet, which scrolls):
+        // shrink-wrap so we never put an Expanded in an unbounded parent.
+        if (!constraints.hasBoundedHeight) {
+          return Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              search,
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: panels,
               ),
-              child: Column(
-                children: [
-                  FramingTargetSearch(
-                    colors: colors,
-                    searchState: searchState,
-                    searchController: _searchController,
-                    searchFocusNode: _searchFocusNode,
-                    raController: _raController,
-                    decController: _decController,
-                    onTargetSelected: _selectTarget,
-                    onResolveByName: _resolveAndSelectTarget,
-                    onGoToManualCoordinates: _goToManualCoordinates,
-                  ),
-                  Expanded(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          FramingEquipmentSection(
-                            colors: colors,
-                            equipmentAsync: equipmentResult,
-                          ),
-                          const SizedBox(height: 20),
-                          FramingControlsSection(
-                            colors: colors,
-                            framingState: framingState,
-                            equipmentAsync: equipmentResult,
-                          ),
-                          const SizedBox(height: 20),
-                          FramingCoordinatesPanel(
-                            colors: colors,
-                            framingState: framingState,
-                            currentAltAz: currentAltAz,
-                          ),
-                          const SizedBox(height: 20),
-                          FramingAltitudePanel(
-                            colors: colors,
-                            framingState: framingState,
-                          ),
-                          const SizedBox(height: 20),
-                          FramingMosaicSection(
-                            colors: colors,
-                            framingState: framingState,
-                            equipmentAsync: equipmentResult,
-                          ),
-                          const SizedBox(height: 20),
-                          FramingActionsPanel(
-                            colors: colors,
-                            framingState: framingState,
-                            onAddToSequence: () => _addToSequence(
-                              framingState.target!,
-                              framingState.rotation,
-                            ),
-                            onAddToExistingSequence: () =>
-                                _addToExistingSequence(
-                              framingState.target!,
-                              framingState.rotation,
-                            ),
-                            onSaveTarget: _saveTarget,
-                            onCacheImage: _cacheImage,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
+            ],
+          );
+        }
+        // Bounded height (desktop/tablet sidebar, phone-landscape side panel):
+        // pin the search, scroll the body.
+        return Column(
+          children: [
+            search,
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: panels,
               ),
             ),
-          ),
-        ],
-      ),
+          ],
+        );
+      },
     );
   }
 

@@ -28,7 +28,6 @@ part 'planner_screen_parts/_filtered_empty_state.dart';
 part 'planner_screen_parts/_primary_target_card.dart';
 part 'planner_screen_parts/_search_results.dart';
 
-
 /// Identifies a Plan Tonight sub-tab for deep-linking via `?tab=` query
 /// param. Order here matches the rendered tab order; Recommendation is the
 /// default.
@@ -182,13 +181,30 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
     // Order MUST match [PlannerTab] declaration order: the selected index is
     // [PlannerTab.index], so a mismatch would mis-route deep-links and taps.
     // The assert is a developer guard against future drift; the tab-structure
-    // tests assert the same invariant at runtime.
-    final tabs = <(PlannerTab, String)>[
-      (PlannerTab.recommendation, 'Recommendation'),
-      (PlannerTab.projects, 'Projects'),
-      (PlannerTab.scheduler, 'Target Queue'),
-      (PlannerTab.week, 'This Week'),
-      (PlannerTab.progress, 'Progress'),
+    // tests assert the same invariant at runtime. Each tab carries an icon so
+    // [AdaptiveTabBar] can collapse to icon-only on a compact phone rather than
+    // overflowing the five tabs.
+    final tabs = <(PlannerTab, AdaptiveTab)>[
+      (
+        PlannerTab.recommendation,
+        const AdaptiveTab(label: 'Recommendation', icon: LucideIcons.sparkles),
+      ),
+      (
+        PlannerTab.projects,
+        const AdaptiveTab(label: 'Projects', icon: LucideIcons.folderKanban),
+      ),
+      (
+        PlannerTab.scheduler,
+        const AdaptiveTab(label: 'Target Queue', icon: LucideIcons.listOrdered),
+      ),
+      (
+        PlannerTab.week,
+        const AdaptiveTab(label: 'This Week', icon: LucideIcons.calendarDays),
+      ),
+      (
+        PlannerTab.progress,
+        const AdaptiveTab(label: 'Progress', icon: LucideIcons.trendingUp),
+      ),
     ];
     assert(
       tabs.length == PlannerTab.values.length &&
@@ -199,46 +215,39 @@ class _PlannerScreenState extends ConsumerState<PlannerScreen> {
 
     return Scaffold(
       backgroundColor: colors.background,
-      body: Column(
-        children: [
-          _PlannerHeader(colors: colors),
-          Container(
-            height: 40,
-            decoration: BoxDecoration(
-              color: colors.surfaceAlt,
-              border: Border(bottom: BorderSide(color: colors.border)),
+      body: SafeArea(
+        top: false,
+        bottom: false,
+        child: Column(
+          children: [
+            _PlannerHeader(colors: colors),
+            Container(
+              decoration: BoxDecoration(
+                color: colors.surfaceAlt,
+                border: Border(bottom: BorderSide(color: colors.border)),
+              ),
+              child: AdaptiveTabBar(
+                tabs: [for (final t in tabs) t.$2],
+                selectedIndex: _currentSubTab,
+                onSelected: (index) => setState(() => _currentSubTab = index),
+              ),
             ),
-            child: Row(
-              children: [
-                const SizedBox(width: 16),
-                ...tabs.asMap().entries.map((entry) {
-                  final index = entry.key;
-                  final label = entry.value.$2;
-                  return SubTabButton(
-                    label: label,
-                    isSelected: index == _currentSubTab,
-                    onTap: () => setState(() => _currentSubTab = index),
-                  );
-                }),
-                const Spacer(),
-              ],
+            Expanded(
+              child: IndexedStack(
+                index: _currentSubTab,
+                // Order MUST match `tabs` / [PlannerTab] — one child per enum
+                // value, at the same index.
+                children: const [
+                  _RecommendationTab(),
+                  ProjectsTabContent(),
+                  SchedulerTabContent(),
+                  WeekForecastStrip(),
+                  ProgressTabContent(),
+                ],
+              ),
             ),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: _currentSubTab,
-              // Order MUST match `tabs` / [PlannerTab] — one child per enum
-              // value, at the same index.
-              children: const [
-                _RecommendationTab(),
-                ProjectsTabContent(),
-                SchedulerTabContent(),
-                WeekForecastStrip(),
-                ProgressTabContent(),
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
