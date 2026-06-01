@@ -62,7 +62,7 @@ pub async fn cancel_exposure(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
     mgr.camera_abort_exposure(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))?;
+        .map_err(NightshadeError::from)?;
 
     // Publish ExposureCancelled event
     let state = get_state();
@@ -81,7 +81,7 @@ pub async fn get_camera_status(device_id: String) -> Result<CameraStatus, Nights
     let mgr = get_device_manager();
     mgr.camera_get_status(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set camera cooler
@@ -93,7 +93,7 @@ pub async fn set_camera_cooler(
     let mgr = get_device_manager();
     mgr.camera_set_cooler(&device_id, enabled != 0, target_temp)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -121,7 +121,7 @@ pub async fn api_camera_set_readout_mode(
     let mgr = get_device_manager();
     mgr.camera_set_readout_mode(&device_id, mode_index)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -144,7 +144,7 @@ pub async fn api_set_camera_binning(
         let mgr = get_device_manager();
         mgr.camera_set_binning(&device_id, bin_x, bin_y)
             .await
-            .map_err(NightshadeError::OperationFailed)
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -159,7 +159,7 @@ pub async fn api_camera_capture_preview(device_id: String) -> Result<Vec<u8>, Ni
     let mgr = get_device_manager();
     mgr.camera_capture_preview(&device_id)
         .await
-        .map_err(NightshadeError::OperationFailed)
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -194,6 +194,6 @@ pub async fn api_camera_get_recommended_settings(
     let raw = mgr
         .camera_get_recommended_settings(&device_id)
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(NightshadeError::from)?;
     Ok(raw.into())
 }

@@ -92,7 +92,7 @@ pub async fn api_get_camera_status(device_id: String) -> Result<CameraStatus, Ni
     let mgr = get_device_manager();
     mgr.camera_get_status(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set camera cooling target
@@ -126,7 +126,7 @@ pub async fn api_set_camera_cooler(
     let mgr = get_device_manager();
     mgr.camera_set_cooler(&device_id, enabled != 0, target_temp)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set camera gain
@@ -144,7 +144,7 @@ pub async fn api_set_camera_gain(device_id: String, gain: i32) -> Result<(), Nig
     let mgr = get_device_manager();
     mgr.camera_set_gain(&device_id, gain)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set camera offset
@@ -162,7 +162,7 @@ pub async fn api_set_camera_offset(device_id: String, offset: i32) -> Result<(),
     let mgr = get_device_manager();
     mgr.camera_set_offset(&device_id, offset)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -229,7 +229,7 @@ pub async fn api_get_mount_status(device_id: String) -> Result<MountStatus, Nigh
         let mgr = get_device_manager();
         mgr.mount_get_status(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -265,7 +265,7 @@ pub async fn api_mount_slew_to_coordinates(
         let mgr = get_device_manager();
         mgr.mount_slew(&device_id, ra, dec)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -288,7 +288,7 @@ pub async fn api_mount_sync_to_coordinates(
         let mgr = get_device_manager();
         mgr.mount_sync(&device_id, ra, dec)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -319,7 +319,7 @@ pub async fn api_mount_park(device_id: String) -> Result<(), NightshadeError> {
         let mgr = get_device_manager();
         mgr.mount_park(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -336,7 +336,7 @@ pub async fn api_mount_unpark(device_id: String) -> Result<(), NightshadeError> 
         let mgr = get_device_manager();
         mgr.mount_unpark(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -353,7 +353,7 @@ pub async fn api_mount_set_tracking(device_id: String, enabled: u8) -> Result<()
         let mgr = get_device_manager();
         mgr.mount_set_tracking(&device_id, enabled != 0)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -388,7 +388,7 @@ pub async fn api_mount_slew_alt_az(
         let mgr = get_device_manager();
         mgr.mount_slew_alt_az(&device_id, altitude, azimuth)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -418,7 +418,7 @@ pub async fn api_mount_find_home(device_id: String) -> Result<(), NightshadeErro
         let mgr = get_device_manager();
         mgr.mount_find_home(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -457,7 +457,7 @@ pub async fn api_mount_pulse_guide(
     let mgr = get_device_manager();
     mgr.mount_pulse_guide(&device_id, direction, duration_ms as u32)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 // =============================================================================
@@ -507,11 +507,11 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
         let position = mgr
             .focuser_get_position(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let moving = mgr
             .focuser_is_moving(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let temperature = mgr.focuser_get_temp(&device_id).await.unwrap_or(None);
         let (max_position, step_size) = match mgr.focuser_get_details(&device_id).await {
             Ok(details) => details,
@@ -527,7 +527,7 @@ pub async fn api_get_focuser_status(device_id: String) -> Result<FocuserStatus, 
         let is_absolute = mgr
             .focuser_is_absolute(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
 
         Ok(FocuserStatus {
             connected: true,
@@ -575,7 +575,7 @@ pub async fn api_focuser_move_to(device_id: String, position: i32) -> Result<(),
         let mgr = get_device_manager();
         mgr.focuser_move_abs(&device_id, position)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -622,7 +622,7 @@ pub async fn api_focuser_move_relative(
         let mgr = get_device_manager();
         mgr.focuser_move_rel(&device_id, delta)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -638,7 +638,7 @@ pub async fn api_focuser_halt(device_id: String) -> Result<(), NightshadeError> 
         let mgr = get_device_manager();
         mgr.focuser_halt(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -693,7 +693,7 @@ pub async fn api_get_filterwheel_status(
         let position = mgr
             .filter_wheel_get_position(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         tracing::info!(
             "[api_get_filterwheel_status] device={}, raw position from SDK={}",
             device_id,
@@ -702,11 +702,11 @@ pub async fn api_get_filterwheel_status(
         let is_moving = mgr
             .filter_wheel_is_moving(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let (filter_count, filter_names) = mgr
             .filter_wheel_get_config(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
 
         tracing::info!(
             "[api_get_filterwheel_status] Returning: position={}, moving={}, filter_count={}, names={:?}",
@@ -756,7 +756,7 @@ pub async fn api_filterwheel_set_position(
         let result = mgr
             .filter_wheel_set_position(&device_id, position)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e));
+            .map_err(NightshadeError::from);
         match &result {
             Ok(_) => tracing::info!("[API] Filter wheel position set successfully"),
             Err(e) => tracing::error!("[API] Filter wheel set position failed: {:?}", e),
@@ -776,7 +776,7 @@ pub async fn api_filterwheel_get_names(device_id: String) -> Result<Vec<String>,
         let (_, filter_names) = mgr
             .filter_wheel_get_config(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         Ok(filter_names)
     }
 }
@@ -904,11 +904,11 @@ pub async fn api_get_rotator_status(device_id: String) -> Result<RotatorStatus, 
         let position = mgr
             .rotator_get_position(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let is_moving = mgr
             .rotator_is_moving(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let can_reverse = match api_get_rotator_capabilities(device_id.clone()).await {
             Ok(caps) => caps.can_reverse,
             Err(e) => {
@@ -960,7 +960,7 @@ pub async fn api_rotator_move_to(device_id: String, angle: f64) -> Result<(), Ni
         let mgr = get_device_manager();
         mgr.rotator_move_absolute(&device_id, angle)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -984,12 +984,12 @@ pub async fn api_rotator_move_relative(
         let current = mgr
             .rotator_get_position(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))?;
+            .map_err(NightshadeError::from)?;
         let target = (current + delta) % 360.0;
         let target = if target < 0.0 { target + 360.0 } else { target };
         mgr.rotator_move_absolute(&device_id, target)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -1006,7 +1006,7 @@ pub async fn api_rotator_halt(device_id: String) -> Result<(), NightshadeError> 
         let mgr = get_device_manager();
         mgr.rotator_halt(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -1026,6 +1026,6 @@ pub async fn api_rotator_sync_to_pa(device_id: String, pa: f64) -> Result<(), Ni
         let mgr = get_device_manager();
         mgr.rotator_sync(&device_id, pa)
             .await
-            .map_err(NightshadeError::OperationFailed)
+            .map_err(NightshadeError::from)
     }
 }

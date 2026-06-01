@@ -34,7 +34,7 @@ pub async fn api_get_dome_status(device_id: String) -> Result<DomeStatus, Nights
     let mgr = get_device_manager();
     mgr.dome_get_status(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Open dome shutter
@@ -42,7 +42,7 @@ pub async fn api_dome_open_shutter(device_id: String) -> Result<(), NightshadeEr
     let mgr = get_device_manager();
     mgr.dome_open_shutter(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Close dome shutter
@@ -50,7 +50,7 @@ pub async fn api_dome_close_shutter(device_id: String) -> Result<(), NightshadeE
     let mgr = get_device_manager();
     mgr.dome_close_shutter(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Slew dome to azimuth
@@ -61,7 +61,7 @@ pub async fn api_dome_slew_to_azimuth(
     let mgr = get_device_manager();
     mgr.dome_slew_to_azimuth(&device_id, azimuth)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Park dome
@@ -69,7 +69,7 @@ pub async fn api_dome_park(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
     mgr.dome_park(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get dome azimuth
@@ -77,7 +77,7 @@ pub async fn api_dome_get_azimuth(device_id: String) -> Result<f64, NightshadeEr
     let mgr = get_device_manager();
     mgr.dome_get_azimuth(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get dome shutter status
@@ -85,7 +85,7 @@ pub async fn api_dome_get_shutter_status(device_id: String) -> Result<i32, Night
     let mgr = get_device_manager();
     mgr.dome_get_shutter_status(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Check if dome is slewing
@@ -93,7 +93,7 @@ pub async fn api_dome_is_slewing(device_id: String) -> Result<bool, NightshadeEr
     let mgr = get_device_manager();
     mgr.dome_is_slewing(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Enable or disable dome slaving to the mount
@@ -101,7 +101,7 @@ pub async fn api_dome_set_slaved(device_id: String, slaved: bool) -> Result<(), 
     let mgr = get_device_manager();
     mgr.dome_set_slaved(&device_id, slaved)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Find the dome home position
@@ -109,7 +109,7 @@ pub async fn api_dome_find_home(device_id: String) -> Result<(), NightshadeError
     let mgr = get_device_manager();
     mgr.dome_find_home(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Abort dome slew / shutter motion
@@ -117,5 +117,5 @@ pub async fn api_dome_abort_slew(device_id: String) -> Result<(), NightshadeErro
     let mgr = get_device_manager();
     mgr.dome_abort_slew(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }

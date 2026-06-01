@@ -934,7 +934,7 @@ pub async fn api_camera_cancel_exposure(device_id: String) -> Result<(), Nightsh
         let mgr = get_device_manager();
         mgr.camera_abort_exposure(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 

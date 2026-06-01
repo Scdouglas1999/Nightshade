@@ -500,7 +500,11 @@ impl DeviceOps for UnifiedDeviceOps {
             duration_secs,
             exposure_completion_timeout(duration_secs),
             &self.app_state,
-            || async { mgr.camera_is_exposure_complete(camera_id).await },
+            || async {
+                mgr.camera_is_exposure_complete(camera_id)
+                    .await
+                    .map_err(|e| e.to_string())
+            },
         )
         .await
         .inspect_err(|_e| {

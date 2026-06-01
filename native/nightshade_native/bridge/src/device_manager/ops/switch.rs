@@ -6,6 +6,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::DeviceOpError;
 
 impl DeviceManager {
     // =========================================================================
@@ -20,12 +21,12 @@ impl DeviceManager {
     // =========================================================================
 
     /// Get the number of switches exposed by a switch device
-    pub async fn switch_get_max(&self, device_id: &str) -> Result<i32, String> {
+    pub async fn switch_get_max(&self, device_id: &str) -> Result<i32, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -34,17 +35,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_max_switch().await;
+                        return sw.get_max_switch().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.max_switch().await;
+                    return sw.max_switch().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 // INDI switches use named properties -- enumerate and count them
@@ -57,23 +58,23 @@ impl DeviceManager {
             DriverType::Native => {
                 let switches = self.native_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch_count().await.map_err(|e| e.to_string());
+                    return sw.get_switch_count().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
 
     /// Get the boolean state of a switch
-    pub async fn switch_get_state(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
+    pub async fn switch_get_state(&self, device_id: &str, switch_id: i32) -> Result<bool, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -82,17 +83,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_switch(switch_id).await;
+                        return sw.get_switch(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch(switch_id).await;
+                    return sw.get_switch(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
@@ -104,12 +105,12 @@ impl DeviceManager {
                     return sw
                         .get_switch_state(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
@@ -120,12 +121,12 @@ impl DeviceManager {
         device_id: &str,
         switch_id: i32,
         state: bool,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -134,25 +135,25 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let mut sw = sw.write().await;
-                        return sw.set_switch(switch_id, state).await;
+                        return sw.set_switch(switch_id, state).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.set_switch(switch_id, state).await;
+                    return sw.set_switch(switch_id, state).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 if !sw.writable {
-                    return Err(format!(
+                    return Err(DeviceOpError::unsupported(format!(
                         "INDI switch '{}' / '{}' is read-only",
                         sw.property_name, sw.element_name
-                    ));
+                    )));
                 }
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
                 let server_key = format!("{}:{}", host, port);
@@ -163,9 +164,9 @@ impl DeviceManager {
                     return switch_dev
                         .set_switch_state(&sw.property_name, &sw.element_name, state)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI switch device not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI switch device not connected"))
             }
             DriverType::Native => {
                 let mut switches = self.native_switches.write().await;
@@ -173,23 +174,23 @@ impl DeviceManager {
                     return sw
                         .set_switch_state(switch_id, state)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
 
     /// Get the name of a switch
-    pub async fn switch_get_name(&self, device_id: &str, switch_id: i32) -> Result<String, String> {
+    pub async fn switch_get_name(&self, device_id: &str, switch_id: i32) -> Result<String, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -198,17 +199,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_switch_name(switch_id).await;
+                        return sw.get_switch_name(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch_name(switch_id).await;
+                    return sw.get_switch_name(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
@@ -220,12 +221,12 @@ impl DeviceManager {
                     return sw
                         .get_switch_name(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
@@ -235,12 +236,12 @@ impl DeviceManager {
         &self,
         device_id: &str,
         switch_id: i32,
-    ) -> Result<String, String> {
+    ) -> Result<String, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -249,17 +250,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_switch_description(switch_id).await;
+                        return sw.get_switch_description(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch_description(switch_id).await;
+                    return sw.get_switch_description(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
@@ -272,23 +273,23 @@ impl DeviceManager {
                     return sw
                         .get_switch_description(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
 
     /// Get the numeric value of a switch
-    pub async fn switch_get_value(&self, device_id: &str, switch_id: i32) -> Result<f64, String> {
+    pub async fn switch_get_value(&self, device_id: &str, switch_id: i32) -> Result<f64, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -297,17 +298,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_switch_value(switch_id).await;
+                        return sw.get_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.get_switch_value(switch_id).await;
+                    return sw.get_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
@@ -328,7 +329,7 @@ impl DeviceManager {
                     // If no numeric value, return 1.0 for on, 0.0 for off
                     return Ok(if sw.state { 1.0 } else { 0.0 });
                 }
-                Err("INDI switch device not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI switch device not connected"))
             }
             DriverType::Native => {
                 let switches = self.native_switches.read().await;
@@ -336,12 +337,12 @@ impl DeviceManager {
                     return sw
                         .get_switch_value(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
@@ -352,12 +353,12 @@ impl DeviceManager {
         device_id: &str,
         switch_id: i32,
         value: f64,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -366,25 +367,25 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let mut sw = sw.write().await;
-                        return sw.set_switch_value(switch_id, value).await;
+                        return sw.set_switch_value(switch_id, value).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.set_switch_value(switch_id, value).await;
+                    return sw.set_switch_value(switch_id, value).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
                 if !sw.writable {
-                    return Err(format!(
+                    return Err(DeviceOpError::unsupported(format!(
                         "INDI switch '{}' / '{}' is read-only",
                         sw.property_name, sw.element_name
-                    ));
+                    )));
                 }
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
                 let server_key = format!("{}:{}", host, port);
@@ -395,9 +396,9 @@ impl DeviceManager {
                     return switch_dev
                         .set_switch_value(&sw.property_name, &sw.element_name, value)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI switch device not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI switch device not connected"))
             }
             DriverType::Native => {
                 let mut switches = self.native_switches.write().await;
@@ -405,12 +406,12 @@ impl DeviceManager {
                     return sw
                         .set_switch_value(switch_id, value)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
@@ -420,12 +421,12 @@ impl DeviceManager {
         &self,
         device_id: &str,
         switch_id: i32,
-    ) -> Result<f64, String> {
+    ) -> Result<f64, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -434,17 +435,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_min_switch_value(switch_id).await;
+                        return sw.get_min_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.min_switch_value(switch_id).await;
+                    return sw.min_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 // INDI boolean switches have min 0.0
@@ -456,12 +457,12 @@ impl DeviceManager {
                     return sw
                         .get_switch_min_value(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
@@ -471,12 +472,12 @@ impl DeviceManager {
         &self,
         device_id: &str,
         switch_id: i32,
-    ) -> Result<f64, String> {
+    ) -> Result<f64, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -485,17 +486,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.get_max_switch_value(switch_id).await;
+                        return sw.get_max_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.max_switch_value(switch_id).await;
+                    return sw.max_switch_value(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 // INDI boolean switches have max 1.0
@@ -507,23 +508,23 @@ impl DeviceManager {
                     return sw
                         .get_switch_max_value(switch_id)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }
 
     /// Check if a switch can be written to
-    pub async fn switch_can_write(&self, device_id: &str, switch_id: i32) -> Result<bool, String> {
+    pub async fn switch_can_write(&self, device_id: &str, switch_id: i32) -> Result<bool, DeviceOpError> {
         let devices = self.devices.read().await;
         let info = devices
             .get(device_id)
             .map(|d| d.info.clone())
-            .ok_or_else(|| format!("Device not found: {}", device_id))?;
+            .ok_or_else(|| DeviceOpError::device_not_found(device_id))?;
 
         match info.driver_type {
             DriverType::Ascom => {
@@ -532,17 +533,17 @@ impl DeviceManager {
                     let switches = self.ascom_switches.read().await;
                     if let Some(sw) = switches.get(device_id) {
                         let sw = sw.read().await;
-                        return sw.can_write(switch_id).await;
+                        return sw.can_write(switch_id).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM switch {} not found", device_id)))
             }
             DriverType::Alpaca => {
                 let switches = self.alpaca_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.can_write(switch_id).await;
+                    return sw.can_write(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca switch {} not found", device_id)))
             }
             DriverType::Indi => {
                 let sw = self.indi_get_switch_at(device_id, switch_id).await?;
@@ -551,12 +552,12 @@ impl DeviceManager {
             DriverType::Native => {
                 let switches = self.native_switches.read().await;
                 if let Some(sw) = switches.get(device_id) {
-                    return sw.can_write(switch_id).await.map_err(|e| e.to_string());
+                    return sw.can_write(switch_id).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native switch {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native switch {} not found", device_id)))
             }
             DriverType::Simulator => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("switch")))
             }
         }
     }

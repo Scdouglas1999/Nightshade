@@ -3012,18 +3012,21 @@ impl DeviceOps for RealDeviceOps {
         self.device_manager
             .cover_calibrator_open_cover(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_close_cover(&self, device_id: &str) -> DeviceResult<()> {
         self.device_manager
             .cover_calibrator_close_cover(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_halt_cover(&self, device_id: &str) -> DeviceResult<()> {
         self.device_manager
             .cover_calibrator_halt_cover(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_calibrator_on(
@@ -3034,36 +3037,42 @@ impl DeviceOps for RealDeviceOps {
         self.device_manager
             .cover_calibrator_calibrator_on(device_id, brightness)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_calibrator_off(&self, device_id: &str) -> DeviceResult<()> {
         self.device_manager
             .cover_calibrator_calibrator_off(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_get_cover_state(&self, device_id: &str) -> DeviceResult<i32> {
         self.device_manager
             .cover_calibrator_get_cover_state(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_get_calibrator_state(&self, device_id: &str) -> DeviceResult<i32> {
         self.device_manager
             .cover_calibrator_get_calibrator_state(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_get_brightness(&self, device_id: &str) -> DeviceResult<i32> {
         self.device_manager
             .cover_calibrator_get_brightness(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 
     async fn cover_calibrator_get_max_brightness(&self, device_id: &str) -> DeviceResult<i32> {
         self.device_manager
             .cover_calibrator_get_max_brightness(device_id)
             .await
+            .map_err(|e| e.to_string())
     }
 }
 

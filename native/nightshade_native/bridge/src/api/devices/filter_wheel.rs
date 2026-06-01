@@ -42,7 +42,7 @@ pub async fn filter_wheel_set_position(
         let mgr = get_device_manager();
         mgr.filter_wheel_set_position(&device_id, position)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -55,7 +55,7 @@ pub async fn filter_wheel_get_position(device_id: String) -> Result<i32, Nightsh
         let mgr = get_device_manager();
         mgr.filter_wheel_get_position(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -70,7 +70,7 @@ pub async fn filter_wheel_get_config(
         let mgr = get_device_manager();
         mgr.filter_wheel_get_config(&device_id)
             .await
-            .map_err(|e| NightshadeError::OperationFailed(e))
+            .map_err(NightshadeError::from)
     }
 }
 
@@ -79,7 +79,7 @@ pub async fn set_camera_gain(device_id: String, gain: i32) -> Result<(), Nightsh
     let mgr = get_device_manager();
     mgr.camera_set_gain(&device_id, gain)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set camera offset
@@ -87,5 +87,5 @@ pub async fn set_camera_offset(device_id: String, offset: i32) -> Result<(), Nig
     let mgr = get_device_manager();
     mgr.camera_set_offset(&device_id, offset)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }

@@ -12,6 +12,9 @@
 //! purely to localize per-driver code paths so `devices.rs` can read as a
 //! thin router.
 
+pub(crate) mod error;
+pub use error::DeviceOpError;
+
 pub(crate) mod alpaca;
 pub(crate) mod alpaca_device_common;
 pub(crate) mod ascom;

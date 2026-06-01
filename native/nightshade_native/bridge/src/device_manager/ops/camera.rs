@@ -52,6 +52,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::DeviceOpError;
 use nightshade_native::camera::{ExposureParams, ImageData};
 use nightshade_native::traits::NativeCamera;
 use std::sync::Arc;
@@ -71,7 +72,7 @@ impl DeviceManager {
         offset: i32,
         bin_x: i32,
         bin_y: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_start_exposure for {} duration={}",
             device_id,
@@ -104,14 +105,14 @@ impl DeviceManager {
                         );
                         let mut camera = camera.write().await;
                         return camera.start_exposure(params).await.map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to start ASCOM camera exposure on {}: {}",
                                 device_id, e
-                            )
+                            ))
                         });
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
@@ -121,24 +122,24 @@ impl DeviceManager {
                     camera
                         .set_gain(gain)
                         .await
-                        .map_err(|e| format!("Failed to set Alpaca camera gain: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera gain: {}", e)))?;
                     camera
                         .set_offset(offset)
                         .await
-                        .map_err(|e| format!("Failed to set Alpaca camera offset: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera offset: {}", e)))?;
                     // Set binning - propagate errors
                     camera
                         .set_bin_x(bin_x)
                         .await
-                        .map_err(|e| format!("Failed to set Alpaca camera bin_x: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera bin_x: {}", e)))?;
                     camera
                         .set_bin_y(bin_y)
                         .await
-                        .map_err(|e| format!("Failed to set Alpaca camera bin_y: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set Alpaca camera bin_y: {}", e)))?;
                     // Start the exposure
-                    return camera.start_exposure(duration, true).await;
+                    return camera.start_exposure(duration, true).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // Parse INDI device ID: indi:host:port:device_name
@@ -177,13 +178,13 @@ impl DeviceManager {
                             .set_number(&device_name, "CCD_BINNING", "HOR_BIN", bin_x as f64)
                             .await
                             .map_err(|e| {
-                                format!("Failed to set INDI camera horizontal binning: {}", e)
+                                DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set INDI camera horizontal binning: {}", e))
                             })?;
                         locked_client
                             .set_number(&device_name, "CCD_BINNING", "VER_BIN", bin_y as f64)
                             .await
                             .map_err(|e| {
-                                format!("Failed to set INDI camera vertical binning: {}", e)
+                                DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set INDI camera vertical binning: {}", e))
                             })?;
                         // Start exposure
                         return locked_client
@@ -194,10 +195,10 @@ impl DeviceManager {
                                 duration,
                             )
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("INDI camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI camera {} not found", device_id)))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
@@ -213,25 +214,25 @@ impl DeviceManager {
                         readout_mode: None,
                     };
                     return camera.start_exposure(params).await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to start native SDK camera exposure on {}: {}",
                             device_id, e
-                        )
+                        ))
                     });
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 crate::device_manager::ops::sim_gate::require_camera_connected().await?;
                 tracing::info!("camera_start_exposure: Simulator exposure started");
                 Ok(())
             }
-            None => Err(format!("Device {} not found", device_id)),
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Device {} not found", device_id))),
         }
     }
 
     /// Check if camera exposure is complete
-    pub async fn camera_is_exposure_complete(&self, device_id: &str) -> Result<bool, String> {
+    pub async fn camera_is_exposure_complete(&self, device_id: &str) -> Result<bool, DeviceOpError> {
         // Get the driver type for this device
         let driver_type = {
             let devices = self.devices.read().await;
@@ -248,17 +249,17 @@ impl DeviceManager {
                         return camera
                             .is_exposure_complete()
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.image_ready().await;
+                    return camera.image_ready().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // For INDI, check CCD_EXPOSURE state - when value is 0, exposure is complete
@@ -285,13 +286,13 @@ impl DeviceManager {
                         {
                             return Ok(false);
                         }
-                        return Err(format!(
+                        return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "INDI camera {} exposure status is unavailable (missing CCD_EXPOSURE_VALUE)",
                             device_name
-                        ));
+                        )));
                     }
                 }
-                Err(format!("INDI camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 // The singleton does not literally track exposure progress
@@ -311,16 +312,16 @@ impl DeviceManager {
                     return camera
                         .is_exposure_complete()
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
-            None => Err(format!("Camera {} not found", device_id)),
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found", device_id))),
         }
     }
 
     /// Download image from camera
-    pub async fn camera_download_image(&self, device_id: &str) -> Result<ImageData, String> {
+    pub async fn camera_download_image(&self, device_id: &str) -> Result<ImageData, DeviceOpError> {
         // Get the driver type for this device
         let driver_type = {
             let devices = self.devices.read().await;
@@ -335,14 +336,14 @@ impl DeviceManager {
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
                         return camera.download_image().await.map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to download image from ASCOM camera {}: {}",
                                 device_id, e
-                            )
+                            ))
                         });
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
@@ -350,10 +351,10 @@ impl DeviceManager {
                     // Use the new download_image_data method
                     let (width, height, pixels) =
                         camera.download_image_data().await.map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to download image from Alpaca camera {}: {}",
                                 device_id, e
-                            )
+                            ))
                         })?;
 
                     // Get camera metadata
@@ -471,7 +472,7 @@ impl DeviceManager {
                         },
                     });
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // For INDI, image download uses event-based BLOB handling
@@ -559,7 +560,7 @@ impl DeviceManager {
 
                         loop {
                             if start_time.elapsed() > timeout {
-                                return Err("Timeout waiting for INDI image BLOB".to_string());
+                                return Err(DeviceOpError::hardware(Some(device_id.to_string()), "Timeout waiting for INDI image BLOB"));
                             }
 
                             match tokio::time::timeout(std::time::Duration::from_secs(1), rx.recv())
@@ -645,7 +646,7 @@ impl DeviceManager {
                                     }
                                 }
                                 Ok(Err(_)) => {
-                                    return Err("INDI event channel closed".to_string());
+                                    return Err(DeviceOpError::hardware(Some(device_id.to_string()), "INDI event channel closed"));
                                 }
                                 Err(_) => {
                                     // Timeout on recv, check total timeout and continue
@@ -655,7 +656,7 @@ impl DeviceManager {
                         }
                     }
                 }
-                Err(format!("INDI camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 // Project gain/offset/bin/temperature from the singleton so a
@@ -690,16 +691,16 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.download_image().await.map_err(|e| e.to_string());
+                    return camera.download_image().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
-            None => Err(format!("Camera {} not found", device_id)),
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found", device_id))),
         }
     }
 
     /// Abort a camera exposure
-    pub async fn camera_abort_exposure(&self, device_id: &str) -> Result<(), String> {
+    pub async fn camera_abort_exposure(&self, device_id: &str) -> Result<(), DeviceOpError> {
         tracing::info!("DeviceManager: camera_abort_exposure for {}", device_id);
 
         // Get the driver type for this device
@@ -715,17 +716,17 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera.abort_exposure().await.map_err(|e| e.to_string());
+                        return camera.abort_exposure().await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.abort_exposure().await;
+                    return camera.abort_exposure().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // For INDI, set exposure to 0 to abort
@@ -742,22 +743,22 @@ impl DeviceManager {
                         return locked_client
                             .set_switch(&device_name, "CCD_ABORT_EXPOSURE", "ABORT", true)
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("INDI camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("INDI camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
-                crate::device_manager::ops::sim_gate::require_camera_connected().await
+                crate::device_manager::ops::sim_gate::require_camera_connected().await.map_err(DeviceOpError::driver)
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.abort_exposure().await.map_err(|e| e.to_string());
+                    return camera.abort_exposure().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
-            None => Err(format!("Camera {} not found", device_id)),
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found", device_id))),
         }
     }
 
@@ -765,7 +766,7 @@ impl DeviceManager {
     pub async fn camera_get_status(
         &self,
         device_id: &str,
-    ) -> Result<crate::device::CameraStatus, String> {
+    ) -> Result<crate::device::CameraStatus, DeviceOpError> {
         // Get the driver type for this device
         let driver_type = {
             let devices = self.devices.read().await;
@@ -780,7 +781,7 @@ impl DeviceManager {
                     if let Some(camera) = cameras.get(device_id) {
                         let camera_guard = camera.read().await;
                         let native_status =
-                            camera_guard.get_status().await.map_err(|e| e.to_string())?;
+                            camera_guard.get_status().await.map_err(DeviceOpError::driver)?;
                         let ascom_caps = camera_guard.get_capabilities().await.ok();
 
                         return Ok(crate::device::CameraStatus {
@@ -836,28 +837,28 @@ impl DeviceManager {
                         });
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
                     let status = camera.get_status().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to read Alpaca camera status for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let capabilities = camera.get_capabilities().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to read Alpaca camera capabilities for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let sensor = camera.get_sensor_info().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to read Alpaca camera sensor info for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let gain = camera.gain().await.ok();
                     let offset = camera.offset().await.ok();
@@ -902,15 +903,15 @@ impl DeviceManager {
                         can_set_offset: offset.is_some(),
                     });
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
-                crate::device_manager::ops::sim_gate::read_camera_status().await
+                crate::device_manager::ops::sim_gate::read_camera_status().await.map_err(DeviceOpError::driver)
             }
             Some(DriverType::Native) => {
                 let native_cameras = self.native_cameras.read().await;
                 if let Some(camera) = native_cameras.get(device_id) {
-                    let native_status = camera.get_status().await.map_err(|e| e.to_string())?;
+                    let native_status = camera.get_status().await.map_err(DeviceOpError::driver)?;
                     let capabilities = camera.capabilities();
                     let sensor_info = camera.get_sensor_info();
 
@@ -954,13 +955,13 @@ impl DeviceManager {
                         can_set_offset: capabilities.can_set_offset,
                     });
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // Parse device_id format: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(format!("Invalid INDI device ID format: {}", device_id));
+                    return Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)));
                 }
                 let host = parts[1];
                 let port = parts[2];
@@ -985,20 +986,20 @@ impl DeviceManager {
                         .await
                         .map(|v| v as i32)
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_BINNING.HOR_BIN; cannot determine current binning.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let bin_y = locked_client
                         .get_number(&device_name, "CCD_BINNING", "VER_BIN")
                         .await
                         .map(|v| v as i32)
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_BINNING.VER_BIN; cannot determine current binning.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let exposure_value = locked_client
                         .get_number(&device_name, "CCD_EXPOSURE", "CCD_EXPOSURE_VALUE")
@@ -1009,10 +1010,10 @@ impl DeviceManager {
                         Some(v) if v > 0.0 => crate::device::CameraState::Exposing,
                         Some(_) => crate::device::CameraState::Idle,
                         None => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_EXPOSURE.CCD_EXPOSURE_VALUE; cannot determine camera state.",
                                 device_id
-                            ))
+                            )))
                         }
                     };
 
@@ -1022,54 +1023,54 @@ impl DeviceManager {
                         .await
                         .map(|v| v as u32)
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_INFO.CCD_MAX_X; cannot determine sensor width.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let sensor_height = locked_client
                         .get_number(&device_name, "CCD_INFO", "CCD_MAX_Y")
                         .await
                         .map(|v| v as u32)
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_INFO.CCD_MAX_Y; cannot determine sensor height.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let pixel_size_x = locked_client
                         .get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_X")
                         .await
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_INFO.CCD_PIXEL_SIZE_X; cannot determine pixel size.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let pixel_size_y = locked_client
                         .get_number(&device_name, "CCD_INFO", "CCD_PIXEL_SIZE_Y")
                         .await
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_INFO.CCD_PIXEL_SIZE_Y; cannot determine pixel size.",
                                 device_id
-                            )
+                            ))
                         })?;
                     let bit_depth = locked_client
                         .get_number(&device_name, "CCD_INFO", "CCD_BITSPERPIXEL")
                         .await
                         .map(|v| v as u32)
                         .ok_or_else(|| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "INDI camera {} missing required property CCD_INFO.CCD_BITSPERPIXEL; cannot determine ADU scaling.",
                                 device_id
-                            )
+                            ))
                         })?;
                     if bit_depth == 0 {
-                        return Err(format!(
+                        return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "INDI camera {} reported invalid CCD_INFO.CCD_BITSPERPIXEL=0.",
                             device_id
-                        ));
+                        )));
                     }
                     let gain_value = match locked_client
                         .get_number(&device_name, "CCD_GAIN", "GAIN")
@@ -1132,20 +1133,20 @@ impl DeviceManager {
                         can_set_offset: has_offset,
                     });
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
-            None => Err(format!(
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                 "Camera {} not found or status not supported",
                 device_id
-            )),
+            ))),
         }
     }
 
     /// Set camera gain
-    pub async fn camera_set_gain(&self, device_id: &str, gain: i32) -> Result<(), String> {
+    pub async fn camera_set_gain(&self, device_id: &str, gain: i32) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_set_gain for {} gain={}",
             device_id,
@@ -1165,39 +1166,39 @@ impl DeviceManager {
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
                         return camera.set_gain(gain).await.map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to set ASCOM camera {} gain to {}: {}",
                                 device_id, gain, e
-                            )
+                            ))
                         });
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.set_gain(gain).await;
+                    return camera.set_gain(gain).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
                     return camera.set_gain(gain).await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to set native SDK camera {} gain to {}: {}",
                             device_id, gain, e
-                        )
+                        ))
                     });
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID format".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -1208,13 +1209,13 @@ impl DeviceManager {
                     locked
                         .set_number(&device_name, "CCD_CONTROLS", "Gain", gain as f64)
                         .await
-                        .map_err(|e| format!("Failed to set INDI camera gain: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set INDI camera gain: {}", e)))?;
                     return Ok(());
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
             Some(DriverType::Simulator) => {
                 // Mutate the singleton so a subsequent `camera_get_status` /
@@ -1224,17 +1225,17 @@ impl DeviceManager {
                 let cam = crate::api::devices::simulation::get_sim_camera();
                 let mut cam = cam.write().await;
                 if !cam.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_camera());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_camera()));
                 }
                 cam.status.gain = gain;
                 Ok(())
             }
-            _ => Err(format!("Camera {} not found or not supported", device_id)),
+            _ => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found or not supported", device_id))),
         }
     }
 
     /// Set camera offset
-    pub async fn camera_set_offset(&self, device_id: &str, offset: i32) -> Result<(), String> {
+    pub async fn camera_set_offset(&self, device_id: &str, offset: i32) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_set_offset for {} offset={}",
             device_id,
@@ -1253,30 +1254,30 @@ impl DeviceManager {
                     let cameras = self.ascom_cameras.read().await;
                     if let Some(camera) = cameras.get(device_id) {
                         let mut camera = camera.write().await;
-                        return camera.set_offset(offset).await.map_err(|e| e.to_string());
+                        return camera.set_offset(offset).await.map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.set_offset(offset).await;
+                    return camera.set_offset(offset).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
                 if let Some(camera) = native_cameras.get_mut(device_id) {
-                    return camera.set_offset(offset).await.map_err(|e| e.to_string());
+                    return camera.set_offset(offset).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // Parse INDI device ID: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID format".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -1287,24 +1288,24 @@ impl DeviceManager {
                     locked
                         .set_number(&device_name, "CCD_CONTROLS", "Offset", offset as f64)
                         .await
-                        .map_err(|e| format!("Failed to set INDI camera offset: {}", e))?;
+                        .map_err(|e| DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set INDI camera offset: {}", e)))?;
                     return Ok(());
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
             Some(DriverType::Simulator) => {
                 let cam = crate::api::devices::simulation::get_sim_camera();
                 let mut cam = cam.write().await;
                 if !cam.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_camera());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_camera()));
                 }
                 cam.status.offset = offset;
                 Ok(())
             }
-            _ => Err(format!("Camera {} not found or not supported", device_id)),
+            _ => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found or not supported", device_id))),
         }
     }
 
@@ -1314,7 +1315,7 @@ impl DeviceManager {
         device_id: &str,
         bin_x: i32,
         bin_y: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_set_binning for {} bin={}x{}",
             device_id,
@@ -1323,10 +1324,10 @@ impl DeviceManager {
         );
 
         if bin_x < 1 || bin_y < 1 {
-            return Err(format!(
+            return Err(DeviceOpError::invalid_parameter(format!(
                 "Invalid binning values: {}x{} (must be >= 1)",
                 bin_x, bin_y
-            ));
+            )));
         }
 
         let driver_type = {
@@ -1344,10 +1345,10 @@ impl DeviceManager {
                         return camera
                             .set_binning(bin_x, bin_y)
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
@@ -1356,12 +1357,12 @@ impl DeviceManager {
                     camera.set_bin_y(bin_y).await?;
                     return Ok(());
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(format!("Invalid INDI device ID format: {}", device_id));
+                    return Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)));
                 }
 
                 let host = parts[1];
@@ -1380,10 +1381,10 @@ impl DeviceManager {
                         .await?;
                     return Ok(());
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
@@ -1391,21 +1392,21 @@ impl DeviceManager {
                     return camera
                         .set_binning(bin_x, bin_y)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 let cam = crate::api::devices::simulation::get_sim_camera();
                 let mut cam = cam.write().await;
                 if !cam.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_camera());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_camera()));
                 }
                 cam.status.bin_x = bin_x;
                 cam.status.bin_y = bin_y;
                 Ok(())
             }
-            _ => Err(format!("Camera {} not found or not supported", device_id)),
+            _ => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found or not supported", device_id))),
         }
     }
 
@@ -1419,7 +1420,7 @@ impl DeviceManager {
         &self,
         device_id: &str,
         mode_index: i32,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         tracing::info!(
             "DeviceManager: camera_set_readout_mode for {} mode_index={}",
             device_id,
@@ -1450,23 +1451,23 @@ impl DeviceManager {
                         return camera
                             .set_readout_mode(&mode)
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                 }
-                Err(format!("ASCOM camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM camera {} not found", device_id)))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
                 if let Some(camera) = cameras.get(device_id) {
-                    return camera.set_readout_mode(mode_index).await;
+                    return camera.set_readout_mode(mode_index).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // INDI uses CCD_READ_MODE switch with indexed elements
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID format".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID format"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -1489,15 +1490,15 @@ impl DeviceManager {
                                     .set_switch(&device_name, prop_name, &element, true)
                                     .await
                                     .map_err(|e| {
-                                        format!("Failed to set INDI readout mode: {}", e)
+                                        DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to set INDI readout mode: {}", e))
                                     })?;
                                 return Ok(());
                             } else {
-                                return Err(format!(
+                                return Err(DeviceOpError::invalid_parameter(format!(
                                     "Readout mode index {} out of range (camera has {} modes)",
                                     mode_index,
                                     prop.elements.len()
-                                ));
+                                )));
                             }
                         }
                     }
@@ -1508,10 +1509,10 @@ impl DeviceManager {
                     );
                     return Ok(());
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
@@ -1528,9 +1529,9 @@ impl DeviceManager {
                     return camera
                         .set_readout_mode(&mode)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 // SimulatedCamera::status has no readout-mode field; refuse
@@ -1544,7 +1545,7 @@ impl DeviceManager {
                 );
                 Ok(())
             }
-            _ => Err(format!("Camera {} not found or not supported", device_id)),
+            _ => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found or not supported", device_id))),
         }
     }
 
@@ -1554,7 +1555,7 @@ impl DeviceManager {
         device_id: &str,
         enabled: bool,
         target_temp: Option<f64>,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -1569,15 +1570,15 @@ impl DeviceManager {
                         let mut cam = cam.write().await;
                         let target = target_temp.unwrap_or(-10.0);
                         cam.set_cooler(enabled, target).await.map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to set ASCOM camera {} cooler (enabled={}, target={}C): {}",
                                 device_id, enabled, target, e
-                            )
+                            ))
                         })?;
                         return Ok(());
                     }
                 }
-                Err("ASCOM camera not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "ASCOM camera not connected"))
             }
             Some(DriverType::Alpaca) => {
                 let cameras = self.alpaca_cameras.read().await;
@@ -1588,13 +1589,13 @@ impl DeviceManager {
                     }
                     return Ok(());
                 }
-                Err(format!("Alpaca camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca camera {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 // Parse device_id format: indi:host:port:device_name
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err(format!("Invalid INDI device ID format: {}", device_id));
+                    return Err(DeviceOpError::invalid_device_id(format!("Invalid INDI device ID format: {}", device_id)));
                 }
                 let host = parts[1];
                 let port = parts[2];
@@ -1622,10 +1623,10 @@ impl DeviceManager {
                     }
                     return Ok(());
                 }
-                Err(format!(
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!(
                     "INDI client not connected for server {}",
                     server_key
-                ))
+                )))
             }
             Some(DriverType::Native) => {
                 let mut native_cameras = self.native_cameras.write().await;
@@ -1633,15 +1634,15 @@ impl DeviceManager {
                     return camera
                         .set_cooler(enabled, target_temp.unwrap_or(-10.0))
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             Some(DriverType::Simulator) => {
                 let cam = crate::api::devices::simulation::get_sim_camera();
                 let mut cam = cam.write().await;
                 if !cam.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_camera());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_camera()));
                 }
                 cam.status.cooler_on = enabled;
                 if let Some(t) = target_temp {
@@ -1649,12 +1650,12 @@ impl DeviceManager {
                 }
                 Ok(())
             }
-            None => Err("Driver type not found".to_string()),
+            None => Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Driver type not found")),
         }
     }
 
     /// Capture a live-view / preview JPEG frame when the connected driver supports it.
-    pub async fn camera_capture_preview(&self, device_id: &str) -> Result<Vec<u8>, String> {
+    pub async fn camera_capture_preview(&self, device_id: &str) -> Result<Vec<u8>, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -1664,19 +1665,19 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let native_cameras = self.native_cameras.read().await;
                 if let Some(camera) = native_cameras.get(device_id) {
-                    return camera.capture_preview().await.map_err(|e| e.to_string());
+                    return camera.capture_preview().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
-            Some(DriverType::Simulator) => Err(
+            Some(DriverType::Simulator) => Err(DeviceOpError::unsupported(
                 crate::device_manager::ops::sim_gate::unsupported_simulator_device(
                     "camera preview",
                 ),
-            ),
-            _ => Err(format!(
+            )),
+            _ => Err(DeviceOpError::unsupported(format!(
                 "Live view preview is not supported for driver {:?} on camera {}",
                 driver_type, device_id
-            )),
+            ))),
         }
     }
 
@@ -1695,7 +1696,7 @@ impl DeviceManager {
     pub async fn camera_get_recommended_settings(
         &self,
         device_id: &str,
-    ) -> Result<nightshade_native::camera::CameraRecommendedSettings, String> {
+    ) -> Result<nightshade_native::camera::CameraRecommendedSettings, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -1706,13 +1707,13 @@ impl DeviceManager {
                 let native_cameras = self.native_cameras.read().await;
                 if let Some(camera) = native_cameras.get(device_id) {
                     return camera.get_recommended_settings().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to query recommended settings for native camera {}: {}",
                             device_id, e
-                        )
+                        ))
                     });
                 }
-                Err(format!("Native SDK camera {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Native SDK camera {} not found", device_id)))
             }
             // ASCOM, Alpaca, INDI, and simulators don't expose a unity-gain
             // recommendation through their protocols. Honest empty answer.
@@ -1722,7 +1723,7 @@ impl DeviceManager {
             | Some(DriverType::Simulator) => {
                 Ok(nightshade_native::camera::CameraRecommendedSettings::default())
             }
-            _ => Err(format!("Camera {} not found", device_id)),
+            _ => Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Camera {} not found", device_id))),
         }
     }
 }

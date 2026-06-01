@@ -1287,7 +1287,7 @@ mod tests {
             .mount_can_park("missing-mount")
             .await
             .expect_err("missing mount should error");
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
     }
 
     #[test]
@@ -1444,7 +1444,7 @@ mod tests {
             .mount_stop("missing-mount")
             .await
             .expect_err("missing mount should error");
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
     }
 
     #[cfg(windows)]
@@ -1496,49 +1496,49 @@ mod tests {
         let device_id = "missing-switch";
 
         let err = manager.switch_get_max(device_id).await.unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager.switch_get_state(device_id, 0).await.unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager
             .switch_set_state(device_id, 0, true)
             .await
             .unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager.switch_get_name(device_id, 0).await.unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager
             .switch_get_description(device_id, 0)
             .await
             .unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager.switch_get_value(device_id, 0).await.unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager
             .switch_set_value(device_id, 0, 1.0)
             .await
             .unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager
             .switch_get_min_value(device_id, 0)
             .await
             .unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager
             .switch_get_max_value(device_id, 0)
             .await
             .unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
 
         let err = manager.switch_can_write(device_id, 0).await.unwrap_err();
-        assert!(err.contains("Device not found"));
+        assert!(err.to_string().contains("Device not found"));
     }
 
     #[tokio::test]
@@ -1549,7 +1549,7 @@ mod tests {
         manager.register_device(info, false).await;
 
         let err = manager.switch_get_max(device_id).await.unwrap_err();
-        assert!(err.contains("Alpaca switch"));
+        assert!(err.to_string().contains("Alpaca switch"));
     }
 
     // -------------------------------------------------------------------------
@@ -2189,7 +2189,7 @@ mod tests {
             .await
             .expect_err("disconnected sim camera must surface an error");
         assert!(
-            err.contains("not connected"),
+            err.to_string().contains("not connected"),
             "error must call out missing connection: {}",
             err
         );
@@ -2229,12 +2229,12 @@ mod tests {
             .camera_get_status(device_id)
             .await
             .expect_err("disconnected sim camera must surface an error");
-        assert!(err.contains("not connected"));
+        assert!(err.to_string().contains("not connected"));
         let err = manager
             .camera_set_gain(device_id, 999)
             .await
             .expect_err("disconnected sim camera set_gain must surface an error");
-        assert!(err.contains("not connected"));
+        assert!(err.to_string().contains("not connected"));
 
         // Cleanup so any later tests using SIM_CAMERA see a clean slate.
         get_sim_camera().write().await.status.connected = false;
@@ -2257,7 +2257,7 @@ mod tests {
             .focuser_get_position(device_id)
             .await
             .expect_err("disconnected sim focuser must surface an error");
-        assert!(err.contains("not connected"));
+        assert!(err.to_string().contains("not connected"));
 
         // Connect, then read the singleton's default position.
         manager
@@ -2289,7 +2289,7 @@ mod tests {
             .focuser_move_abs(device_id, 12345)
             .await
             .expect_err("disconnected sim focuser move_abs must surface an error");
-        assert!(err.contains("not connected"));
+        assert!(err.to_string().contains("not connected"));
 
         get_sim_focuser().write().await.status.connected = false;
     }
@@ -2308,7 +2308,7 @@ mod tests {
             .await
             .expect_err("simulator switch has no singleton; must loud-error");
         assert!(
-            err.contains("simulator") || err.contains("Simulator") || err.contains("disabled"),
+            err.to_string().contains("simulator") || err.to_string().contains("Simulator") || err.to_string().contains("disabled"),
             "error must mention the missing simulator implementation: {}",
             err
         );

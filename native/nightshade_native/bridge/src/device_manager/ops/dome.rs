@@ -16,6 +16,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::DeviceOpError;
 use tracing::warn;
 
 impl DeviceManager {
@@ -24,7 +25,7 @@ impl DeviceManager {
     // =========================================================================
 
     /// Open dome shutter
-    pub async fn dome_open_shutter(&self, device_id: &str) -> Result<(), String> {
+    pub async fn dome_open_shutter(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -34,9 +35,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.open_shutter().await;
+                    return dome.open_shutter().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -45,18 +46,18 @@ impl DeviceManager {
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
                         return dome_guard.open_shutter().await.map_err(|e| {
-                            format!("Failed to open ASCOM dome shutter on {}: {}", device_id, e)
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to open ASCOM dome shutter on {}: {}", device_id, e))
                         });
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -67,26 +68,26 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_OPEN", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.open_shutter().await.map_err(|e| e.to_string());
+                    return dome.open_shutter().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Close dome shutter
-    pub async fn dome_close_shutter(&self, device_id: &str) -> Result<(), String> {
+    pub async fn dome_close_shutter(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -96,9 +97,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.close_shutter().await;
+                    return dome.close_shutter().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -107,18 +108,18 @@ impl DeviceManager {
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
                         return dome_guard.close_shutter().await.map_err(|e| {
-                            format!("Failed to close ASCOM dome shutter on {}: {}", device_id, e)
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to close ASCOM dome shutter on {}: {}", device_id, e))
                         });
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -129,26 +130,26 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "DOME_SHUTTER", "SHUTTER_CLOSE", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.close_shutter().await.map_err(|e| e.to_string());
+                    return dome.close_shutter().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Slew dome to azimuth
-    pub async fn dome_slew_to_azimuth(&self, device_id: &str, azimuth: f64) -> Result<(), String> {
+    pub async fn dome_slew_to_azimuth(&self, device_id: &str, azimuth: f64) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -158,14 +159,14 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.slew_to_azimuth(azimuth).await;
+                    return dome.slew_to_azimuth(azimuth).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -182,13 +183,13 @@ impl DeviceManager {
                         )
                         .await
                         .map_err(|e| {
-                            format!(
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to slew INDI dome {} to azimuth {:.2}: {}",
                                 device_name, azimuth, e
-                            )
+                            ))
                         });
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -196,34 +197,34 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.slew_to_azimuth(azimuth).await;
+                        return dome_guard.slew_to_azimuth(azimuth).await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
                     return dome.slew_to_azimuth(azimuth).await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to slew native dome {} to azimuth {:.2}: {}",
                             device_id, azimuth, e
-                        )
+                        ))
                     });
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Get dome azimuth
-    pub async fn dome_get_azimuth(&self, device_id: &str) -> Result<f64, String> {
+    pub async fn dome_get_azimuth(&self, device_id: &str) -> Result<f64, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -233,14 +234,14 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.azimuth().await;
+                    return dome.azimuth().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -255,7 +256,7 @@ impl DeviceManager {
                         return Ok(az);
                     }
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -263,29 +264,29 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.azimuth().await;
+                        return dome_guard.azimuth().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
-                    return dome.get_azimuth().await.map_err(|e| e.to_string());
+                    return dome.get_azimuth().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Get dome shutter status
-    pub async fn dome_get_shutter_status(&self, device_id: &str) -> Result<i32, String> {
+    pub async fn dome_get_shutter_status(&self, device_id: &str) -> Result<i32, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -301,7 +302,7 @@ impl DeviceManager {
                     // Closing, Error); `as i32` extracts the discriminant.
                     return Ok(status as i32);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -309,17 +310,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.shutter_status().await;
+                        return dome_guard.shutter_status().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -348,7 +349,7 @@ impl DeviceManager {
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
-                    let status = dome.get_shutter_status().await.map_err(|e| e.to_string())?;
+                    let status = dome.get_shutter_status().await.map_err(DeviceOpError::driver)?;
                     // Convert ShutterState enum to i32: Open=0, Closed=1, Opening=2, Closing=3, Error=4, Unknown=5
                     let code = match status {
                         nightshade_native::traits::ShutterState::Open => 0,
@@ -360,17 +361,17 @@ impl DeviceManager {
                     };
                     return Ok(code);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Park dome
-    pub async fn dome_park(&self, device_id: &str) -> Result<(), String> {
+    pub async fn dome_park(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -380,9 +381,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.park().await;
+                    return dome.park().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -390,17 +391,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.park().await.map_err(|e| e.to_string());
+                        return dome_guard.park().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -411,26 +412,26 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "DOME_PARK", "PARK", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.park().await.map_err(|e| e.to_string());
+                    return dome.park().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Check if dome is slewing
-    pub async fn dome_is_slewing(&self, device_id: &str) -> Result<bool, String> {
+    pub async fn dome_is_slewing(&self, device_id: &str) -> Result<bool, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -440,9 +441,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.slewing().await;
+                    return dome.slewing().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -450,17 +451,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.slewing().await.map_err(|e| e.to_string());
+                        return dome_guard.slewing().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -474,19 +475,19 @@ impl DeviceManager {
                     let shutter_busy = locked.is_property_busy(&device_name, "DOME_SHUTTER").await;
                     return Ok(az_busy || shutter_busy);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
-                    return dome.is_slewing().await.map_err(|e| e.to_string());
+                    return dome.is_slewing().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
@@ -494,7 +495,7 @@ impl DeviceManager {
     pub async fn dome_get_status(
         &self,
         device_id: &str,
-    ) -> Result<crate::device::DomeStatus, String> {
+    ) -> Result<crate::device::DomeStatus, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -509,28 +510,28 @@ impl DeviceManager {
 
                     // Query capabilities
                     let can_set_altitude = dome.can_set_altitude().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to query Alpaca dome can_set_altitude for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let can_set_azimuth = dome.can_set_azimuth().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to query Alpaca dome can_set_azimuth for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let can_set_shutter = dome.can_set_shutter().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to query Alpaca dome can_set_shutter for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let can_slave = dome.can_slave().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to query Alpaca dome can_slave for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
 
                     return Ok(crate::device::DomeStatus {
@@ -564,7 +565,7 @@ impl DeviceManager {
                         is_slaved: alpaca_status.slaved,
                     });
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -582,10 +583,10 @@ impl DeviceManager {
                             }
                         };
                         let slewing = dome_guard.slewing().await.map_err(|e| {
-                            format!("Failed to read ASCOM dome slewing for {}: {}", device_id, e)
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read ASCOM dome slewing for {}: {}", device_id, e))
                         })?;
                         let at_park = dome_guard.at_park().await.map_err(|e| {
-                            format!("Failed to read ASCOM dome at_park for {}: {}", device_id, e)
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read ASCOM dome at_park for {}: {}", device_id, e))
                         })?;
 
                         // Map ASCOM shutter status codes to ShutterState
@@ -613,10 +614,10 @@ impl DeviceManager {
                             is_slaved: false,
                         });
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let (host, port, device_name) = Self::parse_indi_device_id(device_id)?;
@@ -630,7 +631,7 @@ impl DeviceManager {
                         .get_number(&device_name, "ABS_DOME_POSITION", "DOME_ABSOLUTE_POSITION")
                         .await
                         .ok_or_else(|| {
-                            format!("Failed to read INDI dome azimuth for {}", device_id)
+                            DeviceOpError::hardware(Some(device_id.to_string()), format!("Failed to read INDI dome azimuth for {}", device_id))
                         })?;
                     let can_set_azimuth = true;
 
@@ -695,17 +696,17 @@ impl DeviceManager {
                     });
                 }
 
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let native_domes = self.native_domes.read().await;
                 if let Some(dome) = native_domes.get(device_id) {
                     // Query all native dome properties
                     let azimuth = dome.get_azimuth().await.map_err(|e| {
-                        format!(
+                        DeviceOpError::hardware(Some(device_id.to_string()), format!(
                             "Failed to read native dome azimuth for {}: {}",
                             device_id, e
-                        )
+                        ))
                     })?;
                     let altitude = dome.get_altitude().await.ok().flatten();
                     let shutter_state_native = match dome.get_shutter_status().await {
@@ -714,10 +715,10 @@ impl DeviceManager {
                             nightshade_native::traits::ShutterState::Unknown
                         }
                         Err(e) => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to read native dome shutter status for {}: {}",
                                 device_id, e
-                            ));
+                            )));
                         }
                     };
                     let shutter_status = match shutter_state_native {
@@ -744,40 +745,40 @@ impl DeviceManager {
                         Ok(s) => s,
                         Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to read native dome slewing for {}: {}",
                                 device_id, e
-                            ));
+                            )));
                         }
                     };
                     let at_home = match dome.is_at_home().await {
                         Ok(h) => h,
                         Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to read native dome is_at_home for {}: {}",
                                 device_id, e
-                            ));
+                            )));
                         }
                     };
                     let at_park = match dome.is_parked().await {
                         Ok(p) => p,
                         Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to read native dome is_parked for {}: {}",
                                 device_id, e
-                            ));
+                            )));
                         }
                     };
                     let is_slaved = match dome.is_slaved().await {
                         Ok(s) => s,
                         Err(nightshade_native::traits::NativeError::NotSupported) => false,
                         Err(e) => {
-                            return Err(format!(
+                            return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
                                 "Failed to read native dome is_slaved for {}: {}",
                                 device_id, e
-                            ));
+                            )));
                         }
                     };
 
@@ -796,17 +797,17 @@ impl DeviceManager {
                         is_slaved,
                     });
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Enable or disable dome slaving to the mount
-    pub async fn dome_set_slaved(&self, device_id: &str, slaved: bool) -> Result<(), String> {
+    pub async fn dome_set_slaved(&self, device_id: &str, slaved: bool) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -816,9 +817,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.set_slaved(slaved).await;
+                    return dome.set_slaved(slaved).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -826,17 +827,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.set_slaved(slaved).await;
+                        return dome_guard.set_slaved(slaved).await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -848,31 +849,31 @@ impl DeviceManager {
                         return locked
                             .set_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_ENABLE", true)
                             .await
-                            .map_err(|e| e.to_string());
+                            .map_err(DeviceOpError::driver);
                     }
                     return locked
                         .set_switch(&device_name, "DOME_AUTOSYNC", "DOME_AUTOSYNC_DISABLE", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.set_slaved(slaved).await.map_err(|e| e.to_string());
+                    return dome.set_slaved(slaved).await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Send dome to home position
-    pub async fn dome_find_home(&self, device_id: &str) -> Result<(), String> {
+    pub async fn dome_find_home(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -882,9 +883,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.find_home().await;
+                    return dome.find_home().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -892,17 +893,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.find_home().await;
+                        return dome_guard.find_home().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -913,26 +914,26 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "DOME_GOTO", "DOME_HOME", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.find_home().await.map_err(|e| e.to_string());
+                    return dome.find_home().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Abort dome slew / shutter motion
-    pub async fn dome_abort_slew(&self, device_id: &str) -> Result<(), String> {
+    pub async fn dome_abort_slew(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -942,9 +943,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let domes = self.alpaca_domes.read().await;
                 if let Some(dome) = domes.get(device_id) {
-                    return dome.abort_slew().await;
+                    return dome.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca dome {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca dome {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -952,17 +953,17 @@ impl DeviceManager {
                     let domes = self.ascom_domes.read().await;
                     if let Some(dome) = domes.get(device_id) {
                         let dome_guard = dome.read().await;
-                        return dome_guard.abort_slew().await;
+                        return dome_guard.abort_slew().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM dome {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM dome {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM not supported on this platform".to_string())
+                Err(DeviceOpError::unsupported("ASCOM not supported on this platform"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -973,21 +974,21 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "DOME_ABORT_MOTION", "ABORT", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI dome not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_domes = self.native_domes.write().await;
                 if let Some(dome) = native_domes.get_mut(device_id) {
-                    return dome.abort_slew().await.map_err(|e| e.to_string());
+                    return dome.abort_slew().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native dome not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native dome not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("dome")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 }

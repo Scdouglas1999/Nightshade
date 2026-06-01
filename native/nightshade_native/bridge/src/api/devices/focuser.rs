@@ -34,7 +34,7 @@ pub async fn focuser_move_abs(device_id: String, position: i32) -> Result<(), Ni
     let mgr = get_device_manager();
     mgr.focuser_move_abs(&device_id, position)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Move focuser relative
@@ -42,7 +42,7 @@ pub async fn focuser_move_rel(device_id: String, steps: i32) -> Result<(), Night
     let mgr = get_device_manager();
     mgr.focuser_move_rel(&device_id, steps)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Halt focuser
@@ -50,7 +50,7 @@ pub async fn focuser_halt(device_id: String) -> Result<(), NightshadeError> {
     let mgr = get_device_manager();
     mgr.focuser_halt(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get focuser position
@@ -58,7 +58,7 @@ pub async fn focuser_get_position(device_id: String) -> Result<i32, NightshadeEr
     let mgr = get_device_manager();
     mgr.focuser_get_position(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get focuser temperature
@@ -66,7 +66,7 @@ pub async fn focuser_get_temp(device_id: String) -> Result<Option<f64>, Nightsha
     let mgr = get_device_manager();
     mgr.focuser_get_temp(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get focuser details (max pos, step size)
@@ -74,5 +74,5 @@ pub async fn focuser_get_details(device_id: String) -> Result<(i32, f64), Nights
     let mgr = get_device_manager();
     mgr.focuser_get_details(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }

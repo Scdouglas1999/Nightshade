@@ -34,7 +34,7 @@ pub async fn api_switch_get_max(device_id: String) -> Result<i32, NightshadeErro
     let mgr = get_device_manager();
     mgr.switch_get_max(&device_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the boolean state of a switch
@@ -45,7 +45,7 @@ pub async fn api_switch_get_state(
     let mgr = get_device_manager();
     mgr.switch_get_state(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set the boolean state of a switch
@@ -57,7 +57,7 @@ pub async fn api_switch_set_state(
     let mgr = get_device_manager();
     mgr.switch_set_state(&device_id, switch_id, state)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the name of a switch
@@ -68,7 +68,7 @@ pub async fn api_switch_get_name(
     let mgr = get_device_manager();
     mgr.switch_get_name(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the description of a switch
@@ -79,7 +79,7 @@ pub async fn api_switch_get_description(
     let mgr = get_device_manager();
     mgr.switch_get_description(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the numeric value of a switch
@@ -90,7 +90,7 @@ pub async fn api_switch_get_value(
     let mgr = get_device_manager();
     mgr.switch_get_value(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Set the numeric value of a switch
@@ -102,7 +102,7 @@ pub async fn api_switch_set_value(
     let mgr = get_device_manager();
     mgr.switch_set_value(&device_id, switch_id, value)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the minimum value for a switch
@@ -113,7 +113,7 @@ pub async fn api_switch_get_min_value(
     let mgr = get_device_manager();
     mgr.switch_get_min_value(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Get the maximum value for a switch
@@ -124,7 +124,7 @@ pub async fn api_switch_get_max_value(
     let mgr = get_device_manager();
     mgr.switch_get_max_value(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }
 
 /// Check if a switch can be written to
@@ -135,5 +135,5 @@ pub async fn api_switch_can_write(
     let mgr = get_device_manager();
     mgr.switch_can_write(&device_id, switch_id)
         .await
-        .map_err(|e| NightshadeError::OperationFailed(e))
+        .map_err(NightshadeError::from)
 }

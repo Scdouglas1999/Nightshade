@@ -667,13 +667,13 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
             config.binning,
         )
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(NightshadeError::from)?;
 
     loop {
         if device_manager
             .camera_is_exposure_complete(&camera_id)
             .await
-            .map_err(NightshadeError::OperationFailed)?
+            .map_err(NightshadeError::from)?
         {
             break;
         }
@@ -683,7 +683,7 @@ async fn capture_guide_frame() -> Result<GuideFrame, NightshadeError> {
     let native_image = device_manager
         .camera_download_image(&camera_id)
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(NightshadeError::from)?;
     let image = ImageData::from_u16(
         native_image.width,
         native_image.height,
@@ -894,7 +894,7 @@ async fn calibrate_axis_response(
             config.calibration_ms,
         )
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(NightshadeError::from)?;
     tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
     let moved_frame = capture_guide_frame().await?;
     let offset = measure_offset(
@@ -911,7 +911,7 @@ async fn calibrate_axis_response(
             config.calibration_ms,
         )
         .await
-        .map_err(NightshadeError::OperationFailed)?;
+        .map_err(NightshadeError::from)?;
     tokio::time::sleep(Duration::from_millis(config.settle_sleep_ms)).await;
 
     if offset.magnitude() < 0.2 {
@@ -1013,7 +1013,7 @@ async fn pulse_from_scale(
     get_device_manager()
         .mount_pulse_guide(&mount_id, direction.to_string(), duration)
         .await
-        .map_err(NightshadeError::OperationFailed)
+        .map_err(NightshadeError::from)
 }
 
 async fn apply_settle_state(

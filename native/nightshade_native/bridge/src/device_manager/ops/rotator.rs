@@ -6,6 +6,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::DeviceOpError;
 
 impl DeviceManager {
     // =========================================================================
@@ -13,7 +14,7 @@ impl DeviceManager {
     // =========================================================================
 
     /// Get rotator position (sky angle in degrees)
-    pub async fn rotator_get_position(&self, device_id: &str) -> Result<f64, String> {
+    pub async fn rotator_get_position(&self, device_id: &str) -> Result<f64, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -23,9 +24,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let rotators = self.alpaca_rotators.read().await;
                 if let Some(rotator) = rotators.get(device_id) {
-                    return rotator.position().await;
+                    return rotator.position().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca rotator {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca rotator {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -33,17 +34,17 @@ impl DeviceManager {
                     let rotators = self.ascom_rotators.read().await;
                     if let Some(rotator) = rotators.get(device_id) {
                         let rotator_guard = rotator.read().await;
-                        return rotator_guard.position().await;
+                        return rotator_guard.position().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM rotator {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM rotator {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -58,20 +59,20 @@ impl DeviceManager {
                         return Ok(pos);
                     }
                 }
-                Err("INDI rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI rotator not connected"))
             }
             Some(DriverType::Native) => {
                 let native_rotators = self.native_rotators.read().await;
                 if let Some(rotator) = native_rotators.get(device_id) {
-                    return rotator.get_position().await.map_err(|e| e.to_string());
+                    return rotator.get_position().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native rotator not connected"))
             }
             Some(DriverType::Simulator) => {
                 let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
                 Ok(sim.position)
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
@@ -80,7 +81,7 @@ impl DeviceManager {
         &self,
         device_id: &str,
         position: f64,
-    ) -> Result<(), String> {
+    ) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -90,9 +91,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let rotators = self.alpaca_rotators.read().await;
                 if let Some(rotator) = rotators.get(device_id) {
-                    return rotator.move_absolute(position).await;
+                    return rotator.move_absolute(position).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca rotator {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca rotator {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -100,17 +101,17 @@ impl DeviceManager {
                     let rotators = self.ascom_rotators.read().await;
                     if let Some(rotator) = rotators.get(device_id) {
                         let rotator_guard = rotator.read().await;
-                        return rotator_guard.move_absolute(position).await;
+                        return rotator_guard.move_absolute(position).await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM rotator {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM rotator {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -121,33 +122,33 @@ impl DeviceManager {
                     return locked
                         .set_number(&device_name, "ABS_ROTATOR_ANGLE", "ANGLE", position)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI rotator not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_rotators = self.native_rotators.write().await;
                 if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator.move_to(position).await.map_err(|e| e.to_string());
+                    return rotator.move_to(position).await.map_err(DeviceOpError::driver);
                 }
-                Err("Native rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native rotator not connected"))
             }
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
                 if !r.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_rotator()));
                 }
                 r.status.position = position;
                 r.status.mechanical_position = position;
                 Ok(())
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Halt rotator motion
-    pub async fn rotator_halt(&self, device_id: &str) -> Result<(), String> {
+    pub async fn rotator_halt(&self, device_id: &str) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -157,9 +158,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let rotators = self.alpaca_rotators.read().await;
                 if let Some(rotator) = rotators.get(device_id) {
-                    return rotator.halt().await;
+                    return rotator.halt().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca rotator {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca rotator {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -167,17 +168,17 @@ impl DeviceManager {
                     let rotators = self.ascom_rotators.read().await;
                     if let Some(rotator) = rotators.get(device_id) {
                         let rotator_guard = rotator.read().await;
-                        return rotator_guard.halt().await;
+                        return rotator_guard.halt().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM rotator {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM rotator {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -188,28 +189,28 @@ impl DeviceManager {
                     return locked
                         .set_switch(&device_name, "ROTATOR_ABORT_MOTION", "ABORT", true)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI rotator not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_rotators = self.native_rotators.write().await;
                 if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator.halt().await.map_err(|e| e.to_string());
+                    return rotator.halt().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native rotator not connected"))
             }
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
                 if !r.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_rotator()));
                 }
                 r.status.moving = false;
                 r.status.is_moving = false;
                 Ok(())
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
@@ -218,7 +219,7 @@ impl DeviceManager {
     /// with the astrometric PA of the last frame. Why dispatch matches
     /// `rotator_move_absolute`: identical driver layout (Alpaca/ASCOM/INDI/
     /// Native) and lock acquisition rules.
-    pub async fn rotator_sync(&self, device_id: &str, position: f64) -> Result<(), String> {
+    pub async fn rotator_sync(&self, device_id: &str, position: f64) -> Result<(), DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -228,9 +229,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let rotators = self.alpaca_rotators.read().await;
                 if let Some(rotator) = rotators.get(device_id) {
-                    return rotator.sync(position).await;
+                    return rotator.sync(position).await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca rotator {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca rotator {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -238,17 +239,17 @@ impl DeviceManager {
                     let rotators = self.ascom_rotators.read().await;
                     if let Some(rotator) = rotators.get(device_id) {
                         let rotator_guard = rotator.read().await;
-                        return rotator_guard.sync(position).await;
+                        return rotator_guard.sync(position).await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM rotator {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM rotator {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -261,22 +262,22 @@ impl DeviceManager {
                     return locked
                         .set_number(&device_name, "SYNC_ROTATOR_ANGLE", "ANGLE", position)
                         .await
-                        .map_err(|e| e.to_string());
+                        .map_err(DeviceOpError::driver);
                 }
-                Err("INDI rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI rotator not connected"))
             }
             Some(DriverType::Native) => {
                 let mut native_rotators = self.native_rotators.write().await;
                 if let Some(rotator) = native_rotators.get_mut(device_id) {
-                    return rotator.sync(position).await.map_err(|e| e.to_string());
+                    return rotator.sync(position).await.map_err(DeviceOpError::driver);
                 }
-                Err("Native rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native rotator not connected"))
             }
             Some(DriverType::Simulator) => {
                 let r = crate::api::devices::simulation::get_sim_rotator();
                 let mut r = r.write().await;
                 if !r.status.connected {
-                    return Err(crate::device_manager::ops::sim_gate::not_connected_rotator());
+                    return Err(DeviceOpError::not_connected(None, crate::device_manager::ops::sim_gate::not_connected_rotator()));
                 }
                 // Sync snaps the reported PA without moving — matches the
                 // simulator path in
@@ -285,12 +286,12 @@ impl DeviceManager {
                 r.status.mechanical_position = position;
                 Ok(())
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 
     /// Check if rotator is moving
-    pub async fn rotator_is_moving(&self, device_id: &str) -> Result<bool, String> {
+    pub async fn rotator_is_moving(&self, device_id: &str) -> Result<bool, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -300,9 +301,9 @@ impl DeviceManager {
             Some(DriverType::Alpaca) => {
                 let rotators = self.alpaca_rotators.read().await;
                 if let Some(rotator) = rotators.get(device_id) {
-                    return rotator.is_moving().await;
+                    return rotator.is_moving().await.map_err(DeviceOpError::driver);
                 }
-                Err(format!("Alpaca rotator {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca rotator {} not found", device_id)))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -310,17 +311,17 @@ impl DeviceManager {
                     let rotators = self.ascom_rotators.read().await;
                     if let Some(rotator) = rotators.get(device_id) {
                         let rotator_guard = rotator.read().await;
-                        return rotator_guard.is_moving().await;
+                        return rotator_guard.is_moving().await.map_err(DeviceOpError::driver);
                     }
-                    Err(format!("ASCOM rotator {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM rotator {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -332,20 +333,20 @@ impl DeviceManager {
                         .is_property_busy(&device_name, "ABS_ROTATOR_ANGLE")
                         .await);
                 }
-                Err("INDI rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI rotator not connected"))
             }
             Some(DriverType::Native) => {
                 let native_rotators = self.native_rotators.read().await;
                 if let Some(rotator) = native_rotators.get(device_id) {
-                    return rotator.is_moving().await.map_err(|e| e.to_string());
+                    return rotator.is_moving().await.map_err(DeviceOpError::driver);
                 }
-                Err("Native rotator not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native rotator not connected"))
             }
             Some(DriverType::Simulator) => {
                 let sim = crate::device_manager::ops::sim_gate::read_rotator_status().await?;
                 Ok(sim.moving)
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 }

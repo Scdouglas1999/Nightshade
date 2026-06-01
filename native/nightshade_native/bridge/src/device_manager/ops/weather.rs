@@ -6,6 +6,7 @@
 
 use crate::device::*;
 use crate::device_manager::DeviceManager;
+use crate::dispatch::DeviceOpError;
 use nightshade_indi::{IndiWeather, DEFAULT_WEATHER_STALE_MS};
 use std::time::Duration;
 
@@ -13,12 +14,12 @@ async fn indi_weather_conditions(
     device_id: &str,
     weather: &IndiWeather,
     max_age: Duration,
-) -> Result<WeatherConditions, String> {
+) -> Result<WeatherConditions, DeviceOpError> {
     if weather.has_weather_parameters().await && weather.is_parameters_stale(max_age).await {
-        return Err(format!(
+        return Err(DeviceOpError::hardware(Some(device_id.to_string()), format!(
             "INDI weather parameters for {} are stale or have never updated",
             device_id
-        ));
+        )));
     }
 
     Ok(WeatherConditions {
@@ -44,7 +45,7 @@ impl DeviceManager {
     pub async fn weather_get_conditions(
         &self,
         device_id: &str,
-    ) -> Result<WeatherConditions, String> {
+    ) -> Result<WeatherConditions, DeviceOpError> {
         let driver_type = {
             let devices = self.devices.read().await;
             devices.get(device_id).map(|d| d.info.driver_type.clone())
@@ -67,12 +68,12 @@ impl DeviceManager {
                         rain_rate: weather.rain_rate().await.ok(),
                     });
                 }
-                Err(format!("Alpaca weather device {} not found", device_id))
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("Alpaca weather device {} not found", device_id)))
             }
             Some(DriverType::Indi) => {
                 let parts: Vec<&str> = device_id.split(':').collect();
                 if parts.len() < 4 {
-                    return Err("Invalid INDI device ID".to_string());
+                    return Err(DeviceOpError::invalid_device_id("Invalid INDI device ID"));
                 }
                 let server_key = format!("{}:{}", parts[1], parts[2]);
                 let device_name = parts[3..].join(":");
@@ -90,7 +91,7 @@ impl DeviceManager {
                     )
                     .await;
                 }
-                Err("INDI weather device not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "INDI weather device not connected"))
             }
             Some(DriverType::Ascom) => {
                 #[cfg(windows)]
@@ -111,10 +112,10 @@ impl DeviceManager {
                             rain_rate: weather_guard.rain_rate().await.ok(),
                         });
                     }
-                    Err(format!("ASCOM weather device {} not found", device_id))
+                    Err(DeviceOpError::not_connected(Some(device_id.to_string()), format!("ASCOM weather device {} not found", device_id)))
                 }
                 #[cfg(not(windows))]
-                Err("ASCOM is only available on Windows".to_string())
+                Err(DeviceOpError::unsupported("ASCOM is only available on Windows"))
             }
             Some(DriverType::Native) => {
                 let native_weather = self.native_weather.read().await;
@@ -132,12 +133,12 @@ impl DeviceManager {
                         rain_rate: weather.get_rain_rate().await.ok().flatten(),
                     });
                 }
-                Err("Native weather device not connected".to_string())
+                Err(DeviceOpError::not_connected(Some(device_id.to_string()), "Native weather device not connected"))
             }
             Some(DriverType::Simulator) => {
-                Err(crate::device_manager::ops::sim_gate::unsupported_simulator_device("weather"))
+                Err(DeviceOpError::unsupported(crate::device_manager::ops::sim_gate::unsupported_simulator_device("weather")))
             }
-            None => Err(format!("Device not found: {}", device_id)),
+            None => Err(DeviceOpError::device_not_found(device_id)),
         }
     }
 }
@@ -276,7 +277,7 @@ mod tests {
             .expect_err("stale weather parameters must fail closed");
 
         assert!(
-            err.contains("stale") || err.contains("never updated"),
+            err.to_string().contains("stale") || err.to_string().contains("never updated"),
             "unexpected weather staleness error: {}",
             err
         );
