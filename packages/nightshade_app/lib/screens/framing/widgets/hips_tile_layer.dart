@@ -30,11 +30,9 @@
 //
 // ## Platform independence (hard requirement)
 //
-// Nothing here reads the planetarium `RenderingPlatform` or touches the
-// planetarium renderer (v1 CustomPainter or experimental v2 wgpu). The HiPS
-// tiles are a Flutter-side, GPU-composited layer inside the framing render path,
-// so HiPS framing works for every user regardless of the rendering-platform
-// setting.
+// Nothing here touches the planetarium renderer. The HiPS tiles are a
+// Flutter-side, GPU-composited layer inside the framing render path, so HiPS
+// framing works independently of the planetarium screen.
 //
 // ## No FramingCanvas prop changes
 //

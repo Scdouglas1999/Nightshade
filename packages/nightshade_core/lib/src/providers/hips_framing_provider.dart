@@ -19,12 +19,11 @@
 //
 // ## Platform independence (hard requirement)
 //
-// None of this touches the planetarium renderer (v1 CustomPainter or the
-// experimental v2 wgpu path). The HiPS tiles are a Flutter-side, GPU-composited
-// layer inside the framing render path (`framing_canvas` + the survey-image
-// painter family), so HiPS framing works for every user regardless of the
-// `RenderingPlatform` setting. There is no read of `renderingPlatformProvider`
-// here by design — the framing background is its own render path.
+// None of this touches the planetarium renderer. The HiPS tiles are a
+// Flutter-side, GPU-composited layer inside the framing render path
+// (`framing_canvas` + the survey-image painter family), so HiPS framing works
+// independently of the planetarium screen — the framing background is its own
+// render path.
 //
 // ## Ownership and lifetime
 //

@@ -24,8 +24,7 @@ import 'package:nightshade_core/src/services/hips/hips_tile_selection.dart';
 /// FOV-registered, gap-free tile mosaic. The render below draws that snapshot
 /// the way the framing painter would, and overlays the FOV rectangle derived
 /// from the SAME [FramingPlateScale] to prove tiles stay registered to the
-/// overlay — independent of any planetarium RenderingPlatform setting (this
-/// path never touches the planetarium renderer).
+/// overlay — this path never touches the planetarium renderer.
 ///
 /// Output:
 ///   * golden: `goldens/hips_framing_provider_registered.png` (byte-locked)
