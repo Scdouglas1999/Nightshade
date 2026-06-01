@@ -16,76 +16,90 @@ class _WeatherHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final isPhone = Responsive.isPhone(context);
+
+    final refreshButton = IconButton(
+      key: WeatherTutorialKeys.refreshBtn,
+      onPressed: isLoading ? null : onRefresh,
+      icon: isLoading
+          ? SizedBox(
+              width: 20,
+              height: 20,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation(colors.primary),
+              ),
+            )
+          : const Icon(LucideIcons.refreshCw, size: 20),
+      color: colors.textSecondary,
+      tooltip: 'Refresh radar data',
+    );
+
+    final settingsButton = IconButton(
+      onPressed: onSettingsTap,
+      icon: const Icon(LucideIcons.settings, size: 20),
+      color: colors.textSecondary,
+      tooltip: 'Weather settings',
+    );
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+      padding: EdgeInsets.symmetric(horizontal: isPhone ? 16 : 24, vertical: 12),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(
           bottom: BorderSide(color: colors.border),
         ),
       ),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: NightshadeDecorations.tintedBadge(
-              colors.info,
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(
-              LucideIcons.cloudRain,
-              size: 20,
-              color: colors.info,
-            ),
-          ),
-          const SizedBox(width: 16),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Weather Radar',
-                style: TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
-                ),
+      child: SafeArea(
+        bottom: false,
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: NightshadeDecorations.tintedBadge(
+                colors.info,
+                borderRadius: BorderRadius.circular(10),
               ),
-              Text(
-                'Live cloud tracking and safety monitoring',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.textSecondary,
-                ),
+              child: Icon(
+                LucideIcons.cloudRain,
+                size: 20,
+                color: colors.info,
               ),
-            ],
-          ),
-          const Spacer(),
-          // Refresh button
-          IconButton(
-            key: WeatherTutorialKeys.refreshBtn,
-            onPressed: isLoading ? null : onRefresh,
-            icon: isLoading
-                ? SizedBox(
-                    width: 20,
-                    height: 20,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      valueColor: AlwaysStoppedAnimation(colors.primary),
+            ),
+            const SizedBox(width: 12),
+            // Title block flexes so it never pushes the action buttons off
+            // the edge on a narrow phone.
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Weather Radar',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isPhone ? 18 : 20,
+                      fontWeight: FontWeight.w700,
+                      color: colors.textPrimary,
                     ),
-                  )
-                : const Icon(LucideIcons.refreshCw, size: 20),
-            color: colors.textSecondary,
-            tooltip: 'Refresh radar data',
-          ),
-          const SizedBox(width: 8),
-          // Settings button
-          IconButton(
-            onPressed: onSettingsTap,
-            icon: const Icon(LucideIcons.settings, size: 20),
-            color: colors.textSecondary,
-            tooltip: 'Weather settings',
-          ),
-        ],
+                  ),
+                  Text(
+                    'Live cloud tracking and safety monitoring',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: colors.textSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            refreshButton,
+            settingsButton,
+          ],
+        ),
       ),
     );
   }
@@ -240,13 +254,17 @@ class _NoLocationContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: ConstrainedBox(
-        constraints: BoxConstraints(
-          maxWidth: dialogMaxWidth(context, 400),
-        ),
-        child: Container(
-          padding: const EdgeInsets.all(32),
+    return SingleChildScrollView(
+      // Scrollable so the centered card never overflows when a phone is held
+      // in landscape and the viewport is short.
+      padding: const EdgeInsets.all(16),
+      child: Center(
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: dialogMaxWidth(context, 400),
+          ),
+          child: Container(
+            padding: const EdgeInsets.all(32),
           decoration: BoxDecoration(
             color: colors.surface,
             borderRadius: BorderRadius.circular(8),
@@ -257,9 +275,10 @@ class _NoLocationContent extends StatelessWidget {
             children: [
               Container(
                 padding: const EdgeInsets.all(16),
-                decoration: NightshadeDecorations.tintedBadge(
-                  colors.warning,
-                ).copyWith(shape: BoxShape.circle),
+                decoration: BoxDecoration(
+                  color: colors.warning.withValues(alpha: 0.12),
+                  shape: BoxShape.circle,
+                ),
                 child: Icon(
                   LucideIcons.mapPin,
                   size: 48,
@@ -293,6 +312,7 @@ class _NoLocationContent extends StatelessWidget {
                 onPressed: () => context.go('/settings?section=weather-safety'),
               ),
             ],
+          ),
           ),
         ),
       ),

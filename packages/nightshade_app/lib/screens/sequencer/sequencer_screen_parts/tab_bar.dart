@@ -1,5 +1,12 @@
 part of '../sequencer_screen.dart';
 
+/// Sequencer tab strip.
+///
+/// Uses [AdaptiveTabBar] so the six tabs (Builder / Targets / Templates /
+/// Sequences / Samples / History) scroll horizontally instead of overflowing
+/// on a 360 px phone — and collapse their labels to icon-only on a compact
+/// phone (`< 480`). The strip drives the screen's [TabController] so the
+/// existing keyboard shortcuts, provider sync and tutorial flow keep working.
 class _SequencerTabBar extends StatelessWidget {
   final NightshadeColors colors;
   final TabController controller;
@@ -13,151 +20,99 @@ class _SequencerTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Responsive.isMobile(context);
+    final isPhone = Responsive.isPhone(context);
+
+    final tabs = <AdaptiveTab>[
+      AdaptiveTab(
+        label: 'Builder',
+        icon: LucideIcons.workflow,
+        buttonKey: SequencerTutorialKeys.tabBuilder,
+      ),
+      AdaptiveTab(
+        label: 'Targets',
+        icon: LucideIcons.target,
+        buttonKey: SequencerTutorialKeys.tabTargets,
+      ),
+      AdaptiveTab(
+        label: 'Templates',
+        icon: LucideIcons.fileStack,
+        buttonKey: SequencerTutorialKeys.tabTemplates,
+      ),
+      const AdaptiveTab(label: 'Sequences', icon: LucideIcons.folderOpen),
+      const AdaptiveTab(label: 'Samples', icon: LucideIcons.library),
+      const AdaptiveTab(label: 'History', icon: LucideIcons.history),
+    ];
+
+    // On phone the running state is surfaced by the playback bar, so the
+    // trailing "Sequence Running" chip is desktop/tablet only.
+    final trailing = <Widget>[
+      if (isRunning && !isPhone)
+        Padding(
+          padding: const EdgeInsets.only(left: 4, right: 12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: NightshadeDecorations.statusChip(
+              colors.success,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    color: colors.success,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: colors.success.withValues(alpha: 0.5),
+                        blurRadius: 6,
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Sequence Running',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colors.success,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+    ];
 
     return Container(
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: [
-          // Tab buttons
-          Expanded(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 8 : 20,
-                vertical: 8,
-              ),
-              child: TabBar(
-                controller: controller,
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                indicatorSize: TabBarIndicatorSize.tab,
-                indicator: NightshadeDecorations.statusChip(
-                  colors.primary,
-                  borderRadius: BorderRadius.circular(8),
-                  bordered: false,
-                ),
-                dividerColor: Colors.transparent,
-                labelColor: colors.primary,
-                unselectedLabelColor: colors.textMuted,
-                labelStyle: TextStyle(
-                  fontSize: isMobile ? 12 : 13,
-                  fontWeight: FontWeight.w600,
-                ),
-                unselectedLabelStyle: TextStyle(
-                  fontSize: isMobile ? 12 : 13,
-                  fontWeight: FontWeight.w500,
-                ),
-                tabs: [
-                  Tab(
-                    key: SequencerTutorialKeys.tabBuilder,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.workflow, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Builder'),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    key: SequencerTutorialKeys.tabTargets,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.target, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Targets'),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    key: SequencerTutorialKeys.tabTemplates,
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.fileStack, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Templates'),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.folderOpen, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Sequences'),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.library, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('Samples'),
-                      ],
-                    ),
-                  ),
-                  Tab(
-                    child: Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(LucideIcons.history, size: isMobile ? 14 : 16),
-                        SizedBox(width: isMobile ? 4 : 8),
-                        const Text('History'),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+      child: SafeArea(
+        bottom: false,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 4),
+          child: AnimatedBuilder(
+            // Rebuild the strip when the controller's selection changes so the
+            // highlighted tab + auto-scroll-into-view follow the active index
+            // regardless of whether the change came from a tap, a keyboard
+            // shortcut, or the provider→controller sync in initState.
+            animation: controller.animation ?? controller,
+            builder: (context, _) {
+              return AdaptiveTabBar(
+                tabs: tabs,
+                selectedIndex: controller.index,
+                horizontalPadding: isPhone ? 8 : 20,
+                onSelected: (i) => controller.animateTo(i),
+                trailing: trailing,
+              );
+            },
           ),
-
-          // Running indicator (hidden on mobile - shown in playback bar instead)
-          if (isRunning && !isMobile)
-            Container(
-              margin: const EdgeInsets.only(right: 20),
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: NightshadeDecorations.statusChip(
-                colors.success,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: colors.success,
-                      shape: BoxShape.circle,
-                      boxShadow: [
-                        BoxShadow(
-                          color: colors.success.withValues(alpha: 0.5),
-                          blurRadius: 6,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Sequence Running',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.success,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
+        ),
       ),
     );
   }

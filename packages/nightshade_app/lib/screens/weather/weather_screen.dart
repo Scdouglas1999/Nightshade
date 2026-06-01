@@ -155,42 +155,52 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
                 constraints.maxWidth > NightshadeTokens.breakpointDesktopLg;
             final isMedium =
                 constraints.maxWidth > NightshadeTokens.breakpointTablet;
+            // Phone landscape: enough width to put the map beside the data
+            // column without forcing it. Drive purely off the region's own
+            // constraints so embedded/rotated cases are correct.
+            final isPhoneLandscape = constraints.maxWidth < 600 &&
+                constraints.maxWidth > constraints.maxHeight &&
+                constraints.maxWidth >= 560;
 
             return Scaffold(
               backgroundColor: colors.background,
-              body: Column(
-                children: [
-                  // Header
-                  _WeatherHeader(
-                    colors: colors,
-                    onRefresh: _refreshWeatherData,
-                    onSettingsTap: () =>
-                        context.go('/settings?section=weather-safety'),
-                    isLoading: weatherStatus.isLoading,
-                  ),
+              body: SafeArea(
+                top: false,
+                child: Column(
+                  children: [
+                    // Header
+                    _WeatherHeader(
+                      colors: colors,
+                      onRefresh: _refreshWeatherData,
+                      onSettingsTap: () =>
+                          context.go('/settings?section=weather-safety'),
+                      isLoading: weatherStatus.isLoading,
+                    ),
 
-                  // Main content
-                  Expanded(
-                    child: hasLocation
-                        ? _buildMainContent(
-                            context,
-                            colors,
-                            isWide,
-                            isMedium,
-                            latitude,
-                            longitude,
-                            alertRadiusKm,
-                            radarFrames,
-                            motionDirection,
-                            motion,
-                            alert,
-                            weatherStatus,
-                            cloudCoverAsync.valueOrNull,
-                            radarSource,
-                          )
-                        : _NoLocationContent(colors: colors),
-                  ),
-                ],
+                    // Main content
+                    Expanded(
+                      child: hasLocation
+                          ? _buildMainContent(
+                              context,
+                              colors,
+                              isWide,
+                              isMedium,
+                              isPhoneLandscape,
+                              latitude,
+                              longitude,
+                              alertRadiusKm,
+                              radarFrames,
+                              motionDirection,
+                              motion,
+                              alert,
+                              weatherStatus,
+                              cloudCoverAsync.valueOrNull,
+                              radarSource,
+                            )
+                          : _NoLocationContent(colors: colors),
+                    ),
+                  ],
+                ),
               ),
             );
           },
@@ -204,6 +214,7 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
     NightshadeColors colors,
     bool isWide,
     bool isMedium,
+    bool isPhoneLandscape,
     double latitude,
     double longitude,
     double alertRadiusKm,
@@ -356,123 +367,147 @@ class _WeatherScreenState extends ConsumerState<WeatherScreen>
         ],
       );
     } else {
-      // Narrow/medium layout: stacked vertically, all in one scroll view.
-      // Radar is constrained to a fixed height so data cards are visible below.
-      final radarHeight = isMedium ? 350.0 : 280.0;
+      // Narrow/medium layout. Radar is constrained to a fixed height so data
+      // cards are visible below; in phone landscape the map + controls sit
+      // beside the scrolling data column instead of stacking.
+      final radarHeight = isPhoneLandscape
+          ? 0.0 // landscape: map fills the left pane height, no fixed box
+          : isMedium
+              ? 350.0
+              : 280.0;
+
+      final radarStack = Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: WeatherRadarMap(
+              key: WeatherTutorialKeys.radarMap,
+              currentFrame: currentFrame,
+              latitude: latitude,
+              longitude: longitude,
+              alertRadiusKm: alertRadiusKm,
+              radarOpacity: _radarOpacity,
+              contrastLevel: _radarContrast,
+              motionDirection: motionDirection,
+              sourceName: radarSource.providerName,
+              fetchedAt: radarSource.fetchedAt,
+            ),
+          ),
+          const Positioned(
+            left: 8,
+            bottom: 8,
+            child: SatelliteLegend(compact: true),
+          ),
+        ],
+      );
+
+      final scrubber = RadarTimelineScrubber(
+        key: WeatherTutorialKeys.timeline,
+        frames: radarFrames,
+        currentIndex: validFrameIndex,
+        onFrameChanged: (index) {
+          setState(() => _currentFrameIndex = index);
+        },
+        isPlaying: _isPlaying,
+        onPlayPauseToggle: () {
+          setState(() => _isPlaying = !_isPlaying);
+        },
+        playbackSpeed: _playbackSpeed,
+        onSpeedChanged: (speed) {
+          setState(() => _playbackSpeed = speed);
+        },
+      );
+
+      final controlsRow = _RadarControlsRow(
+        colors: colors,
+        opacity: _radarOpacity,
+        contrast: _radarContrast,
+        onOpacityChanged: (value) {
+          setState(() => _radarOpacity = value);
+        },
+        onContrastChanged: (value) {
+          setState(() => _radarContrast = value);
+        },
+      );
+
+      final dataCards = <Widget>[
+        // Hardware sensors (priority - only shows if devices connected)
+        _HardwareSensorsCard(colors: colors),
+        const SizedBox(height: 16),
+        _CloudCoverCard(
+          cloudCoverPercent: cloudCoverPercent,
+          colors: colors,
+        ),
+        const SizedBox(height: 16),
+        WeatherStatusCard(
+          key: WeatherTutorialKeys.statusCard,
+          alert: alert,
+          motion: motion,
+          lastUpdate: weatherStatus.lastUpdate,
+          expanded: _statusCardExpanded,
+          onExpandToggle: () {
+            setState(() => _statusCardExpanded = !_statusCardExpanded);
+          },
+        ),
+        const SizedBox(height: 16),
+        if (isMedium)
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(child: _WeatherSafetyCard(colors: colors)),
+              const SizedBox(width: 16),
+              Expanded(child: _WeatherSettingsCard(colors: colors)),
+            ],
+          )
+        else ...[
+          _WeatherSafetyCard(colors: colors),
+          const SizedBox(height: 16),
+          _WeatherSettingsCard(colors: colors),
+        ],
+      ];
+
+      if (isPhoneLandscape) {
+        // Map + radar controls on the left, scrolling data cards on the right.
+        return Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 16, 8, 16),
+                child: Column(
+                  children: [
+                    Expanded(child: radarStack),
+                    const SizedBox(height: 12),
+                    scrubber,
+                    const SizedBox(height: 12),
+                    controlsRow,
+                  ],
+                ),
+              ),
+            ),
+            Expanded(
+              flex: 2,
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(8, 16, 16, 16),
+                child: Column(children: dataCards),
+              ),
+            ),
+          ],
+        );
+      }
 
       return SingleChildScrollView(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            // Map with legend overlay - constrained to fixed height
-            SizedBox(
-              height: radarHeight,
-              child: Stack(
-                children: [
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(8),
-                    child: WeatherRadarMap(
-                      key: WeatherTutorialKeys.radarMap,
-                      currentFrame: currentFrame,
-                      latitude: latitude,
-                      longitude: longitude,
-                      alertRadiusKm: alertRadiusKm,
-                      radarOpacity: _radarOpacity,
-                      contrastLevel: _radarContrast,
-                      motionDirection: motionDirection,
-                      sourceName: radarSource.providerName,
-                      fetchedAt: radarSource.fetchedAt,
-                    ),
-                  ),
-                  // Satellite legend overlay
-                  const Positioned(
-                    left: 8,
-                    bottom: 8,
-                    child: SatelliteLegend(compact: true),
-                  ),
-                ],
-              ),
-            ),
-
+            SizedBox(height: radarHeight, child: radarStack),
             const SizedBox(height: 16),
-
-            // Timeline scrubber
-            RadarTimelineScrubber(
-              key: WeatherTutorialKeys.timeline,
-              frames: radarFrames,
-              currentIndex: validFrameIndex,
-              onFrameChanged: (index) {
-                setState(() => _currentFrameIndex = index);
-              },
-              isPlaying: _isPlaying,
-              onPlayPauseToggle: () {
-                setState(() => _isPlaying = !_isPlaying);
-              },
-              playbackSpeed: _playbackSpeed,
-              onSpeedChanged: (speed) {
-                setState(() => _playbackSpeed = speed);
-              },
-            ),
-
+            scrubber,
             const SizedBox(height: 16),
-
-            // Opacity and contrast sliders
-            _RadarControlsRow(
-              colors: colors,
-              opacity: _radarOpacity,
-              contrast: _radarContrast,
-              onOpacityChanged: (value) {
-                setState(() => _radarOpacity = value);
-              },
-              onContrastChanged: (value) {
-                setState(() => _radarContrast = value);
-              },
-            ),
-
+            controlsRow,
             const SizedBox(height: 24),
-
-            // Hardware sensors (priority - only shows if devices connected)
-            _HardwareSensorsCard(colors: colors),
-            const SizedBox(height: 16),
-
-            // Cloud cover card
-            _CloudCoverCard(
-              cloudCoverPercent: cloudCoverPercent,
-              colors: colors,
-            ),
-
-            const SizedBox(height: 16),
-
-            // Status card
-            WeatherStatusCard(
-              key: WeatherTutorialKeys.statusCard,
-              alert: alert,
-              motion: motion,
-              lastUpdate: weatherStatus.lastUpdate,
-              expanded: _statusCardExpanded,
-              onExpandToggle: () {
-                setState(() => _statusCardExpanded = !_statusCardExpanded);
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            // Safety and settings cards in row on medium screens
-            if (isMedium)
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(child: _WeatherSafetyCard(colors: colors)),
-                  const SizedBox(width: 16),
-                  Expanded(child: _WeatherSettingsCard(colors: colors)),
-                ],
-              )
-            else ...[
-              _WeatherSafetyCard(colors: colors),
-              const SizedBox(height: 16),
-              _WeatherSettingsCard(colors: colors),
-            ],
-
+            ...dataCards,
             const SizedBox(height: 24),
           ],
         ),

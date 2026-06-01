@@ -9,16 +9,14 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
     final point = state.currentPoint;
     final status = state.statusMessage;
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Main image area
-          Expanded(
-            flex: 2,
-            child: Container(
-              key: PolarAlignmentTutorialKeys.imageView,
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // Below ~520px the image + fixed side panel get too tight, so stack
+        // the image above the progress panel in a phone column.
+        final stack = constraints.maxWidth < 520;
+
+        final imageArea = Container(
+          key: PolarAlignmentTutorialKeys.imageView,
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
@@ -119,112 +117,133 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                     ),
                 ],
               ),
-            ),
+            );
+
+        final progressPanel = Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: colors.surface,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(color: colors.border),
           ),
-
-          const SizedBox(width: 16),
-
-          // Progress panel
-          SizedBox(
-            width: 180,
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: colors.surface,
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: colors.border),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              Text(
+                'Progress',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: colors.textPrimary,
+                ),
               ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Progress',
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                  _MeasurementProgressItem(
-                    colors: colors,
-                    label: 'Point 1',
-                    isActive: point == 1,
-                    isComplete: point > 1,
-                  ),
-                  const SizedBox(height: 8),
-                  _MeasurementProgressItem(
-                    colors: colors,
-                    label: 'Point 2',
-                    isActive: point == 2,
-                    isComplete: point > 2,
-                  ),
-                  const SizedBox(height: 8),
-                  _MeasurementProgressItem(
-                    colors: colors,
-                    label: 'Point 3',
-                    isActive: point == 3,
-                    isComplete: point > 3,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'Status',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: colors.textMuted,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
+              const SizedBox(height: 16),
+              _MeasurementProgressItem(
+                colors: colors,
+                label: 'Point 1',
+                isActive: point == 1,
+                isComplete: point > 1,
+              ),
+              const SizedBox(height: 8),
+              _MeasurementProgressItem(
+                colors: colors,
+                label: 'Point 2',
+                isActive: point == 2,
+                isComplete: point > 2,
+              ),
+              const SizedBox(height: 8),
+              _MeasurementProgressItem(
+                colors: colors,
+                label: 'Point 3',
+                isActive: point == 3,
+                isComplete: point > 3,
+              ),
+              const SizedBox(height: 24),
+              Text(
+                'Status',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: colors.textMuted,
+                ),
+              ),
+              const SizedBox(height: 6),
 
-                  // Task 4.4: Solve progress indicator with timer
-                  if (status.toLowerCase().contains('solv'))
-                    _SolveProgressIndicator(colors: colors, status: status)
-                  else
-                    Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: colors.textSecondary,
+              // Task 4.4: Solve progress indicator with timer
+              if (status.toLowerCase().contains('solv'))
+                _SolveProgressIndicator(colors: colors, status: status)
+              else
+                Text(
+                  status,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.textSecondary,
+                  ),
+                ),
+
+              if (!stack) const Spacer() else const SizedBox(height: 16),
+              // Mount activity indicator
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: colors.surfaceAlt,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Row(
+                  children: [
+                    SizedBox(
+                      width: 14,
+                      height: 14,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: colors.primary,
                       ),
                     ),
-
-                  const Spacer(),
-                  // Mount activity indicator
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: colors.surfaceAlt,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: Row(
-                      children: [
-                        SizedBox(
-                          width: 14,
-                          height: 14,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: colors.primary,
-                          ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'Capturing Point $point',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textPrimary,
                         ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Text(
-                            'Capturing Point $point',
-                            style: TextStyle(
-                              fontSize: 11,
-                              color: colors.textPrimary,
-                            ),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
+            ],
           ),
-        ],
-      ),
+        );
+
+        if (stack) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Give the image a generous square-ish area then let the
+                // progress panel flow beneath it.
+                AspectRatio(aspectRatio: 4 / 3, child: imageArea),
+                const SizedBox(height: 16),
+                progressPanel,
+              ],
+            ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 2, child: imageArea),
+              const SizedBox(width: 16),
+              SizedBox(width: 180, child: progressPanel),
+            ],
+          ),
+        );
+      },
     );
   }
 
@@ -258,15 +277,11 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
     final altDir =
         error != null ? (error.altitudeError > 0 ? 'Down' : 'Up') : '--';
 
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Main image area with bullseye overlay
-          Expanded(
-            flex: 2,
-            child: Container(
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final stack = constraints.maxWidth < 520;
+
+        final imageArea = Container(
               decoration: BoxDecoration(
                 color: colors.surfaceAlt,
                 borderRadius: BorderRadius.circular(8),
@@ -323,15 +338,9 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   ),
                 ],
               ),
-            ),
-          ),
+            );
 
-          const SizedBox(width: 16),
-
-          // Direction panel
-          SizedBox(
-            width: 200,
-            child: Container(
+        final directionPanel = Container(
               key: PolarAlignmentTutorialKeys.adjustment,
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
@@ -341,6 +350,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
               ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: stack ? MainAxisSize.min : MainAxisSize.max,
                 children: [
                   Text(
                     'Adjust Mount',
@@ -454,7 +464,7 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                       ),
                     ),
 
-                  const Spacer(),
+                  if (!stack) const Spacer() else const SizedBox(height: 20),
 
                   // Progress toward threshold
                   Text(
@@ -525,10 +535,34 @@ extension _MeasurementPanel on _PolarAlignmentScreenState {
                   ),
                 ],
               ),
+            );
+
+        if (stack) {
+          return Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                AspectRatio(aspectRatio: 4 / 3, child: imageArea),
+                const SizedBox(height: 16),
+                directionPanel,
+              ],
             ),
+          );
+        }
+
+        return Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(flex: 2, child: imageArea),
+              const SizedBox(width: 16),
+              SizedBox(width: 200, child: directionPanel),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 

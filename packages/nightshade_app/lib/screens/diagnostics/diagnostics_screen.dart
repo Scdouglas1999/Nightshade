@@ -56,45 +56,81 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
       _selectedSessionId = sessionState.dbSessionId;
     }
 
+    // Phone tier reflows the header: the session selector drops to its own
+    // line under the title so the wide dropdown can't push the title into a
+    // RenderFlex overflow on a narrow phone.
+    final isPhone = Responsive.isPhone(context);
+
+    final titleRow = Row(
+      children: [
+        Icon(LucideIcons.microscope, size: 22, color: colors.primary),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            l10n.text('diagnosticsTitle'),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: isMobile ? 18 : 22,
+              fontWeight: FontWeight.w700,
+              color: colors.textPrimary,
+            ),
+          ),
+        ),
+      ],
+    );
+
+    final sessionSelector = sessionsAsync.when(
+      data: (sessions) => _SessionSelector(
+        sessions: sessions,
+        selectedSessionId: _selectedSessionId,
+        onChanged: (id) => setState(() => _selectedSessionId = id),
+        colors: colors,
+      ),
+      // Small skeleton chip rather than a spinner so the header doesn't
+      // visibly jitter when sessions resolve.
+      loading: () => const ShimmerLoading(
+        child: SkeletonBox(width: 200, height: 28),
+      ),
+      error: (e, _) => Text(
+        l10n.text('diagnosticsLoadSessionsFailed'),
+        style: TextStyle(color: colors.error, fontSize: 12),
+      ),
+    );
+
     return Padding(
       padding: EdgeInsets.all(isMobile ? 12 : 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // Header
-          Row(
-            children: [
-              Icon(LucideIcons.microscope, size: 22, color: colors.primary),
-              const SizedBox(width: 10),
-              Text(
-                l10n.text('diagnosticsTitle'),
-                style: TextStyle(
-                  fontSize: isMobile ? 18 : 22,
-                  fontWeight: FontWeight.w700,
-                  color: colors.textPrimary,
+          if (isPhone) ...[
+            titleRow,
+            const SizedBox(height: 10),
+            // Constrain so a long session name ellipsizes instead of forcing
+            // the dropdown wider than the phone column.
+            Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.sizeOf(context).width - 24,
                 ),
+                child: sessionSelector,
               ),
-              const Spacer(),
-              // Session selector
-              sessionsAsync.when(
-                data: (sessions) => _SessionSelector(
-                  sessions: sessions,
-                  selectedSessionId: _selectedSessionId,
-                  onChanged: (id) => setState(() => _selectedSessionId = id),
-                  colors: colors,
+            ),
+          ] else
+            Row(
+              children: [
+                Expanded(child: titleRow),
+                const SizedBox(width: 12),
+                // Bounded width so the (isExpanded) dropdown has finite
+                // constraints and ellipsizes a long session label.
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 280),
+                  child: sessionSelector,
                 ),
-                // Small skeleton chip rather than a spinner so the header
-                // doesn't visibly jitter when sessions resolve.
-                loading: () => const ShimmerLoading(
-                  child: SkeletonBox(width: 200, height: 28),
-                ),
-                error: (e, _) => Text(
-                  l10n.text('diagnosticsLoadSessionsFailed'),
-                  style: TextStyle(color: colors.error, fontSize: 12),
-                ),
-              ),
-            ],
-          ),
+              ],
+            ),
           const SizedBox(height: 8),
           // Users frequently confuse diagnostics with analytics; the audit
           // (§4.19) called out that the prior single-line intro didn't make
@@ -121,10 +157,20 @@ class _DiagnosticsTabContentState extends ConsumerState<DiagnosticsTabContent> {
           // Main content
           Expanded(
             child: _selectedSessionId == null
-                ? EmptyState(
-                    icon: LucideIcons.star,
-                    title: l10n.text('diagnosticsNoSessionTitle'),
-                    body: l10n.text('diagnosticsNoSessionBody'),
+                // Scroll-wrap so the centered empty state never overflows when
+                // a phone is short (landscape).
+                ? LayoutBuilder(
+                    builder: (context, constraints) => SingleChildScrollView(
+                      child: ConstrainedBox(
+                        constraints:
+                            BoxConstraints(minHeight: constraints.maxHeight),
+                        child: EmptyState(
+                          icon: LucideIcons.star,
+                          title: l10n.text('diagnosticsNoSessionTitle'),
+                          body: l10n.text('diagnosticsNoSessionBody'),
+                        ),
+                      ),
+                    ),
                   )
                 : _DiagnosticsContent(
                     sessionId: _selectedSessionId!,

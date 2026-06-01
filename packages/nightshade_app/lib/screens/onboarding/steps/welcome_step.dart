@@ -20,7 +20,8 @@ class OnboardingWelcomeStep extends ConsumerWidget {
     final theme = Theme.of(context);
     final profilesAsync = ref.watch(allProfilesProvider);
 
-    return Column(
+    return SingleChildScrollView(
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
@@ -122,6 +123,7 @@ class OnboardingWelcomeStep extends ConsumerWidget {
           },
         ),
       ],
+      ),
     );
   }
 

@@ -180,20 +180,26 @@ class _FlatWizardScreenState extends ConsumerState<FlatWizardScreen>
   }
 
   Widget _buildTabBar(NightshadeColors colors) {
+    // AdaptiveTabBar never overflows: the three mode labels scroll
+    // horizontally on a narrow phone instead of throwing a RenderFlex.
+    // It drives the existing TabController so the TabBarView stays in sync.
     return Container(
-      color: colors.surface,
-      child: TabBar(
-        key: FlatWizardTutorialKeys.tabs,
-        controller: _tabController,
-        labelColor: colors.primary,
-        unselectedLabelColor: colors.textSecondary,
-        indicatorColor: colors.primary,
-        indicatorWeight: 2,
-        tabs: const [
-          Tab(text: 'Quick Capture'),
-          Tab(text: 'Multi-Filter Batch'),
-          Tab(text: 'Sky Flats'),
-        ],
+      key: FlatWizardTutorialKeys.tabs,
+      decoration: BoxDecoration(
+        color: colors.surface,
+        border: Border(bottom: BorderSide(color: colors.border)),
+      ),
+      child: AnimatedBuilder(
+        animation: _tabController,
+        builder: (context, _) => AdaptiveTabBar(
+          tabs: const [
+            AdaptiveTab(label: 'Quick Capture', icon: LucideIcons.zap),
+            AdaptiveTab(label: 'Multi-Filter Batch', icon: LucideIcons.layers),
+            AdaptiveTab(label: 'Sky Flats', icon: LucideIcons.sunrise),
+          ],
+          selectedIndex: _tabController.index,
+          onSelected: (i) => _tabController.animateTo(i),
+        ),
       ),
     );
   }

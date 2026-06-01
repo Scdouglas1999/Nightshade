@@ -187,112 +187,167 @@ extension _ScreenShell on _PolarAlignmentScreenState {
       disabledReason = 'Mount not connected';
     }
 
+    final status = Row(
+      children: [
+        if (isRunning)
+          Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: colors.primary,
+              ),
+            ),
+          ),
+        Expanded(
+          child: Text(
+            state.statusMessage,
+            style: TextStyle(
+              fontSize: 12,
+              color: colors.textSecondary,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
+
+    // Action buttons for the current phase. When [stretch] is true they fill
+    // the available width (phone, stacked under the status); otherwise they
+    // size to content and sit beside the status on a wider viewport.
+    //
+    // NightshadeButton sizes to its content but expands to fill a bounded
+    // parent. The stretched buttons are always laid out inside a Row, so
+    // Expanded is what makes them full-width without touching the shared
+    // component (SizedBox(width: infinity) would be an unbounded-width error
+    // inside a Row).
+    Widget wrapButton(Widget button, {required bool stretch}) {
+      if (!stretch) return button;
+      return Expanded(child: button);
+    }
+
+    List<Widget> actionButtons(bool stretch) {
+      switch (state.phase) {
+        case PolarAlignPhase.idle:
+          return [
+            wrapButton(
+              Tooltip(
+                message: disabledReason ?? '',
+                child: NightshadeButton(
+                  key: PolarAlignmentTutorialKeys.startBtn,
+                  label: 'Start Alignment',
+                  icon: LucideIcons.play,
+                  variant: ButtonVariant.primary,
+                  onPressed: equipmentReady ? _startAlignment : null,
+                ),
+              ),
+              stretch: stretch,
+            ),
+          ];
+        case PolarAlignPhase.measuring:
+          return [
+            wrapButton(
+              NightshadeButton(
+                label: 'Stop',
+                icon: LucideIcons.square,
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                onPressed: _stopAlignment,
+              ),
+              stretch: stretch,
+            ),
+          ];
+        case PolarAlignPhase.adjusting:
+          return [
+            wrapButton(
+              NightshadeButton(
+                label: 'Stop',
+                icon: LucideIcons.square,
+                variant: ButtonVariant.destructive,
+                size: ButtonSize.small,
+                onPressed: _stopAlignment,
+              ),
+              stretch: stretch,
+            ),
+            const SizedBox(width: 8),
+            wrapButton(
+              NightshadeButton(
+                label: 'Done',
+                icon: LucideIcons.check,
+                variant: ButtonVariant.primary,
+                onPressed: _completeAlignment,
+              ),
+              stretch: stretch,
+            ),
+          ];
+        case PolarAlignPhase.complete:
+        case PolarAlignPhase.error:
+          return [
+            wrapButton(
+              NightshadeButton(
+                label: 'Restart',
+                icon: LucideIcons.rotateCcw,
+                variant: ButtonVariant.outline,
+                size: ButtonSize.small,
+                onPressed: _resetAlignment,
+              ),
+              stretch: stretch,
+            ),
+            const SizedBox(width: 8),
+            wrapButton(
+              NightshadeButton(
+                label: 'Done',
+                icon: LucideIcons.check,
+                variant: ButtonVariant.primary,
+                onPressed: () {
+                  if (context.canPop()) {
+                    context.pop();
+                  } else {
+                    context.go('/imaging');
+                  }
+                },
+              ),
+              stretch: stretch,
+            ),
+          ];
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colors.surface,
         border: Border(top: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        children: [
-          // Status
-          Expanded(
-            child: Row(
+      child: SafeArea(
+        top: false,
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // Below ~520px a status + label-bearing button row gets tight, so
+            // stack the actions under the status and let them fill the width.
+            final stack = constraints.maxWidth < 520;
+            if (stack) {
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  status,
+                  const SizedBox(height: 12),
+                  Row(children: actionButtons(true)),
+                ],
+              );
+            }
+            return Row(
               children: [
-                if (isRunning)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: SizedBox(
-                      width: 16,
-                      height: 16,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: colors.primary,
-                      ),
-                    ),
-                  ),
-                Expanded(
-                  child: Text(
-                    state.statusMessage,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: colors.textSecondary,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
+                Expanded(child: status),
+                const SizedBox(width: 16),
+                ...actionButtons(false),
               ],
-            ),
-          ),
-
-          const SizedBox(width: 16),
-
-          // Action buttons
-          if (state.phase == PolarAlignPhase.idle)
-            Tooltip(
-              message: disabledReason ?? '',
-              child: NightshadeButton(
-                key: PolarAlignmentTutorialKeys.startBtn,
-                label: 'Start Alignment',
-                icon: LucideIcons.play,
-                variant: ButtonVariant.primary,
-                onPressed: equipmentReady ? _startAlignment : null,
-              ),
-            )
-          else if (state.phase == PolarAlignPhase.measuring)
-            NightshadeButton(
-              label: 'Stop',
-              icon: LucideIcons.square,
-              variant: ButtonVariant.destructive,
-              size: ButtonSize.small,
-              onPressed: _stopAlignment,
-            )
-          else if (state.phase == PolarAlignPhase.adjusting)
-            Row(
-              children: [
-                NightshadeButton(
-                  label: 'Stop',
-                  icon: LucideIcons.square,
-                  variant: ButtonVariant.destructive,
-                  size: ButtonSize.small,
-                  onPressed: _stopAlignment,
-                ),
-                const SizedBox(width: 8),
-                NightshadeButton(
-                  label: 'Done',
-                  icon: LucideIcons.check,
-                  variant: ButtonVariant.primary,
-                  onPressed: _completeAlignment,
-                ),
-              ],
-            )
-          else if (state.phase == PolarAlignPhase.complete ||
-              state.phase == PolarAlignPhase.error)
-            Row(
-              children: [
-                NightshadeButton(
-                  label: 'Restart',
-                  icon: LucideIcons.rotateCcw,
-                  variant: ButtonVariant.outline,
-                  size: ButtonSize.small,
-                  onPressed: _resetAlignment,
-                ),
-                const SizedBox(width: 8),
-                NightshadeButton(
-                  label: 'Done',
-                  icon: LucideIcons.check,
-                  variant: ButtonVariant.primary,
-                  onPressed: () {
-                    if (context.canPop()) {
-                      context.pop();
-                    } else {
-                      context.go('/imaging');
-                    }
-                  },
-                ),
-              ],
-            ),
-        ],
+            );
+          },
+        ),
       ),
     );
   }

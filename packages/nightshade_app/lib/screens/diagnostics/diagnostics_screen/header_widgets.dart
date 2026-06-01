@@ -25,12 +25,16 @@ class _DocsInfoChip extends StatelessWidget {
             children: [
               Icon(LucideIcons.info, size: 14, color: colors.accent),
               const SizedBox(width: 6),
-              Text(
-                'Learn more about optical diagnostics',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: colors.accent,
-                  fontWeight: FontWeight.w500,
+              Flexible(
+                child: Text(
+                  'Learn more about optical diagnostics',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: colors.accent,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
               ),
             ],
@@ -94,6 +98,10 @@ class _SessionSelector extends StatelessWidget {
       child: DropdownButtonHideUnderline(
         child: DropdownButton<int>(
           value: dropdownValue,
+          // isExpanded lets the button shrink to its bounded parent and
+          // ellipsize the selected label instead of sizing to the widest
+          // item (which overflows a narrow phone header).
+          isExpanded: true,
           hint: Text(
             context.l10n.text('diagnosticsSelectSession'),
             style: TextStyle(color: colors.textMuted, fontSize: 13),

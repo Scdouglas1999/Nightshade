@@ -7,12 +7,27 @@ class _BuilderContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final isMobile = Responsive.isMobile(context);
-
-    if (isMobile) {
-      return _MobileBuilderLayout(colors: colors);
-    }
-    return _DesktopBuilderLayout(colors: colors);
+    // Phone-first reflow. We treat the builder as a phone whenever the
+    // *shorter* side of the region is below the phone breakpoint (`< 600`).
+    // That keeps a phone held in LANDSCAPE (e.g. 844×390) on the phone-first
+    // mobile builder — which uses the extra width for a side-by-side
+    // tree+properties split — instead of falling into the desktop 3-column
+    // layout, whose dense toolbar/header rows overflow at that height.
+    //
+    // The old `Responsive.isMobile` (`< 768`) lumped small tablets in with
+    // phones AND switched on width alone, so a rotated phone got the squished
+    // desktop path. Branching on the short side fixes both.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final shortSide = constraints.maxWidth < constraints.maxHeight
+            ? constraints.maxWidth
+            : constraints.maxHeight;
+        if (BreakpointTokens.isPhone(shortSide)) {
+          return _MobileBuilderLayout(colors: colors);
+        }
+        return _DesktopBuilderLayout(colors: colors);
+      },
+    );
   }
 }
 

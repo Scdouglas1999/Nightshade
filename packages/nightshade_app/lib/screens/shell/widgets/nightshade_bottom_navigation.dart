@@ -51,6 +51,13 @@ class _NightshadeBottomNavigationState
         );
         _scheduleScroll(items, itemWidth, constraints.maxWidth);
 
+        // In landscape vertical space is scarce (a phone is only ~360–430 px
+        // tall), so shorten the bar and tighten the item's internal padding.
+        // The icon + label still fit; the strip stays horizontally scrollable.
+        final isLandscape =
+            MediaQuery.orientationOf(context) == Orientation.landscape;
+        final barHeight = isLandscape ? 64.0 : BottomNavMetrics.barHeight;
+
         return Container(
           decoration: BoxDecoration(
             color: colors.surface,
@@ -61,7 +68,7 @@ class _NightshadeBottomNavigationState
           child: SafeArea(
             top: false,
             child: SizedBox(
-              height: BottomNavMetrics.barHeight,
+              height: barHeight,
               child: ListView.separated(
                 controller: _scrollController,
                 scrollDirection: Axis.horizontal,
@@ -81,6 +88,7 @@ class _NightshadeBottomNavigationState
                       icon: item.icon,
                       label: item.label,
                       isSelected: currentPath == item.route,
+                      compact: isLandscape,
                       colors: colors,
                       onTap: () => widget.onRouteSelected(item.route),
                     ),
@@ -139,12 +147,16 @@ class _BottomNavItem extends StatelessWidget {
   final VoidCallback onTap;
   final NightshadeColors colors;
 
+  /// Tighter vertical metrics for the shorter landscape bar.
+  final bool compact;
+
   const _BottomNavItem({
     required this.icon,
     required this.label,
     required this.isSelected,
     required this.onTap,
     required this.colors,
+    this.compact = false,
   });
 
   @override
@@ -157,7 +169,9 @@ class _BottomNavItem extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: BottomNavMetrics.itemSelectionAnimationDuration,
-          padding: BottomNavMetrics.itemPadding,
+          padding: compact
+              ? const EdgeInsets.symmetric(horizontal: 10, vertical: 4)
+              : BottomNavMetrics.itemPadding,
           decoration: BoxDecoration(
             color: isSelected
                 ? colors.primary.withValues(alpha: 0.12)
@@ -178,7 +192,10 @@ class _BottomNavItem extends StatelessWidget {
                 size: BottomNavMetrics.itemIconSize,
                 color: isSelected ? colors.primary : colors.textSecondary,
               ),
-              const SizedBox(height: BottomNavMetrics.itemIconLabelGap),
+              SizedBox(
+                  height: compact
+                      ? BottomNavMetrics.itemIconLabelGap - 3
+                      : BottomNavMetrics.itemIconLabelGap),
               Text(
                 label,
                 maxLines: 1,

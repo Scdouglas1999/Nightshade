@@ -195,12 +195,19 @@ class _TimingSection extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: 8),
-                  Text(
-                    _formatDurationNice(duration),
-                    style: TextStyle(
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                      color: colors.primary,
+                  // Flexible so a long formatted duration reflows/ellipsizes in
+                  // a narrow pane (e.g. the phone-landscape properties split)
+                  // instead of overflowing the row.
+                  Flexible(
+                    child: Text(
+                      _formatDurationNice(duration),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w600,
+                        color: colors.primary,
+                      ),
                     ),
                   ),
                 ],
@@ -220,11 +227,15 @@ class _TimingSection extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Text(
-                      '${percentage.toStringAsFixed(1)}% of total',
-                      style: TextStyle(
-                        fontSize: 11,
-                        color: colors.textSecondary,
+                    Flexible(
+                      child: Text(
+                        '${percentage.toStringAsFixed(1)}% of total',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: colors.textSecondary,
+                        ),
                       ),
                     ),
                   ],

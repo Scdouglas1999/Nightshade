@@ -33,11 +33,11 @@
 // 50ms pumps drains the StreamProvider override into the dropdown selector
 // without waiting on the shimmer.
 //
-// Why we swallow "overflowed" FlutterErrors: at the chosen test surface the
-// header row may overflow by a handful of pixels with the long "Optical
-// Train Diagnostics" title and the session selector pill side by side.
-// Cosmetic and out of scope; surface everything else so a real layout
-// regression still trips takeException().
+// Note: the header no longer overflows at any tested width — the responsive
+// rework made the title flex and dropped the session selector to its own
+// line (or a width-bounded, isExpanded dropdown) on a phone. These tests no
+// longer need to swallow "overflowed" FlutterErrors; see
+// diagnostics_responsive_test.dart for the phone-size/orientation coverage.
 //
 // See: docs/code-quality/audit-tests.md §1.
 
@@ -63,23 +63,6 @@ Future<void> _drainAsyncFrames(WidgetTester tester) async {
   }
 }
 
-/// Install a FlutterError.onError handler that drops "RenderFlex overflowed"
-/// exceptions during the current test and re-forwards everything else to
-/// the default presenter. See the file-level comment for the rationale.
-void _swallowKnownOverflows() {
-  final defaultOnError = FlutterError.onError;
-  FlutterError.onError = (details) {
-    final summary = details.exceptionAsString();
-    if (summary.contains('overflowed')) {
-      return; // Drop known header-row overflows at test sizes.
-    }
-    defaultOnError?.call(details);
-  };
-  addTearDown(() {
-    FlutterError.onError = defaultOnError;
-  });
-}
-
 List<Override> _diagnosticsOverrides() {
   return [
     // Empty session list → DiagnosticsScreen lands on its "no session"
@@ -100,7 +83,6 @@ void main() {
   testWidgets(
       'renders_without_throwing_no_sessions: DiagnosticsScreen with no sessions '
       'lands on the empty state without uncaught exceptions', (tester) async {
-    _swallowKnownOverflows();
     // 1280x800 is a typical desktop width and well above
     // Responsive.isMobile's threshold so the screen takes the desktop
     // padding branch (20 px outer pad, larger title font). The smoke test
@@ -126,7 +108,6 @@ void main() {
   testWidgets(
       'shows_title_and_no_session_empty_state: localised title and '
       '"select a session" empty body both render', (tester) async {
-    _swallowKnownOverflows();
     // With no session selected (provider default) and no sessions to
     // auto-select from (override), DiagnosticsScreen must render its
     // header title plus the EmptyState that prompts the user to pick a
@@ -161,7 +142,6 @@ void main() {
   testWidgets(
       'dump_screen_renders_create_button: header title and "Create dump" '
       'action are both present on initial pump', (tester) async {
-    _swallowKnownOverflows();
     // DiagnosticDumpScreen has minimal provider deps — only reads
     // diagnosticDumpServiceProvider inside _createDump (i.e. on tap),
     // so a plain harness pump renders it cleanly. The "Create dump"

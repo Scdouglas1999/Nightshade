@@ -114,23 +114,31 @@ class _FrameCountInput extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = Theme.of(context).extension<NightshadeColors>()!;
 
+    // Keep ≥48px touch targets but let the label flex so the stepper fits a
+    // narrow phone controls column without overflowing.
     return Row(
       children: [
-        Text(
-          'Frames:',
-          style: TextStyle(
-            fontSize: 14,
-            color: colors.textSecondary,
+        Flexible(
+          child: Text(
+            'Frames:',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 14,
+              color: colors.textSecondary,
+            ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 8),
         IconButton(
           onPressed: value > 1 ? () => onChanged(value - 1) : null,
           icon: const Icon(LucideIcons.minus, size: 18),
           color: colors.textSecondary,
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
         Container(
-          width: 60,
+          width: 52,
           alignment: Alignment.center,
           padding: const EdgeInsets.symmetric(vertical: 8),
           decoration: BoxDecoration(
@@ -150,6 +158,8 @@ class _FrameCountInput extends StatelessWidget {
           onPressed: () => onChanged(value + 1),
           icon: const Icon(LucideIcons.plus, size: 18),
           color: colors.textSecondary,
+          visualDensity: VisualDensity.compact,
+          constraints: const BoxConstraints(minWidth: 48, minHeight: 48),
         ),
       ],
     );

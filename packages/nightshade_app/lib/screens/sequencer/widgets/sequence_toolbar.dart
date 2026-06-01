@@ -395,30 +395,43 @@ class SequenceToolbar extends ConsumerWidget {
           final isCompact =
               constraints.maxWidth < BreakpointTokens.breakpointDesktop;
 
+          // Phone tier: the dedicated MobilePlaybackBar already owns the
+          // play/stop/skip controls AND the time estimate, so rendering them
+          // again here just overflows the row. On phone we collapse the
+          // toolbar to the file/edit overflow menu + status badge only.
+          //
+          // Detect "phone" by the device's SHORTER side (not this row's
+          // width) so a phone held in landscape — where this strip is wide
+          // but the mobile builder is in use below it — still collapses.
+          final mq = MediaQuery.sizeOf(context);
+          final shortSide = mq.width < mq.height ? mq.width : mq.height;
+          final isPhone = shortSide < BreakpointTokens.breakpointPhone;
+
           return Row(
             children: [
-              _PlaybackControls(
-                colors: colors,
-                isIdle: isIdle,
-                isRunning: isRunning,
-                isPaused: isPaused,
-                executionState: executionState,
-                onStart: () {
-                  showDialog(
-                    context: context,
-                    builder: (context) => PreFlightValidationDialog(
-                      onStartSequence: () {
-                        runSequenceAction(actionService.start);
-                      },
-                    ),
-                  );
-                },
-                onPause: () => runSequenceAction(actionService.pause),
-                onResume: () => runSequenceAction(actionService.resume),
-                onStop: () => runSequenceAction(actionService.stop),
-                onSkip: () => runSequenceAction(actionService.skip),
-                onReset: actionService.reset,
-              ),
+              if (!isPhone)
+                _PlaybackControls(
+                  colors: colors,
+                  isIdle: isIdle,
+                  isRunning: isRunning,
+                  isPaused: isPaused,
+                  executionState: executionState,
+                  onStart: () {
+                    showDialog(
+                      context: context,
+                      builder: (context) => PreFlightValidationDialog(
+                        onStartSequence: () {
+                          runSequenceAction(actionService.start);
+                        },
+                      ),
+                    );
+                  },
+                  onPause: () => runSequenceAction(actionService.pause),
+                  onResume: () => runSequenceAction(actionService.resume),
+                  onStop: () => runSequenceAction(actionService.stop),
+                  onSkip: () => runSequenceAction(actionService.skip),
+                  onReset: actionService.reset,
+                ),
               if (!isCompact) ...[
                 for (final a in actions) ...[
                   if (a.isDivider) ...[
@@ -440,8 +453,11 @@ class SequenceToolbar extends ConsumerWidget {
                 _ToolbarOverflowMenu(colors: colors, actions: actions),
               ],
               const Spacer(),
-              if (sequence != null) ...[
-                _SequenceTimeEstimate(colors: colors, sequence: sequence),
+              if (sequence != null && !isPhone) ...[
+                Flexible(
+                  child:
+                      _SequenceTimeEstimate(colors: colors, sequence: sequence),
+                ),
                 const SizedBox(width: 16),
               ],
               if (!isCompact)

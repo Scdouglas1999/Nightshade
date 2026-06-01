@@ -91,10 +91,20 @@ extension _CenterPanel on _PolarAlignmentScreenState {
         color: colors.surfaceAlt,
         border: Border(bottom: BorderSide(color: colors.border)),
       ),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _ProgressStep(
+      // Horizontally scrollable so the four-step rail never overflows on a
+      // narrow phone; it stays centered when there's room.
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        physics: const ClampingScrollPhysics(),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: MediaQuery.sizeOf(context).width -
+                48, // account for the 24px horizontal padding either side
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _ProgressStep(
             colors: colors,
             number: 1,
             label: 'Capture 1',
@@ -126,7 +136,9 @@ extension _CenterPanel on _PolarAlignmentScreenState {
             isActive: phase == PolarAlignPhase.adjusting,
             isComplete: phase == PolarAlignPhase.complete,
           ),
-        ],
+            ],
+          ),
+        ),
       ),
     );
   }

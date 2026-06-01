@@ -55,7 +55,8 @@ class _OnboardingSummaryStepState
 
     final imageScale = draft.imageScaleArcsecPerPixel;
 
-    return Column(
+    return SingleChildScrollView(
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
@@ -171,6 +172,7 @@ class _OnboardingSummaryStepState
           ),
         ),
       ],
+      ),
     );
   }
 

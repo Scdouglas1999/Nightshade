@@ -29,6 +29,11 @@ import 'steps/welcome_step.dart';
 /// real screen real estate, and a new user shouldn't see the dashboard
 /// background bleed through behind a partially-translucent dialog.
 /// Returning users reach the dashboard by pressing "Skip onboarding".
+/// Key on the phone footer's full-width primary-action region (the 48 px tall
+/// tap surface). Exposed so responsive widget tests can assert the touch-target
+/// floor on the reachable area rather than the button's intrinsic content box.
+const Key phonePrimaryActionKey = Key('onboarding.phone.primaryAction');
+
 class OnboardingScreen extends ConsumerStatefulWidget {
   const OnboardingScreen({super.key});
 
@@ -225,6 +230,55 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   Widget _buildWizard(BuildContext context, ThemeData theme,
       NightshadeColors colors, OnboardingDraft draft) {
+    // Drive the layout from the wizard's OWN width (not the raw window) so it
+    // reflows correctly when embedded and on every phone/tablet/desktop size.
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final isPhone = constraints.maxWidth < BreakpointTokens.breakpointPhone;
+
+        final onBack = draft.currentStep == OnboardingStep.welcome ||
+                // On the terminal step the profile is already created; there is
+                // nothing to go "back" to that wouldn't re-open the create
+                // flow, so Back is suppressed.
+                draft.currentStep == OnboardingStep.nextSteps ||
+                _saving
+            ? null
+            : _onBack;
+        final onSkipStep =
+            draft.currentStep.isOptional && !_saving ? _onSkipStep : null;
+        final onFirstLight =
+            draft.currentStep == OnboardingStep.nextSteps && !_saving
+                ? _finishToFirstLight
+                : null;
+
+        return isPhone
+            ? _buildPhoneWizard(
+                context, theme, colors, draft,
+                onBack: onBack,
+                onSkipStep: onSkipStep,
+                onFirstLight: onFirstLight,
+              )
+            : _buildWideWizard(
+                context, theme, colors, draft,
+                onBack: onBack,
+                onSkipStep: onSkipStep,
+                onFirstLight: onFirstLight,
+              );
+      },
+    );
+  }
+
+  /// Tablet/desktop layout: step sidebar + bordered body + horizontal footer.
+  /// Unchanged from the original wizard so wide layouts do not regress.
+  Widget _buildWideWizard(
+    BuildContext context,
+    ThemeData theme,
+    NightshadeColors colors,
+    OnboardingDraft draft, {
+    required VoidCallback? onBack,
+    required VoidCallback? onSkipStep,
+    required VoidCallback? onFirstLight,
+  }) {
     return Center(
       child: ConstrainedBox(
         constraints: BoxConstraints(
@@ -267,26 +321,61 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
               _Footer(
                 currentStep: draft.currentStep,
                 isSaving: _saving,
-                onBack: draft.currentStep == OnboardingStep.welcome ||
-                        // On the terminal step the profile is already created;
-                        // there is nothing to go "back" to that wouldn't
-                        // re-open the create flow, so Back is suppressed.
-                        draft.currentStep == OnboardingStep.nextSteps ||
-                        _saving
-                    ? null
-                    : _onBack,
-                onSkipStep: draft.currentStep.isOptional && !_saving
-                    ? _onSkipStep
-                    : null,
+                onBack: onBack,
+                onSkipStep: onSkipStep,
                 onNext: _saving ? null : _onNext,
-                onFirstLight:
-                    draft.currentStep == OnboardingStep.nextSteps && !_saving
-                        ? _finishToFirstLight
-                        : null,
+                onFirstLight: onFirstLight,
               ),
             ],
           ),
         ),
+      ),
+    );
+  }
+
+  /// Phone layout (portrait + landscape): no sidebar — a compact header with a
+  /// step progress bar, the step body filling the remaining height in a single
+  /// reflowed column, and a stacked footer whose primary action is full-width
+  /// and always reachable.
+  ///
+  /// The body stays inside a bounded region (not a scroll view) so steps that
+  /// rely on a finite height — e.g. the device picker's `Expanded` device list —
+  /// keep working; each step body scrolls its own content where needed.
+  Widget _buildPhoneWizard(
+    BuildContext context,
+    ThemeData theme,
+    NightshadeColors colors,
+    OnboardingDraft draft, {
+    required VoidCallback? onBack,
+    required VoidCallback? onSkipStep,
+    required VoidCallback? onFirstLight,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _PhoneHeader(
+            currentStep: draft.currentStep,
+            onExit: _saving ? null : _onExitWizard,
+          ),
+          const SizedBox(height: 12),
+          Expanded(
+            child: _StepBody(
+              currentStep: draft.currentStep,
+              onFinishTo: _finishTo,
+            ),
+          ),
+          const SizedBox(height: 12),
+          _PhoneFooter(
+            currentStep: draft.currentStep,
+            isSaving: _saving,
+            onBack: onBack,
+            onSkipStep: onSkipStep,
+            onNext: _saving ? null : _onNext,
+            onFirstLight: onFirstLight,
+          ),
+        ],
       ),
     );
   }
@@ -347,9 +436,189 @@ class _Header extends StatelessWidget {
   }
 }
 
+/// Compact phone header: icon + title, an inline "Skip onboarding" icon button
+/// (the full label would crowd a 360 px row), and a step progress bar. Replaces
+/// the wide layout's sidebar, which doesn't fit a phone column.
+class _PhoneHeader extends StatelessWidget {
+  const _PhoneHeader({required this.currentStep, required this.onExit});
+
+  final OnboardingStep currentStep;
+  final VoidCallback? onExit;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = NightshadeColors.of(context);
+    final theme = Theme.of(context);
+    final stepNumber = currentStep.order + 1;
+    final total = OnboardingStepOrder.total;
+    final progress = stepNumber / total;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 36,
+              height: 36,
+              decoration: NightshadeDecorations.iconChip(
+                colors.primary,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child:
+                  Icon(LucideIcons.sparkles, color: colors.primary, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Set up your rig',
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      color: colors.textPrimary,
+                      fontWeight: FontWeight.w700,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  Text(
+                    'Step $stepNumber of $total — ${_StepSidebar.labelFor(currentStep)}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: colors.textSecondary,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: onExit,
+              tooltip: 'Skip onboarding',
+              iconSize: 20,
+              constraints: const BoxConstraints(
+                minWidth: 48,
+                minHeight: 48,
+              ),
+              icon: Icon(LucideIcons.logOut, color: colors.textSecondary),
+            ),
+          ],
+        ),
+        const SizedBox(height: 10),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(999),
+          child: LinearProgressIndicator(
+            value: progress,
+            minHeight: 4,
+            backgroundColor: colors.surfaceAlt,
+            valueColor: AlwaysStoppedAnimation<Color>(colors.primary),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Phone footer: primary action spans the full width on its own row (always
+/// reachable, ≥48 px), with Back / Skip / "Capture first light" wrapped beneath
+/// it so nothing overflows a narrow column.
+class _PhoneFooter extends StatelessWidget {
+  const _PhoneFooter({
+    required this.currentStep,
+    required this.isSaving,
+    required this.onBack,
+    required this.onSkipStep,
+    required this.onNext,
+    required this.onFirstLight,
+  });
+
+  final OnboardingStep currentStep;
+  final bool isSaving;
+  final VoidCallback? onBack;
+  final VoidCallback? onSkipStep;
+  final VoidCallback? onNext;
+  final VoidCallback? onFirstLight;
+
+  @override
+  Widget build(BuildContext context) {
+    final isSummary = currentStep == OnboardingStep.summary;
+    final isNextSteps = currentStep == OnboardingStep.nextSteps;
+
+    final IconData primaryIcon;
+    final String primaryLabel;
+    if (isNextSteps) {
+      primaryIcon = LucideIcons.layoutDashboard;
+      primaryLabel = 'Go to dashboard';
+    } else if (isSummary) {
+      primaryIcon = LucideIcons.check;
+      primaryLabel = 'Save profile';
+    } else {
+      primaryIcon = LucideIcons.arrowRight;
+      primaryLabel = 'Next';
+    }
+
+    final secondary = <Widget>[
+      if (onBack != null)
+        NightshadeButton(
+          icon: LucideIcons.arrowLeft,
+          label: 'Back',
+          variant: ButtonVariant.outline,
+          onPressed: onBack,
+        ),
+      if (onSkipStep != null)
+        NightshadeButton(
+          label: 'Skip this step',
+          variant: ButtonVariant.ghost,
+          onPressed: onSkipStep,
+        ),
+      if (isNextSteps && onFirstLight != null)
+        NightshadeButton(
+          icon: LucideIcons.sparkles,
+          label: 'Capture first light',
+          variant: ButtonVariant.outline,
+          onPressed: isSaving ? null : onFirstLight,
+        ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          key: phonePrimaryActionKey,
+          width: double.infinity,
+          height: 48,
+          child: NightshadeButton(
+            icon: primaryIcon,
+            label: primaryLabel,
+            variant: ButtonVariant.primary,
+            size: ButtonSize.large,
+            isLoading: isSaving,
+            onPressed: onNext,
+          ),
+        ),
+        if (secondary.isNotEmpty) ...[
+          const SizedBox(height: NightshadeTokens.spaceSm),
+          Wrap(
+            alignment: WrapAlignment.center,
+            spacing: NightshadeTokens.spaceMd,
+            runSpacing: NightshadeTokens.spaceSm,
+            children: secondary,
+          ),
+        ],
+      ],
+    );
+  }
+}
+
 class _StepSidebar extends StatelessWidget {
   const _StepSidebar({required this.currentStep});
   final OnboardingStep currentStep;
+
+  /// Human-readable label for [step], shared with the phone header.
+  static String labelFor(OnboardingStep step) => _stepLabels[step] ?? '';
 
   static const _stepLabels = <OnboardingStep, String>{
     OnboardingStep.welcome: 'Welcome',

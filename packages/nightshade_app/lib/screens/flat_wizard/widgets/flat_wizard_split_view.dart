@@ -1,7 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:lucide_icons/lucide_icons.dart';
 import 'package:nightshade_ui/nightshade_ui.dart';
 
-/// Split view layout for flat wizard with controls on left, preview on right
+/// Split view layout for flat wizard.
+///
+/// On tablet/desktop the controls sit in a fixed-fraction column on the left
+/// with the preview filling the rest. On a phone the preview is the dominant
+/// region and the capture/tuning controls collapse into a bottom sheet (or a
+/// side-by-side split in landscape) via [AdaptivePanelLayout], so the narrow
+/// controls column never squishes the sliders/inputs into overflow.
 class FlatWizardSplitView extends StatelessWidget {
   final Widget controlsPanel;
   final Widget previewPanel;
@@ -20,7 +27,35 @@ class FlatWizardSplitView extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final controlsPixelWidth = constraints.maxWidth * controlsWidth;
+        final width = constraints.maxWidth;
+
+        // Phone tier: preview dominant, controls in a sheet / landscape split.
+        if (width < 600) {
+          return AdaptivePanelLayout(
+            primary: Container(
+              color: colors.background,
+              child: previewPanel,
+            ),
+            phoneStrategy: PhonePanelStrategy.bottomSheet,
+            panelSide: PanelSide.start,
+            primarySegmentLabel: 'Preview',
+            primarySegmentIcon: LucideIcons.image,
+            secondary: [
+              AdaptivePanel(
+                title: 'Capture Controls',
+                icon: LucideIcons.sliders,
+                child: Container(
+                  color: colors.surface,
+                  child: controlsPanel,
+                ),
+              ),
+            ],
+          );
+        }
+
+        // Tablet / desktop: fixed-fraction controls column on the left.
+        final controlsPixelWidth =
+            (constraints.maxWidth * controlsWidth).clamp(280.0, 460.0);
 
         return Row(
           crossAxisAlignment: CrossAxisAlignment.stretch,

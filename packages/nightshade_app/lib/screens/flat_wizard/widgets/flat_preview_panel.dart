@@ -17,29 +17,47 @@ class FlatPreviewPanel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(flatWizardProvider);
 
-    return Column(
-      children: [
-        // Image preview area
-        Expanded(
-          flex: 3,
-          child: _ImagePreview(
-            imageData: state.lastImageData,
-            showHistogram: state.showHistogramOverlay,
-          ),
-        ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final imagePreview = _ImagePreview(
+          imageData: state.lastImageData,
+          showHistogram: state.showHistogramOverlay,
+        );
+        final statsBar = _StatsBar(state: state);
+        final countdown =
+            state.isExposing ? _ExposureCountdown(state: state) : null;
+        final visualizations = _VisualizationsSection(state: state);
 
-        // Stats bar
-        _StatsBar(state: state),
+        // When the region is short (phone preview pane / landscape), the
+        // flex split would crush the visualization charts into overflow.
+        // Below a threshold, scroll the panel with sensible fixed heights
+        // instead of fighting for pixels.
+        final isShort = constraints.maxHeight.isFinite &&
+            constraints.maxHeight < 560;
 
-        // Live countdown (when exposing)
-        if (state.isExposing) _ExposureCountdown(state: state),
+        if (isShort) {
+          return SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(height: 260, child: imagePreview),
+                statsBar,
+                if (countdown != null) countdown,
+                SizedBox(height: 220, child: visualizations),
+              ],
+            ),
+          );
+        }
 
-        // Toggleable visualizations
-        Expanded(
-          flex: 2,
-          child: _VisualizationsSection(state: state),
-        ),
-      ],
+        return Column(
+          children: [
+            Expanded(flex: 3, child: imagePreview),
+            statsBar,
+            if (countdown != null) countdown,
+            Expanded(flex: 2, child: visualizations),
+          ],
+        );
+      },
     );
   }
 }
@@ -130,31 +148,44 @@ class _ImagePreview extends StatelessWidget {
   }
 
   Widget _buildEmptyState(NightshadeColors colors) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Icon(
-          LucideIcons.image,
-          size: 64,
-          color: colors.textMuted,
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'No flat captured yet',
-          style: TextStyle(
-            color: colors.textMuted,
-            fontSize: 14,
+    // Centered but scroll-safe: when the preview region is short (phone), the
+    // placeholder must not overflow its Stack/Positioned.fill bounds.
+    return SingleChildScrollView(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 0),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                LucideIcons.image,
+                size: 64,
+                color: colors.textMuted,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'No flat captured yet',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textMuted,
+                  fontSize: 14,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Start capture or test exposure to see preview',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  color: colors.textMuted.withValues(alpha: 0.7),
+                  fontSize: 12,
+                ),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 8),
-        Text(
-          'Start capture or test exposure to see preview',
-          style: TextStyle(
-            color: colors.textMuted.withValues(alpha: 0.7),
-            fontSize: 12,
-          ),
-        ),
-      ],
+      ),
     );
   }
 
@@ -370,6 +401,34 @@ class _StatsBar extends StatelessWidget {
         ? state.filterSettings[state.currentFilterIndex]
         : null;
 
+    // A dense readout row that must not overflow on a phone: the labelled
+    // stats wrap, and the status indicator drops onto its own line when the
+    // viewport is too narrow to keep it inline.
+    final stats = [
+      ResponsiveStat(
+        label: 'Filter',
+        value: currentFilter?.filterName ?? '-',
+      ),
+      ResponsiveStat(
+        label: 'Exposure',
+        value: currentFilter?.calibratedExposure != null
+            ? '${currentFilter!.calibratedExposure!.toStringAsFixed(2)}s'
+            : '-',
+      ),
+      ResponsiveStat(
+        label: 'ADU',
+        value: currentFilter?.currentAdu != null
+            ? currentFilter!.currentAdu!.toStringAsFixed(0)
+            : '-',
+      ),
+      ResponsiveStat(
+        label: 'Frame',
+        value: currentFilter != null
+            ? '${currentFilter.capturedCount}/${currentFilter.frameCountOverride ?? state.globalSettings.frameCount}'
+            : '-/-',
+      ),
+    ];
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
@@ -378,103 +437,36 @@ class _StatsBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(8),
         border: Border.all(color: colors.border),
       ),
-      child: Row(
-        children: [
-          // Filter
-          _StatItem(
-            label: 'Filter',
-            value: currentFilter?.filterName ?? '-',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // Keep stats + status on one line only when there is comfortable
+          // room; otherwise stack the status under the wrapped stats.
+          final inline = constraints.maxWidth >= 460;
+          final statStrip = ResponsiveStatStrip(stats: stats, minCellWidth: 96);
+          final status = _StatusIndicator(
+            status: currentFilter?.status ?? FilterCalibrationStatus.pending,
             colors: colors,
-          ),
-          _divider(colors),
+          );
 
-          // Exposure
-          _StatItem(
-            label: 'Exposure',
-            value: currentFilter?.calibratedExposure != null
-                ? '${currentFilter!.calibratedExposure!.toStringAsFixed(2)}s'
-                : '-',
-            colors: colors,
-          ),
-          _divider(colors),
-
-          // ADU
-          _StatItem(
-            label: 'ADU',
-            value: currentFilter?.currentAdu != null
-                ? currentFilter!.currentAdu!.toStringAsFixed(0)
-                : '-',
-            colors: colors,
-          ),
-          _divider(colors),
-
-          // Frame progress
-          _StatItem(
-            label: 'Frame',
-            value: currentFilter != null
-                ? '${currentFilter.capturedCount}/${currentFilter.frameCountOverride ?? state.globalSettings.frameCount}'
-                : '-/-',
-            colors: colors,
-          ),
-          _divider(colors),
-
-          // Status
-          Expanded(
-            child: _StatusIndicator(
-              status: currentFilter?.status ?? FilterCalibrationStatus.pending,
-              colors: colors,
-            ),
-          ),
-        ],
+          if (inline) {
+            return Row(
+              children: [
+                Expanded(child: statStrip),
+                const SizedBox(width: 16),
+                status,
+              ],
+            );
+          }
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              statStrip,
+              const SizedBox(height: 10),
+              Align(alignment: Alignment.centerRight, child: status),
+            ],
+          );
+        },
       ),
-    );
-  }
-
-  Widget _divider(NightshadeColors colors) {
-    return Container(
-      width: 1,
-      height: 30,
-      margin: const EdgeInsets.symmetric(horizontal: 16),
-      color: colors.border,
-    );
-  }
-}
-
-class _StatItem extends StatelessWidget {
-  final String label;
-  final String value;
-  final NightshadeColors colors;
-
-  const _StatItem({
-    required this.label,
-    required this.value,
-    required this.colors,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 10,
-            color: colors.textMuted,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-            color: colors.textPrimary,
-            fontFamily: 'monospace',
-          ),
-        ),
-      ],
     );
   }
 }
