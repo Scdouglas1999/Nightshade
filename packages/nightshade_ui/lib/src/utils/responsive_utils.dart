@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/widgets.dart';
 import '../theme/nightshade_tokens.dart';
+import '../tokens/breakpoint_tokens.dart';
 
 /// Responsive breakpoint utilities for adaptive UI layouts.
 ///
@@ -20,7 +21,40 @@ import '../theme/nightshade_tokens.dart';
 abstract final class Responsive {
   Responsive._();
 
+  /// Width below which the layout is a **phone** (`< 600`,
+  /// [BreakpointTokens.breakpointPhone]).
+  static const double phoneMaxWidth = BreakpointTokens.breakpointPhone;
+
+  /// Width below which the phone is **compact** (`< 480`) and dense rows need
+  /// extra tightening — e.g. a stat strip should 2-column or stack rather than
+  /// stay in one row.
+  static const double compactPhoneMaxWidth = 480.0;
+
+  /// Returns true on a true **phone** viewport (`width < 600`).
+  ///
+  /// This is the first-class phone tier. Prefer this — or, better, a
+  /// [LayoutBuilder] reading the region's own width — when building NEW phone
+  /// layouts. [isMobile] (`< 768`) lumps small tablets in with phones and is
+  /// kept only for back-compat with existing screens.
+  ///
+  /// IMPORTANT: the global [scaleFactor]/[fontSize]/[spacing] helpers are NOT
+  /// the phone-fit mechanism. They miniaturize a wide layout; a phone layout
+  /// must **reflow** (stack columns, wrap dense rows, push secondary controls
+  /// into sheets/collapsibles) so content stays legible and nothing overflows.
+  static bool isPhone(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < phoneMaxWidth;
+
+  /// Returns true on a **compact phone** (`width < 480`).
+  ///
+  /// Use to tighten further (e.g. drop a stat strip to a single column, hide a
+  /// label, reduce a 2-up grid to 1-up) — but never to break the layout.
+  static bool isCompactPhone(BuildContext context) =>
+      MediaQuery.sizeOf(context).width < compactPhoneMaxWidth;
+
   /// Returns true if the screen width is less than the tablet breakpoint (768px).
+  ///
+  /// NOTE: This is the legacy "mobile" bucket (`< 768`) and includes small
+  /// tablets. For phone-specific reflow use [isPhone] (`< 600`).
   static bool isMobile(BuildContext context) =>
       MediaQuery.sizeOf(context).width < NightshadeTokens.breakpointTablet;
 
@@ -266,6 +300,19 @@ abstract final class Responsive {
 
   /// Returns true if the screen is in landscape orientation.
   static bool isLandscape(BuildContext context) => !isPortrait(context);
+
+  /// True on a phone-sized viewport (`width < 600`) held in landscape.
+  ///
+  /// In this configuration there is usually enough width to place the
+  /// image/canvas beside its controls (a side-by-side split) even though the
+  /// device is a phone. Pair with [TwoPane] / [AdaptivePanelLayout].
+  static bool isPhoneLandscape(BuildContext context) =>
+      isPhone(context) && isLandscape(context);
+
+  /// True on a phone-sized viewport held in portrait — the canonical
+  /// "single vertically-scrolling column" case.
+  static bool isPhonePortrait(BuildContext context) =>
+      isPhone(context) && isPortrait(context);
 
   /// Returns true if the screen is ultrawide (aspect ratio > 2.0).
   ///

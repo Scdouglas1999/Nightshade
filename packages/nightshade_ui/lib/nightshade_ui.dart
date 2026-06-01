@@ -11,6 +11,9 @@ export 'breakpoints.dart';
 export 'src/tokens/breakpoint_tokens.dart';
 export 'src/tokens/shell_chrome_metrics.dart';
 export 'src/layout/adaptive_layout.dart';
+export 'src/layout/adaptive_panel_layout.dart';
+export 'src/layout/adaptive_modal.dart';
+export 'src/layout/two_pane.dart';
 // Utils
 export 'src/utils/responsive_utils.dart';
 export 'src/utils/adaptive_dialog_constraints.dart';
@@ -30,6 +33,8 @@ export 'src/components/nightshade_alert.dart';
 export 'src/components/status_pill.dart';
 export 'src/components/status_dot.dart';
 export 'src/components/sub_tab_button.dart';
+export 'src/components/adaptive_tab_bar.dart';
+export 'src/components/responsive_stat_strip.dart';
 export 'src/components/nav_item.dart';
 export 'src/components/responsive_card_grid.dart';
 export 'src/components/shimmer_loading.dart';
