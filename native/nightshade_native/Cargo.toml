@@ -8,7 +8,6 @@ members = [
     "imaging",
     "native",
     "updater",
-    "planetarium",
 ]
 resolver = "2"
 

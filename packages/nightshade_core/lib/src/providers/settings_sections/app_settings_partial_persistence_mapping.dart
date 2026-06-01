@@ -256,9 +256,6 @@ extension _AppSettingsPartialPersistenceMapping on AppSettingsNotifier {
               current.pushCriticalAlerts,
             )
           : null,
-      renderingPlatform: settings.containsKey('rendering_platform')
-          ? RenderingPlatform.parseStored(settings['rendering_platform'])
-          : null,
       // Wave 4 Recovery Mode â€” partial-update path. Each key is only
       // honoured if present in the patch, mirroring the rest of this
       // helper.

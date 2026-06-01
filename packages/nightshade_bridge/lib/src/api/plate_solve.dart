@@ -7,7 +7,7 @@ import '../error.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `into_pref`
+// These functions are ignored because they are not marked as `pub`: `apply_saved_preference_to_imaging`, `into_pref`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `clone`, `clone`, `fmt`, `fmt`, `fmt`, `fmt`, `from`
 
 /// Check if a plate solver is available
@@ -54,9 +54,12 @@ PlateSolverInfo apiPlatesolveVerify({required String executablePath}) =>
 PlateSolverConfigPayload apiPlatesolveGetConfig() =>
     RustLib.instance.api.crateApiPlateSolveApiPlatesolveGetConfig();
 
-/// Persist a new plate-solver configuration. Invalidates the solver
-/// availability cache so the next `api_is_plate_solver_available()` call
-/// re-probes the filesystem with the new paths.
+/// Persist a new plate-solver configuration. Immediately propagates the new
+/// paths into the imaging crate's process-global so subsequent solves (blind
+/// or near, from any call site including the sequencer) use the updated paths
+/// without requiring a restart. Also invalidates the solver availability
+/// cache so the next `api_is_plate_solver_available()` call re-probes the
+/// filesystem with the new paths.
 void apiPlatesolveSetConfig({required PlateSolverConfigPayload config}) =>
     RustLib.instance.api
         .crateApiPlateSolveApiPlatesolveSetConfig(config: config);

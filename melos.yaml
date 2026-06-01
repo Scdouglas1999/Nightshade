@@ -4,8 +4,6 @@ repository: https://github.com/Scoduglas1999/Nightshade2
 packages:
   - apps/*
   - packages/*
-  # Planetarium v2 Dart shell (Phase 7); also matched by packages/* above.
-  - packages/nightshade_planetarium_v2
 
 command:
   version:

@@ -39,7 +39,6 @@ nightshade_imaging = { path = "../imaging" }
 nightshade_alpaca = { path = "../alpaca" }
 nightshade_native = { path = "../native" }
 nightshade_indi = { path = "../indi" }
-nightshade_planetarium = { path = "../planetarium" }
 
 [target.'cfg(windows)'.dependencies]
 nightshade_ascom = { path = "../ascom" }

@@ -44,7 +44,6 @@ export 'src/models/equipment/unified_device.dart';
 export 'src/models/equipment/discovery_state.dart';
 export 'src/models/equipment_profile.dart';
 export 'src/models/settings/app_settings.dart';
-export 'src/models/settings/rendering_platform.dart';
 export 'src/models/imaging/imaging_models.dart';
 export 'src/models/imaging/camera_preset.dart';
 export 'src/models/imaging/auto_stretch_settings.dart';
@@ -154,7 +153,7 @@ export 'src/providers/framing_image_cache_provider.dart';
 // HiPS framing tile-layer Riverpod wiring (C7): fetcher/cache/loader DI handles,
 // the resident-tiles snapshot the framing painter watches, and the feature flag
 // gating the GPU-composited tiled survey background. Renders inside the framing
-// path (not the planetarium renderer) so it works regardless of RenderingPlatform.
+// path (not the planetarium renderer).
 export 'src/providers/hips_framing_provider.dart';
 export 'src/providers/imaging_provider.dart';
 export 'src/providers/imaging_viewer_state_provider.dart';
@@ -175,7 +174,6 @@ export 'src/providers/session_provider.dart';
 // samples-based HorizonProfile (services/scheduler/horizon_profile.dart) wins
 // at the barrel. Direct importers of settings_provider.dart still see it.
 export 'src/providers/settings_provider.dart' hide HorizonProfile;
-export 'src/providers/rendering_platform_provider.dart';
 export 'src/providers/clock_provider.dart';
 export 'src/providers/profiles_provider.dart';
 export 'src/providers/equipment_fov_provider.dart';

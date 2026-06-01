@@ -23,8 +23,6 @@ dependencies:
     path: ../../packages/nightshade_bridge
   nightshade_planetarium:
     path: ../../packages/nightshade_planetarium
-  nightshade_planetarium_v2:
-    path: ../../packages/nightshade_planetarium_v2
   nightshade_updater:
     path: ../../packages/nightshade_updater
 

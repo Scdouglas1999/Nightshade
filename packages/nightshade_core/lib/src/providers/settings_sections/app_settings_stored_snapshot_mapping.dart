@@ -126,8 +126,6 @@ extension _AppSettingsStoredSnapshotMapping on AppSettingsNotifier {
           _parseDouble(allSettings['effective_horizon_deg'], 0.0),
       audibleAlertsOnCritical:
           _parseBool(allSettings['audible_alerts_on_critical'], false),
-      renderingPlatform:
-          RenderingPlatform.parseStored(allSettings['rendering_platform']),
       criticalAlertSound:
           _normaliseCriticalAlertSound(allSettings['critical_alert_sound']),
       pushCriticalAlerts: _parseBool(allSettings['push_critical_alerts'], true),

@@ -121,9 +121,6 @@ class AppSettingsState {
   /// imaging where the user has walked away from the laptop.
   final bool audibleAlertsOnCritical;
 
-  /// Planetarium renderer: legacy CustomPainter (v1) or Rust+wgpu (v2).
-  final RenderingPlatform renderingPlatform;
-
   /// Which sound to play when [audibleAlertsOnCritical] fires.
   ///
   /// Allowed values:
@@ -522,7 +519,6 @@ class AppSettingsState {
         '{"N":0,"NE":0,"E":0,"SE":0,"S":0,"SW":0,"W":0,"NW":0}',
     this.effectiveHorizonDeg = 0.0,
     this.audibleAlertsOnCritical = false,
-    this.renderingPlatform = RenderingPlatform.v1,
     this.criticalAlertSound = 'systemBell',
     this.pushCriticalAlerts = true,
     // Wave 4 Recovery Mode â€” SGP-matching defaults.
@@ -677,7 +673,6 @@ class AppSettingsState {
     String? horizonProfileJson,
     double? effectiveHorizonDeg,
     bool? audibleAlertsOnCritical,
-    RenderingPlatform? renderingPlatform,
     String? criticalAlertSound,
     bool? pushCriticalAlerts,
     // Wave 4 Recovery Mode
@@ -845,7 +840,6 @@ class AppSettingsState {
       effectiveHorizonDeg: effectiveHorizonDeg ?? this.effectiveHorizonDeg,
       audibleAlertsOnCritical:
           audibleAlertsOnCritical ?? this.audibleAlertsOnCritical,
-      renderingPlatform: renderingPlatform ?? this.renderingPlatform,
       criticalAlertSound: criticalAlertSound ?? this.criticalAlertSound,
       pushCriticalAlerts: pushCriticalAlerts ?? this.pushCriticalAlerts,
       // Wave 4 Recovery Mode

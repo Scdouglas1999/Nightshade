@@ -25,7 +25,6 @@ export 'api/hotplug.dart';
 export 'api/imaging.dart';
 export 'api/init.dart';
 export 'api/phd2.dart';
-export 'api/planetarium.dart';
 export 'api/plate_solve.dart';
 export 'api/polar_alignment.dart';
 export 'api/sequencer.dart';

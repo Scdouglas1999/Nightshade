@@ -11,7 +11,6 @@ import 'backend_provider.dart';
 import '../models/settings/app_settings.dart' as models;
 import '../models/settings/app_settings.dart'
     show SafetyFailMode, kDefaultAccentColorHex;
-import '../models/settings/rendering_platform.dart';
 import '../models/imaging/imaging_models.dart'
     show AutofocusSettings, FilterAutofocusConfig;
 

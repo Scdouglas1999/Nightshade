@@ -1000,13 +1000,6 @@ packages:
       relative: true
     source: path
     version: "1.0.0"
-  nightshade_planetarium_v2:
-    dependency: "direct main"
-    description:
-      path: "../../packages/nightshade_planetarium_v2"
-      relative: true
-    source: path
-    version: "1.0.0"
   nightshade_plugins:
     dependency: "direct overridden"
     description:

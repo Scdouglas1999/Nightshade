@@ -6,8 +6,6 @@
 // Owns:
 //   * bortleClass, horizonProfileJson, effectiveHorizonDeg
 //   * audibleAlertsOnCritical, criticalAlertSound, pushCriticalAlerts
-//   * renderingPlatform (planetarium stack toggle — lives here because the
-//     user picks it from Settings → Environment / Display Diagnostics)
 //   * observerName (FITS `OBSERVER` keyword)
 //
 // Does NOT own:
@@ -43,12 +41,6 @@ extension EnvironmentSettingsSection on AppSettingsNotifier {
   Future<void> setAudibleAlertsOnCritical(bool value) async {
     await _saveSetting('audible_alerts_on_critical', value.toString());
     _patchState((s) => s.copyWith(audibleAlertsOnCritical: value));
-  }
-
-  /// Select planetarium rendering stack (v1 legacy or v2 Rust+wgpu).
-  Future<void> setRenderingPlatform(RenderingPlatform value) async {
-    await _saveSetting('rendering_platform', value.storageValue);
-    _patchState((s) => s.copyWith(renderingPlatform: value));
   }
 
   /// Set which sound the audible-alert path uses. Unknown values are

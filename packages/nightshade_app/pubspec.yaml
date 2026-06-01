@@ -22,8 +22,6 @@ dependencies:
     path: ../nightshade_remote_protocol
   nightshade_planetarium:
     path: ../nightshade_planetarium
-  nightshade_planetarium_v2:
-    path: ../nightshade_planetarium_v2
   nightshade_plugins:
     path: ../nightshade_plugins
   nightshade_updater:

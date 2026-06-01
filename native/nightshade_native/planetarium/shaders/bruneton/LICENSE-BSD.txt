@@ -1,4 +1,0 @@
-Bruneton precomputed atmospheric scattering (Eric Bruneton, BSD 3-Clause).
-Source: https://github.com/ebruneton/precomputed_atmospheric_scattering
-
-functions.glsl and definitions.glsl are used under the license terms in this file.
